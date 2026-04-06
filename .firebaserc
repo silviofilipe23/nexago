@@ -1,0 +1,16 @@
+
+{
+  "projects": {
+    "default": "volley-track-2dd3b"
+  },
+  "targets": {
+    "volley-track-2dd3b": {
+      "hosting": {
+        "app": ["app-6b72a"],
+        "site": ["site-4af00"],
+        "backoffice": ["backoffice-1e753"],
+        "arena": ["arena-906cc"]
+      }
+    }
+  }
+}

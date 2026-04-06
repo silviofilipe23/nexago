@@ -1,0 +1,455 @@
+rules_version='2'
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Função auxiliar: usuário autenticado é admin (por token para evitar leitura extra)
+    function isAdmin() {
+      return request.auth != null && request.auth.token.role == 'admin';
+    }
+    function isSuperAdmin() {
+      return request.auth != null && request.auth.token.superAdmin == true;
+    }
+    function isArena() {
+      return request.auth != null && request.auth.token.role == 'arena';
+    }
+    function isArenaManager(arenaDoc) {
+      return request.auth != null && arenaDoc != null && arenaDoc.data.managerUserId == request.auth.uid;
+    }
+    function isArenaManagerByArenaId(arenaId) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/arenas/$(arenaId)) &&
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid;
+    }
+
+    // Regras para arenas
+    match /arenas/{arenaId} {
+      allow read: if true;
+      allow create: if request.auth != null && (isAdmin() || isSuperAdmin() || isArena());
+      allow update, delete: if request.auth != null && (
+        resource.data.managerUserId == request.auth.uid ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+    }
+    match /arenas/{arenaId}/courts/{courtId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && (
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        isSuperAdmin()
+      );
+    }
+    match /arenas/{arenaId}/products/{productId} {
+      allow read, create, update, delete: if request.auth != null && (
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        isSuperAdmin()
+      );
+    }
+    match /arenas/{arenaId}/sales/{saleId} {
+      allow read, create: if request.auth != null && (
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        isSuperAdmin()
+      );
+      allow update, delete: if false;
+    }
+    match /arenas/{arenaId}/stockMovements/{movementId} {
+      allow read, create: if request.auth != null && (
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        isSuperAdmin()
+      );
+      allow update, delete: if false;
+    }
+    match /arenaComandas/{comandaId} {
+      allow read, create, update: if request.auth != null && (
+        isSuperAdmin() ||
+        (resource != null && isArenaManagerByArenaId(resource.data.arenaId)) ||
+        (resource == null && isArenaManagerByArenaId(request.resource.data.arenaId))
+      );
+      allow delete: if false;
+    }
+    match /arenaSlots/{slotId} {
+      allow read: if true;
+      allow create: if request.auth != null && (
+        isSuperAdmin() ||
+        (exists(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId)) &&
+         get(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId)).data.managerUserId == request.auth.uid) ||
+        (
+          request.resource.data.status == 'booked' &&
+          request.resource.data.bookingAthleteId == request.auth.uid &&
+          exists(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId))
+        )
+      );
+      allow update, delete: if request.auth != null && (
+        isSuperAdmin() ||
+        (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
+         get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid)
+      );
+    }
+    match /arenaSlotLocks/{lockId} {
+      allow read: if true;
+      allow create: if request.auth != null && (
+        isSuperAdmin() ||
+        (exists(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId)) &&
+         get(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId)).data.managerUserId == request.auth.uid) ||
+        (
+          request.resource.data.bookingAthleteId == request.auth.uid &&
+          exists(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId))
+        )
+      );
+      allow update, delete: if request.auth != null && (
+        isSuperAdmin() ||
+        (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
+         get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid)
+      );
+    }
+    // Links curtos de convite (crescimento viral): leitura pública com dados mínimos da reserva
+    match /arenaBookingInvites/{shareCode} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && shareCode.size() >= 6
+        && shareCode.size() <= 12
+        && request.resource.data.keys().hasAll([
+          'bookingId', 'arenaId', 'arenaName', 'courtName', 'date', 'startTime', 'endTime', 'amountReais', 'courtCapacity'
+        ])
+        && request.resource.data.bookingId is string
+        && request.resource.data.arenaId is string
+        && request.resource.data.arenaName is string
+        && request.resource.data.courtName is string
+        && request.resource.data.date is string
+        && request.resource.data.startTime is string
+        && request.resource.data.endTime is string
+        && request.resource.data.amountReais is number
+        && (
+          request.resource.data.courtCapacity == null ||
+          (request.resource.data.courtCapacity is int && request.resource.data.courtCapacity >= 0)
+        )
+        && exists(/databases/$(database)/documents/arenaBookings/$(request.resource.data.bookingId))
+        && get(/databases/$(database)/documents/arenaBookings/$(request.resource.data.bookingId)).data.athleteId == request.auth.uid
+        && get(/databases/$(database)/documents/arenaBookings/$(request.resource.data.bookingId)).data.arenaId == request.resource.data.arenaId;
+      allow update, delete: if false;
+    }
+
+    match /arenaBookings/{bookingId} {
+      allow read: if request.auth != null && (
+        resource.data.athleteId == request.auth.uid ||
+        (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
+         get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid) ||
+        isSuperAdmin()
+      );
+      allow create: if request.auth != null && (
+        request.resource.data.athleteId == request.auth.uid ||
+        isSuperAdmin() ||
+        (
+          exists(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId)) &&
+          get(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId)).data.managerUserId == request.auth.uid
+        )
+      );
+      allow update: if request.auth != null && (
+        resource.data.athleteId == request.auth.uid ||
+        (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
+         get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid) ||
+        isSuperAdmin()
+      );
+      allow delete: if false;
+    }
+
+    // Regras para a coleção de usuários
+    match /users/{userId} {
+      // Leitura pública de informações básicas de atletas (para tela pública)
+      // Leitura completa: usuários podem ler seus próprios dados ou admins podem ler qualquer usuário
+      allow read: if 
+        (resource != null && resource.data.role == 'athlete') ||
+        (request.auth != null && (
+          request.auth.uid == userId ||
+          isAdmin()
+        ));
+      
+      // Criar: próprio usuário ou qualquer admin (organizadores podem criar usuários)
+      allow create: if request.auth != null && (
+        (
+          request.auth.uid == userId &&
+          (!('role' in request.resource.data) || request.resource.data.role == 'athlete') &&
+          (!('superAdmin' in request.resource.data) || request.resource.data.superAdmin == false)
+        ) ||
+        isAdmin()
+      );
+      
+      // Atualizar: próprio usuário pode atualizar a si mesmo sem alterar role/superAdmin;
+      // atualizar outros só super admin
+      allow update: if request.auth != null && (
+        (
+          request.auth.uid == userId &&
+          (
+            !('role' in request.resource.data) ||
+            request.resource.data.role == resource.data.role
+          ) &&
+          (
+            !('superAdmin' in request.resource.data) ||
+            request.resource.data.superAdmin == resource.data.superAdmin
+          )
+        ) ||
+        isSuperAdmin()
+      );
+      
+      // Deletar: apenas super admin pode deletar usuários (e apenas outros, não a si mesmo)
+      allow delete: if request.auth != null && request.auth.uid != userId && isSuperAdmin();
+    }
+
+    // Regras para notificações do usuário
+    match /users/{userId}/tokens/{tokenId} {
+      allow read, create, update, delete: if request.auth != null && (
+        request.auth.uid == userId ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+    }
+
+    // Assinaturas Web Push (fallback iOS/Safari PWA)
+    match /users/{userId}/webPushSubscriptions/{subscriptionId} {
+      allow read, create, update, delete: if request.auth != null && (
+        request.auth.uid == userId ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+    }
+
+    match /users/{userId}/notifications/{notificationId} {
+      // Usuários podem ler apenas suas próprias notificações
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Usuários podem atualizar apenas suas próprias notificações (marcar como lida)
+      allow update: if request.auth != null && request.auth.uid == userId;
+      
+      // Apenas o sistema (via Cloud Functions) pode criar notificações
+      // Usuários não podem criar suas próprias notificações
+      allow create: if false;
+    }
+
+    // O perfil do atleta é armazenado diretamente em users/{userId}
+    // As regras acima já cobrem isso - usuários podem ler/escrever seus próprios dados
+
+    // Regras para perfil do administrador: /artifacts/{appId}/users/{userId}/profile/data
+    match /artifacts/{appId}/users/{userId}/profile/{profileId} {
+      // Usuários podem ler apenas seu próprio perfil
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Usuários podem criar/atualizar apenas seu próprio perfil
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      
+      // Admins podem ler perfis de qualquer usuário
+      allow read: if request.auth != null && isAdmin();
+    }
+
+    // Regras para torneios
+    match /tournaments/{tournamentId} {
+      // Leitura pública: qualquer pessoa (autenticada ou não) pode ler torneios
+      // Isso permite que a tela pública funcione sem login
+      allow read: if true;
+      
+      // Apenas admins/gestores podem criar torneios
+      allow create: if request.auth != null && isAdmin();
+      
+      // Apenas o gestor do torneio (managerId) ou admins podem atualizar/deletar
+      allow update, delete: if request.auth != null && (
+        resource.data.managerId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    // Regras para a coleção de equipes (equipes base - apenas dupla de atletas)
+    // Caminho: /artifacts/{appId}/public/data/teams
+    match /artifacts/{appId}/public/data/teams/{teamId} {
+      allow read: if true;
+      
+      // Criar: jogadores da equipe ou qualquer admin (organizadores podem criar equipes)
+      allow create: if request.auth != null && (
+        request.resource.data.player1Id == request.auth.uid ||
+        request.resource.data.player2Id == request.auth.uid ||
+        isAdmin()
+      );
+      
+      // Atualizar: jogadores da equipe ou apenas super admin
+      allow update: if request.auth != null && (
+        (resource.data.player1Id == request.auth.uid || resource.data.player2Id == request.auth.uid) ||
+        isSuperAdmin()
+      );
+      
+      // Deletar: apenas super admin pode deletar equipes base
+      allow delete: if request.auth != null && isSuperAdmin();
+    }
+
+    // Regras para a coleção de inscrições de equipes em torneios
+    // Caminho: /artifacts/{appId}/public/data/inscriptions
+    // IMPORTANTE: Esta regra deve vir antes da regra padrão para ter prioridade
+    match /artifacts/{appId}/public/data/inscriptions/{registrationId} {
+      // Leitura pública: qualquer pessoa (autenticada ou não) pode ler inscrições
+      // Isso permite que a tela pública visualize times nas chaves
+      // Permite tanto leitura de documentos individuais quanto queries na coleção
+      allow read: if true;
+      allow list: if true;
+      
+      // Criar inscrição: usuários autenticados podem criar se forem parte da equipe
+      // OU administradores podem criar (admin override)
+      allow create: if request.auth != null && (
+        // Verifica se o usuário é um dos jogadores da equipe
+        (exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(request.resource.data.teamId)) &&
+         (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(request.resource.data.teamId)).data.player1Id == request.auth.uid ||
+          get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(request.resource.data.teamId)).data.player2Id == request.auth.uid)) ||
+        isAdmin()
+      );
+      
+      // Atualizar inscrição: apenas o jogador que faz parte da equipe pode atualizar
+      // OU um admin pode atualizar qualquer inscrição
+      allow update: if request.auth != null && (
+        (exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)) &&
+         (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player1Id == request.auth.uid ||
+          get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player2Id == request.auth.uid)) ||
+        isAdmin()
+      );
+      
+      // Deletar inscrição: apenas o jogador que faz parte da equipe pode deletar
+      // OU um admin pode deletar qualquer inscrição
+      // OU o manager do torneio pode deletar
+      allow delete: if request.auth != null && (
+        (exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)) &&
+         (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player1Id == request.auth.uid ||
+          get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player2Id == request.auth.uid)) ||
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/tournaments/$(resource.data.tournamentId)) &&
+         get(/databases/$(database)/documents/tournaments/$(resource.data.tournamentId)).data.managerId == request.auth.uid)
+      );
+    }
+
+    // Regras para a coleção de partidas (matches)
+    // Caminho: /artifacts/{appId}/public/data/matches
+    match /artifacts/{appId}/public/data/matches/{matchId} {
+      // Leitura pública: qualquer pessoa (autenticada ou não) pode ler partidas
+      // Isso permite que a tela pública visualize chaves e resultados
+      allow read: if true;
+      
+      // Criar partida: apenas admins podem criar
+      allow create: if request.auth != null && isAdmin();
+      
+      // Atualizar partida: apenas admins podem atualizar
+      allow update: if request.auth != null && isAdmin();
+      
+      // Deletar partida: apenas admins podem deletar
+      allow delete: if request.auth != null && isAdmin();
+    }
+    
+    // Regras para mensagens de contato (criação apenas via Cloud Function após validar captcha)
+    match /contactMessages/{messageId} {
+      // Criação apenas pelo backend (submitContactMessageSecure); cliente não pode criar direto
+      allow create: if false;
+      
+      // Apenas admins podem ler mensagens de contato
+      allow read: if request.auth != null && isAdmin();
+      
+      // Apenas admins podem atualizar (marcar como lida, etc.)
+      allow update: if request.auth != null && isAdmin();
+      
+      // Apenas admins podem deletar
+      allow delete: if request.auth != null && isAdmin();
+    }
+
+    // Regras para perfis PRO de atletas
+    match /athlete_profiles/{athleteId} {
+      // Leitura: próprio atleta, admins, ou se perfil público está habilitado
+      allow read: if request.auth != null && (
+        request.auth.uid == athleteId ||
+        isAdmin() ||
+        (resource != null && resource.data.publicProfileEnabled == true)
+      );
+      
+      // Escrita: apenas próprio atleta ou admin
+      allow write: if request.auth != null && (
+        request.auth.uid == athleteId ||
+        isAdmin()
+      );
+    }
+
+    // Regras para badges (somente leitura para todos autenticados)
+    match /badges/{badgeId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
+    }
+
+    // Resultados por categoria (posição final e pontos) - ranking
+    // Caminho: /artifacts/{appId}/public/data/tournamentCategoryResults
+    match /artifacts/{appId}/public/data/tournamentCategoryResults/{resultId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && isAdmin();
+    }
+
+    // Ranking de equipes (agregado) - leitura pública para página de ranking
+    // Caminho: /artifacts/{appId}/public/data/teamRankings
+    // Para aplicar: firebase deploy --only firestore:rules
+    match /artifacts/{appId}/public/data/teamRankings/{teamId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && isAdmin();
+    }
+
+    // Ranking de atletas (agregado) - leitura pública para página de ranking
+    // Caminho: /artifacts/{appId}/public/data/athleteRankings
+    match /artifacts/{appId}/public/data/athleteRankings/{athleteId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && isAdmin();
+    }
+
+    // Avaliações de categoria (feedback dos atletas)
+    // Caminho: /artifacts/{appId}/public/data/category_feedbacks
+    match /artifacts/{appId}/public/data/category_feedbacks/{feedbackId} {
+      // Leitura: documento público (isPrivate == false) qualquer um; documento privado só o autor ou o gestor do torneio
+      allow read: if resource == null || (
+        resource.data.isPrivate == false ||
+        (request.auth != null && request.auth.uid == resource.data.userId) ||
+        (request.auth != null && isAdmin() && exists(/databases/$(database)/documents/tournaments/$(resource.data.tournamentId)) && get(/databases/$(database)/documents/tournaments/$(resource.data.tournamentId)).data.managerId == request.auth.uid)
+      );
+      // Criar: apenas usuário autenticado como autor (userId)
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // Atualizar: apenas o autor do feedback
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // Depoimentos (marketing) - leitura pública; escrita apenas super admin
+    match /testimonials/{testimonialId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && isSuperAdmin();
+    }
+
+    // Patrocinadores da plataforma - leitura pública; escrita apenas super admin
+    match /platformSponsors/{sponsorId} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null && isSuperAdmin();
+    }
+
+    // Funnel de instalação PWA + push por usuário
+    match /pwaInstallations/{eventId} {
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+      allow update, delete: if false;
+    }
+    
+    // NexaGO — visão operacional (documentos agregados para o backoffice; manter status no backend)
+    match /torneios/{torneioId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null && (isAdmin() || isSuperAdmin());
+    }
+
+    // Regras padrão para outras coleções (ajuste conforme necessário)
+    // IMPORTANTE: Esta regra NÃO deve interferir com as regras específicas acima
+    // As regras específicas têm prioridade sobre esta regra padrão
+    // Esta regra só se aplica a caminhos que não correspondem às regras acima
+    match /{document=**} {
+      // Mantém leitura autenticada, mas bloqueia escrita não mapeada explicitamente.
+      // Isso evita novos caminhos com permissão de escrita aberta por engano.
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+  }
+}

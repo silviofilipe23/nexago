@@ -1,0 +1,56 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "southamerica-east1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "My App",
+        "supportEmail": "contato@nexago.com.br"
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "disallowLegacyRuntimeConfig": true,
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint",
+        "npm --prefix \"$RESOURCE_DIR\" run build"
+      ]
+    }
+  ],
+  "hosting": [
+    {
+      "target": "app",
+      "public": "dist/app"
+    },
+    {
+      "target": "arena",
+      "public": "dist/arena"
+    },
+    {
+      "target": "backoffice",
+      "public": "dist/backoffice"
+    },
+    {
+      "target": "site",
+      "public": "dist/site"
+    }
+  ],
+  "storage": {
+    "rules": "storage.rules"
+  }
+}

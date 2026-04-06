@@ -1,0 +1,54 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Regras para fotos de perfil: profiles/{userId}/*
+    match /profiles/{userId}/{fileName} {
+      // Usuários podem ler suas próprias fotos e fotos de outros usuários (para exibição em perfis)
+      allow read: if request.auth != null;
+      
+      // Escrita: dono da foto ou admin
+      allow write: if request.auth != null && (
+        request.auth.uid == userId ||
+        request.auth.token.role == 'admin'
+      );
+    }
+
+    // Regras para imagens de torneios (inclui logos de patrocinadores): tournaments/{tournamentId}/**
+    match /tournaments/{tournamentId}/{filePath=**} {
+      // Qualquer usuário autenticado pode ler imagens de torneios
+      allow read: if request.auth != null;
+      
+      // Escrita restrita a admins
+      allow write: if request.auth != null && request.auth.token.role == 'admin';
+    }
+
+    // Depoimentos: foto e logo - leitura pública; escrita apenas super admin
+    match /testimonials/{testimonialId}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.token.superAdmin == true;
+    }
+
+    // Patrocinadores da plataforma: logos e banners
+    match /platformSponsors/{sponsorId}/{filePath=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.token.superAdmin == true;
+    }
+
+    // Arenas: logo da arena e fotos das quadras
+    match /arenas/{arenaId}/{filePath=**} {
+      allow read: if true;
+      allow write: if request.auth != null && (
+        firestore.get(/databases/(default)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        request.auth.token.role == 'arena' ||
+        request.auth.token.role == 'admin' ||
+        request.auth.token.superAdmin == true
+      );
+    }
+
+    // Regras padrão - nega acesso a outras pastas não especificadas
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

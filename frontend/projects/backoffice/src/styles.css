@@ -1,0 +1,6 @@
+@import 'tailwindcss' source('.');
+
+body {
+  display: block;
+  margin: 0px;
+}

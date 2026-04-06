@@ -1,0 +1,78 @@
+<main class="px-5 py-6">
+  <div class="mx-auto max-w-6xl">
+    <div class="mb-6">
+      <h1 class="mb-1 text-2xl font-semibold text-slate-900">Torneios ativos</h1>
+      <p class="m-0 text-slate-600">
+        Lista em tempo real: em andamento e atrasados, ordenados pela última atualização.
+      </p>
+    </div>
+
+    @if (carregando()) {
+      <div
+        class="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-600 shadow-sm"
+        role="status"
+      >
+        Carregando torneios…
+      </div>
+    } @else if (torneiosLista(); as lista) {
+      @if (lista.length === 0) {
+        <div
+          class="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-600"
+        >
+          Nenhum torneio em andamento ou atrasado no momento.
+        </div>
+      } @else {
+        <div
+          class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5"
+        >
+          <div class="overflow-x-auto">
+            <table class="min-w-full border-collapse text-left text-sm">
+              <thead>
+                <tr class="border-b border-slate-200 bg-slate-50/80">
+                  <th class="whitespace-nowrap px-4 py-3 font-semibold text-slate-700">Torneio</th>
+                  <th class="whitespace-nowrap px-4 py-3 font-semibold text-slate-700">Arena</th>
+                  <th class="whitespace-nowrap px-4 py-3 font-semibold text-slate-700">Período</th>
+                  <th class="whitespace-nowrap px-4 py-3 font-semibold text-slate-700">Status</th>
+                  <th class="min-w-[200px] px-4 py-3 font-semibold text-slate-700">Progresso</th>
+                  <th class="whitespace-nowrap px-4 py-3 font-semibold text-slate-700">Atualizado</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (t of lista; track t.id) {
+                  @let p = progresso(t);
+                  <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50/60">
+                    <td class="px-4 py-3">
+                      <span class="font-medium text-slate-900">{{ t.nome }}</span>
+                      <div class="mt-0.5 font-mono text-xs text-slate-500">{{ t.id }}</div>
+                    </td>
+                    <td class="px-4 py-3 text-slate-700">{{ t.arenaNome }}</td>
+                    <td class="whitespace-nowrap px-4 py-3 text-slate-600">
+                      {{ t.dataInicio | date: 'short' }} — {{ t.dataFim | date: 'short' }}
+                    </td>
+                    <td class="px-4 py-3">
+                      <span [class]="badgeClasses(t.status)">
+                        {{ rotuloStatus(t.status) }}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3">
+                      <div class="mb-1 text-slate-800">
+                        {{ p.rotulo }}
+                        <span class="text-slate-500">({{ p.percentual }}%)</span>
+                      </div>
+                      <div class="h-2 overflow-hidden rounded-full bg-slate-200">
+                        <div [class]="barClass(t.status)" [style.width.%]="p.percentual"></div>
+                      </div>
+                    </td>
+                    <td class="whitespace-nowrap px-4 py-3 text-slate-600">
+                      {{ t.updatedAt | date: 'medium' }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+    }
+  </div>
+</main>

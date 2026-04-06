@@ -1,0 +1,65 @@
+<div
+  class="flex min-h-screen items-center justify-center bg-slate-900 p-6 [background-image:radial-gradient(1200px_600px_at_10%_-20%,theme(colors.indigo.500/0.35),transparent),radial-gradient(900px_500px_at_90%_0%,theme(colors.sky.500/0.25),transparent)]"
+>
+  <div
+    class="w-full max-w-[400px] rounded-xl border border-white/10 bg-white/95 p-8 shadow-[0_1px_2px_rgb(15_23_42/0.06),0_24px_48px_rgb(15_23_42/0.12)]"
+  >
+    <header class="mb-6">
+      <h1 class="m-0 text-2xl font-semibold tracking-tight text-slate-900">Nexago Backoffice</h1>
+      <p class="mt-1.5 m-0 text-[0.9375rem] text-slate-600">Entre com seu e-mail e senha</p>
+    </header>
+
+    @if (errorMessage(); as err) {
+      <p
+        class="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700"
+        role="alert"
+      >
+        {{ err }}
+      </p>
+    }
+
+    <form class="flex flex-col gap-4" [formGroup]="form" (ngSubmit)="onSubmit()">
+      <label class="flex flex-col gap-1.5">
+        <span class="text-[0.8125rem] font-semibold text-slate-700">E-mail</span>
+        <input
+          class="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 transition-[border-color,box-shadow] placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-[3px] focus:ring-indigo-500/25"
+          type="email"
+          formControlName="email"
+          autocomplete="email"
+          [attr.aria-invalid]="form.controls.email.invalid && form.controls.email.touched"
+        />
+        @if (form.controls.email.touched && form.controls.email.hasError('required')) {
+          <span class="text-xs text-red-600">Informe o e-mail.</span>
+        }
+        @if (form.controls.email.touched && form.controls.email.hasError('email')) {
+          <span class="text-xs text-red-600">Use um e-mail válido.</span>
+        }
+      </label>
+
+      <label class="flex flex-col gap-1.5">
+        <span class="text-[0.8125rem] font-semibold text-slate-700">Senha</span>
+        <input
+          class="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-slate-900 transition-[border-color,box-shadow] placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-[3px] focus:ring-indigo-500/25"
+          type="password"
+          formControlName="password"
+          autocomplete="current-password"
+          [attr.aria-invalid]="form.controls.password.invalid && form.controls.password.touched"
+        />
+        @if (form.controls.password.touched && form.controls.password.hasError('required')) {
+          <span class="text-xs text-red-600">Informe a senha.</span>
+        }
+        @if (form.controls.password.touched && form.controls.password.hasError('minlength')) {
+          <span class="text-xs text-red-600">Mínimo de 6 caracteres.</span>
+        }
+      </label>
+
+      <button
+        class="mt-1 cursor-pointer rounded-lg border-0 bg-gradient-to-br from-indigo-600 to-blue-600 px-4 py-2.5 font-semibold text-white shadow-sm transition-[filter,transform] hover:brightness-105 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-65"
+        type="submit"
+        [disabled]="submitting()"
+      >
+        {{ submitting() ? 'Entrando…' : 'Entrar' }}
+      </button>
+    </form>
+  </div>
+</div>

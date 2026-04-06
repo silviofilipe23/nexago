@@ -43,7 +43,7 @@
     },
     {
       "target": "backoffice",
-      "public": "dist/backoffice"
+      "public": "frontend/dist/backoffice/browser"
     },
     {
       "target": "site",

@@ -1,0 +1,19 @@
+# Dependencies
+/node_modules
+
+# Build
+/dist
+/out-tsc
+/.angular
+
+# IDE
+.idea/
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs / cache
+npm-debug.log*
+*.log

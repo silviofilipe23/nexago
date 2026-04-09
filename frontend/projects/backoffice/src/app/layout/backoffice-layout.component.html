@@ -9,14 +9,16 @@
     </div>
 
     <nav class="flex flex-col gap-0.5 p-3" aria-label="Navegação principal">
-      <a
-        routerLink="/"
-        [routerLinkActive]="['bg-slate-100', 'text-slate-900', 'font-semibold']"
-        [routerLinkActiveOptions]="{ exact: true }"
-        class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
-      >
-        Painel
-      </a>
+      @if (auth.canManageUsers()) {
+        <a
+          routerLink="/"
+          [routerLinkActive]="['bg-slate-100', 'text-slate-900', 'font-semibold']"
+          [routerLinkActiveOptions]="{ exact: true }"
+          class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+        >
+          Painel
+        </a>
+      }
       <a
         routerLink="/operacional"
         [routerLinkActive]="['bg-slate-100', 'text-slate-900', 'font-semibold']"
@@ -24,6 +26,15 @@
       >
         Gestão operacional
       </a>
+      @if (auth.canManageUsers()) {
+        <a
+          routerLink="/usuarios"
+          [routerLinkActive]="['bg-slate-100', 'text-slate-900', 'font-semibold']"
+          class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+        >
+          Usuários
+        </a>
+      }
     </nav>
   </aside>
 

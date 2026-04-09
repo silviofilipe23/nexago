@@ -44,6 +44,9 @@ bower_components
 # Compiled binary addons (http://nodejs.org/api/addons.html)
 build/Release
 
+# Angular / front-end build (workspace em frontend/ → raiz dist/)
+dist/
+
 # Dependency directories
 node_modules/
 

@@ -17,6 +17,7 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
+            "outputPath": "../dist/backoffice",
             "browser": "projects/backoffice/src/main.ts",
             "polyfills": ["zone.js"],
             "tsConfig": "projects/backoffice/tsconfig.app.json",
@@ -99,6 +100,7 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
+            "outputPath": "../dist/site",
             "browser": "projects/site/src/main.ts",
             "tsConfig": "projects/site/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
@@ -183,6 +185,7 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
+            "outputPath": "../dist/arena",
             "browser": "projects/arena/src/main.ts",
             "tsConfig": "projects/arena/tsconfig.app.json",
             "inlineStyleLanguage": "scss",

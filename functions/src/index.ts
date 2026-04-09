@@ -1,5 +1,5 @@
 import {initializeApp} from "firebase-admin/app";
-import {getAuth} from "firebase-admin/auth";
+import {getAuth, type UserRecord} from "firebase-admin/auth";
 import {setGlobalOptions} from "firebase-functions";
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import {defineSecret} from "firebase-functions/params";
@@ -8,6 +8,18 @@ import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {getMessaging} from "firebase-admin/messaging";
 import webpush, {PushSubscription} from "web-push";
 import {createHmac, createHash, randomBytes, timingSafeEqual} from "node:crypto";
+
+import {
+  type AppRole,
+  rolesFromClaims,
+  hasRoleInClaims,
+  callerIsOrganizer,
+  callerIsSuperAdmin,
+  uniqueSortedRoles,
+  applyRolesToClaims,
+  firestoreRolesPayload,
+  isAllowedRole,
+} from "./auth-roles";
 
 // Initialize Firebase Admin
 initializeApp();
@@ -156,8 +168,8 @@ async function sendWebPushToSubscriptions(
 }
 
 /**
- * Define ou atualiza o custom claim (role) de um usuário
- * Apenas usuários autenticados podem chamar esta função
+ * Substitui todos os papéis do usuário por um único papel (compatível com clients antigos).
+ * Grava claim `roles: [role]` e campo legado `role`.
  */
 export const setUserRole = onCall(async (request) => {
   const {uid, role} = request.data || {};
@@ -171,57 +183,273 @@ export const setUserRole = onCall(async (request) => {
     throw new HttpsError("invalid-argument", "UID inválido");
   }
 
-  // Valida o role
-  if (role !== "admin" && role !== "athlete" && role !== "arena") {
-    throw new HttpsError("invalid-argument", "Role inválido. Use 'admin', 'athlete' ou 'arena'");
+  if (typeof role !== "string" || !isAllowedRole(role)) {
+    throw new HttpsError("invalid-argument", "Role inválido. Use 'admin', 'organizer', 'athlete' ou 'arena'");
   }
 
+  const roleTyped = role as AppRole;
   const auth = getAuth();
   const callerUser = await auth.getUser(callerUid);
-  const callerRole = callerUser.customClaims?.role;
-  const isCallerAdmin = callerRole === "admin";
-  const isCallerSuperAdmin = callerUser.customClaims?.superAdmin === true;
+  const isCallerAdmin = callerIsOrganizer(callerUser);
+  const isCallerSuperAdmin = callerIsSuperAdmin(callerUser);
   const isSelf = callerUid === uid;
 
-  // Usuário comum só pode definir o próprio role inicial como 'athlete'
-  if (isSelf && !isCallerAdmin && role !== "athlete") {
+  if (isSelf && !isCallerAdmin && roleTyped !== "athlete") {
     throw new HttpsError("permission-denied", "Permissão negada: não é permitido promover a própria conta");
   }
 
-  // Definir role de terceiros exige admin
   if (!isSelf && !isCallerAdmin) {
     throw new HttpsError("permission-denied", "Permissão negada: apenas admins podem definir roles de outros usuários");
   }
 
-  // Apenas super admin pode atribuir role 'admin' ou 'arena' a terceiros
-  if (!isSelf && (role === "admin" || role === "arena") && !isCallerSuperAdmin) {
+  if (!isSelf && (roleTyped === "admin" || roleTyped === "arena") && !isCallerSuperAdmin) {
     throw new HttpsError("permission-denied", "Apenas o super administrador pode cadastrar ou promover usuários a organizador (admin) ou gestor de arena (arena).");
+  }
+  if (!isSelf && roleTyped === "organizer" && !isCallerAdmin && !isCallerSuperAdmin) {
+    throw new HttpsError(
+      "permission-denied",
+      "Apenas o administrador da plataforma ou o super administrador pode atribuir o papel de gestor de torneios (organizer).",
+    );
   }
 
   try {
-    // Faz merge para não remover claims existentes (ex.: athletePro, superAdmin)
     const targetUser = await auth.getUser(uid);
-    const currentClaims = targetUser.customClaims || {};
-    const claims: Record<string, unknown> = {...currentClaims, role};
-
-    // Evita manter superAdmin em usuários sem role admin
-    if (role !== "admin" && "superAdmin" in claims) {
-      delete claims.superAdmin;
-    }
+    const currentClaims = (targetUser.customClaims || {}) as Record<string, unknown>;
+    const claims = applyRolesToClaims(currentClaims, [roleTyped]);
 
     await auth.setCustomUserClaims(uid, claims);
-    
-    // Atualiza também no Firestore para manter sincronizado
+
     const db = getFirestore();
-    await db.doc(`users/${uid}`).set({role}, {merge: true});
-    
-    logger.info(`Role ${role} definido para usuário ${uid} (custom claims + Firestore)`);
-    
-    return {success: true, role};
+    const fp = firestoreRolesPayload([roleTyped]);
+    await db.doc(`users/${uid}`).set(fp, {merge: true});
+
+    logger.info(`Papéis definidos para ${uid}: ${JSON.stringify(uniqueSortedRoles([roleTyped]))} (setUserRole)`);
+
+    return {success: true, role: roleTyped, roles: uniqueSortedRoles([roleTyped])};
   } catch (error) {
     logger.error("Erro ao definir role:", error);
-    throw new Error("Erro ao definir role do usuário");
+    throw new HttpsError("internal", "Erro ao definir role do usuário");
   }
+});
+
+/**
+ * Acrescenta um papel ao usuário (união com os existentes).
+ */
+export const addUserRole = onCall(async (request) => {
+  const {uid, role} = request.data || {};
+  const callerUid = request.auth?.uid;
+
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Usuário não autenticado");
+  }
+  if (!uid || typeof uid !== "string") {
+    throw new HttpsError("invalid-argument", "UID inválido");
+  }
+  if (typeof role !== "string" || !isAllowedRole(role)) {
+    throw new HttpsError("invalid-argument", "Role inválido. Use 'admin', 'organizer', 'athlete' ou 'arena'");
+  }
+
+  const roleTyped = role as AppRole;
+  const auth = getAuth();
+  const callerUser = await auth.getUser(callerUid);
+  const isCallerAdmin = callerIsOrganizer(callerUser);
+  const isCallerSuperAdmin = callerIsSuperAdmin(callerUser);
+  const isSelf = callerUid === uid;
+
+  if (isSelf && !isCallerAdmin && roleTyped !== "athlete") {
+    throw new HttpsError("permission-denied", "Permissão negada: não é permitido promover a própria conta");
+  }
+  if (!isSelf && !isCallerAdmin) {
+    throw new HttpsError("permission-denied", "Permissão negada: apenas admins podem alterar roles de outros usuários");
+  }
+  if (!isSelf && (roleTyped === "admin" || roleTyped === "arena") && !isCallerSuperAdmin) {
+    throw new HttpsError("permission-denied", "Apenas o super administrador pode atribuir organizador ou gestor de arena a terceiros.");
+  }
+  if (!isSelf && roleTyped === "organizer" && !isCallerAdmin && !isCallerSuperAdmin) {
+    throw new HttpsError(
+      "permission-denied",
+      "Apenas o administrador da plataforma ou o super administrador pode atribuir o papel de gestor de torneios (organizer).",
+    );
+  }
+
+  const targetUser = await auth.getUser(uid);
+  const currentClaims = (targetUser.customClaims || {}) as Record<string, unknown>;
+  const existing = rolesFromClaims(currentClaims);
+
+  if (existing.includes(roleTyped)) {
+    const fp = firestoreRolesPayload(existing);
+    await getFirestore().doc(`users/${uid}`).set(fp, {merge: true});
+    return {success: true, roles: existing, alreadyHad: true as const};
+  }
+
+  const next = uniqueSortedRoles([...existing, roleTyped]);
+  const claims = applyRolesToClaims(currentClaims, next);
+  await auth.setCustomUserClaims(uid, claims);
+  const fp = firestoreRolesPayload(next);
+  await getFirestore().doc(`users/${uid}`).set(fp, {merge: true});
+  logger.info(`Papel ${roleTyped} adicionado a ${uid}: ${JSON.stringify(next)}`);
+  return {success: true, roles: next};
+});
+
+/**
+ * Remove um papel do usuário. Deve permanecer ao menos um papel.
+ */
+export const removeUserRole = onCall(async (request) => {
+  const {uid, role} = request.data || {};
+  const callerUid = request.auth?.uid;
+
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Usuário não autenticado");
+  }
+  if (!uid || typeof uid !== "string") {
+    throw new HttpsError("invalid-argument", "UID inválido");
+  }
+  if (typeof role !== "string" || !isAllowedRole(role)) {
+    throw new HttpsError("invalid-argument", "Role inválido");
+  }
+
+  const roleTyped = role as AppRole;
+  const auth = getAuth();
+  const callerUser = await auth.getUser(callerUid);
+  const isCallerAdmin = callerIsOrganizer(callerUser);
+  const isCallerSuperAdmin = callerIsSuperAdmin(callerUser);
+  const isSelf = callerUid === uid;
+
+  const targetUser = await auth.getUser(uid);
+  const existing = rolesFromClaims(targetUser.customClaims);
+
+  if (!existing.includes(roleTyped)) {
+    const fp = firestoreRolesPayload(existing);
+    await getFirestore().doc(`users/${uid}`).set(fp, {merge: true});
+    return {success: true, roles: existing, wasAbsent: true as const};
+  }
+
+  if (existing.length <= 1) {
+    throw new HttpsError("failed-precondition", "O usuário deve manter ao menos um papel.");
+  }
+
+  if (isSelf && (roleTyped === "admin" || roleTyped === "arena" || roleTyped === "organizer")) {
+    throw new HttpsError(
+      "permission-denied",
+      "Para remover este papel da própria conta, chame um administrador da plataforma ou super administrador.",
+    );
+  }
+  if (!isSelf && !isCallerAdmin) {
+    throw new HttpsError("permission-denied", "Permissão negada: apenas admins podem alterar roles de outros usuários");
+  }
+  if (!isSelf && (roleTyped === "admin" || roleTyped === "arena") && !isCallerSuperAdmin) {
+    throw new HttpsError("permission-denied", "Apenas o super administrador pode remover o papel de organizador ou gestor de arena.");
+  }
+  if (!isSelf && roleTyped === "organizer" && !isCallerAdmin && !isCallerSuperAdmin) {
+    throw new HttpsError(
+      "permission-denied",
+      "Apenas um administrador da plataforma ou o super administrador pode remover o papel de gestor de torneios.",
+    );
+  }
+
+  const next = existing.filter((r) => r !== roleTyped);
+  const currentClaims = (targetUser.customClaims || {}) as Record<string, unknown>;
+  const claims = applyRolesToClaims(currentClaims, next);
+  await auth.setCustomUserClaims(uid, claims);
+  const fp = firestoreRolesPayload(next);
+  await getFirestore().doc(`users/${uid}`).set(fp, {merge: true});
+  logger.info(`Papel ${roleTyped} removido de ${uid}: ${JSON.stringify(next)}`);
+  return {success: true, roles: next};
+});
+
+/**
+ * Define a lista completa de papéis. Apenas super administrador.
+ */
+export const setUserRoles = onCall(async (request) => {
+  const {uid, roles: rolesIn} = request.data || {};
+  const callerUid = request.auth?.uid;
+
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Usuário não autenticado");
+  }
+  if (!callerIsSuperAdmin(await getAuth().getUser(callerUid))) {
+    throw new HttpsError("permission-denied", "Apenas o super administrador pode definir a lista completa de papéis.");
+  }
+  if (!uid || typeof uid !== "string") {
+    throw new HttpsError("invalid-argument", "UID inválido");
+  }
+  if (!Array.isArray(rolesIn)) {
+    throw new HttpsError("invalid-argument", "roles deve ser um array de strings");
+  }
+
+  const next = uniqueSortedRoles(rolesIn.filter((x: unknown): x is string => typeof x === "string"));
+  if (next.length === 0) {
+    throw new HttpsError("invalid-argument", "Informe ao menos um papel válido");
+  }
+
+  const auth = getAuth();
+  const targetUser = await auth.getUser(uid);
+  const currentClaims = (targetUser.customClaims || {}) as Record<string, unknown>;
+  const claims = applyRolesToClaims(currentClaims, next);
+  await auth.setCustomUserClaims(uid, claims);
+  const fp = firestoreRolesPayload(next);
+  await getFirestore().doc(`users/${uid}`).set(fp, {merge: true});
+  logger.info(`setUserRoles ${uid}: ${JSON.stringify(next)}`);
+  return {success: true, roles: next};
+});
+
+/**
+ * Migração única: preenche claim `roles` e Firestore a partir do claim `role` legado.
+ * Apenas super administrador. Idempotente para usuários que já têm `roles`.
+ */
+export const migrateUsersToMultiRole = onCall(async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Usuário não autenticado");
+  }
+  const callerUser = await getAuth().getUser(callerUid);
+  if (!callerIsSuperAdmin(callerUser)) {
+    throw new HttpsError("permission-denied", "Apenas o super administrador pode executar a migração.");
+  }
+
+  const auth = getAuth();
+  const db = getFirestore();
+  let updatedAuth = 0;
+  let updatedFirestore = 0;
+  let nextPageToken: string | undefined;
+
+  do {
+    const listResult = await auth.listUsers(1000, nextPageToken);
+    for (const u of listResult.users) {
+      const claims = (u.customClaims || {}) as Record<string, unknown>;
+
+      if (Array.isArray(claims["roles"]) && (claims["roles"] as unknown[]).length > 0) {
+        continue;
+      }
+
+      const existingRoles = rolesFromClaims(claims);
+      const legacy = claims["role"];
+      const sourceRoles: AppRole[] =
+        existingRoles.length > 0 ?
+          existingRoles :
+          (typeof legacy === "string" && isAllowedRole(legacy) ? [legacy as AppRole] : []);
+
+      if (sourceRoles.length === 0) {
+        continue;
+      }
+
+      const nextClaims = applyRolesToClaims(claims, sourceRoles);
+      await auth.setCustomUserClaims(u.uid, nextClaims);
+      updatedAuth += 1;
+
+      const userDoc = await db.doc(`users/${u.uid}`).get();
+      const data = userDoc.data();
+      const docRoles = data?.roles;
+      if (!userDoc.exists || !Array.isArray(docRoles) || docRoles.length === 0) {
+        await db.doc(`users/${u.uid}`).set(firestoreRolesPayload(sourceRoles), {merge: true});
+        updatedFirestore += 1;
+      }
+    }
+    nextPageToken = listResult.pageToken;
+  } while (nextPageToken);
+
+  logger.info(`migrateUsersToMultiRole: auth=${updatedAuth} firestoreDocs=${updatedFirestore}`);
+  return {success: true, updatedAuth, updatedFirestore};
 });
 
 /**
@@ -348,14 +576,15 @@ export const createOrganizer = onCall(async (request) => {
   });
   const uid = userRecord.uid;
 
-  await auth.setCustomUserClaims(uid, {role: "admin", mustChangePassword: true});
+  const adminClaims = applyRolesToClaims({mustChangePassword: true}, ["admin"]);
+  await auth.setCustomUserClaims(uid, adminClaims);
 
   const db = getFirestore();
   await db.doc(`users/${uid}`).set({
     uid,
     email: email.trim(),
     fullName: fullName.trim(),
-    role: "admin",
+    ...firestoreRolesPayload(["admin"]),
     createdAt: FieldValue.serverTimestamp()
   }, {merge: true});
 
@@ -410,14 +639,15 @@ export const createArena = onCall(async (request) => {
   });
   const uid = userRecord.uid;
 
-  await auth.setCustomUserClaims(uid, {role: "arena", mustChangePassword: true});
+  const arenaClaims = applyRolesToClaims({mustChangePassword: true}, ["arena"]);
+  await auth.setCustomUserClaims(uid, arenaClaims);
 
   const db = getFirestore();
   await db.doc(`users/${uid}`).set({
     uid,
     email: email.trim(),
     fullName: fullName.trim(),
-    role: "arena",
+    ...firestoreRolesPayload(["arena"]),
     createdAt: FieldValue.serverTimestamp()
   }, {merge: true});
 
@@ -434,6 +664,274 @@ export const createArena = onCall(async (request) => {
 
   logger.info(`Gestor de arena criado: ${uid} (${email})`);
   return {uid, email: email.trim(), arenaId: arenaRef.id};
+});
+
+/** Rótulos em minúsculas para o filtro de busca (alinhado ao backoffice). */
+const BO_ROLE_SEARCH_LABEL: Record<AppRole, string> = {
+  admin: "organizador",
+  organizer: "gestor torneios",
+  athlete: "atleta",
+  arena: "arena gestor",
+};
+
+function backofficeUserMatchesSearch(
+  u: UserRecord,
+  qLower: string,
+  firestoreFullName: string | null,
+): boolean {
+  const roles = rolesFromClaims(u.customClaims);
+  const legacy = u.customClaims?.["role"];
+  const roleStr = typeof legacy === "string" ? legacy : "";
+  const pieces: string[] = [
+    u.email ?? "",
+    u.displayName ?? "",
+    u.phoneNumber ?? "",
+    firestoreFullName ?? "",
+    u.uid,
+    roleStr,
+    ...roles,
+    ...roles.map((r) => BO_ROLE_SEARCH_LABEL[r]),
+  ];
+  const haystack = pieces.join(" ").toLowerCase();
+  return haystack.includes(qLower);
+}
+
+async function fetchUserFullName(db: FirebaseFirestore.Firestore, uid: string): Promise<string | null> {
+  try {
+    const fsSnap = await db.doc(`users/${uid}`).get();
+    const fn = fsSnap.data()?.["fullName"];
+    return typeof fn === "string" ? fn : null;
+  } catch {
+    return null;
+  }
+}
+
+function backofficeRowFromUserRecord(u: UserRecord, fullName: string | null) {
+  const roles = rolesFromClaims(u.customClaims);
+  const legacy = u.customClaims?.["role"];
+  const role =
+    typeof legacy === "string" ? legacy : (roles.length > 0 ? roles[0]! : null);
+  return {
+    uid: u.uid,
+    email: u.email ?? null,
+    displayName: u.displayName ?? null,
+    disabled: u.disabled === true,
+    emailVerified: u.emailVerified === true,
+    roles,
+    role,
+    fullName,
+  };
+}
+
+type SearchListState =
+  | {v: 1; kind: "scan"; authToken: string | undefined}
+  | {v: 1; kind: "leftover"; uids: string[]; nextAuthToken: string | null};
+
+function encodeBackofficeSearchState(s: SearchListState): string {
+  return Buffer.from(JSON.stringify(s), "utf8").toString("base64url");
+}
+
+function decodeBackofficeSearchState(tok: string): SearchListState | null {
+  try {
+    const s = JSON.parse(Buffer.from(tok, "base64url").toString("utf8")) as SearchListState;
+    if (s?.v !== 1) {
+      return null;
+    }
+    if (s.kind === "scan") {
+      return {v: 1, kind: "scan", authToken: s.authToken};
+    }
+    if (s.kind === "leftover" && Array.isArray(s.uids)) {
+      return {v: 1, kind: "leftover", uids: s.uids, nextAuthToken: s.nextAuthToken};
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Lista usuários (Firebase Auth + enriquecimento Firestore) para o backoffice.
+ * Apenas organizador (admin) ou super administrador.
+ *
+ * Com `search`, percorre todos os usuários do Auth (em lotes) até encher `maxResults`
+ * ou esgotar a base; `nextPageToken` codifica continuação (inclui fila de UIDs pendentes).
+ */
+export const listBackofficeUsers = onCall({timeoutSeconds: 300}, async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Usuário não autenticado");
+  }
+
+  const callerUser = await getAuth().getUser(callerUid);
+  if (!callerIsOrganizer(callerUser) && !callerIsSuperAdmin(callerUser)) {
+    throw new HttpsError("permission-denied", "Apenas organizadores podem listar usuários.");
+  }
+
+  const raw = request.data as {maxResults?: unknown; pageToken?: unknown; search?: unknown} | undefined;
+  const requested =
+    typeof raw?.maxResults === "number" && Number.isFinite(raw.maxResults) ? raw.maxResults : 50;
+  const maxResults = Math.min(Math.max(1, Math.floor(requested)), 100);
+  const pageToken = typeof raw?.pageToken === "string" && raw.pageToken.trim() ? raw.pageToken : undefined;
+  const searchRaw = typeof raw?.search === "string" ? raw.search.trim() : "";
+  const searchQ = searchRaw.length > 0 ? searchRaw.toLowerCase() : "";
+
+  const auth = getAuth();
+  const db = getFirestore();
+
+  try {
+    if (searchQ) {
+      const emailLike = searchRaw.includes("@");
+      if (emailLike) {
+        try {
+          const u = await auth.getUserByEmail(searchRaw);
+          const fullName = await fetchUserFullName(db, u.uid);
+          return {
+            users: [backofficeRowFromUserRecord(u, fullName)],
+            nextPageToken: null,
+          };
+        } catch {
+          // não encontrado por e-mail exato — segue para varredura
+        }
+      }
+      const uidExact = /^[a-zA-Z0-9_-]{22,128}$/.test(searchRaw);
+      if (uidExact) {
+        try {
+          const u = await auth.getUser(searchRaw);
+          const fullName = await fetchUserFullName(db, u.uid);
+          return {
+            users: [backofficeRowFromUserRecord(u, fullName)],
+            nextPageToken: null,
+          };
+        } catch {
+          // segue para varredura (ex.: substring de UID)
+        }
+      }
+
+      let state: SearchListState =
+        pageToken ?
+          decodeBackofficeSearchState(pageToken) ?? {v: 1, kind: "scan", authToken: undefined} :
+          {v: 1, kind: "scan", authToken: undefined};
+
+      const out: ReturnType<typeof backofficeRowFromUserRecord>[] = [];
+      /** Limite de usuários Auth listados por chamada (evita timeout / custo). */
+      let listedAuthUsers = 0;
+      const MAX_LISTED_AUTH_PER_CALL = 25000;
+
+      while (out.length < maxResults && listedAuthUsers < MAX_LISTED_AUTH_PER_CALL) {
+        if (state.kind === "leftover") {
+          while (state.uids.length > 0 && out.length < maxResults && listedAuthUsers < MAX_LISTED_AUTH_PER_CALL) {
+            const uid = state.uids.shift()!;
+            const u = await auth.getUser(uid);
+            listedAuthUsers++;
+            const fullName = await fetchUserFullName(db, u.uid);
+            out.push(backofficeRowFromUserRecord(u, fullName));
+          }
+          if (state.uids.length > 0) {
+            return {
+              users: out,
+              nextPageToken: encodeBackofficeSearchState(state),
+            };
+          }
+          if (!state.nextAuthToken) {
+            return {users: out, nextPageToken: null};
+          }
+          state = {v: 1, kind: "scan", authToken: state.nextAuthToken};
+          continue;
+        }
+
+        const listResult = await auth.listUsers(1000, state.authToken);
+        listedAuthUsers += listResult.users.length;
+
+        const refs = listResult.users.map((u) => db.doc(`users/${u.uid}`));
+        const snaps = refs.length > 0 ? await db.getAll(...refs) : [];
+        const fullNameByUid = new Map<string, string | null>();
+        snaps.forEach((snap, i) => {
+          const u = listResult.users[i];
+          if (!u) {
+            return;
+          }
+          const fn = snap.data()?.["fullName"];
+          fullNameByUid.set(u.uid, typeof fn === "string" ? fn : null);
+        });
+
+        const matching: UserRecord[] = [];
+        for (const u of listResult.users) {
+          const fn = fullNameByUid.get(u.uid) ?? null;
+          if (backofficeUserMatchesSearch(u, searchQ, fn)) {
+            matching.push(u);
+          }
+        }
+
+        let mi = 0;
+        while (mi < matching.length && out.length < maxResults) {
+          const u = matching[mi]!;
+          mi++;
+          const fullName = fullNameByUid.get(u.uid) ?? null;
+          out.push(backofficeRowFromUserRecord(u, fullName));
+        }
+
+        const leftoverUids = matching.slice(mi).map((u) => u.uid);
+        const nextAuth = listResult.pageToken ?? null;
+
+        if (leftoverUids.length > 0) {
+          return {
+            users: out,
+            nextPageToken: encodeBackofficeSearchState({
+              v: 1,
+              kind: "leftover",
+              uids: leftoverUids,
+              nextAuthToken: nextAuth,
+            }),
+          };
+        }
+
+        if (!nextAuth) {
+          return {users: out, nextPageToken: null};
+        }
+
+        if (out.length >= maxResults) {
+          return {
+            users: out,
+            nextPageToken: encodeBackofficeSearchState({v: 1, kind: "scan", authToken: nextAuth}),
+          };
+        }
+
+        if (listedAuthUsers >= MAX_LISTED_AUTH_PER_CALL) {
+          return {
+            users: out,
+            nextPageToken: encodeBackofficeSearchState({v: 1, kind: "scan", authToken: nextAuth}),
+          };
+        }
+
+        state = {v: 1, kind: "scan", authToken: nextAuth};
+      }
+
+      return {
+        users: out,
+        nextPageToken:
+          listedAuthUsers >= MAX_LISTED_AUTH_PER_CALL && state.kind === "scan" && state.authToken ?
+            encodeBackofficeSearchState(state) :
+            null,
+      };
+    }
+
+    const listResult = await auth.listUsers(maxResults, pageToken);
+
+    const users = await Promise.all(
+      listResult.users.map(async (u) => {
+        const fullName = await fetchUserFullName(db, u.uid);
+        return backofficeRowFromUserRecord(u, fullName);
+      }),
+    );
+
+    return {
+      users,
+      nextPageToken: listResult.pageToken ?? null,
+    };
+  } catch (err) {
+    logger.error("listBackofficeUsers failed", err);
+    throw new HttpsError("internal", "Não foi possível listar usuários.");
+  }
 });
 
 /**
@@ -453,7 +951,7 @@ export const clearMustChangePassword = onCall(async (request) => {
 
   // Verifica se o caller é o próprio usuário ou um admin
   const callerUser = await getAuth().getUser(callerUid);
-  const isAdmin = callerUser.customClaims?.role === "admin";
+  const isAdmin = callerIsOrganizer(callerUser);
   const isSelf = callerUid === uid;
 
   if (!isAdmin && !isSelf) {
@@ -487,16 +985,21 @@ export const getUserRole = onCall(async (request) => {
 
   // Usuário pode ver seu próprio role ou deve ser admin ou super admin
   const callerUser = await getAuth().getUser(callerUid);
-  const isAdmin = callerUser.customClaims?.role === "admin";
-  const isSuperAdmin = callerUser.customClaims?.superAdmin === true;
-  
+  const isAdmin = callerIsOrganizer(callerUser);
+  const isSuperAdmin = callerIsSuperAdmin(callerUser);
+
   if (callerUid !== uid && !isAdmin && !isSuperAdmin) {
     throw new Error("Permissão negada");
   }
 
   try {
     const user = await getAuth().getUser(uid);
-    return {role: user.customClaims?.role || null};
+    const roles = rolesFromClaims(user.customClaims);
+    const legacy = user.customClaims?.role;
+    return {
+      roles,
+      role: typeof legacy === "string" ? legacy : (roles[0] ?? null),
+    };
   } catch (error) {
     logger.error("Erro ao obter role:", error);
     throw new Error("Erro ao obter role do usuário");
@@ -528,7 +1031,7 @@ export const setAthletePro = onCall(async (request) => {
   // Apenas admin pode alterar status PRO
   const auth = getAuth();
   const callerUser = await auth.getUser(callerUid);
-  const isAdmin = callerUser.customClaims?.role === "admin";
+  const isAdmin = callerIsOrganizer(callerUser);
 
   if (!isAdmin) {
     throw new HttpsError("permission-denied", "Permissão negada");
@@ -605,14 +1108,19 @@ export const elevateToAdmin = onRequest({secrets: [ADMIN_ELEVATE_SECRET]}, async
       return;
     }
 
-    await getAuth().setCustomUserClaims(uid, {role: "admin", superAdmin: true});
+    const authSvc = getAuth();
+    const existing = await authSvc.getUser(uid);
+    const prevClaims = (existing.customClaims || {}) as Record<string, unknown>;
+    const nextRoles = uniqueSortedRoles([...rolesFromClaims(prevClaims), "admin"]);
+    const newClaims = applyRolesToClaims(prevClaims, nextRoles);
+    newClaims["superAdmin"] = true;
+    await authSvc.setCustomUserClaims(uid, newClaims);
 
-    // Reflete no Firestore (users/{uid}.role = 'admin') sem sobrescrever outros campos
     const db = getFirestore();
-    await db.doc(`users/${uid}`).set({role: "admin"}, {merge: true});
+    await db.doc(`users/${uid}`).set(firestoreRolesPayload(nextRoles), {merge: true});
 
     logger.info(`Usuário ${uid} elevado a super admin (custom claims + Firestore)`);
-    res.status(200).json({success: true, uid, role: "admin", superAdmin: true});
+    res.status(200).json({success: true, uid, roles: nextRoles, role: "admin", superAdmin: true});
   } catch (err) {
     logger.error("Falha ao elevar admin:", err);
     res.status(500).send("Erro interno");
@@ -635,8 +1143,10 @@ export const sendNotification = onCall({
 
   // Verifica se o caller é admin ou arena (arena pode notificar atletas sobre cancelamento de reserva)
   const callerUser = await getAuth().getUser(callerUid);
-  const role = callerUser.customClaims?.role as string | undefined;
-  const canSend = role === "admin" || role === "arena";
+  const cc = callerUser.customClaims;
+  const canSend =
+    hasRoleInClaims(cc, "admin") ||
+    hasRoleInClaims(cc, "arena");
 
   if (!canSend) {
     throw new HttpsError("permission-denied", "Permissão negada: apenas admins e gestores de arena podem enviar notificações");
@@ -977,7 +1487,7 @@ export const sendBulkNotification = onCall({
 
   // Verifica se o caller é admin
   const callerUser = await getAuth().getUser(callerUid);
-  const isAdmin = callerUser.customClaims?.role === "admin";
+  const isAdmin = callerIsOrganizer(callerUser);
 
   if (!isAdmin) {
     throw new Error("Permissão negada: apenas admins podem enviar notificações");
@@ -1466,7 +1976,7 @@ export const getMercadoPagoAuthUrl = onCall({
     throw new Error("Usuário não autenticado");
   }
   const callerUser = await getAuth().getUser(uid);
-  if (callerUser.customClaims?.role !== "admin") {
+  if (!callerIsOrganizer(callerUser)) {
     throw new Error("Apenas organizadores podem vincular conta Mercado Pago");
   }
   const appId = MERCADOPAGO_APP_ID.value();

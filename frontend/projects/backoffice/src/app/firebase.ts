@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAnalytics } from 'firebase/analytics';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getFunctions } from 'firebase/functions';
 
 import { firebaseConfig } from './firebase.config';
 
@@ -16,3 +17,6 @@ export const firebaseAuth = getAuth(firebaseApp);
 
 /** Firestore database (default), aligned with `firebase.json` / `firestore.rules`. */
 export const firestore = getFirestore(firebaseApp);
+
+/** Cloud Functions (callable HTTPS v2 — mesma região do deploy padrão). */
+export const firebaseFunctions = getFunctions(firebaseApp, 'us-central1');

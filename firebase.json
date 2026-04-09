@@ -39,15 +39,15 @@
     },
     {
       "target": "arena",
-      "public": "dist/arena"
+      "public": "dist/arena/browser"
     },
     {
       "target": "backoffice",
-      "public": "frontend/dist/backoffice/browser"
+      "public": "dist/backoffice/browser"
     },
     {
       "target": "site",
-      "public": "dist/site"
+      "public": "dist/site/browser"
     }
   ],
   "storage": {

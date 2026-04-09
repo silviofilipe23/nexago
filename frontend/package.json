@@ -8,7 +8,7 @@
     "start:backoffice": "ng serve backoffice",
     "build": "ng build backoffice",
     "build:backoffice": "ng build backoffice --configuration production",
-    "build:all": "ng run backoffice:build:production",
+    "build:all": "ng run backoffice:build:production && ng run site:build:production && ng run arena:build:production",
     "watch": "ng build backoffice --watch --configuration development",
     "test": "ng test backoffice",
     "test:backoffice": "ng test backoffice"

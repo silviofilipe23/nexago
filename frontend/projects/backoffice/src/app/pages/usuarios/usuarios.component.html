@@ -1,0 +1,366 @@
+<main class="px-5 py-6">
+  <div class="mx-auto max-w-7xl">
+    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 class="mb-1 text-2xl font-semibold text-slate-900">Usuários</h1>
+        <p class="m-0 text-slate-600">
+          Lista paginada (Firebase Auth). Papéis vêm dos custom claims; detalhe pode ser atualizado após
+          alterações no servidor.
+        </p>
+        <div class="mt-4 max-w-xl">
+          <label class="sr-only" for="usuarios-busca">Pesquisar usuários</label>
+          <input
+            id="usuarios-busca"
+            type="search"
+            autocomplete="off"
+            placeholder="Buscar por e-mail, nome, UID ou papel…"
+            class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-400/30"
+            [value]="searchQuery()"
+            (input)="onSearchInput($event)"
+          />
+          <p class="mt-1 text-xs text-slate-500">
+            A busca varre todos os usuários no Firebase Auth (e nome em <span class="font-mono">users/</span> no
+            Firestore). Pode levar mais tempo em projetos grandes; use &quot;Carregar mais&quot; para ver o próximo
+            lote de resultados.
+          </p>
+        </div>
+      </div>
+      @if (auth.isSuperAdmin()) {
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="cursor-pointer rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+            (click)="openOrganizerModal()"
+          >
+            Novo organizador
+          </button>
+          <button
+            type="button"
+            class="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+            (click)="openArenaModal()"
+          >
+            Novo gestor de arena
+          </button>
+        </div>
+      }
+    </div>
+
+    @if (pageError(); as pe) {
+      <div class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ pe }}</div>
+    }
+
+    @if (actionError(); as ae) {
+      <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">{{ ae }}</div>
+    }
+
+    <div class="flex flex-col gap-6 lg:flex-row">
+      <div class="min-w-0 flex-1">
+        @if (loading()) {
+          <div
+            class="rounded-xl border border-slate-200 bg-white p-10 text-center text-slate-600 shadow-sm"
+            role="status"
+          >
+            Carregando usuários…
+          </div>
+        } @else if (!loading() && rows().length === 0 && searchQuery().trim()) {
+          <div
+            class="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-600"
+          >
+            Nenhum usuário corresponde à pesquisa em toda a base. Tente outro termo.
+          </div>
+        } @else {
+          <div
+            class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5"
+          >
+            <div class="overflow-x-auto">
+              <table class="min-w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr class="border-b border-slate-200 bg-slate-50/80">
+                    <th class="px-4 py-3 font-semibold text-slate-700">E-mail</th>
+                    <th class="px-4 py-3 font-semibold text-slate-700">Nome</th>
+                    <th class="px-4 py-3 font-semibold text-slate-700">Papéis</th>
+                    <th class="px-4 py-3 font-semibold text-slate-700">Conta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of rows(); track row.uid) {
+                    <tr
+                      class="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50/80"
+                      [class.bg-slate-100]="selected()?.uid === row.uid"
+                      (click)="selectUser(row)"
+                    >
+                      <td class="px-4 py-3">
+                        <span class="font-medium text-slate-900">{{ row.email ?? '—' }}</span>
+                        <div class="mt-0.5 font-mono text-xs text-slate-500">{{ row.uid }}</div>
+                      </td>
+                      <td class="px-4 py-3 text-slate-700">
+                        {{ row.fullName || row.displayName || '—' }}
+                      </td>
+                      <td class="px-4 py-3">
+                        <div class="flex flex-wrap gap-1">
+                          @for (r of row.roles; track r) {
+                            <span
+                              class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-800"
+                            >
+                              {{ roleLabel(r) }}
+                            </span>
+                          }
+                          @if (row.roles.length === 0) {
+                            <span class="text-slate-400">—</span>
+                          }
+                        </div>
+                      </td>
+                      <td class="whitespace-nowrap px-4 py-3 text-slate-600">
+                        @if (row.disabled) {
+                          <span class="text-red-700">Desativada</span>
+                        } @else {
+                          <span>Ativa</span>
+                        }
+                        <span class="text-slate-400"> · </span>
+                        @if (row.emailVerified) {
+                          E-mail ok
+                        } @else {
+                          E-mail não verif.
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+          @if (nextPageToken()) {
+            <div class="mt-4 flex justify-center">
+              <button
+                type="button"
+                class="cursor-pointer rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-50"
+                [disabled]="loadingMore()"
+                (click)="loadMore()"
+              >
+                {{ loadingMore() ? 'Carregando…' : 'Carregar mais' }}
+              </button>
+            </div>
+          }
+        }
+      </div>
+
+      @if (hasSelection()) {
+        <div class="w-full shrink-0 lg:w-80">
+          <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm ring-1 ring-slate-900/5">
+            <div class="mb-3 flex items-start justify-between gap-2">
+              <h2 class="text-base font-semibold text-slate-900">Detalhe</h2>
+              <button
+                type="button"
+                class="text-sm font-medium text-slate-500 hover:text-slate-800"
+                (click)="clearSelection()"
+              >
+                Fechar
+              </button>
+            </div>
+            @if (selected(); as sel) {
+              <p class="mb-1 break-all text-sm text-slate-600">{{ sel.email }}</p>
+              <p class="mb-4 font-mono text-xs text-slate-500">{{ sel.uid }}</p>
+            }
+
+            @if (detailLoading()) {
+              <p class="text-sm text-slate-500">Atualizando papéis…</p>
+            } @else if (detailError(); as de) {
+              <p class="text-sm text-red-700">{{ de }}</p>
+            } @else if (detail(); as det) {
+              <div class="mb-4">
+                <div class="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Papéis (token)</div>
+                <div class="flex flex-wrap gap-1">
+                  @for (r of det.roles; track r) {
+                    <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-900">
+                      {{ roleLabel(r) }}
+                    </span>
+                  }
+                  @if (det.roles.length === 0) {
+                    <span class="text-sm text-slate-500">Nenhum papel definido</span>
+                  }
+                </div>
+                @if (det.role) {
+                  <p class="mt-2 text-xs text-slate-500">Campo legado `role`: {{ det.role }}</p>
+                }
+              </div>
+
+              @if (auth.isSuperAdmin()) {
+                <button
+                  type="button"
+                  class="mb-3 w-full cursor-pointer rounded-lg border border-slate-300 bg-white py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-50"
+                  [disabled]="actionBusy()"
+                  (click)="openSetRolesModal()"
+                >
+                  Definir papéis…
+                </button>
+              }
+
+              <div class="border-t border-slate-100 pt-3">
+                <div class="mb-2 text-xs font-medium text-slate-500">Adicionar papel</div>
+                <div class="flex flex-wrap gap-2">
+                  @for (r of allRoles; track r) {
+                    @if (canAddRole(r) && !det.roles.includes(r)) {
+                      <button
+                        type="button"
+                        class="cursor-pointer rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-50"
+                        [disabled]="actionBusy()"
+                        (click)="addRole(r)"
+                      >
+                        + {{ roleLabel(r) }}
+                      </button>
+                    }
+                  }
+                </div>
+              </div>
+
+              <div class="mt-3 border-t border-slate-100 pt-3">
+                <div class="mb-2 text-xs font-medium text-slate-500">Remover papel</div>
+                <div class="flex flex-wrap gap-2">
+                  @for (r of det.roles; track r) {
+                    @if (canRemoveRole(r)) {
+                      <button
+                        type="button"
+                        class="cursor-pointer rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-900 hover:bg-red-100 disabled:opacity-50"
+                        [disabled]="actionBusy()"
+                        (click)="removeRole(r)"
+                      >
+                        − {{ roleLabel(r) }}
+                      </button>
+                    }
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</main>
+
+@if (showOrganizerModal()) {
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="modal-org-title"
+    (click)="closeModals()"
+  >
+    <div
+      class="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-xl"
+      (click)="$event.stopPropagation()"
+    >
+      <h2 id="modal-org-title" class="mb-4 text-lg font-semibold text-slate-900">Novo organizador</h2>
+      <form class="flex flex-col gap-3" [formGroup]="organizerForm" (ngSubmit)="submitOrganizer()">
+        <label class="block text-sm font-medium text-slate-700">
+          E-mail
+          <input
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            type="email"
+            formControlName="email"
+          />
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+          Nome completo
+          <input
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            formControlName="fullName"
+          />
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+          Senha temporária (mín. 6)
+          <input
+            class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            type="password"
+            formControlName="temporaryPassword"
+          />
+        </label>
+        <div class="mt-2 flex justify-end gap-2">
+          <button
+            type="button"
+            class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold"
+            (click)="closeModals()"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+            [disabled]="actionBusy()"
+          >
+            Criar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+@if (showArenaModal()) {
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    role="dialog"
+    aria-modal="true"
+    (click)="closeModals()"
+  >
+    <div
+      class="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl border border-slate-200 bg-white p-5 shadow-xl"
+      (click)="$event.stopPropagation()"
+    >
+      <h2 class="mb-4 text-lg font-semibold text-slate-900">Novo gestor de arena</h2>
+      <form class="flex flex-col gap-3" [formGroup]="arenaForm" (ngSubmit)="submitArena()">
+        <label class="block text-sm font-medium text-slate-700">
+          E-mail
+          <input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" type="email" formControlName="email" />
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+          Nome completo
+          <input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" formControlName="fullName" />
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+          Senha temporária
+          <input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" type="password" formControlName="temporaryPassword" />
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+          Nome da arena
+          <input class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" formControlName="arenaName" />
+        </label>
+        <div class="mt-2 flex justify-end gap-2">
+          <button type="button" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold" (click)="closeModals()">Cancelar</button>
+          <button type="submit" class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" [disabled]="actionBusy()">Criar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+@if (showSetRolesModal()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" (click)="closeModals()">
+    <div class="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-xl" (click)="$event.stopPropagation()">
+      <h2 class="mb-4 text-lg font-semibold text-slate-900">Definir papéis</h2>
+      <p class="mb-3 text-sm text-slate-600">Super administrador: substitui a lista completa de papéis no token.</p>
+      <form [formGroup]="setRolesForm" (ngSubmit)="submitSetRoles()" class="flex flex-col gap-2">
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" formControlName="admin" />
+          Organizador da plataforma (admin)
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" formControlName="organizer" />
+          Gestor de torneios (organizer)
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" formControlName="athlete" />
+          Atleta
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" formControlName="arena" />
+          Gestor de arena
+        </label>
+        <div class="mt-3 flex justify-end gap-2">
+          <button type="button" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold" (click)="closeModals()">Cancelar</button>
+          <button type="submit" class="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50" [disabled]="actionBusy()">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

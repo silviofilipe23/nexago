@@ -2,15 +2,36 @@ rules_version='2'
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Função auxiliar: usuário autenticado é admin (por token para evitar leitura extra)
+    // Multi-role: claim `roles` (lista); fallback ao claim legado `role` durante migração
+    function hasRoleClaim(r) {
+      return request.auth != null && (
+        (request.auth.token.roles is list && r in request.auth.token.roles) ||
+        request.auth.token.role == r
+      );
+    }
+
     function isAdmin() {
-      return request.auth != null && request.auth.token.role == 'admin';
+      return request.auth != null && hasRoleClaim('admin');
     }
     function isSuperAdmin() {
       return request.auth != null && request.auth.token.superAdmin == true;
     }
     function isArena() {
-      return request.auth != null && request.auth.token.role == 'arena';
+      return request.auth != null && hasRoleClaim('arena');
+    }
+    /** Gestor de torneios (backoffice operacional); não confundir com admin da plataforma. */
+    function isTournamentOrganizer() {
+      return request.auth != null && hasRoleClaim('organizer');
+    }
+    function canWriteOperationalTorneios() {
+      return isAdmin() || isSuperAdmin() || isTournamentOrganizer();
+    }
+
+    function userDocIsPublicAthlete(resource) {
+      return resource != null && (
+        (resource.data.roles is list && 'athlete' in resource.data.roles) ||
+        resource.data.role == 'athlete'
+      );
     }
     function isArenaManager(arenaDoc) {
       return request.auth != null && arenaDoc != null && arenaDoc.data.managerUserId == request.auth.uid;
@@ -157,7 +178,7 @@ service cloud.firestore {
       // Leitura pública de informações básicas de atletas (para tela pública)
       // Leitura completa: usuários podem ler seus próprios dados ou admins podem ler qualquer usuário
       allow read: if 
-        (resource != null && resource.data.role == 'athlete') ||
+        (resource != null && userDocIsPublicAthlete(resource)) ||
         (request.auth != null && (
           request.auth.uid == userId ||
           isAdmin()
@@ -168,6 +189,13 @@ service cloud.firestore {
         (
           request.auth.uid == userId &&
           (!('role' in request.resource.data) || request.resource.data.role == 'athlete') &&
+          (
+            !('roles' in request.resource.data) ||
+            (
+              request.resource.data.roles is list &&
+              !request.resource.data.roles.hasAny(['admin', 'arena', 'organizer'])
+            )
+          ) &&
           (!('superAdmin' in request.resource.data) || request.resource.data.superAdmin == false)
         ) ||
         isAdmin()
@@ -181,6 +209,10 @@ service cloud.firestore {
           (
             !('role' in request.resource.data) ||
             request.resource.data.role == resource.data.role
+          ) &&
+          (
+            !('roles' in request.resource.data) ||
+            request.resource.data.roles == resource.data.roles
           ) &&
           (
             !('superAdmin' in request.resource.data) ||
@@ -245,13 +277,15 @@ service cloud.firestore {
       // Isso permite que a tela pública funcione sem login
       allow read: if true;
       
-      // Apenas admins/gestores podem criar torneios
-      allow create: if request.auth != null && isAdmin();
+      // Criar: admin da plataforma ou gestor de torneios
+      allow create: if request.auth != null && (isAdmin() || isSuperAdmin() || isTournamentOrganizer());
       
-      // Apenas o gestor do torneio (managerId) ou admins podem atualizar/deletar
+      // Atualizar/deletar: gestor do torneio, admin da plataforma ou gestor de torneios
       allow update, delete: if request.auth != null && (
         resource.data.managerId == request.auth.uid ||
-        isAdmin()
+        isAdmin() ||
+        isSuperAdmin() ||
+        isTournamentOrganizer()
       );
     }
 
@@ -438,7 +472,7 @@ service cloud.firestore {
     // NexaGO — visão operacional (documentos agregados para o backoffice; manter status no backend)
     match /torneios/{torneioId} {
       allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null && (isAdmin() || isSuperAdmin());
+      allow create, update, delete: if request.auth != null && canWriteOperationalTorneios();
     }
 
     // Regras padrão para outras coleções (ajuste conforme necessário)

@@ -1,0 +1,200 @@
+.checkout-vini {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 80px 20px;
+
+  background:
+    radial-gradient(circle at 20% 0%, rgba(124, 58, 237, 0.15), transparent 60%),
+    radial-gradient(circle at 80% 100%, rgba(37, 99, 235, 0.12), transparent 60%),
+    #0b0f1a;
+}
+
+/* GLOW (mais suave e elegante) */
+.checkout-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 520px;
+  height: 520px;
+
+  background: radial-gradient(circle, rgba(124,58,237,0.18), transparent 70%);
+  filter: blur(100px);
+
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* CONTAINER CENTRAL */
+.checkout-container {
+  width: 100%;
+  max-width: 480px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+
+  position: relative;
+  z-index: 2;
+}
+
+/* ANIMAÇÕES (mais suaves) */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  animation: reveal 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.delay-1 { animation-delay: 0.08s; }
+.delay-2 { animation-delay: 0.16s; }
+.delay-3 { animation-delay: 0.24s; }
+.delay-4 { animation-delay: 0.32s; }
+.delay-5 { animation-delay: 0.4s; }
+.delay-6 { animation-delay: 0.48s; }
+
+@keyframes reveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* TIPOGRAFIA */
+.checkout-title {
+  font-size: clamp(2rem, 4vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.checkout-subtitle {
+  opacity: 0.6;
+  font-size: 0.95rem;
+}
+
+/* PREÇO (menos agressivo, mais premium) */
+.checkout-price {
+  font-size: clamp(2.4rem, 6vw, 3rem);
+  font-weight: 800;
+
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+
+  transition: filter 0.3s ease, transform 0.3s ease;
+}
+
+.checkout-price:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+/* TIMER */
+.checkout-timer-bar {
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.checkout-timer-bar span {
+  display: block;
+  height: 100%;
+
+  background: linear-gradient(90deg, #f59e0b, #f97316);
+
+  transition: width 1s linear;
+  animation: timerPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes timerPulse {
+  0%, 100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.2);
+  }
+}
+
+/* BOTÃO (mais refinado) */
+.checkout-btn-vini {
+  position: relative;
+  overflow: hidden;
+
+  border-radius: 999px;
+  padding: 16px;
+  font-weight: 600;
+  font-size: 1rem;
+
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s ease,
+    filter 0.25s ease;
+}
+
+/* brilho interno mais sutil */
+.checkout-btn-vini::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+
+  background: linear-gradient(
+    120deg,
+    transparent 20%,
+    rgba(255,255,255,0.2),
+    transparent 80%
+  );
+
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.checkout-btn-vini:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(124,58,237,0.35);
+  filter: brightness(1.05);
+}
+
+.checkout-btn-vini:hover::after {
+  opacity: 1;
+}
+
+.checkout-btn-vini:active {
+  transform: scale(0.98);
+}
+
+/* TRUST */
+.checkout-trust-vini {
+  text-align: center;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  opacity: 0.8;
+}
+
+.countdown-simple {
+  margin: -0.35rem 0 0;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #e2e8f0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* REDUCED MOTION (acessibilidade) */
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .checkout-timer-bar span,
+  .checkout-btn-vini {
+    animation: none;
+    transition: none;
+  }
+}

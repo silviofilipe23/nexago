@@ -1,0 +1,25 @@
+<section class="min-h-dvh bg-nexago-bg px-4 py-16 text-white md:px-6">
+  <div class="mx-auto w-full max-w-md text-center">
+    <div class="success-check mx-auto mb-6">✓</div>
+
+    <h1 class="text-3xl font-semibold">Reserva confirmada!</h1>
+    <p class="mt-3 text-slate-400">Agora e so ir pra quadra. Boa partida! 🏐</p>
+
+    <div class="mt-8 rounded-2xl border border-white/10 bg-white/5 p-5 text-left">
+      <p class="text-sm text-slate-400">Arena</p>
+      <p class="font-semibold">{{ reservation().arena }}</p>
+
+      <div class="mt-3 flex justify-between text-sm text-slate-300">
+        <span>{{ reservation().date }}</span>
+        <span>{{ reservation().time }}</span>
+      </div>
+    </div>
+
+    <div class="mt-8 space-y-3">
+      <button type="button" class="primary-btn w-full" (click)="addToCalendar()">Adicionar ao calendario</button>
+      <button type="button" class="secondary-btn w-full" (click)="shareReservation()">Compartilhar com parceiro</button>
+    </div>
+
+    <a routerLink="/" class="mt-6 block text-sm text-slate-400 transition hover:text-white">Voltar para inicio</a>
+  </div>
+</section>

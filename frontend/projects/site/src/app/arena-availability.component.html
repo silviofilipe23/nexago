@@ -1,0 +1,514 @@
+<section
+  class="arena-availability min-h-dvh bg-nexago-bg text-white lg:flex lg:h-dvh lg:max-h-dvh lg:flex-col lg:overflow-hidden"
+  [class.arena-availability--search-compact]="isSearchNavbarCompact()"
+  [class.arena-availability--map-peek]="mobileMapPeekOpen()"
+>
+  <header
+    class="availability-top-bar shrink-0 px-4 pb-4 pt-5 md:px-6 lg:relative"
+    [class.availability-top-bar--compact]="isSearchNavbarCompact()"
+  >
+    <div class="availability-header-inner mx-auto max-w-[1440px]" [class.availability-header-inner--compact]="isSearchNavbarCompact()">
+      <div class="availability-header-brand flex flex-wrap items-center justify-between gap-3">
+        <a routerLink="/" class="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/70 focus-visible:ring-offset-2 focus-visible:ring-offset-nexago-bg">
+          <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-blue-600 text-sm font-bold text-white shadow-[var(--shadow-glow)]">N</span>
+          <span class="text-lg font-semibold tracking-tight text-white">NexaGO</span>
+        </a>
+        <!-- <a routerLink="/" fragment="agendamento" class="text-sm text-slate-300 transition hover:text-white">
+          Alterar busca
+        </a> -->
+      </div>
+
+      <div class="search-shell hidden sm:block">
+        <div class="flex items-center justify-center gap-4">
+          <div
+            class="search-navbar"
+            [class.search-navbar--expanded]="openSearchSection() !== null"
+            [class.search-navbar--compact]="isSearchNavbarCompact()"
+          >
+            @if (openSearchSection() !== 'location') {
+              <button
+                type="button"
+                class="search-item"
+                [class.search-item--active]="openSearchSection() === 'location'"
+                (click)="toggleSearchSection('location')"
+              >
+                @if (!isSearchNavbarCompact()) {
+                  <span class="search-item__label">Onde jogar</span>
+                }
+                <span class="search-item__value">{{ location() }}</span>
+              </button>
+            } @else {
+              <div class="search-item search-item--active search-item--field" (click)="$event.stopPropagation()">
+                @if (!isSearchNavbarCompact()) {
+                  <span class="search-item__label">Onde jogar</span>
+                }
+                <div class="search-item__input-row">
+                  <input
+                    #locationQuery
+                    type="search"
+                    class="search-item__input"
+                    [value]="locationDraft()"
+                    (input)="setLocationDraft($any($event.target).value)"
+                    (keydown.enter)="commitLocationDraft(); $event.preventDefault()"
+                    placeholder="Buscar destino"
+                    aria-label="Onde jogar — buscar cidade ou região"
+                    autocomplete="off"
+                  />
+                  @if (locationDraft().trim()) {
+                    <button
+                      type="button"
+                      class="search-item__clear"
+                      (click)="clearLocationDraft(); $event.stopPropagation()"
+                      aria-label="Limpar destino"
+                    >
+                      <span aria-hidden="true">×</span>
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+
+            <span class="search-divider" aria-hidden="true"></span>
+
+            <button
+              type="button"
+              class="search-item"
+              [class.search-item--active]="openSearchSection() === 'date'"
+              (click)="toggleSearchSection('date')"
+            >
+              @if (!isSearchNavbarCompact()) {
+                <span class="search-item__label">Data</span>
+              }
+              <span class="search-item__value">{{ dateDisplayLabel() || 'Selecionar data' }}</span>
+            </button>
+
+            <span class="search-divider" aria-hidden="true"></span>
+
+            <button
+              type="button"
+              class="search-item"
+              [class.search-item--active]="openSearchSection() === 'time'"
+              (click)="toggleSearchSection('time')"
+            >
+              @if (!isSearchNavbarCompact()) {
+                <span class="search-item__label">Horário</span>
+              }
+              <span class="search-item__value">{{ selectedTime() || 'Selecionar horario' }}</span>
+            </button>
+
+            <button type="button" class="search-btn" (click)="applySearchToRoute()" aria-label="Buscar — aplicar local, data e horário na URL">
+              <span aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="#e3e3e3"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+              </span>
+              @if (!isSearchNavbarCompact()) {
+                Buscar
+              }
+            </button>
+          </div>
+
+          <button
+            type="button"
+            (click)="openFiltersModal()"
+            class="search-filters-btn inline-flex shrink-0 items-center gap-2 rounded-full border border-white/20 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-white/[0.1]"
+            aria-label="Abrir filtros"
+          >
+            <span aria-hidden="true">⚙</span>
+            @if (!isSearchNavbarCompact()) {
+              Filtros
+            }
+          </button>
+        </div>
+
+        @if (openSearchSection() === 'location') {
+          <div class="dropdown-panel dropdown-panel--city-list" (click)="$event.stopPropagation()">
+            <p class="dropdown-title">Sugestões</p>
+            <p class="dropdown-subtitle">Cidades e regiões — o trecho que você digitou aparece em destaque simples; o restante em negrito.</p>
+            <ul class="city-suggest-list" role="listbox" aria-label="Sugestões de local">
+              @for (row of filteredCitySuggestions(); track row.id) {
+                <li role="presentation">
+                  <button
+                    type="button"
+                    role="option"
+                    class="city-suggest-row"
+                    [attr.aria-selected]="location() === row.label"
+                    [class.city-suggest-row--active]="location() === row.label"
+                    (click)="chooseLocation(row.label)"
+                  >
+                    <span class="city-suggest-pin" aria-hidden="true">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                      </svg>
+                    </span>
+                    <span class="city-suggest__line">
+                      @if (row.boldBefore) {
+                        <strong class="city-suggest__accent">{{ row.boldBefore }}</strong>
+                      }
+                      @if (row.normalMatch) {
+                        <span class="city-suggest__plain">{{ row.normalMatch }}</span>
+                      }
+                      @if (row.boldAfter) {
+                        <strong class="city-suggest__accent">{{ row.boldAfter }}</strong>
+                      }
+                    </span>
+                  </button>
+                </li>
+              } @empty {
+                <li class="city-suggest-empty-wrap">
+                  <p class="city-suggest-empty">Nenhuma cidade encontrada. Tente outro termo.</p>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        @if (openSearchSection() === 'date') {
+          <div class="dropdown-panel dropdown-panel--calendar" (click)="$event.stopPropagation()">
+            <p class="dropdown-title">Data</p>
+            <p class="dropdown-subtitle">Escolha um dia para ver horarios e disponibilidade.</p>
+            <div class="calendar-quick">
+              <button type="button" class="calendar-quick-btn" (click)="setDateToday()">Hoje</button>
+              <button type="button" class="calendar-quick-btn" (click)="setDateTomorrow()">Amanhã</button>
+            </div>
+            <div class="calendar-nav">
+              <button type="button" class="calendar-nav-btn" (click)="calendarPrevMonth()" aria-label="Mês anterior">‹</button>
+              <span class="calendar-nav-label">{{ calendarMonthLabel() }}</span>
+              <button type="button" class="calendar-nav-btn" (click)="calendarNextMonth()" aria-label="Próximo mês">›</button>
+            </div>
+            <div class="calendar-weekdays" aria-hidden="true">
+              @for (w of calendarWeekdayLabels; track $index) {
+                <span class="calendar-weekday">{{ w }}</span>
+              }
+            </div>
+            <div class="calendar-grid" role="grid" aria-label="Calendario">
+              @for (cell of calendarCells(); track cell.iso + '-' + $index) {
+                <button
+                  type="button"
+                  role="gridcell"
+                  class="calendar-day"
+                  [class.calendar-day--outside]="!cell.inMonth"
+                  [class.calendar-day--selected]="cell.isSelected"
+                  [class.calendar-day--today]="cell.isToday"
+                  (click)="selectCalendarDay(cell.iso)"
+                >
+                  {{ cell.label }}
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        @if (openSearchSection() === 'time') {
+          <div class="dropdown-panel" (click)="$event.stopPropagation()">
+            <p class="dropdown-title">Horario</p>
+            <p class="dropdown-subtitle">Defina o melhor horario para jogar e filtrar as quadras livres.</p>
+            <div class="dropdown-grid">
+              @for (item of quickTimes; track item) {
+                <button
+                  type="button"
+                  class="dropdown-chip"
+                  [class.dropdown-chip--active]="selectedTime() === item"
+                  (click)="chooseTime(item)"
+                >
+                  {{ item }}
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </header>
+
+  <div
+    class="availability-main mx-auto flex w-full flex-col px-4 pb-8 pt-4 md:px-6 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:pb-4"
+  >
+    @if (openSearchSection() !== null) {
+      <button type="button" class="search-overlay" (click)="closeSearchSection()" aria-label="Fechar busca expandida"></button>
+    }
+
+    @if (isFiltersModalOpen()) {
+      <button type="button" class="filters-overlay" (click)="closeFiltersModal()" aria-label="Fechar filtros"></button>
+      <section class="filters-modal" aria-label="Filtros de busca de arenas">
+        <header class="filters-modal__header">
+          <h2 class="filters-modal__title">Filtros</h2>
+          <button type="button" class="filters-modal__close" (click)="closeFiltersModal()" aria-label="Fechar filtros">✕</button>
+        </header>
+
+        <div class="filters-modal__content">
+          <p class="filters-summary">
+            Até R$ {{ maxPriceFilter() }} • {{ maxDistanceFilter() }} km • {{ minRatingFilter() | number: '1.1-1' }} ★
+          </p>
+
+          <div class="filters-block">
+            <p class="filters-block__title">Ordenação e disponibilidade</p>
+            <div class="filters-pill-group">
+              <button type="button" class="filters-pill" [class.filters-pill--active]="onlyAvailable()" (click)="toggleOnlyAvailable()">
+                Somente disponíveis
+              </button>
+              <button type="button" class="filters-pill" [class.filters-pill--active]="sortBy() === 'distance'" (click)="setSortBy('distance')">
+                Mais próximas
+              </button>
+              <button type="button" class="filters-pill" [class.filters-pill--active]="sortBy() === 'price'" (click)="setSortBy('price')">
+                Menor preço
+              </button>
+              <button type="button" class="filters-pill" [class.filters-pill--active]="sortBy() === 'rating'" (click)="setSortBy('rating')">
+                Melhor avaliação
+              </button>
+              <button
+                type="button"
+                class="filters-pill"
+                [class.filters-pill--active]="showOnlyFavorites()"
+                (click)="toggleFavoritesOnlyFilter()"
+              >
+                ❤️ Só favoritas
+              </button>
+            </div>
+          </div>
+
+          <div class="filters-block">
+            <p class="filters-block__title">Tipo de arena</p>
+            <div class="filters-pill-group">
+              <button type="button" class="filters-pill" [class.filters-pill--active]="selectedArenaType() === 'all'" (click)="setArenaTypeFilter('all')">Qualquer tipo</button>
+              <button type="button" class="filters-pill" [class.filters-pill--active]="selectedArenaType() === 'indoor'" (click)="setArenaTypeFilter('indoor')">Coberta</button>
+              <button type="button" class="filters-pill" [class.filters-pill--active]="selectedArenaType() === 'beach'" (click)="setArenaTypeFilter('beach')">Areia</button>
+              <button type="button" class="filters-pill" [class.filters-pill--active]="selectedArenaType() === 'hybrid'" (click)="setArenaTypeFilter('hybrid')">Híbrida</button>
+            </div>
+          </div>
+
+          <div class="filters-block">
+            <div class="filters-range-head">
+              <p class="filters-block__title">Faixa de preço</p>
+              <span class="filters-range-value">Até R$ {{ maxPriceFilter() }}/h</span>
+            </div>
+            <input type="range" min="60" max="260" step="5" class="filters-range" [value]="maxPriceFilter()" (input)="setMaxPriceFilter($any($event.target).value)" />
+          </div>
+
+          <div class="filters-block">
+            <div class="filters-range-head">
+              <p class="filters-block__title">Distância máxima</p>
+              <span class="filters-range-value">{{ maxDistanceFilter() }} km</span>
+            </div>
+            <input type="range" min="1" max="15" step="1" class="filters-range" [value]="maxDistanceFilter()" (input)="setMaxDistanceFilter($any($event.target).value)" />
+          </div>
+
+          <div class="filters-block">
+            <div class="filters-range-head">
+              <p class="filters-block__title">Avaliação mínima</p>
+              <span class="filters-range-value">{{ minRatingFilter() | number: '1.1-1' }} ★</span>
+            </div>
+            <input type="range" min="3.5" max="5" step="0.1" class="filters-range" [value]="minRatingFilter()" (input)="setMinRatingFilter($any($event.target).value)" />
+          </div>
+
+          <div class="filters-block">
+            <p class="filters-block__title">Comodidades</p>
+            <div class="amenities-group">
+              <button type="button" class="amenity-pill" [class.amenity-pill--active]="includeParkingFilter()" (click)="includeParkingFilter.set(!includeParkingFilter())">
+                <span class="amenity-pill__icon" aria-hidden="true">🅿</span>
+                Estacionamento
+              </button>
+              <button type="button" class="amenity-pill" [class.amenity-pill--active]="includeLockerRoomFilter()" (click)="includeLockerRoomFilter.set(!includeLockerRoomFilter())">
+                <span class="amenity-pill__icon" aria-hidden="true">🚿</span>
+                Vestiário
+              </button>
+              <button type="button" class="amenity-pill" [class.amenity-pill--active]="includeNightLightingFilter()" (click)="includeNightLightingFilter.set(!includeNightLightingFilter())">
+                <span class="amenity-pill__icon" aria-hidden="true">💡</span>
+                Iluminação noturna
+              </button>
+              <button type="button" class="amenity-pill" [class.amenity-pill--active]="onlyAvailable()" (click)="toggleOnlyAvailable()">
+                <span class="amenity-pill__icon" aria-hidden="true">✅</span>
+                Somente disponíveis
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <footer class="filters-modal__footer">
+          <button type="button" class="filters-clear-btn" (click)="resetAdvancedFilters()">Limpar filtros</button>
+          <button type="button" class="filters-apply-btn" (click)="closeFiltersModal()">Ver {{ listedArenas().length }} arenas disponíveis</button>
+        </footer>
+      </section>
+    }
+
+    <div class="availability-main__intro shrink-0 mt-4">
+      <p class="mb-4 text-lg font-semibold text-white">Mais de {{ listedArenas().length }} arenas disponiveis</p>
+      <p class="mb-4 text-sm text-slate-400 lg:hidden">Toque no card para abrir detalhes; use o mapa para centralizar.</p>
+
+      <div class="mb-4 lg:hidden">
+        <button
+          type="button"
+          (click)="toggleMapMobile()"
+          class="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08]"
+        >
+          {{ showMapMobile() ? 'Ocultar mapa' : 'Ver mapa' }}
+        </button>
+      </div>
+    </div>
+
+    <div
+      class="availability-main__split flex min-h-0 flex-1 flex-col gap-6 lg:min-h-0 lg:overflow-hidden"
+    >
+      <div
+        class="grid min-h-0 flex-1 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,52%)_minmax(0,48%)] lg:items-stretch lg:overflow-hidden"
+      >
+        <div class="availability-list-scroll min-h-0 lg:overflow-y-auto lg:overflow-x-hidden lg:pr-1">
+          <div #arenaList class="arena-list space-y-6 p-4 rounded-2xl">
+            @for (arena of listedArenas(); track arena.id) {
+              <article
+                #cardEl
+                class="arena-card glass-panel cursor-pointer overflow-hidden rounded-2xl"
+                [attr.data-shared-arena-id]="arena.id"
+                [class.arena-card--selected]="selectedArenaId() === arena.id"
+                [class.arena-card--map-hover]="discovery.hoveredArenaId() === arena.id"
+                (mouseenter)="hoverArena(arena.id)"
+                (mouseleave)="clearArenaHover()"
+                (click)="openArenaDetail(cardEl, arena)"
+              >
+                <div class="grid min-h-0 gap-0 sm:grid-cols-[44%_56%]">
+                  <div
+                    class="arena-card__media relative h-56 min-h-0 overflow-hidden rounded-t-2xl sm:h-full sm:rounded-t-none sm:rounded-l-2xl"
+                  >
+                    <img
+                      [src]="arena.imageUrl"
+                      [alt]="arena.name"
+                      class="arena-card__img h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                    <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
+                    <button
+                      type="button"
+                      class="arena-card__favorite"
+                      [class.arena-card__favorite--active]="favorites.has(arena.id)"
+                      (click)="toggleFavoriteCard(arena.id, $event)"
+                      [attr.aria-label]="
+                        favorites.has(arena.id) ? 'Remover dos favoritos' : 'Salvar como favorita'
+                      "
+                      [attr.aria-pressed]="favorites.has(arena.id)"
+                    >
+                      ♥
+                    </button>
+                    @if (favorites.has(arena.id)) {
+                      <span class="arena-card__fav-badge absolute bottom-3 left-3 z-[1]">⭐ Favorita</span>
+                    }
+                    @if (badgeLabel(arena); as badge) {
+                      <span class="arena-card__badge absolute left-3 top-10 max-w-[calc(100%-4rem)] sm:top-3 sm:max-w-none">{{ badge }}</span>
+                    }
+                  </div>
+
+                  <div class="flex min-h-56 flex-col p-4 sm:p-5">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <h3 class="line-clamp-1 text-lg font-semibold tracking-tight text-white">{{ arena.name }}</h3>
+                        <p class="mt-0.5 text-sm text-slate-400">{{ arena.city }} — {{ arena.state }}</p>
+                      </div>
+                      <span class="shrink-0 text-sm font-semibold text-amber-300">★ {{ arena.rating }}</span>
+                    </div>
+
+                    <p class="arena-card__distance mt-3 text-sm text-slate-400">
+                      📍 {{ arena.distanceKm }} km
+                      @if (arena.id === nearestArenaId()) {
+                        <span class="font-semibold text-emerald-300"> · mais próxima</span>
+                      }
+                    </p>
+                    <p class="arena-card__urgency">{{ urgencyLabel(arena) }}</p>
+
+                    <div class="arena-card__footer mt-auto flex items-end justify-between gap-4 pt-4">
+                      <p class="text-sm text-slate-500">
+                        <span class="arena-card__price text-lg font-bold text-violet-200">R$ {{ arena.pricePerHourReais }}</span>
+                        <span class="font-medium text-slate-500">/hora</span>
+                      </p>
+                      <a
+                        routerLink="/checkout"
+                        [queryParams]="{
+                          arena: arena.name,
+                          date: selectedDateIso(),
+                          time: selectedTime(),
+                          price: arena.pricePerHourReais
+                        }"
+                        class="arena-card__cta inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-violet-900/30 hover:brightness-110"
+                        (click)="$event.stopPropagation()"
+                      >
+                        Reservar este horário
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            } @empty {
+              <div class="rounded-2xl border border-dashed border-white/15 py-12 text-center text-slate-400">
+                Nenhuma arena disponivel para este horario.
+              </div>
+            }
+          </div>
+        </div>
+
+        <aside
+          class="map-panel map-panel--with-controls glass-panel h-[55vh] min-h-[20rem] overflow-hidden rounded-2xl lg:h-full lg:min-h-0 lg:max-h-none lg:self-stretch"
+          [class.map-panel--hidden-mobile]="!showMapMobile()"
+          [class.map-panel--dimmed]="galleryOverlay.isFullscreenGalleryOpen()"
+        >
+          <div class="map-panel__controls" (click)="$event.stopPropagation()">
+            <button
+              type="button"
+              class="map-panel__map-btn"
+              [class.map-panel__map-btn--active]="showHeatmap()"
+              (click)="toggleHeatmap()"
+              [attr.aria-pressed]="showHeatmap()"
+              aria-label="Alternar mapa de calor de demanda"
+            >
+              🔥 Demanda
+            </button>
+            <button
+              type="button"
+              class="map-panel__map-btn"
+              [class.map-panel__map-btn--active]="showOnlyFavorites()"
+              (click)="toggleFavoritesOnlyFilter()"
+              [attr.aria-pressed]="showOnlyFavorites()"
+              aria-label="Mostrar só arenas favoritas"
+            >
+              ❤️ Favoritas
+            </button>
+          </div>
+          <div #mapContainer class="arena-map-embed h-full min-h-[20rem] w-full lg:min-h-0"></div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  @if (mobileMapPeekOpen() && peekArena(); as pa) {
+    <button
+      type="button"
+      class="arena-map-peek-backdrop"
+      aria-label="Fechar painel da arena"
+      (click)="closeMapPeek()"
+    ></button>
+    <div class="arena-map-peek-sheet" role="dialog" aria-modal="true" aria-label="Arena no mapa">
+      <div class="arena-map-peek-sheet__grab" aria-hidden="true"></div>
+      <div class="arena-map-peek-sheet__body">
+        <div
+          #peekCard
+          class="arena-map-peek-media"
+          [style.background-image]="'url(' + pa.imageUrl + ')'"
+        ></div>
+        <div class="arena-map-peek-info">
+          <h3 class="arena-map-peek-title">{{ pa.name }}</h3>
+          <p class="arena-map-peek-meta">{{ pa.city }} — {{ pa.state }} · ★ {{ pa.rating }}</p>
+          <p class="arena-map-peek-price">
+            <span class="arena-map-peek-price__val">R$ {{ pa.pricePerHourReais }}</span>/h
+          </p>
+          <div class="arena-map-peek-actions">
+            <button type="button" class="arena-map-peek-btn arena-map-peek-btn--ghost" (click)="closeMapPeek()">
+              Fechar
+            </button>
+            <button
+              type="button"
+              class="arena-map-peek-btn arena-map-peek-btn--primary"
+              (click)="openDetailFromPeek(peekCard, pa)"
+            >
+              Ver detalhes
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</section>

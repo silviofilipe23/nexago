@@ -1,0 +1,65 @@
+<section id="agendamento" class="relative scroll-mt-24 px-4 py-20 md:px-6" aria-labelledby="agendamento-title">
+  <div class="mx-auto max-w-6xl">
+    <h2 id="agendamento-title" class="text-center text-sm font-semibold uppercase tracking-[0.16em] text-emerald-400">
+      Agendamento
+    </h2>
+    <p class="mx-auto mt-3 text-center text-4xl font-semibold tracking-tight text-white md:text-5xl">
+      Reserve sua Quadra
+    </p>
+    <p class="mx-auto mt-4 max-w-xl text-center text-lg text-slate-400">
+      Encontre o melhor horário e confirme sua reserva em segundos.
+    </p>
+
+    <div class="schedule-wrap glass-panel mt-12 rounded-3xl border border-white/10 bg-white/[0.04] p-6 md:p-8">
+      <div class="schedule-days flex gap-2 overflow-x-auto pb-2 pt-2 md:gap-3">
+        @for (day of days(); track day.key; let i = $index) {
+          <button
+            type="button"
+            (click)="selectDay(i)"
+            [attr.aria-pressed]="selectedDay() === i"
+            class="schedule-day group shrink-0 rounded-2xl px-4 py-2.5 text-left transition"
+            [class.schedule-day--active]="selectedDay() === i"
+          >
+            <span class="block text-xs text-slate-400 group-[.schedule-day--active]:text-emerald-100">{{ day.dayLabel }}</span>
+            <span class="block text-2xl font-semibold text-slate-200 group-[.schedule-day--active]:text-white">{{ day.date }}</span>
+          </button>
+        }
+      </div>
+
+      <div class="mt-6 grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-9">
+        @for (slot of activeSlots(); track slot.time) {
+          <button
+            type="button"
+            (click)="selectTime(slot.time, slot.available)"
+            (pointermove)="onSlotPointerMove($event)"
+            (pointerleave)="onSlotPointerLeave($event)"
+            class="schedule-slot rounded-xl border px-3 py-3 text-sm font-medium transition"
+            [class.schedule-slot--available]="slot.available"
+            [class.schedule-slot--disabled]="!slot.available"
+            [class.schedule-slot--selected]="selectedTime() === slot.time"
+            [disabled]="!slot.available"
+          >
+            <span aria-hidden="true">◷</span> {{ slot.time }}
+          </button>
+        }
+      </div>
+
+      <div class="mt-8 flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-center gap-4 text-sm text-slate-400">
+          <span class="inline-flex items-center gap-2"><i class="h-2.5 w-2.5 rounded-sm bg-emerald-400/40"></i> Disponivel</span>
+          <span class="inline-flex items-center gap-2"><i class="h-2.5 w-2.5 rounded-sm bg-slate-400/30"></i> Reservado</span>
+        </div>
+
+        <a
+          routerLink="/disponibilidade"
+          [queryParams]="{ date: selectedDateIso(), time: selectedTime() }"
+          class="schedule-cta inline-flex items-center justify-center rounded-xl bg-emerald-500 px-6 py-3 text-sm font-semibold text-white transition disabled:pointer-events-none disabled:opacity-50"
+          [attr.aria-disabled]="!canConfirm()"
+          [class.opacity-50]="!canConfirm()"
+        >
+          ✓ Buscar Disponibilidade
+        </a>
+      </div>
+    </div>
+  </div>
+</section>

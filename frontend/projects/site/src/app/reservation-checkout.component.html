@@ -1,0 +1,51 @@
+<section class="checkout-vini" (mousemove)="onMouseMove($event)">
+  <div class="checkout-glow"></div>
+
+  <div class="checkout-container">
+
+    <div class="checkout-header reveal">
+      <h1 class="checkout-title">Confirmar reserva</h1>
+      <p class="checkout-subtitle">Revise os detalhes antes de finalizar</p>
+    </div>
+
+    <div class="checkout-main reveal delay-1">
+      <div class="checkout-arena">
+        {{ reservation().arenaName }}
+      </div>
+      <div class="checkout-meta">
+        {{ reservation().time }} • {{ reservation().date }}
+      </div>
+    </div>
+
+    <div class="checkout-price-block reveal delay-2">
+      <span class="checkout-price">
+        R$ {{ reservation().price }}
+      </span>
+    </div>
+
+    <div class="checkout-urgency reveal delay-3">
+      <span>👀 3 pessoas vendo agora</span>
+    </div>
+
+    <div class="checkout-timer-bar reveal delay-4">
+      <span [style.width]="holdProgress()"></span>
+    </div>
+
+    <p class="countdown-simple reveal delay-4">⏳ {{ countdownLabel() }}</p>
+
+    <button
+      class="checkout-btn-vini reveal delay-5"
+      (click)="confirmPayment()"
+      [disabled]="isLoading() || isExpired()"
+    >
+      <span class="btn-content">
+        Confirmar reserva
+      </span>
+    </button>
+
+    <div class="checkout-trust-vini reveal delay-6">
+      🔒 Pagamento seguro • confirmação imediata
+    </div>
+
+  </div>
+</section>

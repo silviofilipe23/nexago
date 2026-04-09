@@ -1,0 +1,235 @@
+<section id="buscar" class="relative scroll-mt-24 px-4 py-20 md:px-6" aria-labelledby="busca-arenas">
+  <div appReveal class="mx-auto max-w-6xl">
+    <h2 id="busca-arenas" class="text-3xl font-semibold tracking-tight text-white md:text-4xl">
+      Busque arenas como nos melhores apps
+    </h2>
+    <p class="mt-4 max-w-2xl text-lg text-slate-400">
+      Cidade, bairro ou nome da arena — resultados na hora, com preço claro para você reservar sem fricção.
+    </p>
+
+    <div class="mt-10 flex flex-col gap-4 md:flex-row md:items-center">
+      <div class="relative flex-1">
+        <span class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" aria-hidden="true">
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </span>
+        <input
+          type="search"
+          autocomplete="off"
+          [value]="query()"
+          (input)="setQuery($any($event.target).value)"
+          placeholder="Onde você quer jogar?"
+          aria-label="Buscar arenas por cidade ou nome"
+          class="arena-search-input w-full rounded-2xl border border-white/10 bg-white/[0.06] py-4 pl-12 pr-4 text-base text-white backdrop-blur-md transition placeholder:text-slate-500"
+        />
+      </div>
+    </div>
+
+    <div class="mt-5 flex flex-wrap gap-2" role="group" aria-label="Sugestões inteligentes">
+      @for (chip of smartChips; track chip.id) {
+        <button
+          type="button"
+          (click)="applySmartChip(chip)"
+          class="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-medium text-slate-200 transition hover:border-violet-500/35 hover:bg-violet-500/[0.12] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60"
+        >
+          @switch (chip.kind) {
+            @case ('city') {
+              <span class="text-[1.05rem] leading-none" aria-hidden="true">🏙</span>
+            }
+            @case ('area') {
+              <span class="text-[1.05rem] leading-none" aria-hidden="true">📍</span>
+            }
+            @case ('trend') {
+              <span class="text-[1.05rem] leading-none" aria-hidden="true">🔥</span>
+            }
+            @case ('tournament_nav') {
+              <span class="text-[1.05rem] leading-none" aria-hidden="true">🏆</span>
+            }
+          }
+          {{ chip.label }}
+        </button>
+      }
+    </div>
+
+    <div class="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Filtros rápidos">
+      <button
+        type="button"
+        (click)="toggleOnlyAvailable()"
+        class="rounded-full border px-3 py-1.5 text-xs font-semibold transition"
+        [class.border-emerald-400/50]="onlyAvailable()"
+        [class.bg-emerald-500/20]="onlyAvailable()"
+        [class.text-emerald-200]="onlyAvailable()"
+        [class.border-white/10]="!onlyAvailable()"
+        [class.bg-white/[0.03]]="!onlyAvailable()"
+        [class.text-slate-300]="!onlyAvailable()"
+      >
+        Disponível agora
+      </button>
+      <button
+        type="button"
+        (click)="setSortBy('recommended')"
+        class="rounded-full border px-3 py-1.5 text-xs font-semibold transition"
+        [class.border-violet-400/50]="sortBy() === 'recommended'"
+        [class.bg-violet-500/20]="sortBy() === 'recommended'"
+        [class.text-violet-100]="sortBy() === 'recommended'"
+        [class.border-white/10]="sortBy() !== 'recommended'"
+        [class.bg-white/[0.03]]="sortBy() !== 'recommended'"
+        [class.text-slate-300]="sortBy() !== 'recommended'"
+      >
+        Recomendado
+      </button>
+      <button
+        type="button"
+        (click)="setSortBy('price')"
+        class="rounded-full border px-3 py-1.5 text-xs font-semibold transition"
+        [class.border-violet-400/50]="sortBy() === 'price'"
+        [class.bg-violet-500/20]="sortBy() === 'price'"
+        [class.text-violet-100]="sortBy() === 'price'"
+        [class.border-white/10]="sortBy() !== 'price'"
+        [class.bg-white/[0.03]]="sortBy() !== 'price'"
+        [class.text-slate-300]="sortBy() !== 'price'"
+      >
+        Menor preço
+      </button>
+      <button
+        type="button"
+        (click)="setSortBy('rating')"
+        class="rounded-full border px-3 py-1.5 text-xs font-semibold transition"
+        [class.border-violet-400/50]="sortBy() === 'rating'"
+        [class.bg-violet-500/20]="sortBy() === 'rating'"
+        [class.text-violet-100]="sortBy() === 'rating'"
+        [class.border-white/10]="sortBy() !== 'rating'"
+        [class.bg-white/[0.03]]="sortBy() !== 'rating'"
+        [class.text-slate-300]="sortBy() !== 'rating'"
+      >
+        Melhor nota
+      </button>
+    </div>
+
+    <div class="mt-12 grid gap-8 lg:grid-cols-[1fr,min(22rem,34%)] lg:items-start">
+      <div class="min-w-0">
+        <p class="text-sm text-slate-500">
+          @if (isLoading()) {
+            Buscando arenas…
+          } @else {
+            {{ filteredArenas().length }} arenas encontradas perto de você
+          }
+        </p>
+
+        @if (isLoading()) {
+          <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-live="polite">
+            @for (s of [1, 2, 3, 4, 5, 6]; track s) {
+              <div class="animate-pulse overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+                <div class="h-44 bg-white/10"></div>
+                <div class="space-y-3 p-6">
+                  <div class="h-5 w-3/4 rounded bg-white/10"></div>
+                  <div class="h-4 w-1/2 rounded bg-white/5"></div>
+                  <div class="h-8 w-24 rounded bg-white/10"></div>
+                  <div class="h-11 w-full rounded-xl bg-white/5"></div>
+                </div>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            @for (arena of filteredArenas(); track arena.id) {
+              <article
+                class="arena-result-card glass-panel group overflow-hidden rounded-2xl shadow-lg duration-300 hover:shadow-[var(--shadow-glow)]"
+              >
+                <div class="relative h-44 overflow-hidden">
+                  <img
+                    [src]="arena.imageUrl"
+                    [alt]="'Foto da arena ' + arena.name"
+                    class="h-full w-full object-cover opacity-85 transition duration-500 ease-out group-hover:scale-105 group-hover:opacity-100"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <div
+                    class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent transition-opacity duration-300 group-hover:opacity-95"
+                  ></div>
+                  <div
+                    class="pointer-events-none absolute inset-0 bg-violet-600/0 opacity-0 transition duration-300 group-hover:bg-violet-600/15 group-hover:opacity-100"
+                  ></div>
+                  @if (arena.badge) {
+                    <span
+                      class="absolute left-3 top-3 rounded-full border border-white/20 bg-black/45 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white backdrop-blur-sm"
+                    >
+                      {{ badgeLabel(arena.badge) }}
+                    </span>
+                  }
+                </div>
+                <div class="p-6">
+                  <h3 class="text-lg font-semibold text-white">{{ arena.name }}</h3>
+                  <p class="mt-1 text-sm text-slate-400">{{ arena.city }}, {{ arena.state }}</p>
+                  <div class="mt-3 flex items-center justify-between text-sm">
+                    <span class="text-amber-300">★ {{ arena.rating }}</span>
+                    <span class="text-slate-500">📍 {{ arena.distanceKm }} km</span>
+                  </div>
+                  <p class="mt-4 text-2xl font-semibold text-violet-200">
+                    R$ {{ arena.pricePerHourReais }}
+                    <span class="text-sm font-normal text-slate-500">/hora</span>
+                  </p>
+                  <a
+                    [href]="links.reserve"
+                    class="mt-6 inline-flex w-full items-center justify-center rounded-xl py-3 text-sm font-semibold transition duration-300 group-hover:scale-[1.02] focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+                    [class.pointer-events-none]="!arena.available"
+                    [class.bg-gradient-to-r]="arena.available"
+                    [class.from-violet-600]="arena.available"
+                    [class.to-blue-600]="arena.available"
+                    [class.text-white]="arena.available"
+                    [class.bg-slate-700/60]="!arena.available"
+                    [class.text-slate-400]="!arena.available"
+                    [attr.aria-disabled]="!arena.available"
+                  >
+                    {{ arena.available ? 'Reservar' : 'Indisponível' }}
+                  </a>
+                </div>
+              </article>
+            } @empty {
+              <p
+                class="col-span-full rounded-2xl border border-dashed border-white/10 py-12 text-center text-slate-500"
+              >
+                Nenhuma arena encontrada. Tente outra cidade ou nome.
+              </p>
+            }
+          </div>
+        }
+      </div>
+
+      <aside class="hidden min-w-0 lg:block" aria-hidden="true">
+        <div
+          class="arena-map-mock relative sticky top-28 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900/90 to-slate-950/95 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.65)]"
+        >
+          <div class="absolute inset-0 arena-map-mock__pins opacity-60"></div>
+          <div class="relative flex h-[min(32rem,72vh)] min-h-[18rem] flex-col">
+            <div
+              class="absolute inset-0 bg-[radial-gradient(ellipse_at_30%_20%,rgba(139,92,246,0.18),transparent_55%),radial-gradient(ellipse_at_70%_80%,rgba(59,130,246,0.12),transparent_50%)]"
+            ></div>
+            <div class="relative flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Mapa</span>
+              <span class="text-[10px] text-slate-500">Prévia</span>
+            </div>
+            <div class="relative flex flex-1 items-center justify-center">
+              <div
+                class="absolute left-[18%] top-[22%] h-3 w-3 rounded-full border-2 border-white bg-violet-500 shadow-[0_0_12px_rgba(139,92,246,0.8)]"
+              ></div>
+              <div
+                class="absolute right-[28%] top-[38%] h-3 w-3 rounded-full border-2 border-white bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.75)]"
+              ></div>
+              <div
+                class="absolute bottom-[32%] left-[40%] h-3 w-3 rounded-full border-2 border-white bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.7)]"
+              ></div>
+              <div
+                class="absolute bottom-[24%] right-[20%] h-3 w-3 rounded-full border-2 border-white bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.65)]"
+              ></div>
+              <p class="relative z-10 max-w-[12rem] text-center text-xs leading-relaxed text-slate-500">
+                Arenas com melhor disponibilidade aparecem aqui quando você filtra — experiência completa no app.
+              </p>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>

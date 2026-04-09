@@ -1,0 +1,21 @@
+.price {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #a78bfa;
+  text-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
+}
+
+.badge-hot {
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: #fde68a;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.badge-trust {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #a7f3d0;
+}

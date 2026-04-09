@@ -1,1 +1,110 @@
-/* You can add global styles to this file, and also import other style files */
+
+@use 'design-system/colors';
+@use 'design-system/typography';
+@use 'design-system/spacing';
+@use 'design-system/buttons';
+@use 'design-system/cards';
+@use 'design-system/badges';
+@use 'design-system/animations';
+@import 'tailwindcss';
+
+@theme {
+  --color-nexago-bg: #0b0b0f;
+  --color-nexago-surface: #12121a;
+  --color-nexago-border: rgba(255, 255, 255, 0.08);
+  --color-nexago-muted: #94a3b8;
+  --color-nexago-accent: #8b5cf6;
+  --color-nexago-accent-2: #3b82f6;
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol';
+  --radius-glass: 1.25rem;
+  --shadow-glow: 0 0 80px -20px rgba(139, 92, 246, 0.45);
+  --shadow-card: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+
+  /* NexaGO Motion System */
+  --motion-fast: 120ms;
+  --motion-normal: 220ms;
+  --motion-slow: 350ms;
+  --motion-page: 450ms;
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: ease-out;
+  --ease-sharp: ease-in-out;
+  --ease-premium: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background-color: var(--color-nexago-bg);
+    color: #f1f5f9;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  ::selection {
+    background-color: rgba(139, 92, 246, 0.35);
+    color: #fff;
+  }
+}
+
+@layer utilities {
+  .reveal-hidden {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
+  .reveal-visible {
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+      opacity var(--motion-page) var(--ease-smooth),
+      transform var(--motion-page) var(--ease-smooth);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal-hidden {
+      opacity: 1;
+      transform: none;
+    }
+    .reveal-visible {
+      transition: none;
+    }
+    .glass-panel {
+      transition: none;
+    }
+    button:active,
+    [role='button']:active {
+      transform: none;
+    }
+  }
+  .glass-panel {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.02) 100%
+    );
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--color-nexago-border);
+    transition:
+      transform var(--motion-normal) var(--ease-smooth),
+      box-shadow var(--motion-normal) var(--ease-smooth),
+      border-color var(--motion-normal) var(--ease-smooth);
+  }
+
+  /* Micro-interação global (botões / links interativos) */
+  @media (prefers-reduced-motion: no-preference) {
+    button:active:not(:disabled),
+    [role='button']:active {
+      transform: scale(0.97);
+    }
+  }
+}

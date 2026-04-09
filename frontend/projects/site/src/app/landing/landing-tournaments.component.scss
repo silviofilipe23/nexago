@@ -1,0 +1,25 @@
+.tournament-card {
+  position: relative;
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    background: radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.22), transparent 65%);
+  }
+
+  &:hover::after {
+    opacity: 1;
+  }
+
+  & > * {
+    position: relative;
+    z-index: 2;
+  }
+}

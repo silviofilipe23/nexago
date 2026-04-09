@@ -1,0 +1,42 @@
+<header
+  class="sticky top-0 z-50 border-b border-white/[0.06] bg-nexago-bg/75 backdrop-blur-xl supports-[backdrop-filter]:bg-nexago-bg/65"
+>
+  <div class="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 md:px-6">
+    <a routerLink="/" class="flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/70 focus-visible:ring-offset-2 focus-visible:ring-offset-nexago-bg">
+      <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-blue-600 text-sm font-bold text-white shadow-[var(--shadow-glow)]">N</span>
+      <span class="text-lg font-semibold tracking-tight text-white">NexaGO</span>
+    </a>
+    <nav class="hidden items-center gap-1 md:flex" aria-label="Seções">
+      <a
+        class="rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/70"
+        href="#buscar"
+      >
+        Arenas
+      </a>
+      <a
+        class="rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/70"
+        href="#torneios"
+      >
+        Torneios
+      </a>
+      <a
+        class="rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/70"
+        href="#ranking"
+      >
+        Ranking
+      </a>
+      <a
+        class="rounded-lg px-3 py-2 text-sm font-medium text-slate-300 transition hover:bg-white/5 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/70"
+        href="#como-funciona"
+      >
+        Como funciona
+      </a>
+    </nav>
+    <a
+      class="rounded-xl bg-gradient-to-r from-violet-600 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition hover:scale-[1.02] hover:shadow-violet-500/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 focus-visible:ring-offset-nexago-bg"
+      [href]="links.reserve"
+    >
+      Explorar arenas
+    </a>
+  </div>
+</header>

@@ -1,0 +1,68 @@
+<footer class="border-t border-white/[0.06] bg-nexago-bg px-4 py-14 md:px-6" role="contentinfo">
+  <div class="mx-auto flex max-w-6xl flex-col gap-12 md:flex-row md:justify-between">
+    <div>
+      <div class="flex items-center gap-2">
+        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-blue-600 text-sm font-bold text-white">N</span>
+        <span class="text-lg font-semibold text-white">NexaGO</span>
+      </div>
+      <p class="mt-4 max-w-xs text-sm text-slate-500 leading-relaxed">
+        Plataforma para atletas, arenas e torneios. Jogue mais, administre menos.
+      </p>
+    </div>
+
+    <div>
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Produto</h3>
+      <ul class="mt-4 space-y-3 text-sm">
+        <li>
+          <a class="text-slate-400 transition hover:text-white focus:outline-none focus-visible:text-violet-300" href="#buscar">Arenas</a>
+        </li>
+        <li>
+          <a class="text-slate-400 transition hover:text-white focus:outline-none focus-visible:text-violet-300" href="#torneios">Torneios</a>
+        </li>
+        <li>
+          <a class="text-slate-400 transition hover:text-white focus:outline-none focus-visible:text-violet-300" href="#ranking">Ranking</a>
+        </li>
+      </ul>
+    </div>
+
+    <div>
+      <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Social</h3>
+      <ul class="mt-4 flex flex-wrap gap-4 text-sm">
+        <li>
+          <a
+            class="text-slate-400 transition hover:text-white focus:outline-none focus-visible:text-violet-300"
+            [href]="links.instagram"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Instagram
+          </a>
+        </li>
+        <li>
+          <a
+            class="text-slate-400 transition hover:text-white focus:outline-none focus-visible:text-violet-300"
+            [href]="links.youtube"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            YouTube
+          </a>
+        </li>
+        <li>
+          <a
+            class="text-slate-400 transition hover:text-white focus:outline-none focus-visible:text-violet-300"
+            [href]="links.linkedin"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            LinkedIn
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="mx-auto mt-12 max-w-6xl border-t border-white/[0.06] pt-8 text-center text-xs text-slate-600 md:text-left">
+    © {{ year }} NexaGO. Todos os direitos reservados.
+  </div>
+</footer>

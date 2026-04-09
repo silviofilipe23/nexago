@@ -1,0 +1,119 @@
+@keyframes podium-pulse {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: scale(1.045);
+  }
+}
+
+.podium-first {
+  position: relative;
+  z-index: 1;
+  overflow: visible;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -20px;
+    z-index: -1;
+    border-radius: 20px;
+    pointer-events: none;
+    transform-origin: center;
+    background: radial-gradient(circle, rgba(139, 92, 246, 0.25), transparent 70%);
+    animation: podium-pulse 4s ease-in-out infinite;
+  }
+}
+
+.rank-row {
+  --rank-glow-x: 0px;
+  --rank-glow-y: 50%;
+
+  position: relative;
+  will-change: transform;
+  transform: translateZ(0);
+  outline: none;
+  transition:
+    background 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 10%;
+    bottom: 10%;
+    width: 2px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: linear-gradient(to bottom, transparent, rgba(139, 92, 246, 0.6), transparent);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.35s ease 0.05s;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(
+      circle at var(--rank-glow-x) var(--rank-glow-y),
+      rgba(139, 92, 246, 0.12),
+      transparent 70%
+    );
+  }
+
+  &:hover {
+    transition:
+      background 0.22s ease-out,
+      transform 0.22s ease-out,
+      box-shadow 0.22s ease-out;
+    background: rgba(139, 92, 246, 0.06);
+    transform: translateX(4px);
+    box-shadow:
+      inset 0 0 0 1px rgba(139, 92, 246, 0.15),
+      0 4px 20px rgba(0, 0, 0, 0.25);
+
+    &::before {
+      opacity: 1;
+    }
+
+    &::after {
+      opacity: 1;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(139, 92, 246, 0.5);
+    outline-offset: -2px;
+  }
+}
+
+.rank-row__cell {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .podium-first::after {
+    animation: none;
+    opacity: 0.85;
+    transform: scale(1);
+  }
+
+  .rank-row {
+    will-change: auto;
+    transform: none;
+    transition: background 0.2s ease;
+
+    &:hover {
+      transform: none;
+      box-shadow: none;
+    }
+  }
+}

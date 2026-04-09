@@ -1,0 +1,85 @@
+.arena-search-input {
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.02);
+
+  transition:
+    box-shadow 0.25s ease,
+    border-color 0.25s ease,
+    background 0.25s ease;
+
+  &:focus {
+    outline: none;
+    border-color: rgb(139 92 246 / 0.5);
+    background: rgba(255, 255, 255, 0.06);
+
+    box-shadow:
+      0 0 0 2px rgba(139, 92, 246, 0.45),
+      0 10px 30px rgba(139, 92, 246, 0.15),
+      inset 0 1px 2px rgba(0, 0, 0, 0.35);
+  }
+}
+
+.arena-result-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.arena-result-card {
+  transition:
+    transform 300ms ease,
+    box-shadow 300ms ease,
+    border-color 300ms ease;
+
+  &:hover {
+    transform: translateY(-6px) scale(1.015);
+
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.4),
+      0 0 20px rgba(139, 92, 246, 0.15);
+
+    border-color: rgba(139, 92, 246, 0.25);
+  }
+}
+
+.arena-result-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 300ms ease;
+
+  background: radial-gradient(
+    circle at top,
+    rgba(139, 92, 246, 0.15),
+    transparent 70%
+  );
+}
+
+.arena-result-card:hover::after {
+  opacity: 1;
+}
+
+.arena-map-mock__pins {
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+
+  background-size: 32px 32px;
+
+  mask-image: radial-gradient(circle at center, black 60%, transparent 100%);
+}
+
+.arena-map-mock__pins {
+  animation: moveGrid 20s linear infinite;
+}
+
+@keyframes moveGrid {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 32px 32px;
+  }
+}

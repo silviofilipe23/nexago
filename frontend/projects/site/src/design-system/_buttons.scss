@@ -1,0 +1,27 @@
+.btn-primary {
+  background: var(--nexago-gradient);
+  color: #fff;
+  border-radius: 1rem;
+  font-weight: 600;
+  padding: 14px 20px;
+  transition:
+    transform 0.3s var(--ease-premium, cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow 0.3s ease,
+    opacity 0.2s ease;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(124, 58, 237, 0.4);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--nexago-border);
+  color: #cbd5f5;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #94a3b8;
+}

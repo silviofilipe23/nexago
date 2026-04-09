@@ -8,6 +8,8 @@
     "start:backoffice": "ng serve backoffice",
     "build": "ng build backoffice",
     "build:backoffice": "ng build backoffice --configuration production",
+    "start:site": "ng serve site",
+    "build:site": "ng build site --configuration production",
     "build:all": "ng run backoffice:build:production && ng run site:build:production && ng run arena:build:production",
     "watch": "ng build backoffice --watch --configuration development",
     "test": "ng test backoffice",
@@ -26,13 +28,18 @@
     ]
   },
   "dependencies": {
+    "@angular/animations": "^20.3.18",
     "@angular/common": "^20.3.0",
     "@angular/compiler": "^20.3.0",
     "@angular/core": "^20.3.0",
     "@angular/forms": "^20.3.0",
     "@angular/platform-browser": "^20.3.0",
     "@angular/router": "^20.3.0",
+    "@types/leaflet": "^1.9.21",
     "firebase": "^12.11.0",
+    "gsap": "^3.14.2",
+    "leaflet": "^1.9.4",
+    "leaflet.heat": "^0.2.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.15.0"
@@ -42,8 +49,6 @@
     "@angular/cli": "^20.3.8",
     "@angular/compiler-cli": "^20.3.0",
     "@tailwindcss/postcss": "^4.1.11",
-    "postcss": "^8.5.3",
-    "tailwindcss": "^4.1.11",
     "@types/jasmine": "~5.1.0",
     "jasmine-core": "~5.9.0",
     "karma": "~6.4.0",
@@ -51,6 +56,8 @@
     "karma-coverage": "~2.2.0",
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.1.11",
     "typescript": "~5.9.2"
   }
 }

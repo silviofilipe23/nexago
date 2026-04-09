@@ -1,0 +1,276 @@
+@if (arena(); as a) {
+  <section
+    #detailRoot
+    class="arena-detail page-fade"
+    [class.arena-detail--gallery-bg-dim]="isGalleryOpen()"
+    aria-labelledby="arena-detail-title"
+  >
+    <header class="arena-detail__toolbar glass-panel">
+      <button type="button" class="arena-detail__back" (click)="goBack()">← Voltar</button>
+    </header>
+
+    <div #hero class="arena-detail__hero">
+      <div #heroParallax class="arena-detail__hero-parallax">
+        <img [src]="a.imageUrl" [alt]="a.name" class="arena-detail__hero-img" />
+      </div>
+      <div class="arena-detail__hero-overlay" aria-hidden="true"></div>
+      <div class="arena-detail__hero-content">
+        <div class="arena-detail__hero-title-row">
+          <h1 id="arena-detail-title" class="arena-detail__hero-title">{{ a.name }}</h1>
+          <button
+            type="button"
+            class="arena-detail__favorite-btn"
+            [class.arena-detail__favorite-btn--active]="favorites.has(a.id)"
+            (click)="toggleFavoriteDetail($event, a.id)"
+            [attr.aria-label]="favorites.has(a.id) ? 'Remover dos favoritos' : 'Salvar arena como favorita'"
+            [attr.aria-pressed]="favorites.has(a.id)"
+          >
+            ♥
+          </button>
+        </div>
+        <p class="arena-detail__hero-line">
+          <span class="arena-detail__hero-rating">★ {{ a.rating }}</span>
+          <span class="arena-detail__hero-dot" aria-hidden="true">•</span>
+          <span>{{ a.city }} — {{ a.state }}</span>
+        </p>
+      </div>
+    </div>
+
+    @if (galleryGridImages(a).length > 0) {
+      <section class="arena-gallery arena-detail__reveal" aria-labelledby="arena-gallery-title">
+        <h2 id="arena-gallery-title" class="arena-detail__section-title arena-gallery__title">Fotos</h2>
+        <div class="arena-gallery__grid" role="list">
+          @for (img of galleryGridImages(a); track $index) {
+            <button
+              type="button"
+              class="arena-gallery__item"
+              [class.arena-gallery__item--main]="$index === 0"
+              (click)="openGallery(a, $index, $event)"
+              [attr.aria-label]="'Abrir foto ' + ($index + 1) + ' em tela cheia'"
+            >
+              <img [src]="img" alt="" loading="lazy" decoding="async" />
+            </button>
+          }
+        </div>
+      </section>
+    }
+
+    <div class="arena-detail__body">
+      <div class="arena-detail__info arena-detail__reveal glass-panel -mt-4">
+        <p class="arena-detail__info-location">📍 {{ a.distanceKm }} km · {{ a.city }}, {{ a.state }}</p>
+        <div class="arena-detail__info-price-block">
+          <p
+            class="arena-detail__info-price"
+            [class.arena-detail__info-price--hot]="pricingSnapshot()?.isHighDemand"
+          >
+            <span
+              class="arena-detail__info-price-amount"
+              [class.arena-detail__price-hot]="pricingSnapshot()?.isHighDemand"
+              >R$ {{ pricingSnapshot()?.rounded ?? a.pricePerHourReais }}</span
+            >
+            @if (pricingSnapshot(); as snap) {
+              @if (snap.rounded > snap.baseListed) {
+                <span class="arena-detail__price-old">R$ {{ snap.baseListed }}</span>
+              }
+            }
+            <span class="arena-detail__info-per">/hora</span>
+          </p>
+          @if (pricingSnapshot()?.isHighDemand) {
+            <span class="arena-detail__badge-hot">🔥 Alta demanda</span>
+          }
+        </div>
+      </div>
+
+      @if (pricingUrgencyHint()) {
+        <p class="arena-detail__urgency arena-detail__urgency--price arena-detail__reveal mt-8">
+          {{ pricingUrgencyHint() }}
+        </p>
+      }
+
+      @if (detailBadgeRows().length > 0) {
+        <div class="arena-detail__badges arena-detail__reveal" role="list" aria-label="Destaques">
+          @for (b of detailBadgeRows(); track b) {
+            <span class="arena-detail__badge" role="listitem">{{ b }}</span>
+          }
+        </div>
+      }
+
+      <div class="arena-detail__reveal">
+        <h2 class="arena-detail__section-title">Sobre a arena</h2>
+        <p class="arena-detail__description">
+          {{ descriptionFor(a) }}
+        </p>
+      </div>
+
+      <div class="arena-detail__reveal">
+        <h2 class="arena-detail__section-title">Comodidades</h2>
+        <ul class="arena-detail__amenities" aria-label="Comodidades">
+          @for (item of amenitiesFor(a); track item.label) {
+            <li class="arena-detail__amenity">
+              <span class="arena-detail__amenity-icon" aria-hidden="true">{{ item.icon }}</span>
+              {{ item.label }}
+            </li>
+          }
+        </ul>
+      </div>
+
+      <div class="arena-detail__reveal arena-detail__slots-wrap">
+        <h2 class="arena-detail__section-title">Horários neste dia</h2>
+        <p class="arena-detail__slots-hint">
+          @if (bookingDateLabel()) {
+            {{ bookingDateLabel() }} — toque para escolher e reservar.
+          } @else {
+            Escolha um horário para levar na reserva.
+          }
+        </p>
+        @if (slotsUrgencyLine()) {
+          <p class="arena-detail__urgency arena-detail__urgency--slots">{{ slotsUrgencyLine() }}</p>
+        }
+        <div
+          class="arena-detail__slots"
+          role="group"
+          aria-label="Horários disponíveis"
+          [attr.data-slot-alerts]="slotVacancyAlertsTick()"
+        >
+          @for (slot of slotTimes; track slot) {
+            @if (slotIsOpen(a, slot)) {
+              <button
+                type="button"
+                class="arena-detail__slot"
+                [class.arena-detail__slot--active]="selectedSlotTime() === slot"
+                (click)="pickSlot(slot, a)"
+              >
+                {{ slot }}
+              </button>
+            } @else {
+              <div class="arena-detail__slot-closed">
+                <span class="arena-detail__slot-closed-time">{{ slot }}</span>
+                @if (hasSlotAlert(a.id, slot)) {
+                  <span class="arena-detail__slot-alert-state">🔔 Você será avisado</span>
+                } @else {
+                  <button
+                    type="button"
+                    class="arena-detail__slot-alert-btn"
+                    (click)="subscribeSlotAlert(a.id, slot)"
+                  >
+                    🔔 Avisar quando liberar
+                  </button>
+                }
+              </div>
+            }
+          }
+        </div>
+      </div>
+
+      <div class="arena-detail__spacer" aria-hidden="true"></div>
+    </div>
+
+    @if (isGalleryOpen()) {
+      <div
+        #galleryModal
+        class="arena-detail-gallery-modal"
+        [class.arena-detail-gallery-modal--morphing]="galleryMorphing()"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Galeria de fotos da arena"
+        (click)="onGalleryBackdropClick($event)"
+      >
+        <button
+          type="button"
+          class="arena-detail-gallery-modal__close"
+          (click)="closeGallery(); $event.stopPropagation()"
+          aria-label="Fechar galeria"
+        >
+          ✕
+        </button>
+        <div class="arena-detail-gallery-modal__counter" aria-live="polite">
+          {{ activeIndex() + 1 }} / {{ modalGalleryUrls().length }}
+        </div>
+        <button
+          type="button"
+          class="arena-detail-gallery-modal__nav arena-detail-gallery-modal__nav--prev"
+          (click)="galleryPrev(); $event.stopPropagation()"
+          [disabled]="activeIndex() <= 0"
+          aria-label="Foto anterior"
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          class="arena-detail-gallery-modal__nav arena-detail-gallery-modal__nav--next"
+          (click)="galleryNext(); $event.stopPropagation()"
+          [disabled]="activeIndex() >= modalGalleryUrls().length - 1"
+          aria-label="Próxima foto"
+        >
+          ›
+        </button>
+        <div
+          #galleryStage
+          class="arena-detail-gallery-modal__stage"
+          (pointerdown)="onGalleryStagePointerDown($event)"
+          (pointerup)="onGalleryStagePointerUp($event)"
+          (pointercancel)="onGalleryStagePointerUp($event)"
+          (touchstart)="onGalleryTouchStart($event)"
+          (touchmove)="onGalleryTouchMove($event)"
+          (touchend)="onGalleryTouchEnd($event)"
+          (touchcancel)="onGalleryTouchEnd($event)"
+        >
+          <div
+            class="arena-detail-gallery-modal__zoomwrap"
+            [style.transform]="galleryZoomWrapTransform()"
+          >
+            <img
+              class="arena-detail-gallery-modal__img"
+              [src]="modalGalleryUrls()[activeIndex()]"
+              [alt]="'Foto ' + (activeIndex() + 1) + ' — ' + a.name"
+              loading="eager"
+              decoding="async"
+            />
+          </div>
+          <p class="arena-detail-gallery-modal__hint">
+            Deslize para trocar · pinça para ampliar · puxe para baixo para fechar · role no desktop
+          </p>
+        </div>
+      </div>
+    }
+
+    <div class="arena-detail__cta-bar glass-panel">
+      <div class="arena-detail__cta-bar-inner">
+        <div class="arena-detail__cta-pricing">
+          <p
+            class="arena-detail__cta-price"
+            [class.arena-detail__cta-price--hot]="pricingSnapshot()?.isHighDemand"
+          >
+            R$ {{ pricingSnapshot()?.rounded ?? a.pricePerHourReais }}<span>/h</span>
+            @if (pricingSnapshot(); as csnap) {
+              @if (csnap.rounded > csnap.baseListed) {
+                <span class="arena-detail__price-old arena-detail__cta-price-old"
+                  >R$ {{ csnap.baseListed }}</span
+                >
+              }
+            }
+          </p>
+          <p class="arena-detail__cta-sub">{{ ctaSubtitle() }}</p>
+        </div>
+        @if (canCheckout(a)) {
+          <a
+            routerLink="/checkout"
+            [queryParams]="checkoutQueryParams()"
+            class="arena-detail__cta-bar-btn"
+          >
+            Reservar agora
+          </a>
+        } @else {
+          <span class="arena-detail__cta-bar-btn arena-detail__cta-bar-btn--disabled">
+            Indisponível
+          </span>
+        }
+      </div>
+    </div>
+  </section>
+} @else {
+  <section class="arena-detail arena-detail--empty page-fade">
+    <p>Arena não encontrada.</p>
+    <a routerLink="/disponibilidade" class="arena-detail__back">← Voltar à busca</a>
+  </section>
+}

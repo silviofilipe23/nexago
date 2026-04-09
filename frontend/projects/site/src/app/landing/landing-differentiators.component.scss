@@ -1,0 +1,71 @@
+.diff-card {
+  --diff-glow-x: 50%;
+  --diff-glow-y: 0%;
+
+  position: relative;
+  overflow: hidden;
+  will-change: transform;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s ease,
+    border-color 0.3s ease,
+    filter 0.3s ease;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    pointer-events: none;
+    background: radial-gradient(
+      circle at var(--diff-glow-x) var(--diff-glow-y),
+      rgba(139, 92, 246, 0.18),
+      transparent 70%
+    );
+  }
+
+  &:hover {
+    transform: translateY(-6px) scale(1.01);
+    border-color: rgba(139, 92, 246, 0.24);
+    filter: brightness(1.05);
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.4),
+      0 0 20px rgba(139, 92, 246, 0.15);
+
+    &::after {
+      opacity: 1;
+      transition: opacity 0.4s ease 0.05s;
+    }
+  }
+
+  &:hover .diff-icon {
+    transform: scale(1.12) rotate(2deg);
+  }
+}
+
+.diff-icon {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .diff-card {
+    will-change: auto;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+    &:hover {
+      transform: none;
+      filter: none;
+    }
+
+    &:hover .diff-icon {
+      transform: none;
+    }
+  }
+
+  .diff-icon {
+    transition: none;
+  }
+}

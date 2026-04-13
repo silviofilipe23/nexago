@@ -99,11 +99,38 @@ service cloud.firestore {
           exists(/databases/$(database)/documents/arenas/$(request.resource.data.arenaId))
         )
       );
-      allow update, delete: if request.auth != null && (
+      allow update: if request.auth != null && (
+        isSuperAdmin() ||
+        (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
+         get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid) ||
+        (
+          resource.data.status == 'available' &&
+          request.resource.data.status == 'booked' &&
+          request.resource.data.bookingAthleteId == request.auth.uid &&
+          request.resource.data.arenaId == resource.data.arenaId &&
+          request.resource.data.courtId == resource.data.courtId &&
+          request.resource.data.startTime == resource.data.startTime &&
+          request.resource.data.endTime == resource.data.endTime &&
+          request.resource.data.date == resource.data.date
+        )
+      );
+      allow delete: if request.auth != null && (
         isSuperAdmin() ||
         (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
          get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid)
       );
+    }
+
+    // Reservas criadas pelo app NexaGO (atleta): um documento por slot.
+    match /bookings/{bookingId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.arenaId is string &&
+        request.resource.data.slotId is string &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.paymentType == 'local';
+      allow update, delete: if false;
     }
     match /arenaSlotLocks/{lockId} {
       allow read: if true;
@@ -387,12 +414,14 @@ service cloud.firestore {
 
     // Regras para perfis PRO de atletas
     match /athlete_profiles/{athleteId} {
-      // Leitura: próprio atleta, admins, ou se perfil público está habilitado
-      allow read: if request.auth != null && (
-        request.auth.uid == athleteId ||
-        isAdmin() ||
-        (resource != null && resource.data.publicProfileEnabled == true)
-      );
+      // Leitura pública quando o perfil estiver publicado.
+      // O próprio atleta e admins também podem ler sempre.
+      allow read: if
+        (resource != null && resource.data.publicProfileEnabled == true) ||
+        (request.auth != null && (
+          request.auth.uid == athleteId ||
+          isAdmin()
+        ));
       
       // Escrita: apenas próprio atleta ou admin
       allow write: if request.auth != null && (

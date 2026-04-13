@@ -195,6 +195,7 @@ export class ArenaDetailComponent {
       date: this.selectedDateIso() || undefined,
       time: this.selectedSlotTime() || undefined,
       price,
+      ...(a.allowPayAtArena === false ? { allowArenaPay: 'false' } : {}),
     };
   });
 

@@ -1,0 +1,200 @@
+<div
+  class="agenda-page"
+  [class.agenda-page--match-day]="featured()?.isToday"
+  data-agenda-root
+>
+  <div class="agenda-page__particles" aria-hidden="true"></div>
+
+  <div class="agenda-page__inner">
+    <header class="agenda-topbar" data-agenda-intro>
+      <a routerLink="/painel" class="agenda-back">← Painel</a>
+      <span class="agenda-topbar__badge">Agenda NexaGO</span>
+    </header>
+
+    <!-- 1. HEADER HERO -->
+    <section class="agenda-hero" data-agenda-intro>
+      <div class="agenda-hero__greet">
+        <p class="agenda-hero__eyebrow">{{ greeting() }}, {{ firstName() }}</p>
+        @if (featured()?.isToday) {
+          <p class="agenda-hero__hook">
+            <span class="agenda-hero__hook-icon" aria-hidden="true">🔥</span>
+            Hoje é dia de jogo
+          </p>
+        } @else {
+          <p class="agenda-hero__hook agenda-hero__hook--soft">Modo atleta ligado</p>
+        }
+        <p class="agenda-hero__sub text-muted">{{ heroSubline() }}</p>
+      </div>
+
+      @if (featured(); as next) {
+        <article
+          class="agenda-featured card glass-panel"
+          [class.agenda-featured--today]="next.isToday"
+          data-agenda-featured
+        >
+          <div class="agenda-featured__glow" aria-hidden="true"></div>
+          <div class="agenda-featured__head">
+            <span class="agenda-featured__label">Próxima partida</span>
+            @if (next.isToday) {
+              <span class="agenda-live-pill">Hoje</span>
+            }
+          </div>
+          <h2 class="agenda-featured__title">vs {{ next.opponent }}</h2>
+          <p class="agenda-featured__meta">
+            <span class="agenda-featured__time">{{ next.timeLabel }}</span>
+            <span class="agenda-featured__dot">·</span>
+            <span>{{ next.category }}</span>
+          </p>
+          <p class="agenda-featured__place">
+            <strong>{{ next.arena }}</strong>
+            <span class="text-muted"> — {{ next.addressHint }}</span>
+          </p>
+          @if (next.isToday) {
+            <p class="agenda-featured__countdown" aria-live="polite">{{ countdownLabel() }}</p>
+          }
+          <div class="agenda-featured__actions">
+            <button type="button" class="btn-primary agenda-featured__btn">{{ next.ctaPrimary }}</button>
+            <button type="button" class="btn-secondary agenda-featured__btn agenda-featured__btn--ghost">
+              {{ next.ctaSecondary }}
+            </button>
+          </div>
+        </article>
+      }
+    </section>
+
+    <!-- Mini calendário -->
+    <section class="agenda-calendar" data-agenda-intro aria-label="Calendário da semana">
+      <div class="agenda-calendar__head">
+        <h2 class="agenda-section-title">Seus dias</h2>
+        <p class="agenda-calendar__hint text-muted">Toque no dia para ver a linha do tempo</p>
+      </div>
+      <div class="agenda-calendar__strip" role="tablist" aria-label="Dias com eventos">
+        @for (d of calendarStrip(); track d.key) {
+          <button
+            type="button"
+            role="tab"
+            class="agenda-cal-day"
+            [class.agenda-cal-day--today]="d.isToday"
+            [class.agenda-cal-day--selected]="isSelectedDay(d.key)"
+            [attr.aria-selected]="isSelectedDay(d.key)"
+            (click)="selectDay(d.key, $event)"
+          >
+            <span class="agenda-cal-day__week">{{ d.weekdayShort }}</span>
+            <span class="agenda-cal-day__num">{{ d.dayNum }}</span>
+            <span class="agenda-cal-day__dots" aria-hidden="true">
+              @for (slot of calDotSlots; track slot) {
+                <span
+                  class="agenda-cal-day__dot"
+                  [class.agenda-cal-day__dot--on]="slot <= d.intensity"
+                ></span>
+              }
+            </span>
+          </button>
+        }
+      </div>
+    </section>
+
+    <!-- 2. TIMELINE -->
+    <section class="agenda-timeline-block" data-agenda-intro>
+      <div class="agenda-timeline-block__head">
+        <h2 class="agenda-section-title">Linha do tempo</h2>
+        <p class="text-muted agenda-timeline-block__sub">Jogos, treinos e lembretes do dia</p>
+      </div>
+      <div class="agenda-timeline">
+        <div class="agenda-timeline__rail" aria-hidden="true"></div>
+        @for (item of timelineForDay(); track item.id) {
+          <article class="agenda-timeline__item card glass-panel" [attr.data-kind]="item.kind">
+            <div class="agenda-timeline__time">{{ item.timeLabel }}</div>
+            <div class="agenda-timeline__body">
+              <div class="agenda-timeline__icon" aria-hidden="true">
+                @switch (item.kind) {
+                  @case ('match') {
+                    🏐
+                  }
+                  @case ('training') {
+                    💪
+                  }
+                  @case ('tournament') {
+                    🏆
+                  }
+                  @case ('reminder') {
+                    ⏰
+                  }
+                }
+              </div>
+              <div class="agenda-timeline__copy">
+                <span class="agenda-timeline__kind">{{ eventKindLabel(item.kind) }}</span>
+                <h3 class="agenda-timeline__title">{{ item.title }}</h3>
+                @if (item.subtitle) {
+                  <p class="agenda-timeline__sub text-muted">{{ item.subtitle }}</p>
+                }
+              </div>
+              <span class="agenda-timeline__status" [attr.data-status]="item.status">{{
+                statusLabel(item.status)
+              }}</span>
+            </div>
+          </article>
+        }
+      </div>
+    </section>
+
+    <!-- 3. Torneios -->
+    <section class="agenda-tournaments" data-agenda-intro>
+      <h2 class="agenda-section-title">Torneios em andamento</h2>
+      <div class="agenda-tournaments__grid">
+        @for (t of tournaments(); track t.id) {
+          <article class="agenda-tournament-card card glass-panel" [attr.data-tone]="t.tone">
+            <p class="agenda-tournament-card__eyebrow">Ao vivo no hub</p>
+            <h3 class="agenda-tournament-card__name">{{ t.name }}</h3>
+            <p class="agenda-tournament-card__phase">{{ t.phase }}</p>
+            <p class="agenda-tournament-card__pos">{{ t.positionLabel }}</p>
+            <button type="button" class="btn-secondary agenda-tournament-card__cta">Ver chave</button>
+          </article>
+        }
+      </div>
+    </section>
+
+    <!-- 4. Status / gamificação -->
+    <section class="agenda-pulse card glass-panel" data-agenda-intro>
+      <h2 class="agenda-section-title agenda-pulse__title">Seu ritmo</h2>
+      @if (athletePulse(); as pulse) {
+        <div class="agenda-pulse__grid">
+          <div class="agenda-pulse__metric">
+            <span class="agenda-pulse__label">Nível</span>
+            <strong class="agenda-pulse__value">{{ pulse.levelLabel }}</strong>
+          </div>
+          <div class="agenda-pulse__metric agenda-pulse__metric--wide">
+            <span class="agenda-pulse__label">Ranking</span>
+            <strong class="agenda-pulse__value">🏆 {{ pulse.rankSnippet }}</strong>
+          </div>
+          <div class="agenda-pulse__metric agenda-pulse__metric--wide">
+            <span class="agenda-pulse__label">Ritmo</span>
+            <strong class="agenda-pulse__value">🔥 {{ pulse.streakLabel }}</strong>
+          </div>
+        </div>
+      }
+    </section>
+
+    <!-- 5. Notificações inteligentes -->
+    <section class="agenda-notes" data-agenda-intro>
+      <h2 class="agenda-section-title">Para você agora</h2>
+      <ul class="agenda-notes__list">
+        @for (n of smartNotes(); track n.id) {
+          <li class="agenda-note card glass-panel" [attr.data-tone]="n.tone">
+            <span class="agenda-note__icon" aria-hidden="true">{{ n.icon }}</span>
+            <div class="agenda-note__copy">
+              <p class="agenda-note__title">{{ n.title }}</p>
+              <p class="agenda-note__body text-muted">{{ n.body }}</p>
+            </div>
+          </li>
+        }
+      </ul>
+    </section>
+
+    <footer class="agenda-footer text-muted" data-agenda-intro>
+      <p>
+        Dados de demonstração — conecte reservas e torneios para preencher tudo em tempo real.
+      </p>
+    </footer>
+  </div>
+</div>

@@ -1,0 +1,74 @@
+<div class="trg-step trg-step--confirm">
+  <header class="trg-step__head">
+    <h2 class="trg-step__title title-lg">Confirme sua inscrição</h2>
+    <p class="trg-step__sub text-body">
+      Revise os dados e escolha como quer pagar. Você pode pagar metade agora e fechar depois.
+    </p>
+  </header>
+
+  <div class="trg-summary card glass-panel">
+    @if (tournament(); as ev) {
+      <div class="trg-summary__row">
+        <span class="trg-summary__k">Torneio</span>
+        <span class="trg-summary__v">{{ ev.name }}</span>
+      </div>
+      <div class="trg-summary__row">
+        <span class="trg-summary__k">Onde / quando</span>
+        <span class="trg-summary__v">{{ ev.city }} · {{ ev.dateLabel }}</span>
+      </div>
+    }
+    @if (category(); as c) {
+      <div class="trg-summary__row">
+        <span class="trg-summary__k">Categoria</span>
+        <span class="trg-summary__v">{{ c.name }} · {{ c.level }}</span>
+      </div>
+      <div class="trg-summary__row">
+        <span class="trg-summary__k">Valor cheio</span>
+        <span class="trg-summary__v trg-summary__v--accent">{{ formatMoney(totalReais()) }}</span>
+      </div>
+    }
+    @if (partner(); as p) {
+      <div class="trg-summary__row">
+        <span class="trg-summary__k">Dupla</span>
+        <span class="trg-summary__v">
+          {{ p.displayName }}
+          <span class="trg-summary__tag" [attr.data-status]="p.status">
+            {{ p.status === 'confirmed' ? 'Confirmado' : 'Pendente' }}
+          </span>
+        </span>
+      </div>
+    }
+  </div>
+
+  <form class="trg-paypick" [formGroup]="form">
+    <p class="trg-paypick__title title-md">Como prefere pagar?</p>
+    <div class="trg-paypick__options" role="radiogroup" aria-label="Forma de pagamento">
+      <label class="trg-radio-card trg-ripple">
+        <input type="radio" formControlName="installment" value="full" />
+        <span class="trg-radio-card__body">
+          <span class="trg-radio-card__label">Pagar total</span>
+          <span class="trg-radio-card__hint">Melhor preço e prioridade na lista</span>
+          <span class="trg-radio-card__price">{{ formatMoney(totalReais()) }}</span>
+        </span>
+      </label>
+      <label class="trg-radio-card trg-ripple">
+        <input type="radio" formControlName="installment" value="half" />
+        <span class="trg-radio-card__body">
+          <span class="trg-radio-card__label">Pagar metade</span>
+          <span class="trg-radio-card__hint">Garante vaga; restante depois</span>
+          <span class="trg-radio-card__price">{{ formatMoney(halfReais()) }}</span>
+        </span>
+      </label>
+    </div>
+    @if (form.touched && form.invalid) {
+      <p class="trg-hint trg-hint--error">Selecione uma opção para continuar.</p>
+    }
+  </form>
+
+  <div class="trg-cta-block">
+    <button type="button" class="btn-primary trg-ripple trg-pulse-glow" (click)="guarantee()">
+      Garantir minha vaga
+    </button>
+    <p class="trg-micro text-muted">Pagamento seguro · simulação Mercado Pago</p>
+  </div>
+</div>

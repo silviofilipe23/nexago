@@ -1,0 +1,287 @@
+<section class="dashboard">
+  <section class="dashboard-hero card glass-panel">
+    <div class="dashboard-hero__copy">
+      <span class="dashboard-mode" [attr.data-mode]="hasLiveSession() ? 'live' : 'preview'">
+        {{ hasLiveSession() ? 'Conta conectada' : 'Modo preview' }}
+      </span>
+      <p class="dashboard-eyebrow">Painel do atleta</p>
+      <h1 class="title-xl dashboard-title">{{ greeting() }}, {{ firstName() }}</h1>
+      <p class="text-body dashboard-lead">
+        Seu resumo rapido de agenda, ranking, torneios e proximas acoes.
+      </p>
+      <p class="text-muted dashboard-support">
+        {{ accountSubline() }}
+      </p>
+
+      @if (syncError(); as error) {
+        <div class="dashboard-inline-note" data-tone="warning">
+          {{ error }}
+        </div>
+      }
+
+      <div class="dashboard-hero__actions">
+        <a routerLink="/agenda" class="btn-primary dashboard-action dashboard-action-link"> Minha agenda </a>
+        <a routerLink="/perfil" class="btn-secondary dashboard-action dashboard-action-link">
+          Meu perfil
+        </a>
+        <a routerLink="/torneios" class="btn-secondary dashboard-action dashboard-action-link">
+          Torneios
+        </a>
+      </div>
+    </div>
+
+    <aside class="dashboard-spotlight card-sub">
+      @if (nextReservation(); as reservation) {
+        <p class="dashboard-card-label">Proximo compromisso</p>
+        <h2 class="title-md dashboard-spotlight__title">{{ reservation.arenaName }}</h2>
+        <p class="dashboard-spotlight__time">{{ reservation.dateLabel }} · {{ reservation.timeLabel }}</p>
+
+        <div class="dashboard-pills">
+          <span class="dashboard-pill" [attr.data-tone]="reservation.statusTone">
+            {{ reservation.statusLabel }}
+          </span>
+          <span class="dashboard-pill dashboard-pill--soft">
+            {{ reservation.courtName }}
+          </span>
+        </div>
+
+        <p class="text-muted dashboard-spotlight__note">
+          @if (reservation.amountLabel) {
+            <span>{{ reservation.amountLabel }} · </span>
+          }
+          {{ reservation.caption }}
+        </p>
+      } @else {
+        <p class="dashboard-card-label">Sem proximo jogo</p>
+        <h2 class="title-md dashboard-spotlight__title">Monte sua proxima agenda</h2>
+        <p class="text-body dashboard-spotlight__time">
+          Quando suas reservas entrarem, este card vira sua referencia rapida do dia.
+        </p>
+        <div class="dashboard-pills">
+          <span class="dashboard-pill" data-tone="accent">Reservas</span>
+          <span class="dashboard-pill dashboard-pill--soft">Torneios</span>
+          <span class="dashboard-pill dashboard-pill--soft">Ranking</span>
+        </div>
+      }
+    </aside>
+  </section>
+
+  <section class="dashboard-metrics">
+    @for (metric of metrics(); track metric.label) {
+      <article class="dashboard-metric card card-sub" [attr.data-tone]="metric.tone">
+        <p class="dashboard-card-label">{{ metric.label }}</p>
+        <strong class="dashboard-metric__value">{{ metric.value }}</strong>
+        <p class="text-muted dashboard-metric__note">{{ metric.note }}</p>
+      </article>
+    }
+  </section>
+
+  <div class="dashboard-grid">
+    <div class="dashboard-column">
+      <section id="dashboard-reservas" class="dashboard-panel card">
+        <header class="dashboard-panel__header">
+          <div>
+            <p class="dashboard-card-label">Agenda rapida</p>
+            <h2 class="title-lg dashboard-panel__title">Minhas reservas</h2>
+          </div>
+          <button type="button" class="dashboard-linklike" (click)="jumpTo('dashboard-ranking')">
+            Ver ranking
+          </button>
+        </header>
+
+        @if (loadingReservations() && hasLiveSession()) {
+          <div class="dashboard-empty">
+            <p class="text-body">Carregando suas reservas...</p>
+          </div>
+        } @else if (reservations().length > 0) {
+          <div class="dashboard-list">
+            @for (reservation of reservations(); track reservation.id) {
+              <article class="dashboard-list-item">
+                <div class="dashboard-list-item__top">
+                  <div>
+                    <h3 class="dashboard-list-item__title">{{ reservation.arenaName }}</h3>
+                    <p class="text-muted dashboard-list-item__meta">
+                      {{ reservation.dateLabel }} · {{ reservation.timeLabel }}
+                    </p>
+                  </div>
+                  <span class="dashboard-pill" [attr.data-tone]="reservation.statusTone">
+                    {{ reservation.statusLabel }}
+                  </span>
+                </div>
+
+                <div class="dashboard-list-item__bottom">
+                  <div class="dashboard-meta-chip">{{ reservation.courtName }}</div>
+                  @if (reservation.amountLabel) {
+                    <div class="dashboard-meta-chip">{{ reservation.amountLabel }}</div>
+                  }
+                  <div class="dashboard-meta-chip dashboard-meta-chip--copy">
+                    {{ reservation.caption }}
+                  </div>
+                </div>
+              </article>
+            }
+          </div>
+        } @else {
+          <div class="dashboard-empty">
+            <p class="text-body">Nenhuma reserva encontrada por enquanto.</p>
+            <p class="text-muted">Assim que sua agenda comecar a rodar, ela aparece aqui em ordem de prioridade.</p>
+          </div>
+        }
+      </section>
+
+      <section id="dashboard-ranking" class="dashboard-panel dashboard-panel--accent card">
+        <header class="dashboard-panel__header">
+          <div>
+            <p class="dashboard-card-label">Evolucao</p>
+            <h2 class="title-lg dashboard-panel__title">Meu ranking</h2>
+          </div>
+        </header>
+
+        @if (loadingRanking() && hasLiveSession()) {
+          <div class="dashboard-empty dashboard-empty--compact">
+            <p class="text-body">Atualizando seu ranking...</p>
+          </div>
+        } @else if (ranking(); as rankingCard) {
+          <div class="dashboard-ranking">
+            <div class="dashboard-ranking__main">
+              <span class="dashboard-ranking__position">{{ rankingCard.positionLabel }}</span>
+              <div>
+                <p class="dashboard-ranking__category">{{ rankingCard.categoryLabel }}</p>
+                <p class="text-muted">{{ rankingCard.pointsLabel }}</p>
+              </div>
+            </div>
+            <p class="text-body dashboard-ranking__trend">{{ rankingCard.trendLabel }}</p>
+            <p class="text-muted dashboard-ranking__highlight">{{ rankingCard.highlightLabel }}</p>
+          </div>
+        } @else {
+          <div class="dashboard-empty dashboard-empty--compact">
+            <p class="text-body">Seu ranking aparece aqui quando os primeiros resultados forem consolidados.</p>
+          </div>
+        }
+      </section>
+    </div>
+
+    <div class="dashboard-column">
+      <section id="dashboard-torneios" class="dashboard-panel card">
+        <header class="dashboard-panel__header">
+          <div>
+            <p class="dashboard-card-label">Proximas oportunidades</p>
+            <h2 class="title-lg dashboard-panel__title">Torneios para voce</h2>
+          </div>
+        </header>
+
+        <div class="dashboard-tournament-list">
+          @for (tournament of recommendedTournaments; track tournament.id) {
+            <article class="dashboard-tournament">
+              <div class="dashboard-tournament__date">
+                <span>{{ tournament.dateLabel }}</span>
+              </div>
+              <div class="dashboard-tournament__content">
+                <div class="dashboard-tournament__top">
+                  <h3 class="dashboard-list-item__title">{{ tournament.name }}</h3>
+                  <span class="dashboard-pill" [attr.data-tone]="tournament.tone">
+                    {{ tournament.levelLabel }}
+                  </span>
+                </div>
+                <p class="text-muted dashboard-list-item__meta">{{ tournament.cityLabel }}</p>
+                <p class="text-body dashboard-tournament__note">{{ tournament.note }}</p>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+
+      <section class="dashboard-panel card">
+        <header class="dashboard-panel__header">
+          <div>
+            <p class="dashboard-card-label">Central de avisos</p>
+            <h2 class="title-lg dashboard-panel__title">Notificacoes</h2>
+          </div>
+          <span class="dashboard-counter">{{ unreadNotifications() }} novas</span>
+        </header>
+
+        @if (loadingNotifications() && hasLiveSession()) {
+          <div class="dashboard-empty dashboard-empty--compact">
+            <p class="text-body">Carregando avisos recentes...</p>
+          </div>
+        } @else if (notifications().length > 0) {
+          <div class="dashboard-notification-list">
+            @for (notification of notifications(); track notification.id) {
+              <article class="dashboard-notification" [attr.data-tone]="notification.tone">
+                <div class="dashboard-notification__marker" [class.dashboard-notification__marker--muted]="!notification.unread"></div>
+                <div class="dashboard-notification__content">
+                  <div class="dashboard-notification__top">
+                    <h3 class="dashboard-list-item__title">{{ notification.title }}</h3>
+                    <span class="dashboard-notification__time">{{ notification.timeLabel }}</span>
+                  </div>
+                  <p class="text-muted">{{ notification.body }}</p>
+                </div>
+              </article>
+            }
+          </div>
+        } @else {
+          <div class="dashboard-empty dashboard-empty--compact">
+            <p class="text-body">Quando algo importante acontecer no seu fluxo, voce ve aqui primeiro.</p>
+          </div>
+        }
+      </section>
+
+      <section id="dashboard-perfil" class="dashboard-panel card">
+        <header class="dashboard-panel__header">
+          <div>
+            <p class="dashboard-card-label">Perfil do atleta</p>
+            <h2 class="title-lg dashboard-panel__title">{{ profileHeadline() }}</h2>
+          </div>
+          <span class="dashboard-counter">{{ checklistProgress() }}%</span>
+        </header>
+
+        <div class="dashboard-profile-summary">
+          <div>
+            <p class="dashboard-profile-summary__name">{{ accountLabel() }}</p>
+            <p class="text-muted">
+              @if (profile().city && profile().level) {
+                <span>{{ profile().city }} · {{ profile().level }}</span>
+              } @else {
+                <span>Complete cidade e nivel para melhorar os encaixes.</span>
+              }
+            </p>
+          </div>
+          <div class="dashboard-pills">
+            <span class="dashboard-pill" data-tone="success">Perfil publico</span>
+            @if (profile().isPro) {
+              <span class="dashboard-pill" data-tone="accent">PRO</span>
+            }
+          </div>
+        </div>
+
+        <div class="dashboard-progress" aria-hidden="true">
+          <div class="dashboard-progress__bar" [style.width.%]="checklistProgress()"></div>
+        </div>
+
+        @if (loadingProfile() && hasLiveSession()) {
+          <div class="dashboard-empty dashboard-empty--compact">
+            <p class="text-body">Sincronizando seu perfil...</p>
+          </div>
+        } @else {
+          <div class="dashboard-checklist">
+            @for (item of checklist(); track item.id) {
+              <article class="dashboard-check-item" [class.dashboard-check-item--done]="item.done">
+                <div class="dashboard-check-item__icon">{{ item.done ? 'OK' : '+' }}</div>
+                <div>
+                  <h3 class="dashboard-list-item__title">{{ item.label }}</h3>
+                  <p class="text-muted">{{ item.detail }}</p>
+                </div>
+              </article>
+            }
+          </div>
+        }
+
+        <div class="dashboard-footer-actions">
+          <a routerLink="/perfil" class="btn-primary dashboard-action-link">Configurar perfil</a>
+          <a routerLink="/" class="btn-secondary dashboard-action-link">Inicio</a>
+          <button type="button" class="btn-secondary dashboard-action-link" (click)="logout()">Sair</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>

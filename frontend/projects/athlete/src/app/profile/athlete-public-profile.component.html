@@ -1,0 +1,385 @@
+<section class="public-profile-page">
+  @if (loading()) {
+    <section class="public-profile-state card glass-panel">
+      <p class="public-profile-state__eyebrow">Carregando perfil</p>
+      <h1 class="title-lg">Preparando a vitrine publica do atleta...</h1>
+      <p class="text-muted">
+        Estamos reunindo identidade, sinais de compatibilidade e reputacao esportiva.
+      </p>
+    </section>
+  } @else if (error(); as errorMessage) {
+    <section class="public-profile-state card glass-panel">
+      <p class="public-profile-state__eyebrow">Perfil indisponivel</p>
+      <h1 class="title-lg">Nao encontramos esse atleta agora</h1>
+      <p class="text-muted">{{ errorMessage }}</p>
+      <div class="public-profile-state__actions">
+        <a routerLink="/" class="btn-secondary public-profile-action">Inicio</a>
+      </div>
+    </section>
+  } @else if (profile(); as athlete) {
+    <section class="public-profile-hero card glass-panel">
+      @if (athlete.coverPhotoUrl) {
+        <img class="public-profile-hero__cover" [src]="athlete.coverPhotoUrl" alt="Capa do perfil do atleta" />
+      } @else {
+        <div class="public-profile-hero__cover public-profile-hero__cover--fallback"></div>
+      }
+
+      <div class="public-profile-hero__content">
+        <div class="public-profile-hero__identity">
+          @if (athlete.profilePhotoUrl) {
+            <img
+              class="public-profile-hero__avatar-img"
+              [src]="athlete.profilePhotoUrl"
+              alt="Foto do atleta"
+            />
+          } @else {
+            <div class="public-profile-hero__avatar">{{ athlete.fullName.charAt(0) }}</div>
+          }
+
+          <div class="public-profile-hero__copy">
+            <p class="public-profile-hero__eyebrow">Perfil publico</p>
+            <h1 class="title-xl public-profile-hero__title">{{ athlete.fullName }}</h1>
+            <p class="public-profile-hero__handle">@{{ athlete.handle }}</p>
+            <p class="text-body public-profile-hero__headline">{{ athlete.headline }}</p>
+          </div>
+        </div>
+
+        <div class="public-profile-hero__rail">
+          <div class="public-profile-score card-sub">
+            <p class="public-profile-score__label">Forca do perfil</p>
+            <strong class="public-profile-score__value">{{ athlete.completionScore }}%</strong>
+            <p class="text-muted">{{ athlete.profileStrength }}</p>
+          </div>
+
+          <div class="public-profile-score card-sub">
+            <p class="public-profile-score__label">Descoberta</p>
+            <strong class="public-profile-score__value">{{ athlete.sports.length }}</strong>
+            <p class="text-muted">esportes e contextos conectados</p>
+          </div>
+
+          <div class="public-profile-score card-sub">
+            <p class="public-profile-score__label">Perfil pronto para</p>
+            <strong class="public-profile-score__value">
+              {{ athlete.openToTournaments ? 'Competir' : 'Conectar' }}
+            </strong>
+            <p class="text-muted">duplas, jogos e reputacao</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="public-profile-hero__rankings-band">
+        <p class="public-profile-hero__rankings-eyebrow">Rankings publicos</p>
+        @if (athlete.rankings.length > 0) {
+          <div class="public-profile-hero__rankings-scroll" role="list">
+            @for (r of athlete.rankings; track rankingTrack($index, r)) {
+              <div
+                role="listitem"
+                class="public-profile-ranking-card card-sub"
+                [class.public-profile-ranking-card--global]="r.scope === 'global'"
+                [class.public-profile-ranking-card--league]="r.scope === 'league'"
+                [class.public-profile-ranking-card--arena]="r.scope === 'arena'"
+              >
+                <span class="public-profile-ranking-card__scope">{{ rankingScopePill(r) }}</span>
+                <p class="public-profile-ranking-card__name">{{ r.label }}</p>
+                <div class="public-profile-ranking-card__body">
+                  @if (r.positionLabel) {
+                    <strong class="public-profile-ranking-card__pos">{{ r.positionLabel }}</strong>
+                  }
+                  <div class="public-profile-ranking-card__meta">
+                    @if (r.pointsLabel) {
+                      <span class="public-profile-ranking-card__pts">{{ r.pointsLabel }}</span>
+                    }
+                    @if (r.categoryLabel) {
+                      <span class="public-profile-ranking-card__cat">{{ r.categoryLabel }}</span>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="public-profile-hero__rankings-empty text-muted">
+            Nenhum ranking publico consolidado ainda (NexaGO geral, ligas ou arenas).
+          </p>
+        }
+      </div>
+
+      <div class="public-profile-badges">
+        @for (badge of badges(); track badge.label) {
+          <span class="public-badge" [attr.data-tone]="badge.tone">{{ badge.label }}</span>
+        }
+      </div>
+    </section>
+
+    <nav class="public-profile-tabs card" aria-label="Secoes do perfil publico">
+      <div class="public-profile-tabs__list" role="tablist">
+        <button
+          type="button"
+          class="public-profile-tabs__tab"
+          role="tab"
+          id="tab-sobre"
+          aria-controls="panel-sobre"
+          [attr.aria-selected]="isTab('sobre')"
+          [class.public-profile-tabs__tab--active]="isTab('sobre')"
+          (click)="setTab('sobre', $event)"
+        >
+          Sobre
+        </button>
+        <button
+          type="button"
+          class="public-profile-tabs__tab"
+          role="tab"
+          id="tab-jogos"
+          aria-controls="panel-jogos"
+          [attr.aria-selected]="isTab('jogos')"
+          [class.public-profile-tabs__tab--active]="isTab('jogos')"
+          (click)="setTab('jogos', $event)"
+        >
+          Jogos
+        </button>
+        <button
+          type="button"
+          class="public-profile-tabs__tab"
+          role="tab"
+          id="tab-torneios"
+          aria-controls="panel-torneios"
+          [attr.aria-selected]="isTab('torneios')"
+          [class.public-profile-tabs__tab--active]="isTab('torneios')"
+          (click)="setTab('torneios', $event)"
+        >
+          Torneios
+        </button>
+      </div>
+    </nav>
+
+    @if (isTab('sobre')) {
+    <div
+      id="panel-sobre"
+      role="tabpanel"
+      aria-labelledby="tab-sobre"
+      class="public-profile-tabpanel"
+    >
+    <section class="public-profile-summary">
+      <article class="public-summary-card card public-summary-card--ranking-spotlight">
+        <p class="public-summary-card__label">Rankings</p>
+        <h2 class="title-md public-summary-card__title">NexaGO geral, ligas e arenas</h2>
+        @if (athlete.rankings.length > 0) {
+          <ul class="public-rankings-tiles" role="list">
+            @for (r of athlete.rankings; track rankingTrack($index, r)) {
+              <li
+                class="public-ranking-tile"
+                [attr.data-scope]="r.scope"
+              >
+                <div class="public-ranking-tile__head">
+                  <span class="public-ranking-tile__scope">{{ rankingScopePill(r) }}</span>
+                  <span class="public-ranking-tile__name">{{ r.label }}</span>
+                </div>
+                <div class="public-ranking-tile__stats">
+                  @if (r.positionLabel) {
+                    <strong class="public-ranking-tile__pos">{{ r.positionLabel }}</strong>
+                  }
+                  <div class="public-ranking-tile__meta">
+                    @if (r.pointsLabel) {
+                      <span>{{ r.pointsLabel }}</span>
+                    }
+                    @if (r.categoryLabel) {
+                      <span class="public-ranking-tile__cat">{{ r.categoryLabel }}</span>
+                    }
+                  </div>
+                </div>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="text-muted public-ranking__placeholder">
+            Rankings publicos ainda em consolidacao para este atleta.
+          </p>
+        }
+      </article>
+
+      <article class="public-summary-card card">
+        <p class="public-summary-card__label">Base</p>
+        <h2 class="title-md public-summary-card__title">Contexto do atleta</h2>
+        <div class="public-summary-card__chips">
+          @if (athlete.locationLabel) {
+            <span class="public-summary-chip">📍 {{ athlete.locationLabel }}</span>
+          }
+          <span class="public-summary-chip public-summary-chip--accent">{{ athlete.level }}</span>
+          @if (athlete.category) {
+            <span class="public-summary-chip">{{ athlete.category }}</span>
+          }
+          @if (athlete.primarySport) {
+            <span class="public-summary-chip public-summary-chip--accent">{{ athlete.primarySport }}</span>
+          }
+        </div>
+      </article>
+
+      <article class="public-summary-card card">
+        <p class="public-summary-card__label">Compartilhar</p>
+        <h2 class="title-md public-summary-card__title">Link publico do perfil</h2>
+        <p class="text-muted public-summary-card__url" [attr.title]="profileUrl()">{{ profileUrl() }}</p>
+        <button
+          type="button"
+          class="btn-secondary public-profile-action public-profile-action--share"
+          (click)="copyProfileLink()"
+        >
+          Copiar link
+        </button>
+        @if (copyFeedback(); as feedback) {
+          <p class="text-muted public-summary-card__feedback">{{ feedback }}</p>
+        }
+      </article>
+    </section>
+
+    <div class="public-profile-grid">
+      <div class="public-profile-main">
+        <section class="public-panel card">
+          <p class="public-panel__label">Narrativa</p>
+          <h2 class="title-lg public-panel__title">Quem e esse atleta</h2>
+          <p class="public-panel__body">{{ athlete.bio }}</p>
+          @if (sportsHeadline()) {
+            <div class="public-panel__sports">
+              @for (sport of athlete.sports; track sport) {
+                <span class="public-sport-pill">{{ sport }}</span>
+              }
+            </div>
+          }
+        </section>
+
+        <section class="public-panel card">
+          <p class="public-panel__label">Compatibilidade</p>
+          <h2 class="title-lg public-panel__title">Sinais de jogo e encaixe</h2>
+          <div class="public-compat-grid">
+            @if (athlete.favoritePosition) {
+              <article class="public-compat-item">
+                <span>Estilo</span>
+                <strong>{{ athlete.favoritePosition }}</strong>
+              </article>
+            }
+            @if (athlete.dominantHand) {
+              <article class="public-compat-item">
+                <span>Mao dominante</span>
+                <strong>{{ athlete.dominantHand }}</strong>
+              </article>
+            }
+            @if (athlete.heightLabel) {
+              <article class="public-compat-item">
+                <span>Altura</span>
+                <strong>{{ athlete.heightLabel }}</strong>
+              </article>
+            }
+            @if (athlete.preferredCourtSide) {
+              <article class="public-compat-item">
+                <span>Lado da quadra</span>
+                <strong>{{ athlete.preferredCourtSide }}</strong>
+              </article>
+            }
+            @if (athlete.partnerName) {
+              <article class="public-compat-item">
+                <span>Dupla frequente</span>
+                <strong>{{ athlete.partnerName }}</strong>
+              </article>
+            }
+          </div>
+        </section>
+
+        @if (athlete.goals || athlete.achievements.length > 0) {
+          <section class="public-panel card">
+            <p class="public-panel__label">Ambicao e provas</p>
+            <h2 class="title-lg public-panel__title">Objetivo e destaque</h2>
+            @if (athlete.goals) {
+              <p class="public-panel__body"><strong>Objetivo atual:</strong> {{ athlete.goals }}</p>
+            }
+            @if (athlete.achievements.length > 0) {
+              <ul class="public-achievements">
+                @for (achievement of athlete.achievements; track achievement) {
+                  <li>{{ achievement }}</li>
+                }
+              </ul>
+            }
+          </section>
+        }
+      </div>
+
+      <aside class="public-profile-side">
+        <section class="public-panel card">
+          <p class="public-panel__label">Disponibilidade</p>
+          <h2 class="title-lg public-panel__title">Como entrar em contato esportivo</h2>
+          <div class="public-panel__chips">
+            @for (slot of athlete.availabilitySlots; track slot) {
+              <span class="public-summary-chip public-summary-chip--accent">{{ slot }}</span>
+            }
+          </div>
+          @if (athlete.availabilityNote) {
+            <p class="public-panel__body">{{ athlete.availabilityNote }}</p>
+          }
+          <div class="public-profile-side__flags">
+            @if (athlete.lookingForPartner) {
+              <span class="public-badge" data-tone="success">Busca parceria</span>
+            }
+            @if (athlete.openToTournaments) {
+              <span class="public-badge" data-tone="warning">Topa torneios</span>
+            }
+            @if (athlete.openToCasualGames) {
+              <span class="public-badge" data-tone="accent">Topa jogos casuais</span>
+            }
+          </div>
+        </section>
+
+        @if (athlete.instagram) {
+          <section class="public-panel card">
+            <p class="public-panel__label">Social</p>
+            <h2 class="title-lg public-panel__title">Canal publico</h2>
+            <a class="public-social-link" [href]="athlete.instagramUrl" target="_blank" rel="noreferrer">
+              Instagram @{{ athlete.instagram }}
+            </a>
+          </section>
+        }
+      </aside>
+    </div>
+    </div>
+    }
+
+    @if (isTab('jogos')) {
+    <div
+      id="panel-jogos"
+      role="tabpanel"
+      aria-labelledby="tab-jogos"
+      class="public-profile-tabpanel"
+    >
+      <section class="public-panel card public-panel--empty">
+        <p class="public-panel__label">Historico de jogos</p>
+        <h2 class="title-lg public-panel__title">Partidas e encontros esportivos</h2>
+        <p class="public-panel__body">
+          Aqui vamos listar jogos confirmados pelo atleta ou pela arena: data, local, tipo (treino,
+          amistoso, ranked), parceiro ou adversario e resultado quando fizer sentido publicar.
+        </p>
+        <p class="text-muted public-panel__hint">
+          Em breve: sincronizacao com reservas e check-in no NexaGO.
+        </p>
+      </section>
+    </div>
+    }
+
+    @if (isTab('torneios')) {
+    <div
+      id="panel-torneios"
+      role="tabpanel"
+      aria-labelledby="tab-torneios"
+      class="public-profile-tabpanel"
+    >
+      <section class="public-panel card public-panel--empty">
+        <p class="public-panel__label">Trajetoria em torneios</p>
+        <h2 class="title-lg public-panel__title">Inscricoes e resultados</h2>
+        <p class="public-panel__body">
+          Esta aba concentra torneios oficiais: nome do evento, categoria, datas, chave ou fase
+          alcancada e colocacao. E o historico competitivo publico, separado de jogos avulsos.
+        </p>
+        <p class="text-muted public-panel__hint">
+          Quando o ranking e os eventos estiverem ligados ao perfil, os destaques aparecem aqui.
+        </p>
+      </section>
+    </div>
+    }
+  }
+</section>

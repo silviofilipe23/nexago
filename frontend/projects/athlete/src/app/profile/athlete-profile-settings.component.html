@@ -1,0 +1,647 @@
+<section class="profile-page">
+  <section class="profile-hero card glass-panel">
+    <div class="profile-hero__copy">
+      <a routerLink="/painel" class="profile-back">← Voltar ao painel</a>
+      <p class="profile-eyebrow">Reputacao esportiva</p>
+      <h1 class="title-xl profile-title">Construa sua vitrine publica no hub NexaGO</h1>
+      <p class="text-body profile-lead">
+        Isso aqui nao e so configuracao. E o ponto onde seu perfil comeca a gerar descoberta,
+        convite, dupla e contexto dentro do ecossistema de atletas e esportes.
+      </p>
+      <p class="text-muted profile-support">
+        Fotos, narrativa, compatibilidade e sinais competitivos entram em camadas para reduzir
+        friccao e aumentar conversao.
+      </p>
+    </div>
+
+    <aside class="profile-hero__aside card-sub">
+      <p class="profile-card-label">Forca do perfil</p>
+      <strong class="profile-hero__score">{{ completion() }}%</strong>
+      <p class="profile-strength">{{ strengthLabel() }}</p>
+      <p class="text-muted">{{ discoverabilityHint() }}</p>
+
+      <div class="profile-progress" aria-hidden="true">
+        <div class="profile-progress__bar" [style.width.%]="completion()"></div>
+      </div>
+
+      <div class="profile-status">
+        <span class="profile-status__badge" [attr.data-mode]="isPreviewMode() ? 'preview' : 'live'">
+          {{ isPreviewMode() ? 'Preview local' : 'Firebase ativo' }}
+        </span>
+        <span class="profile-status__text">{{ autoSaveLabel() }}</span>
+      </div>
+
+      <div class="profile-impact-list">
+        <div class="profile-impact-item">
+          <strong>Convites melhores</strong>
+          <span>Mais clareza para parceiros e organizadores.</span>
+        </div>
+        <div class="profile-impact-item">
+          <strong>Matching futuro</strong>
+          <span>Base pronta para dupla, jogos e ranking.</span>
+        </div>
+      </div>
+
+      <div class="profile-linkbox">
+        <p class="profile-card-label">Link publico</p>
+        <p class="profile-url">{{ publicProfileUrl() }}</p>
+        <button type="button" class="btn-secondary profile-copy-btn" (click)="copyProfileLink()">
+          Copiar link
+        </button>
+        @if (copyFeedback(); as feedback) {
+          <p class="text-muted profile-copy-feedback">{{ feedback }}</p>
+        }
+      </div>
+    </aside>
+  </section>
+
+  <div class="profile-grid">
+    <div class="profile-main">
+      <section class="profile-stepper card">
+        <div class="profile-stepper__header">
+          <div>
+            <p class="profile-card-label">Progressive onboarding</p>
+            <h2 class="title-lg profile-stepper__title">{{ currentStepMeta().title }}</h2>
+          </div>
+          <span class="profile-stepper__count">Etapa {{ currentStepIndex() + 1 }}/{{ steps.length }}</span>
+        </div>
+
+        <div class="profile-stepper__rail">
+          @for (step of steps; track step.id) {
+            <button
+              type="button"
+              class="profile-step-chip"
+              [class.profile-step-chip--active]="isStepActive(step.id)"
+              [class.profile-step-chip--done]="stepProgress()[step.id].complete"
+              (click)="goToStep(step.id)"
+            >
+              <span class="profile-step-chip__index">{{ $index + 1 }}</span>
+              <span class="profile-step-chip__copy">
+                <strong>{{ step.shortLabel }}</strong>
+                <small>{{ stepProgress()[step.id].value }}%</small>
+              </span>
+            </button>
+          }
+        </div>
+
+        <p class="text-muted profile-stepper__subtitle">{{ currentStepMeta().subtitle }}</p>
+      </section>
+
+      <form id="athlete-profile-form" class="profile-form card" [formGroup]="form" (ngSubmit)="save()">
+        @if (currentStep() === 'identity') {
+          <section class="profile-section">
+            <header class="profile-section__header">
+              <div>
+                <p class="profile-card-label">Etapa 1</p>
+                <h2 class="title-lg profile-section__title">Base publica em 30 segundos</h2>
+              </div>
+            </header>
+
+            <div class="profile-media-grid">
+              <label class="profile-field">
+                <span>Foto de capa</span>
+                <input
+                  type="url"
+                  formControlName="coverPhotoUrl"
+                  placeholder="https://cdn.seudominio.com/imagens/capa.jpg"
+                />
+                <div class="profile-upload">
+                  <input
+                    #coverUploadInput
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    class="profile-upload__input"
+                    (change)="onCoverFileSelected($event)"
+                  />
+                  <button
+                    type="button"
+                    class="btn-secondary profile-upload__button"
+                    [disabled]="!canUploadImages() || coverUploading()"
+                    (click)="coverUploadInput.click()"
+                  >
+                    {{ coverUploading() ? 'Enviando capa...' : 'Enviar capa' }}
+                  </button>
+                </div>
+                @if (coverUploadError(); as uploadError) {
+                  <small class="profile-field__error">{{ uploadError }}</small>
+                }
+              </label>
+
+              <label class="profile-field">
+                <span>Foto de perfil</span>
+                <input
+                  type="url"
+                  formControlName="profilePhotoUrl"
+                  placeholder="https://cdn.seudominio.com/imagens/perfil.jpg"
+                />
+                <div class="profile-upload">
+                  <input
+                    #profileUploadInput
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    class="profile-upload__input"
+                    (change)="onProfileFileSelected($event)"
+                  />
+                  <button
+                    type="button"
+                    class="btn-secondary profile-upload__button"
+                    [disabled]="!canUploadImages() || profileUploading()"
+                    (click)="profileUploadInput.click()"
+                  >
+                    {{ profileUploading() ? 'Enviando foto...' : 'Enviar foto' }}
+                  </button>
+                </div>
+                @if (profileUploadError(); as uploadError) {
+                  <small class="profile-field__error">{{ uploadError }}</small>
+                }
+              </label>
+            </div>
+
+            @if (!canUploadImages()) {
+              <p class="text-muted profile-upload__hint">
+                Upload disponivel apenas com login autenticado e Firebase configurado.
+              </p>
+            }
+
+            <div class="profile-fields profile-fields--two">
+              <label class="profile-field" [class.profile-field--error]="hasRequiredError('fullName')">
+                <span>Nome esportivo</span>
+                <input type="text" formControlName="fullName" placeholder="Ex.: Marina Santos" />
+                @if (hasRequiredError('fullName')) {
+                  <small class="profile-field__error">Nome esportivo e obrigatorio.</small>
+                }
+              </label>
+
+              <label class="profile-field" [class.profile-field--error]="hasRequiredError('publicHandle')">
+                <span>Handle publico</span>
+                <div class="profile-inline">
+                  <input type="text" formControlName="publicHandle" placeholder="marina-santos" />
+                  <button type="button" class="btn-secondary profile-inline__action" (click)="suggestHandle()">
+                    Gerar
+                  </button>
+                </div>
+                @if (hasRequiredError('publicHandle')) {
+                  <small class="profile-field__error">Handle publico e obrigatorio.</small>
+                }
+              </label>
+            </div>
+
+            <div class="profile-fields profile-fields--three">
+              <label class="profile-field" [class.profile-field--error]="hasRequiredError('primarySport')">
+                <span>Esporte principal</span>
+                <select formControlName="primarySport">
+                  @for (sport of sportOptions; track sport) {
+                    <option [value]="sport">{{ sport }}</option>
+                  }
+                </select>
+              </label>
+
+              <label class="profile-field" [class.profile-field--error]="hasRequiredError('city')">
+                <span>Cidade</span>
+                <input type="text" formControlName="city" placeholder="Goiania" />
+              </label>
+
+              <label class="profile-field" [class.profile-field--error]="hasRequiredError('state')">
+                <span>UF</span>
+                <input type="text" formControlName="state" maxlength="2" placeholder="GO" (blur)="normalizeState()" />
+              </label>
+            </div>
+          </section>
+        }
+
+        @if (currentStep() === 'story') {
+          <section class="profile-section">
+            <header class="profile-section__header">
+              <div>
+                <p class="profile-card-label">Etapa 2</p>
+                <h2 class="title-lg profile-section__title">De cadastro para identidade</h2>
+              </div>
+            </header>
+
+            <label class="profile-field" [class.profile-field--error]="hasRequiredError('headline')">
+              <span>Headline</span>
+              <div class="profile-field__topline">
+                <small>{{ headlineCount() }}/120</small>
+                <button type="button" class="profile-inline-link" (click)="suggestHeadline()">
+                  Gerar sugestao
+                </button>
+              </div>
+              <input
+                type="text"
+                formControlName="headline"
+                placeholder="Ex.: Atleta multi-esportes buscando desafios e boas conexoes"
+              />
+              @if (hasRequiredError('headline')) {
+                <small class="profile-field__error">Headline e obrigatoria.</small>
+              }
+            </label>
+
+            <label class="profile-field" [class.profile-field--error]="hasRequiredError('bio')">
+              <span>Bio publica</span>
+              <div class="profile-field__topline">
+                <small>{{ bioCount() }}/500</small>
+                <button type="button" class="profile-inline-link" (click)="suggestBio()">
+                  Gerar sugestao
+                </button>
+              </div>
+              <textarea
+                rows="6"
+                formControlName="bio"
+                placeholder="Conte sua energia, estilo de jogo, o que voce procura na comunidade e como gosta de competir."
+              ></textarea>
+              @if (hasRequiredError('bio')) {
+                <small class="profile-field__error">Bio publica e obrigatoria.</small>
+              }
+            </label>
+
+            <label class="profile-field">
+              <span>Objetivo atual</span>
+              <input
+                type="text"
+                formControlName="goals"
+                placeholder="Ex.: entrar em torneios mensais, crescer no ranking e conhecer novos atletas"
+              />
+            </label>
+
+            <label class="profile-field">
+              <span>Pais</span>
+              <input type="text" formControlName="country" placeholder="Brasil" />
+            </label>
+          </section>
+        }
+
+        @if (currentStep() === 'compatibility') {
+          <section class="profile-section">
+            <header class="profile-section__header">
+              <div>
+                <p class="profile-card-label">Etapa 3</p>
+                <h2 class="title-lg profile-section__title">Dados que fazem match</h2>
+              </div>
+            </header>
+
+            <div class="profile-fields profile-fields--two">
+              <label class="profile-field" [class.profile-field--error]="hasRequiredError('level')">
+                <span>Nivel</span>
+                <select formControlName="level">
+                  @for (level of levelOptions; track level) {
+                    <option [value]="level">{{ level }}</option>
+                  }
+                </select>
+              </label>
+
+              <label class="profile-field">
+                <span>Categoria / divisao</span>
+                <input type="text" formControlName="category" placeholder="Ex.: Misto C, Open, Sub-23" />
+              </label>
+            </div>
+
+            <div class="profile-chip-group">
+              <div class="profile-chip-group__header">
+                <span>Esportes que voce pratica</span>
+                <small>Estruturado para descoberta futura, nao texto solto.</small>
+              </div>
+              <div class="profile-chip-cloud">
+                @for (sport of sportChips(); track sport.label) {
+                  <button
+                    type="button"
+                    class="choice-chip"
+                    [class.choice-chip--active]="sport.active"
+                    [class.choice-chip--primary]="normalizedValue().primarySport === sport.label"
+                    (click)="toggleSport(sport.label)"
+                  >
+                    {{ sport.label }}
+                    @if (normalizedValue().primarySport === sport.label) {
+                      <span>principal</span>
+                    }
+                  </button>
+                }
+              </div>
+
+              <div class="profile-inline profile-inline--wide">
+                <input
+                  type="text"
+                  [value]="customSportInput()"
+                  placeholder="Adicionar outro esporte"
+                  (input)="onCustomSportInput(($any($event.target).value ?? ''))"
+                />
+                <button type="button" class="btn-secondary profile-inline__action" (click)="addCustomSport(customSportInput())">
+                  Adicionar
+                </button>
+              </div>
+
+              @if (selectedSports().length > 0) {
+                <div class="profile-selected-list">
+                  @for (sport of selectedSports(); track sport) {
+                    <button type="button" class="selected-pill" (click)="removeSport(sport)">
+                      {{ sport }} ✕
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+
+            <div class="profile-fields profile-fields--three">
+              <label class="profile-field">
+                <span>Mao dominante</span>
+                <select formControlName="dominantHand">
+                  <option value="">Selecionar</option>
+                  @for (option of dominantHandOptions; track option) {
+                    <option [value]="option">{{ option }}</option>
+                  }
+                </select>
+              </label>
+
+              <label class="profile-field">
+                <span>Altura (cm)</span>
+                <input type="number" formControlName="heightCm" placeholder="178" min="100" max="240" />
+              </label>
+
+              <label class="profile-field">
+                <span>Lado da quadra</span>
+                <select formControlName="preferredCourtSide">
+                  <option value="">Selecionar</option>
+                  @for (option of courtSideOptions; track option) {
+                    <option [value]="option">{{ option }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+
+            <div class="profile-fields profile-fields--two">
+              <label class="profile-field">
+                <span>Posicao ou estilo favorito</span>
+                <input
+                  type="text"
+                  formControlName="favoritePosition"
+                  placeholder="Ex.: bloqueio, defesa, saque agressivo"
+                />
+              </label>
+
+              <label class="profile-field">
+                <span>Parceiro(a) frequente</span>
+                <input type="text" formControlName="partnerName" placeholder="Se voce costuma jogar em dupla fixa" />
+              </label>
+            </div>
+
+            <div class="profile-chip-group">
+              <div class="profile-chip-group__header">
+                <span>Disponibilidade estruturada</span>
+                <small>Melhor para matching do que um texto generico.</small>
+              </div>
+              <div class="profile-chip-cloud">
+                @for (slot of availabilityOptions; track slot.id) {
+                  <button
+                    type="button"
+                    class="choice-chip"
+                    [class.choice-chip--active]="selectedAvailability().includes(slot.id)"
+                    (click)="toggleAvailability(slot.id)"
+                  >
+                    {{ slot.label }}
+                  </button>
+                }
+              </div>
+            </div>
+
+            <label class="profile-field">
+              <span>Observacao de agenda</span>
+              <textarea
+                rows="3"
+                formControlName="availabilityNote"
+                placeholder="Ex.: jogo apos as 19h durante a semana e topo rodar para torneios de fim de semana."
+              ></textarea>
+            </label>
+          </section>
+        }
+
+        @if (currentStep() === 'reputation') {
+          <section class="profile-section">
+            <header class="profile-section__header">
+              <div>
+                <p class="profile-card-label">Etapa 4</p>
+                <h2 class="title-lg profile-section__title">Prova social e confianca</h2>
+              </div>
+            </header>
+
+            <label class="profile-field">
+              <span>Instagram</span>
+              <input type="text" formControlName="instagram" placeholder="seuusuario" />
+            </label>
+
+            <label class="profile-field">
+              <span>Destaques esportivos</span>
+              <textarea
+                rows="5"
+                formControlName="achievements"
+                placeholder="Um destaque por linha. Ex.: Vice-campea circuito local&#10;Jogo 3x por semana&#10;Experiencia em duplas mistas"
+              ></textarea>
+            </label>
+
+            <div class="profile-toggles">
+              <label class="profile-toggle">
+                <input type="checkbox" formControlName="lookingForPartner" />
+                <span>
+                  <strong>Quero aparecer para dupla</strong>
+                  <small>Atletas compativeis podem te encontrar com mais contexto.</small>
+                </span>
+              </label>
+
+              <label class="profile-toggle">
+                <input type="checkbox" formControlName="openToTournaments" />
+                <span>
+                  <strong>Quero aparecer para torneios</strong>
+                  <small>Melhora sua visibilidade em oportunidades competitivas.</small>
+                </span>
+              </label>
+
+              <label class="profile-toggle">
+                <input type="checkbox" formControlName="openToCasualGames" />
+                <span>
+                  <strong>Quero aparecer para jogos casuais</strong>
+                  <small>Bom para treinos, conexoes locais e formar rotina.</small>
+                </span>
+              </label>
+            </div>
+
+            <div class="profile-metric-list">
+              @for (metric of profileMetrics(); track metric.label) {
+                <div class="profile-metric-item" [class.profile-metric-item--done]="metric.done">
+                  <span>{{ metric.label }}</span>
+                  <strong>{{ metric.weight }} pts</strong>
+                </div>
+              }
+            </div>
+          </section>
+        }
+
+        @if (saveError(); as error) {
+          <div class="profile-feedback profile-feedback--error">{{ error }}</div>
+        }
+        @if (saveSuccess(); as success) {
+          <div class="profile-feedback profile-feedback--success">{{ success }}</div>
+        }
+
+        <div class="profile-actions">
+          <button type="button" class="btn-secondary profile-action-link" [disabled]="isFirstStep()" (click)="previousStep()">
+            Voltar etapa
+          </button>
+          @if (!isLastStep()) {
+            <button type="button" class="btn-primary profile-action-link" (click)="nextStep()">
+              Proxima etapa
+            </button>
+          } @else {
+            <button type="submit" class="btn-primary profile-action-link" [disabled]="saving() || loading()">
+              {{ saving() ? 'Salvando...' : 'Salvar perfil publico' }}
+            </button>
+          }
+        </div>
+      </form>
+    </div>
+
+    <aside class="profile-preview card">
+      <div class="profile-preview__sticky">
+        <div class="profile-preview__header">
+          <div>
+            <p class="profile-card-label">Preview publico</p>
+            <h2 class="title-lg profile-preview__title">Como outras pessoas te veem</h2>
+          </div>
+          <button type="button" class="btn-secondary profile-preview__copy" (click)="copyProfileLink()">
+            Compartilhar
+          </button>
+        </div>
+
+        <article class="public-card">
+          @if (preview().coverPhotoUrl) {
+            <img class="public-card__cover" [src]="preview().coverPhotoUrl" alt="Capa do perfil do atleta" />
+          }
+
+          <div class="public-card__top">
+            @if (preview().profilePhotoUrl) {
+              <img class="public-card__avatar-img" [src]="preview().profilePhotoUrl" alt="Foto do perfil do atleta" />
+            } @else {
+              <div class="public-card__avatar">{{ preview().fullName.charAt(0) }}</div>
+            }
+
+            <div>
+              <h2 class="title-md public-card__name">{{ preview().fullName }}</h2>
+              <p class="public-card__handle">@{{ preview().handle }}</p>
+            </div>
+          </div>
+
+          <p class="public-card__headline">{{ preview().headline }}</p>
+          <p class="public-card__bio">{{ preview().bio }}</p>
+
+          <div class="public-card__meta">
+            @if (preview().location) {
+              <span class="public-chip">📍 {{ preview().location }}</span>
+            }
+            <span class="public-chip public-chip--highlight">{{ strengthLabel() }}</span>
+            @if (preview().level) {
+              <span class="public-chip">{{ preview().level }}</span>
+            }
+            @if (preview().category) {
+              <span class="public-chip">{{ preview().category }}</span>
+            }
+          </div>
+
+          <div class="public-card__sports">
+            @for (sport of preview().sports; track sport) {
+              <span class="public-sport">{{ sport }}</span>
+            }
+          </div>
+
+          @if (preview().favoritePosition || preview().dominantHand || preview().heightLabel || preview().preferredCourtSide) {
+            <div class="public-card__panel">
+              <p class="profile-card-label">Compatibilidade</p>
+              <div class="public-card__info-grid">
+                @if (preview().favoritePosition) {
+                  <p><strong>Estilo:</strong> {{ preview().favoritePosition }}</p>
+                }
+                @if (preview().dominantHand) {
+                  <p><strong>Mao:</strong> {{ preview().dominantHand }}</p>
+                }
+                @if (preview().heightLabel) {
+                  <p><strong>Altura:</strong> {{ preview().heightLabel }}</p>
+                }
+                @if (preview().preferredCourtSide) {
+                  <p><strong>Lado:</strong> {{ preview().preferredCourtSide }}</p>
+                }
+              </div>
+            </div>
+          }
+
+          @if (preview().availabilitySlots.length > 0 || preview().availabilityNote) {
+            <div class="public-card__panel">
+              <p class="profile-card-label">Disponibilidade</p>
+              @if (preview().availabilitySlots.length > 0) {
+                <div class="public-card__badges">
+                  @for (slot of preview().availabilitySlots; track slot) {
+                    <span class="public-chip public-chip--accent">{{ availabilityLabel(slot) }}</span>
+                  }
+                </div>
+              }
+              @if (preview().availabilityNote) {
+                <p class="public-card__panel-copy">{{ preview().availabilityNote }}</p>
+              }
+            </div>
+          }
+
+          @if (preview().achievements.length > 0 || preview().goals || preview().partnerName) {
+            <div class="public-card__panel">
+              <p class="profile-card-label">Reputacao</p>
+              @if (preview().goals) {
+                <p class="public-card__panel-copy"><strong>Objetivo:</strong> {{ preview().goals }}</p>
+              }
+              @if (preview().partnerName) {
+                <p class="public-card__panel-copy"><strong>Dupla frequente:</strong> {{ preview().partnerName }}</p>
+              }
+              @if (preview().achievements.length > 0) {
+                <ul class="public-card__list">
+                  @for (achievement of preview().achievements; track achievement) {
+                    <li>{{ achievement }}</li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+
+          <div class="public-card__badges">
+            @if (preview().lookingForPartner) {
+              <span class="public-chip public-chip--success">Aberto para parceiros</span>
+            }
+            @if (preview().openToTournaments) {
+              <span class="public-chip public-chip--accent">Disponivel para torneios</span>
+            }
+            @if (preview().openToCasualGames) {
+              <span class="public-chip public-chip--accent">Jogos e treinos</span>
+            }
+            @if (preview().instagram) {
+              <a class="public-chip" [href]="preview().instagramUrl" target="_blank" rel="noreferrer">
+                Instagram @{{ preview().instagram }}
+              </a>
+            }
+          </div>
+        </article>
+      </div>
+    </aside>
+  </div>
+
+  <div class="profile-mobile-bar">
+    <button type="button" class="btn-secondary profile-mobile-bar__action" [disabled]="isFirstStep()" (click)="previousStep()">
+      Voltar
+    </button>
+    @if (!isLastStep()) {
+      <button type="button" class="btn-primary profile-mobile-bar__action" (click)="nextStep()">
+        Proxima
+      </button>
+    } @else {
+      <button
+        type="submit"
+        form="athlete-profile-form"
+        class="btn-primary profile-mobile-bar__action"
+        [disabled]="saving() || loading()"
+      >
+        {{ saving() ? 'Salvando...' : 'Salvar' }}
+      </button>
+    }
+  </div>
+</section>

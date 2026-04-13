@@ -2,6 +2,7 @@ import {initializeApp} from "firebase-admin/app";
 import {getAuth, type UserRecord} from "firebase-admin/auth";
 import {setGlobalOptions} from "firebase-functions";
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
+import {onSchedule} from "firebase-functions/v2/scheduler";
 import {defineSecret} from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
@@ -20,6 +21,10 @@ import {
   firestoreRolesPayload,
   isAllowedRole,
 } from "./auth-roles";
+import {
+  ARENA_BOOKING_MP_REF_PREFIX,
+  processArenaBookingMercadoPagoNotification,
+} from "./mercadopago-arena-booking-webhook";
 
 // Initialize Firebase Admin
 initializeApp();
@@ -97,7 +102,17 @@ async function getUserNotificationChannels(
     db.collection(`users/${userId}/webPushSubscriptions`).get(),
   ]);
 
-  const fcmTokens = tokensSnapshot.docs.map((doc) => doc.id);
+  const fcmTokens = tokensSnapshot.docs
+    .map((doc) => {
+      const data = doc.data();
+      const token = data["token"];
+      if (typeof token === "string" && token.trim().length > 0) {
+        return token.trim();
+      }
+      // Compatibilidade com modelo legado onde o doc.id era o próprio token.
+      return doc.id;
+    })
+    .filter((token) => token.length > 0);
   const webPushSubscriptions = webPushSnapshot.docs
     .map((doc) => {
       const data = doc.data();
@@ -126,6 +141,230 @@ async function getUserNotificationChannels(
 
   return {fcmTokens, webPushSubscriptions};
 }
+
+const ARENA_REMINDER_HOURS_BEFORE = 1;
+const ARENA_REMINDER_WINDOW_MIN = 55;
+const ARENA_REMINDER_WINDOW_MAX = 65;
+const ARENA_TIMEZONE_OFFSET = "-03:00";
+const ARENA_REMINDER_TYPE = "arena_booking_1h_reminder";
+
+function dateKeyAtOffset(date: Date, offsetHours: number): string {
+  const shifted = new Date(date.getTime() + offsetHours * 60 * 60 * 1000);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(shifted.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function addDaysToDateKey(dateKey: string, days: number): string {
+  const base = new Date(`${dateKey}T00:00:00${ARENA_TIMEZONE_OFFSET}`);
+  if (Number.isNaN(base.getTime())) return dateKey;
+  base.setUTCDate(base.getUTCDate() + days);
+  const y = base.getUTCFullYear();
+  const m = String(base.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(base.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function bookingStartAt(dateKey: string, startTime: string): Date | null {
+  if (!dateKey || !startTime) return null;
+  const hhmm = startTime.trim().slice(0, 5);
+  if (!/^\d{2}:\d{2}$/.test(hhmm)) return null;
+  const dt = new Date(`${dateKey}T${hhmm}:00${ARENA_TIMEZONE_OFFSET}`);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt;
+}
+
+export const sendArenaBookingReminders = onSchedule({
+  schedule: "every 5 minutes",
+  timeZone: "America/Sao_Paulo",
+  secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
+}, async () => {
+  const db = getFirestore();
+  const messaging = getMessaging();
+  const projectId = getFirebaseProjectId();
+  const remindersRef = db.collection(`artifacts/${projectId}/public/data/arenaBookingReminders`);
+
+  const now = new Date();
+  const todayKey = dateKeyAtOffset(now, -3);
+  const tomorrowKey = addDaysToDateKey(todayKey, 1);
+
+  const bookingsSnap = await db
+    .collection("arenaBookings")
+    .where("date", "in", [todayKey, tomorrowKey])
+    .get();
+
+  if (bookingsSnap.empty) {
+    logger.info("arena booking reminder: nenhuma reserva encontrada no intervalo de datas");
+    return;
+  }
+
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const bookingDoc of bookingsSnap.docs) {
+    const booking = bookingDoc.data() as {
+      athleteId?: string;
+      arenaId?: string;
+      arenaName?: string;
+      courtName?: string;
+      date?: string;
+      startTime?: string;
+      endTime?: string;
+      status?: string;
+    };
+
+    const status = (booking.status || "").toLowerCase();
+    if (status && status !== "active" && status !== "confirmed") {
+      skipped += 1;
+      continue;
+    }
+
+    const athleteId = (booking.athleteId || "").trim();
+    const dateKey = (booking.date || "").trim();
+    const startTime = (booking.startTime || "").trim();
+    if (!athleteId || !dateKey || !startTime) {
+      skipped += 1;
+      continue;
+    }
+
+    const startAt = bookingStartAt(dateKey, startTime);
+    if (!startAt) {
+      skipped += 1;
+      continue;
+    }
+
+    const minutesToStart = (startAt.getTime() - now.getTime()) / (60 * 1000);
+    if (minutesToStart < ARENA_REMINDER_WINDOW_MIN || minutesToStart > ARENA_REMINDER_WINDOW_MAX) {
+      skipped += 1;
+      continue;
+    }
+
+    const reminderId = `${bookingDoc.id}_${ARENA_REMINDER_HOURS_BEFORE}h`;
+    const reminderDocRef = remindersRef.doc(reminderId);
+    const lockAcquired = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(reminderDocRef);
+      if (snap.exists) {
+        return false;
+      }
+      tx.set(reminderDocRef, {
+        bookingId: bookingDoc.id,
+        athleteId,
+        type: ARENA_REMINDER_TYPE,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+
+    if (!lockAcquired) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      const {fcmTokens, webPushSubscriptions} = await getUserNotificationChannels(athleteId);
+      if (fcmTokens.length === 0 && webPushSubscriptions.length === 0) {
+        await reminderDocRef.set({
+          sentAt: FieldValue.serverTimestamp(),
+          sent: 0,
+          failed: 0,
+          skippedNoChannel: true,
+        }, {merge: true});
+        skipped += 1;
+        continue;
+      }
+
+      const title = "Lembrete de jogo";
+      const body = "Seu jogo começa em 1 hora";
+      const courtName = (booking.courtName || "Quadra").trim();
+      const arenaName = (booking.arenaName || "Arena").trim();
+      const endTime = (booking.endTime || "").trim();
+
+      const message = {
+        notification: {title, body},
+        data: {
+          type: ARENA_REMINDER_TYPE,
+          bookingId: bookingDoc.id,
+          arenaId: String(booking.arenaId || ""),
+          date: dateKey,
+          startTime,
+          endTime,
+        },
+        android: {
+          priority: "high" as const,
+          notification: {
+            channelId: "default",
+            sound: "default",
+          },
+        },
+        apns: {
+          headers: {"apns-priority": "10"},
+          payload: {
+            aps: {sound: "default"},
+          },
+        },
+      };
+
+      const fcmResults = await Promise.allSettled(
+        fcmTokens.map((token) => messaging.send({...message, token}))
+      );
+      const successful = fcmResults.filter((r) => r.status === "fulfilled").length;
+      const failedCount = fcmResults.length - successful;
+
+      const webPushResult = await sendWebPushToSubscriptions(webPushSubscriptions, {
+        notification: {title, body},
+        data: {
+          type: ARENA_REMINDER_TYPE,
+          bookingId: bookingDoc.id,
+          arenaId: String(booking.arenaId || ""),
+          date: dateKey,
+          startTime,
+          endTime,
+        },
+        requireInteraction: false,
+      });
+
+      const totalSent = successful + webPushResult.sent;
+      const totalFailed = failedCount + webPushResult.failed;
+      sent += totalSent;
+      failed += totalFailed;
+
+      if (totalSent > 0) {
+        await db.collection(`users/${athleteId}/notifications`).add({
+          userId: athleteId,
+          title,
+          body: `${body}\n${arenaName} · ${courtName}\n${startTime}${endTime ? ` - ${endTime}` : ""}`,
+          type: ARENA_REMINDER_TYPE,
+          data: {
+            bookingId: bookingDoc.id,
+            arenaId: booking.arenaId || "",
+            date: dateKey,
+            startTime,
+            endTime,
+            hoursBefore: String(ARENA_REMINDER_HOURS_BEFORE),
+          },
+          read: false,
+          createdAt: FieldValue.serverTimestamp(),
+          readAt: null,
+        });
+      }
+
+      await reminderDocRef.set({
+        sentAt: FieldValue.serverTimestamp(),
+        sent: totalSent,
+        failed: totalFailed,
+      }, {merge: true});
+    } catch (error) {
+      failed += 1;
+      logger.error(`arena booking reminder: erro ao enviar para booking ${bookingDoc.id}`, error);
+      // Remove lock para permitir retry no próximo ciclo quando houver falha de envio.
+      await reminderDocRef.delete().catch(() => undefined);
+    }
+  }
+
+  logger.info("arena booking reminder: ciclo concluído", {sent, skipped, failed});
+});
 
 async function sendWebPushToSubscriptions(
   subscriptions: StoredWebPushSubscription[],
@@ -2288,7 +2527,187 @@ export const createMercadoPagoPreference = onCall({
 });
 
 /**
- * Webhook do Mercado Pago: ao receber notificação de pagamento aprovado, soma valor em paidAmount e marca isPaid se atingir entryFee.
+ * Gera preferência de pagamento Mercado Pago para uma reserva em `arenaBookings`.
+ *
+ * Entrada: `bookingId`, `userId`, `valor` (deve bater com `amountReais` da reserva).
+ * - Valida autenticação e que o atleta é dono da reserva.
+ * - Usa o token OAuth do gestor da arena (`arenas/{arenaId}.managerUserId`).
+ * - Grava em `arenaBookings/{id}`: `paymentId` (id da preferência MP), `paymentStatus: "pending"`.
+ * - Retorna `initPoint` (URL do checkout).
+ */
+export const createArenaBookingMercadoPagoPayment = onCall({
+  secrets: [MERCADOPAGO_APP_ID, MERCADOPAGO_APP_SECRET, PLATFORM_FEE_FIXED_BRL],
+  cors: MP_CORS_ORIGINS,
+}, async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Usuário não autenticado");
+  }
+
+  const data = request.data as { bookingId?: string; userId?: string; valor?: number };
+  const bookingId = typeof data.bookingId === "string" ? data.bookingId.trim() : "";
+  const userId = typeof data.userId === "string" ? data.userId.trim() : "";
+  const valorRaw = data.valor;
+
+  if (!bookingId) {
+    throw new HttpsError("invalid-argument", "bookingId é obrigatório");
+  }
+  if (!userId || userId !== callerUid) {
+    throw new HttpsError("permission-denied", "userId deve ser o usuário autenticado");
+  }
+  if (typeof valorRaw !== "number" || !Number.isFinite(valorRaw) || valorRaw <= 0) {
+    throw new HttpsError("invalid-argument", "valor deve ser um número positivo");
+  }
+
+  const db = getFirestore();
+  const bookingRef = db.collection("arenaBookings").doc(bookingId);
+  const bookingSnap = await bookingRef.get();
+  if (!bookingSnap.exists) {
+    throw new HttpsError("not-found", "Reserva não encontrada");
+  }
+
+  const booking = bookingSnap.data()!;
+  const athleteId = booking.athleteId as string | undefined;
+  if (!athleteId || athleteId !== callerUid) {
+    throw new HttpsError("permission-denied", "Você não é o titular desta reserva");
+  }
+
+  const expectedAmount = Number(booking.amountReais);
+  if (!Number.isFinite(expectedAmount) || expectedAmount <= 0) {
+    throw new HttpsError("failed-precondition", "Reserva sem valor válido (amountReais)");
+  }
+
+  const valor = Math.round(valorRaw * 100) / 100;
+  const expected = Math.round(expectedAmount * 100) / 100;
+  if (Math.abs(valor - expected) > 0.02) {
+    throw new HttpsError(
+      "invalid-argument",
+      `Valor não confere com a reserva (esperado R$ ${expected.toFixed(2)})`,
+    );
+  }
+
+  const existingPaymentStatus = (booking.paymentStatus as string | undefined)?.toLowerCase();
+  if (existingPaymentStatus === "paid" || existingPaymentStatus === "approved") {
+    throw new HttpsError("failed-precondition", "Esta reserva já foi paga");
+  }
+
+  const arenaId = booking.arenaId as string | undefined;
+  if (!arenaId) {
+    throw new HttpsError("failed-precondition", "Reserva sem arenaId");
+  }
+
+  const arenaSnap = await db.collection("arenas").doc(arenaId).get();
+  if (!arenaSnap.exists) {
+    throw new HttpsError("not-found", "Arena não encontrada");
+  }
+  const arena = arenaSnap.data()!;
+  const managerId = arena.managerUserId as string | undefined;
+  if (!managerId) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Arena sem gestor vinculado; pagamento online indisponível.",
+    );
+  }
+
+  const mpCredsSnap = await db.doc(`users/${managerId}/mercadopago/credentials`).get();
+  const mpCreds = mpCredsSnap.data();
+  if (!mpCreds?.access_token) {
+    throw new HttpsError(
+      "failed-precondition",
+      "A arena ainda não configurou recebimento via Mercado Pago.",
+    );
+  }
+
+  let accessToken = mpCreds.access_token as string;
+  const expiresAt = mpCreds.expires_at as number | undefined;
+  if (expiresAt != null && Date.now() >= expiresAt - 60000) {
+    accessToken = await refreshMercadoPagoToken(managerId);
+  }
+
+  let platformFeeBrl = 2;
+  try {
+    const feeVal = PLATFORM_FEE_FIXED_BRL.value();
+    if (feeVal != null && feeVal !== "") {
+      platformFeeBrl = Number(feeVal) || 2;
+    }
+  } catch {
+    // secret ausente
+  }
+  const amount = expected;
+  const platformFee = Math.min(platformFeeBrl, amount - 0.01);
+
+  const projectIdForUrl = getFirebaseProjectId();
+  const baseUrl = `https://us-central1-${projectIdForUrl}.cloudfunctions.net`;
+  const notificationUrl = `${baseUrl}/mercadopagoWebhook`;
+  const arenaName = (booking.arenaName as string) || (arena.name as string) || "Arena";
+  const courtName = (booking.courtName as string) || "Quadra";
+  const dateStr = (booking.date as string) || "";
+  const title = `Reserva ${arenaName} — ${courtName}${dateStr ? ` (${dateStr})` : ""}`;
+
+  const webAppHost = `${projectIdForUrl}.web.app`;
+  const backSuccess = `https://${webAppHost}/arena/${arenaId}/book/success?paid=success&bookingId=${encodeURIComponent(bookingId)}`;
+  const backPending = `https://${webAppHost}/arena/${arenaId}/book/success?paid=pending&bookingId=${encodeURIComponent(bookingId)}`;
+  const backFailure = `https://${webAppHost}/arena/${arenaId}/book/success?paid=failure&bookingId=${encodeURIComponent(bookingId)}`;
+
+  const preferenceBody = {
+    items: [{
+      title,
+      quantity: 1,
+      unit_price: amount,
+      currency_id: "BRL",
+    }],
+    external_reference: `${ARENA_BOOKING_MP_REF_PREFIX}${bookingId}`,
+    notification_url: notificationUrl,
+    back_urls: {
+      success: backSuccess,
+      pending: backPending,
+      failure: backFailure,
+    },
+    auto_return: "all" as const,
+    marketplace_fee: platformFee,
+  };
+
+  const prefRes = await fetch(MP_PREFERENCES_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(preferenceBody),
+  });
+
+  if (!prefRes.ok) {
+    const errText = await prefRes.text();
+    logger.error("createArenaBookingMercadoPagoPayment MP preference failed:", prefRes.status, errText);
+    throw new HttpsError("internal", "Não foi possível gerar o link de pagamento. Tente novamente.");
+  }
+
+  const prefData = await prefRes.json() as { id?: string; init_point?: string };
+  const mpPreferenceId = prefData.id;
+  const initPoint = prefData.init_point;
+  if (!mpPreferenceId || !initPoint) {
+    throw new HttpsError("internal", "Resposta inválida do Mercado Pago");
+  }
+
+  await bookingRef.update({
+    paymentId: mpPreferenceId,
+    paymentStatus: "pending",
+    paymentAmountReais: amount,
+    mercadopagoPreferenceCreatedAt: FieldValue.serverTimestamp(),
+  });
+
+  return {
+    init_point: initPoint,
+    preferenceId: mpPreferenceId,
+  };
+});
+
+/**
+ * Webhook Mercado Pago (URL única para preferências e inscrições).
+ *
+ * - `external_reference` `arenaBooking:{id}`: trata aprovado (booking `confirmed`, slot `booked`) e
+ *   rejeitado/cancelado/estorno (libera locks e remove slots); pendente/in_process não marca idempotência.
+ * - Demais referências (inscrição em torneio): apenas pagamento `approved` atualiza `paidAmount` / `isPaid`.
  */
 export const mercadopagoWebhook = onRequest({
   secrets: [MERCADOPAGO_APP_ID, MERCADOPAGO_APP_SECRET, MERCADOPAGO_WEBHOOK_SECRET, PLATFORM_FEE_FIXED_BRL],
@@ -2395,14 +2814,27 @@ export const mercadopagoWebhook = onRequest({
     res.status(200).send("OK");
     return;
   }
-  const payment = await payRes.json() as { status?: string; external_reference?: string; transaction_amount?: number };
+  const payment = await payRes.json() as {
+    status?: string;
+    external_reference?: string;
+    transaction_amount?: number;
+  };
+
+  const externalRef = (payment.external_reference || "").trim();
+  if (externalRef.startsWith(ARENA_BOOKING_MP_REF_PREFIX)) {
+    await processArenaBookingMercadoPagoNotification(db, paymentId, payment, processedRef);
+    res.status(200).send("OK");
+    return;
+  }
+
   if (payment.status !== "approved") {
     res.status(200).send("OK");
     return;
   }
 
-  const registrationId = payment.external_reference;
   const paymentAmount = Number(payment.transaction_amount) || 0;
+
+  const registrationId = externalRef;
   if (!registrationId || paymentAmount <= 0) {
     res.status(200).send("OK");
     return;

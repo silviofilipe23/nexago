@@ -8,6 +8,7 @@ import { APP_LINKS } from './data/links';
   standalone: true,
   imports: [RouterLink],
   templateUrl: './landing-header.component.html',
+  styleUrl: './landing-header.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LandingHeaderComponent {

@@ -28,6 +28,25 @@
   }
 }
 
+.filter-group button {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  color: #aaa;
+  transition: all .25s ease;
+
+  &:hover {
+    background: rgba(139,92,246,0.15);
+    color: white;
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #7c3aed, #3b82f6);
+    color: white;
+    box-shadow: 0 0 20px rgba(139,92,246,0.4);
+  }
+}
+
 .rank-row {
   --rank-glow-x: 0px;
   --rank-glow-y: 50%;

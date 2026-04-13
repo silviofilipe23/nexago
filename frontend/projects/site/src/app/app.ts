@@ -4,10 +4,11 @@ import { trigger, transition, style, query, group, animate } from '@angular/anim
 
 const pageOrder: Record<string, number> = {
   home: 0,
-  search: 1,
-  arena: 2,
-  checkout: 3,
-  success: 4,
+  login: 1,
+  search: 2,
+  arena: 3,
+  checkout: 4,
+  success: 5,
 };
 
 const routeAnimations = trigger('routeAnimations', [

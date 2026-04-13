@@ -2,8 +2,15 @@
   <div class="mx-auto w-full max-w-md text-center">
     <div class="success-check mx-auto mb-6">✓</div>
 
-    <h1 class="text-3xl font-semibold">Reserva confirmada!</h1>
-    <p class="mt-3 text-slate-400">Agora e so ir pra quadra. Boa partida! 🏐</p>
+    @if (isPayAtArena()) {
+      <h1 class="text-3xl font-semibold">Reserva garantida</h1>
+      <p class="mt-3 text-slate-400">
+        Pagamento na arena. Chegue um pouco antes do horário e confirme no balcão. Boa partida! 🏐
+      </p>
+    } @else {
+      <h1 class="text-3xl font-semibold">Reserva confirmada!</h1>
+      <p class="mt-3 text-slate-400">Pagamento online ok. Agora é só ir pra quadra. Boa partida! 🏐</p>
+    }
 
     <div class="mt-8 rounded-2xl border border-white/10 bg-white/5 p-5 text-left">
       <p class="text-sm text-slate-400">Arena</p>
@@ -13,6 +20,15 @@
         <span>{{ reservation().date }}</span>
         <span>{{ reservation().time }}</span>
       </div>
+      @if (reservation().price != null) {
+        <p class="mt-3 text-sm text-slate-400">
+          Valor
+          <span class="font-semibold text-white">R$ {{ reservation().price }}</span>
+          @if (isPayAtArena()) {
+            <span class="text-slate-500"> · a pagar no local</span>
+          }
+        </p>
+      }
     </div>
 
     <div class="mt-8 space-y-3">

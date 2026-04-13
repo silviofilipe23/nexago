@@ -4,7 +4,7 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 
-import { firebaseConfig } from './firebase.config';
+import { firebaseConfig } from '@nexago/firebase-config';
 
 /** Single Firebase app instance for the whole Angular app. */
 export const firebaseApp = initializeApp(firebaseConfig);

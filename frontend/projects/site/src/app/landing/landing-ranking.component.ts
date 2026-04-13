@@ -1,9 +1,11 @@
 import {
   afterNextRender,
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   DestroyRef,
   ElementRef,
+  NgZone,
   inject,
   viewChild,
   viewChildren,
@@ -23,12 +25,18 @@ import { registerGsapPlugins, prefersReducedMotion, scheduleScrollTriggerRefresh
 })
 export class LandingRankingComponent {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly ngZone = inject(NgZone);
   readonly ranking = MOCK_RANKING;
-  readonly topThree = MOCK_RANKING.filter((e) => e.rank <= 3);
-  readonly rest = MOCK_RANKING.filter((e) => e.rank > 3);
   readonly viewerHighlight = VIEWER_RANKING_HIGHLIGHT;
 
   private readonly leaderPoints = MOCK_RANKING[0]?.points ?? 1;
+
+  filters: { year: number; category: RankEntry['category']; type: RankEntry['type'] } = {
+    year: 2026,
+    category: 'masculino',
+    type: 'individual',
+  };
 
   private readonly sectionRef = viewChild.required<ElementRef<HTMLElement>>('rankSection');
   private readonly podiumRefs = viewChildren<ElementRef<HTMLElement>>('podium');
@@ -42,6 +50,7 @@ export class LandingRankingComponent {
       const rowEls = this.rowRefs().map((r) => r.nativeElement);
       if (prefersReducedMotion()) {
         gsap.set([...podiumEls, ...rowEls], { opacity: 1, scale: 1, x: 0 });
+        
         return;
       }
 
@@ -104,6 +113,89 @@ export class LandingRankingComponent {
       });
       scheduleScrollTriggerRefresh();
     });
+  }
+
+  get filteredRanking(): RankEntry[] {
+    return this.ranking.filter((r) =>
+      r.year === this.filters.year &&
+      r.category === this.filters.category &&
+      r.type === this.filters.type
+    );
+  }
+
+  get topThree() {
+    return this.filteredRanking.slice(0, 3);
+  }
+  
+  get rest() {
+    return this.filteredRanking.slice(3);
+  }
+
+  setYear(year: number): void {
+    if (this.filters.year === year) {
+      return;
+    }
+    this.animateRankingUpdate({ ...this.filters, year });
+  }
+
+  setCategory(category: RankEntry['category']): void {
+    if (this.filters.category === category) {
+      return;
+    }
+    this.animateRankingUpdate({ ...this.filters, category });
+  }
+
+  setType(type: RankEntry['type']): void {
+    if (this.filters.type === type) {
+      return;
+    }
+    this.animateRankingUpdate({ ...this.filters, type });
+  }
+
+  private animateRankingUpdate(nextFilters: {
+    year: number;
+    category: RankEntry['category'];
+    type: RankEntry['type'];
+  }): void {
+    const rowEls = this.rowRefs().map((r) => r.nativeElement);
+    if (prefersReducedMotion() || rowEls.length === 0) {
+      this.updateRanking(nextFilters);
+      requestAnimationFrame(() => {
+        const updatedRows = this.rowRefs().map((r) => r.nativeElement);
+        if (updatedRows.length === 0) {
+          return;
+        }
+        gsap.fromTo(updatedRows, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.3, stagger: 0.04 });
+      });
+      return;
+    }
+
+    gsap.to(rowEls, {
+      opacity: 0,
+      y: 10,
+      duration: 0.2,
+      onComplete: () => {
+        this.ngZone.run(() => {
+          this.updateRanking(nextFilters);
+          this.cdr.detectChanges();
+        });
+        requestAnimationFrame(() => {
+          const updatedRows = this.rowRefs().map((r) => r.nativeElement);
+          if (updatedRows.length === 0) {
+            return;
+          }
+          gsap.fromTo(updatedRows, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.3, stagger: 0.04 });
+        });
+      },
+    });
+  }
+
+  private updateRanking(nextFilters: {
+    year: number;
+    category: RankEntry['category'];
+    type: RankEntry['type'];
+  }): void {
+    this.filters = nextFilters;
   }
 
   trendLabel(t: 'up' | 'same' | 'down'): string {

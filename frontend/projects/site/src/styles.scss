@@ -6,7 +6,7 @@
 @use 'design-system/cards';
 @use 'design-system/badges';
 @use 'design-system/animations';
-@import 'tailwindcss';
+@import 'tailwindcss/index.css';
 
 @theme {
   --color-nexago-bg: #0b0b0f;
@@ -18,6 +18,8 @@
   --font-sans:
     'Inter', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
     'Segoe UI Symbol';
+  /* Display: editorial / “award site” headlines (Syne — geometric, high impact) */
+  --font-display: 'Syne', var(--font-sans);
   --radius-glass: 1.25rem;
   --shadow-glow: 0 0 80px -20px rgba(139, 92, 246, 0.45);
   --shadow-card: 0 25px 50px -12px rgba(0, 0, 0, 0.45);

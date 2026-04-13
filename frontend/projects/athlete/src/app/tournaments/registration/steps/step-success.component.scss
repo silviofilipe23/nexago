@@ -1,0 +1,88 @@
+@use '../registration-tokens' as t;
+
+.trg-success-hero {
+  text-align: center;
+  padding: var(--trg-space-8) 0 var(--trg-space-6);
+}
+
+.trg-success-icon {
+  width: 96px;
+  height: 96px;
+  margin: 0 auto var(--trg-space-5);
+}
+
+.trg-success-svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 24px rgba(45, 212, 191, 0.45));
+}
+
+.trg-success-svg__ring {
+  fill: none;
+  stroke: rgba(45, 212, 191, 0.25);
+  stroke-width: 3;
+}
+
+.trg-success-svg__check {
+  fill: none;
+  stroke: var(--trg-teal);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 64;
+  stroke-dashoffset: 64;
+  animation: trg-draw-check 0.9s var(--trg-ease) forwards 0.2s;
+}
+
+@keyframes trg-draw-check {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trg-success-svg__check {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+}
+
+.trg-success-title {
+  margin: 0 0 var(--trg-space-3);
+  font-weight: 850;
+  letter-spacing: -0.03em;
+  color: var(--trg-text);
+}
+
+.trg-success-sub {
+  margin: 0 auto;
+  max-width: 22rem;
+  line-height: 1.55;
+}
+
+.trg-success-sub strong {
+  color: var(--trg-text);
+}
+
+.trg-success-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--trg-space-3);
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.trg-success-actions .btn-primary,
+.trg-success-actions .btn-secondary {
+  width: 100%;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.trg-success-actions .btn-primary:focus-visible,
+.trg-success-actions .btn-secondary:focus-visible {
+  @include t.trg-focus-ring;
+}

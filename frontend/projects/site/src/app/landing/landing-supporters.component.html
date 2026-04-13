@@ -1,0 +1,54 @@
+<section
+  #supSection
+  id="apoiadores"
+  class="lsu"
+  aria-labelledby="lsu-title"
+>
+  <div class="lsu__ambient" aria-hidden="true">
+    <div class="lsu__orb lsu__orb--teal"></div>
+    <div class="lsu__orb lsu__orb--violet"></div>
+    <div class="lsu__grain"></div>
+  </div>
+
+  <div class="lsu__inner mx-auto max-w-6xl px-4 py-20 md:px-6 md:py-28">
+    <header class="lsu__header" data-lsu-header>
+      <p class="lsu__eyebrow">Ecossistema</p>
+      <h2 id="lsu-title" class="lsu__title">Quem já está com a gente</h2>
+      <p class="lsu__subtitle">
+        Empresas e marcas que impulsionam o esporte junto com a gente
+      </p>
+    </header>
+
+    @for (tier of tiers; track tier.id) {
+      <div class="lsu__tier" [class.lsu__tier--parceiros]="tier.id === 'parceiros'">
+        <h3 class="lsu__tier-label" data-lsu-tier-label>{{ tier.label }}</h3>
+        <ul class="lsu__grid" role="list">
+          @for (logo of tier.logos; track logo.id) {
+            <li class="lsu__cell" role="listitem">
+              <div
+                class="lsu__logo glass-panel"
+                data-lsu-logo
+                [style.--lsu-brand]="logo.brandColor"
+                [attr.aria-label]="'Marca parceira: ' + logo.name"
+              >
+                <span class="lsu__mono" aria-hidden="true">{{ logo.monogram }}</span>
+                <span class="lsu__name">{{ logo.name }}</span>
+              </div>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+
+    <div class="lsu__cta-band glass-panel" data-lsu-cta>
+      <div class="lsu__cta-copy">
+        <p class="lsu__cta-kicker">Monetização &amp; visibilidade</p>
+        <p class="lsu__cta-title">Quer sua marca aqui?</p>
+        <p class="lsu__cta-sub">
+          Patrocínio, mídia na arena e presença em torneios com alcance real na comunidade de vôlei de praia.
+        </p>
+      </div>
+      <a class="lsu__cta-btn" [href]="links.partners">Seja um parceiro</a>
+    </div>
+  </div>
+</section>

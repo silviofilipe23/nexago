@@ -1,0 +1,77 @@
+.athlete-shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.athlete-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  margin: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.athlete-header-inner {
+  flex: 0 1 1440px;
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-element, 12px);
+  padding: 14px 4px;
+}
+
+.athlete-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.athlete-brand-mark {
+  font-weight: 800;
+  font-size: 1.1rem;
+  letter-spacing: -0.03em;
+  background: var(--nexago-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.badge-athlete {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  color: #ddd6fe;
+}
+
+.athlete-tagline {
+  margin: 0;
+}
+
+.athlete-main {
+  flex: 1;
+  min-width: 0;
+  align-self: center;
+  width: 100%;
+  padding: var(--space-section, 32px) 16px 48px;
+}
+
+.athlete-shell--immersive {
+  min-height: 100dvh;
+}
+
+.athlete-main--immersive {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}

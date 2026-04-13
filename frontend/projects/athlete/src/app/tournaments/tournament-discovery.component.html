@@ -1,0 +1,442 @@
+<div class="td-page" data-td-root>
+  <!-- Camadas de fundo alinhadas ao hero da home (site): grade + ruído + aurora + spotlight + orbs -->
+  <div class="td-page__bg" aria-hidden="true">
+    <div class="td-page__bg-base"></div>
+    <div class="td-page__bg-grid"></div>
+    <div class="td-page__bg-noise"></div>
+    <div class="td-page__bg-aurora"></div>
+    <div class="td-page__bg-spotlight"></div>
+    <div class="td-page__bg-orb td-page__bg-orb--blue"></div>
+    <div class="td-page__bg-orb td-page__bg-orb--violet"></div>
+    <div class="td-page__bg-vignette"></div>
+  </div>
+
+  <div class="td-page__content">
+    <header class="td-topbar" data-td-intro>
+      <a routerLink="/painel" class="td-topbar__back">← Painel</a>
+      <span class="td-topbar__pill">Arena viva</span>
+    </header>
+
+    <!-- HERO -->
+    <section class="td-hero">
+      <div class="td-hero__inner container-nexago">
+        <div class="td-hero__copy">
+          <p class="td-hero__kicker" data-td-intro>Competição em tempo real</p>
+          <h1 class="td-hero__title" data-td-intro>Encontre seu próximo desafio</h1>
+          <p class="td-hero__sub" data-td-intro>Compita. Suba no ranking. Domine a areia.</p>
+          <div class="td-hero__ctas" data-td-intro>
+            <button type="button" class="td-btn td-btn--primary td-ripple" (click)="scrollToGrid()">
+              Explorar torneios
+            </button>
+            <a
+              routerLink="/painel"
+              [fragment]="'dashboard-torneios'"
+              class="td-btn td-btn--ghost td-ripple"
+            >
+              Meus torneios
+            </a>
+          </div>
+        </div>
+        <div class="td-hero__stats" data-td-intro>
+          <div class="td-stat-card glass-panel">
+            <span class="td-stat-card__value">{{ liveStats.activeTournaments }}</span>
+            <span class="td-stat-card__label">Torneios ativos</span>
+          </div>
+          <div class="td-stat-card glass-panel">
+            <span class="td-stat-card__value">{{ playersOnlineLabel() }}</span>
+            <span class="td-stat-card__label">Jogadores online</span>
+          </div>
+          <div class="td-stat-card glass-panel td-stat-card--pulse">
+            <span class="td-stat-card__value">{{ liveStats.matchesLiveNow }}</span>
+            <span class="td-stat-card__label">Partidas ao vivo</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FILTROS STICKY -->
+    <div class="td-filters-wrap">
+      <div class="td-filters glass-panel container-nexago" data-td-intro>
+        <div class="td-filters__row td-filters__row--chips">
+          <span class="td-filters__label">Categoria</span>
+          <div class="td-chips" role="group" aria-label="Categoria">
+            <button
+              type="button"
+              class="td-chip"
+              [class.td-chip--active]="isCategoryActive('all')"
+              (click)="setCategory('all')"
+            >
+              Todas
+            </button>
+            <button
+              type="button"
+              class="td-chip"
+              [class.td-chip--active]="isCategoryActive('M')"
+              (click)="setCategory('M')"
+            >
+              Masc.
+            </button>
+            <button
+              type="button"
+              class="td-chip"
+              [class.td-chip--active]="isCategoryActive('F')"
+              (click)="setCategory('F')"
+            >
+              Fem.
+            </button>
+            <button
+              type="button"
+              class="td-chip"
+              [class.td-chip--active]="isCategoryActive('Mix')"
+              (click)="setCategory('Mix')"
+            >
+              Misto
+            </button>
+          </div>
+        </div>
+        <div class="td-filters__row td-filters__row--chips">
+          <span class="td-filters__label">Formato</span>
+          <div class="td-chips" role="group" aria-label="Formato">
+            <button
+              type="button"
+              class="td-chip"
+              [class.td-chip--active]="isFormatActive('all')"
+              (click)="setFormat('all')"
+            >
+              Todos
+            </button>
+            <button
+              type="button"
+              class="td-chip"
+              [class.td-chip--active]="isFormatActive('Dupla')"
+              (click)="setFormat('Dupla')"
+            >
+              Dupla
+            </button>
+            <button
+              type="button"
+              class="td-chip"
+              [class.td-chip--active]="isFormatActive('Individual')"
+              (click)="setFormat('Individual')"
+            >
+              Individual
+            </button>
+          </div>
+        </div>
+        <div class="td-filters__row td-filters__row--inputs">
+          <label class="td-field">
+            <span class="td-field__label">A partir de</span>
+            <input
+              type="date"
+              class="td-field__input"
+              [value]="filterDateFrom()"
+              (input)="onDateInput($any($event.target).value)"
+            />
+          </label>
+          <label class="td-field td-field--grow">
+            <span class="td-field__label">Local</span>
+            <input
+              type="search"
+              class="td-field__input"
+              placeholder="Cidade ou arena"
+              [value]="filterLocation()"
+              (input)="onLocationInput($any($event.target).value)"
+            />
+          </label>
+          <label class="td-field">
+            <span class="td-field__label">Até R$</span>
+            <input
+              type="number"
+              class="td-field__input"
+              placeholder="máx."
+              min="0"
+              (input)="onPriceMaxInput($any($event.target).value)"
+            />
+          </label>
+        </div>
+        <label class="td-toggle">
+          <input
+            type="checkbox"
+            class="td-toggle__input"
+            [checked]="openOnly()"
+            (change)="setOpenOnly($any($event.target).checked)"
+          />
+          <span class="td-toggle__ui"></span>
+          <span class="td-toggle__text">Apenas torneios abertos</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="td-main container-nexago">
+      @if (loading()) {
+        <div class="td-skeleton-grid" aria-busy="true" aria-label="Carregando torneios">
+          @for (s of skeletonSlots; track s) {
+            <div class="td-skeleton-card">
+              <div class="td-skeleton-card__shimmer"></div>
+              <div class="td-skeleton-card__line td-skeleton-card__line--lg"></div>
+              <div class="td-skeleton-card__line"></div>
+              <div class="td-skeleton-card__line td-skeleton-card__line--sm"></div>
+            </div>
+          }
+        </div>
+      } @else {
+        <!-- AO VIVO -->
+        @if (liveNow().length > 0) {
+          <section class="td-section td-section--live" data-td-intro>
+            <div class="td-section__head">
+              <h2 class="td-section__title">
+                <span class="td-live-dot" aria-hidden="true"></span>
+                Ao vivo agora
+              </h2>
+              <p class="td-section__sub">
+                {{ liveStats.matchesLiveNow }} jogos em andamento no hub
+              </p>
+            </div>
+            <div class="td-live-strip">
+              @for (t of liveNow(); track t.id) {
+                <article
+                  class="td-live-card td-card td-card--live glass-panel"
+                  (click)="selectCard(t.id)"
+                  (keydown.enter)="selectCard(t.id)"
+                  (keydown.space)="$event.preventDefault(); selectCard(t.id)"
+                  tabindex="0"
+                  role="button"
+                >
+                  <div class="td-live-card__pulse"></div>
+                  <h3 class="td-live-card__name">{{ t.name }}</h3>
+                  <p class="td-live-card__loc">{{ t.city }}</p>
+                  <p class="td-live-card__matches">{{ t.liveMatchesNow }} jogos ao vivo</p>
+                  <button
+                    type="button"
+                    class="td-card__cta td-card__cta--inline"
+                    (click)="openTournament(t); $event.stopPropagation()"
+                  >
+                    Ver torneio
+                  </button>
+                </article>
+              }
+            </div>
+          </section>
+        }
+
+        <!-- EM ALTA -->
+        @if (trending().length > 0) {
+          <section class="td-section" data-td-intro>
+            <div class="td-section__head">
+              <h2 class="td-section__title">Torneios em alta</h2>
+              <p class="td-section__sub">Pelas inscrições da última rodada</p>
+            </div>
+            <div class="td-trending-row">
+              @for (t of trending(); track t.id) {
+                <button
+                  type="button"
+                  class="td-trending-chip td-ripple"
+                  (click)="openTournament(t)"
+                >
+                  <span class="td-trending-chip__fire" aria-hidden="true">🔥</span>
+                  <span class="td-trending-chip__name">{{ t.name }}</span>
+                  <span class="td-trending-chip__count">{{ t.enrolledCount }} atletas</span>
+                </button>
+              }
+            </div>
+          </section>
+        }
+
+        <!-- LIGAS & ETAPAS -->
+        @if (leagueBlocks().length > 0) {
+          <section class="td-section td-section--leagues" data-td-intro>
+            <div class="td-section__head">
+              <h2 class="td-section__title">Ligas & etapas</h2>
+              <p class="td-section__sub">
+                Temporadas com várias paradas — cada torneio tem inscrição e ranking próprios.
+              </p>
+            </div>
+            <div class="td-league-stack">
+              @for (block of leagueBlocks(); track block.league.id) {
+                <article class="td-league glass-panel">
+                  <header class="td-league__head">
+                    <div>
+                      <h3 class="td-league__name">{{ block.league.name }}</h3>
+                      @if (block.league.seasonLabel) {
+                        <p class="td-league__season">{{ block.league.seasonLabel }}</p>
+                      }
+                    </div>
+                    <a [routerLink]="['/ligas', block.league.id]" class="td-league__hub">Central da temporada</a>
+                  </header>
+                  @for (st of block.stages; track st.stage.id) {
+                    <div class="td-league-stage">
+                      <div class="td-league-stage__head">
+                        <h4 class="td-league-stage__title">{{ st.stage.name }}</h4>
+                        @if (st.stage.dateLabel) {
+                          <span class="td-league-stage__dates">{{ st.stage.dateLabel }}</span>
+                        }
+                      </div>
+                      <div class="td-league-stage__grid">
+                        @for (t of st.tournaments; track t.id) {
+                          <article
+                            class="td-league-card glass-panel"
+                            [class.td-league-card--live]="t.status === 'live'"
+                            [class.td-league-card--urgent]="t.spotsLeft > 0 && t.spotsLeft <= 3"
+                          >
+                            <span class="td-league-card__status" [attr.data-status]="t.status">{{
+                              statusLabel(t.status)
+                            }}</span>
+                            @if (t.featured) {
+                              <span class="td-league-card__spotlight">Destaque</span>
+                            }
+                            <h5 class="td-league-card__title">{{ t.name }}</h5>
+                            <p class="td-league-card__loc">{{ t.city }} · {{ t.dateLabel }}</p>
+                            <p class="td-league-card__format">{{ t.format }}</p>
+                            <div class="td-league-card__foot">
+                              <span class="td-league-card__price">{{ t.priceLabel }}</span>
+                              <button
+                                type="button"
+                                class="td-league-card__cta td-ripple"
+                                (click)="openTournament(t)"
+                              >
+                                Ver torneio
+                              </button>
+                            </div>
+                          </article>
+                        }
+                      </div>
+                    </div>
+                  }
+                </article>
+              }
+            </div>
+          </section>
+        }
+
+        <!-- GRID -->
+        <section class="td-section" id="td-grid">
+          <div class="td-section__head td-section__head--spread">
+            <div>
+              <h2 class="td-section__title">Torneios avulsos</h2>
+              <p class="td-section__sub">
+                {{ standaloneTournamentCount() }} resultado(s) · {{ filteredTournaments().length }} no hub com estes
+                filtros
+              </p>
+            </div>
+          </div>
+
+          @if (filteredTournaments().length === 0) {
+            <p class="td-empty">Nenhum torneio com esses filtros. Libere um critério e explore de novo.</p>
+          } @else if (standaloneTournamentCount() === 0) {
+            <p class="td-empty td-empty--soft">
+              Nenhum torneio avulso com estes filtros. Veja as ligas acima ou ajuste categoria / data / local.
+            </p>
+          } @else {
+            <div class="td-grid">
+              @for (t of gridTournaments().featured; track t.id) {
+                <article
+                  class="td-card td-card--featured glass-panel td-ripple-host"
+                  [class.td-card--urgent]="t.spotsLeft > 0 && t.spotsLeft <= 3"
+                  (click)="selectCard(t.id)"
+                >
+                  <div class="td-card__shimmer" aria-hidden="true"></div>
+                  <div class="td-card__glow" aria-hidden="true"></div>
+                  @if (t.featured) {
+                    <span class="td-card__badge td-card__badge--spotlight">Em destaque</span>
+                  }
+                  <span class="td-card__status" [attr.data-status]="t.status">{{
+                    statusLabel(t.status)
+                  }}</span>
+                  <h3 class="td-card__title">{{ t.name }}</h3>
+                  <p class="td-card__loc">📍 {{ t.location }} · {{ t.city }}</p>
+                  <p class="td-card__date">{{ t.dateLabel }} · {{ t.format }}</p>
+                  <div class="td-card__cats">
+                    @for (c of t.categories; track c) {
+                      <span class="td-pill">{{ categoryPill(c) }}</span>
+                    }
+                  </div>
+                  <div class="td-card__footer">
+                    <div>
+                      <span class="td-card__price">{{ t.priceLabel }}</span>
+                      @if (urgencyLabel(t); as u) {
+                        <span class="td-card__urgency">{{ u }}</span>
+                      }
+                    </div>
+                    <div class="td-card__spots">
+                      <span class="td-card__spots-bar" [style.width.%]="(t.spotsLeft / t.spotsTotal) * 100"></span>
+                    </div>
+                    <p class="td-card__spots-label">
+                      {{ t.spotsLeft }}/{{ t.spotsTotal }} vagas · {{ t.enrolledCount }} inscritos
+                    </p>
+                  </div>
+                  @if (offerCountdown(t); as oc) {
+                    <p class="td-card__countdown">⏳ Early bird: {{ oc }}</p>
+                  }
+                  <button
+                    type="button"
+                    class="td-card__cta"
+                    (click)="openTournament(t); $event.stopPropagation()"
+                  >
+                    Ver torneio
+                  </button>
+                </article>
+              }
+
+              @for (t of gridTournaments().rest; track t.id) {
+                <article
+                  class="td-card glass-panel td-ripple-host"
+                  [class.td-card--urgent]="t.spotsLeft > 0 && t.spotsLeft <= 3"
+                  [class.td-card--live]="t.status === 'live'"
+                  (click)="selectCard(t.id)"
+                >
+                  <div class="td-card__shimmer" aria-hidden="true"></div>
+                  <div class="td-card__glow" aria-hidden="true"></div>
+                  <span class="td-card__status" [attr.data-status]="t.status">{{
+                    statusLabel(t.status)
+                  }}</span>
+                  <h3 class="td-card__title">{{ t.name }}</h3>
+                  <p class="td-card__loc">📍 {{ t.location }}</p>
+                  <p class="td-card__date">{{ t.dateLabel }} · {{ t.format }}</p>
+                  <div class="td-card__cats">
+                    @for (c of t.categories; track c) {
+                      <span class="td-pill">{{ categoryPill(c) }}</span>
+                    }
+                  </div>
+                  <div class="td-card__footer">
+                    <span class="td-card__price">{{ t.priceLabel }}</span>
+                    @if (urgencyLabel(t); as u) {
+                      <span class="td-card__urgency">{{ u }}</span>
+                    }
+                    <p class="td-card__spots-label td-card__spots-label--inline">
+                      {{ t.spotsLeft }} vagas · {{ t.enrolledCount }} atletas
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="td-card__cta"
+                    (click)="openTournament(t); $event.stopPropagation()"
+                  >
+                    Ver torneio
+                  </button>
+                </article>
+              }
+            </div>
+          }
+        </section>
+      }
+    </div>
+
+    <!-- Mobile CTA fixo -->
+    @if (!loading() && selectedTournament(); as sel) {
+      <div class="td-mobile-bar">
+        <div class="td-mobile-bar__inner">
+          <div class="td-mobile-bar__info">
+            <strong>{{ sel.name }}</strong>
+            <span>{{ sel.priceLabel }}</span>
+          </div>
+          <button type="button" class="td-btn td-btn--primary td-ripple" (click)="openTournament(sel)">
+            Entrar no torneio
+          </button>
+          <button type="button" class="td-mobile-bar__close" (click)="clearSelection()" aria-label="Fechar">
+            ×
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+</div>

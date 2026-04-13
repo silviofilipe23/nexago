@@ -21,6 +21,8 @@ interface Reservation {
   listedPrice: number;
 }
 
+export type CheckoutPaymentMethod = 'mp' | 'arena';
+
 @Component({
   selector: 'app-reservation-checkout',
   standalone: true,
@@ -35,6 +37,9 @@ export class ReservationCheckoutComponent {
   private readonly cardRef = viewChild<HTMLElement>('checkoutCard');
   private countdownTimerId: ReturnType<typeof setInterval> | null = null;
   private readonly holdDurationSec = 5 * 60;
+
+  /** Mercado Pago (online) ou pagamento no local — alinha com status no backend (CONFIRMED vs PAY_AT_ARENA). */
+  readonly paymentMethod = signal<CheckoutPaymentMethod>('mp');
 
   readonly reservation = computed<Reservation>(() => {
     const qp = this.route.snapshot.queryParamMap;
@@ -82,14 +87,31 @@ export class ReservationCheckoutComponent {
     return Math.abs(hash % 4) + 2; // 2..5 pessoas
   });
 
+  /** Query `allowArenaPay=0|false` desliga “pagar na arena” (config por arena no backend). */
+  get allowPayAtArena(): boolean {
+    const ap = this.route.snapshot.queryParamMap.get('allowArenaPay');
+    return ap !== '0' && ap !== 'false';
+  }
+
+  readonly ctaLabel = computed(() =>
+    this.paymentMethod() === 'mp' ? 'Pagar agora' : 'Reservar e pagar na arena',
+  );
+
   constructor() {
     effect(() => {
       if (this.isLoading()) {
-        globalThis.onbeforeunload = () => 'Pagamento em andamento...';
+        globalThis.onbeforeunload = () =>
+          this.paymentMethod() === 'mp'
+            ? 'Pagamento em andamento...'
+            : 'Finalizando reserva...';
       } else {
         globalThis.onbeforeunload = null;
       }
     });
+
+    if (!this.allowPayAtArena) {
+      this.paymentMethod.set('mp');
+    }
 
     this.startCountdown(this.holdDurationSec);
     this.destroyRef.onDestroy(() => {
@@ -139,7 +161,23 @@ export class ReservationCheckoutComponent {
     });
   }
 
+  selectPayment(method: CheckoutPaymentMethod): void {
+    if (method === 'arena' && !this.allowPayAtArena) {
+      return;
+    }
+    this.paymentMethod.set(method);
+  }
+
   confirmPayment(): void {
+    if (this.paymentMethod() === 'mp') {
+      this.payWithMercadoPago();
+    } else {
+      this.reservePayAtArena();
+    }
+  }
+
+  /** Fluxo online: preferência MP + redirect (MVP: simula delay antes da rota de sucesso). */
+  private payWithMercadoPago(): void {
     if (this.isLoading() || this.isExpired()) {
       return;
     }
@@ -156,9 +194,38 @@ export class ReservationCheckoutComponent {
           arena: reservation.arenaName,
           date: reservation.date,
           time: reservation.time,
+          price: reservation.price,
+          payment: 'online',
+          status: 'CONFIRMED',
         },
       });
     }, 1500);
+  }
+
+  /** Reserva com pagamento no local — backend: status PAY_AT_ARENA, hold + expiração. */
+  private reservePayAtArena(): void {
+    if (this.isLoading() || this.isExpired() || !this.allowPayAtArena) {
+      return;
+    }
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(10);
+    }
+    this.isLoading.set(true);
+    const reservation = this.reservation();
+
+    globalThis.setTimeout(() => {
+      this.isLoading.set(false);
+      this.router.navigate(['/checkout/sucesso'], {
+        queryParams: {
+          arena: reservation.arenaName,
+          date: reservation.date,
+          time: reservation.time,
+          price: reservation.price,
+          payment: 'arena',
+          status: 'PAY_AT_ARENA',
+        },
+      });
+    }, 800);
   }
 
   startCountdown(totalSeconds: number) {

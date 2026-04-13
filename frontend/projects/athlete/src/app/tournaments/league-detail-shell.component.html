@@ -1,0 +1,383 @@
+@if (loading()) {
+  <div class="ldv-page">
+    <div class="ldv-skeleton container-nexago" aria-busy="true">
+      <div class="ldv-skeleton__hero"></div>
+      <div class="ldv-skeleton__line"></div>
+      <div class="ldv-skeleton__line ldv-skeleton__line--short"></div>
+    </div>
+  </div>
+} @else if (bundle(); as L) {
+  <div class="ldv-page">
+    <div class="ldv-page__bg" aria-hidden="true">
+      <div class="ldv-page__bg-mesh"></div>
+      <div class="ldv-page__bg-sand"></div>
+      <div class="ldv-page__bg-particles"></div>
+      <div class="ldv-page__bg-vignette"></div>
+    </div>
+
+    <div class="ldv-page__content">
+      <!-- HERO -->
+      <header class="ldv-hero">
+        <div class="ldv-hero__media" aria-hidden="true">
+          @if (L.hero.videoSrc) {
+            <video
+              class="ldv-hero__video"
+              [muted]="true"
+              [defaultMuted]="true"
+              autoplay
+              loop
+              playsinline
+              preload="metadata"
+              disablePictureInPicture
+            >
+              <source [src]="L.hero.videoSrc" type="video/mp4" />
+            </video>
+          }
+          <div class="ldv-hero__scrim"></div>
+          <div class="ldv-hero__glow" aria-hidden="true"></div>
+        </div>
+        <div class="ldv-hero__inner container-nexago">
+          <div class="ldv-hero__copy" data-ldv-intro>
+            <a routerLink="/torneios" class="ldv-back">← Torneios</a>
+            <p class="ldv-hero__eyebrow">{{ L.hero.seasonLabel }}</p>
+            <h1 class="ldv-hero__title title-xl">{{ L.hero.name }}</h1>
+            <p class="ldv-hero__loc text-body">📍 {{ L.hero.city }}</p>
+            <div class="ldv-hero__status-row">
+              <span class="ldv-hero__pill" [attr.data-tone]="L.hero.uiStatus">
+                {{ L.hero.statusHeadline }}
+              </span>
+              <span class="ldv-hero__subline text-muted">{{ L.hero.statusSubline }}</span>
+            </div>
+            <div class="ldv-hero__ctas">
+              <a
+                [routerLink]="['/torneios', L.nextStage.tournamentId, 'inscricao']"
+                class="btn-primary ldv-ripple"
+                data-ldv-intro
+              >
+                Participar da próxima etapa
+              </a>
+              <button type="button" class="btn-secondary ldv-ripple" (click)="scrollToSection('timeline')">
+                Ver temporada
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Subnav -->
+      <nav class="ldv-subnav container-nexago" aria-label="Seções da liga">
+        <div class="ldv-subnav__track">
+          <button type="button" class="ldv-subnav__link" (click)="scrollToSection('visao')">Visão geral</button>
+          <button type="button" class="ldv-subnav__link" (click)="scrollToSection('timeline')">Etapas</button>
+          <button type="button" class="ldv-subnav__link" (click)="scrollToSection('ranking')">Ranking</button>
+          <button type="button" class="ldv-subnav__link" (click)="scrollToSection('proxima')">Próxima etapa</button>
+          <button type="button" class="ldv-subnav__link" (click)="scrollToSection('feed')">Comunidade</button>
+          <button type="button" class="ldv-subnav__link" (click)="scrollToSection('atletas')">Atletas</button>
+          <button type="button" class="ldv-subnav__link" (click)="scrollToSection('regulamento')">Regulamento</button>
+        </div>
+      </nav>
+
+      <!-- Visão geral: progressão -->
+      <section id="ldv-visao" class="ldv-section container-nexago" data-ldv-reveal>
+        @if (L.progression; as prog) {
+          <article class="ldv-progress card glass-panel">
+            <div class="ldv-progress__copy">
+              <p class="ldv-progress__eyebrow text-muted">Sua progressão na liga</p>
+              <h2 class="title-md ldv-progress__title">Você está em {{ prog.yourRank }}º lugar</h2>
+              <p class="text-body ldv-progress__body">
+                <strong>{{ prog.yourPoints }} pts</strong> acumulados · faltam
+                <strong>{{ prog.pointsToTop10 }} pts</strong> para o {{ prog.topLabel }}.
+              </p>
+            </div>
+            <div class="ldv-progress__meter" aria-hidden="true">
+              <span class="ldv-progress__fill" style="width: 72%"></span>
+            </div>
+          </article>
+        }
+      </section>
+
+      <!-- Timeline -->
+      <section id="ldv-timeline" class="ldv-section container-nexago" data-ldv-reveal>
+        <div class="ldv-section__head">
+          <h2 class="title-lg ldv-section__title">Linha do tempo da temporada</h2>
+          <p class="text-muted ldv-section__sub">Toque em uma etapa para ver datas, categorias e ações</p>
+        </div>
+        <div class="ldv-timeline" role="list">
+          @for (st of L.timeline; track st.id) {
+            <button type="button" class="ldv-timeline-node ldv-ripple" role="listitem" (click)="openStageDrawer(st)">
+              <span class="ldv-timeline-node__rail" [attr.data-status]="st.status"></span>
+              <span class="ldv-timeline-node__icon" [attr.data-status]="st.status">
+                @switch (st.status) {
+                  @case ('finished') {
+                    ✔️
+                  }
+                  @case ('current') {
+                    🔥
+                  }
+                  @case ('future') {
+                    🔒
+                  }
+                }
+              </span>
+              <span class="ldv-timeline-node__label">{{ st.shortLabel }}</span>
+              <span class="ldv-timeline-node__name">{{ st.name }}</span>
+              <span class="ldv-timeline-node__date text-muted">{{ st.dateLabel }}</span>
+            </button>
+          }
+        </div>
+      </section>
+
+      <!-- Ranking -->
+      <section id="ldv-ranking" class="ldv-section container-nexago" data-ldv-reveal>
+        <div class="ldv-section__head ldv-section__head--row">
+          <div>
+            <h2 class="title-lg ldv-section__title">Ranking ao vivo</h2>
+            <p class="text-muted ldv-section__sub">Consolidado pelas etapas · preview</p>
+          </div>
+        </div>
+        <div class="ldv-rank-toolbar card glass-panel">
+          <div class="ldv-rank-toolbar__group" role="group" aria-label="Modalidade">
+            <span class="ldv-rank-toolbar__label text-muted">Ver</span>
+            <button
+              type="button"
+              class="ldv-chip"
+              [class.ldv-chip--active]="rankingMode() === 'pair'"
+              (click)="setRankingMode('pair')"
+            >
+              Dupla
+            </button>
+            <button
+              type="button"
+              class="ldv-chip"
+              [class.ldv-chip--active]="rankingMode() === 'individual'"
+              (click)="setRankingMode('individual')"
+            >
+              Individual
+            </button>
+          </div>
+          <div class="ldv-rank-toolbar__group" role="group" aria-label="Categoria">
+            <span class="ldv-rank-toolbar__label text-muted">Filtro</span>
+            <button
+              type="button"
+              class="ldv-chip"
+              [class.ldv-chip--active]="rankingGender() === 'all'"
+              (click)="setRankingGender('all')"
+            >
+              Todos
+            </button>
+            <button
+              type="button"
+              class="ldv-chip"
+              [class.ldv-chip--active]="rankingGender() === 'M'"
+              (click)="setRankingGender('M')"
+            >
+              Masc.
+            </button>
+            <button
+              type="button"
+              class="ldv-chip"
+              [class.ldv-chip--active]="rankingGender() === 'F'"
+              (click)="setRankingGender('F')"
+            >
+              Fem.
+            </button>
+            <button
+              type="button"
+              class="ldv-chip"
+              [class.ldv-chip--active]="rankingGender() === 'Mix'"
+              (click)="setRankingGender('Mix')"
+            >
+              Misto
+            </button>
+          </div>
+        </div>
+        <div class="ldv-rank-list card glass-panel">
+          @for (r of filteredRanking(); track r.rank + r.name) {
+            <div class="ldv-rank-row">
+              <span class="ldv-rank-row__num">#{{ r.rank }}</span>
+              <span class="ldv-rank-row__avatar">{{ r.avatarLetter }}</span>
+              <span class="ldv-rank-row__name">{{ r.name }}</span>
+              <span class="ldv-rank-row__pts">{{ r.points }} pts</span>
+              <span class="ldv-rank-row__delta" [attr.data-dir]="r.deltaPositions === 0 ? 'flat' : r.deltaPositions > 0 ? 'up' : 'down'">
+                {{ deltaArrow(r.deltaPositions) }}
+                <span class="ldv-rank-row__delta-label">{{ deltaLabel(r.deltaPositions) }}</span>
+              </span>
+            </div>
+          }
+        </div>
+        <button type="button" class="btn-secondary ldv-rank-full ldv-ripple">Ver ranking completo</button>
+      </section>
+
+      <!-- Próxima etapa -->
+      <section id="ldv-proxima" class="ldv-section container-nexago" data-ldv-reveal>
+        <div class="ldv-section__head">
+          <h2 class="title-lg ldv-section__title">Próxima etapa</h2>
+          <p class="text-muted ldv-section__sub">Foco em conversão — garanta sua vaga</p>
+        </div>
+        <article class="ldv-next card glass-panel">
+          @if (L.nextStage.urgent) {
+            <span class="ldv-next__urgent">🔥 Últimas vagas</span>
+          }
+          <h3 class="title-md ldv-next__title">{{ L.nextStage.stageName }}</h3>
+          <p class="text-body ldv-next__meta">📅 {{ L.nextStage.dateLabel }} · 📍 {{ L.nextStage.location }}, {{ L.nextStage.city }}</p>
+          <p class="text-muted ldv-next__cats">{{ L.nextStage.categoriesLine }}</p>
+          <p class="ldv-next__spots">
+            <strong>{{ L.nextStage.spotsLeft }}</strong>
+            <span class="text-muted"> / {{ L.nextStage.spotsTotal }} vagas restantes</span>
+          </p>
+          <p class="ldv-next__countdown">
+            Inscrições encerram em <strong class="ldv-next__clock">{{ countdownLabel() }}</strong>
+          </p>
+          <div class="ldv-next__ctas">
+            <a [routerLink]="['/torneios', L.nextStage.tournamentId, 'inscricao']" class="btn-primary ldv-ripple">
+              Garantir vaga
+            </a>
+            <a [routerLink]="['/torneios', L.nextStage.tournamentId]" class="btn-secondary ldv-ripple">Ver detalhes</a>
+          </div>
+        </article>
+      </section>
+
+      <!-- Stats -->
+      <section id="ldv-stats" class="ldv-section container-nexago" data-ldv-reveal>
+        <div class="ldv-section__head">
+          <h2 class="title-lg ldv-section__title">Estatísticas da liga</h2>
+          <p class="text-muted ldv-section__sub">Autoridade e escala da temporada</p>
+        </div>
+        <div class="ldv-stats-grid">
+          @for (st of L.stats; track st.id) {
+            <article class="ldv-stat-card card glass-panel">
+              <p class="text-muted ldv-stat-card__label">{{ st.label }}</p>
+              <p class="ldv-stat-card__value">
+                {{ statValue(st.id).toLocaleString('pt-BR') }}
+                @if (st.suffix) {
+                  <span class="ldv-stat-card__suffix">{{ st.suffix }}</span>
+                }
+              </p>
+            </article>
+          }
+        </div>
+      </section>
+
+      <!-- Feed + highlights -->
+      <section id="ldv-feed" class="ldv-section container-nexago" data-ldv-reveal>
+        <div class="ldv-section__head">
+          <h2 class="title-lg ldv-section__title">Feed da liga</h2>
+          <p class="text-muted ldv-section__sub">Fotos, resultados e destaques · estilo vitrine</p>
+        </div>
+        <div class="ldv-feed-grid">
+          @for (p of L.feed; track p.id) {
+            <article class="ldv-feed-card card glass-panel">
+              <div class="ldv-feed-card__media" [style.background]="p.mediaGradient"></div>
+              <div class="ldv-feed-card__body">
+                <p class="ldv-feed-card__author">{{ p.athleteName }}</p>
+                <p class="ldv-feed-card__text">{{ p.text }}</p>
+                <p class="ldv-feed-card__tag">{{ p.hashtag }}</p>
+                <div class="ldv-feed-card__actions">
+                  <button type="button" class="ldv-feed-card__action ldv-ripple" (click)="likePost(p.id, p.likes)">
+                    ❤️ {{ postLikeCount(p.id, p.likes) }}
+                  </button>
+                  <span class="ldv-feed-card__action">💬 {{ p.comments }}</span>
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+
+        <div id="ldv-highlights" class="ldv-highlights">
+          <h3 class="title-md ldv-highlights__title">{{ L.lastStageTitle }}</h3>
+          <div class="ldv-podium">
+            @for (p of L.lastStagePodium; track p.place) {
+              <div class="ldv-podium__slot" [attr.data-place]="p.place">
+                <span class="ldv-podium__medal">
+                  @switch (p.place) {
+                    @case (1) {
+                      🥇
+                    }
+                    @case (2) {
+                      🥈
+                    }
+                    @case (3) {
+                      🥉
+                    }
+                  }
+                </span>
+                <p class="ldv-podium__name">{{ p.name }}</p>
+                <p class="text-muted ldv-podium__sub">{{ p.subtitle }}</p>
+              </div>
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- Atletas -->
+      <section id="ldv-atletas" class="ldv-section container-nexago" data-ldv-reveal>
+        <div class="ldv-section__head">
+          <h2 class="title-lg ldv-section__title">Atletas na liga</h2>
+          <p class="text-muted ldv-section__sub">Quem está movimentando o circuito</p>
+        </div>
+        <div class="ldv-athletes-grid">
+          @for (a of L.athletesPreview; track a.id) {
+            <article class="ldv-athlete card glass-panel">
+              <span class="ldv-athlete__avatar">{{ a.letter }}</span>
+              <p class="ldv-athlete__name">{{ a.name }}</p>
+              <p class="text-muted ldv-athlete__handle">{{ a.handle }}</p>
+            </article>
+          }
+        </div>
+      </section>
+
+      <!-- Regulamento -->
+      <section id="ldv-regulamento" class="ldv-section container-nexago ldv-section--last" data-ldv-reveal>
+        <div class="ldv-section__head">
+          <h2 class="title-lg ldv-section__title">Regulamento</h2>
+          <p class="text-muted ldv-section__sub">Resumo para decisão rápida</p>
+        </div>
+        <article class="ldv-reg card glass-panel">
+          @for (line of L.regulationParagraphs; track $index) {
+            <p class="text-body ldv-reg__p">{{ line }}</p>
+          }
+        </article>
+      </section>
+
+      <!-- Mobile CTA -->
+      <div class="ldv-mobile-cta">
+        <a [routerLink]="['/torneios', L.nextStage.tournamentId, 'inscricao']" class="btn-primary ldv-ripple ldv-mobile-cta__btn">
+          🔥 Garantir vaga
+        </a>
+      </div>
+    </div>
+
+    <!-- Drawer etapa -->
+    @if (drawerStage(); as ds) {
+      <div class="ldv-drawer-backdrop" (click)="closeDrawer()"></div>
+      <aside class="ldv-drawer card glass-panel" role="dialog" aria-modal="true" [attr.aria-label]="ds.name">
+        <button type="button" class="ldv-drawer__close ldv-ripple" (click)="closeDrawer()">Fechar</button>
+        <h3 class="title-md ldv-drawer__title">{{ ds.name }}</h3>
+        <p class="text-muted ldv-drawer__date">{{ ds.dateLabel }}</p>
+        <p class="text-body ldv-drawer__desc">{{ ds.dateRangeDetail }}</p>
+        <p class="text-body ldv-drawer__cats"><strong>Categorias:</strong> {{ ds.categoriesSummary }}</p>
+        <p class="text-muted ldv-drawer__enrolled">~{{ ds.enrolledApprox }} inscrições nesta etapa (estimativa)</p>
+        <div class="ldv-drawer__actions">
+          @if (ds.primaryTournamentId) {
+            <a [routerLink]="['/torneios', ds.primaryTournamentId]" class="btn-secondary ldv-ripple" (click)="closeDrawer()"
+              >Ver detalhes</a
+            >
+            <a
+              [routerLink]="['/torneios', ds.primaryTournamentId, 'inscricao']"
+              class="btn-primary ldv-ripple"
+              (click)="closeDrawer()"
+              >Inscrever-se</a
+            >
+          } @else {
+            <p class="text-muted ldv-drawer__soon">Inscrições abrem em breve — fique de olho no app.</p>
+          }
+        </div>
+      </aside>
+    }
+  </div>
+} @else {
+  <div class="ldv-missing container-nexago">
+    <p class="text-body">Liga não encontrada.</p>
+    <a routerLink="/torneios" class="btn-secondary">Voltar aos torneios</a>
+  </div>
+}

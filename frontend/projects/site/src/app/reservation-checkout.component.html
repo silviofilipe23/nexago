@@ -24,7 +24,7 @@
     </div>
 
     <div class="checkout-urgency reveal delay-3">
-      <span>👀 3 pessoas vendo agora</span>
+      <span>👀 {{ viewersNow() }} pessoas vendo agora</span>
     </div>
 
     <div class="checkout-timer-bar reveal delay-4">
@@ -33,14 +33,48 @@
 
     <p class="countdown-simple reveal delay-4">⏳ {{ countdownLabel() }}</p>
 
+    <div
+      class="checkout-payment-method reveal delay-4"
+      role="radiogroup"
+      aria-label="Forma de pagamento"
+    >
+      <button
+        type="button"
+        role="radio"
+        class="payment-option"
+        [class.payment-option--active]="paymentMethod() === 'mp'"
+        [attr.aria-checked]="paymentMethod() === 'mp'"
+        (click)="selectPayment('mp')"
+      >
+        <span class="payment-option__title">💳 Pagar agora</span>
+        <span class="payment-option__desc">Mercado Pago — confirmação imediata</span>
+      </button>
+      @if (allowPayAtArena) {
+        <button
+          type="button"
+          role="radio"
+          class="payment-option"
+          [class.payment-option--active]="paymentMethod() === 'arena'"
+          [attr.aria-checked]="paymentMethod() === 'arena'"
+          (click)="selectPayment('arena')"
+        >
+          <span class="payment-option__title">🏟️ Pagar na arena</span>
+          <span class="payment-option__desc">Pague no local antes do jogo</span>
+        </button>
+      }
+    </div>
+
     <button
       class="checkout-btn-vini reveal delay-5"
+      type="button"
       (click)="confirmPayment()"
       [disabled]="isLoading() || isExpired()"
     >
-      <span class="btn-content">
-        Confirmar reserva
-      </span>
+      @if (isLoading()) {
+        <span class="btn-content">Processando...</span>
+      } @else {
+        <span class="btn-content">{{ ctaLabel() }}</span>
+      }
     </button>
 
     <div class="checkout-trust-vini reveal delay-6">

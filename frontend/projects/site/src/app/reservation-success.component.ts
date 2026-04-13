@@ -5,6 +5,11 @@ interface ReservationSummary {
   arena: string;
   date: string;
   time: string;
+  /** online = Mercado Pago; arena = pagar no local */
+  payment: 'online' | 'arena';
+  /** Ex.: CONFIRMED | PAY_AT_ARENA (espelha backend) */
+  status: string;
+  price: number | null;
 }
 
 @Component({
@@ -20,12 +25,20 @@ export class ReservationSuccessComponent {
 
   readonly reservation = computed<ReservationSummary>(() => {
     const qp = this.route.snapshot.queryParamMap;
+    const pay = qp.get('payment');
+    const priceRaw = qp.get('price');
+    const priceN = priceRaw != null && priceRaw !== '' ? Number(priceRaw) : NaN;
     return {
       arena: qp.get('arena') ?? 'Arena Central',
       date: qp.get('date') ?? '09 Abril',
       time: qp.get('time') ?? '18:00',
+      payment: pay === 'arena' ? 'arena' : 'online',
+      status: qp.get('status') ?? 'CONFIRMED',
+      price: Number.isFinite(priceN) ? priceN : null,
     };
   });
+
+  readonly isPayAtArena = computed(() => this.reservation().payment === 'arena');
 
   addToCalendar(): void {
     const url =

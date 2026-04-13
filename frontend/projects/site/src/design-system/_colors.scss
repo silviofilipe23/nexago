@@ -14,4 +14,8 @@
   --nexago-text-muted: #94a3b8;
 
   --nexago-gradient: linear-gradient(135deg, #7c3aed, #2563eb);
+  /* Tokens usados por componentes (permitindo override no app atleta) */
+  --nexago-btn-glow: rgba(124, 58, 237, 0.4);
+  --nexago-price-color: #a78bfa;
+  --nexago-price-shadow: rgba(139, 92, 246, 0.5);
 }

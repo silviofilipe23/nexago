@@ -1,0 +1,142 @@
+<div class="org-page">
+  <app-landing-header />
+  <div class="org-onboarding" (mousemove)="onMouseMove($event)">
+    <div class="org-onboarding__bg" aria-hidden="true"></div>
+    <div class="org-onboarding__noise" aria-hidden="true"></div>
+    <div class="org-onboarding__orb org-onboarding__orb--a" aria-hidden="true"></div>
+    <div class="org-onboarding__orb org-onboarding__orb--b" aria-hidden="true"></div>
+
+    <div class="org-onboarding__inner">
+
+      <!-- 1. Hero + mock de chave -->
+      <header class="org-hero" appReveal>
+        <p class="org-eyebrow">Plano organizador · simulação ao vivo</p>
+        <h1 id="org-onboarding-title" class="org-title">Seu torneio começa agora.</h1>
+        <p class="org-lead">
+          Em menos de 2 minutos você pode ter inscrições abertas e atletas entrando — sem planilha, sem
+          caos no WhatsApp.
+        </p>
+        <p class="org-tagline">
+          Você cuida do jogo. <strong>A NexaGO cuida de todo o resto.</strong>
+        </p>
+
+        <div class="org-bracket" aria-hidden="true">
+          <div class="org-bracket__label">Preview da chave</div>
+          <div class="org-bracket__tree">
+            <div class="org-bracket__col">
+              <div class="org-bracket__slot"><span class="org-bracket__team">Ricardo e Vitor</span></div>
+              <div class="org-bracket__slot"><span class="org-bracket__team">Marcelo e Anderson</span></div>
+            </div>
+            <div class="org-bracket__col org-bracket__col--mid">
+              <div class="org-bracket__connector"></div>
+              <div class="org-bracket__slot org-bracket__slot--final">
+                <span class="org-bracket__team">Final</span>
+              </div>
+            </div>
+            <div class="org-bracket__col">
+              <div class="org-bracket__slot"><span class="org-bracket__team">Caio e Fernando</span></div>
+              <div class="org-bracket__slot"><span class="org-bracket__team">Gustavo e André</span></div>
+            </div>
+          </div>
+          <div class="org-bracket__rank">
+            <span class="org-bracket__rank-dot"></span>
+            Ranking atualizado em tempo real
+          </div>
+        </div>
+      </header>
+
+      <!-- 2. Stepper + preview -->
+      <section class="org-sim" aria-labelledby="org-sim-title" appReveal>
+        <h2 id="org-sim-title" class="org-sim__heading">Você já está criando seu torneio</h2>
+        <p class="org-sim__sub">Uma prévia do que o sistema faz enquanto você configura.</p>
+
+        <div class="org-sim__grid">
+          <div class="org-stepper">
+            <p class="org-stepper__label">Checklist</p>
+            <ul class="org-steps">
+              <li class="org-step">
+                <span class="org-step__tick" aria-hidden="true"></span>
+                <span class="org-step__text"><strong>Nome do torneio</strong> definido</span>
+              </li>
+              <li class="org-step">
+                <span class="org-step__tick" aria-hidden="true"></span>
+                <span class="org-step__text"><strong>Local e datas</strong> confirmados</span>
+              </li>
+              <li class="org-step">
+                <span class="org-step__tick" aria-hidden="true"></span>
+                <span class="org-step__text"><strong>Categorias</strong> publicadas</span>
+              </li>
+              <li class="org-step">
+                <span class="org-step__tick" aria-hidden="true"></span>
+                <span class="org-step__text"><strong>Pagamentos</strong> conectados</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="org-preview">
+            <div class="org-preview__card">
+              <div class="org-preview__header">
+                <span class="org-preview__live">Ao vivo</span>
+                <span class="org-preview__tournament">Torneio Praia GO 2026</span>
+              </div>
+              <div class="org-preview__body">
+                <p class="org-preview__line org-preview__line--1">Arena Central · 15–16 mar</p>
+                <p class="org-preview__line org-preview__line--2">Categorias: A · B · Misto</p>
+                <p class="org-preview__line org-preview__line--3">
+                  <span class="org-preview__pill">Checkout</span> Mercado Pago ativo
+                </p>
+                <div class="org-preview__line org-preview__line--4">
+                  <button type="button" class="org-preview__btn" tabindex="-1">Abrir inscrições</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. Momento wow -->
+      <section class="org-wow" appReveal>
+        <p class="org-wow__title">Seu torneio está pronto para receber atletas.</p>
+        <p class="org-wow__urgency">
+          <span class="org-wow__bolt" aria-hidden="true"></span>
+          12 atletas já estão procurando torneios como o seu neste momento.
+        </p>
+      </section>
+
+      <!-- 4. CTA -->
+      <section class="org-cta-wrap" appReveal>
+        <a
+          routerLink="/entrar"
+          [queryParams]="{ plan: 'organizer', intent: 'onboarding' }"
+          class="org-cta-mega"
+        >
+          Criar meu torneio agora
+        </a>
+        <p class="org-cta-sub">Sem cartão · Leva menos de 2 minutos</p>
+      </section>
+
+      <!-- 5. Prova social -->
+      <section class="org-proof" aria-label="Números da plataforma" appReveal>
+        <div class="org-proof__grid">
+          <div class="org-proof__item">
+            <strong class="org-proof__num">+3.200</strong>
+            <span class="org-proof__txt">atletas ativos</span>
+          </div>
+          <div class="org-proof__item">
+            <strong class="org-proof__num">+180</strong>
+            <span class="org-proof__txt">torneios criados</span>
+          </div>
+          <div class="org-proof__item">
+            <strong class="org-proof__num">+R$ 120k</strong>
+            <span class="org-proof__txt">transacionados em inscrições</span>
+          </div>
+        </div>
+        <p class="org-proof__note">Números ilustrativos do ecossistema — inscrições, pagamentos e ranking no mesmo fluxo.</p>
+      </section>
+
+      <footer class="org-foot" appReveal>
+        <a routerLink="/" fragment="planos" class="org-foot__link">Ver planos de novo</a>
+      </footer>
+    </div>
+  </div>
+</div>

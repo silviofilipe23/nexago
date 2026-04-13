@@ -1,0 +1,45 @@
+/**
+ * Ritmo e tipografia alinhados ao perfil público do atleta
+ * (`.public-profile-page`, `title-lg`, `text-body`, `text-muted`).
+ * Carregado em `styles.scss` via `@use … as *` (escopo global).
+ */
+
+.trg-step__head {
+  margin-bottom: clamp(0.85rem, 2.5vw, 1.25rem);
+}
+
+.trg-step .trg-step__title.title-lg {
+  margin: 0 0 0.45rem;
+}
+
+.trg-step .trg-step__sub.text-body {
+  margin: 0;
+  max-width: 42rem;
+  line-height: 1.55;
+}
+
+.trg-step .trg-step__sub.text-body strong {
+  color: var(--nexago-accent, #06b6d4);
+  font-weight: 600;
+}
+
+.trg-step .trg-paypick__title.title-md {
+  margin: 0 0 clamp(0.5rem, 1.5vw, 0.75rem);
+}
+
+/* Caixa de urgência: cor do DS sem perder o tamanho de leitura do passo */
+.trg-step .trg-step__urgency.text-muted {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--nexago-text-muted, #94a3b8);
+}
+
+/* CTAs full-width no fluxo de inscrição (mesmo ritmo do painel) */
+.trg-cta-block .btn-primary,
+.trg-continue-wrap .btn-primary,
+.trg-continue-mobile .btn-primary {
+  width: 100%;
+  box-sizing: border-box;
+  display: block;
+  text-align: center;
+}

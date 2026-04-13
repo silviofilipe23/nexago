@@ -1,0 +1,56 @@
+// Design tokens — fluxo de inscrição alinhado ao app atleta (perfil + .card / .glass-panel)
+:root {
+  --trg-bg-deep: var(--color-nexago-bg, #0b0b0f);
+  --trg-bg-elevated: #0e0e14;
+  --trg-surface: rgba(255, 255, 255, 0.04);
+  --trg-glass-border: var(--color-nexago-border, rgba(255, 255, 255, 0.08));
+  --trg-text: var(--nexago-text, #e2e8f0);
+  --trg-muted: var(--nexago-text-muted, #94a3b8);
+  --trg-teal: #2dd4bf;
+  --trg-teal-dim: rgba(45, 212, 191, 0.14);
+  --trg-violet: #8b5cf6;
+  --trg-violet-dim: rgba(139, 92, 246, 0.2);
+  --trg-danger: #fb7185;
+  --trg-success: #34d399;
+
+  --trg-radius-sm: 10px;
+  --trg-radius-md: 14px;
+  /* Mesmo raio base do design-system `.card` (1.5rem) */
+  --trg-radius-lg: 1.5rem;
+  --trg-radius-2xl: 1.5rem;
+
+  --trg-space-1: 0.25rem;
+  --trg-space-2: 0.5rem;
+  --trg-space-3: 0.75rem;
+  --trg-space-4: 1rem;
+  --trg-space-5: 1.25rem;
+  --trg-space-6: 1.5rem;
+  --trg-space-8: 2rem;
+  --trg-space-10: 2.5rem;
+
+  --trg-shadow-soft: 0 10px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --trg-glow-teal: 0 0 40px -8px rgba(45, 212, 191, 0.45);
+  --trg-glow-violet: 0 0 48px -10px rgba(139, 92, 246, 0.5);
+
+  --trg-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --trg-duration: 320ms;
+}
+
+/* Espelha `.card` + utilitário `.glass-panel` do `styles.scss` do atleta */
+@mixin trg-glass-panel {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  border: 1px solid var(--color-nexago-border, var(--trg-glass-border));
+  border-radius: var(--trg-radius-lg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--trg-shadow-soft);
+}
+
+@mixin trg-focus-ring {
+  outline: 2px solid rgba(45, 212, 191, 0.55);
+  outline-offset: 2px;
+}

@@ -1,0 +1,40 @@
+<div class="trg-step trg-step--category">
+  <header class="trg-step__head">
+    <h2 class="trg-step__title title-lg">Escolha sua categoria</h2>
+    <p class="trg-step__sub text-body">
+      Toque em um card para avançar — leva menos de <strong>1 minuto</strong> para garantir sua vaga.
+    </p>
+  </header>
+
+  <div class="trg-cat-grid" role="list">
+    @for (c of categories(); track c.id) {
+      <button
+        type="button"
+        class="trg-cat-card trg-ripple card glass-panel"
+        role="listitem"
+        (click)="pick(c)"
+      >
+        <div class="trg-cat-card__top">
+          <h3 class="trg-cat-card__name">{{ c.name }}</h3>
+          @if (isUrgent(c)) {
+            <span class="trg-pill trg-pill--urgent">Últimas vagas</span>
+          } @else {
+            <span class="trg-pill trg-pill--calm">Alta procura</span>
+          }
+        </div>
+        <p class="trg-cat-card__level">{{ c.level }}</p>
+        <div class="trg-cat-card__spots">
+          <span class="trg-cat-card__spots-label">Vagas</span>
+          <span class="trg-cat-card__spots-value">{{ c.spotsLeft }}/{{ c.spotsTotal }}</span>
+        </div>
+        <div class="trg-spots-meter" aria-hidden="true">
+          <span class="trg-spots-meter__fill" [style.width.%]="spotsRatio(c)"></span>
+        </div>
+        <div class="trg-cat-card__foot">
+          <span class="trg-cat-card__price">{{ c.priceLabel }}</span>
+          <span class="trg-cat-card__cta">Selecionar →</span>
+        </div>
+      </button>
+    }
+  </div>
+</div>

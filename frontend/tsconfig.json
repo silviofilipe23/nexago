@@ -12,7 +12,10 @@
     "importHelpers": true,
     "target": "ES2022",
     "module": "preserve",
-    "baseUrl": "./"
+    "baseUrl": "./",
+    "paths": {
+      "@nexago/firebase-config": ["shared/firebase/firebase.config.ts"]
+    }
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,
@@ -34,6 +37,12 @@
     },
     {
       "path": "./projects/arena/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/athlete/tsconfig.app.json"
+    },
+    {
+      "path": "./projects/athlete/tsconfig.spec.json"
     }
   ]
 }

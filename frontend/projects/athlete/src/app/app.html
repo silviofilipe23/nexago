@@ -1,0 +1,21 @@
+<div class="athlete-shell" [class.athlete-shell--immersive]="hideChrome()">
+  @if (!hideChrome()) {
+    <header class="athlete-header glass-panel">
+      <div class="athlete-header-inner container-nexago">
+        <div class="athlete-brand">
+          <span class="athlete-brand-mark">NexaGO</span>
+          <span class="badge-athlete">Atleta</span>
+        </div>
+        <p class="athlete-tagline text-muted">Reservas, jogos e evolução</p>
+      </div>
+    </header>
+  }
+
+  <main
+    class="athlete-main"
+    [class.container-nexago]="!hideChrome()"
+    [class.athlete-main--immersive]="hideChrome()"
+  >
+    <router-outlet />
+  </main>
+</div>

@@ -1,0 +1,246 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../features/arenas/presentation/arena_booking_confirm_page.dart';
+import '../../features/arenas/presentation/arena_detail_page.dart';
+import '../../features/arenas/presentation/booking_success_page.dart';
+import '../../features/arenas/presentation/slots_page.dart';
+import '../../features/arenas/domain/arena_booking_confirm_args.dart';
+import '../../features/arenas/domain/arena_list_item.dart';
+import '../../features/auth/login_page.dart';
+import '../../features/auth/register_page.dart';
+import '../../features/arena/presentation/arena_bookings_page.dart';
+import '../../features/arena/presentation/arena_courts_page.dart';
+import '../../features/arena/presentation/arena_dashboard_page.dart';
+import '../../features/arena/presentation/arena_schedule_page.dart';
+import '../../features/arena/presentation/arena_settings_page.dart';
+import '../../features/arena/presentation/arena_slot_detail_page.dart';
+import '../../features/arena/presentation/arena_shell_page.dart';
+import '../../features/arena/domain/arena_slot_detail_args.dart';
+import '../../features/arenas/presentation/my_bookings_page.dart';
+import '../../features/arena/domain/arena_route_guard.dart';
+import '../../features/home/home_page.dart';
+import '../auth/auth_providers.dart';
+import '../auth/user_roles.dart';
+import 'go_router_refresh.dart';
+import 'routes.dart';
+
+/// Router centralizado com guard baseado em [authProvider].
+final goRouterProvider = Provider<GoRouter>((ref) {
+  final refresh = ref.watch(goRouterRefreshNotifierProvider);
+
+  return GoRouter(
+    initialLocation: AppRoutes.discover,
+    refreshListenable: refresh,
+    redirect: (context, state) async {
+      final authAsync = ref.read(authProvider);
+      final path = state.uri.path;
+      final isAuthRoute =
+          path == AppRoutes.login || path == AppRoutes.register;
+
+      if (authAsync.isLoading) {
+        return null;
+      }
+      if (authAsync.hasError) {
+        return AppRoutes.login;
+      }
+
+      final user = authAsync.valueOrNull;
+      if (user == null && !isAuthRoute) {
+        return AppRoutes.login;
+      }
+
+      if (user != null && isAuthRoute) {
+        final token = await user.getIdTokenResult(true);
+        if (userIsArenaOnlyManager(token)) {
+          return AppRoutes.arenaDashboard;
+        }
+        return AppRoutes.discover;
+      }
+
+      if (user != null) {
+        final token = await user.getIdTokenResult(true);
+
+        if (isArenaManagerPanelPath(path)) {
+          if (!userHasArenaRole(token)) {
+            return AppRoutes.discover;
+          }
+        }
+
+        if (path == AppRoutes.discover && userIsArenaOnlyManager(token)) {
+          return AppRoutes.arenaDashboard;
+        }
+
+        if ((path == AppRoutes.home || path == '/') && userIsArenaOnlyManager(token)) {
+          return AppRoutes.arenaDashboard;
+        }
+
+        if (path == AppRoutes.home || path == '/') {
+          return AppRoutes.discover;
+        }
+      }
+
+      return null;
+    },
+    routes: [
+      GoRoute(
+        path: AppRoutes.login,
+        name: AppRouteNames.login,
+        builder: (context, state) => const LoginPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.register,
+        name: AppRouteNames.register,
+        builder: (context, state) => const RegisterPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.home,
+        redirect: (context, state) => AppRoutes.discover,
+      ),
+      GoRoute(
+        path: AppRoutes.discover,
+        name: AppRouteNames.discover,
+        builder: (context, state) => const HomePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.myBookings,
+        name: AppRouteNames.myBookings,
+        builder: (context, state) => const MyBookingsPage(),
+      ),
+      GoRoute(
+        path: '/arena',
+        redirect: (context, state) {
+          if (state.uri.path == '/arena') {
+            return AppRoutes.arenaDashboard;
+          }
+          return null;
+        },
+      ),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return ArenaShellPage(navigationShell: navigationShell);
+        },
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.arenaDashboard,
+                name: AppRouteNames.arenaDashboard,
+                builder: (context, state) => const ArenaDashboardPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.arenaSchedule,
+                name: AppRouteNames.arenaSchedule,
+                builder: (context, state) => const ArenaSchedulePage(),
+                routes: [
+                  GoRoute(
+                    path: 'slot/:slotId',
+                    name: AppRouteNames.arenaSlotDetail,
+                    builder: (context, state) {
+                      final extra = state.extra;
+                      final args = extra is ArenaSlotDetailArgs ? extra : null;
+                      if (args == null) {
+                        return const Scaffold(
+                          body: Center(
+                            child: Text('Abra o detalhe a partir da agenda.'),
+                          ),
+                        );
+                      }
+                      return ArenaSlotDetailPage(args: args);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.arenaCourts,
+                name: AppRouteNames.arenaCourts,
+                builder: (context, state) => const ArenaCourtsPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.arenaBookings,
+                name: AppRouteNames.arenaBookings,
+                builder: (context, state) => const ArenaBookingsPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: AppRoutes.arenaSettings,
+                name: AppRouteNames.arenaSettings,
+                builder: (context, state) => const ArenaSettingsPage(),
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.arenaDetail,
+        name: AppRouteNames.arenaDetail,
+        builder: (context, state) {
+          final arenaId = state.pathParameters['arenaId']!;
+          final extra = state.extra;
+          final initial = extra is ArenaListItem ? extra : null;
+          return ArenaDetailPage(
+            arenaId: arenaId,
+            initialArena: initial?.id == arenaId ? initial : null,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.arenaSlots,
+        name: AppRouteNames.arenaSlots,
+        builder: (context, state) {
+          final arenaId = state.pathParameters['arenaId']!;
+          final extra = state.extra;
+          final initial = extra is ArenaListItem ? extra : null;
+          return SlotsPage(
+            arenaId: arenaId,
+            initialArena: initial?.id == arenaId ? initial : null,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.arenaBookingConfirm,
+        name: AppRouteNames.arenaBookingConfirm,
+        builder: (context, state) {
+          final arenaId = state.pathParameters['arenaId']!;
+          final extra = state.extra;
+          final args = extra is ArenaBookingConfirmArgs ? extra : null;
+          return ArenaBookingConfirmPage(arenaId: arenaId, args: args);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.arenaBookingSuccess,
+        name: AppRouteNames.arenaBookingSuccess,
+        builder: (context, state) {
+          final extra = state.extra;
+          final args = extra is BookingSuccessArgs ? extra : null;
+          return BookingSuccessPage(args: args);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.bookingSuccess,
+        name: AppRouteNames.bookingSuccess,
+        builder: (context, state) {
+          final extra = state.extra;
+          final args = extra is BookingSuccessArgs ? extra : null;
+          return BookingSuccessPage(args: args);
+        },
+      ),
+    ],
+  );
+});

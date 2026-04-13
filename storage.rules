@@ -21,6 +21,18 @@ service firebase.storage {
       );
     }
 
+    // Regras para mídia do perfil do atleta: athletes/{userId}/*
+    match /athletes/{userId}/{fileName} {
+      // Leitura autenticada para renderizar perfis no app.
+      allow read: if request.auth != null;
+
+      // Escrita: dono da mídia ou admin
+      allow write: if request.auth != null && (
+        request.auth.uid == userId ||
+        hasRoleClaim('admin')
+      );
+    }
+
     // Regras para imagens de torneios (inclui logos de patrocinadores): tournaments/{tournamentId}/**
     match /tournaments/{tournamentId}/{filePath=**} {
       // Qualquer usuário autenticado pode ler imagens de torneios

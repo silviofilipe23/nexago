@@ -1,6 +1,9 @@
+/* Sem margin-inline: auto aqui: em filhos de flex (ex.: <main> no app atleta) isso costuma gerar
+   scroll horizontal no mobile. Centralize com justify-content no pai ou align-self no filho. */
 .container-nexago {
-  max-width: 1100px;
-  margin: 0 auto;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1440px;
   padding: 0 16px;
 }
 

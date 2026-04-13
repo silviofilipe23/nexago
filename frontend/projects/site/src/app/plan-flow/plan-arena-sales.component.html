@@ -1,0 +1,125 @@
+<div class="arena-sales-page">
+  <app-landing-header />
+  <div class="arena-moment" (mousemove)="onMouseMove($event)">
+  <div class="arena-bg" aria-hidden="true"></div>
+  <div class="arena-noise" aria-hidden="true"></div>
+  <div class="arena-orb arena-orb--1" aria-hidden="true"></div>
+  <div class="arena-orb arena-orb--2" aria-hidden="true"></div>
+
+  <div class="arena-wrap">
+
+    <!-- 1. Hero: dor + prova (decisão inevitável) -->
+    <section class="arena-decision" aria-labelledby="arena-decision-title" appReveal>
+      <p class="arena-eyebrow">Plano Arena Pro · momento de decisão</p>
+      <h1 id="arena-decision-title" class="arena-title">
+        Sua arena está <span class="arena-title-highlight">perdendo dinheiro</span> todos os dias
+      </h1>
+      <p class="arena-subtitle">
+        Enquanto você gerencia no WhatsApp, outras arenas já automatizaram reservas, pagamentos e
+        eliminaram o no-show.
+      </p>
+      <div class="arena-proof" aria-label="Indicadores típicos de impacto">
+        <div class="proof-item">
+          <strong>+38%</strong>
+          <span>mais reservas</span>
+        </div>
+        <div class="proof-item">
+          <strong>−72%</strong>
+          <span>no-show</span>
+        </div>
+        <div class="proof-item">
+          <strong>100%</strong>
+          <span>controle da operação</span>
+        </div>
+      </div>
+      <p class="arena-proof-note">Indicadores típicos após adoção estruturada — resultados variam por arena.</p>
+      <p class="arena-live-pulse" role="status">
+        <span class="arena-live-dot" aria-hidden="true"></span>
+        +12 reservas concluídas hoje em arenas NexaGO
+      </p>
+    </section>
+
+    <!-- 2. Prova visual -->
+    <section class="arena-showcase" aria-labelledby="arena-showcase-title" appReveal>
+      <div class="arena-showcase-card">
+        <span class="arena-showcase-badge">Ao vivo</span>
+        <h2 id="arena-showcase-title" class="arena-showcase-title">Gestão completa da sua arena</h2>
+        <p class="arena-showcase-desc">
+          Reservas, pagamentos, torneios e ranking em um único painel — visível, mensurável, sob controle.
+        </p>
+        <div class="arena-showcase-mock" aria-hidden="true">
+          <div class="arena-showcase-mock__row">
+            <span class="arena-showcase-mock__chip">Dashboard</span>
+            <span class="arena-showcase-mock__chip">Chaves</span>
+            <span class="arena-showcase-mock__chip">Pagamentos</span>
+          </div>
+          <div class="arena-showcase-mock__panel">
+            <div class="arena-showcase-mock__bar"></div>
+            <div class="arena-showcase-mock__bar arena-showcase-mock__bar--short"></div>
+            <div class="arena-showcase-mock__grid">
+              <span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Escolha (matadora) -->
+    <section class="arena-choice" aria-labelledby="arena-choice-title" appReveal>
+      <h2 id="arena-choice-title" class="arena-choice-heading">Como você quer começar?</h2>
+      <p class="arena-choice-lead">Uma decisão. Dois caminhos. O mesmo motor NexaGO por trás.</p>
+
+      <div class="arena-choice-grid">
+        <article class="choice-card choice-card--primary">
+          <div class="choice-badge">Mais rápido</div>
+          <h3 class="choice-title">Comece agora</h3>
+          <p class="choice-text">Configure sua arena e receba reservas hoje.</p>
+          <ul class="choice-list">
+            <li>Setup em cerca de 5 minutos</li>
+            <li>Sem burocracia</li>
+            <li>Comece a faturar hoje</li>
+          </ul>
+          <a
+            routerLink="/entrar"
+            [queryParams]="{ plan: 'arena', intent: 'self-serve' }"
+            class="choice-btn"
+          >
+            Criar minha arena →
+          </a>
+        </article>
+
+        <article class="choice-card choice-card--secondary">
+          <div class="choice-badge choice-badge--premium">Premium</div>
+          <h3 class="choice-title">Falar com especialista</h3>
+          <p class="choice-text">Setup assistido e estratégia para escalar sua arena.</p>
+          <ul class="choice-list">
+            <li>Onboarding guiado</li>
+            <li>Otimização de receita</li>
+            <li>Suporte dedicado</li>
+          </ul>
+          <a
+            class="choice-btn choice-btn--alt"
+            href="mailto:comercial@nexago.app?subject=NexaGO%20-%20Arena%20Pro%20%28conversa%29"
+          >
+            Agendar conversa →
+          </a>
+        </article>
+      </div>
+    </section>
+
+    <!-- 4. Urgência -->
+    <p class="arena-urgency" appReveal>
+      Estamos liberando onboarding assistido para <strong>poucas arenas por semana</strong> — prioridade
+      para quem quer resultado rápido, sem gambiarra.
+    </p>
+
+    <!-- 5. Fecho psicológico -->
+    <footer class="arena-close" appReveal>
+      <blockquote class="arena-quote">
+        Se você não profissionalizar a operação agora, <span class="arena-quote-accent">a concorrência já está.</span>
+      </blockquote>
+      <p class="arena-foot">NexaGO Arena Pro · reservas, pagamentos e operação no mesmo lugar.</p>
+    </footer>
+  </div>
+  </div>
+</div>

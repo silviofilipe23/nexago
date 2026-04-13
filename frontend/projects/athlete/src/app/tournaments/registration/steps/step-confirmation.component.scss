@@ -1,0 +1,150 @@
+.trg-summary {
+  padding: var(--trg-space-5);
+  margin-bottom: var(--trg-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--trg-space-3);
+}
+
+.trg-summary__row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--trg-space-4);
+  align-items: flex-start;
+  font-size: 0.92rem;
+}
+
+.trg-summary__k {
+  color: var(--trg-muted);
+  flex-shrink: 0;
+}
+
+.trg-summary__v {
+  text-align: right;
+  color: var(--trg-text);
+  font-weight: 600;
+}
+
+.trg-summary__v--accent {
+  color: var(--trg-teal);
+  font-size: 1.05rem;
+}
+
+.trg-summary__tag {
+  display: inline-block;
+  margin-left: var(--trg-space-2);
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--trg-glass-border);
+  vertical-align: middle;
+}
+
+.trg-summary__tag[data-status='confirmed'] {
+  border-color: rgba(52, 211, 153, 0.45);
+  color: var(--trg-success);
+}
+
+.trg-summary__tag[data-status='pending'] {
+  border-color: rgba(251, 191, 36, 0.45);
+  color: #fcd34d;
+}
+
+.trg-paypick__options {
+  display: grid;
+  gap: var(--trg-space-3);
+}
+
+@media (min-width: 640px) {
+  .trg-paypick__options {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.trg-radio-card {
+  display: flex;
+  gap: var(--trg-space-3);
+  padding: var(--trg-space-4);
+  border-radius: var(--trg-radius-lg);
+  border: 1px solid var(--trg-glass-border);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition:
+    border-color var(--trg-duration) var(--trg-ease),
+    box-shadow var(--trg-duration) var(--trg-ease),
+    transform var(--trg-duration) var(--trg-ease);
+}
+
+.trg-radio-card:has(input:checked) {
+  border-color: rgba(45, 212, 191, 0.55);
+  box-shadow: var(--trg-glow-teal);
+  transform: translateY(-2px);
+}
+
+.trg-radio-card input {
+  margin-top: 0.35rem;
+  accent-color: var(--trg-teal);
+}
+
+.trg-radio-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.trg-radio-card__label {
+  font-weight: 750;
+  color: var(--trg-text);
+}
+
+.trg-radio-card__hint {
+  font-size: 0.82rem;
+  color: var(--trg-muted);
+}
+
+.trg-radio-card__price {
+  margin-top: var(--trg-space-2);
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--trg-teal);
+}
+
+.trg-hint--error {
+  margin-top: var(--trg-space-3);
+  color: #fda4af;
+  font-size: 0.85rem;
+}
+
+.trg-cta-block {
+  margin-top: var(--trg-space-6);
+}
+
+.trg-pulse-glow {
+  animation: trg-pulse-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes trg-pulse-glow {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trg-pulse-glow {
+    animation: none;
+  }
+}
+
+.trg-micro {
+  margin: var(--trg-space-3) 0 0;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--trg-muted);
+}

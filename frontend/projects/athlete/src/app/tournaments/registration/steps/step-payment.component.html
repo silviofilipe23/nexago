@@ -1,0 +1,34 @@
+<div class="trg-step trg-step--pay">
+  <header class="trg-step__head">
+    <h2 class="trg-step__title title-lg">Pagamento</h2>
+    <p class="trg-step__sub text-body">
+      Estamos simulando o checkout do <strong>Mercado Pago</strong>. Em produção, aqui abre o widget oficial.
+    </p>
+  </header>
+
+  <div class="trg-pay-card card glass-panel">
+    @if (loading()) {
+      <div class="trg-skeleton-stack" aria-busy="true">
+        <div class="trg-skel trg-skel--line"></div>
+        <div class="trg-skel trg-skel--line trg-skel--short"></div>
+        <div class="trg-skel trg-skel--block"></div>
+        <p class="trg-skeleton-hint">Processando com o gateway…</p>
+      </div>
+    } @else if (status() === 'rejected') {
+      <div class="trg-pay-result trg-pay-result--error">
+        <p class="trg-pay-result__title">Não foi possível concluir</p>
+        <p class="trg-pay-result__body">
+          O banco ou o Mercado Pago recusou a transação simulada. Tente novamente — costuma passar na segunda.
+        </p>
+        <button type="button" class="btn-primary trg-ripple" (click)="retry()">
+          Tentar de novo
+        </button>
+      </div>
+    } @else {
+      <div class="trg-pay-idle">
+        <p class="trg-pay-idle__amount">{{ chargeLabel() }}</p>
+        <p class="trg-pay-idle__meta">Ambiente seguro · NexaGO × Mercado Pago</p>
+      </div>
+    }
+  </div>
+</div>

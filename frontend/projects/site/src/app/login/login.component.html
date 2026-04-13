@@ -1,0 +1,38 @@
+<section class="login-shell">
+  <div class="login-glow"></div>
+  <div class="login-card">
+    <a routerLink="/" class="login-back">← Voltar ao site</a>
+
+    <h1 class="login-title reveal">{{ loginTitle() }}</h1>
+    <p class="login-subtitle reveal delay-1">
+      {{ loginSubtitle() }}
+    </p>
+
+    @if (error(); as err) {
+      <p class="login-error reveal delay-2" role="alert">{{ err }}</p>
+    }
+
+    <div class="login-actions reveal delay-2">
+      @if (firebaseConfigured()) {
+        <button type="button" class="login-btn-primary" [disabled]="busy()" (click)="google()">
+          @if (busy()) {
+            Conectando…
+          } @else {
+            Continuar com Google
+          }
+        </button>
+      } @else {
+        <p class="login-hint">
+          Defina <code>environment.firebase</code> (mesmo projeto dos outros apps NexaGO) para habilitar o
+          login real.
+        </p>
+      }
+
+      @if (showDevBypass()) {
+        <button type="button" class="login-btn-secondary" [disabled]="busy()" (click)="devContinue()">
+          Continuar (modo dev, sem Firebase)
+        </button>
+      }
+    </div>
+  </div>
+</section>

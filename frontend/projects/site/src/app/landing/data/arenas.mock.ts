@@ -15,6 +15,8 @@ export interface ArenaPreview {
   badge?: 'popular' | 'rating';
   /** Ficha de detalhe (marketing); fallback no componente se vazio. */
   description?: string;
+  /** Se `false`, checkout só oferece Mercado Pago (padrão: aceita pagar na arena). */
+  allowPayAtArena?: boolean;
 }
 
 export const MOCK_ARENAS: ArenaPreview[] = [
@@ -85,6 +87,7 @@ export const MOCK_ARENAS: ArenaPreview[] = [
     ],
     description:
       'Quadra central em local de fácil acesso: piso tratado, marcações oficiais e iluminação para jogos até a noite. Perfil alto padrão NexaGO.',
+    allowPayAtArena: false,
   },
   {
     id: '4',

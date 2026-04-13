@@ -12,6 +12,40 @@
       Ranking transparente — cada partida conta. Veja como os atletas estão subindo (dados de exemplo).
     </p>
 
+    <div class="mt-10 flex flex-wrap items-center gap-3">
+
+      <!-- Ano -->
+      <select class="filter-select" [value]="filters.year" (change)="setYear(+$any($event.target).value)">
+        <option [value]="2026">2026</option>
+        <option [value]="2025">2025</option>
+        <option [value]="2024">2024</option>
+      </select>
+    
+      <!-- Categoria -->
+      <div class="filter-group">
+        <button type="button" [class.active]="filters.category === 'masculino'" (click)="setCategory('masculino')">
+          Masculino
+        </button>
+        <button type="button" [class.active]="filters.category === 'feminino'" (click)="setCategory('feminino')">
+          Feminino
+        </button>
+        <button type="button" [class.active]="filters.category === 'misto'" (click)="setCategory('misto')">
+          Misto
+        </button>
+      </div>
+    
+      <!-- Tipo -->
+      <div class="filter-group">
+        <button type="button" [class.active]="filters.type === 'dupla'" (click)="setType('dupla')">
+          Dupla
+        </button>
+        <button type="button" [class.active]="filters.type === 'individual'" (click)="setType('individual')">
+          Individual
+        </button>
+      </div>
+    
+    </div>
+
     <div
       class="mt-6 max-w-lg rounded-xl border border-violet-500/25 bg-violet-500/[0.08] px-4 py-3 text-sm text-slate-300"
       role="status"

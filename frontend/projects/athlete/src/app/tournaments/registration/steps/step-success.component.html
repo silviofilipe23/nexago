@@ -1,0 +1,28 @@
+<div class="trg-step trg-step--success">
+  <div class="trg-success-hero">
+    <div class="trg-success-icon" aria-hidden="true">
+      <svg viewBox="0 0 64 64" class="trg-success-svg">
+        <circle class="trg-success-svg__ring" cx="32" cy="32" r="28" />
+        <path class="trg-success-svg__check" d="M18 33l10 10 18-22" />
+      </svg>
+    </div>
+    <h2 class="trg-success-title title-xl">Você está dentro 🔥</h2>
+    <p class="trg-success-sub text-body">
+      @if (tournament(); as ev) {
+        Sua vaga em <strong>{{ ev.name }}</strong> foi confirmada. Te avisamos de tudo no app.
+      } @else {
+        Inscrição confirmada. Te avisamos de tudo no app.
+      }
+    </p>
+  </div>
+
+  <div class="trg-success-actions">
+    @if (tournament(); as ev) {
+      <a [routerLink]="['/torneios', ev.id]" class="btn-primary trg-ripple">Ver torneio</a>
+    }
+    <button type="button" class="btn-secondary trg-ripple" (click)="share()">Compartilhar</button>
+    <button type="button" class="btn-secondary trg-ripple" (click)="inviteFriends()">
+      Convidar amigos
+    </button>
+  </div>
+</div>

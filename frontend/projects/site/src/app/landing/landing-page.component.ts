@@ -8,7 +8,9 @@ import { LandingFooterComponent } from './landing-footer.component';
 import { LandingHeaderComponent } from './landing-header.component';
 import { LandingHeroComponent } from './landing-hero.component';
 import { LandingHowItWorksComponent } from './landing-how-it-works.component';
+import { LandingPlansComponent } from './landing-plans.component';
 import { LandingRankingComponent } from './landing-ranking.component';
+import { LandingSupportersComponent } from './landing-supporters.component';
 import { LandingTournamentsComponent } from './landing-tournaments.component';
 
 @Component({
@@ -20,8 +22,10 @@ import { LandingTournamentsComponent } from './landing-tournaments.component';
     LandingArenaScheduleComponent,
     LandingTournamentsComponent,
     LandingHowItWorksComponent,
+    LandingPlansComponent,
     LandingRankingComponent,
     LandingDifferentiatorsComponent,
+    LandingSupportersComponent,
     LandingFinalCtaComponent,
     LandingFooterComponent,
   ],

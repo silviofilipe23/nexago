@@ -171,6 +171,17 @@
   transform: scale(0.98);
 }
 
+.checkout-btn-vini:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.checkout-btn-vini:disabled:hover {
+  transform: none;
+  box-shadow: none;
+  filter: none;
+}
+
 /* TRUST */
 .checkout-trust-vini {
   text-align: center;
@@ -187,6 +198,55 @@
   letter-spacing: 0.01em;
   color: #e2e8f0;
   font-variant-numeric: tabular-nums;
+}
+
+.checkout-payment-method {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: -0.5rem 0 0;
+}
+
+.payment-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: #e2e8f0;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.payment-option:focus-visible {
+  outline: 2px solid rgba(139, 92, 246, 0.75);
+  outline-offset: 2px;
+}
+
+.payment-option--active {
+  border-color: rgba(139, 92, 246, 0.55);
+  background: rgba(139, 92, 246, 0.12);
+  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.2);
+}
+
+.payment-option__title {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.payment-option__desc {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  line-height: 1.35;
 }
 
 /* REDUCED MOTION (acessibilidade) */

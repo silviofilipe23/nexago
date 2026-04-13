@@ -1,0 +1,88 @@
+@if (listing()) {
+  <div class="trg-page">
+    <div class="trg-page__bg" aria-hidden="true"></div>
+
+    <header class="trg-topbar">
+      <div class="trg-topbar__inner container-nexago">
+        <div class="trg-topbar__row">
+          <a [routerLink]="['/torneios', id()]" class="trg-back trg-ripple">← Voltar</a>
+          @if (showBack()) {
+            <button type="button" class="trg-back trg-back--ghost trg-ripple" (click)="back()">
+              Etapa anterior
+            </button>
+          }
+        </div>
+
+        <div class="trg-trust">
+          <span class="trg-chip trg-chip--hot">Últimas vagas</span>
+          <span class="trg-chip">Alta procura</span>
+          <span class="trg-chip trg-chip--data">
+            +{{ displayEnrolled() }} atletas inscritos
+          </span>
+          <span class="trg-chip trg-chip--calm">&lt; 1 min</span>
+        </div>
+
+        @if (step() !== 'success') {
+          <div class="trg-progress" aria-label="Progresso da inscrição">
+            <div class="trg-progress__track">
+              <div class="trg-progress__fill" [style.width.%]="progressWidthPct()"></div>
+            </div>
+            <ol class="trg-progress__labels">
+              @for (lbl of progressLabels; track lbl; let i = $index) {
+                <li
+                  class="trg-progress__label"
+                  [class.trg-progress__label--active]="i <= activeProgressIndex()"
+                  [class.trg-progress__label--current]="i === activeProgressIndex()"
+                >
+                  {{ lbl }}
+                </li>
+              }
+            </ol>
+          </div>
+        }
+
+        @if (tournament(); as ev) {
+          @if (ev.leagueContextLabel) {
+            <p class="trg-event-line trg-event-line--league">{{ ev.leagueContextLabel }}</p>
+          }
+          <p class="trg-event-line">{{ ev.name }} · {{ ev.city }}</p>
+        }
+      </div>
+    </header>
+
+    <main class="trg-main container-nexago">
+      <div class="trg-step-wrap" [@trgStepFade]="step()">
+        @switch (step()) {
+          @case ('category') {
+            <app-step-category />
+          }
+          @case ('partner') {
+            <app-step-partner />
+          }
+          @case ('confirmation') {
+            <app-step-confirmation />
+          }
+          @case ('payment') {
+            <app-step-payment />
+          }
+          @case ('success') {
+            <app-step-success />
+          }
+        }
+      </div>
+    </main>
+
+    @if (selectedCategory(); as cat) {
+      <div class="trg-spots-floating card glass-panel" aria-live="polite">
+        <span class="trg-spots-floating__k">Vagas ({{ cat.name }})</span>
+        <span class="trg-spots-floating__v">{{ categorySpots() ?? cat.spotsLeft }}</span>
+      </div>
+    }
+
+  </div>
+} @else if (id()) {
+  <div class="trg-missing container-nexago">
+    <p>Torneio não encontrado.</p>
+    <a routerLink="/torneios" class="trg-link">Voltar aos torneios</a>
+  </div>
+}

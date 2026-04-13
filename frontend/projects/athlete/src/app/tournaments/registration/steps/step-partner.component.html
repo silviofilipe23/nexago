@@ -1,0 +1,177 @@
+<div class="trg-step trg-step--partner">
+  @if (partner(); as p) {
+    <aside
+      class="trg-partner-strip card glass-panel"
+      [class.trg-partner-strip--flash]="pickFlash()"
+      aria-live="polite"
+    >
+      <div class="trg-partner-strip__check" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 6L9 17l-5-5" />
+        </svg>
+      </div>
+      <div class="trg-partner-strip__body">
+        <p class="trg-partner-strip__label">Sua dupla</p>
+        <p class="trg-partner-strip__name">{{ p.displayName }}</p>
+        @if (p.handle) {
+          <p class="trg-partner-strip__handle">{{ p.handle }}</p>
+        }
+      </div>
+      <span class="trg-summary__tag" [attr.data-status]="p.status">
+        {{ p.status === 'confirmed' ? 'Confirmado' : 'Pendente' }}
+      </span>
+    </aside>
+  }
+
+  <header class="trg-step__head">
+    <h2 class="trg-step__title title-lg">
+      Monte sua dupla
+      <span class="trg-step__title-emoji" aria-hidden="true">🔥</span>
+    </h2>
+    <p class="trg-step__urgency text-muted">
+      <span class="trg-step__urgency-dot" aria-hidden="true"></span>
+      <span>+12 atletas estão procurando parceiro <strong>agora</strong> neste torneio.</span>
+    </p>
+    <p class="trg-step__sub text-body">
+      Escolha alguém que já joga com você, busque por nome ou deixe a NexaGO sugerir o match ideal — você confirma antes de pagar.
+    </p>
+  </header>
+
+  <div class="trg-partner-layout">
+    <div class="trg-partner-layout__main">
+      <section class="trg-partner-section trg-partner-section--panel card glass-panel" aria-labelledby="trg-spotlight-title">
+        <div class="trg-partner-section__head">
+          <h3 id="trg-spotlight-title" class="trg-partner-section__title title-md">
+            <span aria-hidden="true">⚡</span>
+            Jogadores disponíveis agora
+          </h3>
+          <p class="trg-partner-section__hint text-muted">
+            Toque em <strong>Jogar com ele</strong> para pré-selecionar — ainda dá para trocar.
+          </p>
+        </div>
+        <div class="trg-spotlight-grid">
+          @for (s of spotlightSuggestions(); track s.id) {
+            <article
+              class="trg-partner-card"
+              [class.trg-partner-card--active]="isPartnerId(s.id)"
+            >
+              <div class="trg-partner-card__top">
+                <span class="trg-partner-card__avatar" aria-hidden="true">{{ s.displayName.charAt(0) }}</span>
+                <span class="trg-pill trg-pill--urgent">Disponível agora</span>
+              </div>
+              <h4 class="trg-partner-card__name">{{ s.displayName }}</h4>
+              <p class="trg-partner-card__meta">{{ s.handle }} · Nível {{ s.level }}</p>
+              <button type="button" class="btn-primary trg-ripple" (click)="pickExisting(s.id)">Jogar com ele</button>
+            </article>
+          }
+        </div>
+      </section>
+
+      <section class="trg-partner-section" aria-labelledby="trg-match-title">
+        <div class="trg-match-panel card glass-panel">
+          <div class="trg-match-panel__icon" aria-hidden="true">✨</div>
+          <h3 id="trg-match-title" class="trg-match-panel__title title-md">Deixa a NexaGO escolher seu parceiro ideal</h3>
+          <p class="trg-match-panel__copy text-body">
+            Cruzamos nível, estilo de jogo e horários parecidos. Você revisa antes de pagar — começamos como
+            <strong>pendente</strong> até confirmar.
+          </p>
+          <button type="button" class="btn-primary trg-ripple" (click)="runMatchmaking()">Encontrar parceiro</button>
+        </div>
+      </section>
+    </div>
+
+    <aside class="trg-partner-layout__side" aria-label="Busca e convite">
+      <section class="trg-partner-section" aria-labelledby="trg-search-title">
+        <div class="trg-partner-section__head">
+          <h3 id="trg-search-title" class="trg-partner-section__title trg-partner-section__title--soft title-md">
+            <span aria-hidden="true">🔍</span>
+            Buscar parceiro
+          </h3>
+          <p class="trg-partner-section__hint trg-partner-section__hint--tight text-muted">
+            Filtra quem já está na base deste torneio.
+          </p>
+        </div>
+        <div class="trg-search-panel card glass-panel">
+          <label class="trg-visually-hidden" for="trg-partner-filter">Nome ou handle</label>
+          <input
+            id="trg-partner-filter"
+            class="trg-field"
+            type="search"
+            [formControl]="searchQuery"
+            placeholder="Nome, @handle ou parte do nome…"
+            autocomplete="off"
+          />
+          <div class="trg-compact-grid">
+            @for (s of searchResults(); track s.id) {
+              <article class="trg-compact-card" [class.trg-compact-card--active]="isPartnerId(s.id)">
+                <div class="trg-compact-card__row">
+                  <span class="trg-compact-card__avatar" aria-hidden="true">{{ s.displayName.charAt(0) }}</span>
+                  <div class="trg-compact-card__info">
+                    <span class="trg-compact-card__name">{{ s.displayName }}</span>
+                    <span class="trg-compact-card__meta">{{ s.handle }} · {{ s.level }}</span>
+                  </div>
+                </div>
+                <button type="button" class="btn-secondary trg-ripple" (click)="pickExisting(s.id)">Escolher</button>
+              </article>
+            }
+          </div>
+          @if (searchEmptyNoResults()) {
+            <p class="trg-search-empty">Ninguém encontrado com esse termo. Tente outro nome ou @handle.</p>
+          }
+        </div>
+      </section>
+
+      <section class="trg-partner-section trg-partner-section--invite" aria-labelledby="trg-invite-title">
+        <details class="trg-invite-details card glass-panel">
+          <summary class="trg-invite-details__summary" id="trg-invite-title">
+            <span>📩 Convidar por e-mail ou @handle</span>
+            <span class="trg-invite-details__chev" aria-hidden="true"></span>
+          </summary>
+          <form class="trg-invite-form" (ngSubmit)="submitInvite()" [formGroup]="inviteForm">
+            <label class="trg-field-label" for="trg-invite-target">E-mail ou @handle</label>
+            <div class="trg-invite-form__row">
+              <input
+                id="trg-invite-target"
+                class="trg-field trg-field--inline"
+                type="text"
+                formControlName="target"
+                placeholder="parceiro@email.com ou @handle"
+                autocomplete="off"
+              />
+              <button type="submit" class="btn-secondary trg-ripple">Enviar convite</button>
+            </div>
+            @if (inviteForm.touched && inviteForm.invalid) {
+              <p class="trg-hint trg-hint--error">Informe um contato válido.</p>
+            }
+            <p class="trg-hint">Fica <strong>pendente</strong> até a pessoa aceitar.</p>
+          </form>
+        </details>
+      </section>
+    </aside>
+  </div>
+
+  <div class="trg-continue-wrap">
+    <button
+      type="button"
+      class="btn-primary trg-ripple"
+      [class.trg-pulse-glow]="partner()"
+      [disabled]="!partner()"
+      (click)="continue()"
+    >
+      Continuar para pagamento
+    </button>
+    <p class="trg-micro text-muted">Quase lá — revisão e pagamento na sequência.</p>
+  </div>
+
+  <div class="trg-continue-mobile" role="navigation" aria-label="Próximo passo">
+    <button
+      type="button"
+      class="btn-primary trg-ripple"
+      [class.trg-pulse-glow]="partner()"
+      [disabled]="!partner()"
+      (click)="continue()"
+    >
+      Continuar para pagamento
+    </button>
+  </div>
+</div>

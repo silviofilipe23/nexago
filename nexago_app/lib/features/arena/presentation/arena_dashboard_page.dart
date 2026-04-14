@@ -11,20 +11,18 @@ import 'widgets/arena_dashboard_insights_section.dart';
 import 'widgets/arena_dashboard_kpi_grid.dart';
 import 'widgets/arena_dashboard_revenue_chart.dart';
 import 'widgets/arena_dashboard_section_card.dart';
-import 'widgets/arena_logout_button.dart';
 
 class ArenaDashboardPage extends ConsumerWidget {
   const ArenaDashboardPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watch(arenaModuleConfigProvider);
     final summaryAsync = ref.watch(arenaDashboardSummaryProvider);
     final theme = Theme.of(context);
 
     return AppScaffold(
-      title: config.title,
-      actions: const [ArenaLogoutButton()],
+      title: 'Visão geral',
+      centerTitle: false,
       body: ColoredBox(
         color: theme.colorScheme.surfaceContainerLowest,
         child: SafeArea(
@@ -45,24 +43,6 @@ class ArenaDashboardPage extends ConsumerWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Painel',
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  color: theme.colorScheme.onSurface
-                                      .withValues(alpha: 0.45),
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Visão geral',
-                                style: theme.textTheme.headlineMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -1,
-                                  height: 1.05,
-                                ),
-                              ),
                               const SizedBox(height: 12),
                               Text(
                                 'Acompanhe faturamento, ocupação e tendência da semana em um só lugar.',

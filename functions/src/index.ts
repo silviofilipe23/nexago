@@ -3,9 +3,10 @@ import {getAuth, type UserRecord} from "firebase-admin/auth";
 import {setGlobalOptions} from "firebase-functions";
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
+import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import {defineSecret} from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
-import {getFirestore, FieldValue} from "firebase-admin/firestore";
+import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
 import {getMessaging} from "firebase-admin/messaging";
 import webpush, {PushSubscription} from "web-push";
 import {createHmac, createHash, randomBytes, timingSafeEqual} from "node:crypto";
@@ -174,6 +175,244 @@ function bookingStartAt(dateKey: string, startTime: string): Date | null {
   if (Number.isNaN(dt.getTime())) return null;
   return dt;
 }
+
+const BOOKING_REMINDER_15M_TYPE = "arena_booking_15m_reminder";
+const BOOKING_REMINDER_15M_MINUTES_BEFORE = 15;
+
+function parseDateKeyFromBookingDate(value: unknown): string | null {
+  if (!value) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+    if (trimmed.length >= 10) {
+      const parsed = new Date(trimmed);
+      if (!Number.isNaN(parsed.getTime())) {
+        const y = parsed.getUTCFullYear();
+        const m = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+        const d = String(parsed.getUTCDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+      }
+    }
+    return null;
+  }
+  if (value instanceof Timestamp) {
+    const d = value.toDate();
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  return null;
+}
+
+function bookingAthleteUserId(booking: {[k: string]: unknown}): string {
+  const bookingAthleteId = booking["bookingAthleteId"];
+  if (typeof bookingAthleteId === "string" && bookingAthleteId.trim().length > 0) {
+    return bookingAthleteId.trim();
+  }
+  const athleteId = booking["athleteId"];
+  if (typeof athleteId === "string" && athleteId.trim().length > 0) {
+    return athleteId.trim();
+  }
+  return "";
+}
+
+async function getUserFcmTokens(userId: string): Promise<string[]> {
+  const db = getFirestore();
+  const userDoc = await db.doc(`users/${userId}`).get();
+  const userData = userDoc.data() || {};
+  const directToken = typeof userData["fcmToken"] === "string" ? userData["fcmToken"].trim() : "";
+  const channels = await getUserNotificationChannels(userId);
+  const all = new Set<string>();
+  if (directToken) all.add(directToken);
+  for (const token of channels.fcmTokens) {
+    if (token.trim().length > 0) {
+      all.add(token.trim());
+    }
+  }
+  return Array.from(all);
+}
+
+/**
+ * Ao criar booking, calcula e grava o horário do lembrete (15 min antes).
+ */
+export const prepareArenaBookingReminder15m = onDocumentCreated("arenaBookings/{bookingId}", async (event) => {
+  const snap = event.data;
+  if (!snap?.exists) return;
+  const booking = snap.data() as {[k: string]: unknown};
+
+  const dateKey = parseDateKeyFromBookingDate(booking["date"]);
+  const startTime = typeof booking["startTime"] === "string" ? booking["startTime"].trim() : "";
+  const startAt = dateKey && startTime ? bookingStartAt(dateKey, startTime) : null;
+  if (!startAt) {
+    logger.warn("prepareArenaBookingReminder15m: booking sem data/hora válidas", {bookingId: snap.id});
+    return;
+  }
+
+  const reminderAt = new Date(startAt.getTime() - BOOKING_REMINDER_15M_MINUTES_BEFORE * 60 * 1000);
+  await snap.ref.set({
+    reminder15mAt: Timestamp.fromDate(reminderAt),
+    reminder15mPreparedAt: FieldValue.serverTimestamp(),
+  }, {merge: true});
+});
+
+/**
+ * Executa a cada minuto e envia push FCM para bookings próximos (15 min antes).
+ */
+export const sendArenaBookingReminders15m = onSchedule({
+  schedule: "every 1 minutes",
+  timeZone: "America/Sao_Paulo",
+}, async () => {
+  const db = getFirestore();
+  const messaging = getMessaging();
+  const projectId = getFirebaseProjectId();
+  const reminderLocksRef = db.collection(`artifacts/${projectId}/public/data/arenaBookingReminders15m`);
+
+  const nowTs = Timestamp.now();
+  const now = new Date();
+
+  const bookingsSnap = await db
+    .collection("arenaBookings")
+    .where("reminder15mAt", "<=", nowTs)
+    .limit(200)
+    .get();
+
+  if (bookingsSnap.empty) {
+    logger.info("sendArenaBookingReminders15m: nenhuma reserva elegível");
+    return;
+  }
+
+  let sent = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const bookingDoc of bookingsSnap.docs) {
+    const booking = bookingDoc.data() as {[k: string]: unknown};
+    const status = typeof booking["status"] === "string" ? booking["status"].toLowerCase() : "";
+    if (status && status !== "booked" && status !== "active" && status !== "confirmed") {
+      skipped += 1;
+      continue;
+    }
+
+    const athleteId = bookingAthleteUserId(booking);
+    const dateKey = parseDateKeyFromBookingDate(booking["date"]);
+    const startTime = typeof booking["startTime"] === "string" ? booking["startTime"].trim() : "";
+    const arenaName = typeof booking["arenaName"] === "string" ? booking["arenaName"].trim() : "Arena";
+
+    if (!athleteId || !dateKey || !startTime) {
+      skipped += 1;
+      continue;
+    }
+
+    const startAt = bookingStartAt(dateKey, startTime);
+    if (!startAt) {
+      skipped += 1;
+      continue;
+    }
+
+    const minutesToStart = Math.round((startAt.getTime() - now.getTime()) / (60 * 1000));
+    if (minutesToStart < 0) {
+      skipped += 1;
+      continue;
+    }
+
+    const lockRef = reminderLocksRef.doc(`${bookingDoc.id}_15m`);
+    const lockAcquired = await db.runTransaction(async (tx) => {
+      const lockSnap = await tx.get(lockRef);
+      if (lockSnap.exists) {
+        return false;
+      }
+      tx.set(lockRef, {
+        bookingId: bookingDoc.id,
+        athleteId,
+        type: BOOKING_REMINDER_15M_TYPE,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+    if (!lockAcquired) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      const fcmTokens = await getUserFcmTokens(athleteId);
+      if (fcmTokens.length === 0) {
+        await lockRef.set({skippedNoFcmToken: true, sentAt: FieldValue.serverTimestamp()}, {merge: true});
+        skipped += 1;
+        continue;
+      }
+
+      const title = "Seu jogo começa em breve";
+      const body = `${arenaName} • ${startTime}`;
+
+      const message = {
+        notification: {title, body},
+        data: {
+          type: BOOKING_REMINDER_15M_TYPE,
+          bookingId: bookingDoc.id,
+          arenaId: String(booking["arenaId"] || ""),
+          date: dateKey,
+          startTime,
+        },
+        android: {
+          priority: "high" as const,
+          notification: {
+            channelId: "default",
+            sound: "default",
+          },
+        },
+        apns: {
+          headers: {"apns-priority": "10"},
+          payload: {aps: {sound: "default"}},
+        },
+      };
+
+      const fcmResults = await Promise.allSettled(
+        fcmTokens.map((token) => messaging.send({...message, token}))
+      );
+      const successful = fcmResults.filter((r) => r.status === "fulfilled").length;
+      const failedCount = fcmResults.length - successful;
+      sent += successful;
+      failed += failedCount;
+
+      if (successful > 0) {
+        await db.collection(`users/${athleteId}/notifications`).add({
+          userId: athleteId,
+          title,
+          body,
+          type: BOOKING_REMINDER_15M_TYPE,
+          data: {
+            bookingId: bookingDoc.id,
+            arenaId: booking["arenaId"] || "",
+            date: dateKey,
+            startTime,
+            minutesBefore: String(BOOKING_REMINDER_15M_MINUTES_BEFORE),
+          },
+          read: false,
+          createdAt: FieldValue.serverTimestamp(),
+          readAt: null,
+        });
+      }
+
+      await bookingDoc.ref.set({
+        reminder15mSentAt: FieldValue.serverTimestamp(),
+      }, {merge: true});
+
+      await lockRef.set({
+        sentAt: FieldValue.serverTimestamp(),
+        sent: successful,
+        failed: failedCount,
+      }, {merge: true});
+    } catch (error) {
+      failed += 1;
+      logger.error(`sendArenaBookingReminders15m: erro ao enviar booking ${bookingDoc.id}`, error);
+      await lockRef.delete().catch(() => undefined);
+    }
+  }
+
+  logger.info("sendArenaBookingReminders15m: ciclo concluído", {sent, skipped, failed});
+});
 
 export const sendArenaBookingReminders = onSchedule({
   schedule: "every 5 minutes",

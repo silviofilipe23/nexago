@@ -11,6 +11,7 @@ export '../data/arena_dashboard_service.dart';
 export '../data/court_service.dart' show CourtService, CourtServiceException;
 export '../data/slot_service.dart' show SlotService, SlotServiceException;
 export 'arena_dashboard_providers.dart';
+export 'arena_profile_edit_providers.dart';
 export 'court_type_options.dart';
 export 'arena_dashboard_summary.dart';
 export 'arena_date_utils.dart' show arenaDateKey, arenaDateKeyFromDynamic, arenaDateOnly, arenaTodayDateOnly;

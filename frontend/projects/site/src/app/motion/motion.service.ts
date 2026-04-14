@@ -36,6 +36,7 @@ export interface LandingHeroMotionRefs {
   metricItems?: HTMLElement[];
   trustLine?: HTMLElement | null;
   visual?: HTMLElement | null;
+  scrollVideo?: HTMLVideoElement | null;
   /** Camadas leves com loop (parallax suave). */
   parallaxLayers?: HTMLElement[];
   blueOrb?: HTMLElement | null;
@@ -117,6 +118,135 @@ export class MotionService {
   attachLandingHeroAnimations(refs: LandingHeroMotionRefs): () => void {
     registerGsapPlugins();
 
+    const createVideoScrollScrub = (): (() => void) => {
+      if (!refs.scrollVideo) {
+        return () => {};
+      }
+
+      const video = refs.scrollVideo;
+      const desktopQuery = globalThis.matchMedia?.('(min-width: 768px)');
+      if (desktopQuery && !desktopQuery.matches) {
+        return () => {};
+      }
+
+      video.muted = true;
+      video.defaultMuted = true;
+      video.controls = false;
+      video.playsInline = true;
+      video.preload = 'auto';
+
+      const getDuration = (): number => {
+        const d = video.duration;
+        return Number.isFinite(d) && d > 0 ? d : 1;
+      };
+
+      const canSeek = (): boolean => {
+        if (video.readyState < 1) {
+          return false;
+        }
+        if (video.seekable.length === 0) {
+          return false;
+        }
+        return true;
+      };
+
+      const syncTime = (progress: number): void => {
+        if (!canSeek()) {
+          return;
+        }
+        const target = getDuration() * progress;
+        if (!Number.isFinite(target)) {
+          return;
+        }
+        const maxTime = Math.max(0, getDuration() - 0.001);
+        const clampedTarget = Math.min(Math.max(0, target), maxTime);
+        if (Math.abs(video.currentTime - clampedTarget) > 0.016) {
+          try {
+            video.currentTime = clampedTarget;
+          } catch {
+            // Alguns browsers podem negar seek antes do buffer inicial; tentaremos no próximo update.
+          }
+        }
+      };
+
+      let tween: gsap.core.Tween | null = null;
+
+      const createScrubTween = (): void => {
+        if (tween) {
+          return;
+        }
+        const d = video.duration;
+        if (!Number.isFinite(d) || d <= 0) {
+          return;
+        }
+        const scrubState = { progress: 0 };
+        tween = gsap.to(scrubState, {
+          progress: 1,
+          ease: 'none',
+          scrollTrigger: {
+            trigger: refs.root,
+            start: 'top top',
+            end: () => {
+              const distanceByDuration = getDuration() * 1100;
+              const viewportHeight =
+                typeof globalThis.innerHeight === 'number' ? globalThis.innerHeight : 900;
+              const minDistance = viewportHeight * 3.2;
+              return `+=${Math.max(minDistance, distanceByDuration)}`;
+            },
+            pin: true,
+            scrub: true,
+            anticipatePin: 1,
+            invalidateOnRefresh: true,
+            onUpdate: (self) => {
+              scrubState.progress = self.progress;
+              syncTime(self.progress);
+            },
+          },
+        });
+        scheduleScrollTriggerRefresh();
+      };
+
+      const onMetaLoaded = (): void => {
+        try {
+          video.currentTime = 0;
+        } catch {
+          // noop
+        }
+        createScrubTween();
+      };
+
+      const onVideoError = (): void => {
+        // Sem metadados válidos => não cria pin/scrub para não esticar o hero.
+        tween?.scrollTrigger?.kill();
+        tween?.kill();
+        tween = null;
+      };
+
+      video.addEventListener('loadedmetadata', onMetaLoaded);
+      video.addEventListener('error', onVideoError);
+      video.load();
+
+      // Garante “prime” em navegadores mobile sem reproduzir áudio.
+      const primePromise = video.play();
+      if (primePromise && typeof primePromise.then === 'function') {
+        void primePromise.then(() => video.pause()).catch(() => {});
+      }
+
+      if (video.readyState >= 1) {
+        createScrubTween();
+      }
+
+      return () => {
+        video.removeEventListener('loadedmetadata', onMetaLoaded);
+        video.removeEventListener('error', onVideoError);
+        tween?.scrollTrigger?.kill();
+        tween?.kill();
+        tween = null;
+      };
+    };
+
+    const cleanupVideoScrub = createVideoScrollScrub();
+
     const revealAll = (): void => {
       const nodes = [
         refs.urgency,
@@ -133,7 +263,9 @@ export class MotionService {
 
     if (prefersReducedMotion()) {
       revealAll();
-      return () => {};
+      return () => {
+        cleanupVideoScrub();
+      };
     }
 
     const ctx = gsap.context(() => {
@@ -222,7 +354,10 @@ export class MotionService {
     }, refs.root);
 
     scheduleScrollTriggerRefresh();
-    return () => ctx.revert();
+    return () => {
+      cleanupVideoScrub();
+      ctx.revert();
+    };
   }
 
   /**

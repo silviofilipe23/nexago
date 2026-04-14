@@ -16,7 +16,6 @@ import {
   registerGsapPlugins,
   prefersReducedMotion as motionReduced,
 } from './animations/gsap-setup';
-import { MOCK_ARENAS } from './data/arenas.mock';
 import { APP_LINKS } from './data/links';
 
 @Component({
@@ -43,7 +42,6 @@ export class LandingHeroComponent {
   private readonly motion = inject(MotionService);
 
   readonly links = APP_LINKS;
-  readonly previewArenas = MOCK_ARENAS.slice(0, 4);
 
   readonly showAccentOrb = signal(false);
   readonly orbMotionOff = signal(false);
@@ -55,6 +53,7 @@ export class LandingHeroComponent {
   private readonly heroSub = viewChild.required<ElementRef<HTMLElement>>('heroSub');
   private readonly heroCtas = viewChild.required<ElementRef<HTMLElement>>('heroCtas');
   private readonly heroPreview = viewChild<ElementRef<HTMLElement>>('heroPreview');
+  private readonly heroScrollVideo = viewChild<ElementRef<HTMLVideoElement>>('heroScrollVideo');
   private readonly heroOrbBlue = viewChild<ElementRef<HTMLElement>>('heroOrbBlue');
   private readonly heroOrbViolet = viewChild<ElementRef<HTMLElement>>('heroOrbViolet');
 
@@ -87,6 +86,7 @@ export class LandingHeroComponent {
       trustLine,
       ctaRow: this.heroCtas().nativeElement,
       visual: this.heroPreview()?.nativeElement ?? undefined,
+      scrollVideo: this.heroScrollVideo()?.nativeElement,
       parallaxLayers,
       blueOrb: this.heroOrbBlue()?.nativeElement,
       violetOrb: this.heroOrbViolet()?.nativeElement,

@@ -13,7 +13,6 @@ import '../../arenas/domain/slots_providers.dart';
 import '../domain/arena_providers.dart';
 import '../domain/arena_slot_detail_args.dart';
 import 'widgets/arena_async_state.dart';
-import 'widgets/arena_logout_button.dart';
 import 'widgets/arena_schedule_day_strip.dart';
 
 class ArenaSchedulePage extends ConsumerWidget {
@@ -21,7 +20,6 @@ class ArenaSchedulePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watch(arenaModuleConfigProvider);
     final managedArena = ref.watch(managedArenaIdProvider);
     final selectedDate = ref.watch(arenaScheduleSelectedDateProvider);
     final theme = Theme.of(context);
@@ -29,6 +27,7 @@ class ArenaSchedulePage extends ConsumerWidget {
 
     return AppScaffold(
       title: 'Agenda',
+      centerTitle: false,
       actions: [
         IconButton(
           tooltip: 'Escolher data',
@@ -46,22 +45,11 @@ class ArenaSchedulePage extends ConsumerWidget {
             }
           },
         ),
-        const ArenaLogoutButton(),
       ],
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-              child: Text(
-                config.title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                ),
-              ),
-            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(

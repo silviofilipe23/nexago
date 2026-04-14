@@ -40,6 +40,7 @@ class ArenaSlotDetailPage extends ConsumerWidget {
 
     return AppScaffold(
       title: 'Horário',
+      centerTitle: false,
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),

@@ -39,6 +39,11 @@ class HomePage extends ConsumerWidget {
           orElse: () => <Widget>[],
         ),
         IconButton(
+          tooltip: 'Meu perfil',
+          onPressed: () => context.pushNamed(AppRouteNames.athleteProfile),
+          icon: const Icon(Icons.person_outline_rounded),
+        ),
+        IconButton(
           tooltip: 'Minhas reservas',
           onPressed: () => context.pushNamed(AppRouteNames.myBookings),
           icon: const Icon(Icons.event_note_rounded),

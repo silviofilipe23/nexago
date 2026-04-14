@@ -60,7 +60,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          tooltip: 'Voltar',
+          icon: const Icon(Icons.arrow_back_rounded),
           onPressed: _submitting ? null : () => context.pop(),
         ),
       ),

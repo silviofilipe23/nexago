@@ -8,7 +8,6 @@ import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/domain/arena_court.dart';
 import '../domain/arena_providers.dart';
 import 'widgets/arena_async_state.dart';
-import 'widgets/arena_logout_button.dart';
 
 class ArenaCourtsPage extends ConsumerWidget {
   const ArenaCourtsPage({super.key});
@@ -21,6 +20,7 @@ class ArenaCourtsPage extends ConsumerWidget {
 
     return AppScaffold(
       title: 'Quadras',
+      centerTitle: false,
       actions: [
         IconButton(
           tooltip: 'Nova quadra',
@@ -31,7 +31,6 @@ class ArenaCourtsPage extends ConsumerWidget {
             _openAddCourt(context, ref, arenaId: id);
           },
         ),
-        const ArenaLogoutButton(),
       ],
       body: SafeArea(
         child: FadeSlideIn(

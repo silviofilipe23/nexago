@@ -1,0 +1,9 @@
+{
+  "aps": {
+    "alert": {
+      "title": "Seu jogo começa em breve",
+      "body": "Arena Central • 19:00"
+    },
+    "sound": "default"
+  }
+}

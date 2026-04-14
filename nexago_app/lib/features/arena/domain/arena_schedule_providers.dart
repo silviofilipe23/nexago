@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../arenas/domain/arena_list_item.dart';
 import '../../arenas/domain/arena_slot.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/slots_providers.dart';
@@ -26,6 +27,22 @@ final managedArenaIdProvider = StreamProvider<String?>((ref) {
       .limit(1)
       .snapshots()
       .map((s) => s.docs.isEmpty ? null : s.docs.first.id);
+});
+
+/// Documento completo da arena gerida (logo, capa, contato, etc.).
+final managedArenaDetailProvider =
+    StreamProvider.autoDispose<ArenaListItem?>((ref) {
+  final idAsync = ref.watch(managedArenaIdProvider);
+  return idAsync.when(
+    data: (id) {
+      if (id == null || id.isEmpty) {
+        return Stream<ArenaListItem?>.value(null);
+      }
+      return ref.watch(arenasRepositoryProvider).watchArena(id);
+    },
+    loading: () => Stream<ArenaListItem?>.value(null),
+    error: (_, __) => Stream<ArenaListItem?>.value(null),
+  );
 });
 
 final slotServiceProvider = Provider<SlotService>((ref) {

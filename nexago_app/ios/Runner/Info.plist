@@ -63,6 +63,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>O Nexago precisa acessar suas fotos para definir a foto do perfil.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>O Nexago usa Face ID para proteger o acesso à sua conta neste aparelho.</string>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

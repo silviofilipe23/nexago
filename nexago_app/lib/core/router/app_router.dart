@@ -14,13 +14,21 @@ import '../../features/arena/presentation/arena_bookings_page.dart';
 import '../../features/arena/presentation/arena_courts_page.dart';
 import '../../features/arena/presentation/arena_dashboard_page.dart';
 import '../../features/arena/presentation/arena_schedule_page.dart';
+import '../../features/arena/presentation/arena_edit_profile_page.dart';
+import '../../features/arena/presentation/arena_profile_update_success_page.dart';
+import '../../features/arena/presentation/arena_profile_page.dart';
+import '../../features/arena/presentation/arena_availability_settings_page.dart';
+import '../../features/arena/presentation/arena_availability_slots_success_page.dart';
 import '../../features/arena/presentation/arena_settings_page.dart';
 import '../../features/arena/presentation/arena_slot_detail_page.dart';
 import '../../features/arena/presentation/arena_shell_page.dart';
 import '../../features/arena/domain/arena_slot_detail_args.dart';
 import '../../features/arenas/presentation/my_bookings_page.dart';
 import '../../features/arena/domain/arena_route_guard.dart';
-import '../../features/home/home_page.dart';
+import '../../features/athlete/presentation/athlete_edit_profile_page.dart';
+import '../../features/athlete/presentation/athlete_profile_page.dart';
+import '../../features/athlete/presentation/athlete_profile_update_success_page.dart';
+import '../../features/athlete/presentation/athlete_shell_page.dart';
 import '../auth/auth_providers.dart';
 import '../auth/user_roles.dart';
 import 'go_router_refresh.dart';
@@ -101,12 +109,37 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.discover,
         name: AppRouteNames.discover,
-        builder: (context, state) => const HomePage(),
+        builder: (context, state) {
+          final tab = state.uri.queryParameters['tab']?.trim().toLowerCase();
+          final initialIndex = switch (tab) {
+            'agenda' => 1,
+            'reservar' => 2,
+            'feed' => 3,
+            'perfil' || 'profile' => 4,
+            _ => 0,
+          };
+          return AthleteShellPage(initialIndex: initialIndex);
+        },
       ),
       GoRoute(
         path: AppRoutes.myBookings,
         name: AppRouteNames.myBookings,
         builder: (context, state) => const MyBookingsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteProfile,
+        name: AppRouteNames.athleteProfile,
+        builder: (context, state) => const AthleteProfilePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteProfileEdit,
+        name: AppRouteNames.athleteProfileEdit,
+        builder: (context, state) => const AthleteEditProfilePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteProfileUpdateSuccess,
+        name: AppRouteNames.athleteProfileUpdateSuccess,
+        builder: (context, state) => const AthleteProfileUpdateSuccessPage(),
       ),
       GoRoute(
         path: '/arena',
@@ -188,6 +221,31 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
+        path: AppRoutes.arenaProfile,
+        name: AppRouteNames.arenaProfile,
+        builder: (context, state) => const ArenaProfilePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaProfileEdit,
+        name: AppRouteNames.arenaProfileEdit,
+        builder: (context, state) => const ArenaEditProfilePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaProfileUpdateSuccess,
+        name: AppRouteNames.arenaProfileUpdateSuccess,
+        builder: (context, state) => const ArenaProfileUpdateSuccessPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaAvailabilitySettings,
+        name: AppRouteNames.arenaAvailabilitySettings,
+        builder: (context, state) => const ArenaAvailabilitySettingsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaAvailabilitySlotsSuccess,
+        name: AppRouteNames.arenaAvailabilitySlotsSuccess,
+        builder: (context, state) => const ArenaAvailabilitySlotsSuccessPage(),
+      ),
+      GoRoute(
         path: AppRoutes.arenaDetail,
         name: AppRouteNames.arenaDetail,
         builder: (context, state) {
@@ -207,9 +265,27 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final arenaId = state.pathParameters['arenaId']!;
           final extra = state.extra;
           final initial = extra is ArenaListItem ? extra : null;
+          final query = state.uri.queryParameters;
+          final initialCourtId = query['courtId']?.trim();
+          final initialStartTime = query['startTime']?.trim();
+          final rawDate = query['date']?.trim();
+          DateTime? initialDate;
+          if (rawDate != null && rawDate.length >= 10) {
+            final parsed = DateTime.tryParse(rawDate.substring(0, 10));
+            if (parsed != null) {
+              initialDate = DateTime(parsed.year, parsed.month, parsed.day);
+            }
+          }
           return SlotsPage(
             arenaId: arenaId,
             initialArena: initial?.id == arenaId ? initial : null,
+            initialDate: initialDate,
+            initialCourtId: (initialCourtId == null || initialCourtId.isEmpty)
+                ? null
+                : initialCourtId,
+            initialStartTime: (initialStartTime == null || initialStartTime.isEmpty)
+                ? null
+                : initialStartTime,
           );
         },
       ),

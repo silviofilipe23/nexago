@@ -10,6 +10,19 @@
     - Orbs: parallax no scroll via refs no TS
   -->
   <div class="hero-bg-stack pointer-events-none absolute inset-0" aria-hidden="true">
+    <div class="hero-bg-video-wrap hidden md:block">
+      <video
+        #heroScrollVideo
+        class="hero-bg-video"
+        muted
+        playsinline
+        preload="auto"
+        aria-label="Vídeo da experiência NexaGO controlado por rolagem"
+      >
+        <source src="../assets/output-all-keyframes.mp4" type="video/mp4" />
+      </video>
+    </div>
+    <div class="hero-bg-video-shade"></div>
     <div class="hero-bg-grid hero-bg-grid--deep" data-hero-parallax></div>
     <div class="hero-bg-noise"></div>
     <div class="hero-bg-aurora"></div>
@@ -42,10 +55,10 @@
 
   <div class="hero-shell relative z-10 mx-auto flex min-h-[100dvh] max-w-[1440px] flex-col px-4 pb-28 pt-14 md:px-6 md:pb-24 md:pt-20 lg:pb-20">
     <div
-      class="hero-grid flex min-h-0 flex-1 flex-col gap-12 lg:grid lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-center lg:gap-16 xl:gap-20"
+      class="hero-grid flex min-h-0 flex-1 flex-col justify-center"
     >
       <!-- Coluna copy -->
-      <div class="hero-copy flex flex-col justify-center text-left lg:pt-4">
+      <div class="hero-copy flex max-w-2xl flex-col justify-center text-left lg:pt-4">
         <p
           #heroUrgency
           class="hero-urgency mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-amber-400/25 bg-amber-500/[0.07] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-amber-200/95"
@@ -121,48 +134,6 @@
         </p>
       </div>
 
-      <!-- Coluna visual -->
-      <div
-        #heroPreview
-        class="hero-visual relative min-h-0 lg:flex lg:justify-end"
-        aria-label="Destaques do hub NexaGO"
-      >
-        <div class="hero-visual__panel w-full max-w-xl lg:max-w-none">
-          <p class="hero-visual__label mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 lg:text-right">
-            Arenas em destaque agora
-          </p>
-          <div class="hero-preview-grid">
-            @for (arena of previewArenas; track arena.id) {
-              <div class="hero-preview-tilt min-w-0">
-                <article
-                  class="hero-preview-card-inner glass-panel relative h-full overflow-hidden rounded-2xl border border-white/[0.09] p-5 text-left shadow-[0_24px_56px_-28px_rgba(0,0,0,0.75)]"
-                >
-                  <div class="hero-card-glow pointer-events-none absolute inset-0 opacity-70" aria-hidden="true"></div>
-                  <div class="relative flex items-start justify-between gap-2">
-                    <h3 class="text-sm font-semibold leading-snug text-white">{{ arena.name }}</h3>
-                    <span
-                      class="shrink-0 rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300"
-                    >
-                      Aberto
-                    </span>
-                  </div>
-                  <p class="relative mt-1 text-xs text-slate-500">{{ arena.city }}, {{ arena.state }}</p>
-                  <p class="relative mt-4 text-lg font-semibold text-violet-200">
-                    R$ {{ arena.pricePerHourReais }}
-                    <span class="text-xs font-normal text-slate-500">/hora</span>
-                  </p>
-                  <a
-                    class="relative mt-3 inline-flex text-xs font-medium text-sky-300/95 transition hover:text-sky-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
-                    [href]="links.reserve"
-                  >
-                    Ver horários →
-                  </a>
-                </article>
-              </div>
-            }
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 

@@ -2,10 +2,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/auth/auth_providers.dart';
+import 'core/biometric/biometric_app_gate.dart';
 import 'core/notifications/notification_navigation.dart';
 import 'core/notifications/notification_providers.dart';
 import 'core/notifications/notification_service.dart';
@@ -82,11 +84,22 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
   Widget build(BuildContext context) {
     final router = ref.watch(goRouterProvider);
 
-    return MaterialApp.router(
-      title: AppStrings.appName,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      routerConfig: router,
+    return BiometricAppGate(
+      child: MaterialApp.router(
+        title: AppStrings.appName,
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light,
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('pt', 'BR'),
+          Locale('en'),
+        ],
+        routerConfig: router,
+      ),
     );
   }
 }

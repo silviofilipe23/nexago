@@ -13,6 +13,8 @@ class MyBookingItem {
     required this.startTime,
     required this.endTime,
     required this.rawStatus,
+    this.amountReais,
+    this.paymentType,
     this.createdAt,
   });
 
@@ -27,6 +29,8 @@ class MyBookingItem {
   final String startTime;
   final String endTime;
   final String rawStatus;
+  final double? amountReais;
+  final String? paymentType;
   final DateTime? createdAt;
 
   factory MyBookingItem.fromFirestore(
@@ -56,6 +60,13 @@ class MyBookingItem {
       createdAt = created.toDate();
     }
 
+    final amountReais = (data['amountReais'] as num?)?.toDouble() ??
+        (data['priceReais'] as num?)?.toDouble();
+    final paymentTypeRaw = data['paymentType'] ?? data['paymentMethod'];
+    final paymentType = paymentTypeRaw is String && paymentTypeRaw.trim().isNotEmpty
+        ? paymentTypeRaw.trim()
+        : null;
+
     final arena = data['arenaName'] ?? data['arena'];
     final arenaName = arena is String && arena.trim().isNotEmpty ? arena.trim() : 'Arena';
     final courtRaw = data['courtName'] ?? data['court'];
@@ -83,6 +94,8 @@ class MyBookingItem {
       startTime: start,
       endTime: end,
       rawStatus: status,
+      amountReais: amountReais,
+      paymentType: paymentType,
       createdAt: createdAt,
     );
   }

@@ -7,14 +7,12 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_providers.dart';
 import 'widgets/arena_async_state.dart';
-import 'widgets/arena_logout_button.dart';
 
 class ArenaBookingsPage extends ConsumerWidget {
   const ArenaBookingsPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watch(arenaModuleConfigProvider);
     final managed = ref.watch(managedArenaIdProvider);
     final mode = ref.watch(bookingViewModeProvider);
     final filterDate = ref.watch(arenaBookingsFilterDateProvider);
@@ -25,35 +23,11 @@ class ArenaBookingsPage extends ConsumerWidget {
 
     return AppScaffold(
       title: 'Reservas',
-      actions: const [ArenaLogoutButton()],
+      centerTitle: false,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-              child: Text(
-                config.title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.3,
-                    ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                mode == BookingViewMode.today
-                    ? 'Reservas recebidas'
-                    : 'Próximas reservas (a partir de hoje)',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.55),
-                    ),
-              ),
-            ),
             const SizedBox(height: 14),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),

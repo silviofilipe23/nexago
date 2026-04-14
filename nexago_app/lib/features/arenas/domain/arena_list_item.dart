@@ -13,6 +13,14 @@ class ArenaListItem {
     required this.pricePerHourReais,
     this.description,
     this.galleryImageUrls = const [],
+    this.phone,
+    this.whatsapp,
+    this.addressLine,
+    this.city,
+    this.state,
+    this.courtTypes = const [],
+    this.onlinePaymentEnabled = true,
+    this.onsitePaymentEnabled = true,
   });
 
   final String id;
@@ -22,6 +30,25 @@ class ArenaListItem {
   final String? logoUrl;
   final double pricePerHourReais;
   final String? description;
+
+  /// Telefone de contato (`phone`, `phoneNumber`… no Firestore).
+  final String? phone;
+
+  /// WhatsApp (`whatsapp`, `whatsApp`…).
+  final String? whatsapp;
+
+  /// Endereço em linha (`address`, `streetAddress`…), se existir.
+  final String? addressLine;
+
+  /// Cidade e estado persistidos (quando existirem no documento).
+  final String? city;
+  final String? state;
+
+  /// Tipos de quadra oferecidos pela arena (lista editável no painel).
+  final List<String> courtTypes;
+
+  final bool onlinePaymentEnabled;
+  final bool onsitePaymentEnabled;
 
   /// Compatibilidade com código legado.
   String get imageUrl => coverUrl ?? kDefaultImageUrl;
@@ -80,6 +107,33 @@ class ArenaListItem {
 
     final description = data['description'] as String?;
 
+    String? phone;
+    for (final key in ['phone', 'phoneNumber', 'telefone', 'mobile']) {
+      final v = data[key];
+      if (v is String && v.trim().isNotEmpty) {
+        phone = v.trim();
+        break;
+      }
+    }
+
+    String? whatsapp;
+    for (final key in ['whatsapp', 'whatsApp', 'whatsappNumber']) {
+      final v = data[key];
+      if (v is String && v.trim().isNotEmpty) {
+        whatsapp = v.trim();
+        break;
+      }
+    }
+
+    String? addressLine;
+    for (final key in ['address', 'streetAddress', 'street', 'fullAddress']) {
+      final v = data[key];
+      if (v is String && v.trim().isNotEmpty) {
+        addressLine = v.trim();
+        break;
+      }
+    }
+
     final gallery = <String>[];
     final rawGallery = data['galleryImageUrls'] ?? data['images'] ?? data['gallery'];
     if (rawGallery is List) {
@@ -87,6 +141,36 @@ class ArenaListItem {
         if (e is String && e.trim().isNotEmpty) gallery.add(e.trim());
       }
     }
+
+    final courtTypes = <String>[];
+    final rawCourtTypes =
+        data['courtTypes'] ?? data['court_type_labels'] ?? data['sportTypes'];
+    if (rawCourtTypes is List) {
+      for (final e in rawCourtTypes) {
+        if (e is String && e.trim().isNotEmpty) {
+          courtTypes.add(e.trim());
+        }
+      }
+    }
+
+    bool readBool(dynamic v, {required bool defaultValue}) {
+      if (v is bool) return v;
+      return defaultValue;
+    }
+
+    final onlinePayment = readBool(
+      data['onlinePaymentEnabled'] ?? data['acceptOnlinePayment'],
+      defaultValue: true,
+    );
+    final onsitePayment = readBool(
+      data['onsitePaymentEnabled'] ??
+          data['acceptOnsitePayment'] ??
+          data['payAtVenue'],
+      defaultValue: true,
+    );
+
+    final cityValue = city.isEmpty ? null : city;
+    final stateValue = state.isEmpty ? null : state;
 
     return ArenaListItem(
       id: doc.id,
@@ -97,6 +181,14 @@ class ArenaListItem {
       pricePerHourReais: price,
       description: description,
       galleryImageUrls: gallery,
+      phone: phone,
+      whatsapp: whatsapp,
+      addressLine: addressLine,
+      city: cityValue,
+      state: stateValue,
+      courtTypes: courtTypes,
+      onlinePaymentEnabled: onlinePayment,
+      onsitePaymentEnabled: onsitePayment,
     );
   }
 }

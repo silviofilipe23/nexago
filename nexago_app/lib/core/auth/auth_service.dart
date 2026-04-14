@@ -34,4 +34,20 @@ class AuthService {
   }
 
   Future<void> signOut() => _auth.signOut();
+
+  /// Reautenticação com e-mail/senha (ex.: desbloqueio quando Face ID não é usado).
+  Future<void> reauthenticateWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw StateError('Nenhum usuário autenticado.');
+    }
+    final cred = EmailAuthProvider.credential(
+      email: email.trim(),
+      password: password,
+    );
+    return user.reauthenticateWithCredential(cred);
+  }
 }

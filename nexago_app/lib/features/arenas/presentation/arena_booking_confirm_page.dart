@@ -13,6 +13,7 @@ import '../../../core/ui/fade_slide_in.dart';
 import '../data/booking_service.dart';
 import '../data/payment_service.dart';
 import '../domain/arena_booking_confirm_args.dart';
+import '../domain/arenas_providers.dart';
 import '../domain/booking_providers.dart';
 import '../domain/payment_providers.dart';
 import 'booking_success_page.dart';
@@ -29,7 +30,7 @@ class ArenaBookingConfirmPage extends ConsumerStatefulWidget {
   final ArenaBookingConfirmArgs? args;
 
   @override
-      ConsumerState<ArenaBookingConfirmPage> createState() =>
+  ConsumerState<ArenaBookingConfirmPage> createState() =>
       _ArenaBookingConfirmPageState();
 }
 
@@ -52,6 +53,7 @@ class _ArenaBookingConfirmPageState extends ConsumerState<ArenaBookingConfirmPag
   );
 
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
+  static final _dateTimeFmt = DateFormat("yyyy-MM-dd HH:mm");
 
   Future<void> _payNowWithMercadoPago(ArenaBookingConfirmArgs args) async {
     final user = ref.read(authServiceProvider).currentUser;
@@ -182,9 +184,25 @@ class _ArenaBookingConfirmPageState extends ConsumerState<ArenaBookingConfirmPag
     }
   }
 
+  /// Alinhado a [ArenaListItem] (`onsitePaymentEnabled` / `onlinePaymentEnabled` no Firestore).
+  _PaymentChoice _effectivePaymentChoice({
+    required bool onsiteEnabled,
+    required bool onlineEnabled,
+  }) {
+    if (onsiteEnabled && !onlineEnabled) return _PaymentChoice.atVenue;
+    if (!onsiteEnabled && onlineEnabled) return _PaymentChoice.payNow;
+    return _paymentChoice;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final arenaAsync = ref.watch(arenaByIdProvider(widget.arenaId));
+    final arena = arenaAsync.asData?.value;
+    final onsiteEnabled = arena?.onsitePaymentEnabled ?? true;
+    final onlineEnabled = arena?.onlinePaymentEnabled ?? true;
+    final canPayHere = onsiteEnabled || onlineEnabled;
+
     final state = GoRouterState.of(context);
     final fromExtra = widget.args ??
         (state.extra is ArenaBookingConfirmArgs ? state.extra! as ArenaBookingConfirmArgs : null);
@@ -212,6 +230,10 @@ class _ArenaBookingConfirmPageState extends ConsumerState<ArenaBookingConfirmPag
 
     final timeRange = '${args.startTime} – ${args.endTime}';
     final dateLabel = _dateFmt.format(args.date);
+    final startAt = _parseStartDateTime(args.dateKey, args.startTime);
+    final minutesUntilStart = startAt?.difference(DateTime.now()).inMinutes;
+    final showLeaveNowHint =
+        (minutesUntilStart ?? -1) >= 0 && (minutesUntilStart ?? -1) <= 30;
 
     return AppScaffold(
       title: 'Confirmar reserva',
@@ -262,6 +284,44 @@ class _ArenaBookingConfirmPageState extends ConsumerState<ArenaBookingConfirmPag
                         value: _currency.format(args.amountReais),
                         emphasize: true,
                       ),
+                      if (showLeaveNowHint) ...[
+                        const SizedBox(height: 14),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            color: AppColors.brand.withValues(alpha: 0.08),
+                            border: Border.all(
+                              color: AppColors.brand.withValues(alpha: 0.25),
+                            ),
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(Icons.directions_run_rounded, size: 20),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Seu jogo começa em 30min',
+                                        style: TextStyle(fontWeight: FontWeight.w700),
+                                      ),
+                                      SizedBox(height: 2),
+                                      Text('Saia agora para chegar a tempo'),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 24),
                       Text(
                         'Forma de pagamento',
@@ -272,48 +332,136 @@ class _ArenaBookingConfirmPageState extends ConsumerState<ArenaBookingConfirmPag
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Escolha pagar no local ou iniciar o pagamento online (Mercado Pago).',
+                        onsiteEnabled && onlineEnabled
+                            ? 'Escolha pagar no local ou iniciar o pagamento online (Mercado Pago).'
+                            : onsiteEnabled && !onlineEnabled
+                                ? 'Esta arena aceita pagamento no local.'
+                                : !onsiteEnabled && onlineEnabled
+                                    ? 'Esta arena aceita pagamento online (Mercado Pago).'
+                                    : 'Esta arena não configurou formas de pagamento no app.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
                           height: 1.35,
                         ),
                       ),
                       const SizedBox(height: 14),
-                      SegmentedButton<_PaymentChoice>(
-                        showSelectedIcon: false,
-                        segments: const <ButtonSegment<_PaymentChoice>>[
-                          ButtonSegment<_PaymentChoice>(
-                            value: _PaymentChoice.atVenue,
-                            label: Text('Pagar no local'),
-                            icon: Icon(Icons.storefront_outlined, size: 20),
+                      if (!canPayHere)
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            color: theme.colorScheme.errorContainer.withValues(alpha: 0.35),
+                            border: Border.all(
+                              color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                            ),
                           ),
-                          ButtonSegment<_PaymentChoice>(
-                            value: _PaymentChoice.payNow,
-                            label: Text('Pagar agora'),
-                            icon: Icon(Icons.payment_outlined, size: 20),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.payments_outlined,
+                                  color: theme.colorScheme.error,
+                                  size: 22,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Não é possível concluir a reserva por aqui. Fale com a arena.',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onErrorContainer,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ],
-                        selected: <_PaymentChoice>{_paymentChoice},
-                        onSelectionChanged: _submitting
-                            ? null
-                            : (Set<_PaymentChoice> next) {
-                                if (next.isEmpty) return;
-                                setState(() => _paymentChoice = next.first);
-                              },
-                      ),
+                        )
+                      else if (onsiteEnabled && onlineEnabled)
+                        SegmentedButton<_PaymentChoice>(
+                          showSelectedIcon: false,
+                          segments: const <ButtonSegment<_PaymentChoice>>[
+                            ButtonSegment<_PaymentChoice>(
+                              value: _PaymentChoice.atVenue,
+                              label: Text('Pagar no local'),
+                              icon: Icon(Icons.storefront_outlined, size: 20),
+                            ),
+                            ButtonSegment<_PaymentChoice>(
+                              value: _PaymentChoice.payNow,
+                              label: Text('Pagar agora'),
+                              icon: Icon(Icons.payment_outlined, size: 20),
+                            ),
+                          ],
+                          selected: <_PaymentChoice>{_paymentChoice},
+                          onSelectionChanged: _submitting
+                              ? null
+                              : (Set<_PaymentChoice> next) {
+                                  if (next.isEmpty) return;
+                                  setState(() => _paymentChoice = next.first);
+                                },
+                        )
+                      else
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                            ),
+                            color: theme.colorScheme.surfaceContainerHighest.withValues(
+                              alpha: 0.4,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  onsiteEnabled
+                                      ? Icons.storefront_outlined
+                                      : Icons.payment_outlined,
+                                  size: 22,
+                                  color: AppColors.brand.withValues(alpha: 0.9),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    onsiteEnabled
+                                        ? 'Pagamento no local da arena ao utilizar a quadra.'
+                                        : 'Pagamento online via Mercado Pago após confirmar.',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 28),
                       SizedBox(
                         height: 54,
                         child: FilledButton(
-                          onPressed: _submitting
-                              ? null
-                              : () {
-                                  if (_paymentChoice == _PaymentChoice.payNow) {
+                          onPressed: !_submitting && canPayHere
+                              ? () {
+                                  final choice = _effectivePaymentChoice(
+                                    onsiteEnabled: onsiteEnabled,
+                                    onlineEnabled: onlineEnabled,
+                                  );
+                                  if (choice == _PaymentChoice.payNow) {
                                     _payNowWithMercadoPago(args);
                                   } else {
                                     _finalizeBookingPayAtArena(args);
                                   }
-                                },
+                                }
+                              : null,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.brand,
                             shape: RoundedRectangleBorder(
@@ -363,6 +511,11 @@ class _ArenaBookingConfirmPageState extends ConsumerState<ArenaBookingConfirmPag
         ),
       ),
     );
+  }
+
+  DateTime? _parseStartDateTime(String dateKey, String startTime) {
+    if (dateKey.trim().isEmpty || startTime.trim().isEmpty) return null;
+    return _dateTimeFmt.tryParse('${dateKey.trim()} ${startTime.trim()}');
   }
 }
 

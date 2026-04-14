@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'dart:async';
 
 import '../../arena/domain/arena_manager_booking.dart';
 import '../domain/arena_booking_confirm_args.dart';
@@ -33,16 +34,56 @@ class BookingService {
     if (athleteId.isEmpty) {
       return Stream<List<MyBookingItem>>.value(const []);
     }
+    final byAthleteId = _watchMyBookingsByField('athleteId', athleteId);
+    final byBookingAthleteId = _watchMyBookingsByField('bookingAthleteId', athleteId);
+
+    return Stream<List<MyBookingItem>>.multi((controller) {
+      List<MyBookingItem> latestA = const [];
+      List<MyBookingItem> latestB = const [];
+
+      void emitMerged() {
+        final byId = <String, MyBookingItem>{};
+        for (final item in latestA) {
+          byId[item.id] = item;
+        }
+        for (final item in latestB) {
+          byId[item.id] = item;
+        }
+        final merged = byId.values.toList()
+          ..sort((a, b) => b.sortMillis.compareTo(a.sortMillis));
+        controller.add(merged);
+      }
+
+      final subA = byAthleteId.listen(
+        (items) {
+          latestA = items;
+          emitMerged();
+        },
+        onError: controller.addError,
+      );
+
+      final subB = byBookingAthleteId.listen(
+        (items) {
+          latestB = items;
+          emitMerged();
+        },
+        onError: controller.addError,
+      );
+
+      controller.onCancel = () async {
+        await subA.cancel();
+        await subB.cancel();
+      };
+    });
+  }
+
+  Stream<List<MyBookingItem>> _watchMyBookingsByField(String field, String athleteId) {
     return _firestore
         .collection(arenaBookingsCollection)
-        .where('athleteId', isEqualTo: athleteId)
+        .where(field, isEqualTo: athleteId)
         .limit(_myBookingsLimit)
         .snapshots()
-        .map((snapshot) {
-      final list = snapshot.docs.map(MyBookingItem.fromFirestore).toList();
-      list.sort((a, b) => b.sortMillis.compareTo(a.sortMillis));
-      return list;
-    });
+        .map((snapshot) => snapshot.docs.map(MyBookingItem.fromFirestore).toList());
   }
 
   /// Todas as reservas da arena (gestor); filtro por dia fica na UI.

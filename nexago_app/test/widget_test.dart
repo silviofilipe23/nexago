@@ -1,4 +1,5 @@
 import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -26,7 +27,7 @@ void main() {
     expect(find.text('Criar conta'), findsOneWidget);
   });
 
-  testWidgets('Com sessão: exibe HomePage', (WidgetTester tester) async {
+  testWidgets('Com sessão: exibe AthleteShellPage', (WidgetTester tester) async {
     final mockAuth = MockFirebaseAuth(
       signedIn: true,
       mockUser: MockUser(
@@ -47,8 +48,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Descobrir'), findsOneWidget);
-    expect(find.text('Quadras perto de você'), findsOneWidget);
-    expect(find.text('test@example.com'), findsOneWidget);
+    expect(find.byType(BottomNavigationBar), findsOneWidget);
+    expect(find.text('Início'), findsWidgets);
+    expect(find.text('Perfil'), findsOneWidget);
   });
 }

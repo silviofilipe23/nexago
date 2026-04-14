@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/layout/app_scaffold.dart';
+import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_providers.dart';
@@ -19,7 +21,8 @@ class ArenaBookingsPage extends ConsumerWidget {
     final todayList = ref.watch(arenaBookingsFilteredProvider);
     final groupedFuture = ref.watch(arenaFutureBookingsGroupedProvider);
 
-    final dateTitle = DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(filterDate);
+    final dateTitle =
+        DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(filterDate);
 
     return AppScaffold(
       title: 'Reservas',
@@ -45,7 +48,8 @@ class ArenaBookingsPage extends ConsumerWidget {
                   final picked = await showDatePicker(
                     context: context,
                     initialDate: filterDate,
-                    firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                    firstDate:
+                        DateTime.now().subtract(const Duration(days: 365)),
                     lastDate: DateTime.now().add(const Duration(days: 365)),
                   );
                   if (picked != null) {
@@ -66,7 +70,8 @@ class ArenaBookingsPage extends ConsumerWidget {
                   if (arenaId == null || arenaId.isEmpty) {
                     return const ArenaEmptyState(
                       title: 'Arena não encontrada',
-                      message: 'Nenhuma arena vinculada ao seu usuário como gestor.',
+                      message:
+                          'Nenhuma arena vinculada ao seu usuário como gestor.',
                       icon: Icons.store_mall_directory_outlined,
                     );
                   }
@@ -85,7 +90,8 @@ class ArenaBookingsPage extends ConsumerWidget {
                             padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
                             physics: const BouncingScrollPhysics(),
                             itemCount: bookings.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 12),
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 12),
                             itemBuilder: (context, index) {
                               return staggeredFadeSlide(
                                 index: index,
@@ -94,8 +100,8 @@ class ArenaBookingsPage extends ConsumerWidget {
                             },
                           );
                         },
-                        loading: () =>
-                            const ArenaLoadingState(label: 'Carregando reservas...'),
+                        loading: () => const ArenaLoadingState(
+                            label: 'Carregando reservas...'),
                         error: (e, _) => ArenaErrorState(
                           message: 'Erro ao carregar reservas.\n$e',
                         ),
@@ -122,7 +128,8 @@ class ArenaBookingsPage extends ConsumerWidget {
                                     top: flat.sectionIndex > 0 ? 20 : 0,
                                     bottom: 10,
                                   ),
-                                  child: _DateSectionHeader(title: flat.headerTitle!),
+                                  child: _DateSectionHeader(
+                                      title: flat.headerTitle!),
                                 );
                               }
                               return Padding(
@@ -135,15 +142,16 @@ class ArenaBookingsPage extends ConsumerWidget {
                             },
                           );
                         },
-                        loading: () =>
-                            const ArenaLoadingState(label: 'Carregando reservas...'),
+                        loading: () => const ArenaLoadingState(
+                            label: 'Carregando reservas...'),
                         error: (e, _) => ArenaErrorState(
                           message: 'Erro ao carregar reservas.\n$e',
                         ),
                       ),
                   };
                 },
-                loading: () => const ArenaLoadingState(label: 'Carregando arena...'),
+                loading: () =>
+                    const ArenaLoadingState(label: 'Carregando arena...'),
                 error: (e, _) => ArenaErrorState(message: '$e'),
               ),
             ),
@@ -309,7 +317,8 @@ class _DateFilterBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Material(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        color:
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onPickDate,
@@ -331,7 +340,8 @@ class _DateFilterBar extends StatelessWidget {
                       Text(
                         'Filtrar por data',
                         style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: 0.55),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -383,84 +393,95 @@ class _BookingCard extends ConsumerWidget {
           color: theme.colorScheme.outline.withValues(alpha: 0.12),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 4,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    borderRadius: BorderRadius.circular(4),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () {
+          context.pushNamed(
+            AppRouteNames.arenaBookingDetail,
+            pathParameters: {'bookingId': booking.id},
+            extra: booking,
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 4,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      nameAsync.when(
-                        data: (name) => Text(
-                          name,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        nameAsync.when(
+                          data: (name) => Text(
+                            name,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          loading: () => Text(
+                            'Carregando…',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              color: theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.45),
+                            ),
+                          ),
+                          error: (_, __) => Text(
+                            '—',
+                            style: theme.textTheme.titleMedium,
                           ),
                         ),
-                        loading: () => Text(
-                          'Carregando…',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${booking.startTime} – ${booking.endTime}',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: theme.colorScheme.primary,
+                            letterSpacing: 0.2,
                           ),
                         ),
-                        error: (_, __) => Text(
-                          '—',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${booking.startTime} – ${booking.endTime}',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: theme.colorScheme.primary,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                _InfoChip(
-                  icon: Icons.sports_tennis_outlined,
-                  label: 'Quadra',
-                  value: booking.courtName,
-                ),
-                _InfoChip(
-                  icon: Icons.flag_outlined,
-                  label: 'Status',
-                  value: statusLabel,
-                ),
-                _InfoChip(
-                  icon: Icons.payments_outlined,
-                  label: 'Pagamento',
-                  value: paymentLabel,
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _InfoChip(
+                    icon: Icons.sports_tennis_outlined,
+                    label: 'Quadra',
+                    value: booking.courtName,
+                  ),
+                  _InfoChip(
+                    icon: Icons.flag_outlined,
+                    label: 'Status',
+                    value: statusLabel,
+                  ),
+                  _InfoChip(
+                    icon: Icons.payments_outlined,
+                    label: 'Pagamento',
+                    value: paymentLabel,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -498,7 +519,9 @@ class _InfoChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: theme.colorScheme.onSurface.withValues(alpha: 0.55)),
+          Icon(icon,
+              size: 16,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.55)),
           const SizedBox(width: 8),
           Flexible(
             child: Column(

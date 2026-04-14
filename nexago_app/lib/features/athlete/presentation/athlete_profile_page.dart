@@ -17,21 +17,104 @@ import '../domain/athlete_profile_providers.dart';
 /// Se [embedded] for true (ex.: aba do [AthleteShellPage]), não renderiza
 /// [Scaffold] nem [AppBar] — o contêiner pai fornece o layout.
 class AthleteProfilePage extends ConsumerWidget {
-  const AthleteProfilePage({super.key, this.embedded = false});
+  const AthleteProfilePage({
+    super.key,
+    this.embedded = false,
+    this.viewedUserId,
+  });
 
   /// Quando `true`, apenas o conteúdo do perfil (sem barra superior).
   final bool embedded;
+
+  /// Se preenchido, exibe o perfil deste atleta (somente leitura), ex.: gestor.
+  final String? viewedUserId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final user = ref.watch(authProvider).valueOrNull;
-    final profileAsync = ref.watch(athleteProfileProvider);
-    final bookingsAsync = ref.watch(myBookingsStreamProvider);
+    final viewed = viewedUserId?.trim();
 
     Widget bodyNotSignedIn() {
       return const Center(child: Text('Faça login para ver seu perfil.'));
     }
+
+    if (viewed != null && viewed.isNotEmpty) {
+      final profileAsync = ref.watch(athleteProfileByIdProvider(viewed));
+      final emailAsync = ref.watch(athleteUserEmailProvider(viewed));
+
+      Widget bodyOther() {
+        if (user == null) return bodyNotSignedIn();
+        return profileAsync.when(
+          data: (doc) {
+            final profile = doc ??
+                AthleteProfile(
+                  id: viewed,
+                  name: 'Atleta',
+                  sport: '',
+                  level: '',
+                  city: '',
+                );
+            final email = emailAsync.maybeWhen(
+              data: (e) => e,
+              orElse: () => null,
+            );
+            return _AthleteProfileBody(
+              profile: profile,
+              email: email,
+              totalBookings: 0,
+              nextBooking: null,
+              readOnly: true,
+              onEdit: () {},
+              onOpenAgenda: () {},
+              onOpenSettings: () {},
+              onSignOut: () async {},
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Não foi possível carregar o perfil.\n$e',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
+      if (embedded) {
+        return ColoredBox(
+          color: theme.colorScheme.surfaceContainerLowest,
+          child: bodyOther(),
+        );
+      }
+
+      return Scaffold(
+        backgroundColor: theme.colorScheme.surfaceContainerLowest,
+        appBar: AppBar(
+          title: const Text('Perfil do atleta'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go(AppRoutes.discover);
+              }
+            },
+          ),
+        ),
+        body: bodyOther(),
+      );
+    }
+
+    final profileAsync = ref.watch(athleteProfileProvider);
+    final bookingsAsync = ref.watch(myBookingsStreamProvider);
 
     Widget bodyContent() {
       if (user == null) return bodyNotSignedIn();
@@ -44,6 +127,7 @@ class AthleteProfilePage extends ConsumerWidget {
               email: user.email,
               totalBookings: _countCompletedBookings(bookings),
               nextBooking: _findNextBooking(bookings),
+              readOnly: false,
               onEdit: () => context.pushNamed(AppRouteNames.athleteProfileEdit),
               onOpenAgenda: () => context.pushNamed(AppRouteNames.myBookings),
               onOpenSettings: () {
@@ -138,6 +222,7 @@ class _AthleteProfileBody extends StatelessWidget {
     required this.email,
     required this.totalBookings,
     required this.nextBooking,
+    this.readOnly = false,
     required this.onEdit,
     required this.onOpenAgenda,
     required this.onOpenSettings,
@@ -148,6 +233,7 @@ class _AthleteProfileBody extends StatelessWidget {
   final String? email;
   final int totalBookings;
   final MyBookingItem? nextBooking;
+  final bool readOnly;
   final VoidCallback onEdit;
   final VoidCallback onOpenAgenda;
   final VoidCallback onOpenSettings;
@@ -199,11 +285,12 @@ class _AthleteProfileBody extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 14),
-              OutlinedButton.icon(
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                label: const Text('Editar perfil'),
-              ),
+              if (!readOnly)
+                OutlinedButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Editar perfil'),
+                ),
               if (bio != null && bio.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text(
@@ -215,12 +302,15 @@ class _AthleteProfileBody extends StatelessWidget {
                   ),
                 ),
               ],
-              const SizedBox(height: 28),
-              _SummaryCard(
-                totalBookings: totalBookings,
-                nextBooking: nextBooking,
-              ),
-              const SizedBox(height: 20),
+              if (!readOnly) ...[
+                const SizedBox(height: 28),
+                _SummaryCard(
+                  totalBookings: totalBookings,
+                  nextBooking: nextBooking,
+                ),
+                const SizedBox(height: 20),
+              ] else
+                const SizedBox(height: 8),
               _InfoTile(
                 icon: Icons.sports_volleyball_outlined,
                 label: 'Esporte',
@@ -252,19 +342,21 @@ class _AthleteProfileBody extends StatelessWidget {
               //   label: 'Minha agenda',
               //   onTap: onOpenAgenda,
               // ),
-              const SizedBox(height: 10),
-              _ActionItem(
-                icon: Icons.settings_outlined,
-                label: 'Configurações',
-                onTap: onOpenSettings,
-              ),
-              const SizedBox(height: 10),
-              _ActionItem(
-                icon: Icons.logout_rounded,
-                label: 'Sair da conta',
-                onTap: onSignOut,
-                danger: true,
-              ),
+              if (!readOnly) ...[
+                const SizedBox(height: 10),
+                _ActionItem(
+                  icon: Icons.settings_outlined,
+                  label: 'Configurações',
+                  onTap: onOpenSettings,
+                ),
+                const SizedBox(height: 10),
+                _ActionItem(
+                  icon: Icons.logout_rounded,
+                  label: 'Sair da conta',
+                  onTap: onSignOut,
+                  danger: true,
+                ),
+              ],
             ],
           ),
         ),

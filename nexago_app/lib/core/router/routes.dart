@@ -29,6 +29,10 @@ abstract final class AppRoutes {
   static const String arenaSchedule = '/arena/schedule';
   static const String arenaCourts = '/arena/courts';
   static const String arenaBookings = '/arena/bookings';
+
+  /// Detalhe de reserva (gestor): `/arena/bookings/detail/:bookingId`
+  static const String arenaBookingDetail = '/arena/bookings/detail/:bookingId';
+
   static const String arenaSettings = '/arena/settings';
 
   /// Disponibilidade / horários na agenda (gestor). Antes de [arenaDetail].
@@ -83,6 +87,7 @@ abstract final class AppRouteNames {
   static const String arenaSchedule = 'arenaSchedule';
   static const String arenaCourts = 'arenaCourts';
   static const String arenaBookings = 'arenaBookings';
+  static const String arenaBookingDetail = 'arenaBookingDetail';
   static const String arenaSettings = 'arenaSettings';
   static const String arenaAvailabilitySettings = 'arenaAvailabilitySettings';
   static const String arenaAvailabilitySlotsSuccess =

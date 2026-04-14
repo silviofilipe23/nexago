@@ -10,6 +10,8 @@ import '../../features/arenas/domain/arena_booking_confirm_args.dart';
 import '../../features/arenas/domain/arena_list_item.dart';
 import '../../features/auth/login_page.dart';
 import '../../features/auth/register_page.dart';
+import '../../features/arena/domain/arena_manager_booking.dart';
+import '../../features/arena/presentation/arena_booking_details_page.dart';
 import '../../features/arena/presentation/arena_bookings_page.dart';
 import '../../features/arena/presentation/arena_courts_page.dart';
 import '../../features/arena/presentation/arena_dashboard_page.dart';
@@ -129,7 +131,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.athleteProfile,
         name: AppRouteNames.athleteProfile,
-        builder: (context, state) => const AthleteProfilePage(),
+        builder: (context, state) {
+          final viewed = state.uri.queryParameters['userId']?.trim();
+          return AthleteProfilePage(
+            viewedUserId: viewed != null && viewed.isNotEmpty ? viewed : null,
+          );
+        },
       ),
       GoRoute(
         path: AppRoutes.athleteProfileEdit,
@@ -206,6 +213,22 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 path: AppRoutes.arenaBookings,
                 name: AppRouteNames.arenaBookings,
                 builder: (context, state) => const ArenaBookingsPage(),
+                routes: [
+                  GoRoute(
+                    path: 'detail/:bookingId',
+                    name: AppRouteNames.arenaBookingDetail,
+                    builder: (context, state) {
+                      final bookingId = state.pathParameters['bookingId'] ?? '';
+                      final extra = state.extra;
+                      final initial =
+                          extra is ArenaManagerBooking ? extra : null;
+                      return ArenaBookingDetailsPage(
+                        bookingId: bookingId,
+                        initialBooking: initial,
+                      );
+                    },
+                  ),
+                ],
               ),
             ],
           ),

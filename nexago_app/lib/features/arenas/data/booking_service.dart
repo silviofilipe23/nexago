@@ -269,6 +269,39 @@ class BookingService {
     });
   }
 
+  /// Cancelamento pelo gestor da arena (valida [arenaId] do documento).
+  Future<void> cancelBookingByArenaManager({
+    required String bookingId,
+    required String arenaId,
+  }) async {
+    final id = bookingId.trim();
+    final aid = arenaId.trim();
+    if (id.isEmpty || aid.isEmpty) {
+      throw BookingException('Dados inválidos para cancelar.');
+    }
+    final docRef = _firestore.collection(arenaBookingsCollection).doc(id);
+    final snap = await docRef.get();
+    if (!snap.exists) {
+      throw BookingException('Reserva não encontrada.');
+    }
+    final data = snap.data() ?? <String, dynamic>{};
+    final bookingArena = (data['arenaId'] as String?)?.trim() ?? '';
+    if (bookingArena != aid) {
+      throw BookingException('Esta reserva não pertence à arena atual.');
+    }
+    final status = (data['status'] as String?)?.toLowerCase().trim() ?? '';
+    if (status == 'cancelled' ||
+        status == 'canceled' ||
+        status == 'completed') {
+      throw BookingException('Esta reserva não pode ser cancelada.');
+    }
+    await docRef.update(<String, dynamic>{
+      'status': 'canceled',
+      'canceledAt': FieldValue.serverTimestamp(),
+      'canceledByRole': 'arena_manager',
+    });
+  }
+
   static String _safeIdPart(String s) => s.replaceAll('/', '_');
 
   static int _toMinutes(String hhmm) {

@@ -12,18 +12,22 @@ import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../arenas/domain/my_booking_item.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
+import '../domain/gamification_providers.dart';
+import 'widgets/gamification_feedback_sheet.dart';
 
 /// Agenda do atleta em tempo real (Firestore `arenaBookings`).
 class AthleteBookingsPage extends ConsumerStatefulWidget {
   const AthleteBookingsPage({super.key});
 
   @override
-  ConsumerState<AthleteBookingsPage> createState() => _AthleteBookingsPageState();
+  ConsumerState<AthleteBookingsPage> createState() =>
+      _AthleteBookingsPageState();
 }
 
 class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _nowKey = GlobalKey();
+  final Set<String> _processedCompletedBookings = <String>{};
   bool _didAutoScroll = false;
 
   Future<void> _refreshBookings() async {
@@ -110,29 +114,36 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
               .where((b) => b.startAt.isAfter(now))
               .fold<_AthleteBooking?>(
                 null,
-                (prev, curr) => prev == null || curr.startAt.isBefore(prev.startAt)
-                    ? curr
-                    : prev,
+                (prev, curr) =>
+                    prev == null || curr.startAt.isBefore(prev.startAt)
+                        ? curr
+                        : prev,
               );
           final firstCurrentOrFutureIdx = bookings.indexWhere(
-            (b) => _bookingStage(now, b.startAt, b.endAt, b.rawStatus) != _BookingStage.past,
+            (b) =>
+                _bookingStage(now, b.startAt, b.endAt, b.rawStatus) !=
+                _BookingStage.past,
           );
 
           if (!_didAutoScroll && firstCurrentOrFutureIdx >= 0) {
             _didAutoScroll = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToNowSeparator());
+            WidgetsBinding.instance
+                .addPostFrameCallback((_) => _scrollToNowSeparator());
           }
 
           final todayGames = bookings.where((b) {
             if (!_isSameDay(b.startAt, now)) return false;
             final stage = _bookingStage(now, b.startAt, b.endAt, b.rawStatus);
-            return stage == _BookingStage.current || stage == _BookingStage.future;
+            return stage == _BookingStage.current ||
+                stage == _BookingStage.future;
           }).length;
-          final dateLabel = DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(now);
+          final dateLabel =
+              DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(now);
           final nextLabel = nextBooking == null
               ? 'Sem próximos jogos confirmados'
               : 'Próximo em ${_minutesUntilLabel(now, nextBooking.startAt)}';
           final rows = _buildTimelineRows(now: now, bookings: bookings);
+          _processCompletedBookings(bookings);
 
           return RefreshIndicator(
             onRefresh: _refreshBookings,
@@ -165,7 +176,8 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
                 }
 
                 final booking = row.booking!;
-                final stage = _bookingStage(now, booking.startAt, booking.endAt, booking.rawStatus);
+                final stage = _bookingStage(
+                    now, booking.startAt, booking.endAt, booking.rawStatus);
                 return _AnimatedTimelineEntry(
                   index: index - 1,
                   child: Padding(
@@ -227,6 +239,49 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(content: Text('Não foi possível cancelar: $e')),
+        );
+    }
+  }
+
+  void _processCompletedBookings(List<_AthleteBooking> bookings) {
+    final userId = ref.read(authProvider).valueOrNull?.uid;
+    if (userId == null || userId.isEmpty) return;
+
+    for (final booking in bookings) {
+      final status = booking.rawStatus.trim().toLowerCase();
+      if (status != 'completed') continue;
+      if (_processedCompletedBookings.contains(booking.id)) continue;
+      _processedCompletedBookings.add(booking.id);
+      _handleCompletedBooking(userId: userId, bookingId: booking.id);
+    }
+  }
+
+  Future<void> _handleCompletedBooking({
+    required String userId,
+    required String bookingId,
+  }) async {
+    try {
+      final feedback =
+          await ref.read(gamificationServiceProvider).processCompletedGame(
+                userId: userId,
+                bookingId: bookingId,
+                now: DateTime.now(),
+              );
+      if (!mounted || feedback == null) return;
+      await showGamificationFeedbackSheet(
+        context,
+        feedback: feedback,
+      );
+    } catch (_) {
+      // Evita crash/erro não tratado quando as regras ainda não foram publicadas
+      // ou quando houver indisponibilidade temporária do Firestore.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Nao foi possivel atualizar sua gamificacao agora.'),
+          ),
         );
     }
   }
@@ -311,11 +366,12 @@ class _TimelineBookingRow extends ConsumerWidget {
         ? null
         : ref.watch(arenaByIdProvider(booking.arenaId!));
     final managedArenaName = arenaAsync?.valueOrNull?.name.trim();
-    final displayArenaName = booking.arena.trim().isNotEmpty && booking.arena.trim() != 'Arena'
-        ? booking.arena.trim()
-        : (managedArenaName != null && managedArenaName.isNotEmpty
-              ? managedArenaName
-              : 'Arena');
+    final displayArenaName =
+        booking.arena.trim().isNotEmpty && booking.arena.trim() != 'Arena'
+            ? booking.arena.trim()
+            : (managedArenaName != null && managedArenaName.isNotEmpty
+                ? managedArenaName
+                : 'Arena');
     final timeLabel = DateFormat('HH:mm', 'pt_BR').format(booking.startAt);
     final dateLabel = DateFormat('dd/MM', 'pt_BR').format(booking.startAt);
     final endHour = DateFormat('HH:mm', 'pt_BR').format(booking.endAt);
@@ -447,7 +503,9 @@ class _TimelineBookingRow extends ConsumerWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      booking.court.trim().isNotEmpty ? booking.court : 'Quadra',
+                      booking.court.trim().isNotEmpty
+                          ? booking.court
+                          : 'Quadra',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: AppColors.onSurfaceMuted,
                       ),
@@ -643,7 +701,9 @@ _BookingStage _bookingStage(
   String rawStatus,
 ) {
   final status = rawStatus.trim().toLowerCase();
-  if (status == 'canceled' || status == 'cancelled') return _BookingStage.canceled;
+  if (status == 'canceled' || status == 'cancelled') {
+    return _BookingStage.canceled;
+  }
   if (now.isAfter(start) && now.isBefore(end)) return _BookingStage.current;
   if (now.isBefore(start)) return _BookingStage.future;
   return _BookingStage.past;
@@ -700,7 +760,9 @@ List<_TimelineRow> _buildTimelineRows({
 }) {
   final rows = <_TimelineRow>[];
   final markerIdx = bookings.indexWhere(
-    (b) => _bookingStage(now, b.startAt, b.endAt, b.rawStatus) != _BookingStage.past,
+    (b) =>
+        _bookingStage(now, b.startAt, b.endAt, b.rawStatus) !=
+        _BookingStage.past,
   );
 
   for (var i = 0; i < bookings.length; i++) {
@@ -778,8 +840,12 @@ _AthleteBooking? _athleteBookingFromFirestore(MyBookingItem item) {
     arenaId: item.arenaId,
     arena: item.arenaName.trim().isNotEmpty
         ? item.arenaName.trim()
-        : (item.arenaId?.trim().isNotEmpty == true ? item.arenaId!.trim() : 'Arena'),
-    court: item.courtName?.trim().isNotEmpty == true ? item.courtName!.trim() : 'Quadra',
+        : (item.arenaId?.trim().isNotEmpty == true
+            ? item.arenaId!.trim()
+            : 'Arena'),
+    court: item.courtName?.trim().isNotEmpty == true
+        ? item.courtName!.trim()
+        : 'Quadra',
     startAt: start,
     endAt: end,
     confirmedParticipants: 1,

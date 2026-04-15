@@ -320,6 +320,25 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Gamificacao do atleta
+    match /users/{userId}/gamification/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/gamification_badges/{badgeId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    match /users/{userId}/gamification_daily_missions/{dayKey} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/gamification_events/{eventId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
     // O perfil do atleta é armazenado diretamente em users/{userId}
     // As regras acima já cobrem isso - usuários podem ler/escrever seus próprios dados
     //

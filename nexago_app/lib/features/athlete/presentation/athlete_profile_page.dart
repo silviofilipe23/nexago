@@ -11,6 +11,8 @@ import '../../arenas/domain/my_booking_item.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_providers.dart';
+import '../domain/gamification_models.dart';
+import '../domain/gamification_providers.dart';
 
 /// Perfil público do atleta (visualização).
 ///
@@ -64,6 +66,8 @@ class AthleteProfilePage extends ConsumerWidget {
               email: email,
               totalBookings: 0,
               nextBooking: null,
+              gamificationSummary: GamificationSummary.initial(),
+              badges: const <UserBadgeProgress>[],
               readOnly: true,
               onEdit: () {},
               onOpenAgenda: () {},
@@ -115,6 +119,8 @@ class AthleteProfilePage extends ConsumerWidget {
 
     final profileAsync = ref.watch(athleteProfileProvider);
     final bookingsAsync = ref.watch(myBookingsStreamProvider);
+    final gamificationSummaryAsync = ref.watch(gamificationSummaryProvider);
+    final badgesAsync = ref.watch(gamificationBadgesProvider);
 
     Widget bodyContent() {
       if (user == null) return bodyNotSignedIn();
@@ -127,6 +133,9 @@ class AthleteProfilePage extends ConsumerWidget {
               email: user.email,
               totalBookings: _countCompletedBookings(bookings),
               nextBooking: _findNextBooking(bookings),
+              gamificationSummary: gamificationSummaryAsync.valueOrNull ??
+                  GamificationSummary.initial(),
+              badges: badgesAsync.valueOrNull ?? const <UserBadgeProgress>[],
               readOnly: false,
               onEdit: () => context.pushNamed(AppRouteNames.athleteProfileEdit),
               onOpenAgenda: () => context.pushNamed(AppRouteNames.myBookings),
@@ -222,6 +231,8 @@ class _AthleteProfileBody extends StatelessWidget {
     required this.email,
     required this.totalBookings,
     required this.nextBooking,
+    required this.gamificationSummary,
+    required this.badges,
     this.readOnly = false,
     required this.onEdit,
     required this.onOpenAgenda,
@@ -233,6 +244,8 @@ class _AthleteProfileBody extends StatelessWidget {
   final String? email;
   final int totalBookings;
   final MyBookingItem? nextBooking;
+  final GamificationSummary gamificationSummary;
+  final List<UserBadgeProgress> badges;
   final bool readOnly;
   final VoidCallback onEdit;
   final VoidCallback onOpenAgenda;
@@ -307,10 +320,15 @@ class _AthleteProfileBody extends StatelessWidget {
                 _SummaryCard(
                   totalBookings: totalBookings,
                   nextBooking: nextBooking,
+                  gamificationSummary: gamificationSummary,
                 ),
                 const SizedBox(height: 20),
               ] else
                 const SizedBox(height: 8),
+              if (!readOnly) ...[
+                _BadgesCard(badges: badges),
+                const SizedBox(height: 12),
+              ],
               _InfoTile(
                 icon: Icons.sports_volleyball_outlined,
                 label: 'Esporte',
@@ -413,14 +431,14 @@ class _AvatarCircle extends StatelessWidget {
         child: CachedNetworkImage(
           imageUrl: imageUrl!,
           fit: BoxFit.cover,
-          placeholder: (_, __) => const Center(
+          placeholder: (context, url) => const Center(
             child: SizedBox(
               width: 28,
               height: 28,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           ),
-          errorWidget: (_, __, ___) => _FallbackAvatar(
+          errorWidget: (context, error, stackTrace) => _FallbackAvatar(
             size: size,
             initial: initial,
           ),
@@ -530,10 +548,12 @@ class _SummaryCard extends StatelessWidget {
   const _SummaryCard({
     required this.totalBookings,
     required this.nextBooking,
+    required this.gamificationSummary,
   });
 
   final int totalBookings;
   final MyBookingItem? nextBooking;
+  final GamificationSummary gamificationSummary;
 
   @override
   Widget build(BuildContext context) {
@@ -564,6 +584,14 @@ class _SummaryCard extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
+          const SizedBox(height: 8),
+          Text(
+            'Nivel ${gamificationSummary.level} • ${gamificationSummary.xp} XP',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppColors.onSurfaceMuted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 6),
           Text(
             _nextBookingLabel(nextBooking),
@@ -571,6 +599,56 @@ class _SummaryCard extends StatelessWidget {
               color: AppColors.onSurfaceMuted,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BadgesCard extends StatelessWidget {
+  const _BadgesCard({required this.badges});
+
+  final List<UserBadgeProgress> badges;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Conquistas',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 10),
+          if (badges.isEmpty)
+            Text(
+              'Complete partidas para desbloquear badges.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.onSurfaceMuted,
+              ),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: badges
+                  .take(8)
+                  .map((b) =>
+                      Chip(label: Text('${b.badge.icon} ${b.badge.title}')))
+                  .toList(growable: false),
+            ),
         ],
       ),
     );
@@ -593,7 +671,8 @@ class _ActionItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = danger ? theme.colorScheme.error : theme.colorScheme.onSurface;
+    final color =
+        danger ? theme.colorScheme.error : theme.colorScheme.onSurface;
     return Material(
       color: theme.colorScheme.surface,
       borderRadius: BorderRadius.circular(12),
@@ -615,7 +694,8 @@ class _ActionItem extends StatelessWidget {
                   ),
                 ),
               ),
-              Icon(Icons.chevron_right_rounded, color: color.withValues(alpha: 0.6)),
+              Icon(Icons.chevron_right_rounded,
+                  color: color.withValues(alpha: 0.6)),
             ],
           ),
         ),

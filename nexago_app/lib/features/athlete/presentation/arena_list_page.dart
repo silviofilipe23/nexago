@@ -17,6 +17,7 @@ import '../../arenas/domain/slots_providers.dart';
 import '../../arenas/domain/slots_query.dart';
 import '../../arenas/presentation/widgets/arena_card.dart';
 import '../domain/favorites_providers.dart';
+import '../domain/gamification_providers.dart';
 import 'favorite_success_page.dart';
 
 /// Aba Reservar — lista de arenas para o atleta escolher e reservar horário.
@@ -156,6 +157,11 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
         _favoriteOverrides.remove(arenaId);
       });
       if (next) {
+        await ref.read(gamificationServiceProvider).onArenaFavorited(
+              userId: userId,
+              arenaId: arenaId,
+            );
+        if (!mounted) return;
         await FavoriteSuccessPage.show(context);
       }
     } catch (_) {

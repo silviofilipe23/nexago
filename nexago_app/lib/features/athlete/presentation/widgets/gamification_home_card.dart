@@ -70,7 +70,7 @@ class GamificationHomeCard extends StatelessWidget {
           if (missionCount > 0) ...[
             const SizedBox(height: 14),
             Text(
-              'Missoes de hoje: $missionDone/$missionCount',
+              'Missões de hoje: $missionDone/$missionCount',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,

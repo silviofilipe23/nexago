@@ -16,13 +16,13 @@ enum GamificationBadge {
   String get title => switch (this) {
         GamificationBadge.firstGame => 'Primeiro jogo',
         GamificationBadge.fiveGames => '5 jogos completos',
-        GamificationBadge.streak3 => 'Sequencia de 3 dias',
-        GamificationBadge.streak7 => 'Sequencia de 7 dias',
+        GamificationBadge.streak3 => 'Sequência de 3 dias',
+        GamificationBadge.streak7 => 'Sequência de 7 dias',
       };
 
   String get description => switch (this) {
-        GamificationBadge.firstGame => 'Voce entrou no ritmo.',
-        GamificationBadge.fiveGames => 'Consistencia de atleta dedicado.',
+        GamificationBadge.firstGame => 'Você entrou no ritmo.',
+        GamificationBadge.fiveGames => 'Consistência de atleta dedicado.',
         GamificationBadge.streak3 => 'Disciplina em alta.',
         GamificationBadge.streak7 => 'Semana perfeita.',
       };
@@ -114,7 +114,7 @@ class GamificationSummary {
     if (lastGameDate != null) {
       final diffDays = _dayDifference(lastGameDate!, now);
       if (streak > 0 && diffDays == 1) {
-        return 'Faltam poucas horas para manter sua sequencia.';
+        return 'Faltam poucas horas para manter sua sequência.';
       }
       if (diffDays >= 3) {
         return 'Sentimos sua falta 😢';
@@ -122,11 +122,11 @@ class GamificationSummary {
     }
 
     if (xpForNextLevel > 0 && xpForNextLevel <= 30) {
-      return 'Voce esta a $xpForNextLevel XP do proximo nivel.';
+      return 'Você está a $xpForNextLevel XP do próximo nível.';
     }
 
     if (totalGames >= 12 || streak >= 5) {
-      return '🔥 Voce esta entre os mais ativos.';
+      return '🔥 Você está entre os mais ativos.';
     }
 
     return null;

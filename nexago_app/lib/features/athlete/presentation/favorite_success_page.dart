@@ -1,9 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-
-import '../../../core/router/routes.dart';
 
 class FavoriteSuccessPage extends StatefulWidget {
   const FavoriteSuccessPage({
@@ -93,19 +90,6 @@ class _FavoriteSuccessPageState extends State<FavoriteSuccessPage>
     Navigator.of(context, rootNavigator: true).maybePop();
   }
 
-  void _onViewFavorites() {
-    _autoCloseTimer?.cancel();
-    if (_closed || !mounted) return;
-    _closed = true;
-    Navigator.of(context, rootNavigator: true).pop();
-    context.go(
-      Uri(
-        path: AppRoutes.discover,
-        queryParameters: const {'tab': 'reservar'},
-      ).toString(),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -144,7 +128,7 @@ class _FavoriteSuccessPageState extends State<FavoriteSuccessPage>
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'Adicionado aos favoritos!',
+                      'Agora voce segue essa arena!',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w800,

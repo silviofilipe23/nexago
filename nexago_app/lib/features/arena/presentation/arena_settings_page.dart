@@ -39,7 +39,8 @@ class ArenaSettingsPage extends ConsumerWidget {
               final muted = theme.colorScheme.onSurface.withValues(alpha: 0.55);
               return LayoutBuilder(
                 builder: (context, constraints) {
-                  final maxW = constraints.maxWidth > 560 ? 480.0 : double.infinity;
+                  final maxW =
+                      constraints.maxWidth > 560 ? 480.0 : double.infinity;
                   return SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(22, 12, 22, 32),
                     child: Center(
@@ -67,6 +68,15 @@ class ArenaSettingsPage extends ConsumerWidget {
                                 AppRouteNames.arenaAvailabilitySettings,
                               ),
                             ),
+                            _SettingsMenuCard(
+                              icon: Icons.sports_volleyball_rounded,
+                              title: 'Quadras',
+                              subtitle:
+                                  'Adicione, edite e remova quadras da sua arena',
+                              onTap: () => context.pushNamed(
+                                AppRouteNames.arenaCourts,
+                              ),
+                            ),
                             const _ArenaSettingsLogoutSection(),
                           ],
                         ),
@@ -76,7 +86,8 @@ class ArenaSettingsPage extends ConsumerWidget {
                 },
               );
             },
-            loading: () => const ArenaLoadingState(label: 'Carregando arena...'),
+            loading: () =>
+                const ArenaLoadingState(label: 'Carregando arena...'),
             error: (e, _) => ArenaErrorState(message: '$e'),
           ),
         ),
@@ -318,7 +329,7 @@ class _ArenaProfilePreviewCard extends ConsumerWidget {
                           ? Image.network(
                               arena.logoUrl!,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
+                              errorBuilder: (context, error, stackTrace) =>
                                   _profileLogoFallback(theme),
                             )
                           : _profileLogoFallback(theme),
@@ -394,7 +405,7 @@ class _ArenaProfilePreviewCard extends ConsumerWidget {
           ),
         ),
       ),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (error, stackTrace) => const SizedBox.shrink(),
     );
   }
 

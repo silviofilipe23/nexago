@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/layout/app_scaffold.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../../athlete/domain/favorites_providers.dart';
 import '../domain/arena_providers.dart';
 import 'arena_dashboard_formatters.dart';
 import 'widgets/arena_dashboard_actions_bar.dart';
@@ -18,6 +19,17 @@ class ArenaDashboardPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final summaryAsync = ref.watch(arenaDashboardSummaryProvider);
+    final arenaId = ref.watch(managedArenaIdProvider).valueOrNull;
+    final followersInsightsAsync = arenaId == null || arenaId.isEmpty
+        ? const AsyncValue<ArenaFollowersInsights>.data(
+            ArenaFollowersInsights(
+              totalFollowers: 0,
+              growthLastWeek: 0,
+              qualityBookedPercent: 0,
+              activeRecentlyPercent: 0,
+            ),
+          )
+        : ref.watch(arenaFollowersInsightsProvider(arenaId));
     final theme = Theme.of(context);
 
     return AppScaffold(
@@ -111,6 +123,10 @@ class ArenaDashboardPage extends ConsumerWidget {
                               const SizedBox(height: 36),
                               ArenaDashboardInsightsSection(summary: summary),
                               const SizedBox(height: 36),
+                              _FollowersInsightCard(
+                                insightsAsync: followersInsightsAsync,
+                              ),
+                              const SizedBox(height: 36),
                               const ArenaDashboardActionsBar(),
                             ],
                           ),
@@ -145,6 +161,89 @@ class ArenaDashboardPage extends ConsumerWidget {
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _FollowersInsightCard extends StatelessWidget {
+  const _FollowersInsightCard({
+    required this.insightsAsync,
+  });
+
+  final AsyncValue<ArenaFollowersInsights> insightsAsync;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ArenaDashboardSectionCard(
+      title: 'Seguidores',
+      subtitle: 'Base social para campanhas e torneios.',
+      child: insightsAsync.when(
+        loading: () => const SizedBox(
+          height: 42,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+        error: (e, _) => Text(
+          'Nao foi possivel carregar seguidores.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.error,
+          ),
+        ),
+        data: (insights) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '❤️ ${insights.totalFollowers} seguidores',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '+${insights.growthLastWeek} essa semana',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '🔥 ${insights.activeRecentlyPercent.toStringAsFixed(0)}% dos seguidores jogaram este mes',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: const Color(0xFF2E7D32),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Qualidade: ${insights.qualityBookedPercent.toStringAsFixed(0)}% ja reservaram',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  OutlinedButton(
+                    onPressed: () {},
+                    child: const Text('Criar promocao'),
+                  ),
+                  OutlinedButton(
+                    onPressed: () {},
+                    child: const Text('Criar torneio'),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -4,7 +4,6 @@ import '../../../core/router/routes.dart';
 enum ArenaTab {
   dashboard,
   schedule,
-  courts,
   bookings,
   settings,
 }
@@ -13,7 +12,6 @@ extension ArenaTabX on ArenaTab {
   String get location => switch (this) {
         ArenaTab.dashboard => AppRoutes.arenaDashboard,
         ArenaTab.schedule => AppRoutes.arenaSchedule,
-        ArenaTab.courts => AppRoutes.arenaCourts,
         ArenaTab.bookings => AppRoutes.arenaBookings,
         ArenaTab.settings => AppRoutes.arenaSettings,
       };
@@ -21,7 +19,6 @@ extension ArenaTabX on ArenaTab {
   String get label => switch (this) {
         ArenaTab.dashboard => 'Painel',
         ArenaTab.schedule => 'Agenda',
-        ArenaTab.courts => 'Quadras',
         ArenaTab.bookings => 'Reservas',
         ArenaTab.settings => 'Ajustes',
       };

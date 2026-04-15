@@ -16,7 +16,6 @@ class ArenaShellPage extends StatelessWidget {
   static const _tabs = <ArenaTab>[
     ArenaTab.dashboard,
     ArenaTab.schedule,
-    ArenaTab.courts,
     ArenaTab.bookings,
     ArenaTab.settings,
   ];
@@ -42,7 +41,8 @@ class ArenaShellPage extends StatelessWidget {
             initialLocation: index == navigationShell.currentIndex,
           ),
           selectedItemColor: AppColors.brand,
-          unselectedItemColor: theme.colorScheme.onSurface.withValues(alpha: 0.55),
+          unselectedItemColor:
+              theme.colorScheme.onSurface.withValues(alpha: 0.55),
           items: [
             for (final tab in _tabs)
               BottomNavigationBarItem(
@@ -61,11 +61,13 @@ class ArenaShellPage extends StatelessWidget {
       case ArenaTab.dashboard:
         return selected ? Icons.dashboard_rounded : Icons.dashboard_outlined;
       case ArenaTab.schedule:
-        return selected ? Icons.calendar_month_rounded : Icons.calendar_month_outlined;
-      case ArenaTab.courts:
-        return selected ? Icons.sports_volleyball_rounded : Icons.sports_volleyball_outlined;
+        return selected
+            ? Icons.calendar_month_rounded
+            : Icons.calendar_month_outlined;
       case ArenaTab.bookings:
-        return selected ? Icons.event_available_rounded : Icons.event_available_outlined;
+        return selected
+            ? Icons.event_available_rounded
+            : Icons.event_available_outlined;
       case ArenaTab.settings:
         return selected ? Icons.settings_rounded : Icons.settings_outlined;
     }

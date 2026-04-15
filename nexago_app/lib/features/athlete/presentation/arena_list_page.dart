@@ -132,7 +132,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
     if (userId == null || userId.isEmpty) {
       showAppSnackBar(
         context,
-        'Faça login para favoritar arenas.',
+        'Faça login para seguir arenas.',
         isError: true,
       );
       return;
@@ -172,7 +172,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
       });
       showAppSnackBar(
         context,
-        'Não foi possível atualizar favoritos agora.',
+        'Não foi possível atualizar seguidores agora.',
         isError: true,
       );
     }
@@ -459,7 +459,7 @@ class _ArenaBookingList extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               sliver: SliverToBoxAdapter(
                 child: Text(
-                  'Suas arenas favoritas',
+                  'Arenas que você segue',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.2,

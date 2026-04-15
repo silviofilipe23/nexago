@@ -45,6 +45,7 @@ abstract final class AppRoutes {
 
   /// Perfil da arena (gestor). Deve ficar **antes** de [arenaDetail] no router.
   static const String arenaProfile = '/arena/profile';
+  static const String arenaFollowers = '/arena/profile/followers';
 
   /// Edição de perfil (gestor). Literal antes de [arenaDetail].
   static const String arenaProfileEdit = '/arena/profile/edit';
@@ -97,6 +98,7 @@ abstract final class AppRouteNames {
   static const String arenaAvailabilitySlotsSuccess =
       'arenaAvailabilitySlotsSuccess';
   static const String arenaProfile = 'arenaProfile';
+  static const String arenaFollowers = 'arenaFollowers';
   static const String arenaProfileEdit = 'arenaProfileEdit';
   static const String arenaProfileUpdateSuccess = 'arenaProfileUpdateSuccess';
 

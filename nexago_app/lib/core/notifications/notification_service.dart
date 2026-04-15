@@ -107,7 +107,17 @@ class NotificationService {
     _activeUserId = uid;
 
     if (!_pluginAvailable) return;
-    final token = await _safeMessagingCall<String?>(() => _messaging.getToken());
+    if (!kIsWeb && Platform.isIOS) {
+      final apnsToken =
+          await _safeMessagingCall<String?>(() => _messaging.getAPNSToken());
+      if (apnsToken == null || apnsToken.isEmpty) {
+        debugPrint(
+            'APNS token ainda não disponível; pulando sync FCM por agora.');
+        return;
+      }
+    }
+    final token =
+        await _safeMessagingCall<String?>(() => _messaging.getToken());
     if (token == null || token.isEmpty) return;
     await saveUserToken(token);
   }
@@ -166,6 +176,17 @@ class NotificationService {
       if (e.code == 'channel-error') {
         _pluginAvailable = false;
         debugPrint('FCM channel indisponível: ${e.message}');
+        return null;
+      }
+      if (e.code == 'firebase_messaging/apns-token-not-set' ||
+          e.code == 'apns-token-not-set') {
+        debugPrint('FCM aguardando APNS token no iOS.');
+        return null;
+      }
+      rethrow;
+    } on FirebaseException catch (e) {
+      if (e.code == 'apns-token-not-set') {
+        debugPrint('FCM aguardando APNS token no iOS.');
         return null;
       }
       rethrow;

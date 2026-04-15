@@ -59,6 +59,14 @@ service cloud.firestore {
         isSuperAdmin()
       );
     }
+    match /arenas/{arenaId}/followers/{userId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null &&
+        request.auth.uid == userId &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.arenaId == arenaId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
     match /arenas/{arenaId}/products/{productId} {
       allow read, create, update, delete: if request.auth != null && (
         get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||

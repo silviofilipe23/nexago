@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../athlete/domain/favorites_providers.dart';
 import '../../arenas/domain/arena_list_item.dart';
 import '../domain/arena_schedule_providers.dart';
 
@@ -71,9 +72,8 @@ class _ArenaProfileBody extends StatelessWidget {
     final address = arena.addressLine?.trim().isNotEmpty == true
         ? arena.addressLine!.trim()
         : arena.locationLabel;
-    final phone = arena.phone?.trim().isNotEmpty == true
-        ? arena.phone!.trim()
-        : '—';
+    final phone =
+        arena.phone?.trim().isNotEmpty == true ? arena.phone!.trim() : '—';
     final description = arena.description?.trim().isNotEmpty == true
         ? arena.description!.trim()
         : 'Nenhuma descrição cadastrada.';
@@ -113,6 +113,10 @@ class _ArenaProfileBody extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _InfoCard(
+                  child: _FollowersSection(arenaId: arena.id),
+                ),
+                const SizedBox(height: 14),
                 _InfoCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,6 +227,76 @@ class _ArenaProfileBody extends StatelessWidget {
   }
 }
 
+class _FollowersSection extends ConsumerWidget {
+  const _FollowersSection({required this.arenaId});
+
+  final String arenaId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final countAsync = ref.watch(arenaFollowersCountProvider(arenaId));
+    final previewAsync = ref.watch(arenaFollowersPreviewProvider(arenaId));
+    final theme = Theme.of(context);
+
+    final count = countAsync.valueOrNull ?? 0;
+    final preview = previewAsync.valueOrNull ?? const <ArenaFollowerItem>[];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '❤️ $count seguidores',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (preview.isEmpty)
+          Text(
+            'Quando atletas seguirem sua arena, eles aparecerao aqui.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: preview
+                .map((f) => Tooltip(
+                      message: f.name,
+                      child: CircleAvatar(
+                        radius: 18,
+                        backgroundImage:
+                            (f.avatarUrl != null && f.avatarUrl!.isNotEmpty)
+                                ? CachedNetworkImageProvider(f.avatarUrl!)
+                                : null,
+                        child: (f.avatarUrl == null || f.avatarUrl!.isEmpty)
+                            ? Text(
+                                f.name.isNotEmpty
+                                    ? f.name.substring(0, 1).toUpperCase()
+                                    : '?',
+                              )
+                            : null,
+                      ),
+                    ))
+                .toList(growable: false),
+          ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton(
+            onPressed: () => context.pushNamed(
+              AppRouteNames.arenaFollowers,
+              queryParameters: {'arenaId': arenaId},
+            ),
+            child: const Text('Ver todos'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle({required this.theme, required this.label});
 
@@ -296,8 +370,8 @@ class _CoverImage extends StatelessWidget {
       imageUrl: coverUrl!,
       fit: BoxFit.cover,
       fadeInDuration: const Duration(milliseconds: 280),
-      placeholder: (_, __) => fallback,
-      errorWidget: (_, __, ___) => fallback,
+      placeholder: (context, url) => fallback,
+      errorWidget: (context, error, stackTrace) => fallback,
     );
   }
 }
@@ -335,7 +409,7 @@ class _LogoBadge extends StatelessWidget {
               imageUrl: logoUrl!,
               fit: BoxFit.cover,
               fadeInDuration: const Duration(milliseconds: 220),
-              errorWidget: (_, __, ___) => _logoFallback(theme),
+              errorWidget: (context, error, stackTrace) => _logoFallback(theme),
             )
           : _logoFallback(theme),
     );

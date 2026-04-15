@@ -20,6 +20,7 @@ import '../../features/arena/presentation/arena_schedule_page.dart';
 import '../../features/arena/presentation/arena_edit_profile_page.dart';
 import '../../features/arena/presentation/arena_profile_update_success_page.dart';
 import '../../features/arena/presentation/arena_profile_page.dart';
+import '../../features/arena/presentation/arena_followers_page.dart';
 import '../../features/arena/presentation/arena_availability_settings_page.dart';
 import '../../features/arena/presentation/arena_availability_slots_success_page.dart';
 import '../../features/arena/presentation/arena_settings_page.dart';
@@ -202,15 +203,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: AppRoutes.arenaCourts,
-                name: AppRouteNames.arenaCourts,
-                builder: (context, state) => const ArenaCourtsPage(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
                 path: AppRoutes.arenaBookings,
                 name: AppRouteNames.arenaBookings,
                 builder: (context, state) => const ArenaBookingsPage(),
@@ -248,6 +240,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.arenaProfile,
         name: AppRouteNames.arenaProfile,
         builder: (context, state) => const ArenaProfilePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaCourts,
+        name: AppRouteNames.arenaCourts,
+        builder: (context, state) => const ArenaCourtsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaFollowers,
+        name: AppRouteNames.arenaFollowers,
+        builder: (context, state) {
+          final arenaId = state.uri.queryParameters['arenaId']?.trim() ?? '';
+          return ArenaFollowersPage(arenaId: arenaId);
+        },
       ),
       GoRoute(
         path: AppRoutes.arenaProfileEdit,

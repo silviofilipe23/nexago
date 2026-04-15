@@ -29,7 +29,8 @@ final arenaManagerBookingsStreamProvider =
       return ref.watch(bookingServiceProvider).watchBookingsForArena(arenaId);
     },
     loading: () => Stream<List<ArenaManagerBooking>>.value(const []),
-    error: (_, __) => Stream<List<ArenaManagerBooking>>.value(const []),
+    error: (error, stackTrace) =>
+        Stream<List<ArenaManagerBooking>>.value(const []),
   );
 });
 
@@ -43,7 +44,7 @@ final arenaBookingsFilteredProvider =
   return async.when(
     data: (list) {
       final filtered = list.where((b) => b.dateKey == key).toList()
-        ..sort((a, b) => a.startTime.compareTo(b.startTime));
+        ..sort((a, b) => b.startTime.compareTo(a.startTime));
       return AsyncValue.data(filtered);
     },
     loading: () => const AsyncValue.loading(),
@@ -65,9 +66,9 @@ final arenaFutureBookingsProvider =
         return k.compareTo(todayKey) >= 0;
       }).toList()
         ..sort((a, b) {
-          final byD = a.dateKey.compareTo(b.dateKey);
+          final byD = b.dateKey.compareTo(a.dateKey);
           if (byD != 0) return byD;
-          return a.startTime.compareTo(b.startTime);
+          return b.startTime.compareTo(a.startTime);
         });
       return AsyncValue.data(filtered);
     },
@@ -95,14 +96,14 @@ List<ArenaBookingDaySection> _groupBookingsByDate(
     if (b.dateKey.isEmpty) continue;
     byDate.putIfAbsent(b.dateKey, () => []).add(b);
   }
-  final keys = byDate.keys.toList()..sort();
+  final keys = byDate.keys.toList()..sort((a, b) => b.compareTo(a));
   return [
     for (final k in keys)
       ArenaBookingDaySection(
         dateKey: k,
         title: _bookingDateSectionTitle(k),
         bookings: List<ArenaManagerBooking>.of(byDate[k]!)
-          ..sort((a, b) => a.startTime.compareTo(b.startTime)),
+          ..sort((a, b) => b.startTime.compareTo(a.startTime)),
       ),
   ];
 }

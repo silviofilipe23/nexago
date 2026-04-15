@@ -67,13 +67,54 @@ class GamificationHomeCard extends StatelessWidget {
               backgroundColor: theme.colorScheme.surfaceContainerHighest,
             ),
           ),
-          if (missionCount > 0) ...[
+          if (dailyMissions == null) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Carregando missões de hoje...',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ] else if (missionCount > 0) ...[
             const SizedBox(height: 14),
             Text(
               'Missões de hoje: $missionDone/$missionCount',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...dailyMissions!.missions.map(
+              (mission) => Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      mission.completed
+                          ? Icons.check_circle_rounded
+                          : Icons.radio_button_unchecked_rounded,
+                      size: 18,
+                      color: mission.completed
+                          ? const Color(0xFF2E7D32)
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        mission.mission.title,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: mission.completed
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: mission.completed
+                              ? const Color(0xFF2E7D32)
+                              : theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

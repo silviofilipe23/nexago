@@ -61,6 +61,7 @@ abstract final class AppRoutes {
 
   /// Horários: `/arena/:arenaId/slots`
   static const String arenaSlots = '/arena/:arenaId/slots';
+  static const String arenaReviews = '/arena/:arenaId/reviews';
 
   /// Confirmação (paridade com web `/arenas/:id/book`).
   static const String arenaBookingConfirm = '/arena/:arenaId/book/confirm';
@@ -106,6 +107,7 @@ abstract final class AppRouteNames {
 
   static const String arenaDetail = 'arenaDetail';
   static const String arenaSlots = 'arenaSlots';
+  static const String arenaReviews = 'arenaReviews';
   static const String arenaBookingConfirm = 'arenaBookingConfirm';
   static const String arenaBookingSuccess = 'arenaBookingSuccess';
   static const String arenaBookingBlocked = 'arenaBookingBlocked';

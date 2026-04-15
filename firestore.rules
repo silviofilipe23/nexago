@@ -33,9 +33,6 @@ service cloud.firestore {
         resource.data.role == 'athlete'
       );
     }
-    function isArenaManager(arenaDoc) {
-      return request.auth != null && arenaDoc != null && arenaDoc.data.managerUserId == request.auth.uid;
-    }
     function isArenaManagerByArenaId(arenaId) {
       return request.auth != null &&
         exists(/databases/$(database)/documents/arenas/$(arenaId)) &&
@@ -345,6 +342,14 @@ service cloud.firestore {
 
     match /users/{userId}/gamification_events/{eventId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /arena_reviews/{reviewId} {
+      allow read: if true;
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null &&
+        resource.data.userId == request.auth.uid;
     }
 
     // O perfil do atleta é armazenado diretamente em users/{userId}

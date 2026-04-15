@@ -147,6 +147,16 @@ class _ArenaCardState extends State<ArenaCard> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
+                        if (widget.arena.reviewsCount > 0) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '⭐ ${widget.arena.ratingAverage.toStringAsFixed(1)} (${widget.arena.reviewsCount} avaliações)',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.white.withValues(alpha: 0.92),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         Text(
                           '${ArenaCard._currency.format(widget.arena.pricePerHourReais)} / hora',

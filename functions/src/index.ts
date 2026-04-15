@@ -26,6 +26,7 @@ import {
   ARENA_BOOKING_MP_REF_PREFIX,
   processArenaBookingMercadoPagoNotification,
 } from "./mercadopago-arena-booking-webhook";
+import {recalculateArenaReviewAggregates} from "./arena-review-aggregates";
 
 // Initialize Firebase Admin
 initializeApp();
@@ -33,6 +34,8 @@ initializeApp();
 // For cost control, you can set the maximum number of containers that can be
 // running at the same time.
 setGlobalOptions({maxInstances: 10});
+
+export const onArenaReviewWriteRecalculateAggregates = recalculateArenaReviewAggregates;
 
 /**
  * Helper function para obter o projectId do Firebase dinamicamente

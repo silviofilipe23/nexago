@@ -10,6 +10,7 @@ import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_list_item.dart';
 import '../domain/arenas_providers.dart';
+import '../../athlete/domain/arena_review_providers.dart';
 import 'widgets/arena_header_image.dart';
 import 'widgets/arena_logo.dart';
 
@@ -35,6 +36,7 @@ class ArenaDetailPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncArena = ref.watch(arenaByIdProvider(arenaId));
+    final recentReviewerAsync = ref.watch(recentArenaReviewerProvider(arenaId));
 
     return asyncArena.when(
       data: (remote) {
@@ -45,17 +47,28 @@ class ArenaDetailPage extends ConsumerWidget {
             body: AppEmptyView(
               icon: Icons.search_off_rounded,
               title: 'Arena não encontrada',
-              subtitle: 'Este link pode estar desatualizado ou a arena foi removida.',
+              subtitle:
+                  'Este link pode estar desatualizado ou a arena foi removida.',
               actionLabel: 'Voltar',
               onAction: () => context.pop(),
             ),
           );
         }
-        return FadeSlideIn(child: _ArenaDetailBody(arena: arena));
+        return FadeSlideIn(
+          child: _ArenaDetailBody(
+            arena: arena,
+            recentReviewer: recentReviewerAsync.valueOrNull,
+          ),
+        );
       },
       loading: () {
         if (initialArena != null) {
-          return FadeSlideIn(child: _ArenaDetailBody(arena: initialArena!));
+          return FadeSlideIn(
+            child: _ArenaDetailBody(
+              arena: initialArena!,
+              recentReviewer: recentReviewerAsync.valueOrNull,
+            ),
+          );
         }
         return AppScaffold(
           title: '',
@@ -75,9 +88,13 @@ class ArenaDetailPage extends ConsumerWidget {
 }
 
 class _ArenaDetailBody extends StatefulWidget {
-  const _ArenaDetailBody({required this.arena});
+  const _ArenaDetailBody({
+    required this.arena,
+    required this.recentReviewer,
+  });
 
   final ArenaListItem arena;
+  final String? recentReviewer;
 
   @override
   State<_ArenaDetailBody> createState() => _ArenaDetailBodyState();
@@ -98,8 +115,10 @@ class _ArenaDetailBodyState extends State<_ArenaDetailBody> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final arena = widget.arena;
+    final recentReviewer = widget.recentReviewer;
     final descriptionText = arena.description?.trim();
-    final hasDescription = descriptionText != null && descriptionText.isNotEmpty;
+    final hasDescription =
+        descriptionText != null && descriptionText.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -162,7 +181,8 @@ class _ArenaDetailBodyState extends State<_ArenaDetailBody> {
                             child: Icon(
                               Icons.place_outlined,
                               size: 22,
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                              color: theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.5),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -171,13 +191,49 @@ class _ArenaDetailBodyState extends State<_ArenaDetailBody> {
                               arena.locationLabel,
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w500,
-                                color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
+                                color: theme.colorScheme.onSurface
+                                    .withValues(alpha: 0.72),
                                 height: 1.35,
                               ),
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Text(
+                            arena.reviewsCount > 0
+                                ? '⭐ ${arena.ratingAverage.toStringAsFixed(1)} (${arena.reviewsCount} avaliações)'
+                                : '⭐ Ainda sem avaliações',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.onSurfaceMuted,
+                            ),
+                          ),
+                          const Spacer(),
+                          if (arena.reviewsCount > 0)
+                            TextButton(
+                              onPressed: () => context.pushNamed(
+                                AppRouteNames.arenaReviews,
+                                pathParameters: {'arenaId': arena.id},
+                                queryParameters: {'arenaName': arena.name},
+                              ),
+                              child: const Text('Ver avaliações'),
+                            ),
+                        ],
+                      ),
+                      if (recentReviewer != null &&
+                          recentReviewer.trim().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          recentReviewer,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.onSurfaceMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 40),
                       Text(
                         'Sobre o espaço',
@@ -194,18 +250,22 @@ class _ArenaDetailBodyState extends State<_ArenaDetailBody> {
                         style: theme.textTheme.bodyLarge?.copyWith(
                           height: 1.65,
                           fontSize: 16,
-                          color: theme.colorScheme.onSurface.withValues(alpha: hasDescription ? 0.82 : 0.55),
+                          color: theme.colorScheme.onSurface
+                              .withValues(alpha: hasDescription ? 0.82 : 0.55),
                         ),
                       ),
                       const SizedBox(height: 40),
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 22),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 22, vertical: 22),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.35),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: theme.colorScheme.outline.withValues(alpha: 0.08),
+                            color: theme.colorScheme.outline
+                                .withValues(alpha: 0.08),
                           ),
                         ),
                         child: Row(
@@ -219,13 +279,16 @@ class _ArenaDetailBodyState extends State<_ArenaDetailBody> {
                                   'Preço por hora',
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     fontWeight: FontWeight.w600,
-                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+                                    color: theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.65),
                                   ),
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  ArenaDetailPage.formatPrice(arena.pricePerHourReais),
-                                  style: theme.textTheme.headlineSmall?.copyWith(
+                                  ArenaDetailPage.formatPrice(
+                                      arena.pricePerHourReais),
+                                  style:
+                                      theme.textTheme.headlineSmall?.copyWith(
                                     fontWeight: FontWeight.w800,
                                     color: theme.colorScheme.primary,
                                     letterSpacing: -0.5,
@@ -236,7 +299,8 @@ class _ArenaDetailBodyState extends State<_ArenaDetailBody> {
                             Icon(
                               Icons.schedule_rounded,
                               size: 36,
-                              color: theme.colorScheme.primary.withValues(alpha: 0.35),
+                              color: theme.colorScheme.primary
+                                  .withValues(alpha: 0.35),
                             ),
                           ],
                         ),

@@ -32,6 +32,7 @@ import '../../features/arena/domain/arena_route_guard.dart';
 import '../../features/athlete/presentation/athlete_edit_profile_page.dart';
 import '../../features/athlete/presentation/athlete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_profile_update_success_page.dart';
+import '../../features/athlete/presentation/arena_reviews_page.dart';
 import '../../features/athlete/presentation/athlete_shell_page.dart';
 import '../auth/auth_providers.dart';
 import '../auth/user_roles.dart';
@@ -316,6 +317,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 (initialStartTime == null || initialStartTime.isEmpty)
                     ? null
                     : initialStartTime,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.arenaReviews,
+        name: AppRouteNames.arenaReviews,
+        builder: (context, state) {
+          final arenaId = state.pathParameters['arenaId'] ?? '';
+          final arenaName = state.uri.queryParameters['arenaName']?.trim();
+          return ArenaReviewsPage(
+            arenaId: arenaId,
+            arenaName: arenaName,
           );
         },
       ),

@@ -13,7 +13,9 @@ import '../../arenas/domain/booking_providers.dart';
 import '../../arenas/domain/my_booking_item.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../domain/gamification_providers.dart';
+import '../domain/arena_review_providers.dart';
 import 'widgets/gamification_feedback_sheet.dart';
+import 'widgets/rating_dialog.dart';
 
 /// Agenda do atleta em tempo real (Firestore `arenaBookings`).
 class AthleteBookingsPage extends ConsumerStatefulWidget {
@@ -28,6 +30,7 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey _nowKey = GlobalKey();
   final Set<String> _processedCompletedBookings = <String>{};
+  final Set<String> _promptedReviewBookingIds = <String>{};
   bool _didAutoScroll = false;
 
   Future<void> _refreshBookings() async {
@@ -74,6 +77,7 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
     final theme = Theme.of(context);
     final now = DateTime.now();
     final bookingsAsync = ref.watch(myBookingsStreamProvider);
+    final pendingReviewAsync = ref.watch(pendingReviewProvider);
 
     return ColoredBox(
       color: theme.colorScheme.surfaceContainerLowest,
@@ -144,6 +148,15 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
               : 'Próximo em ${_minutesUntilLabel(now, nextBooking.startAt)}';
           final rows = _buildTimelineRows(now: now, bookings: bookings);
           _processCompletedBookings(bookings);
+          final pendingReview = pendingReviewAsync.valueOrNull;
+          if (pendingReview != null &&
+              !_promptedReviewBookingIds.contains(pendingReview.bookingId)) {
+            _promptedReviewBookingIds.add(pendingReview.bookingId);
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              showRatingDialog(context, pending: pendingReview);
+            });
+          }
 
           return RefreshIndicator(
             onRefresh: _refreshBookings,

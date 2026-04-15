@@ -21,6 +21,8 @@ class ArenaListItem {
     this.courtTypes = const [],
     this.onlinePaymentEnabled = true,
     this.onsitePaymentEnabled = true,
+    this.ratingAverage = 0,
+    this.reviewsCount = 0,
   });
 
   final String id;
@@ -49,6 +51,8 @@ class ArenaListItem {
 
   final bool onlinePaymentEnabled;
   final bool onsitePaymentEnabled;
+  final double ratingAverage;
+  final int reviewsCount;
 
   /// Compatibilidade com código legado.
   String get imageUrl => coverUrl ?? kDefaultImageUrl;
@@ -97,9 +101,12 @@ class ArenaListItem {
       return v.trim();
     }
 
-    final imageUrl =
-        pickUrl('coverUrl') ?? pickUrl('coverImageUrl') ?? pickUrl('imageUrl') ?? pickUrl('heroImageUrl');
-    final logoUrl = pickUrl('logoUrl') ?? pickUrl('logo') ?? pickUrl('logoImageUrl');
+    final imageUrl = pickUrl('coverUrl') ??
+        pickUrl('coverImageUrl') ??
+        pickUrl('imageUrl') ??
+        pickUrl('heroImageUrl');
+    final logoUrl =
+        pickUrl('logoUrl') ?? pickUrl('logo') ?? pickUrl('logoImageUrl');
 
     final price = (data['pricePerHourReais'] as num?)?.toDouble() ??
         (data['basePriceReais'] as num?)?.toDouble() ??
@@ -135,7 +142,8 @@ class ArenaListItem {
     }
 
     final gallery = <String>[];
-    final rawGallery = data['galleryImageUrls'] ?? data['images'] ?? data['gallery'];
+    final rawGallery =
+        data['galleryImageUrls'] ?? data['images'] ?? data['gallery'];
     if (rawGallery is List) {
       for (final e in rawGallery) {
         if (e is String && e.trim().isNotEmpty) gallery.add(e.trim());
@@ -171,6 +179,8 @@ class ArenaListItem {
 
     final cityValue = city.isEmpty ? null : city;
     final stateValue = state.isEmpty ? null : state;
+    final ratingAverage = (data['ratingAverage'] as num?)?.toDouble() ?? 0;
+    final reviewsCount = (data['reviewsCount'] as num?)?.toInt() ?? 0;
 
     return ArenaListItem(
       id: doc.id,
@@ -189,6 +199,8 @@ class ArenaListItem {
       courtTypes: courtTypes,
       onlinePaymentEnabled: onlinePayment,
       onsitePaymentEnabled: onsitePayment,
+      ratingAverage: ratingAverage,
+      reviewsCount: reviewsCount,
     );
   }
 }

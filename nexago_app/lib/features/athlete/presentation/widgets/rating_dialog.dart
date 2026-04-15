@@ -28,6 +28,7 @@ class _RatingDialog extends ConsumerStatefulWidget {
 }
 
 class _RatingDialogState extends ConsumerState<_RatingDialog> {
+  static const int _xpReward = 10;
   final TextEditingController _commentController = TextEditingController();
   int _rating = 0;
   bool _sending = false;
@@ -72,7 +73,7 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
           );
       await ref.read(gamificationServiceProvider).addXp(
             userId: userId,
-            amount: 10,
+            amount: _xpReward,
             reason: 'ARENA_REVIEW',
           );
       if (!mounted) return;
@@ -81,8 +82,9 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Obrigado pela sua avaliação! ⭐'),
-          content:
-              const Text('Sua opinião ajuda outros atletas e melhora a arena.'),
+          content: Text(
+            'Sua opinião ajuda outros atletas e melhora a arena.\n\n+$_xpReward XP adicionados ao seu progresso! 🚀',
+          ),
           actions: [
             FilledButton(
               onPressed: () => Navigator.of(ctx).pop(),
@@ -176,6 +178,25 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
                     ],
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF8E1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0xFFFFC107).withValues(alpha: 0.45),
+                ),
+              ),
+              child: Text(
+                'Avalie esta reserva e ganhe +$_xpReward XP no seu perfil.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF8D6E00),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
             const SizedBox(height: 12),

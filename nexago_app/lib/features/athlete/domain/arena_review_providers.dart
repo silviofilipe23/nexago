@@ -147,22 +147,43 @@ final arenaReviewsStreamProvider = StreamProvider.autoDispose
     .family<List<ArenaReview>, String>((ref, arenaId) {
   final aid = arenaId.trim();
   if (aid.isEmpty) return Stream.value(const []);
-  return ref
-      .watch(firestoreProvider)
+  final firestore = ref.watch(firestoreProvider);
+  return firestore
       .collection('arena_reviews')
       .where('arenaId', isEqualTo: aid)
       .snapshots()
-      .map((snap) {
+      .asyncMap((snap) async {
     final items = snap.docs.map(ArenaReview.fromFirestore).toList();
     items.sort((a, b) {
       final aMs = a.createdAt?.millisecondsSinceEpoch ?? 0;
       final bMs = b.createdAt?.millisecondsSinceEpoch ?? 0;
       return bMs.compareTo(aMs);
     });
-    if (items.length > 50) {
-      return items.sublist(0, 50);
+    final capped =
+        items.length > 50 ? items.sublist(0, 50) : List<ArenaReview>.from(items);
+
+    final userIds = capped
+        .map((e) => e.userId.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    final userNames = <String, String>{};
+    for (var i = 0; i < userIds.length; i += 10) {
+      final chunk =
+          userIds.sublist(i, i + 10 > userIds.length ? userIds.length : i + 10);
+      final usersSnap = await firestore
+          .collection('users')
+          .where(FieldPath.documentId, whereIn: chunk)
+          .get();
+      for (final doc in usersSnap.docs) {
+        final name = (doc.data()['name'] as String?)?.trim();
+        if (name != null && name.isNotEmpty) userNames[doc.id] = name;
+      }
     }
-    return List.unmodifiable(items);
+
+    return List.unmodifiable(
+      capped.map((r) => r.copyWith(athleteName: userNames[r.userId])),
+    );
   });
 });
 

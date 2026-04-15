@@ -32,13 +32,6 @@ class AthleteHomePage extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
             children: [
-              Text(
-                'Início',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                ),
-              ),
               const SizedBox(height: 8),
               Text(
                 'Seu ritmo hoje define seu próximo nível.',

@@ -507,7 +507,7 @@ class _ArenaBookingList extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               sliver: SliverToBoxAdapter(
                 child: Text(
-                  'Arenas que você segue',
+                  'Suas arenas favoritas (${favoriteItems.length})',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.2,

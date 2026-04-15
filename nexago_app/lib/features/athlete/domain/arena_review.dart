@@ -9,6 +9,7 @@ class ArenaReview {
     required this.rating,
     required this.comment,
     required this.createdAt,
+    this.athleteName,
   });
 
   final String id;
@@ -18,6 +19,20 @@ class ArenaReview {
   final int rating;
   final String? comment;
   final DateTime? createdAt;
+  final String? athleteName;
+
+  ArenaReview copyWith({String? athleteName}) {
+    return ArenaReview(
+      id: id,
+      arenaId: arenaId,
+      userId: userId,
+      bookingId: bookingId,
+      rating: rating,
+      comment: comment,
+      createdAt: createdAt,
+      athleteName: athleteName ?? this.athleteName,
+    );
+  }
 
   factory ArenaReview.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -36,6 +51,7 @@ class ArenaReview {
       createdAt: data['createdAt'] is Timestamp
           ? (data['createdAt'] as Timestamp).toDate()
           : null,
+      athleteName: null,
     );
   }
 }

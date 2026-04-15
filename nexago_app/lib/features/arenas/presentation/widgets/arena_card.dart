@@ -13,6 +13,7 @@ class ArenaCard extends StatefulWidget {
     super.key,
     required this.arena,
     required this.onTap,
+    this.title,
     this.isFavorite = false,
     this.isFavoriteBusy = false,
     this.onToggleFavorite,
@@ -20,6 +21,7 @@ class ArenaCard extends StatefulWidget {
 
   final ArenaListItem arena;
   final VoidCallback onTap;
+  final InlineSpan? title;
   final bool isFavorite;
   final bool isFavoriteBusy;
   final VoidCallback? onToggleFavorite;
@@ -123,13 +125,16 @@ class _ArenaCardState extends State<ArenaCard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          widget.arena.name,
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: -0.25,
-                          ),
+                        Text.rich(
+                          widget.title ??
+                              TextSpan(
+                                text: widget.arena.name,
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.25,
+                                ),
+                              ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),

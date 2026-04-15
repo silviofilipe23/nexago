@@ -32,6 +32,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
   static final DateFormat _dateFmt = DateFormat("EEE, dd 'de' MMM", 'pt_BR');
   late DateTime _selectedDate;
   late TimeOfDay _selectedTime;
+  String _searchQuery = '';
   final Map<String, bool> _favoriteOverrides = <String, bool>{};
   final Set<String> _favoritePendingArenaIds = <String>{};
 
@@ -67,25 +68,37 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
           onRetry: () => ref.invalidate(arenaSearchResultsProvider(filters)),
         ),
         data: (results) {
+          final search = _searchQuery.trim().toLowerCase();
+
           final enriched = results
               .map(
-                (r) => _ArenaDisplayItem(
-                  result: r,
-                  isFavorite: _favoriteOverrides[r.arena.id] ??
-                      favoriteIdsSet.contains(r.arena.id),
-                ),
-              )
-              .toList(growable: false)
+            (r) => _ArenaDisplayItem(
+              result: r,
+              isFavorite: _favoriteOverrides[r.arena.id] ??
+                  favoriteIdsSet.contains(r.arena.id),
+            ),
+          )
+              .where((item) {
+            if (search.isEmpty) return true;
+            return item.result.arena.name.toLowerCase().contains(search);
+          }).toList(growable: false)
             ..sort((a, b) {
               if (a.isFavorite != b.isFavorite) {
                 return a.isFavorite ? -1 : 1;
               }
+              final aName = a.result.arena.name.toLowerCase();
+              final bName = b.result.arena.name.toLowerCase();
+              final aStarts = search.isNotEmpty && aName.startsWith(search);
+              final bStarts = search.isNotEmpty && bName.startsWith(search);
+              if (aStarts != bStarts) return aStarts ? -1 : 1;
               return _compareResults(a.result, b.result);
             });
 
           return _ArenaBookingList(
             filters: filters,
             displayItems: enriched,
+            searchQuery: _searchQuery,
+            onSearchChanged: _onSearchChanged,
             onChangeDate: _pickDate,
             onChangeTime: _pickTime,
             onToggleFavorite: (arenaId, isFavorite) => _toggleFavorite(
@@ -122,6 +135,11 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
     );
     if (picked == null) return;
     setState(() => _selectedTime = picked);
+  }
+
+  void _onSearchChanged(String value) {
+    if (_searchQuery == value) return;
+    setState(() => _searchQuery = value);
   }
 
   Future<void> _toggleFavorite({
@@ -372,6 +390,8 @@ class _ArenaBookingList extends StatelessWidget {
   const _ArenaBookingList({
     required this.filters,
     required this.displayItems,
+    required this.searchQuery,
+    required this.onSearchChanged,
     required this.onChangeDate,
     required this.onChangeTime,
     required this.onToggleFavorite,
@@ -380,6 +400,8 @@ class _ArenaBookingList extends StatelessWidget {
 
   final ArenaSearchFilters filters;
   final List<_ArenaDisplayItem> displayItems;
+  final String searchQuery;
+  final ValueChanged<String> onSearchChanged;
   final VoidCallback onChangeDate;
   final VoidCallback onChangeTime;
   final void Function(String arenaId, bool isFavorite) onToggleFavorite;
@@ -416,6 +438,32 @@ class _ArenaBookingList extends StatelessWidget {
                   'Selecione data e horário para encontrar o melhor slot em cada arena.',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: AppColors.onSurfaceMuted,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  onChanged: onSearchChanged,
+                  decoration: InputDecoration(
+                    hintText: 'Buscar arena...',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    filled: true,
+                    fillColor: theme.colorScheme.surface,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(
+                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(
+                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -481,6 +529,7 @@ class _ArenaBookingList extends StatelessWidget {
                     final item = favoriteItems[index];
                     return _FavoriteArenaMiniCard(
                       arena: item.result.arena,
+                      searchQuery: searchQuery,
                       onTap: () => _goToArenaDetail(context, item.result.arena),
                       isPending: isFavoritePending(item.result.arena.id),
                       onToggleFavorite: isFavoritePending(item.result.arena.id)
@@ -504,6 +553,7 @@ class _ArenaBookingList extends StatelessWidget {
                   index: index,
                   child: _ArenaSearchCard(
                     result: result,
+                    searchQuery: searchQuery,
                     isFavorite: item.isFavorite,
                     isFavoritePending: isFavoritePending(result.arena.id),
                     onOpenArena: () => _goToArenaDetail(context, result.arena),
@@ -533,6 +583,7 @@ class _ArenaBookingList extends StatelessWidget {
 class _ArenaSearchCard extends StatelessWidget {
   const _ArenaSearchCard({
     required this.result,
+    required this.searchQuery,
     required this.isFavorite,
     required this.isFavoritePending,
     required this.onOpenArena,
@@ -541,6 +592,7 @@ class _ArenaSearchCard extends StatelessWidget {
   });
 
   final ArenaSearchResult result;
+  final String searchQuery;
   final bool isFavorite;
   final bool isFavoritePending;
   final VoidCallback onOpenArena;
@@ -575,6 +627,16 @@ class _ArenaSearchCard extends StatelessWidget {
           children: [
             ArenaCard(
               arena: result.arena,
+              title: _buildHighlightedName(
+                context,
+                result.arena.name,
+                searchQuery,
+                baseStyle: theme.textTheme.titleLarge?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.25,
+                ),
+              ),
               onTap: onOpenArena,
               isFavorite: isFavorite,
               isFavoriteBusy: isFavoritePending,
@@ -621,12 +683,14 @@ class _ArenaSearchCard extends StatelessWidget {
 class _FavoriteArenaMiniCard extends StatelessWidget {
   const _FavoriteArenaMiniCard({
     required this.arena,
+    required this.searchQuery,
     required this.onTap,
     required this.isPending,
     required this.onToggleFavorite,
   });
 
   final ArenaListItem arena;
+  final String searchQuery;
   final VoidCallback onTap;
   final bool isPending;
   final VoidCallback? onToggleFavorite;
@@ -713,8 +777,17 @@ class _FavoriteArenaMiniCard extends StatelessWidget {
                 left: 10,
                 right: 10,
                 bottom: 10,
-                child: Text(
-                  arena.name,
+                child: Text.rich(
+                  _buildHighlightedName(
+                    context,
+                    arena.name,
+                    searchQuery,
+                    baseStyle: theme.textTheme.titleSmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    highlightColor: Colors.white,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleSmall?.copyWith(
@@ -729,6 +802,44 @@ class _FavoriteArenaMiniCard extends StatelessWidget {
       ),
     );
   }
+}
+
+TextSpan _buildHighlightedName(BuildContext context, String value, String query,
+    {TextStyle? baseStyle, Color? highlightColor}) {
+  final theme = Theme.of(context);
+  final q = query.trim();
+  final base = baseStyle ??
+      theme.textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.w800,
+      );
+  if (q.isEmpty) {
+    return TextSpan(text: value, style: base);
+  }
+
+  final source = value.toLowerCase();
+  final needle = q.toLowerCase();
+  final i = source.indexOf(needle);
+  if (i < 0) {
+    return TextSpan(text: value, style: base);
+  }
+
+  final end = i + needle.length;
+  return TextSpan(
+    style: base,
+    children: [
+      if (i > 0) TextSpan(text: value.substring(0, i)),
+      TextSpan(
+        text: value.substring(i, end),
+        style: base?.copyWith(
+          color: highlightColor ?? AppColors.brand,
+          decoration: TextDecoration.underline,
+          decorationColor:
+              (highlightColor ?? AppColors.brand).withValues(alpha: 0.55),
+        ),
+      ),
+      if (end < value.length) TextSpan(text: value.substring(end)),
+    ],
+  );
 }
 
 void _goToArenaDetail(BuildContext context, ArenaListItem arena) {

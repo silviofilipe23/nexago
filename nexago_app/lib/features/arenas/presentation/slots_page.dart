@@ -87,7 +87,13 @@ class SlotsPage extends ConsumerWidget {
               title: 'Arena não encontrada',
               subtitle: 'Volte e escolha uma arena na lista.',
               actionLabel: 'Voltar',
-              onAction: () => context.pop(),
+              onAction: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go(AppRoutes.discover);
+                }
+              },
             ),
           );
         }
@@ -146,6 +152,17 @@ class _SlotsScheduleView extends ConsumerStatefulWidget {
 }
 
 class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
+  void _handleBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go(
+      AppRoutes.arenaDetail.replaceAll(':arenaId', widget.arena.id),
+      extra: widget.arena,
+    );
+  }
+
   static const _calendarDays = 21;
 
   late DateTime _selectedDay;
@@ -629,7 +646,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.arrow_back_rounded),
-                            onPressed: () => context.pop(),
+                            onPressed: _handleBack,
                           ),
                           Expanded(
                             child: Text(

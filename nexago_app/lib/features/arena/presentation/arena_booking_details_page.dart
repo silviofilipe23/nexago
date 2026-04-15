@@ -46,7 +46,8 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
     if (liveAsync.hasError && initialBooking == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Reserva')),
-        body: ArenaErrorState(message: 'Erro ao carregar reserva.\n${liveAsync.error}'),
+        body: ArenaErrorState(
+            message: 'Erro ao carregar reserva.\n${liveAsync.error}'),
       );
     }
 
@@ -97,20 +98,39 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
             .format(amount)
         : '—';
 
-    final dateParsed = DateTime.tryParse(booking.dateKey.length >= 10
-        ? booking.dateKey.substring(0, 10)
-        : '');
+    final dateParsed = DateTime.tryParse(
+        booking.dateKey.length >= 10 ? booking.dateKey.substring(0, 10) : '');
     final dateTitle = dateParsed != null
         ? _capitalize(
             DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(dateParsed))
         : booking.dateKey;
     final timeRange = '${booking.startTime} – ${booking.endTime}';
 
-    final statusLower =
-        (data['status'] as String?)?.toLowerCase().trim() ?? '';
+    final statusLower = (data['status'] as String?)?.toLowerCase().trim() ?? '';
     final canCancel = statusLower != 'cancelled' &&
         statusLower != 'canceled' &&
         statusLower != 'completed';
+    final historyArenaId =
+        ((data['arenaId'] as String?)?.trim().isNotEmpty == true)
+            ? (data['arenaId'] as String).trim()
+            : arenaId;
+    final historyAsync = athleteId.isNotEmpty && historyArenaId.isNotEmpty
+        ? ref.watch(
+            athleteArenaHistoryProvider(
+              AthleteArenaHistoryArgs(
+                athleteId: athleteId,
+                arenaId: historyArenaId,
+              ),
+            ),
+          )
+        : null;
+    final historyArgs = AthleteArenaHistoryArgs(
+      athleteId: athleteId,
+      arenaId: historyArenaId,
+    );
+    final blockAsync = athleteId.isNotEmpty && historyArenaId.isNotEmpty
+        ? ref.watch(arenaAthleteBlockProvider(historyArgs))
+        : const AsyncData(ArenaAthleteBlockInfo(isBlocked: false));
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
@@ -180,8 +200,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
                 Text(
                   'Valor',
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color:
-                        theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -197,8 +216,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
                 Text(
                   'Tipo de pagamento',
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color:
-                        theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -213,10 +231,33 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 14),
+          _AthleteHistorySection(
+            historyAsync: historyAsync,
+            athleteId: athleteId,
+            arenaId: historyArenaId,
+          ),
+          const SizedBox(height: 14),
           _ActionsCard(
             onContact: athleteId.isEmpty
                 ? null
                 : () => _contactAthlete(context, ref, athleteId),
+            onBlock: athleteId.isEmpty || historyArenaId.isEmpty
+                ? null
+                : () => _confirmBlockAthlete(
+                      context,
+                      ref,
+                      arenaId: historyArenaId,
+                      athleteId: athleteId,
+                    ),
+            onUnblock: athleteId.isEmpty || historyArenaId.isEmpty
+                ? null
+                : () => _confirmUnblockAthlete(
+                      context,
+                      ref,
+                      arenaId: historyArenaId,
+                      athleteId: athleteId,
+                    ),
+            blockInfo: blockAsync.valueOrNull,
             onCancel: canCancel && arenaId.isNotEmpty
                 ? () => _confirmCancel(context, ref,
                     bookingId: id, arenaId: arenaId)
@@ -386,6 +427,251 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
         );
       }
     }
+  }
+
+  static Future<void> _confirmBlockAthlete(
+    BuildContext context,
+    WidgetRef ref, {
+    required String arenaId,
+    required String athleteId,
+  }) async {
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => const _BlockAthleteReasonDialog(),
+    );
+    if (reason == null || reason.trim().isEmpty || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(bookingServiceProvider).blockUser(
+            arenaId: arenaId,
+            athleteId: athleteId,
+            reason: reason.trim(),
+          );
+      if (context.mounted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Atleta bloqueado com sucesso.')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Não foi possível bloquear: $e')),
+        );
+      }
+    }
+  }
+
+  static Future<void> _confirmUnblockAthlete(
+    BuildContext context,
+    WidgetRef ref, {
+    required String arenaId,
+    required String athleteId,
+  }) async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Desbloquear atleta'),
+        content: const Text(
+          'Tem certeza que deseja desbloquear este atleta para novas reservas nesta arena?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Desbloquear'),
+          ),
+        ],
+      ),
+    );
+    if (go != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref.read(bookingServiceProvider).unblockUser(
+            arenaId: arenaId,
+            athleteId: athleteId,
+          );
+      if (context.mounted) {
+        messenger.hideCurrentSnackBar();
+        _openUnblockResultPage(
+          context,
+          success: true,
+          message: 'Atleta desbloqueado com sucesso.',
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        messenger.hideCurrentSnackBar();
+        _openUnblockResultPage(
+          context,
+          success: false,
+          message: 'Não foi possível desbloquear: $e',
+        );
+      }
+    }
+  }
+
+  static Future<void> _openUnblockResultPage(
+    BuildContext context, {
+    required bool success,
+    required String message,
+  }) async {
+    await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _AthleteUnblockResultPage(
+          success: success,
+          message: message,
+        ),
+      ),
+    );
+  }
+}
+
+class _BlockAthleteReasonDialog extends StatefulWidget {
+  const _BlockAthleteReasonDialog();
+
+  @override
+  State<_BlockAthleteReasonDialog> createState() =>
+      _BlockAthleteReasonDialogState();
+}
+
+class _BlockAthleteReasonDialogState extends State<_BlockAthleteReasonDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canConfirm = _controller.text.trim().isNotEmpty;
+    return AlertDialog(
+      title: const Text('Bloquear atleta'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Este atleta não poderá criar novas reservas nesta arena.',
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            minLines: 2,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              labelText: 'Motivo do bloqueio',
+              hintText: 'Ex.: cancelamentos recorrentes sem aviso.',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Voltar'),
+        ),
+        FilledButton(
+          onPressed: canConfirm
+              ? () => Navigator.pop(context, _controller.text.trim())
+              : null,
+          child: const Text('Confirmar bloqueio'),
+        ),
+      ],
+    );
+  }
+}
+
+class _AthleteUnblockResultPage extends StatelessWidget {
+  const _AthleteUnblockResultPage({
+    required this.success,
+    required this.message,
+  });
+
+  final bool success;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = success ? const Color(0xFF2E7D32) : theme.colorScheme.error;
+
+    return Scaffold(
+      backgroundColor: theme.colorScheme.surfaceContainerLowest,
+      appBar: AppBar(title: const Text('Desbloqueio de atleta')),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Icon(
+                    success
+                        ? Icons.check_circle_rounded
+                        : Icons.error_outline_rounded,
+                    size: 64,
+                    color: accent,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    success ? 'Atleta desbloqueado' : 'Falha ao desbloquear',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: accent.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      message,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyLarge?.copyWith(height: 1.35),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text('Voltar para a reserva'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -761,13 +1047,375 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
+class _AthleteHistorySection extends StatelessWidget {
+  const _AthleteHistorySection({
+    required this.historyAsync,
+    required this.athleteId,
+    required this.arenaId,
+  });
+
+  final AsyncValue<List<ArenaManagerBooking>>? historyAsync;
+  final String athleteId;
+  final String arenaId;
+
+  @override
+  Widget build(BuildContext context) {
+    if (historyAsync == null) {
+      return const _SectionCard(
+        title: 'Histórico do atleta',
+        child: Text('Dados insuficientes para carregar o histórico.'),
+      );
+    }
+
+    return historyAsync!.when(
+      data: (history) {
+        final total = history.length;
+        final canceled = history.where(_isCanceledBooking).length;
+        final highlights = <String>[
+          if (total >= 8) 'Cliente frequente',
+          if (canceled >= 3 && (canceled / (total == 0 ? 1 : total)) >= 0.35)
+            'Cancela com frequência',
+        ];
+        final latestFive = history.take(5).toList(growable: false);
+        final recentCanceled = latestFive.where(_isCanceledBooking).length;
+
+        return _SectionCard(
+          title: 'Histórico do atleta',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _HistoryStatTile(
+                      label: 'Total de reservas',
+                      value: '$total',
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _HistoryStatTile(
+                      label: 'Cancelamentos',
+                      value: '$canceled',
+                      danger: canceled > 0,
+                    ),
+                  ),
+                ],
+              ),
+              if (highlights.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final label in highlights)
+                      _HistoryHighlightChip(label: label),
+                  ],
+                ),
+              ],
+              if (recentCanceled >= 2) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .errorContainer
+                        .withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .error
+                          .withValues(alpha: 0.35),
+                    ),
+                  ),
+                  child: Text(
+                    '⚠️ $recentCanceled cancelamentos recentes',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.error,
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              if (latestFive.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                      'Sem reservas anteriores para este atleta nesta arena.'),
+                )
+              else
+                Column(
+                  children: [
+                    for (var i = 0; i < latestFive.length; i++) ...[
+                      if (i > 0)
+                        Divider(
+                          height: 22,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .outline
+                              .withValues(alpha: 0.12),
+                        ),
+                      _HistoryBookingRow(booking: latestFive[i]),
+                    ],
+                  ],
+                ),
+              if (history.length > 5) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => _openFullHistoryPage(context),
+                    icon: const Icon(Icons.history_rounded),
+                    label: const Text('Ver todos'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+      loading: () => const _SectionCard(
+        title: 'Histórico do atleta',
+        child: ArenaLoadingState(label: 'Carregando histórico...'),
+      ),
+      error: (e, _) => _SectionCard(
+        title: 'Histórico do atleta',
+        child: Text('Não foi possível carregar o histórico.\n$e'),
+      ),
+    );
+  }
+
+  void _openFullHistoryPage(BuildContext context) {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _AthleteFullHistoryPage(
+          athleteId: athleteId,
+          arenaId: arenaId,
+        ),
+      ),
+    );
+  }
+}
+
+class _AthleteFullHistoryPage extends ConsumerWidget {
+  const _AthleteFullHistoryPage({
+    required this.athleteId,
+    required this.arenaId,
+  });
+
+  final String athleteId;
+  final String arenaId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyAsync = ref.watch(
+      athleteArenaHistoryProvider(
+        AthleteArenaHistoryArgs(
+          athleteId: athleteId,
+          arenaId: arenaId,
+        ),
+      ),
+    );
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Histórico completo')),
+      backgroundColor: theme.colorScheme.surfaceContainerLowest,
+      body: historyAsync.when(
+        data: (bookings) {
+          if (bookings.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Sem histórico para este atleta nesta arena.'),
+              ),
+            );
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+            itemCount: bookings.length,
+            separatorBuilder: (_, __) => Divider(
+              height: 18,
+              color: theme.colorScheme.outline.withValues(alpha: 0.12),
+            ),
+            itemBuilder: (_, i) => _HistoryBookingRow(booking: bookings[i]),
+          );
+        },
+        loading: () => const Center(
+          child: ArenaLoadingState(label: 'Carregando histórico...'),
+        ),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Não foi possível carregar o histórico.\n$e',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryStatTile extends StatelessWidget {
+  const _HistoryStatTile({
+    required this.label,
+    required this.value,
+    this.danger = false,
+  });
+
+  final String label;
+  final String value;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = danger ? theme.colorScheme.error : AppColors.brand;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: accent.withValues(alpha: 0.95),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryHighlightChip extends StatelessWidget {
+  const _HistoryHighlightChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isNegative = label.toLowerCase().contains('cancela');
+    final color =
+        isNegative ? theme.colorScheme.error : const Color(0xFF2E7D32);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
+      ),
+      child: Text(
+        label,
+        style: theme.textTheme.labelLarge?.copyWith(
+          color: color.withValues(alpha: 0.95),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoryBookingRow extends StatelessWidget {
+  const _HistoryBookingRow({required this.booking});
+
+  final ArenaManagerBooking booking;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final date = DateTime.tryParse(
+      booking.dateKey.length >= 10 ? booking.dateKey.substring(0, 10) : '',
+    );
+    final dateLabel = date != null
+        ? DateFormat('dd/MM/yyyy', 'pt_BR').format(date)
+        : booking.dateKey;
+    final status = arenaBookingBusinessStatusLabel(booking.data);
+    final statusColor = ArenaBookingDetailsPage._statusAccentColor(status);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                dateLabel,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${booking.startTime} – ${booking.endTime}',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: statusColor.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: statusColor.withValues(alpha: 0.35)),
+          ),
+          child: Text(
+            status,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: statusColor.withValues(alpha: 0.95),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+bool _isCanceledBooking(ArenaManagerBooking booking) {
+  final s = (booking.data['status'] as String?)?.toLowerCase().trim() ?? '';
+  return s == 'cancelled' || s == 'canceled';
+}
+
 class _ActionsCard extends StatelessWidget {
   const _ActionsCard({
     required this.onContact,
+    required this.onBlock,
+    required this.onUnblock,
+    required this.blockInfo,
     required this.onCancel,
   });
 
   final VoidCallback? onContact;
+  final VoidCallback? onBlock;
+  final VoidCallback? onUnblock;
+  final ArenaAthleteBlockInfo? blockInfo;
   final VoidCallback? onCancel;
 
   @override
@@ -788,6 +1436,58 @@ class _ActionsCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14)),
             ),
           ),
+          const SizedBox(height: 10),
+          if (blockInfo?.isBlocked == true) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.errorContainer.withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: theme.colorScheme.error.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.block_rounded, color: theme.colorScheme.error),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      blockInfo?.reason?.isNotEmpty == true
+                          ? 'Atleta bloqueado: ${blockInfo!.reason!}'
+                          : 'Atleta já está bloqueado nesta arena.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: onUnblock,
+              icon: const Icon(Icons.lock_open_rounded),
+              label: const Text('Desbloquear atleta'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+            ),
+          ] else
+            OutlinedButton.icon(
+              onPressed: onBlock,
+              icon: const Icon(Icons.block_outlined),
+              label: const Text('Bloquear atleta'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: onCancel,

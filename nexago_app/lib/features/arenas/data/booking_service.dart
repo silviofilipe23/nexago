@@ -23,8 +23,10 @@ class BookingService {
   static const String arenaBookingsCollection = 'arenaBookings';
   static const String arenaSlotsCollection = 'arenaSlots';
   static const String arenaSlotLocksCollection = 'arenaSlotLocks';
+  static const String arenaBlocksCollection = 'arena_blocks';
 
   static const String slotConflictCode = 'SLOT_CONFLICT';
+  static const String blockedAthleteCode = 'BLOCKED_ATHLETE';
 
   static const int _myBookingsLimit = 64;
   static const int _arenaBookingsLimit = 256;
@@ -35,7 +37,8 @@ class BookingService {
       return Stream<List<MyBookingItem>>.value(const []);
     }
     final byAthleteId = _watchMyBookingsByField('athleteId', athleteId);
-    final byBookingAthleteId = _watchMyBookingsByField('bookingAthleteId', athleteId);
+    final byBookingAthleteId =
+        _watchMyBookingsByField('bookingAthleteId', athleteId);
 
     return Stream<List<MyBookingItem>>.multi((controller) {
       List<MyBookingItem> latestA = const [];
@@ -77,13 +80,15 @@ class BookingService {
     });
   }
 
-  Stream<List<MyBookingItem>> _watchMyBookingsByField(String field, String athleteId) {
+  Stream<List<MyBookingItem>> _watchMyBookingsByField(
+      String field, String athleteId) {
     return _firestore
         .collection(arenaBookingsCollection)
         .where(field, isEqualTo: athleteId)
         .limit(_myBookingsLimit)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map(MyBookingItem.fromFirestore).toList());
+        .map((snapshot) =>
+            snapshot.docs.map(MyBookingItem.fromFirestore).toList());
   }
 
   /// Todas as reservas da arena (gestor); filtro por dia fica na UI.
@@ -98,7 +103,8 @@ class BookingService {
         .limit(_arenaBookingsLimit)
         .snapshots()
         .map((snapshot) {
-      final list = snapshot.docs.map(ArenaManagerBooking.fromFirestore).toList();
+      final list =
+          snapshot.docs.map(ArenaManagerBooking.fromFirestore).toList();
       list.sort((a, b) {
         final byDate = b.dateKey.compareTo(a.dateKey);
         if (byDate != 0) return byDate;
@@ -124,8 +130,13 @@ class BookingService {
       throw BookingException('Faça login para confirmar a reserva.');
     }
     if (!args.isValid) {
-      throw BookingException('Dados da reserva inválidos. Volte e escolha outro horário.');
+      throw BookingException(
+          'Dados da reserva inválidos. Volte e escolha outro horário.');
     }
+    await _ensureAthleteIsNotBlocked(
+      arenaId: args.arenaId,
+      athleteId: athleteId,
+    );
 
     final dateKey = args.dateKey;
     final startMin = _toMinutes(args.startTime);
@@ -136,7 +147,8 @@ class BookingService {
 
     final hours = _calendarHoursSpanning(startMin, endMin);
     if (hours.isEmpty) {
-      throw BookingException('Não foi possível calcular os horários da reserva.');
+      throw BookingException(
+          'Não foi possível calcular os horários da reserva.');
     }
 
     final bookingRef = _firestore.collection(arenaBookingsCollection).doc();
@@ -231,6 +243,28 @@ class BookingService {
     return bookingId;
   }
 
+  Future<void> _ensureAthleteIsNotBlocked({
+    required String arenaId,
+    required String athleteId,
+  }) async {
+    final aid = arenaId.trim();
+    final uid = athleteId.trim();
+    if (aid.isEmpty || uid.isEmpty) return;
+
+    final blockId = _arenaBlockDocId(aid, uid);
+    final blockSnap =
+        await _firestore.collection(arenaBlocksCollection).doc(blockId).get();
+    if (!blockSnap.exists) return;
+
+    final reason = (blockSnap.data()?['reason'] as String?)?.trim();
+    final reasonSuffix =
+        (reason != null && reason.isNotEmpty) ? ' Motivo: $reason' : '';
+    throw BookingException(
+      'Sua conta está bloqueada para reservar nesta arena.$reasonSuffix',
+      code: blockedAthleteCode,
+    );
+  }
+
   Future<void> _notifyArenaBookingCreatedSafe(String bookingId) async {
     try {
       await _functions
@@ -302,7 +336,51 @@ class BookingService {
     });
   }
 
+  /// Bloqueia um atleta para novas reservas na arena.
+  Future<void> blockUser({
+    required String arenaId,
+    required String athleteId,
+    required String reason,
+  }) async {
+    final aid = arenaId.trim();
+    final uid = athleteId.trim();
+    final why = reason.trim();
+    if (aid.isEmpty || uid.isEmpty) {
+      throw BookingException('Dados inválidos para bloqueio.');
+    }
+    if (why.isEmpty) {
+      throw BookingException('Informe um motivo para o bloqueio.');
+    }
+
+    final docId = _arenaBlockDocId(aid, uid);
+    await _firestore.collection(arenaBlocksCollection).doc(docId).set(
+      <String, dynamic>{
+        'arenaId': aid,
+        'athleteId': uid,
+        'reason': why,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  /// Remove o bloqueio de um atleta na arena.
+  Future<void> unblockUser({
+    required String arenaId,
+    required String athleteId,
+  }) async {
+    final aid = arenaId.trim();
+    final uid = athleteId.trim();
+    if (aid.isEmpty || uid.isEmpty) {
+      throw BookingException('Dados inválidos para desbloqueio.');
+    }
+    final docId = _arenaBlockDocId(aid, uid);
+    await _firestore.collection(arenaBlocksCollection).doc(docId).delete();
+  }
+
   static String _safeIdPart(String s) => s.replaceAll('/', '_');
+  static String _arenaBlockDocId(String arenaId, String athleteId) =>
+      '${_safeIdPart(arenaId)}_${_safeIdPart(athleteId)}';
 
   static int _toMinutes(String hhmm) {
     final t = hhmm.trim();
@@ -337,6 +415,7 @@ class BookingException implements Exception {
   final String? code;
 
   bool get isSlotConflict => code == BookingService.slotConflictCode;
+  bool get isBlockedAthlete => code == BookingService.blockedAthleteCode;
 
   @override
   String toString() => message;

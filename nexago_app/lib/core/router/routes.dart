@@ -67,6 +67,9 @@ abstract final class AppRoutes {
   /// Sucesso após confirmação.
   static const String arenaBookingSuccess = '/arena/:arenaId/book/success';
 
+  /// Bloqueio do atleta ao tentar reservar.
+  static const String arenaBookingBlocked = '/arena/:arenaId/book/blocked';
+
   /// Legado: manter rota simples se necessário.
   static const String bookingSuccess = '/booking/success';
 }
@@ -81,7 +84,8 @@ abstract final class AppRouteNames {
   static const String myBookings = 'myBookings';
   static const String athleteProfile = 'athleteProfile';
   static const String athleteProfileEdit = 'athleteProfileEdit';
-  static const String athleteProfileUpdateSuccess = 'athleteProfileUpdateSuccess';
+  static const String athleteProfileUpdateSuccess =
+      'athleteProfileUpdateSuccess';
 
   static const String arenaDashboard = 'arenaDashboard';
   static const String arenaSchedule = 'arenaSchedule';
@@ -102,5 +106,6 @@ abstract final class AppRouteNames {
   static const String arenaSlots = 'arenaSlots';
   static const String arenaBookingConfirm = 'arenaBookingConfirm';
   static const String arenaBookingSuccess = 'arenaBookingSuccess';
+  static const String arenaBookingBlocked = 'arenaBookingBlocked';
   static const String bookingSuccess = 'bookingSuccess';
 }

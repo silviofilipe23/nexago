@@ -200,6 +200,39 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Bloqueio de atleta por arena (gestor -> arena_blocks/{arenaId}_{athleteId})
+    match /arena_blocks/{blockId} {
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        (
+          resource != null &&
+          resource.data.arenaId is string &&
+          isArenaManagerByArenaId(resource.data.arenaId)
+        )
+      );
+
+      allow create, update: if request.auth != null && (
+        isSuperAdmin() ||
+        (
+          request.resource.data.arenaId is string &&
+          request.resource.data.athleteId is string &&
+          request.resource.data.reason is string &&
+          request.resource.data.reason.size() > 0 &&
+          request.resource.data.reason.size() <= 500 &&
+          isArenaManagerByArenaId(request.resource.data.arenaId)
+        )
+      );
+
+      allow delete: if request.auth != null && (
+        isSuperAdmin() ||
+        (
+          resource != null &&
+          resource.data.arenaId is string &&
+          isArenaManagerByArenaId(resource.data.arenaId)
+        )
+      );
+    }
+
     // Regras para a coleção de usuários
     match /users/{userId} {
       // Leitura pública de informações básicas de atletas (para tela pública)
@@ -281,6 +314,10 @@ service cloud.firestore {
       // Apenas o sistema (via Cloud Functions) pode criar notificações
       // Usuários não podem criar suas próprias notificações
       allow create: if false;
+    }
+
+    match /users/{userId}/favorites/{arenaId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
     // O perfil do atleta é armazenado diretamente em users/{userId}

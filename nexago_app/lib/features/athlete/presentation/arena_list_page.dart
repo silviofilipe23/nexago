@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/domain/arena_court.dart';
@@ -14,6 +16,8 @@ import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/slots_providers.dart';
 import '../../arenas/domain/slots_query.dart';
 import '../../arenas/presentation/widgets/arena_card.dart';
+import '../domain/favorites_providers.dart';
+import 'favorite_success_page.dart';
 
 /// Aba Reservar — lista de arenas para o atleta escolher e reservar horário.
 class ArenaListPage extends ConsumerStatefulWidget {
@@ -27,6 +31,8 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
   static final DateFormat _dateFmt = DateFormat("EEE, dd 'de' MMM", 'pt_BR');
   late DateTime _selectedDate;
   late TimeOfDay _selectedTime;
+  final Map<String, bool> _favoriteOverrides = <String, bool>{};
+  final Set<String> _favoritePendingArenaIds = <String>{};
 
   @override
   void initState() {
@@ -40,6 +46,10 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final userId = ref.watch(authProvider).valueOrNull?.uid;
+    final favoriteIdsAsync = ref.watch(favoriteArenaIdsProvider);
+    final favoriteIds = favoriteIdsAsync.valueOrNull ?? const <String>[];
+    final favoriteIdsSet = favoriteIds.toSet();
     final filters = ArenaSearchFilters(
       date: _selectedDate,
       requestedTime: _selectedTime,
@@ -55,12 +65,37 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
           message: e.toString().replaceFirst('Exception: ', ''),
           onRetry: () => ref.invalidate(arenaSearchResultsProvider(filters)),
         ),
-        data: (results) => _ArenaBookingList(
-          filters: filters,
-          results: results,
-          onChangeDate: _pickDate,
-          onChangeTime: _pickTime,
-        ),
+        data: (results) {
+          final enriched = results
+              .map(
+                (r) => _ArenaDisplayItem(
+                  result: r,
+                  isFavorite: _favoriteOverrides[r.arena.id] ??
+                      favoriteIdsSet.contains(r.arena.id),
+                ),
+              )
+              .toList(growable: false)
+            ..sort((a, b) {
+              if (a.isFavorite != b.isFavorite) {
+                return a.isFavorite ? -1 : 1;
+              }
+              return _compareResults(a.result, b.result);
+            });
+
+          return _ArenaBookingList(
+            filters: filters,
+            displayItems: enriched,
+            onChangeDate: _pickDate,
+            onChangeTime: _pickTime,
+            onToggleFavorite: (arenaId, isFavorite) => _toggleFavorite(
+              userId: userId,
+              arenaId: arenaId,
+              isFavorite: isFavorite,
+            ),
+            isFavoritePending: (arenaId) =>
+                _favoritePendingArenaIds.contains(arenaId),
+          );
+        },
       ),
     );
   }
@@ -75,7 +110,8 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
       locale: const Locale('pt', 'BR'),
     );
     if (picked == null) return;
-    setState(() => _selectedDate = DateTime(picked.year, picked.month, picked.day));
+    setState(
+        () => _selectedDate = DateTime(picked.year, picked.month, picked.day));
   }
 
   Future<void> _pickTime() async {
@@ -85,6 +121,55 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
     );
     if (picked == null) return;
     setState(() => _selectedTime = picked);
+  }
+
+  Future<void> _toggleFavorite({
+    required String? userId,
+    required String arenaId,
+    required bool isFavorite,
+  }) async {
+    if (userId == null || userId.isEmpty) {
+      showAppSnackBar(
+        context,
+        'Faça login para favoritar arenas.',
+        isError: true,
+      );
+      return;
+    }
+    if (_favoritePendingArenaIds.contains(arenaId)) return;
+
+    final next = !isFavorite;
+    setState(() {
+      _favoriteOverrides[arenaId] = next;
+      _favoritePendingArenaIds.add(arenaId);
+    });
+
+    try {
+      await ref.read(favoritesServiceProvider).toggleFavoriteArena(
+            userId: userId,
+            arenaId: arenaId,
+            isFavorite: isFavorite,
+          );
+      if (!mounted) return;
+      setState(() {
+        _favoritePendingArenaIds.remove(arenaId);
+        _favoriteOverrides.remove(arenaId);
+      });
+      if (next) {
+        await FavoriteSuccessPage.show(context);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _favoritePendingArenaIds.remove(arenaId);
+        _favoriteOverrides.remove(arenaId);
+      });
+      showAppSnackBar(
+        context,
+        'Não foi possível atualizar favoritos agora.',
+        isError: true,
+      );
+    }
   }
 }
 
@@ -119,7 +204,8 @@ class ArenaSearchFilters {
   }
 
   @override
-  int get hashCode => Object.hash(dateOnly.year, dateOnly.month, dateOnly.day, requestedMinutes);
+  int get hashCode => Object.hash(
+      dateOnly.year, dateOnly.month, dateOnly.day, requestedMinutes);
 }
 
 class ArenaSearchResult {
@@ -140,8 +226,18 @@ class ArenaSearchResult {
   bool get hasAvailability => selectedSlot != null;
 }
 
-final arenaSearchResultsProvider =
-    FutureProvider.autoDispose.family<List<ArenaSearchResult>, ArenaSearchFilters>(
+class _ArenaDisplayItem {
+  const _ArenaDisplayItem({
+    required this.result,
+    required this.isFavorite,
+  });
+
+  final ArenaSearchResult result;
+  final bool isFavorite;
+}
+
+final arenaSearchResultsProvider = FutureProvider.autoDispose
+    .family<List<ArenaSearchResult>, ArenaSearchFilters>(
   (ref, filters) async {
     final arenas = await ref.watch(arenasStreamProvider.future);
     final results = await Future.wait(
@@ -211,7 +307,8 @@ Future<ArenaSearchResult> _buildArenaResult(
     final distance = signedDelta.abs();
     final replaceCurrent = nearestDistance == null ||
         distance < nearestDistance ||
-        (distance == nearestDistance && _preferSignedDelta(signedDelta, nearestSignedDelta));
+        (distance == nearestDistance &&
+            _preferSignedDelta(signedDelta, nearestSignedDelta));
     if (replaceCurrent) {
       nearest = entry;
       nearestDistance = distance;
@@ -253,7 +350,8 @@ bool _isPastSlot(DateTime selectedDate, String startTime) {
   if (day.isAfter(today)) return false;
   if (day.isBefore(today)) return true;
   final minutes = _timeToMinutes(startTime);
-  final startAt = DateTime(day.year, day.month, day.day, minutes ~/ 60, minutes % 60);
+  final startAt =
+      DateTime(day.year, day.month, day.day, minutes ~/ 60, minutes % 60);
   return startAt.isBefore(now);
 }
 
@@ -267,21 +365,28 @@ int _timeToMinutes(String value) {
 class _ArenaBookingList extends StatelessWidget {
   const _ArenaBookingList({
     required this.filters,
-    required this.results,
+    required this.displayItems,
     required this.onChangeDate,
     required this.onChangeTime,
+    required this.onToggleFavorite,
+    required this.isFavoritePending,
   });
 
   final ArenaSearchFilters filters;
-  final List<ArenaSearchResult> results;
+  final List<_ArenaDisplayItem> displayItems;
   final VoidCallback onChangeDate;
   final VoidCallback onChangeTime;
+  final void Function(String arenaId, bool isFavorite) onToggleFavorite;
+  final bool Function(String arenaId) isFavoritePending;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dateLabel = _ArenaListPageState._dateFmt.format(filters.dateOnly);
     final timeLabel = filters.requestedTimeLabel;
+
+    final favoriteItems =
+        displayItems.where((x) => x.isFavorite).toList(growable: false);
 
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
@@ -313,7 +418,8 @@ class _ArenaBookingList extends StatelessWidget {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: onChangeDate,
-                        icon: const Icon(Icons.calendar_today_rounded, size: 18),
+                        icon:
+                            const Icon(Icons.calendar_today_rounded, size: 18),
                         label: Text(dateLabel),
                       ),
                     ),
@@ -331,28 +437,74 @@ class _ArenaBookingList extends StatelessWidget {
             ),
           ),
         ),
-        if (results.isEmpty)
+        if (displayItems.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
             child: AppEmptyView(
               icon: Icons.sports_volleyball_outlined,
               title: 'Nenhuma arena disponível',
-              subtitle: 'Quando houver arenas cadastradas, elas aparecerão aqui.',
+              subtitle:
+                  'Quando houver arenas cadastradas, elas aparecerão aqui.',
             ),
           )
-        else
+        else ...[
+          if (favoriteItems.isNotEmpty) ...[
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              sliver: SliverToBoxAdapter(
+                child: Text(
+                  'Suas arenas favoritas',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 132,
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: favoriteItems.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 10),
+                  itemBuilder: (context, index) {
+                    final item = favoriteItems[index];
+                    return _FavoriteArenaMiniCard(
+                      arena: item.result.arena,
+                      onTap: () => _goToArenaDetail(context, item.result.arena),
+                      isPending: isFavoritePending(item.result.arena.id),
+                      onToggleFavorite: isFavoritePending(item.result.arena.id)
+                          ? null
+                          : () => onToggleFavorite(item.result.arena.id, true),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 6, 20, 28),
             sliver: SliverList.separated(
-              itemCount: results.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 20),
+              itemCount: displayItems.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 20),
               itemBuilder: (context, index) {
-                final result = results[index];
+                final item = displayItems[index];
+                final result = item.result;
                 return staggeredFadeSlide(
                   index: index,
                   child: _ArenaSearchCard(
                     result: result,
+                    isFavorite: item.isFavorite,
+                    isFavoritePending: isFavoritePending(result.arena.id),
                     onOpenArena: () => _goToArenaDetail(context, result.arena),
+                    onToggleFavorite: isFavoritePending(result.arena.id)
+                        ? null
+                        : () =>
+                            onToggleFavorite(result.arena.id, item.isFavorite),
                     onReserve: result.hasAvailability
                         ? () => _goToArenaSlots(
                               context,
@@ -366,6 +518,7 @@ class _ArenaBookingList extends StatelessWidget {
               },
             ),
           ),
+        ],
       ],
     );
   }
@@ -374,12 +527,18 @@ class _ArenaBookingList extends StatelessWidget {
 class _ArenaSearchCard extends StatelessWidget {
   const _ArenaSearchCard({
     required this.result,
+    required this.isFavorite,
+    required this.isFavoritePending,
     required this.onOpenArena,
+    required this.onToggleFavorite,
     required this.onReserve,
   });
 
   final ArenaSearchResult result;
+  final bool isFavorite;
+  final bool isFavoritePending;
   final VoidCallback onOpenArena;
+  final VoidCallback? onToggleFavorite;
   final VoidCallback? onReserve;
 
   @override
@@ -408,7 +567,13 @@ class _ArenaSearchCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ArenaCard(arena: result.arena, onTap: onOpenArena),
+            ArenaCard(
+              arena: result.arena,
+              onTap: onOpenArena,
+              isFavorite: isFavorite,
+              isFavoriteBusy: isFavoritePending,
+              onToggleFavorite: onToggleFavorite,
+            ),
             const SizedBox(height: 10),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -447,6 +612,119 @@ class _ArenaSearchCard extends StatelessWidget {
   }
 }
 
+class _FavoriteArenaMiniCard extends StatelessWidget {
+  const _FavoriteArenaMiniCard({
+    required this.arena,
+    required this.onTap,
+    required this.isPending,
+    required this.onToggleFavorite,
+  });
+
+  final ArenaListItem arena;
+  final VoidCallback onTap;
+  final bool isPending;
+  final VoidCallback? onToggleFavorite;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: 220,
+      child: Material(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Image.network(
+                  arena.imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => ColoredBox(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.18),
+                        Colors.black.withValues(alpha: 0.48),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Material(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(999),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(999),
+                    onTap: onToggleFavorite,
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 180),
+                        transitionBuilder: (child, animation) => FadeTransition(
+                          opacity: animation,
+                          child: ScaleTransition(
+                            scale: Tween<double>(begin: 0.86, end: 1)
+                                .animate(animation),
+                            child: child,
+                          ),
+                        ),
+                        child: isPending
+                            ? const SizedBox(
+                                key: ValueKey<String>('mini_favorite_busy'),
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.favorite,
+                                key: ValueKey<String>('mini_favorite_icon'),
+                                color: Color(0xFFE53935),
+                                size: 20,
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 10,
+                right: 10,
+                bottom: 10,
+                child: Text(
+                  arena.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 void _goToArenaDetail(BuildContext context, ArenaListItem arena) {
   context.pushNamed(
     AppRouteNames.arenaDetail,
@@ -469,8 +747,10 @@ void _goToArenaSlots(
     AppRouteNames.arenaSlots,
     pathParameters: {'arenaId': arena.id},
     queryParameters: <String, String>{
-      if (slot?.courtId.trim().isNotEmpty == true) 'courtId': slot!.courtId.trim(),
-      if (slot?.startTime.trim().isNotEmpty == true) 'startTime': slot!.startTime.trim(),
+      if (slot?.courtId.trim().isNotEmpty == true)
+        'courtId': slot!.courtId.trim(),
+      if (slot?.startTime.trim().isNotEmpty == true)
+        'startTime': slot!.startTime.trim(),
       'date': dateKey,
     },
     extra: arena,

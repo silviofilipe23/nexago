@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/arenas/presentation/arena_booking_confirm_page.dart';
+import '../../features/arenas/presentation/booking_blocked_page.dart';
 import '../../features/arenas/presentation/arena_detail_page.dart';
 import '../../features/arenas/presentation/booking_success_page.dart';
 import '../../features/arenas/presentation/slots_page.dart';
@@ -46,8 +47,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) async {
       final authAsync = ref.read(authProvider);
       final path = state.uri.path;
-      final isAuthRoute =
-          path == AppRoutes.login || path == AppRoutes.register;
+      final isAuthRoute = path == AppRoutes.login || path == AppRoutes.register;
 
       if (authAsync.isLoading) {
         return null;
@@ -82,7 +82,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           return AppRoutes.arenaDashboard;
         }
 
-        if ((path == AppRoutes.home || path == '/') && userIsArenaOnlyManager(token)) {
+        if ((path == AppRoutes.home || path == '/') &&
+            userIsArenaOnlyManager(token)) {
           return AppRoutes.arenaDashboard;
         }
 
@@ -306,9 +307,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             initialCourtId: (initialCourtId == null || initialCourtId.isEmpty)
                 ? null
                 : initialCourtId,
-            initialStartTime: (initialStartTime == null || initialStartTime.isEmpty)
-                ? null
-                : initialStartTime,
+            initialStartTime:
+                (initialStartTime == null || initialStartTime.isEmpty)
+                    ? null
+                    : initialStartTime,
           );
         },
       ),
@@ -329,6 +331,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final extra = state.extra;
           final args = extra is BookingSuccessArgs ? extra : null;
           return BookingSuccessPage(args: args);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.arenaBookingBlocked,
+        name: AppRouteNames.arenaBookingBlocked,
+        builder: (context, state) {
+          final arenaId = state.pathParameters['arenaId']!;
+          final msg = state.uri.queryParameters['message']?.trim();
+          return BookingBlockedPage(
+            arenaId: arenaId,
+            message: (msg == null || msg.isEmpty) ? null : msg,
+          );
         },
       ),
       GoRoute(

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../arena/domain/review_reply_providers.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../domain/arena_review.dart';
 
@@ -128,6 +129,9 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final socialProof = ref.watch(
+      arenaRespondsFastSocialProofProvider(widget.arenaId),
+    ).valueOrNull;
     final title = (widget.arenaName?.trim().isNotEmpty == true)
         ? 'Avaliações • ${widget.arenaName!.trim()}'
         : 'Avaliações';
@@ -159,11 +163,34 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                   ? const Center(child: Text('Ainda não há avaliações.'))
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-                      itemCount: _reviews.length + 1,
+                      itemCount: _reviews.length + 1 + (socialProof == null ? 0 : 1),
                       separatorBuilder: (context, index) =>
                           const SizedBox(height: 10),
                       itemBuilder: (context, index) {
-                        if (index == _reviews.length) {
+                        final hasSocialProof = socialProof != null;
+                        if (hasSocialProof && index == 0) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F5E9),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              socialProof,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: const Color(0xFF2E7D32),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          );
+                        }
+
+                        final reviewIndex = hasSocialProof ? index - 1 : index;
+                        if (reviewIndex == _reviews.length) {
                           if (_loadingMore) {
                             return const Padding(
                               padding: EdgeInsets.symmetric(vertical: 8),
@@ -189,7 +216,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                           );
                         }
 
-                        final review = _reviews[index];
+                        final review = _reviews[reviewIndex];
                         final date = review.createdAt;
                         final athleteName =
                             (review.athleteName?.trim().isNotEmpty == true)
@@ -260,6 +287,53 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                                   review.comment!,
                                   style:
                                       Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                              if (review.reply != null) ...[
+                                const SizedBox(height: 10),
+                                Container(
+                                  width: double.infinity,
+                                  margin: const EdgeInsets.only(left: 8),
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF3F4F6),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .outline
+                                          .withValues(alpha: 0.15),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.storefront_rounded,
+                                            size: 16,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Resposta da arena',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelLarge
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(review.reply!.message),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ],

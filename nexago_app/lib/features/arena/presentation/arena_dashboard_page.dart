@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/auth_providers.dart';
 import '../../../core/layout/app_scaffold.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/domain/favorites_providers.dart';
 import '../domain/arena_providers.dart';
+import '../domain/review_reply_providers.dart';
+import 'widgets/reply_review_dialog.dart';
 import 'arena_dashboard_formatters.dart';
 import 'widgets/arena_dashboard_actions_bar.dart';
 import 'widgets/arena_dashboard_insights_section.dart';
@@ -127,6 +130,8 @@ class ArenaDashboardPage extends ConsumerWidget {
                                 insightsAsync: followersInsightsAsync,
                               ),
                               const SizedBox(height: 36),
+                              const _ReviewReputationSection(),
+                              const SizedBox(height: 36),
                               const ArenaDashboardActionsBar(),
                             ],
                           ),
@@ -161,6 +166,178 @@ class ArenaDashboardPage extends ConsumerWidget {
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ReviewReputationSection extends ConsumerWidget {
+  const _ReviewReputationSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final metricsAsync = ref.watch(arenaReviewReputationMetricsProvider);
+    final reviewsAsync = ref.watch(managedArenaReviewsProvider);
+    final arenaId = ref.watch(managedArenaIdProvider).valueOrNull ?? '';
+    final managerId = ref.watch(authProvider).valueOrNull?.uid ?? '';
+    final replyService = ref.watch(reviewReplyServiceProvider);
+    final theme = Theme.of(context);
+    return ArenaDashboardSectionCard(
+      title: 'Reputação e respostas',
+      subtitle: 'Gestão ativa de feedback para gerar confiança.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          metricsAsync.when(
+            loading: () => const LinearProgressIndicator(minHeight: 2),
+            error: (e, _) => Text(
+              'Não foi possível carregar métricas de reputação.',
+              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
+            ),
+            data: (m) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '💬 ${m.repliedPercent.toStringAsFixed(0)}% das avaliações respondidas',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Tempo médio de resposta: ${m.averageReplyHours.toStringAsFixed(1)}h',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (m.negativePendingCount > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '⚠️ $m.negativePendingCount avaliações críticas sem resposta',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFFC62828),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          reviewsAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            error: (e, _) => Text(
+              'Não foi possível carregar avaliações da arena.',
+              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.error),
+            ),
+            data: (reviews) {
+              if (reviews.isEmpty) {
+                return const Text('Ainda não há avaliações para responder.');
+              }
+              return Column(
+                children: reviews.take(8).map((review) {
+                  final isNegative = review.rating <= 2;
+                  final hasReply = review.reply != null;
+                  final canReply = arenaId.isNotEmpty && managerId.isNotEmpty;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isNegative
+                          ? const Color(0xFFFFEBEE)
+                          : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isNegative
+                            ? const Color(0xFFFFCDD2)
+                            : theme.colorScheme.outline.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text('⭐ ${review.rating}'),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                review.athleteName ?? 'Atleta',
+                                style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                            if (isNegative)
+                              const Text('Prioridade alta', style: TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.w700)),
+                          ],
+                        ),
+                        if ((review.comment ?? '').trim().isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(review.comment!),
+                        ],
+                        if (hasReply) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF5F5F5),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text('🏟️ Resposta da arena\n${review.reply!.message}'),
+                          ),
+                        ],
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: OutlinedButton(
+                            onPressed: !canReply
+                                ? null
+                                : () async {
+                                    final text = await showReplyReviewDialog(
+                                      context,
+                                      originalComment: review.comment ?? '',
+                                      rating: review.rating,
+                                      initialValue: review.reply?.message,
+                                    );
+                                    if (text == null) return;
+                                    try {
+                                      if (review.reply == null) {
+                                        await replyService.replyToReview(
+                                          reviewId: review.id,
+                                          arenaId: arenaId,
+                                          managerUserId: managerId,
+                                          message: text,
+                                        );
+                                      } else {
+                                        await replyService.updateReviewReply(
+                                          reviewId: review.id,
+                                          arenaId: arenaId,
+                                          managerUserId: managerId,
+                                          message: text,
+                                        );
+                                      }
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Resposta enviada com sucesso')),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Erro ao salvar resposta: $e')),
+                                        );
+                                      }
+                                    }
+                                  },
+                            child: Text(hasReply ? 'Editar resposta' : 'Responder'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(growable: false),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

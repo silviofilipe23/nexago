@@ -236,6 +236,63 @@ async function getUserFcmTokens(userId: string): Promise<string[]> {
   return Array.from(all);
 }
 
+export const onArenaReviewCreatedNotifyManager = onDocumentCreated(
+  "arena_reviews/{reviewId}",
+  async (event) => {
+    const snap = event.data;
+    if (!snap?.exists) return;
+    const db = getFirestore();
+    const messaging = getMessaging();
+    const data = snap.data() as {[k: string]: unknown};
+    const arenaId = typeof data["arenaId"] === "string" ? data["arenaId"].trim() : "";
+    if (!arenaId) return;
+    const rating = typeof data["rating"] === "number" ? data["rating"] : 0;
+    const comment = typeof data["comment"] === "string" ? data["comment"].trim() : "";
+    const arenaDoc = await db.collection("arenas").doc(arenaId).get();
+    if (!arenaDoc.exists) return;
+    const managerUserId = typeof arenaDoc.data()?.["managerUserId"] === "string"
+      ? (arenaDoc.data()?.["managerUserId"] as string).trim()
+      : "";
+    const arenaName = typeof arenaDoc.data()?.["name"] === "string"
+      ? (arenaDoc.data()?.["name"] as string).trim()
+      : "Arena";
+    if (!managerUserId) return;
+
+    const title = "Nova avaliação recebida";
+    const body = `⭐ ${rating} em ${arenaName}${comment ? ` • ${comment.slice(0, 80)}` : ""}`;
+
+    try {
+      const tokens = await getUserFcmTokens(managerUserId);
+      if (tokens.length > 0) {
+        await Promise.allSettled(tokens.map((token) => messaging.send({
+          token,
+          notification: {title, body},
+          data: {
+            type: "arena_new_review",
+            reviewId: snap.id,
+            arenaId,
+          },
+        })));
+      }
+      await db.collection(`users/${managerUserId}/notifications`).add({
+        userId: managerUserId,
+        title,
+        body,
+        type: "arena_new_review",
+        data: {
+          reviewId: snap.id,
+          arenaId,
+        },
+        read: false,
+        createdAt: FieldValue.serverTimestamp(),
+        readAt: null,
+      });
+    } catch (error) {
+      logger.error("onArenaReviewCreatedNotifyManager: falha no envio", error);
+    }
+  }
+);
+
 /**
  * Ao criar booking, calcula e grava o horário do lembrete (15 min antes).
  */

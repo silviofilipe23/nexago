@@ -10,6 +10,7 @@ class ArenaReview {
     required this.comment,
     required this.createdAt,
     this.athleteName,
+    this.reply,
   });
 
   final String id;
@@ -20,8 +21,9 @@ class ArenaReview {
   final String? comment;
   final DateTime? createdAt;
   final String? athleteName;
+  final ArenaReviewReply? reply;
 
-  ArenaReview copyWith({String? athleteName}) {
+  ArenaReview copyWith({String? athleteName, ArenaReviewReply? reply}) {
     return ArenaReview(
       id: id,
       arenaId: arenaId,
@@ -31,6 +33,7 @@ class ArenaReview {
       comment: comment,
       createdAt: createdAt,
       athleteName: athleteName ?? this.athleteName,
+      reply: reply ?? this.reply,
     );
   }
 
@@ -52,6 +55,40 @@ class ArenaReview {
           ? (data['createdAt'] as Timestamp).toDate()
           : null,
       athleteName: null,
+      reply: ArenaReviewReply.fromMap(data['reply']),
+    );
+  }
+}
+
+class ArenaReviewReply {
+  const ArenaReviewReply({
+    required this.message,
+    required this.createdAt,
+    this.updatedAt,
+    this.repliedBy,
+  });
+
+  final String message;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final String? repliedBy;
+
+  static ArenaReviewReply? fromMap(dynamic raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final message = (raw['message'] as String?)?.trim() ?? '';
+    if (message.isEmpty) return null;
+    final createdAt = raw['createdAt'] is Timestamp
+        ? (raw['createdAt'] as Timestamp).toDate()
+        : null;
+    final updatedAt = raw['updatedAt'] is Timestamp
+        ? (raw['updatedAt'] as Timestamp).toDate()
+        : null;
+    final repliedBy = (raw['repliedBy'] as String?)?.trim();
+    return ArenaReviewReply(
+      message: message,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      repliedBy: repliedBy == null || repliedBy.isEmpty ? null : repliedBy,
     );
   }
 }

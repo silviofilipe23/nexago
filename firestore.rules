@@ -348,7 +348,35 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth != null &&
         request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null &&
+      allow update: if request.auth != null && (
+        // atleta autor pode editar sua própria avaliação sem tocar em `reply`
+        (
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.arenaId == resource.data.arenaId &&
+          request.resource.data.bookingId == resource.data.bookingId &&
+          request.resource.data.reply == resource.data.reply
+        ) ||
+        // gestor da arena pode criar/editar apenas a resposta oficial
+        (
+          isArenaManagerByArenaId(resource.data.arenaId) &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.arenaId == resource.data.arenaId &&
+          request.resource.data.bookingId == resource.data.bookingId &&
+          request.resource.data.rating == resource.data.rating &&
+          request.resource.data.comment == resource.data.comment &&
+          request.resource.data.reply is map &&
+          request.resource.data.reply.message is string &&
+          request.resource.data.reply.message.size() >= 5 &&
+          request.resource.data.reply.message.size() <= 300 &&
+          (
+            !('repliedBy' in request.resource.data.reply) ||
+            request.resource.data.reply.repliedBy == request.auth.uid ||
+            request.resource.data.reply.repliedBy == resource.data.arenaId
+          )
+        )
+      );
+      allow delete: if request.auth != null &&
         resource.data.userId == request.auth.uid;
     }
 

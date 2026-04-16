@@ -178,6 +178,13 @@ class BookingService {
         }
 
         final day = DateTime(args.date.year, args.date.month, args.date.day);
+        final startParts = args.startTime.split(':');
+        final startHour = int.tryParse(startParts[0]) ?? 0;
+        final startMinute =
+            startParts.length > 1 ? (int.tryParse(startParts[1]) ?? 0) : 0;
+        final startAt =
+            DateTime(day.year, day.month, day.day, startHour, startMinute);
+        final confirmationDeadline = startAt.subtract(const Duration(hours: 2));
 
         transaction.set(bookingRef, <String, dynamic>{
           'athleteId': athleteId,
@@ -190,6 +197,9 @@ class BookingService {
           'endTime': args.endTime,
           'amountReais': args.amountReais,
           'status': 'active',
+          'attendanceConfirmed': false,
+          'attendanceStatus': 'pending',
+          'confirmationDeadline': Timestamp.fromDate(confirmationDeadline),
           'source': 'platform',
           'createdAt': FieldValue.serverTimestamp(),
         });
@@ -299,6 +309,7 @@ class BookingService {
 
     await ref.update(<String, dynamic>{
       'status': 'canceled',
+      'attendanceStatus': 'canceled',
       'canceledAt': FieldValue.serverTimestamp(),
     });
   }
@@ -331,8 +342,223 @@ class BookingService {
     }
     await docRef.update(<String, dynamic>{
       'status': 'canceled',
+      'attendanceStatus': 'canceled',
       'canceledAt': FieldValue.serverTimestamp(),
       'canceledByRole': 'arena_manager',
+    });
+  }
+
+  Future<void> confirmAttendance({
+    required String bookingId,
+    required String athleteId,
+  }) async {
+    final id = bookingId.trim();
+    final uid = athleteId.trim();
+    if (id.isEmpty || uid.isEmpty) {
+      throw BookingException('Dados inválidos para confirmar presença.');
+    }
+    final bookingRef = _firestore.collection(arenaBookingsCollection).doc(id);
+    await _firestore.runTransaction((tx) async {
+      final snap = await tx.get(bookingRef);
+      if (!snap.exists) {
+        throw BookingException('Reserva não encontrada.');
+      }
+      final data = snap.data() ?? <String, dynamic>{};
+      final owner = ((data['athleteId'] ?? data['bookingAthleteId']) as String?)
+              ?.trim() ??
+          '';
+      if (owner != uid) {
+        throw BookingException('Apenas o dono da reserva pode confirmar.');
+      }
+      final alreadyConfirmed = data['attendanceConfirmed'] == true;
+      if (alreadyConfirmed) {
+        throw BookingException('Presença já confirmada.');
+      }
+      final status = (data['status'] as String?)?.trim().toLowerCase() ?? '';
+      if (status == 'canceled' || status == 'cancelled') {
+        throw BookingException('Reserva cancelada não pode ser confirmada.');
+      }
+      final dateRaw = data['date'];
+      final startRaw = (data['startTime'] as String?)?.trim() ?? '';
+      DateTime? startAt;
+      if (dateRaw is String && dateRaw.length >= 10 && startRaw.length >= 4) {
+        final date = DateTime.tryParse(dateRaw.substring(0, 10));
+        final parts = startRaw.split(':');
+        final hh = int.tryParse(parts[0]) ?? 0;
+        final mm = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+        if (date != null) {
+          startAt = DateTime(date.year, date.month, date.day, hh, mm);
+        }
+      } else if (dateRaw is Timestamp && startRaw.length >= 4) {
+        final date = dateRaw.toDate();
+        final parts = startRaw.split(':');
+        final hh = int.tryParse(parts[0]) ?? 0;
+        final mm = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+        startAt = DateTime(date.year, date.month, date.day, hh, mm);
+      }
+      if (startAt == null) {
+        throw BookingException('Não foi possível validar horário da reserva.');
+      }
+      final now = DateTime.now();
+      final windowStart = startAt.subtract(const Duration(hours: 2));
+      if (now.isBefore(windowStart)) {
+        throw BookingException(
+            'A confirmação ficará disponível nas últimas 2 horas antes do jogo.');
+      }
+      if (now.isAfter(startAt)) {
+        throw BookingException('A janela de confirmação já encerrou.');
+      }
+
+      final gamificationRef =
+          _firestore.collection('users').doc(uid).collection('gamification').doc('summary');
+      final badgesRef =
+          _firestore.collection('users').doc(uid).collection('gamification_badges');
+      final gamificationSnap = await tx.get(gamificationRef);
+      final current = gamificationSnap.data() ?? <String, dynamic>{};
+      final totalConfirmed =
+          (current['attendanceConfirmationsTotal'] as num?)?.toInt() ?? 0;
+      final streak = (current['attendanceConfirmationStreak'] as num?)?.toInt() ?? 0;
+      final lastTs = current['lastAttendanceConfirmationAt'];
+      DateTime? last;
+      if (lastTs is Timestamp) last = lastTs.toDate();
+      final nowDate = DateTime(now.year, now.month, now.day);
+      final nextStreak = last == null
+          ? 1
+          : (DateTime(last.year, last.month, last.day)
+                      .difference(nowDate)
+                      .inDays
+                      .abs() <=
+                  1
+              ? streak + 1
+              : 1);
+      final nextTotal = totalConfirmed + 1;
+
+      tx.update(bookingRef, <String, dynamic>{
+        'attendanceConfirmed': true,
+        'attendanceStatus': 'confirmed',
+        'attendanceConfirmedAt': FieldValue.serverTimestamp(),
+      });
+
+      tx.set(
+        gamificationRef,
+        <String, dynamic>{
+          'attendanceConfirmationsTotal': nextTotal,
+          'attendanceConfirmationStreak': nextStreak,
+          'lastAttendanceConfirmationAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      if (nextStreak >= 5) {
+        tx.set(
+          badgesRef.doc('attendance_pontual'),
+          <String, dynamic>{
+            'id': 'attendance_pontual',
+            'title': 'Pontual',
+            'unlockedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+      if (nextTotal >= 10) {
+        tx.set(
+          badgesRef.doc('attendance_comprometido'),
+          <String, dynamic>{
+            'id': 'attendance_comprometido',
+            'title': 'Comprometido',
+            'unlockedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+    });
+  }
+
+  Future<void> checkIn({
+    required String bookingId,
+    required String athleteId,
+    bool locationVerified = false,
+  }) async {
+    final id = bookingId.trim();
+    final uid = athleteId.trim();
+    if (id.isEmpty || uid.isEmpty) {
+      throw BookingException('Dados inválidos para check-in.');
+    }
+    final bookingRef = _firestore.collection(arenaBookingsCollection).doc(id);
+    await _firestore.runTransaction((tx) async {
+      final snap = await tx.get(bookingRef);
+      if (!snap.exists) {
+        throw BookingException('Reserva não encontrada.');
+      }
+      final data = snap.data() ?? <String, dynamic>{};
+      final owner = ((data['athleteId'] ?? data['bookingAthleteId']) as String?)
+              ?.trim() ??
+          '';
+      if (owner != uid) {
+        throw BookingException('Apenas o dono da reserva pode fazer check-in.');
+      }
+      final status = (data['status'] as String?)?.trim().toLowerCase() ?? '';
+      if (status == 'canceled' || status == 'cancelled') {
+        throw BookingException('Reserva cancelada não permite check-in.');
+      }
+      final attendanceStatus =
+          (data['attendanceStatus'] as String?)?.trim().toLowerCase() ?? 'pending';
+      if (attendanceStatus == 'checked_in') {
+        throw BookingException('Check-in já realizado.');
+      }
+      if (attendanceStatus == 'no_show') {
+        throw BookingException('Esta reserva já foi marcada como no-show.');
+      }
+
+      final dateRaw = data['date'];
+      final startRaw = (data['startTime'] as String?)?.trim() ?? '';
+      final endRaw = (data['endTime'] as String?)?.trim() ?? '';
+      DateTime? startAt;
+      DateTime? endAt;
+      if (dateRaw is String && dateRaw.length >= 10) {
+        final date = DateTime.tryParse(dateRaw.substring(0, 10));
+        if (date != null) {
+          final startParts = startRaw.split(':');
+          final endParts = endRaw.split(':');
+          final sh = int.tryParse(startParts[0]) ?? 0;
+          final sm = startParts.length > 1 ? (int.tryParse(startParts[1]) ?? 0) : 0;
+          final eh = int.tryParse(endParts[0]) ?? 0;
+          final em = endParts.length > 1 ? (int.tryParse(endParts[1]) ?? 0) : 0;
+          startAt = DateTime(date.year, date.month, date.day, sh, sm);
+          endAt = DateTime(date.year, date.month, date.day, eh, em);
+        }
+      } else if (dateRaw is Timestamp) {
+        final date = dateRaw.toDate();
+        final startParts = startRaw.split(':');
+        final endParts = endRaw.split(':');
+        final sh = int.tryParse(startParts[0]) ?? 0;
+        final sm = startParts.length > 1 ? (int.tryParse(startParts[1]) ?? 0) : 0;
+        final eh = int.tryParse(endParts[0]) ?? 0;
+        final em = endParts.length > 1 ? (int.tryParse(endParts[1]) ?? 0) : 0;
+        startAt = DateTime(date.year, date.month, date.day, sh, sm);
+        endAt = DateTime(date.year, date.month, date.day, eh, em);
+      }
+      if (startAt == null || endAt == null) {
+        throw BookingException('Não foi possível validar a janela do check-in.');
+      }
+      if (!endAt.isAfter(startAt)) {
+        endAt = endAt.add(const Duration(days: 1));
+      }
+
+      final now = DateTime.now();
+      final checkInWindowStart = startAt.subtract(const Duration(minutes: 20));
+      final checkInWindowEnd = endAt.add(const Duration(minutes: 15));
+      if (now.isBefore(checkInWindowStart) || now.isAfter(checkInWindowEnd)) {
+        throw BookingException(
+          'Check-in disponível de 20 min antes até 15 min após o término do horário.',
+        );
+      }
+
+      tx.update(bookingRef, <String, dynamic>{
+        'attendanceStatus': 'checked_in',
+        'checkedInAt': FieldValue.serverTimestamp(),
+        'locationVerified': locationVerified,
+      });
     });
   }
 

@@ -39,7 +39,22 @@ abstract final class VirtualSlotGenerator {
         out.add(byTime[k]!);
         usedKeys.add(k);
       } else {
-        out.add(v);
+        final overlap = persisted.firstWhere(
+          (p) => _overlaps(p, v) && (p.isBooked || p.isBlocked),
+          orElse: () => v,
+        );
+        if (!identical(overlap, v)) {
+          out.add(
+            v.copyWith(
+              rawStatus: overlap.rawStatus,
+              bookingId: overlap.bookingId,
+              bookingAthleteId: overlap.bookingAthleteId,
+            ),
+          );
+          usedKeys.add(_timeKey(overlap));
+        } else {
+          out.add(v);
+        }
       }
     }
     for (final p in persisted) {
@@ -51,6 +66,19 @@ abstract final class VirtualSlotGenerator {
   }
 
   static String _timeKey(ArenaSlot s) => '${s.startTime}_${s.endTime}';
+
+  static bool _overlaps(ArenaSlot a, ArenaSlot b) {
+    final aStart = _parseHm(a.startTime);
+    final aEnd = _parseHm(a.endTime);
+    final bStart = _parseHm(b.startTime);
+    final bEnd = _parseHm(b.endTime);
+    if (aStart == null || aEnd == null || bStart == null || bEnd == null) {
+      return false;
+    }
+    final normAEnd = aEnd <= aStart ? aEnd + (24 * 60) : aEnd;
+    final normBEnd = bEnd <= bStart ? bEnd + (24 * 60) : bEnd;
+    return aStart < normBEnd && bStart < normAEnd;
+  }
 
   static List<ArenaSlot> build({
     required SlotsQuery query,

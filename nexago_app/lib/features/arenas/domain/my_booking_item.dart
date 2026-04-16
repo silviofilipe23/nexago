@@ -16,6 +16,10 @@ class MyBookingItem {
     this.amountReais,
     this.paymentType,
     this.createdAt,
+    this.attendanceConfirmed = false,
+    this.attendanceStatus = 'pending',
+    this.attendanceConfirmedAt,
+    this.confirmationDeadline,
   });
 
   final String id;
@@ -32,6 +36,10 @@ class MyBookingItem {
   final double? amountReais;
   final String? paymentType;
   final DateTime? createdAt;
+  final bool attendanceConfirmed;
+  final String attendanceStatus;
+  final DateTime? attendanceConfirmedAt;
+  final DateTime? confirmationDeadline;
 
   factory MyBookingItem.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -97,6 +105,12 @@ class MyBookingItem {
       amountReais: amountReais,
       paymentType: paymentType,
       createdAt: createdAt,
+      attendanceConfirmed: data['attendanceConfirmed'] == true,
+      attendanceStatus: ((data['attendanceStatus'] as String?)?.trim().isNotEmpty ?? false)
+          ? (data['attendanceStatus'] as String).trim()
+          : 'pending',
+      attendanceConfirmedAt: (data['attendanceConfirmedAt'] as Timestamp?)?.toDate(),
+      confirmationDeadline: (data['confirmationDeadline'] as Timestamp?)?.toDate(),
     );
   }
 

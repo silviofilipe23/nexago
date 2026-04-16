@@ -44,7 +44,7 @@ final arenaBookingsFilteredProvider =
   return async.when(
     data: (list) {
       final filtered = list.where((b) => b.dateKey == key).toList()
-        ..sort((a, b) => b.startTime.compareTo(a.startTime));
+        ..sort(_arenaBookingsManagerSort);
       return AsyncValue.data(filtered);
     },
     loading: () => const AsyncValue.loading(),
@@ -68,7 +68,7 @@ final arenaFutureBookingsProvider =
         ..sort((a, b) {
           final byD = b.dateKey.compareTo(a.dateKey);
           if (byD != 0) return byD;
-          return b.startTime.compareTo(a.startTime);
+        return _arenaBookingsManagerSort(a, b);
         });
       return AsyncValue.data(filtered);
     },
@@ -103,9 +103,31 @@ List<ArenaBookingDaySection> _groupBookingsByDate(
         dateKey: k,
         title: _bookingDateSectionTitle(k),
         bookings: List<ArenaManagerBooking>.of(byDate[k]!)
-          ..sort((a, b) => b.startTime.compareTo(a.startTime)),
+          ..sort(_arenaBookingsManagerSort),
       ),
   ];
+}
+
+int _attendanceOrder(String status) {
+  switch (status) {
+    case 'checked_in':
+      return 0;
+    case 'confirmed':
+      return 1;
+    case 'pending':
+      return 2;
+    case 'no_show':
+      return 3;
+    default:
+      return 4;
+  }
+}
+
+int _arenaBookingsManagerSort(ArenaManagerBooking a, ArenaManagerBooking b) {
+  final byAttendance =
+      _attendanceOrder(a.attendanceStatus).compareTo(_attendanceOrder(b.attendanceStatus));
+  if (byAttendance != 0) return byAttendance;
+  return b.startTime.compareTo(a.startTime);
 }
 
 String _bookingDateSectionTitle(String dateKey) {

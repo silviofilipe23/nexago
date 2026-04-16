@@ -295,6 +295,12 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     return index >= a && index <= b;
   }
 
+  bool _isSelectionAnchorIndex(int index) {
+    final b = _selEnd;
+    if (b == null) return false;
+    return index == b;
+  }
+
   bool _rangeStillValid(List<ArenaSlot> slots, int s, int e) {
     if (s < 0 || e >= slots.length || s > e) return false;
     for (var i = s; i <= e; i++) {
@@ -903,7 +909,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
         if (isNext) {
           tile = KeyedSubtree(key: _nextSlotKey, child: tile);
         }
-        if (selected) {
+        if (selected && _isSelectionAnchorIndex(index)) {
           tile = KeyedSubtree(key: _selectedSlotKey, child: tile);
         }
         return staggeredFadeSlide(

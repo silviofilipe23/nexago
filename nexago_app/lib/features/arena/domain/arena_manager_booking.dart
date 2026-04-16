@@ -27,6 +27,14 @@ class ArenaManagerBooking {
   /// Campos crus para rótulos de pagamento/status na UI.
   final Map<String, dynamic> data;
 
+  String get attendanceStatus {
+    final raw = (data['attendanceStatus'] as String?)?.trim().toLowerCase() ?? '';
+    if (raw.isEmpty) return 'pending';
+    return raw;
+  }
+
+  bool get attendanceConfirmed => data['attendanceConfirmed'] == true;
+
   factory ArenaManagerBooking.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {

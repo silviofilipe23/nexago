@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -90,7 +91,7 @@ class ArenaBookingsPage extends ConsumerWidget {
                             padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
                             physics: const BouncingScrollPhysics(),
                             itemCount: bookings.length,
-                            separatorBuilder: (_, __) =>
+                            separatorBuilder: (context, index) =>
                                 const SizedBox(height: 12),
                             itemBuilder: (context, index) {
                               return staggeredFadeSlide(
@@ -380,6 +381,13 @@ class _BookingCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final nameAsync = ref.watch(athleteDisplayLabelProvider(booking.athleteId));
     final statusLabel = arenaBookingBusinessStatusLabel(booking.data);
+    final attendanceChip = _attendanceLabelAndIcon(booking.attendanceStatus);
+    String attendanceLabel = attendanceChip.$1;
+    final checkedInAt = booking.data['checkedInAt'];
+    if (booking.attendanceStatus == 'checked_in' && checkedInAt is Timestamp) {
+      final time = DateFormat('HH:mm', 'pt_BR').format(checkedInAt.toDate());
+      attendanceLabel = '$attendanceLabel · $time';
+    }
     final paymentLabel = arenaBookingPaymentLabel(booking.data);
 
     final statusColor = _statusColor(statusLabel);
@@ -438,7 +446,7 @@ class _BookingCard extends ConsumerWidget {
                                   .withValues(alpha: 0.45),
                             ),
                           ),
-                          error: (_, __) => Text(
+                          error: (error, stackTrace) => Text(
                             '—',
                             style: theme.textTheme.titleMedium,
                           ),
@@ -474,6 +482,11 @@ class _BookingCard extends ConsumerWidget {
                     value: statusLabel,
                   ),
                   _InfoChip(
+                    icon: attendanceChip.$2,
+                    label: 'Presença',
+                    value: attendanceLabel,
+                  ),
+                  _InfoChip(
                     icon: Icons.payments_outlined,
                     label: 'Pagamento',
                     value: paymentLabel,
@@ -485,6 +498,19 @@ class _BookingCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  static (String, IconData) _attendanceLabelAndIcon(String raw) {
+    switch (raw) {
+      case 'checked_in':
+        return ('✅ Check-in', Icons.qr_code_scanner_rounded);
+      case 'confirmed':
+        return ('✔ Confirmado', Icons.verified_rounded);
+      case 'no_show':
+        return ('❌ No-show', Icons.cancel_outlined);
+      default:
+        return ('⏳ Pendente', Icons.hourglass_top_rounded);
+    }
   }
 
   static Color _statusColor(String statusLabel) {

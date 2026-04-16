@@ -9,6 +9,7 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
+import '../domain/booking_attendance_providers.dart';
 
 class BookingDetailsPage extends ConsumerStatefulWidget {
   const BookingDetailsPage({
@@ -43,6 +44,10 @@ class BookingDetailsPage extends ConsumerStatefulWidget {
 class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
   Timer? _ticker;
   DateTime _now = DateTime.now();
+  bool _confirmingAttendance = false;
+  bool _checkingIn = false;
+  bool _attendancePulse = false;
+  bool _locationVerified = false;
 
   @override
   void initState() {
@@ -83,6 +88,8 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       rawStatus: widget.status,
     );
     final assistantCard = _buildAssistantCard(assistantState, address);
+    final attendanceAsync = ref.watch(bookingAttendanceProvider(widget.bookingId));
+    final attendance = attendanceAsync.valueOrNull;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
@@ -157,6 +164,11 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
           ),
           const SizedBox(height: 14),
           _SectionCard(
+            title: 'Confirmação de presença',
+            child: _buildAttendanceSection(theme, attendance),
+          ),
+          const SizedBox(height: 14),
+          _SectionCard(
             title: 'Ações',
             child: Column(
               children: [
@@ -176,6 +188,205 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildAttendanceSection(
+    ThemeData theme,
+    BookingAttendanceState? attendance,
+  ) {
+    final startAt = widget.startAt;
+    final deadline = attendance?.confirmationDeadline ??
+        startAt.subtract(const Duration(hours: 2));
+    final now = DateTime.now();
+    final isBeforeWindow = now.isBefore(deadline);
+    final status = attendance?.attendanceStatus ?? 'pending';
+    final confirmed = attendance?.attendanceConfirmed == true ||
+        status == 'confirmed' ||
+        status == 'checked_in';
+    final isCheckedIn = status == 'checked_in';
+    final confirmedPlayers = attendance?.confirmedPlayers ?? widget.confirmedParticipants;
+    final canCheckIn = attendance?.checkInAllowed == true && !isCheckedIn;
+
+    if (isCheckedIn) {
+      return Row(
+        children: [
+          const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF2E7D32)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Check-in realizado com sucesso${attendance?.locationVerified == true ? ' (local validado)' : ''}.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF2E7D32),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (confirmed) {
+      return Row(
+        children: [
+          const Icon(Icons.verified_rounded, color: Color(0xFF2E7D32)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Presença confirmada. 🔥 Boa! Jogadores comprometidos fazem o jogo acontecer.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF2E7D32),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (isBeforeWindow) {
+      return Text(
+        'Você poderá confirmar sua presença mais tarde.',
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: AppColors.onSurfaceMuted,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+
+    final canConfirm = !_confirmingAttendance;
+    final scale = _attendancePulse ? 1.02 : 1.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '⚠️ Confirme sua presença',
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: theme.colorScheme.error,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '$confirmedPlayers jogadores já confirmaram.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: AppColors.onSurfaceMuted,
+          ),
+        ),
+        const SizedBox(height: 10),
+        AnimatedScale(
+          scale: scale,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutBack,
+          child: FilledButton.icon(
+            onPressed: canConfirm ? _confirmAttendance : null,
+            icon: _confirmingAttendance
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.how_to_reg_rounded),
+            label: Text(_confirmingAttendance
+                ? 'Confirmando...'
+                : 'Confirmar presença'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.brand,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ),
+        if (canCheckIn) ...[
+          const SizedBox(height: 12),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Estou próximo da arena'),
+            subtitle: const Text('Opcional: use para validar localização'),
+            value: _locationVerified,
+            onChanged: _checkingIn ? null : (v) => setState(() => _locationVerified = v),
+          ),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            onPressed: _checkingIn ? null : _checkInNow,
+            icon: _checkingIn
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.login_rounded),
+            label: Text(_checkingIn ? 'Validando check-in...' : 'Fazer check-in'),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF2E7D32),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _confirmAttendance() async {
+    if (_confirmingAttendance) return;
+    setState(() {
+      _confirmingAttendance = true;
+      _attendancePulse = true;
+    });
+    try {
+      await ref.read(confirmAttendanceProvider).confirm(widget.bookingId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Presença confirmada com sucesso! +5 XP'),
+          ),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Não foi possível confirmar presença: $e')),
+        );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _confirmingAttendance = false;
+        });
+        Future<void>.delayed(const Duration(milliseconds: 250), () {
+          if (!mounted) return;
+          setState(() => _attendancePulse = false);
+        });
+      }
+    }
+  }
+
+  Future<void> _checkInNow() async {
+    if (_checkingIn) return;
+    setState(() => _checkingIn = true);
+    try {
+      await ref.read(checkInProvider).checkIn(
+            bookingId: widget.bookingId,
+            locationVerified: _locationVerified,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Check-in realizado com sucesso!')),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Não foi possível fazer check-in: $e')),
+        );
+    } finally {
+      if (mounted) {
+        setState(() => _checkingIn = false);
+      }
+    }
   }
 
   Widget _buildAssistantCard(AssistantStateType state, String address) {

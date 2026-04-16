@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -65,7 +66,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (user != null && isAuthRoute) {
-        final token = await user.getIdTokenResult(true);
+        final token = await _safeGetIdTokenResult(user);
+        if (token == null) {
+          return AppRoutes.login;
+        }
         if (userIsArenaOnlyManager(token)) {
           return AppRoutes.arenaDashboard;
         }
@@ -73,7 +77,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (user != null) {
-        final token = await user.getIdTokenResult(true);
+        final token = await _safeGetIdTokenResult(user);
+        if (token == null) {
+          return isAuthRoute ? null : AppRoutes.login;
+        }
 
         if (isArenaManagerPanelPath(path)) {
           if (!userHasArenaRole(token)) {
@@ -381,3 +388,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+Future<IdTokenResult?> _safeGetIdTokenResult(User user) async {
+  try {
+    return await user.getIdTokenResult(true);
+  } on FirebaseAuthException catch (e) {
+    if (e.code == 'no-current-user' || e.code == 'user-token-expired') {
+      return null;
+    }
+    rethrow;
+  }
+}

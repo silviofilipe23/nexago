@@ -28,7 +28,6 @@ class AthleteBookingsPage extends ConsumerStatefulWidget {
 
 class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
   final ScrollController _scrollController = ScrollController();
-  final GlobalKey _nowKey = GlobalKey();
   final Set<String> _processedCompletedBookings = <String>{};
   final Set<String> _promptedReviewBookingIds = <String>{};
   bool _didAutoScroll = false;
@@ -53,9 +52,8 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
     super.dispose();
   }
 
-  void _scrollToNowSeparator() {
-    final context = _nowKey.currentContext;
-    if (context == null || !_scrollController.hasClients) return;
+  void _scrollToNowSeparator(BuildContext context) {
+    if (!_scrollController.hasClients) return;
     final render = context.findRenderObject();
     if (render is! RenderBox) return;
 
@@ -129,12 +127,6 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
                 _BookingStage.past,
           );
 
-          if (!_didAutoScroll && firstCurrentOrFutureIdx >= 0) {
-            _didAutoScroll = true;
-            WidgetsBinding.instance
-                .addPostFrameCallback((_) => _scrollToNowSeparator());
-          }
-
           final todayGames = bookings.where((b) {
             if (!_isSameDay(b.startAt, now)) return false;
             final stage = _bookingStage(now, b.startAt, b.endAt, b.rawStatus);
@@ -181,8 +173,14 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
 
                 final row = rows[index - 1];
                 if (row.isNowSeparator) {
+                  if (!_didAutoScroll && firstCurrentOrFutureIdx >= 0) {
+                    _didAutoScroll = true;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!mounted) return;
+                      _scrollToNowSeparator(context);
+                    });
+                  }
                   return Padding(
-                    key: _nowKey,
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     child: const _NowSeparator(),
                   );

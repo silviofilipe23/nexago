@@ -149,8 +149,17 @@ async function getUserNotificationChannels(
 const ARENA_REMINDER_HOURS_BEFORE = 1;
 const ARENA_REMINDER_WINDOW_MIN = 55;
 const ARENA_REMINDER_WINDOW_MAX = 65;
+const ATTENDANCE_REMINDER_2H_MINUTES_BEFORE = 120;
+const ATTENDANCE_REMINDER_2H_WINDOW_MIN = 115;
+const ATTENDANCE_REMINDER_2H_WINDOW_MAX = 125;
+const ATTENDANCE_REMINDER_30M_MINUTES_BEFORE = 30;
+const ATTENDANCE_REMINDER_30M_WINDOW_MIN = 25;
+const ATTENDANCE_REMINDER_30M_WINDOW_MAX = 35;
+const ATTENDANCE_NO_SHOW_TOLERANCE_MINUTES = 30;
 const ARENA_TIMEZONE_OFFSET = "-03:00";
 const ARENA_REMINDER_TYPE = "arena_booking_1h_reminder";
+const ATTENDANCE_REMINDER_2H_TYPE = "attendance_confirm_2h_reminder";
+const ATTENDANCE_REMINDER_30M_TYPE = "attendance_confirm_30m_reminder";
 
 function dateKeyAtOffset(date: Date, offsetHours: number): string {
   const shifted = new Date(date.getTime() + offsetHours * 60 * 60 * 1000);
@@ -512,6 +521,8 @@ export const sendArenaBookingReminders = onSchedule({
       startTime?: string;
       endTime?: string;
       status?: string;
+      attendanceStatus?: string;
+      attendanceConfirmed?: boolean;
     };
 
     const status = (booking.status || "").toLowerCase();
@@ -535,130 +546,222 @@ export const sendArenaBookingReminders = onSchedule({
     }
 
     const minutesToStart = (startAt.getTime() - now.getTime()) / (60 * 1000);
-    if (minutesToStart < ARENA_REMINDER_WINDOW_MIN || minutesToStart > ARENA_REMINDER_WINDOW_MAX) {
-      skipped += 1;
-      continue;
-    }
+    const attendanceStatus = (booking.attendanceStatus || "pending").toLowerCase().trim();
+    const attendanceConfirmed = booking.attendanceConfirmed === true;
 
-    const reminderId = `${bookingDoc.id}_${ARENA_REMINDER_HOURS_BEFORE}h`;
-    const reminderDocRef = remindersRef.doc(reminderId);
-    const lockAcquired = await db.runTransaction(async (tx) => {
-      const snap = await tx.get(reminderDocRef);
-      if (snap.exists) {
-        return false;
-      }
-      tx.set(reminderDocRef, {
-        bookingId: bookingDoc.id,
-        athleteId,
-        type: ARENA_REMINDER_TYPE,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-      return true;
-    });
-
-    if (!lockAcquired) {
-      skipped += 1;
-      continue;
-    }
-
-    try {
-      const {fcmTokens, webPushSubscriptions} = await getUserNotificationChannels(athleteId);
-      if (fcmTokens.length === 0 && webPushSubscriptions.length === 0) {
-        await reminderDocRef.set({
-          sentAt: FieldValue.serverTimestamp(),
-          sent: 0,
-          failed: 0,
-          skippedNoChannel: true,
+    if (
+      !attendanceConfirmed &&
+      attendanceStatus !== "checked_in" &&
+      attendanceStatus !== "no_show"
+    ) {
+      const minutesSinceStart = (now.getTime() - startAt.getTime()) / (60 * 1000);
+      if (minutesSinceStart >= ATTENDANCE_NO_SHOW_TOLERANCE_MINUTES) {
+        await bookingDoc.ref.set({
+          attendanceStatus: "no_show",
+          noShowMarkedAt: FieldValue.serverTimestamp(),
         }, {merge: true});
-        skipped += 1;
         continue;
       }
+    }
 
-      const title = "Lembrete de jogo";
-      const body = "Seu jogo começa em 1 hora";
-      const courtName = (booking.courtName || "Quadra").trim();
-      const arenaName = (booking.arenaName || "Arena").trim();
-      const endTime = (booking.endTime || "").trim();
-
-      const message = {
-        notification: {title, body},
-        data: {
-          type: ARENA_REMINDER_TYPE,
+    if (minutesToStart < ARENA_REMINDER_WINDOW_MIN || minutesToStart > ARENA_REMINDER_WINDOW_MAX) {
+      // segue fluxo para lembretes de presença (2h e 30min), mesmo fora da janela de 1h.
+    } else {
+      const reminderId = `${bookingDoc.id}_${ARENA_REMINDER_HOURS_BEFORE}h`;
+      const reminderDocRef = remindersRef.doc(reminderId);
+      const lockAcquired = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(reminderDocRef);
+        if (snap.exists) {
+          return false;
+        }
+        tx.set(reminderDocRef, {
           bookingId: bookingDoc.id,
-          arenaId: String(booking.arenaId || ""),
-          date: dateKey,
-          startTime,
-          endTime,
-        },
-        android: {
-          priority: "high" as const,
-          notification: {
-            channelId: "default",
-            sound: "default",
-          },
-        },
-        apns: {
-          headers: {"apns-priority": "10"},
-          payload: {
-            aps: {sound: "default"},
-          },
-        },
-      };
-
-      const fcmResults = await Promise.allSettled(
-        fcmTokens.map((token) => messaging.send({...message, token}))
-      );
-      const successful = fcmResults.filter((r) => r.status === "fulfilled").length;
-      const failedCount = fcmResults.length - successful;
-
-      const webPushResult = await sendWebPushToSubscriptions(webPushSubscriptions, {
-        notification: {title, body},
-        data: {
+          athleteId,
           type: ARENA_REMINDER_TYPE,
-          bookingId: bookingDoc.id,
-          arenaId: String(booking.arenaId || ""),
-          date: dateKey,
-          startTime,
-          endTime,
-        },
-        requireInteraction: false,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        return true;
       });
 
-      const totalSent = successful + webPushResult.sent;
-      const totalFailed = failedCount + webPushResult.failed;
-      sent += totalSent;
-      failed += totalFailed;
+      if (lockAcquired) {
+        try {
+          const {fcmTokens, webPushSubscriptions} = await getUserNotificationChannels(athleteId);
+          if (fcmTokens.length === 0 && webPushSubscriptions.length === 0) {
+            await reminderDocRef.set({
+              sentAt: FieldValue.serverTimestamp(),
+              sent: 0,
+              failed: 0,
+              skippedNoChannel: true,
+            }, {merge: true});
+            skipped += 1;
+          } else {
+            const title = "Lembrete de jogo";
+            const body = "Seu jogo começa em 1 hora";
+            const courtName = (booking.courtName || "Quadra").trim();
+            const arenaName = (booking.arenaName || "Arena").trim();
+            const endTime = (booking.endTime || "").trim();
 
-      if (totalSent > 0) {
-        await db.collection(`users/${athleteId}/notifications`).add({
-          userId: athleteId,
-          title,
-          body: `${body}\n${arenaName} · ${courtName}\n${startTime}${endTime ? ` - ${endTime}` : ""}`,
-          type: ARENA_REMINDER_TYPE,
-          data: {
-            bookingId: bookingDoc.id,
-            arenaId: booking.arenaId || "",
-            date: dateKey,
-            startTime,
-            endTime,
-            hoursBefore: String(ARENA_REMINDER_HOURS_BEFORE),
-          },
-          read: false,
-          createdAt: FieldValue.serverTimestamp(),
-          readAt: null,
-        });
+            const message = {
+              notification: {title, body},
+              data: {
+                type: ARENA_REMINDER_TYPE,
+                bookingId: bookingDoc.id,
+                arenaId: String(booking.arenaId || ""),
+                date: dateKey,
+                startTime,
+                endTime,
+              },
+              android: {
+                priority: "high" as const,
+                notification: {
+                  channelId: "default",
+                  sound: "default",
+                },
+              },
+              apns: {
+                headers: {"apns-priority": "10"},
+                payload: {
+                  aps: {sound: "default"},
+                },
+              },
+            };
+
+            const fcmResults = await Promise.allSettled(
+              fcmTokens.map((token) => messaging.send({...message, token}))
+            );
+            const successful = fcmResults.filter((r) => r.status === "fulfilled").length;
+            const failedCount = fcmResults.length - successful;
+
+            const webPushResult = await sendWebPushToSubscriptions(webPushSubscriptions, {
+              notification: {title, body},
+              data: {
+                type: ARENA_REMINDER_TYPE,
+                bookingId: bookingDoc.id,
+                arenaId: String(booking.arenaId || ""),
+                date: dateKey,
+                startTime,
+                endTime,
+              },
+              requireInteraction: false,
+            });
+
+            const totalSent = successful + webPushResult.sent;
+            const totalFailed = failedCount + webPushResult.failed;
+            sent += totalSent;
+            failed += totalFailed;
+
+            if (totalSent > 0) {
+              await db.collection(`users/${athleteId}/notifications`).add({
+                userId: athleteId,
+                title,
+                body: `${body}\n${arenaName} · ${courtName}\n${startTime}${endTime ? ` - ${endTime}` : ""}`,
+                type: ARENA_REMINDER_TYPE,
+                data: {
+                  bookingId: bookingDoc.id,
+                  arenaId: booking.arenaId || "",
+                  date: dateKey,
+                  startTime,
+                  endTime,
+                  hoursBefore: String(ARENA_REMINDER_HOURS_BEFORE),
+                },
+                read: false,
+                createdAt: FieldValue.serverTimestamp(),
+                readAt: null,
+              });
+            }
+
+            await reminderDocRef.set({
+              sentAt: FieldValue.serverTimestamp(),
+              sent: totalSent,
+              failed: totalFailed,
+            }, {merge: true});
+          }
+        } catch (error) {
+          failed += 1;
+          logger.error(`arena booking reminder: erro ao enviar para booking ${bookingDoc.id}`, error);
+          await reminderDocRef.delete().catch(() => undefined);
+        }
+      } else {
+        skipped += 1;
       }
+    }
 
-      await reminderDocRef.set({
-        sentAt: FieldValue.serverTimestamp(),
-        sent: totalSent,
-        failed: totalFailed,
-      }, {merge: true});
-    } catch (error) {
-      failed += 1;
-      logger.error(`arena booking reminder: erro ao enviar para booking ${bookingDoc.id}`, error);
-      // Remove lock para permitir retry no próximo ciclo quando houver falha de envio.
-      await reminderDocRef.delete().catch(() => undefined);
+    const shouldSend2h = !attendanceConfirmed &&
+      attendanceStatus !== "checked_in" &&
+      attendanceStatus !== "no_show" &&
+      minutesToStart >= ATTENDANCE_REMINDER_2H_WINDOW_MIN &&
+      minutesToStart <= ATTENDANCE_REMINDER_2H_WINDOW_MAX;
+    const shouldSend30m = !attendanceConfirmed &&
+      attendanceStatus !== "checked_in" &&
+      attendanceStatus !== "no_show" &&
+      minutesToStart >= ATTENDANCE_REMINDER_30M_WINDOW_MIN &&
+      minutesToStart <= ATTENDANCE_REMINDER_30M_WINDOW_MAX;
+
+    if (shouldSend2h || shouldSend30m) {
+      const reminderKey = shouldSend2h ? "attendance_2h" : "attendance_30m";
+      const reminderType = shouldSend2h ? ATTENDANCE_REMINDER_2H_TYPE : ATTENDANCE_REMINDER_30M_TYPE;
+      const title = shouldSend2h ?
+        "🔥 Seu jogo está chegando! Confirme sua presença" :
+        "⚠️ Última chance de confirmar";
+      const body = shouldSend2h ?
+        "Confirme agora sua presença para garantir sua prioridade no jogo." :
+        "Faltam 30 minutos. Confirme sua presença agora.";
+      const lockRef = remindersRef.doc(`${bookingDoc.id}_${reminderKey}`);
+      const lockAcquired = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(lockRef);
+        if (snap.exists) return false;
+        tx.set(lockRef, {
+          bookingId: bookingDoc.id,
+          athleteId,
+          type: reminderType,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        return true;
+      });
+      if (!lockAcquired) continue;
+      try {
+        const tokens = await getUserFcmTokens(athleteId);
+        if (tokens.length > 0) {
+          await Promise.allSettled(tokens.map((token) => messaging.send({
+            token,
+            notification: {title, body},
+            data: {
+              type: reminderType,
+              bookingId: bookingDoc.id,
+              arenaId: String(booking.arenaId || ""),
+              date: dateKey,
+              startTime,
+              minutesBefore: String(
+                shouldSend2h ?
+                  ATTENDANCE_REMINDER_2H_MINUTES_BEFORE :
+                  ATTENDANCE_REMINDER_30M_MINUTES_BEFORE
+              ),
+            },
+          })));
+          await db.collection(`users/${athleteId}/notifications`).add({
+            userId: athleteId,
+            title,
+            body,
+            type: reminderType,
+            data: {
+              bookingId: bookingDoc.id,
+              arenaId: booking.arenaId || "",
+              date: dateKey,
+              startTime,
+            },
+            read: false,
+            createdAt: FieldValue.serverTimestamp(),
+            readAt: null,
+          });
+        }
+        await bookingDoc.ref.set({
+          [shouldSend2h ? "attendanceReminder2hSentAt" : "attendanceReminder30mSentAt"]:
+            FieldValue.serverTimestamp(),
+        }, {merge: true});
+      } catch (error) {
+        logger.error(`attendance reminder: erro no booking ${bookingDoc.id}`, error);
+        await lockRef.delete().catch(() => undefined);
+      }
     }
   }
 

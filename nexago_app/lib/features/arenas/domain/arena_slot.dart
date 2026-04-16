@@ -71,6 +71,34 @@ class ArenaSlot {
   /// Indisponível para reserva (ocupado, bloqueado ou outro).
   bool get isSelectable => isAvailable;
 
+  ArenaSlot copyWith({
+    String? id,
+    String? arenaId,
+    String? courtId,
+    DateTime? date,
+    String? startTime,
+    String? endTime,
+    String? rawStatus,
+    double? priceReais,
+    bool? isVirtual,
+    String? bookingId,
+    String? bookingAthleteId,
+  }) {
+    return ArenaSlot(
+      id: id ?? this.id,
+      arenaId: arenaId ?? this.arenaId,
+      courtId: courtId ?? this.courtId,
+      date: date ?? this.date,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      rawStatus: rawStatus ?? this.rawStatus,
+      priceReais: priceReais ?? this.priceReais,
+      isVirtual: isVirtual ?? this.isVirtual,
+      bookingId: bookingId ?? this.bookingId,
+      bookingAthleteId: bookingAthleteId ?? this.bookingAthleteId,
+    );
+  }
+
   factory ArenaSlot.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
     final arenaId = (data['arenaId'] as String?)?.trim() ?? '';

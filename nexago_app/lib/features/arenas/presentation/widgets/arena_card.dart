@@ -157,6 +157,17 @@ class _ArenaCardState extends State<ArenaCard> {
                             ),
                           ),
                         ],
+                        if (widget.arena.reputationScore > 0) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            '🏆 Score ${widget.arena.reputationScore}'
+                            '${widget.arena.reviewResponseRate >= 0.75 ? ' • ✔ Responde rápido' : ''}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: const Color(0xFFE8F5E9),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         Text(
                           '${ArenaCard._currency.format(widget.arena.pricePerHourReais)} / hora',

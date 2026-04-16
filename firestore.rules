@@ -347,7 +347,25 @@ service cloud.firestore {
     match /arena_reviews/{reviewId} {
       allow read: if true;
       allow create: if request.auth != null &&
-        request.resource.data.userId == request.auth.uid;
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.arenaId is string &&
+        request.resource.data.bookingId is string &&
+        request.resource.data.rating is int &&
+        request.resource.data.rating >= 1 &&
+        request.resource.data.rating <= 5 &&
+        (
+          !('comment' in request.resource.data) ||
+          request.resource.data.comment == null ||
+          request.resource.data.comment is string
+        ) &&
+        (
+          !('likesCount' in request.resource.data) ||
+          request.resource.data.likesCount == 0
+        ) &&
+        (
+          !('reported' in request.resource.data) ||
+          request.resource.data.reported == false
+        );
       allow update: if request.auth != null && (
         // atleta autor pode editar sua própria avaliação sem tocar em `reply`
         (
@@ -355,7 +373,9 @@ service cloud.firestore {
           request.resource.data.userId == resource.data.userId &&
           request.resource.data.arenaId == resource.data.arenaId &&
           request.resource.data.bookingId == resource.data.bookingId &&
-          request.resource.data.reply == resource.data.reply
+          request.resource.data.reply == resource.data.reply &&
+          request.resource.data.likesCount == resource.data.likesCount &&
+          request.resource.data.reported == resource.data.reported
         ) ||
         // gestor da arena pode criar/editar apenas a resposta oficial
         (
@@ -378,6 +398,28 @@ service cloud.firestore {
       );
       allow delete: if request.auth != null &&
         resource.data.userId == request.auth.uid;
+    }
+    match /arena_reviews/{reviewId}/likes/{userId} {
+      allow read: if true;
+      allow create, delete: if request.auth != null && request.auth.uid == userId;
+      allow update: if false;
+    }
+    match /arena_reviews/{reviewId}/reports/{userId} {
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+      allow create, update: if request.auth != null &&
+        request.auth.uid == userId &&
+        request.resource.data.reason is string &&
+        request.resource.data.reason.size() >= 5 &&
+        request.resource.data.reason.size() <= 280;
+      allow delete: if false;
+    }
+    match /arena_reputation/{arenaId} {
+      allow read: if true;
+      allow write: if false;
     }
 
     // O perfil do atleta é armazenado diretamente em users/{userId}

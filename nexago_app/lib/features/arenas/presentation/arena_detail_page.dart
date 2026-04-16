@@ -11,6 +11,8 @@ import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_list_item.dart';
 import '../domain/arenas_providers.dart';
 import '../../athlete/domain/arena_review_providers.dart';
+import '../../athlete/domain/arena_reputation.dart';
+import '../../arena/domain/review_reply_providers.dart';
 import 'widgets/arena_header_image.dart';
 import 'widgets/arena_logo.dart';
 
@@ -37,6 +39,8 @@ class ArenaDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncArena = ref.watch(arenaByIdProvider(arenaId));
     final recentReviewerAsync = ref.watch(recentArenaReviewerProvider(arenaId));
+    final reputationAsync = ref.watch(arenaReputationProvider(arenaId));
+    final socialProofAsync = ref.watch(arenaRespondsFastSocialProofProvider(arenaId));
 
     return asyncArena.when(
       data: (remote) {
@@ -58,6 +62,8 @@ class ArenaDetailPage extends ConsumerWidget {
           child: _ArenaDetailBody(
             arena: arena,
             recentReviewer: recentReviewerAsync.valueOrNull,
+              reputation: reputationAsync.valueOrNull,
+              socialProof: socialProofAsync.valueOrNull,
           ),
         );
       },
@@ -67,6 +73,8 @@ class ArenaDetailPage extends ConsumerWidget {
             child: _ArenaDetailBody(
               arena: initialArena!,
               recentReviewer: recentReviewerAsync.valueOrNull,
+              reputation: reputationAsync.valueOrNull,
+              socialProof: socialProofAsync.valueOrNull,
             ),
           );
         }
@@ -91,10 +99,14 @@ class _ArenaDetailBody extends StatefulWidget {
   const _ArenaDetailBody({
     required this.arena,
     required this.recentReviewer,
+    required this.reputation,
+    required this.socialProof,
   });
 
   final ArenaListItem arena;
   final String? recentReviewer;
+  final ArenaReputation? reputation;
+  final String? socialProof;
 
   @override
   State<_ArenaDetailBody> createState() => _ArenaDetailBodyState();
@@ -102,6 +114,22 @@ class _ArenaDetailBody extends StatefulWidget {
 
 class _ArenaDetailBodyState extends State<_ArenaDetailBody> {
   static const double _coverHeight = 292;
+
+  Widget _badge(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+      ),
+    );
+  }
 
   void _openSlots() {
     context.pushNamed(
@@ -116,6 +144,8 @@ class _ArenaDetailBodyState extends State<_ArenaDetailBody> {
     final theme = Theme.of(context);
     final arena = widget.arena;
     final recentReviewer = widget.recentReviewer;
+    final reputation = widget.reputation;
+    final socialProof = widget.socialProof;
     final descriptionText = arena.description?.trim();
     final hasDescription =
         descriptionText != null && descriptionText.isNotEmpty;
@@ -204,7 +234,7 @@ class _ArenaDetailBodyState extends State<_ArenaDetailBody> {
                         children: [
                           Text(
                             arena.reviewsCount > 0
-                                ? '⭐ ${arena.ratingAverage.toStringAsFixed(1)} (${arena.reviewsCount} avaliações)'
+                                ? '⭐ ${(reputation?.ratingAverage ?? arena.ratingAverage).toStringAsFixed(1)} (${reputation?.reviewsCount ?? arena.reviewsCount} avaliações)'
                                 : '⭐ Ainda sem avaliações',
                             style: theme.textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.w700,
@@ -231,6 +261,117 @@ class _ArenaDetailBodyState extends State<_ArenaDetailBody> {
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: AppColors.onSurfaceMuted,
                             fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      if (socialProof != null && socialProof.trim().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          socialProof,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFF2E7D32),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                      if (reputation != null && reputation.reviewsCount > 0) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Theme(
+                            data: theme.copyWith(
+                              dividerColor: Colors.transparent,
+                            ),
+                            child: ExpansionTile(
+                              shape: const Border(),
+                              collapsedShape: const Border(),
+                              tilePadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 2),
+                              childrenPadding:
+                                  const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                              title: Text(
+                                '🏆 Score: ${reputation.score}',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              subtitle: Text(
+                                'Toque para ver distribuição e indicadores',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: AppColors.onSurfaceMuted,
+                                ),
+                              ),
+                              children: [
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if (reputation.score >= 90)
+                                    _badge('⭐ Excelente avaliação'),
+                                  if (reputation.responseRate >= 0.75)
+                                    _badge('💬 Responde rápido'),
+                                  if (reputation.reviewsCount >= 20)
+                                    _badge('🔥 Alta demanda'),
+                                  _badge('🏆 Top da semana'),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              ...[5, 4, 3, 2, 1].map((star) {
+                                final pct = reputation.starPercent(star);
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 76,
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: List.generate(5, (i) {
+                                            final filled = i < star;
+                                            return Icon(
+                                              filled
+                                                  ? Icons.star_rounded
+                                                  : Icons.star_outline_rounded,
+                                              size: 14,
+                                              color: const Color(0xFFFFC107),
+                                            );
+                                          }),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(999),
+                                          child: LinearProgressIndicator(
+                                            minHeight: 7,
+                                            value: pct / 100,
+                                            backgroundColor: theme.colorScheme.surface,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      SizedBox(
+                                        width: 44,
+                                        child: Text(
+                                          '${pct.toStringAsFixed(0)}%',
+                                          textAlign: TextAlign.right,
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                            color: AppColors.onSurfaceMuted,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                              ],
+                            ),
                           ),
                         ),
                       ],

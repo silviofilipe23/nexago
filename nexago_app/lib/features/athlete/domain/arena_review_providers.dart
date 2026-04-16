@@ -5,6 +5,7 @@ import '../../../core/auth/auth_providers.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../data/arena_review_service.dart';
+import 'arena_reputation.dart';
 import 'arena_review.dart';
 
 String _readString(Map<String, dynamic> data, List<String> keys) {
@@ -185,6 +186,50 @@ final arenaReviewsStreamProvider = StreamProvider.autoDispose
       capped.map((r) => r.copyWith(athleteName: userNames[r.userId])),
     );
   });
+});
+
+final arenaReviewsProvider =
+    StreamProvider.autoDispose.family<List<ArenaReview>, String>((ref, arenaId) {
+  return ref.watch(arenaReviewsStreamProvider(arenaId).stream);
+});
+
+final arenaReputationProvider =
+    StreamProvider.autoDispose.family<ArenaReputation?, String>((ref, arenaId) {
+  final aid = arenaId.trim();
+  if (aid.isEmpty) return Stream.value(null);
+  final firestore = ref.watch(firestoreProvider);
+  return firestore
+      .collection('arena_reputation')
+      .doc(aid)
+      .snapshots()
+      .map((doc) => doc.exists ? ArenaReputation.fromFirestore(doc) : null);
+});
+
+final reviewLikesProvider =
+    StreamProvider.autoDispose.family<int, String>((ref, reviewId) {
+  final rid = reviewId.trim();
+  if (rid.isEmpty) return Stream.value(0);
+  return ref
+      .watch(firestoreProvider)
+      .collection('arena_reviews')
+      .doc(rid)
+      .snapshots()
+      .map((doc) => (doc.data()?['likesCount'] as num?)?.toInt() ?? 0);
+});
+
+final reviewLikedByMeProvider =
+    StreamProvider.autoDispose.family<bool, String>((ref, reviewId) {
+  final rid = reviewId.trim();
+  final uid = ref.watch(authProvider).valueOrNull?.uid.trim() ?? '';
+  if (rid.isEmpty || uid.isEmpty) return Stream.value(false);
+  return ref
+      .watch(firestoreProvider)
+      .collection('arena_reviews')
+      .doc(rid)
+      .collection('likes')
+      .doc(uid)
+      .snapshots()
+      .map((doc) => doc.exists);
 });
 
 final recentArenaReviewerProvider =

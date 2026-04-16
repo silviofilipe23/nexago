@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../arena/domain/review_reply_providers.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../domain/arena_review.dart';
+import '../domain/arena_review_providers.dart';
 
 class ArenaReviewsPage extends ConsumerStatefulWidget {
   const ArenaReviewsPage({
@@ -31,11 +33,88 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
   bool _loadingMore = false;
   bool _hasMore = true;
   String? _errorMessage;
+  final Set<String> _busyLikes = <String>{};
+  final Set<String> _busyReports = <String>{};
 
   @override
   void initState() {
     super.initState();
     Future.microtask(() => _loadPage(reset: true));
+  }
+
+  Future<void> _toggleLike(ArenaReview review, bool likedByMe) async {
+    final userId = ref.read(authProvider).valueOrNull?.uid.trim() ?? '';
+    if (userId.isEmpty || _busyLikes.contains(review.id)) return;
+    setState(() => _busyLikes.add(review.id));
+    try {
+      final service = ref.read(arenaReviewServiceProvider);
+      if (likedByMe) {
+        await service.unlikeReview(reviewId: review.id, userId: userId);
+      } else {
+        await service.likeReview(reviewId: review.id, userId: userId);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível atualizar curtida: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busyLikes.remove(review.id));
+    }
+  }
+
+  Future<void> _reportReview(ArenaReview review) async {
+    final userId = ref.read(authProvider).valueOrNull?.uid.trim() ?? '';
+    if (userId.isEmpty || _busyReports.contains(review.id)) return;
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Denunciar avaliação'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 280,
+          minLines: 2,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(),
+            hintText: 'Descreva o motivo da denúncia',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Denunciar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (reason == null || reason.trim().length < 5) return;
+    setState(() => _busyReports.add(review.id));
+    try {
+      await ref.read(arenaReviewServiceProvider).reportReview(
+            reviewId: review.id,
+            userId: userId,
+            reason: reason,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Avaliação denunciada com sucesso')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao denunciar: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busyReports.remove(review.id));
+    }
   }
 
   Future<List<ArenaReview>> _enrichAthleteNames(
@@ -222,6 +301,10 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                             (review.athleteName?.trim().isNotEmpty == true)
                                 ? review.athleteName!.trim()
                                 : 'Atleta';
+                        final likes = ref.watch(reviewLikesProvider(review.id)).valueOrNull ??
+                            review.likesCount;
+                        final likedByMe =
+                            ref.watch(reviewLikedByMeProvider(review.id)).valueOrNull ?? false;
                         return Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
@@ -289,6 +372,31 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                                       Theme.of(context).textTheme.bodyMedium,
                                 ),
                               ],
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  TextButton.icon(
+                                    onPressed: _busyLikes.contains(review.id)
+                                        ? null
+                                        : () => _toggleLike(review, likedByMe),
+                                    icon: Icon(
+                                      likedByMe
+                                          ? Icons.thumb_up_alt_rounded
+                                          : Icons.thumb_up_alt_outlined,
+                                      size: 18,
+                                    ),
+                                    label: Text('Curtir ($likes)'),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  TextButton.icon(
+                                    onPressed: _busyReports.contains(review.id)
+                                        ? null
+                                        : () => _reportReview(review),
+                                    icon: const Icon(Icons.report_gmailerrorred_rounded, size: 18),
+                                    label: const Text('Denunciar'),
+                                  ),
+                                ],
+                              ),
                               if (review.reply != null) ...[
                                 const SizedBox(height: 10),
                                 Container(

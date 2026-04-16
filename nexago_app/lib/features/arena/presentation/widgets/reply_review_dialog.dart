@@ -97,15 +97,6 @@ class _ReplyReviewDialogState extends State<_ReplyReviewDialog> {
               ),
               onChanged: (_) => setState(() {}),
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                '${text.trim().length}/$_maxChars',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
           ],
         ),
       ),

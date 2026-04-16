@@ -23,6 +23,8 @@ class ArenaListItem {
     this.onsitePaymentEnabled = true,
     this.ratingAverage = 0,
     this.reviewsCount = 0,
+    this.reputationScore = 0,
+    this.reviewResponseRate = 0,
   });
 
   final String id;
@@ -53,6 +55,8 @@ class ArenaListItem {
   final bool onsitePaymentEnabled;
   final double ratingAverage;
   final int reviewsCount;
+  final int reputationScore;
+  final double reviewResponseRate;
 
   /// Compatibilidade com código legado.
   String get imageUrl => coverUrl ?? kDefaultImageUrl;
@@ -181,6 +185,9 @@ class ArenaListItem {
     final stateValue = state.isEmpty ? null : state;
     final ratingAverage = (data['ratingAverage'] as num?)?.toDouble() ?? 0;
     final reviewsCount = (data['reviewsCount'] as num?)?.toInt() ?? 0;
+    final reputationScore = (data['reputationScore'] as num?)?.toInt() ?? 0;
+    final reviewResponseRate =
+        (data['reviewResponseRate'] as num?)?.toDouble() ?? 0;
 
     return ArenaListItem(
       id: doc.id,
@@ -201,6 +208,8 @@ class ArenaListItem {
       onsitePaymentEnabled: onsitePayment,
       ratingAverage: ratingAverage,
       reviewsCount: reviewsCount,
+      reputationScore: reputationScore,
+      reviewResponseRate: reviewResponseRate,
     );
   }
 }

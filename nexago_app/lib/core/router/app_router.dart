@@ -21,6 +21,7 @@ import '../../features/arena/presentation/arena_edit_profile_page.dart';
 import '../../features/arena/presentation/arena_profile_update_success_page.dart';
 import '../../features/arena/presentation/arena_profile_page.dart';
 import '../../features/arena/presentation/arena_followers_page.dart';
+import '../../features/arena/presentation/arena_reviews_management_page.dart';
 import '../../features/arena/presentation/arena_availability_settings_page.dart';
 import '../../features/arena/presentation/arena_availability_slots_success_page.dart';
 import '../../features/arena/presentation/arena_settings_page.dart';
@@ -254,6 +255,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final arenaId = state.uri.queryParameters['arenaId']?.trim() ?? '';
           return ArenaFollowersPage(arenaId: arenaId);
         },
+      ),
+      GoRoute(
+        path: AppRoutes.arenaManagerReviews,
+        name: AppRouteNames.arenaManagerReviews,
+        builder: (context, state) => const ArenaReviewsManagementPage(),
       ),
       GoRoute(
         path: AppRoutes.arenaProfileEdit,

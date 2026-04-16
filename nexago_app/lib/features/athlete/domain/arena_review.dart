@@ -9,6 +9,8 @@ class ArenaReview {
     required this.rating,
     required this.comment,
     required this.createdAt,
+    required this.likesCount,
+    required this.reported,
     this.athleteName,
     this.reply,
   });
@@ -20,10 +22,17 @@ class ArenaReview {
   final int rating;
   final String? comment;
   final DateTime? createdAt;
+  final int likesCount;
+  final bool reported;
   final String? athleteName;
   final ArenaReviewReply? reply;
 
-  ArenaReview copyWith({String? athleteName, ArenaReviewReply? reply}) {
+  ArenaReview copyWith({
+    String? athleteName,
+    ArenaReviewReply? reply,
+    int? likesCount,
+    bool? reported,
+  }) {
     return ArenaReview(
       id: id,
       arenaId: arenaId,
@@ -32,6 +41,8 @@ class ArenaReview {
       rating: rating,
       comment: comment,
       createdAt: createdAt,
+      likesCount: likesCount ?? this.likesCount,
+      reported: reported ?? this.reported,
       athleteName: athleteName ?? this.athleteName,
       reply: reply ?? this.reply,
     );
@@ -54,6 +65,8 @@ class ArenaReview {
       createdAt: data['createdAt'] is Timestamp
           ? (data['createdAt'] as Timestamp).toDate()
           : null,
+      likesCount: (data['likesCount'] as num?)?.toInt() ?? 0,
+      reported: data['reported'] == true,
       athleteName: null,
       reply: ArenaReviewReply.fromMap(data['reply']),
     );

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'dart:math' as math;
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/layout/app_scaffold.dart';
+import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/success_page.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/domain/favorites_providers.dart';
 import '../domain/arena_providers.dart';
@@ -46,6 +50,7 @@ class ArenaDashboardPage extends ConsumerWidget {
               final maxW = constraints.maxWidth > 720 ? 640.0 : double.infinity;
               return Center(
                 child: SingleChildScrollView(
+                  key: const PageStorageKey<String>('arena-dashboard-scroll'),
                   padding: const EdgeInsets.fromLTRB(28, 20, 28, 40),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(maxWidth: maxW),
@@ -177,7 +182,7 @@ class _ReviewReputationSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final metricsAsync = ref.watch(arenaReviewReputationMetricsProvider);
-    final reviewsAsync = ref.watch(managedArenaReviewsProvider);
+    final pendingReviewsAsync = ref.watch(managedArenaPendingReviewsProvider);
     final arenaId = ref.watch(managedArenaIdProvider).valueOrNull ?? '';
     final managerId = ref.watch(authProvider).valueOrNull?.uid ?? '';
     final replyService = ref.watch(reviewReplyServiceProvider);
@@ -222,7 +227,23 @@ class _ReviewReputationSection extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-          reviewsAsync.when(
+          Row(
+            children: [
+              Text(
+                'Pendentes de resposta',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => context.pushNamed(AppRouteNames.arenaManagerReviews),
+                child: const Text('Ver todas'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          pendingReviewsAsync.when(
             loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
             error: (e, _) => Text(
               'Não foi possível carregar avaliações da arena.',
@@ -230,7 +251,7 @@ class _ReviewReputationSection extends ConsumerWidget {
             ),
             data: (reviews) {
               if (reviews.isEmpty) {
-                return const Text('Ainda não há avaliações para responder.');
+                return const Text('Nenhuma avaliação pendente de resposta.');
               }
               return Column(
                 children: reviews.take(8).map((review) {
@@ -315,9 +336,27 @@ class _ReviewReputationSection extends ConsumerWidget {
                                         );
                                       }
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(content: Text('Resposta enviada com sucesso')),
+                                        final scrollable = Scrollable.maybeOf(context);
+                                        final previousOffset =
+                                            scrollable?.position.pixels ?? 0;
+                                        await Navigator.of(context).push(
+                                          MaterialPageRoute<void>(
+                                            builder: (_) => const _ReviewReplySuccessPage(),
+                                          ),
                                         );
+                                        WidgetsBinding.instance
+                                            .addPostFrameCallback((_) {
+                                          final position = scrollable?.position;
+                                          if (position == null ||
+                                              !position.hasPixels) {
+                                            return;
+                                          }
+                                          final target = math.min(
+                                            previousOffset,
+                                            position.maxScrollExtent,
+                                          );
+                                          position.jumpTo(target);
+                                        });
                                       }
                                     } catch (e) {
                                       if (context.mounted) {
@@ -339,6 +378,21 @@ class _ReviewReputationSection extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ReviewReplySuccessPage extends StatelessWidget {
+  const _ReviewReplySuccessPage();
+
+  @override
+  Widget build(BuildContext context) {
+    return SuccessPage(
+      title: 'Resposta enviada',
+      message:
+          'Sua resposta foi publicada com sucesso e agora ajuda novos atletas a confiarem ainda mais na arena.',
+      primaryActionLabel: 'Voltar ao painel',
+      onPrimaryAction: () => Navigator.of(context).pop(),
     );
   }
 }

@@ -68,6 +68,14 @@ final managedArenaReviewsProvider =
   });
 });
 
+final managedArenaPendingReviewsProvider =
+    Provider.autoDispose<AsyncValue<List<ArenaReview>>>((ref) {
+  final reviewsAsync = ref.watch(managedArenaReviewsProvider);
+  return reviewsAsync.whenData(
+    (reviews) => reviews.where((review) => review.reply == null).toList(growable: false),
+  );
+});
+
 final arenaReviewReputationMetricsProvider =
     StreamProvider.autoDispose<ArenaReviewReputationMetrics>((ref) {
   return ref.watch(managedArenaReviewsProvider.stream).map((reviews) {

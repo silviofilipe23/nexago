@@ -35,6 +35,12 @@ class AuthService {
 
   Future<void> signOut() => _auth.signOut();
 
+  Future<void> sendPasswordResetEmail({
+    required String email,
+  }) {
+    return _auth.sendPasswordResetEmail(email: email.trim());
+  }
+
   /// Reautenticação com e-mail/senha (ex.: desbloqueio quando Face ID não é usado).
   Future<void> reauthenticateWithEmailAndPassword({
     required String email,

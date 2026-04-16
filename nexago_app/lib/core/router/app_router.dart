@@ -11,6 +11,7 @@ import '../../features/arenas/presentation/slots_page.dart';
 import '../../features/arenas/domain/arena_booking_confirm_args.dart';
 import '../../features/arenas/domain/arena_list_item.dart';
 import '../../features/auth/login_page.dart';
+import '../../features/auth/forgot_password_page.dart';
 import '../../features/auth/register_page.dart';
 import '../../features/arena/domain/arena_manager_booking.dart';
 import '../../features/arena/presentation/arena_booking_details_page.dart';
@@ -51,7 +52,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) async {
       final authAsync = ref.read(authProvider);
       final path = state.uri.path;
-      final isAuthRoute = path == AppRoutes.login || path == AppRoutes.register;
+      final isAuthRoute = path == AppRoutes.login ||
+          path == AppRoutes.register ||
+          path == AppRoutes.forgotPassword;
 
       if (authAsync.isLoading) {
         return null;
@@ -114,6 +117,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.register,
         name: AppRouteNames.register,
         builder: (context, state) => const RegisterPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.forgotPassword,
+        name: AppRouteNames.forgotPassword,
+        builder: (context, state) => const ForgotPasswordPage(),
       ),
       GoRoute(
         path: AppRoutes.home,

@@ -9,42 +9,55 @@ import '../../core/router/routes.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/ui/app_snackbar.dart';
 
-class LoginPage extends ConsumerStatefulWidget {
-  const LoginPage({super.key});
+class ForgotPasswordPage extends ConsumerStatefulWidget {
+  const ForgotPasswordPage({super.key});
 
   @override
-  ConsumerState<LoginPage> createState() => _LoginPageState();
+  ConsumerState<ForgotPasswordPage> createState() => _ForgotPasswordPageState();
 }
 
-class _LoginPageState extends ConsumerState<LoginPage> {
+class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  bool _obscurePassword = true;
   bool _submitting = false;
+  bool _sent = false;
 
   @override
   void dispose() {
     _emailController.dispose();
-    _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-
     setState(() => _submitting = true);
     try {
-      await ref.read(authServiceProvider).signInWithEmailAndPassword(
+      await ref.read(authServiceProvider).sendPasswordResetEmail(
             email: _emailController.text,
-            password: _passwordController.text,
           );
+      if (!mounted) return;
+      setState(() => _sent = true);
+      showAppSnackBar(
+        context,
+        '"Se o email estiver cadastrado, você receberá um link"',
+      );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, mapFirebaseAuthException(e), isError: true);
-    } catch (e) {
+      final mapped = mapFirebaseAuthException(e);
+      showAppSnackBar(
+        context,
+        mapped.contains('(')
+            ? 'Não foi possível enviar o link agora. Tente novamente.'
+            : mapped,
+        isError: true,
+      );
+    } catch (_) {
       if (!mounted) return;
-      showAppSnackBar(context, 'Erro inesperado: $e', isError: true);
+      showAppSnackBar(
+        context,
+        'Não foi possível enviar o link agora. Tente novamente.',
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -53,27 +66,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     return Scaffold(
+      appBar: AppBar(title: const Text('Recuperar senha')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
+              constraints: const BoxConstraints(maxWidth: 420),
               child: Form(
                 key: _formKey,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(
-                      Icons.sports_volleyball_rounded,
-                      size: 56,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(height: 16),
                     Text(
-                      'Bem-vindo de volta',
+                      'Esqueceu sua senha?',
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                         color: AppColors.black,
@@ -82,18 +89,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Use seu e-mail e senha para continuar.',
+                      'Informe seu e-mail e enviaremos um link para redefinir sua senha.',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: AppColors.onSurfaceMuted,
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 24),
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.email],
-                      textInputAction: TextInputAction.next,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _submit(),
                       decoration: const InputDecoration(
                         labelText: 'E-mail',
                         border: OutlineInputBorder(),
@@ -101,40 +109,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       validator: (value) {
                         final v = value?.trim() ?? '';
                         if (v.isEmpty) return 'Informe o e-mail.';
-                        if (!v.contains('@')) return 'E-mail inválido.';
+                        final validEmail =
+                            RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(v);
+                        if (!validEmail) return 'E-mail inválido.';
                         return null;
                       },
                     ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      autofillHints: const [AutofillHints.password],
-                      textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _submit(),
-                      decoration: InputDecoration(
-                        labelText: 'Senha',
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          tooltip: _obscurePassword ? 'Mostrar senha' : 'Ocultar senha',
-                          onPressed: () {
-                            setState(() => _obscurePassword = !_obscurePassword);
-                          },
-                          icon: Icon(
-                            _obscurePassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                          ),
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Informe a senha.';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 18),
                     FilledButton(
                       onPressed: _submitting ? null : _submit,
                       child: _submitting
@@ -146,24 +127,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                 color: Colors.white,
                               ),
                             )
-                          : const Text('Entrar'),
+                          : const Text('Enviar link'),
                     ),
-                    const SizedBox(height: 16),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: _submitting
-                            ? null
-                            : () => context.push(AppRoutes.forgotPassword),
-                        child: const Text('Esqueci minha senha'),
+                    if (_sent) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        '"Se o email estiver cadastrado, você receberá um link"',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: const Color(0xFF2E7D32),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
+                    ],
+                    const SizedBox(height: 12),
                     TextButton(
-                      onPressed: _submitting
-                          ? null
-                          : () => context.push(AppRoutes.register),
-                      child: const Text('Criar conta'),
+                      onPressed:
+                          _submitting ? null : () => context.go(AppRoutes.login),
+                      child: const Text('Voltar para login'),
                     ),
                   ],
                 ),

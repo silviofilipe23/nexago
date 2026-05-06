@@ -16,6 +16,7 @@ import {
   rolesFromClaims,
   hasRoleInClaims,
   callerIsOrganizer,
+  callerCanAccessBackoffice,
   callerIsSuperAdmin,
   uniqueSortedRoles,
   applyRolesToClaims,
@@ -116,7 +117,9 @@ async function getUserNotificationChannels(
       // Compatibilidade com modelo legado onde o doc.id era o próprio token.
       return doc.id;
     })
+    .map((token) => token.trim())
     .filter((token) => token.length > 0);
+  const uniqueFcmTokens = Array.from(new Set(fcmTokens));
   const webPushSubscriptions = webPushSnapshot.docs
     .map((doc) => {
       const data = doc.data();
@@ -143,7 +146,7 @@ async function getUserNotificationChannels(
     })
     .filter((item): item is StoredWebPushSubscription => item !== null);
 
-  return {fcmTokens, webPushSubscriptions};
+  return {fcmTokens: uniqueFcmTokens, webPushSubscriptions};
 }
 
 const ARENA_REMINDER_HOURS_BEFORE = 1;
@@ -236,11 +239,16 @@ async function getUserFcmTokens(userId: string): Promise<string[]> {
   const directToken = typeof userData["fcmToken"] === "string" ? userData["fcmToken"].trim() : "";
   const channels = await getUserNotificationChannels(userId);
   const all = new Set<string>();
-  if (directToken) all.add(directToken);
-  for (const token of channels.fcmTokens) {
-    if (token.trim().length > 0) {
-      all.add(token.trim());
+  // Evita duplicidade de push usando token legado + subcoleção moderna ao mesmo tempo.
+  // Prioriza sempre users/{uid}/tokens/* e usa users/{uid}.fcmToken apenas como fallback.
+  if (channels.fcmTokens.length > 0) {
+    for (const token of channels.fcmTokens) {
+      if (token.trim().length > 0) {
+        all.add(token.trim());
+      }
     }
+  } else if (directToken) {
+    all.add(directToken);
   }
   return Array.from(all);
 }
@@ -1404,7 +1412,7 @@ export const listBackofficeUsers = onCall({timeoutSeconds: 300}, async (request)
   }
 
   const callerUser = await getAuth().getUser(callerUid);
-  if (!callerIsOrganizer(callerUser) && !callerIsSuperAdmin(callerUser)) {
+  if (!callerCanAccessBackoffice(callerUser)) {
     throw new HttpsError("permission-denied", "Apenas organizadores podem listar usuários.");
   }
 

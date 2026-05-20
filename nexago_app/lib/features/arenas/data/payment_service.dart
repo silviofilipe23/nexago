@@ -2,6 +2,23 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+/// Resposta da callable `createArenaBookingPixPayment`.
+class ArenaBookingPixPaymentResult {
+  const ArenaBookingPixPaymentResult({
+    required this.paymentId,
+    required this.qrCode,
+    required this.qrCodeBase64,
+    required this.expiresAt,
+    required this.amountToPayNowReais,
+  });
+
+  final String paymentId;
+  final String qrCode;
+  final String qrCodeBase64;
+  final DateTime expiresAt;
+  final double amountToPayNowReais;
+}
+
 /// Resposta da callable [createArenaBookingMercadoPagoPayment].
 class ArenaBookingPaymentResult {
   const ArenaBookingPaymentResult({
@@ -24,6 +41,91 @@ class PaymentService {
 
   static const String _callableCreateArenaBookingMercadoPagoPayment =
       'createArenaBookingMercadoPagoPayment';
+  static const String _callableCreateArenaBookingPixPayment =
+      'createArenaBookingPixPayment';
+  static const String _callableCancelPendingArenaBookingPayment =
+      'cancelPendingArenaBookingPayment';
+
+  /// Prazo PIX (alinhado a `ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES` no backend).
+  static const Duration arenaBookingPixExpiryFallback = Duration(minutes: 5);
+
+  /// Gera cobrança PIX in-app (QR + copia e cola).
+  Future<ArenaBookingPixPaymentResult> createArenaBookingPixPayment({
+    required String bookingId,
+    String? cpfCnpj,
+  }) async {
+    if (bookingId.isEmpty) {
+      throw PaymentException('Reserva inválida.');
+    }
+
+    try {
+      final callable =
+          _functions.httpsCallable(_callableCreateArenaBookingPixPayment);
+      final payload = <String, dynamic>{'bookingId': bookingId};
+      final cpf = cpfCnpj?.replaceAll(RegExp(r'\D'), '') ?? '';
+      if (cpf.length == 11 || cpf.length == 14) {
+        payload['cpfCnpj'] = cpf;
+      }
+      final raw = await callable.call(payload);
+      final data = raw.data;
+      if (data is! Map) {
+        throw PaymentException('Resposta inválida do servidor.');
+      }
+      final map = Map<String, dynamic>.from(data);
+      final paymentId = map['paymentId'] as String?;
+      final qrCode = map['qrCode'] as String?;
+      final qrCodeBase64 = map['qrCodeBase64'] as String?;
+      final expiresAtRaw = map['expiresAt'] as String?;
+      final amount =
+          (map['amountToPayNowReais'] as num?)?.toDouble();
+      if (paymentId == null ||
+          paymentId.isEmpty ||
+          qrCode == null ||
+          qrCode.isEmpty ||
+          amount == null ||
+          amount <= 0) {
+        throw PaymentException('Resposta inválida do servidor de pagamento.');
+      }
+      final expiresAt = expiresAtRaw != null
+          ? DateTime.tryParse(expiresAtRaw) ??
+              DateTime.now().add(arenaBookingPixExpiryFallback)
+          : DateTime.now().add(arenaBookingPixExpiryFallback);
+      return ArenaBookingPixPaymentResult(
+        paymentId: paymentId,
+        qrCode: qrCode,
+        qrCodeBase64: qrCodeBase64 ?? '',
+        expiresAt: expiresAt,
+        amountToPayNowReais: amount,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      throw PaymentException(_mapFunctionsMessage(e));
+    } catch (e) {
+      if (e is PaymentException) rethrow;
+      throw PaymentException('Não foi possível gerar o PIX: $e');
+    }
+  }
+
+  /// Cancela reserva `pending_payment`, remove `arenaSlots` e libera locks.
+  Future<void> cancelPendingArenaBookingPayment({
+    required String bookingId,
+  }) async {
+    if (bookingId.isEmpty) {
+      throw PaymentException('Reserva inválida.');
+    }
+    try {
+      final callable =
+          _functions.httpsCallable(_callableCancelPendingArenaBookingPayment);
+      await callable.call(<String, dynamic>{'bookingId': bookingId});
+    } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'failed-precondition') {
+        return;
+      }
+      throw PaymentException(_mapFunctionsMessage(e));
+    } catch (e) {
+      if (e is PaymentException) rethrow;
+      throw PaymentException('Não foi possível cancelar a reserva: $e');
+    }
+  }
 
   /// Cria preferência MP e persiste `paymentId` / `paymentStatus: pending` na reserva.
   Future<ArenaBookingPaymentResult> createArenaBookingMercadoPagoPayment({
@@ -60,7 +162,7 @@ class PaymentService {
           initPoint.isEmpty ||
           preferenceId == null ||
           preferenceId.isEmpty) {
-        throw PaymentException('Resposta inválida do Mercado Pago.');
+        throw PaymentException('Resposta inválida do servidor de pagamento.');
       }
       return ArenaBookingPaymentResult(
         initPoint: initPoint,
@@ -94,7 +196,7 @@ class PaymentService {
     if (!ok) {
       final fallback = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (!fallback) {
-        throw PaymentException('Não foi possível abrir o Mercado Pago.');
+        throw PaymentException('Não foi possível abrir o link de pagamento.');
       }
     }
   }

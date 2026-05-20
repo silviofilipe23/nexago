@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["EQUIPE_ID.br.com.nexago.nexagoApp"],
+        "components": [
+          {
+            "/": "/convite/*",
+            "comment": "Convites para jogar"
+          }
+        ]
+      }
+    ]
+  }
+}

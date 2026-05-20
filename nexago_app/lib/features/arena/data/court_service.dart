@@ -85,6 +85,7 @@ class CourtService {
     required String arenaId,
     required String name,
     required String type,
+    double? basePricePerHourReais,
   }) async {
     final a = arenaId.trim();
     final n = name.trim();
@@ -99,11 +100,56 @@ class CourtService {
       throw CourtServiceException('Selecione o tipo da quadra.');
     }
 
-    await _firestore.collection('arenas').doc(a).collection('courts').add(<String, dynamic>{
+    final data = <String, dynamic>{
       'name': n,
       'type': t,
+      'status': 'active',
       'createdAt': FieldValue.serverTimestamp(),
-    });
+    };
+    if (basePricePerHourReais != null && basePricePerHourReais > 0) {
+      data['basePricePerHourReais'] = basePricePerHourReais;
+      data['basePriceReais'] = basePricePerHourReais;
+    }
+    await _firestore.collection('arenas').doc(a).collection('courts').add(data);
+  }
+
+  /// Atualiza nome e tipo da quadra.
+  Future<void> updateCourt({
+    required String arenaId,
+    required String courtId,
+    required String name,
+    required String type,
+    double? basePricePerHourReais,
+  }) async {
+    final a = arenaId.trim();
+    final c = courtId.trim();
+    final n = name.trim();
+    final t = type.trim();
+    if (a.isEmpty || c.isEmpty) {
+      throw CourtServiceException('Dados inválidos.');
+    }
+    if (n.isEmpty) {
+      throw CourtServiceException('Informe o nome da quadra.');
+    }
+    if (t.isEmpty) {
+      throw CourtServiceException('Selecione o tipo da quadra.');
+    }
+
+    final data = <String, dynamic>{
+      'name': n,
+      'type': t,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (basePricePerHourReais != null && basePricePerHourReais > 0) {
+      data['basePricePerHourReais'] = basePricePerHourReais;
+      data['basePriceReais'] = basePricePerHourReais;
+    }
+    await _firestore
+        .collection('arenas')
+        .doc(a)
+        .collection('courts')
+        .doc(c)
+        .update(data);
   }
 
   /// Remove a quadra.

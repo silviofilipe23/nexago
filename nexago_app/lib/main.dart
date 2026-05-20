@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,10 +11,13 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/auth/auth_providers.dart';
 import 'core/biometric/biometric_app_gate.dart';
+import 'features/athlete/domain/booking_invite_providers.dart';
 import 'core/notifications/notification_navigation.dart';
 import 'core/notifications/notification_providers.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/router/app_router.dart';
+import 'core/router/routes.dart';
+import 'features/arena/domain/mercado_pago_providers.dart';
 import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'shared/constants/app_strings.dart';
@@ -44,6 +50,7 @@ class NexagoApp extends ConsumerStatefulWidget {
 
 class _NexagoAppState extends ConsumerState<NexagoApp> {
   ProviderSubscription<AsyncValue<User?>>? _authSub;
+  StreamSubscription<Uri>? _deepLinkSub;
 
   @override
   void initState() {
@@ -62,6 +69,14 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
       );
 
       await notifications.syncUserToken(ref.read(authProvider).valueOrNull?.uid);
+
+      // Deep links: link inicial (app aberto via link)
+      final appLinks = AppLinks();
+      final initialLink = await appLinks.getInitialLink();
+      if (initialLink != null) _handleDeepLink(initialLink);
+
+      // Deep links: app já em execução
+      _deepLinkSub = appLinks.uriLinkStream.listen(_handleDeepLink);
     });
 
     _authSub = ref.listenManual<AsyncValue<User?>>(
@@ -74,8 +89,52 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
     );
   }
 
+  void _handleDeepLink(Uri uri) {
+    if (_isMercadoPagoOAuthReturn(uri)) {
+      _handleMercadoPagoOAuthReturn(uri);
+      return;
+    }
+
+    final segments = uri.pathSegments;
+    if (segments.length < 2 || segments[0] != 'convite') return;
+    final inviteId = segments[1];
+    final router = ref.read(goRouterProvider);
+    final user = ref.read(authProvider).valueOrNull;
+    if (user != null) {
+      router.go('/convite/$inviteId');
+    } else {
+      ref.read(pendingInviteIdProvider.notifier).state = inviteId;
+      router.go('/login');
+    }
+  }
+
+  bool _isMercadoPagoOAuthReturn(Uri uri) {
+    if (uri.scheme == 'nexago' && uri.host == 'mercadopago') return true;
+    if (uri.scheme == 'https' &&
+        uri.host == 'voleigo.com.br' &&
+        uri.pathSegments.length >= 2 &&
+        uri.pathSegments[0] == 'arena' &&
+        uri.pathSegments[1] == 'mercadopago') {
+      return true;
+    }
+    return false;
+  }
+
+  void _handleMercadoPagoOAuthReturn(Uri uri) {
+    final mp = uri.queryParameters['mp'];
+    final router = ref.read(goRouterProvider);
+    final user = ref.read(authProvider).valueOrNull;
+    if (user == null) {
+      router.go('/login');
+      return;
+    }
+    ref.read(mercadoPagoOAuthFeedbackProvider.notifier).state = mp;
+    router.go(AppRoutes.arenaPayments);
+  }
+
   @override
   void dispose() {
+    _deepLinkSub?.cancel();
     _authSub?.close();
     super.dispose();
   }
@@ -88,7 +147,9 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
       child: MaterialApp.router(
         title: AppStrings.appName,
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.light,
+        theme: AppTheme.dark,
+        darkTheme: AppTheme.dark,
+        themeMode: ThemeMode.dark,
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,

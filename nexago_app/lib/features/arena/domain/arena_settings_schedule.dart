@@ -293,3 +293,58 @@ const List<String> kArenaSettingsWeekdayLabels = [
   'Sábado',
   'Domingo',
 ];
+
+/// Resumo para a lista de ajustes (ex.: `08h–00h • slot 1h • seg–dom`).
+String formatAvailabilitySummary(ArenaSettingsScheduleState state) {
+  final hours =
+      '${_summaryHour(state.defaultOpen)}–${_summaryHour(state.defaultClose)}';
+  final slotHours = state.slotDurationMinutes ~/ 60;
+  final slotPart = slotHours > 0
+      ? 'slot ${slotHours}h'
+      : 'slot ${state.slotDurationMinutes}min';
+  final days = _summaryWeekdays(state);
+  return '$hours • $slotPart • $days';
+}
+
+String formatFollowersCount(int count) {
+  return '$count seguidor${count == 1 ? '' : 'es'}';
+}
+
+String formatCourtsSummary(int count) {
+  if (count == 0) return 'Nenhuma quadra cadastrada';
+  return '$count quadra${count == 1 ? '' : 's'} • todas ativas';
+}
+
+String formatPaymentsSummary({
+  required bool onlinePaymentEnabled,
+  required bool onsitePaymentEnabled,
+}) {
+  final parts = <String>[];
+  if (onlinePaymentEnabled) parts.add('Pix');
+  if (onsitePaymentEnabled) parts.add('pagamento direto');
+  if (parts.isEmpty) return 'Formas de pagamento em breve';
+  return parts.join(' • ');
+}
+
+String _summaryHour(TimeOfDay time) {
+  if (time.hour == 0 && time.minute == 0) return '00h';
+  if (time.minute == 0) return '${time.hour}h';
+  return '${time.hour}h${time.minute.toString().padLeft(2, '0')}';
+}
+
+String _summaryWeekdays(ArenaSettingsScheduleState state) {
+  const abbrev = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
+  final open = <int>[];
+  for (var w = DateTime.monday; w <= DateTime.sunday; w++) {
+    final cfg = state.perWeekday[w];
+    if (cfg != null && !cfg.closed) open.add(w);
+  }
+  if (open.isEmpty) return 'fechada';
+  if (open.length == 7) return 'seg–dom';
+  if (open.length == 1) return abbrev[open.first - 1];
+  final contiguous = open.length == open.last - open.first + 1;
+  if (contiguous) {
+    return '${abbrev[open.first - 1]}–${abbrev[open.last - 1]}';
+  }
+  return open.map((w) => abbrev[w - 1]).join(', ');
+}

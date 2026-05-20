@@ -4,6 +4,7 @@ import 'dart:async';
 
 import '../../arena/domain/arena_manager_booking.dart';
 import '../domain/arena_booking_confirm_args.dart';
+import '../domain/arena_booking_quote.dart';
 import '../domain/my_booking_item.dart';
 
 /// Paridade com o fluxo web: transação em `arenaSlotLocks` + `arenaSlots` + `arenaBookings`,
@@ -114,17 +115,72 @@ class BookingService {
     });
   }
 
-  /// Transação atômica alinhada ao `ArenaService.createBookingAtomically` do web.
-  ///
-  /// - Verifica locks por **hora civil** tocada em `[startTime, endTime)`.
-  /// - Cria **um** documento em [arenaSlots] para a faixa inteira.
-  /// - Cria **um** [arenaBookings] com `status: active`.
-  /// - Cria um lock por hora em [arenaSlotLocks].
-  ///
-  /// Retorna o `bookingId` de [arenaBookings].
-  Future<String> createBookingAtomically({
+  /// Cota autoritativa (promoções + preço por quadra) via Cloud Function.
+  Future<ArenaBookingQuote> quoteBooking({
+    required ArenaBookingConfirmArgs args,
+  }) async {
+    if (!args.isValid) {
+      throw BookingException(
+          'Dados da reserva inválidos. Volte e escolha outro horário.');
+    }
+    try {
+      final result = await _functions.httpsCallable('quoteArenaBooking').call(
+        _bookingCallablePayload(args),
+      );
+      return _parseQuoteResponse(result.data);
+    } on FirebaseFunctionsException catch (e) {
+      throw BookingException(_mapFunctionsMessage(e), code: _functionsCode(e));
+    }
+  }
+
+  Future<double> quoteBookingAmount({
+    required ArenaBookingConfirmArgs args,
+  }) async {
+    final quote = await quoteBooking(args: args);
+    return quote.amountReais;
+  }
+
+  static ArenaBookingQuote _parseQuoteResponse(Object? data) {
+    if (data is! Map) {
+      throw BookingException('Resposta inválida do servidor.');
+    }
+    final map = Map<String, dynamic>.from(data);
+    final amount = (map['amountReais'] as num?)?.toDouble();
+    if (amount == null || amount <= 0) {
+      throw BookingException(
+        'Configure o preço da quadra antes de reservar.',
+      );
+    }
+    final linesRaw = map['lineItems'];
+    final lines = <ArenaBookingQuoteLine>[];
+    if (linesRaw is List) {
+      for (final item in linesRaw) {
+        if (item is! Map) continue;
+        final row = Map<String, dynamic>.from(item);
+        final start = row['startTime'] as String? ?? '';
+        final end = row['endTime'] as String? ?? '';
+        final finalP = (row['finalSlotPriceReais'] as num?)?.toDouble();
+        final baseP = (row['baseSlotPriceReais'] as num?)?.toDouble();
+        if (start.isEmpty || finalP == null) continue;
+        lines.add(
+          ArenaBookingQuoteLine(
+            startTime: start.length >= 5 ? start.substring(0, 5) : start,
+            endTime: end.length >= 5 ? end.substring(0, 5) : end,
+            finalSlotPriceReais: finalP,
+            baseSlotPriceReais: baseP ?? finalP,
+          ),
+        );
+      }
+    }
+    return ArenaBookingQuote(amountReais: amount, lineItems: lines);
+  }
+
+  /// Reserva via callable `createArenaBooking` (preço validado no servidor).
+  Future<CreateBookingResult> createBookingAtomically({
     required ArenaBookingConfirmArgs args,
     required String athleteId,
+    String paymentMode = 'onsite',
+    double paymentFraction = 1.0,
   }) async {
     if (athleteId.isEmpty) {
       throw BookingException('Faça login para confirmar a reserva.');
@@ -133,146 +189,106 @@ class BookingService {
       throw BookingException(
           'Dados da reserva inválidos. Volte e escolha outro horário.');
     }
-    await _ensureAthleteIsNotBlocked(
-      arenaId: args.arenaId,
-      athleteId: athleteId,
-    );
 
-    final dateKey = args.dateKey;
-    final startMin = _toMinutes(args.startTime);
-    final endMin = _toMinutes(args.endTime);
-    if (endMin <= startMin) {
-      throw BookingException('Intervalo de horário inválido.');
+    if (paymentMode == 'pix' &&
+        paymentFraction != 0.5 &&
+        paymentFraction != 1.0) {
+      throw BookingException('Escolha pagar 50% ou 100% via PIX.');
     }
-
-    final hours = _calendarHoursSpanning(startMin, endMin);
-    if (hours.isEmpty) {
-      throw BookingException(
-          'Não foi possível calcular os horários da reserva.');
-    }
-
-    final bookingRef = _firestore.collection(arenaBookingsCollection).doc();
-    final slotRef = _firestore.collection(arenaSlotsCollection).doc();
-    final bookingId = bookingRef.id;
-
-    final safeArena = _safeIdPart(args.arenaId);
-    final safeCourt = _safeIdPart(args.courtId);
-    final lockRefs = hours
-        .map(
-          (h) => _firestore.collection(arenaSlotLocksCollection).doc(
-                '${safeArena}_${safeCourt}_${dateKey}_h${h.toString().padLeft(2, '0')}',
-              ),
-        )
-        .toList();
 
     try {
-      await _firestore.runTransaction((transaction) async {
-        for (final lockRef in lockRefs) {
-          final snap = await transaction.get(lockRef);
-          if (snap.exists) {
-            throw BookingException(
-              'Esse horário acabou de ser reservado. Escolha outro.',
-              code: slotConflictCode,
-            );
-          }
-        }
-
-        final day = DateTime(args.date.year, args.date.month, args.date.day);
-        final startParts = args.startTime.split(':');
-        final startHour = int.tryParse(startParts[0]) ?? 0;
-        final startMinute =
-            startParts.length > 1 ? (int.tryParse(startParts[1]) ?? 0) : 0;
-        final startAt =
-            DateTime(day.year, day.month, day.day, startHour, startMinute);
-        final confirmationDeadline = startAt.subtract(const Duration(hours: 2));
-
-        transaction.set(bookingRef, <String, dynamic>{
-          'athleteId': athleteId,
-          'arenaId': args.arenaId,
-          'arenaName': args.arenaName,
-          'courtId': args.courtId,
-          'courtName': args.courtName,
-          'date': dateKey,
-          'startTime': args.startTime,
-          'endTime': args.endTime,
-          'amountReais': args.amountReais,
-          'status': 'active',
-          'attendanceConfirmed': false,
-          'attendanceStatus': 'pending',
-          'confirmationDeadline': Timestamp.fromDate(confirmationDeadline),
-          'source': 'platform',
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        transaction.set(slotRef, <String, dynamic>{
-          'arenaId': args.arenaId,
-          'courtId': args.courtId,
-          'date': Timestamp.fromDate(day),
-          'startTime': args.startTime,
-          'endTime': args.endTime,
-          'status': 'booked',
-          'bookingAthleteId': athleteId,
-          'bookingId': bookingId,
-          'priceReais': args.amountReais,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        for (var i = 0; i < hours.length; i++) {
-          final h = hours[i];
-          transaction.set(
-            lockRefs[i],
-            <String, dynamic>{
-              'arenaId': args.arenaId,
-              'courtId': args.courtId,
-              'date': dateKey,
-              'startTime': _fmtHourStart(h),
-              'endTime': _fmtHourEnd(h),
-              'bookingId': bookingId,
-              'bookingAthleteId': athleteId,
-              'createdAt': FieldValue.serverTimestamp(),
-            },
-          );
-        }
-      });
-    } on BookingException {
-      rethrow;
-    } on FirebaseException catch (e) {
-      if (e.code == 'permission-denied') {
-        throw BookingException(
-          'Sem permissão para concluir a reserva. Verifique login e regras do Firestore.',
-        );
+      final payload = _bookingCallablePayload(args);
+      payload['clientAmountReais'] = args.amountReais;
+      payload['paymentMode'] = paymentMode;
+      if (paymentMode == 'pix') {
+        payload['paymentFraction'] = paymentFraction;
       }
-      throw BookingException(e.message ?? 'Falha na transação (${e.code}).');
+
+      final result =
+          await _functions.httpsCallable('createArenaBooking').call(payload);
+      final data = result.data;
+      if (data is! Map) {
+        throw BookingException('Resposta inválida do servidor.');
+      }
+      final bookingId = (data['bookingId'] as String?)?.trim();
+      final amount = (data['amountReais'] as num?)?.toDouble();
+      if (bookingId == null || bookingId.isEmpty || amount == null) {
+        throw BookingException('Resposta inválida do servidor.');
+      }
+
+      if (paymentMode == 'onsite') {
+        await _notifyArenaBookingCreatedSafe(bookingId);
+      }
+
+      return CreateBookingResult(
+        bookingId: bookingId,
+        amountReais: amount,
+        amountToPayNowReais:
+            (data['amountToPayNowReais'] as num?)?.toDouble() ?? 0,
+        amountDueOnsiteReais:
+            (data['amountDueOnsiteReais'] as num?)?.toDouble() ?? amount,
+        paymentMode: (data['paymentMode'] as String?) ?? paymentMode,
+        paymentFraction:
+            (data['paymentFraction'] as num?)?.toDouble() ?? paymentFraction,
+        paymentExpiresAt: data['paymentExpiresAt'] as String?,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      throw BookingException(_mapFunctionsMessage(e), code: _functionsCode(e));
     } catch (e) {
       if (e is BookingException) rethrow;
       throw BookingException('Não foi possível concluir a reserva: $e');
     }
-
-    await _notifyArenaBookingCreatedSafe(bookingId);
-
-    return bookingId;
   }
 
-  Future<void> _ensureAthleteIsNotBlocked({
-    required String arenaId,
-    required String athleteId,
-  }) async {
-    final aid = arenaId.trim();
-    final uid = athleteId.trim();
-    if (aid.isEmpty || uid.isEmpty) return;
+  static Map<String, dynamic> _bookingCallablePayload(
+    ArenaBookingConfirmArgs args,
+  ) {
+    return <String, dynamic>{
+      'arenaId': args.arenaId,
+      'arenaName': args.arenaName,
+      'courtId': args.courtId,
+      'courtName': args.courtName,
+      'date': args.dateKey,
+      'startTime': args.startTime,
+      'endTime': args.endTime,
+      if (args.selectedSlotStartTimes.isNotEmpty)
+        'selectedSlotStartTimes': args.selectedSlotStartTimes,
+    };
+  }
 
-    final blockId = _arenaBlockDocId(aid, uid);
-    final blockSnap =
-        await _firestore.collection(arenaBlocksCollection).doc(blockId).get();
-    if (!blockSnap.exists) return;
+  static String? _functionsCode(FirebaseFunctionsException e) {
+    switch (e.code) {
+      case 'already-exists':
+        return slotConflictCode;
+      case 'permission-denied':
+        final msg = e.message ?? '';
+        if (msg.contains('bloqueada')) return blockedAthleteCode;
+        return null;
+      default:
+        return null;
+    }
+  }
 
-    final reason = (blockSnap.data()?['reason'] as String?)?.trim();
-    final reasonSuffix =
-        (reason != null && reason.isNotEmpty) ? ' Motivo: $reason' : '';
-    throw BookingException(
-      'Sua conta está bloqueada para reservar nesta arena.$reasonSuffix',
-      code: blockedAthleteCode,
-    );
+  static String _mapFunctionsMessage(FirebaseFunctionsException e) {
+    final detail = e.message;
+    switch (e.code) {
+      case 'unauthenticated':
+        return 'Faça login para confirmar a reserva.';
+      case 'permission-denied':
+        return detail ?? 'Sem permissão para concluir a reserva.';
+      case 'not-found':
+        return detail ?? 'Arena ou quadra não encontrada.';
+      case 'invalid-argument':
+        return detail ?? 'Dados da reserva inválidos.';
+      case 'failed-precondition':
+        return detail ?? 'Não foi possível reservar este horário.';
+      case 'already-exists':
+        return 'Esse horário acabou de ser reservado. Escolha outro.';
+      case 'internal':
+        return detail ?? 'Erro no servidor. Tente novamente.';
+      default:
+        return detail ?? 'Não foi possível concluir a reserva (${e.code}).';
+    }
   }
 
   Future<void> _notifyArenaBookingCreatedSafe(String bookingId) async {
@@ -314,10 +330,13 @@ class BookingService {
     });
   }
 
+  static const Duration _undoWindow = Duration(seconds: 60);
+
   /// Cancelamento pelo gestor da arena (valida [arenaId] do documento).
   Future<void> cancelBookingByArenaManager({
     required String bookingId,
     required String arenaId,
+    String? cancelReason,
   }) async {
     final id = bookingId.trim();
     final aid = arenaId.trim();
@@ -340,11 +359,77 @@ class BookingService {
         status == 'completed') {
       throw BookingException('Esta reserva não pode ser cancelada.');
     }
-    await docRef.update(<String, dynamic>{
+    final statusBefore = (data['status'] as String?)?.trim() ?? 'active';
+    final attendanceBefore =
+        (data['attendanceStatus'] as String?)?.trim() ?? 'pending';
+
+    final payload = <String, dynamic>{
       'status': 'canceled',
       'attendanceStatus': 'canceled',
       'canceledAt': FieldValue.serverTimestamp(),
       'canceledByRole': 'arena_manager',
+      'statusBeforeCancel': statusBefore,
+      'attendanceStatusBeforeCancel': attendanceBefore,
+    };
+    final reason = cancelReason?.trim();
+    if (reason != null && reason.isNotEmpty) {
+      payload['cancelReason'] = reason;
+    }
+    await docRef.update(payload);
+  }
+
+  /// Restaura reserva cancelada pelo gestor (janela de 60s após cancelamento).
+  Future<void> restoreBookingByArenaManager({
+    required String bookingId,
+    required String arenaId,
+  }) async {
+    final id = bookingId.trim();
+    final aid = arenaId.trim();
+    if (id.isEmpty || aid.isEmpty) {
+      throw BookingException('Dados inválidos para restaurar.');
+    }
+    final docRef = _firestore.collection(arenaBookingsCollection).doc(id);
+    final snap = await docRef.get();
+    if (!snap.exists) {
+      throw BookingException('Reserva não encontrada.');
+    }
+    final data = snap.data() ?? <String, dynamic>{};
+    final bookingArena = (data['arenaId'] as String?)?.trim() ?? '';
+    if (bookingArena != aid) {
+      throw BookingException('Esta reserva não pertence à arena atual.');
+    }
+    final status = (data['status'] as String?)?.toLowerCase().trim() ?? '';
+    if (status != 'canceled' && status != 'cancelled') {
+      throw BookingException('Esta reserva não está cancelada.');
+    }
+
+    final canceledAt = data['canceledAt'];
+    DateTime? canceledTime;
+    if (canceledAt is Timestamp) {
+      canceledTime = canceledAt.toDate();
+    }
+    if (canceledTime == null) {
+      throw BookingException('Não é possível desfazer este cancelamento.');
+    }
+    if (DateTime.now().difference(canceledTime) > _undoWindow) {
+      throw BookingException(
+        'O prazo para desfazer o cancelamento expirou.',
+      );
+    }
+
+    final statusBefore =
+        (data['statusBeforeCancel'] as String?)?.trim() ?? 'active';
+    final attendanceBefore =
+        (data['attendanceStatusBeforeCancel'] as String?)?.trim() ?? 'pending';
+
+    await docRef.update(<String, dynamic>{
+      'status': statusBefore,
+      'attendanceStatus': attendanceBefore,
+      'canceledAt': FieldValue.delete(),
+      'canceledByRole': FieldValue.delete(),
+      'cancelReason': FieldValue.delete(),
+      'statusBeforeCancel': FieldValue.delete(),
+      'attendanceStatusBeforeCancel': FieldValue.delete(),
     });
   }
 
@@ -607,31 +692,28 @@ class BookingService {
   static String _safeIdPart(String s) => s.replaceAll('/', '_');
   static String _arenaBlockDocId(String arenaId, String athleteId) =>
       '${_safeIdPart(arenaId)}_${_safeIdPart(athleteId)}';
+}
 
-  static int _toMinutes(String hhmm) {
-    final t = hhmm.trim();
-    if (t.length < 4) return 0;
-    final parts = t.split(':');
-    final h = int.tryParse(parts[0]) ?? 0;
-    final m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
-    return h * 60 + m;
-  }
+class CreateBookingResult {
+  const CreateBookingResult({
+    required this.bookingId,
+    required this.amountReais,
+    this.amountToPayNowReais = 0,
+    this.amountDueOnsiteReais = 0,
+    this.paymentMode = 'onsite',
+    this.paymentFraction = 1,
+    this.paymentExpiresAt,
+  });
 
-  /// Horas civis [0–23] que intersectam `[startMin, endMin)`.
-  static List<int> _calendarHoursSpanning(int startMin, int endMin) {
-    if (endMin <= startMin) return [];
-    final startH = startMin ~/ 60;
-    final endH = (endMin - 1) ~/ 60;
-    return [for (var h = startH; h <= endH; h++) h];
-  }
+  final String bookingId;
+  final double amountReais;
+  final double amountToPayNowReais;
+  final double amountDueOnsiteReais;
+  final String paymentMode;
+  final double paymentFraction;
+  final String? paymentExpiresAt;
 
-  static String _fmtHourStart(int h) =>
-      '${h.clamp(0, 23).toString().padLeft(2, '0')}:00';
-
-  static String _fmtHourEnd(int h) {
-    if (h >= 23) return '24:00';
-    return '${(h + 1).toString().padLeft(2, '0')}:00';
-  }
+  bool get isPix => paymentMode == 'pix';
 }
 
 class BookingException implements Exception {

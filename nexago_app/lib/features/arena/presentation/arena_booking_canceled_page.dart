@@ -1,0 +1,425 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/app_snackbar.dart';
+import '../../arenas/domain/booking_providers.dart';
+import '../domain/arena_booking_canceled_args.dart';
+
+/// Tela pós-cancelamento com undo (mock 06).
+class ArenaBookingCanceledPage extends ConsumerStatefulWidget {
+  const ArenaBookingCanceledPage({
+    super.key,
+    required this.args,
+  });
+
+  final ArenaBookingCanceledArgs args;
+
+  @override
+  ConsumerState<ArenaBookingCanceledPage> createState() =>
+      _ArenaBookingCanceledPageState();
+}
+
+class _ArenaBookingCanceledPageState
+    extends ConsumerState<ArenaBookingCanceledPage> {
+  static const _undoUiSeconds = 30;
+  int _secondsLeft = _undoUiSeconds;
+  Timer? _timer;
+  bool _restoring = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      if (_secondsLeft <= 0) return;
+      setState(() => _secondsLeft--);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final canUndo = _secondsLeft > 0 && !_restoring;
+    final notificationLine = _notificationLine(widget.args.athleteNames);
+
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _CanceledHeroIcon(),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Reserva cancelada.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.onSurface,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: AppColors.onSurfaceMuted,
+                          fontWeight: FontWeight.w500,
+                          height: 1.45,
+                        ),
+                        children: [
+                          TextSpan(text: '$notificationLine. O slot '),
+                          TextSpan(
+                            text: widget.args.slotHighlight,
+                            style: const TextStyle(
+                              color: AppColors.onSurface,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const TextSpan(text: ' voltou pra agenda.'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    _UndoCard(
+                      secondsLeft: _secondsLeft,
+                      canUndo: canUndo,
+                      restoring: _restoring,
+                      onUndo: _restore,
+                    ),
+                    const SizedBox(height: 14),
+                    _SlotReleasedCard(
+                      slotTimeRange: widget.args.slotTimeRange,
+                      onCreateBooking: () => showAppSnackBar(
+                        context,
+                        'Criar reserva em breve.',
+                      ),
+                      onPromoFlash: () => showAppSnackBar(
+                        context,
+                        'Promo flash em breve.',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => context.pop(),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.onSurfaceMuted,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text(
+                'Voltar pra lista de reservas',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _notificationLine(String names) {
+    final trimmed = names.trim();
+    if (trimmed.isEmpty) return 'Os atletas foram notificados';
+    final plural = trimmed.contains('&') ||
+        trimmed.toLowerCase().contains(' e ');
+    return plural
+        ? '$trimmed foram notificados'
+        : '$trimmed foi notificado';
+  }
+
+  Future<void> _restore() async {
+    setState(() => _restoring = true);
+    try {
+      await ref.read(bookingServiceProvider).restoreBookingByArenaManager(
+            bookingId: widget.args.bookingId,
+            arenaId: widget.args.arenaId,
+          );
+      if (!mounted) return;
+      showAppSnackBar(context, 'Reserva restaurada.');
+      context.pop();
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, '$e', isError: true);
+    } finally {
+      if (mounted) setState(() => _restoring = false);
+    }
+  }
+}
+
+class _CanceledHeroIcon extends StatelessWidget {
+  const _CanceledHeroIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.live.withValues(alpha: 0.35),
+                  blurRadius: 32,
+                  spreadRadius: 4,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 72,
+            height: 72,
+            decoration: const BoxDecoration(
+              color: AppColors.live,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.close_rounded,
+              color: AppColors.white,
+              size: 36,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UndoCard extends StatelessWidget {
+  const _UndoCard({
+    required this.secondsLeft,
+    required this.canUndo,
+    required this.restoring,
+    required this.onUndo,
+  });
+
+  final int secondsLeft;
+  final bool canUndo;
+  final bool restoring;
+  final VoidCallback onUndo;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.brand.withValues(alpha: canUndo ? 0.45 : 0.2),
+        ),
+      ),
+      child: Row(
+        children: [
+          _CountdownBadge(
+            label: canUndo ? '${secondsLeft}s' : '0s',
+            active: canUndo,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Desfazer cancelamento',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Restaura a reserva e re-notifica os atletas',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w500,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton(
+            onPressed: canUndo && !restoring ? onUndo : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.brand,
+              foregroundColor: AppColors.black,
+              disabledBackgroundColor:
+                  AppColors.brand.withValues(alpha: 0.35),
+              disabledForegroundColor:
+                  AppColors.black.withValues(alpha: 0.45),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              minimumSize: const Size(0, 44),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: restoring
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.black,
+                    ),
+                  )
+                : const Text(
+                    'Desfazer',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CountdownBadge extends StatelessWidget {
+  const _CountdownBadge({
+    required this.label,
+    required this.active,
+  });
+
+  final String label;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: active
+                ? AppColors.brand
+                : AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+            width: 2,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              color: active ? AppColors.brand : AppColors.onSurfaceMuted,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SlotReleasedCard extends StatelessWidget {
+  const _SlotReleasedCard({
+    required this.slotTimeRange,
+    required this.onCreateBooking,
+    required this.onPromoFlash,
+  });
+
+  final String slotTimeRange;
+  final VoidCallback onCreateBooking;
+  final VoidCallback onPromoFlash;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.onSurfaceMuted.withValues(alpha: 0.22),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'SLOT LIBERADO · ${slotTimeRange.toUpperCase()}',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: AppColors.onSurfaceMuted,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+              fontSize: 10,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton(
+                  onPressed: onCreateBooking,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: AppColors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Criar reserva',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onPromoFlash,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.onSurface,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(
+                      color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Promo flash',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

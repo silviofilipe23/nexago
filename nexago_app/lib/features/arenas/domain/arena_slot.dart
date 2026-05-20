@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'arena_slot_block_reason.dart';
+
 /// Slot em `arenaSlots` (campos alinhados ao vôleiGO web).
 ///
 /// `status`: `available` | `booked` | `blocked`
@@ -13,9 +15,13 @@ class ArenaSlot {
     required this.endTime,
     required this.rawStatus,
     this.priceReais,
+    this.basePriceReais,
+    this.appliedPromotionId,
     this.isVirtual = false,
     this.bookingId,
     this.bookingAthleteId,
+    this.blockReason,
+    this.blockNote,
   });
 
   final String id;
@@ -43,11 +49,25 @@ class ArenaSlot {
   final String rawStatus;
   final double? priceReais;
 
+  /// Preço sem promoção (slots virtuais com desconto).
+  final double? basePriceReais;
+
+  /// Promoção aplicada ao preço do slot virtual.
+  final String? appliedPromotionId;
+
+  bool get hasPromotion =>
+      basePriceReais != null &&
+      priceReais != null &&
+      priceReais! < basePriceReais!;
+
   /// [arenaBookings] quando `status` é reservado (paridade com o web).
   final String? bookingId;
 
   /// UID do atleta titular da reserva.
   final String? bookingAthleteId;
+
+  final ArenaSlotBlockReason? blockReason;
+  final String? blockNote;
 
   bool get isAvailable {
     final s = rawStatus.toLowerCase();
@@ -80,9 +100,13 @@ class ArenaSlot {
     String? endTime,
     String? rawStatus,
     double? priceReais,
+    double? basePriceReais,
+    String? appliedPromotionId,
     bool? isVirtual,
     String? bookingId,
     String? bookingAthleteId,
+    ArenaSlotBlockReason? blockReason,
+    String? blockNote,
   }) {
     return ArenaSlot(
       id: id ?? this.id,
@@ -93,9 +117,13 @@ class ArenaSlot {
       endTime: endTime ?? this.endTime,
       rawStatus: rawStatus ?? this.rawStatus,
       priceReais: priceReais ?? this.priceReais,
+      basePriceReais: basePriceReais ?? this.basePriceReais,
+      appliedPromotionId: appliedPromotionId ?? this.appliedPromotionId,
       isVirtual: isVirtual ?? this.isVirtual,
       bookingId: bookingId ?? this.bookingId,
       bookingAthleteId: bookingAthleteId ?? this.bookingAthleteId,
+      blockReason: blockReason ?? this.blockReason,
+      blockNote: blockNote ?? this.blockNote,
     );
   }
 
@@ -133,6 +161,11 @@ class ArenaSlot {
     final bookingAthleteId =
         aid is String && aid.trim().isNotEmpty ? aid.trim() : null;
 
+    final blockReasonRaw = data['blockReason'] as String?;
+    final blockNoteRaw = (data['blockNote'] as String?)?.trim();
+    final blockNote =
+        blockNoteRaw != null && blockNoteRaw.isNotEmpty ? blockNoteRaw : null;
+
     return ArenaSlot(
       id: doc.id,
       arenaId: arenaId,
@@ -145,6 +178,8 @@ class ArenaSlot {
       isVirtual: false,
       bookingId: bookingId,
       bookingAthleteId: bookingAthleteId,
+      blockReason: ArenaSlotBlockReasonX.fromFirestore(blockReasonRaw),
+      blockNote: blockNote,
     );
   }
 
@@ -156,6 +191,8 @@ class ArenaSlot {
     required String startTime,
     required String endTime,
     double? priceReais,
+    double? basePriceReais,
+    String? appliedPromotionId,
   }) {
     final day = DateTime(date.year, date.month, date.day);
     final id =
@@ -169,6 +206,8 @@ class ArenaSlot {
       endTime: endTime,
       rawStatus: 'available',
       priceReais: priceReais,
+      basePriceReais: basePriceReais,
+      appliedPromotionId: appliedPromotionId,
       isVirtual: true,
       bookingId: null,
       bookingAthleteId: null,

@@ -1,5 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Quem recebe o PIX online: conta NexaGO (padrão) ou Mercado Pago do gestor.
+enum ArenaPaymentReceiver {
+  platform,
+  manager;
+
+  static ArenaPaymentReceiver fromFirestore(dynamic raw) {
+    if (raw is String && raw.trim().toLowerCase() == 'manager') {
+      return ArenaPaymentReceiver.manager;
+    }
+    return ArenaPaymentReceiver.platform;
+  }
+
+  String get firestoreValue => switch (this) {
+        ArenaPaymentReceiver.platform => 'platform',
+        ArenaPaymentReceiver.manager => 'manager',
+      };
+}
+
 /// Item de lista/detalhe de arena a partir de `arenas/{id}`.
 ///
 /// Campos reais podem variar (`basePriceReais` do backoffice, `pricePerHourReais` do marketing).
@@ -21,6 +39,9 @@ class ArenaListItem {
     this.courtTypes = const [],
     this.onlinePaymentEnabled = true,
     this.onsitePaymentEnabled = true,
+    this.paymentReceiver = ArenaPaymentReceiver.platform,
+    this.payoutPixKey = '',
+    this.payoutPixKeyType = '',
     this.ratingAverage = 0,
     this.reviewsCount = 0,
     this.reputationScore = 0,
@@ -53,6 +74,9 @@ class ArenaListItem {
 
   final bool onlinePaymentEnabled;
   final bool onsitePaymentEnabled;
+  final ArenaPaymentReceiver paymentReceiver;
+  final String payoutPixKey;
+  final String payoutPixKeyType;
   final double ratingAverage;
   final int reviewsCount;
   final int reputationScore;
@@ -206,6 +230,10 @@ class ArenaListItem {
       courtTypes: courtTypes,
       onlinePaymentEnabled: onlinePayment,
       onsitePaymentEnabled: onsitePayment,
+      // Arenas usam só conta NexaGO (Asaas); ignora legado `manager` no Firestore.
+      paymentReceiver: ArenaPaymentReceiver.platform,
+      payoutPixKey: (data['payoutPixKey'] as String?)?.trim() ?? '',
+      payoutPixKeyType: (data['payoutPixKeyType'] as String?)?.trim() ?? '',
       ratingAverage: ratingAverage,
       reviewsCount: reviewsCount,
       reputationScore: reputationScore,

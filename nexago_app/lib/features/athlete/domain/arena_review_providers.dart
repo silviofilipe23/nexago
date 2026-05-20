@@ -22,18 +22,60 @@ bool _isPlaceholderLabel(String value, List<String> placeholders) {
   return placeholders.any((p) => p.toLowerCase() == v);
 }
 
+DateTime? _parseDateOnly(String raw) {
+  final value = raw.trim();
+  if (value.isEmpty) return null;
+  if (value.length >= 10) {
+    final iso = DateTime.tryParse(value.substring(0, 10));
+    if (iso != null) return DateTime(iso.year, iso.month, iso.day);
+  }
+  final normalized = value.replaceAll('-', '/');
+  final parts = normalized.split('/');
+  if (parts.length >= 3) {
+    final d = int.tryParse(parts[0]) ?? 0;
+    final m = int.tryParse(parts[1]) ?? 0;
+    final y = int.tryParse(parts[2].substring(0, 4)) ?? 0;
+    if (y > 0 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return DateTime(y, m, d);
+    }
+  }
+  return null;
+}
+
+DateTime? _parseDateTime(String dateRaw, String timeRaw) {
+  final day = _parseDateOnly(dateRaw);
+  if (day == null) return null;
+  final parts = timeRaw.trim().split(':');
+  if (parts.isEmpty) return null;
+  final hh = int.tryParse(parts[0]) ?? 0;
+  final mm = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+  return DateTime(day.year, day.month, day.day, hh, mm);
+}
+
 final arenaReviewServiceProvider = Provider<ArenaReviewService>((ref) {
   return ArenaReviewService(ref.watch(firestoreProvider));
 });
+
+const Duration _reviewPromptDelayAfterEnd = Duration(minutes: 5);
 
 final pendingReviewProvider =
     FutureProvider.autoDispose<PendingArenaReview?>((ref) async {
   final userId = ref.watch(authProvider).valueOrNull?.uid;
   if (userId == null || userId.isEmpty) return null;
   final bookings = await ref.watch(myBookingsStreamProvider.future);
+  final now = DateTime.now();
   final completed = bookings.where((b) {
     final status = b.rawStatus.trim().toLowerCase();
-    return status == 'completed' || status == 'finalizado';
+    final explicitlyCompleted = status == 'completed' || status == 'finalizado';
+    if (explicitlyCompleted) return true;
+    if (status == 'canceled' || status == 'cancelled') return false;
+    final startAt = _parseDateTime(b.dateRaw, b.startTime);
+    var endAt = _parseDateTime(b.dateRaw, b.endTime);
+    if (startAt == null || endAt == null) return false;
+    if (!endAt.isAfter(startAt)) {
+      endAt = endAt.add(const Duration(days: 1));
+    }
+    return now.isAfter(endAt.add(_reviewPromptDelayAfterEnd));
   }).toList(growable: false);
   if (completed.isEmpty) return null;
 

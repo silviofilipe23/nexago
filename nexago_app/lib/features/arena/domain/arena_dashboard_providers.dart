@@ -5,12 +5,45 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../arenas/domain/slots_providers.dart';
 import '../data/arena_dashboard_service.dart';
+import 'arena_bookings_providers.dart';
+import 'arena_dashboard_period.dart';
+import 'arena_dashboard_period_metrics.dart';
 import 'arena_dashboard_summary.dart';
 import 'arena_date_utils.dart';
 import 'arena_schedule_providers.dart';
 
 final arenaDashboardServiceProvider = Provider<ArenaDashboardService>((ref) {
   return const ArenaDashboardService();
+});
+
+/// Filtro Hoje / Semana / Mês no painel.
+final arenaDashboardPeriodProvider =
+    StateProvider<ArenaDashboardPeriod>((ref) => ArenaDashboardPeriod.today);
+
+/// KPIs do período selecionado (agregação em memória).
+final arenaDashboardPeriodMetricsProvider =
+    Provider.autoDispose<AsyncValue<ArenaDashboardPeriodMetrics>>((ref) {
+  final period = ref.watch(arenaDashboardPeriodProvider);
+  final summaryAsync = ref.watch(arenaDashboardSummaryProvider);
+  final bookingsAsync = ref.watch(arenaManagerBookingsStreamProvider);
+
+  return summaryAsync.when(
+    loading: () => const AsyncValue.loading(),
+    error: AsyncValue.error,
+    data: (summary) => bookingsAsync.when(
+      loading: () => const AsyncValue.loading(),
+      error: AsyncValue.error,
+      data: (bookings) {
+        final metrics = ref.read(arenaDashboardServiceProvider).periodMetrics(
+              summary: summary,
+              bookings: bookings,
+              period: period,
+              todayReference: arenaTodayDateOnly(),
+            );
+        return AsyncValue.data(metrics);
+      },
+    ),
+  );
 });
 
 /// Resumo em tempo real: mesmas fontes que a agenda (`arenaBookings`, `arenaSlots`, courts).

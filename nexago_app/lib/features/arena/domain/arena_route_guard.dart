@@ -10,6 +10,7 @@ bool isArenaManagerPanelPath(String path) {
     AppRoutes.arenaCourts,
     AppRoutes.arenaBookings,
     AppRoutes.arenaSettings,
+    AppRoutes.arenaPayments,
     AppRoutes.arenaAvailabilitySettings,
     AppRoutes.arenaAvailabilitySlotsSuccess,
     AppRoutes.arenaProfile,

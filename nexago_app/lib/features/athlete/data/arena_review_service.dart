@@ -10,6 +10,46 @@ class ArenaReviewService {
   CollectionReference<Map<String, dynamic>> get _reviews =>
       _firestore.collection('arena_reviews');
 
+  static const Duration _reviewPromptDelayAfterEnd = Duration(minutes: 5);
+
+  String _readString(Map<String, dynamic> data, List<String> keys) {
+    for (final key in keys) {
+      final raw = data[key];
+      if (raw is String && raw.trim().isNotEmpty) return raw.trim();
+    }
+    return '';
+  }
+
+  DateTime? _parseDateOnly(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return null;
+    if (value.length >= 10) {
+      final iso = DateTime.tryParse(value.substring(0, 10));
+      if (iso != null) return DateTime(iso.year, iso.month, iso.day);
+    }
+    final normalized = value.replaceAll('-', '/');
+    final parts = normalized.split('/');
+    if (parts.length >= 3) {
+      final d = int.tryParse(parts[0]) ?? 0;
+      final m = int.tryParse(parts[1]) ?? 0;
+      final y = int.tryParse(parts[2].substring(0, 4)) ?? 0;
+      if (y > 0 && m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+        return DateTime(y, m, d);
+      }
+    }
+    return null;
+  }
+
+  DateTime? _parseDateTime(String dateRaw, String timeRaw) {
+    final day = _parseDateOnly(dateRaw);
+    if (day == null) return null;
+    final parts = timeRaw.trim().split(':');
+    if (parts.isEmpty) return null;
+    final hh = int.tryParse(parts[0]) ?? 0;
+    final mm = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+    return DateTime(day.year, day.month, day.day, hh, mm);
+  }
+
   Future<void> submitArenaReview({
     required String arenaId,
     required String bookingId,
@@ -39,13 +79,40 @@ class ArenaReviewService {
       throw Exception('Reserva não encontrada para avaliação.');
     }
     final bookingData = bookingDoc.data() ?? <String, dynamic>{};
-    final bookingArenaId = (bookingData['arenaId'] as String?)?.trim() ?? '';
-    final bookingUserId = ((bookingData['athleteId'] ?? bookingData['bookingAthleteId']) as String?)
-            ?.trim() ??
-        '';
+    final bookingArenaId =
+        _readString(bookingData, ['arenaId', 'arena_id', 'idArena']);
+    final bookingUserId = _readString(
+      bookingData,
+      ['athleteId', 'bookingAthleteId', 'userId', 'user_id'],
+    );
+    if (bookingArenaId.isNotEmpty && bookingArenaId != aid) {
+      throw Exception('Avaliação permitida apenas após a reserva concluída.');
+    }
+    if (bookingUserId.isNotEmpty && bookingUserId != uid) {
+      throw Exception('Avaliação permitida apenas após a reserva concluída.');
+    }
     final bookingStatus = (bookingData['status'] as String?)?.trim().toLowerCase() ?? '';
-    final isCompleted = bookingStatus == 'completed' || bookingStatus == 'finalizado';
-    if (bookingArenaId != aid || bookingUserId != uid || !isCompleted) {
+    final explicitlyCompleted =
+        bookingStatus == 'completed' || bookingStatus == 'finalizado';
+    final isCanceled =
+        bookingStatus == 'canceled' || bookingStatus == 'cancelled';
+    if (isCanceled) {
+      throw Exception('Avaliação não permitida para reserva cancelada.');
+    }
+    final dateRaw = _readString(bookingData, ['date', 'bookingDate', 'data']);
+    final startTime =
+        _readString(bookingData, ['startTime', 'start', 'horaInicio']);
+    final endTime = _readString(bookingData, ['endTime', 'end', 'horaFim']);
+    final startAt = _parseDateTime(dateRaw, startTime);
+    var endAt = _parseDateTime(dateRaw, endTime);
+    if (startAt != null && endAt != null && !endAt.isAfter(startAt)) {
+      endAt = endAt.add(const Duration(days: 1));
+    }
+    // Se não conseguir parsear datas, confia no status da reserva ou na validação do provider
+    final completedByTime = endAt != null &&
+        DateTime.now().isAfter(endAt.add(_reviewPromptDelayAfterEnd));
+    final isCompleted = explicitlyCompleted || completedByTime || endAt == null;
+    if (!isCompleted) {
       throw Exception('Avaliação permitida apenas após a reserva concluída.');
     }
 

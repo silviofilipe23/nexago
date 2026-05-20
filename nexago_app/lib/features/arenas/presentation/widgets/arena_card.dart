@@ -14,6 +14,8 @@ class ArenaCard extends StatefulWidget {
     required this.arena,
     required this.onTap,
     this.title,
+    this.displayPricePerHourReais,
+    this.showStartingFrom = false,
     this.isFavorite = false,
     this.isFavoriteBusy = false,
     this.onToggleFavorite,
@@ -22,6 +24,10 @@ class ArenaCard extends StatefulWidget {
   final ArenaListItem arena;
   final VoidCallback onTap;
   final InlineSpan? title;
+
+  /// Se null, usa [ArenaListItem.pricePerHourReais].
+  final double? displayPricePerHourReais;
+  final bool showStartingFrom;
   final bool isFavorite;
   final bool isFavoriteBusy;
   final VoidCallback? onToggleFavorite;
@@ -31,6 +37,11 @@ class ArenaCard extends StatefulWidget {
     symbol: r'R$',
     decimalDigits: 0,
   );
+
+  static String _priceLabel(double price, bool startingFrom) {
+    final formatted = '${_currency.format(price)} / hora';
+    return startingFrom ? 'A partir de $formatted' : formatted;
+  }
 
   @override
   State<ArenaCard> createState() => _ArenaCardState();
@@ -170,7 +181,11 @@ class _ArenaCardState extends State<ArenaCard> {
                         ],
                         const SizedBox(height: 8),
                         Text(
-                          '${ArenaCard._currency.format(widget.arena.pricePerHourReais)} / hora',
+                          ArenaCard._priceLabel(
+                            widget.displayPricePerHourReais ??
+                                widget.arena.pricePerHourReais,
+                            widget.showStartingFrom,
+                          ),
                           style: theme.textTheme.titleSmall?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,

@@ -12,6 +12,7 @@ class ArenaBookingConfirmArgs {
     required this.startTime,
     required this.endTime,
     required this.amountReais,
+    this.selectedSlotStartTimes = const [],
   });
 
   final String arenaId;
@@ -22,6 +23,9 @@ class ArenaBookingConfirmArgs {
   final String startTime;
   final String endTime;
   final double amountReais;
+
+  /// Inícios dos slots tocados na grade (`18:00`, `19:00`…). Define a cobrança no servidor.
+  final List<String> selectedSlotStartTimes;
 
   String get dateKey {
     final d = DateTime(date.year, date.month, date.day);
@@ -37,6 +41,35 @@ class ArenaBookingConfirmArgs {
       startTime.length >= 4 &&
       endTime.length >= 4 &&
       amountReais >= 0;
+
+  int get selectedSlotCount =>
+      selectedSlotStartTimes.isNotEmpty ? selectedSlotStartTimes.length : 0;
+
+  /// Rótulo de duração para o resumo (prioriza quantidade de slots escolhidos).
+  String get durationLabel {
+    final n = selectedSlotCount;
+    if (n == 1) return '1 horário';
+    if (n > 1) return '$n horários';
+    final start = _minutesFromHm(startTime);
+    var end = _minutesFromHm(endTime);
+    if (start == null || end == null) return '';
+    if (end <= start && start > 0) end += 24 * 60;
+    final mins = end - start;
+    if (mins <= 0) return '';
+    if (mins % 60 == 0) {
+      final h = mins ~/ 60;
+      return h == 1 ? '1 hora' : '$h horas';
+    }
+    return '${(mins / 60).toStringAsFixed(1).replaceAll('.', ',')} h';
+  }
+
+  static int? _minutesFromHm(String hm) {
+    final parts = hm.trim().split(':');
+    if (parts.isEmpty) return null;
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+    return h * 60 + m;
+  }
 
   static ArenaBookingConfirmArgs? tryParseQuery(Uri uri) {
     final q = uri.queryParameters;

@@ -9,9 +9,11 @@ class ArenaBookingDaySection {
     required this.dateKey,
     required this.title,
     required this.bookings,
+    this.subtitle,
   });
 
   final String dateKey;
   final String title;
+  final String? subtitle;
   final List<ArenaManagerBooking> bookings;
 }

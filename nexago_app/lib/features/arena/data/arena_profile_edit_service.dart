@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../arenas/domain/arena_list_item.dart';
+
 String _arenaDigitsOnly(String raw) {
   final out = StringBuffer();
   for (var i = 0; i < raw.length; i++) {
@@ -48,6 +50,8 @@ class ArenaProfileEditService {
     required List<String> courtTypes,
     required bool onlinePaymentEnabled,
     required bool onsitePaymentEnabled,
+    String payoutPixKey = '',
+    String payoutPixKeyType = '',
   }) async {
     final trimmedName = name.trim();
     if (trimmedName.isEmpty) {
@@ -66,6 +70,18 @@ class ArenaProfileEditService {
     if (!onlinePaymentEnabled && !onsitePaymentEnabled) {
       throw ArenaProfileEditException(
         'Ative pelo menos uma forma de pagamento.',
+      );
+    }
+    final trimmedPixKey = payoutPixKey.trim();
+    final trimmedPixType = payoutPixKeyType.trim().toUpperCase();
+    if (onlinePaymentEnabled && trimmedPixKey.length < 5) {
+      throw ArenaProfileEditException(
+        'Informe a chave PIX da arena para receber repasses.',
+      );
+    }
+    if (onlinePaymentEnabled && trimmedPixKey.isNotEmpty && trimmedPixType.isEmpty) {
+      throw ArenaProfileEditException(
+        'Selecione o tipo da chave PIX (CPF, telefone, e-mail, etc.).',
       );
     }
 
@@ -88,6 +104,10 @@ class ArenaProfileEditService {
         'courtTypes': uniqueTypes,
         'onlinePaymentEnabled': onlinePaymentEnabled,
         'onsitePaymentEnabled': onsitePaymentEnabled,
+        'paymentReceiver': ArenaPaymentReceiver.platform.firestoreValue,
+        'payoutPixKey': trimmedPixKey.isEmpty ? FieldValue.delete() : trimmedPixKey,
+        'payoutPixKeyType':
+            trimmedPixType.isEmpty ? FieldValue.delete() : trimmedPixType,
       },
       SetOptions(merge: true),
     );

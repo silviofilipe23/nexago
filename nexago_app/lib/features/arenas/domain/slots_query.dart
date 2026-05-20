@@ -7,7 +7,7 @@ class SlotsQuery {
     required this.arenaId,
     required this.courtId,
     required this.date,
-    this.fallbackPriceReais,
+    this.arenaFallbackPricePerHourReais,
   });
 
   final String arenaId;
@@ -16,8 +16,8 @@ class SlotsQuery {
   /// Dia selecionado (apenas calendário; hora ignorada).
   final DateTime date;
 
-  /// Preço exibido em slots virtuais (ex.: preço base da arena).
-  final double? fallbackPriceReais;
+  /// Preço **por hora** da arena quando a quadra não define `basePricePerHourReais`.
+  final double? arenaFallbackPricePerHourReais;
 
   /// `YYYY-MM-DD` — útil para logs, SnackBar e alinhamento com o web.
   String get dateKey {
@@ -37,9 +37,19 @@ class SlotsQuery {
         other.date.year == date.year &&
         other.date.month == date.month &&
         other.date.day == date.day &&
-        other.fallbackPriceReais == fallbackPriceReais;
+        other.arenaFallbackPricePerHourReais == arenaFallbackPricePerHourReais;
   }
 
   @override
-  int get hashCode => Object.hash(arenaId, courtId, dateKey, fallbackPriceReais);
+  int get hashCode =>
+      Object.hash(arenaId, courtId, dateKey, arenaFallbackPricePerHourReais);
+}
+
+/// Lê preço horário de fallback do documento da arena.
+double? readArenaFallbackPricePerHour(Map<String, dynamic>? arenaData) {
+  if (arenaData == null) return null;
+  final v = (arenaData['pricePerHourReais'] as num?)?.toDouble() ??
+      (arenaData['basePriceReais'] as num?)?.toDouble();
+  if (v == null || v <= 0) return null;
+  return v;
 }

@@ -14,8 +14,18 @@ import {
   type Firestore,
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
+import {creditArenaWalletFromBooking} from "./arena-wallet";
+import {
+  readPlatformFeeBrl,
+  applicationFeeForAmount,
+  roundMoney,
+} from "./mercadopago-arena-helpers";
 
-export const ARENA_BOOKING_MP_REF_PREFIX = "arenaBooking:";
+import {
+  ARENA_BOOKING_MP_REF_PREFIX,
+} from "./arena-booking-payment-constants";
+
+export {ARENA_BOOKING_PAYMENT_REF_PREFIX, ARENA_BOOKING_MP_REF_PREFIX} from "./arena-booking-payment-constants";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -34,6 +44,7 @@ const MERCADOPAGO_NEGATIVE_TERMINAL_STATUSES = new Set([
   "cancelled",
   "refunded",
   "charged_back",
+  "expired",
 ]);
 
 export type MercadoPagoPaymentPayload = {
@@ -143,12 +154,25 @@ export async function processArenaBookingMercadoPagoNotification(
       return;
     }
 
+    const totalReais = Number(booking.amountReais) || 0;
+    const fraction = Number(booking.paymentFraction) || 1;
+    const paidOnline = roundMoney(amount);
+    const dueOnsite = roundMoney(Math.max(0, totalReais - paidOnline));
+    const isPartial = fraction < 0.99 || dueOnsite > 0.02;
+    const paymentStatus = isPartial ? "partial" : "paid";
+    const platformFeeBrl = readPlatformFeeBrl();
+    const platformFee = applicationFeeForAmount(paidOnline, platformFeeBrl);
+    const arenaId = booking.arenaId as string | undefined;
+
     const batch = db.batch();
     batch.update(bookingRef, {
       status: "confirmed",
-      paymentStatus: "paid",
+      paymentStatus,
+      paymentChannel: booking.paymentChannel ?? "pix",
+      amountPaidOnlineReais: paidOnline,
+      amountDueOnsiteReais: dueOnsite,
       mercadopagoPaymentId: paymentId,
-      mercadopagoPaidAmount: amount,
+      mercadopagoPaidAmount: paidOnline,
       mercadopagoPaidAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -169,7 +193,24 @@ export async function processArenaBookingMercadoPagoNotification(
     });
 
     await batch.commit();
-    logger.info(`MP arena booking ${bookingId}: confirmada, paymentId=${paymentId}, amount=${amount}`);
+
+    if (arenaId) {
+      try {
+        await creditArenaWalletFromBooking(
+          db,
+          arenaId,
+          bookingId,
+          paidOnline,
+          platformFee,
+        );
+      } catch (walletErr) {
+        logger.error(`MP arena booking ${bookingId}: wallet credit failed`, walletErr);
+      }
+    }
+
+    logger.info(
+      `MP arena booking ${bookingId}: confirmada, paymentId=${paymentId}, amount=${amount}, status=${paymentStatus}`,
+    );
     return;
   }
 
@@ -190,9 +231,9 @@ export async function processArenaBookingMercadoPagoNotification(
 }
 
 /**
- * Remove slot(s) e locks da reserva após falha do pagamento.
+ * Remove slot(s) e locks da reserva após falha ou expiração do pagamento.
  */
-async function releaseArenaBookingHold(
+export async function releaseArenaBookingHold(
   db: Firestore,
   bookingRef: DocumentReference,
   booking: DocumentData,
@@ -202,9 +243,12 @@ async function releaseArenaBookingHold(
 ): Promise<void> {
   const batch = db.batch();
 
+  const paymentStatus =
+    mpStatus === "expired" ? "expired" : "rejected";
+
   batch.update(bookingRef, {
     status: "cancelled",
-    paymentStatus: "rejected",
+    paymentStatus,
     mercadopagoPaymentId: paymentId,
     mercadopagoLastPaymentStatus: mpStatus,
     cancelledAt: FieldValue.serverTimestamp(),

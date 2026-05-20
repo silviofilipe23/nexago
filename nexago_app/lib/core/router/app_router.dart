@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/arenas/presentation/arena_booking_confirm_page.dart';
+import '../../features/arenas/presentation/arena_booking_pix_page.dart';
+import '../../features/arenas/domain/arena_booking_pix_args.dart';
 import '../../features/arenas/presentation/booking_blocked_page.dart';
 import '../../features/arenas/presentation/arena_detail_page.dart';
 import '../../features/arenas/presentation/booking_success_page.dart';
@@ -14,6 +16,8 @@ import '../../features/auth/login_page.dart';
 import '../../features/auth/forgot_password_page.dart';
 import '../../features/auth/register_page.dart';
 import '../../features/arena/domain/arena_manager_booking.dart';
+import '../../features/arena/domain/arena_booking_canceled_args.dart';
+import '../../features/arena/presentation/arena_booking_canceled_page.dart';
 import '../../features/arena/presentation/arena_booking_details_page.dart';
 import '../../features/arena/presentation/arena_bookings_page.dart';
 import '../../features/arena/presentation/arena_courts_page.dart';
@@ -27,13 +31,17 @@ import '../../features/arena/presentation/arena_reviews_management_page.dart';
 import '../../features/arena/presentation/arena_availability_settings_page.dart';
 import '../../features/arena/presentation/arena_availability_slots_success_page.dart';
 import '../../features/arena/presentation/arena_settings_page.dart';
+import '../../features/arena/presentation/arena_payments_page.dart';
 import '../../features/arena/presentation/arena_slot_detail_page.dart';
 import '../../features/arena/presentation/arena_shell_page.dart';
 import '../../features/arena/domain/arena_slot_detail_args.dart';
 import '../../features/arenas/presentation/my_bookings_page.dart';
 import '../../features/arena/domain/arena_route_guard.dart';
+import '../../features/athlete/domain/booking_invite_providers.dart';
 import '../../features/athlete/presentation/athlete_edit_profile_page.dart';
+import '../../features/athlete/presentation/booking_invite_page.dart';
 import '../../features/athlete/presentation/athlete_profile_page.dart';
+import '../../features/athlete/presentation/athlete_settings_page.dart';
 import '../../features/athlete/presentation/athlete_profile_update_success_page.dart';
 import '../../features/athlete/presentation/arena_reviews_page.dart';
 import '../../features/athlete/presentation/athlete_shell_page.dart';
@@ -55,6 +63,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       final isAuthRoute = path == AppRoutes.login ||
           path == AppRoutes.register ||
           path == AppRoutes.forgotPassword;
+      final isPublicRoute = path.startsWith('/convite/');
 
       if (authAsync.isLoading) {
         return null;
@@ -64,7 +73,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       }
 
       final user = authAsync.valueOrNull;
-      if (user == null && !isAuthRoute) {
+      if (user == null && !isAuthRoute && !isPublicRoute) {
         return AppRoutes.login;
       }
 
@@ -72,6 +81,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         final token = await _safeGetIdTokenResult(user);
         if (token == null) {
           return AppRoutes.login;
+        }
+        // Redireciona para o convite pendente recebido via deep link
+        final pendingInvite = ref.read(pendingInviteIdProvider);
+        if (pendingInvite != null && pendingInvite.isNotEmpty) {
+          ref.read(pendingInviteIdProvider.notifier).state = null;
+          return '/convite/$pendingInvite';
         }
         if (userIsArenaOnlyManager(token)) {
           return AppRoutes.arenaDashboard;
@@ -163,6 +178,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AthleteEditProfilePage(),
       ),
       GoRoute(
+        path: AppRoutes.athleteSettings,
+        name: AppRouteNames.athleteSettings,
+        builder: (context, state) => const AthleteSettingsPage(),
+      ),
+      GoRoute(
         path: AppRoutes.athleteProfileUpdateSuccess,
         name: AppRouteNames.athleteProfileUpdateSuccess,
         builder: (context, state) => const AthleteProfileUpdateSuccessPage(),
@@ -238,6 +258,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                       );
                     },
                   ),
+                  GoRoute(
+                    path: 'canceled',
+                    name: AppRouteNames.arenaBookingCanceled,
+                    builder: (context, state) {
+                      final extra = state.extra;
+                      if (extra is! ArenaBookingCanceledArgs) {
+                        return const Scaffold(
+                          body: Center(
+                            child: Text('Dados de cancelamento inválidos.'),
+                          ),
+                        );
+                      }
+                      return ArenaBookingCanceledPage(args: extra);
+                    },
+                  ),
                 ],
               ),
             ],
@@ -248,6 +283,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 path: AppRoutes.arenaSettings,
                 name: AppRouteNames.arenaSettings,
                 builder: (context, state) => const ArenaSettingsPage(),
+                routes: [
+                  GoRoute(
+                    path: 'payments',
+                    name: AppRouteNames.arenaPayments,
+                    builder: (context, state) => const ArenaPaymentsPage(),
+                  ),
+                ],
               ),
             ],
           ),
@@ -364,6 +406,20 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: AppRoutes.arenaBookingPix,
+        name: AppRouteNames.arenaBookingPix,
+        builder: (context, state) {
+          final arenaId = state.pathParameters['arenaId']!;
+          final extra = state.extra;
+          if (extra is! ArenaBookingPixArgs) {
+            return const Scaffold(
+              body: Center(child: Text('Dados de pagamento inválidos.')),
+            );
+          }
+          return ArenaBookingPixPage(arenaId: arenaId, args: extra);
+        },
+      ),
+      GoRoute(
         path: AppRoutes.arenaBookingSuccess,
         name: AppRouteNames.arenaBookingSuccess,
         builder: (context, state) {
@@ -391,6 +447,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final extra = state.extra;
           final args = extra is BookingSuccessArgs ? extra : null;
           return BookingSuccessPage(args: args);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.bookingInvite,
+        name: AppRouteNames.bookingInvite,
+        builder: (context, state) {
+          final inviteId = state.pathParameters['inviteId']!;
+          return BookingInvitePage(inviteId: inviteId);
         },
       ),
     ],

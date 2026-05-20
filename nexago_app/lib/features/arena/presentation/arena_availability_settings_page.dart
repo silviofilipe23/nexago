@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/layout/app_scaffold.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_providers.dart';
 import 'widgets/arena_async_state.dart';
+import 'widgets/arena_dashboard_tokens.dart';
 
 /// Configuração de horários da agenda (disponibilidade padrão, dias, slots).
 class ArenaAvailabilitySettingsPage extends ConsumerWidget {
@@ -20,20 +20,8 @@ class ArenaAvailabilitySettingsPage extends ConsumerWidget {
     final managed = ref.watch(managedArenaIdProvider);
     final template = ref.watch(arenaSettingsTemplateProvider);
 
-    return AppScaffold(
-      title: 'Disponibilidade',
-      centerTitle: false,
-      leading: IconButton(
-        tooltip: 'Voltar',
-        icon: const Icon(Icons.arrow_back_rounded),
-        onPressed: () {
-          if (context.canPop()) {
-            context.pop();
-          } else {
-            context.go(AppRoutes.arenaSettings);
-          }
-        },
-      ),
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
       body: SafeArea(
         child: FadeSlideIn(
           child: managed.when(
@@ -64,6 +52,67 @@ class ArenaAvailabilitySettingsPage extends ConsumerWidget {
             error: (e, _) => ArenaErrorState(message: '$e'),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ArenaAvailabilityHeader extends StatelessWidget {
+  const _ArenaAvailabilityHeader({required this.onBack});
+
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Material(
+                color: AppColors.surfaceRaised,
+                borderRadius: BorderRadius.circular(12),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: onBack,
+                  child: const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Icon(
+                      Icons.arrow_back_rounded,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  'Disponibilidade',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 44),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Defina quando a arena aparece na agenda. Vale pra todas as quadras.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppColors.onSurfaceMuted,
+              fontWeight: FontWeight.w500,
+              height: 1.45,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -124,7 +173,15 @@ class _ArenaAvailabilityFormState extends ConsumerState<_ArenaAvailabilityForm> 
     if (t != null) onPick(arenaScheduleWholeHour(t));
   }
 
-  Future<void> _generateSlots() async {
+  void _onBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(AppRoutes.arenaSettings);
+    }
+  }
+
+  Future<void> _save() async {
     if (!isValidArenaSettingsSchedule(_state)) {
       showAppSnackBar(
         context,
@@ -163,236 +220,228 @@ class _ArenaAvailabilityFormState extends ConsumerState<_ArenaAvailabilityForm> 
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurface.withValues(alpha: 0.55);
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxW = constraints.maxWidth > 560 ? 480.0 : double.infinity;
-        return SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(22, 8, 22, 36),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxW),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Defina quando a arena aparece na agenda. As alterações '
-                    'valem para todas as quadras.',
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      color: muted,
-                      height: 1.45,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  _AvailabilitySettingsSection(
-                    title: 'Disponibilidade padrão',
-                    subtitle:
-                        'Horário base e tamanho de cada slot na grade (agenda). '
-                        'Horários sempre em hora cheia (ex.: 08:00, 18:00).',
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _ArenaAvailabilityHeader(onBack: _onBack),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(
+                  ArenaDashboardTokens.horizontalPadding,
+                  20,
+                  ArenaDashboardTokens.horizontalPadding,
+                  24,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxW),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _AvailabilityTimeField(
-                                label: 'Abertura',
-                                value: _fmtTime(_state.defaultOpen),
-                                onTap: () => _pickTime(
-                                  initial: _state.defaultOpen,
-                                  onPick: (t) => setState(
-                                    () => _state =
-                                        _state.copyWith(defaultOpen: t),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _AvailabilityTimeField(
-                                label: 'Fechamento',
-                                value: _fmtTime(_state.defaultClose),
-                                onTap: () => _pickTime(
-                                  initial: _state.defaultClose,
-                                  onPick: (t) => setState(
-                                    () => _state =
-                                        _state.copyWith(defaultClose: t),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 22),
-                        Text(
-                          'Duração do slot',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: muted,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            for (final m in CourtService.allowedSlotDurations)
-                              ChoiceChip(
-                                label: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                  ),
-                                  child: Text(
-                                    m == 30
-                                        ? '30 min'
-                                        : m == 60
-                                            ? '1 hora'
-                                            : '2 horas',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
+                        _AvailabilitySettingsSection(
+                          sectionLabel: 'HORÁRIO PADRÃO',
+                          subtitle:
+                              'Base e tamanho de cada slot. Sempre em hora cheia.',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _AvailabilityTimeField(
+                                      label: 'ABERTURA',
+                                      value: _fmtTime(_state.defaultOpen),
+                                      onTap: () => _pickTime(
+                                        initial: _state.defaultOpen,
+                                        onPick: (t) => setState(
+                                          () => _state = _state.copyWith(
+                                            defaultOpen: t,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                                selected: _state.slotDurationMinutes == m,
-                                onSelected: (_) => setState(
-                                  () => _state = _state.copyWith(
-                                    slotDurationMinutes: m,
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _AvailabilityTimeField(
+                                      label: 'FECHAMENTO',
+                                      value: _fmtTime(_state.defaultClose),
+                                      onTap: () => _pickTime(
+                                        initial: _state.defaultClose,
+                                        onPick: (t) => setState(
+                                          () => _state = _state.copyWith(
+                                            defaultClose: t,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                selectedColor:
-                                    AppColors.brand.withValues(alpha: 0.14),
-                                checkmarkColor: AppColors.brand,
-                                labelStyle: TextStyle(
-                                  color: _state.slotDurationMinutes == m
-                                      ? AppColors.brand
-                                      : theme.colorScheme.onSurface,
-                                ),
-                                side: BorderSide(
-                                  color: theme.colorScheme.outline
-                                      .withValues(alpha: 0.2),
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
+                                ],
                               ),
-                          ],
+                              const SizedBox(height: 20),
+                              Text(
+                                'DURAÇÃO DO SLOT',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                      color: AppColors.onSurfaceMuted,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.6,
+                                      fontSize: 10,
+                                    ),
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                children: [
+                                  for (final m
+                                      in CourtService.allowedSlotDurations) ...[
+                                    Expanded(
+                                      child: _SlotDurationOption(
+                                        label: m == 30
+                                            ? '30 min'
+                                            : m == 60
+                                                ? '1 hora'
+                                                : '2 horas',
+                                        selected:
+                                            _state.slotDurationMinutes == m,
+                                        onTap: () => setState(
+                                          () => _state = _state.copyWith(
+                                            slotDurationMinutes: m,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (m !=
+                                        CourtService
+                                            .allowedSlotDurations.last)
+                                      const SizedBox(width: 8),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _AvailabilitySettingsSection(
+                          sectionLabel: 'DIAS DA SEMANA',
+                          subtitle:
+                              'Ajuste por dia ou deixe em branco pra usar o padrão.',
+                          child: Column(
+                            children: [
+                              for (var i = 0; i < 7; i++) ...[
+                                if (i > 0) const SizedBox(height: 10),
+                                _AvailabilityWeekdayRow(
+                                  label: kArenaSettingsWeekdayLabels[i],
+                                  config: _state.perWeekday[i + 1]!,
+                                  defaultOpen: _state.defaultOpen,
+                                  defaultClose: _state.defaultClose,
+                                  formatTime: _fmtTime,
+                                  onClosedChanged: (closed) {
+                                    setState(() {
+                                      _state = _state.updateWeekday(
+                                        i + 1,
+                                        ArenaDayScheduleConfig(
+                                          closed: closed,
+                                          open: closed
+                                              ? null
+                                              : _state.perWeekday[i + 1]!
+                                                  .open,
+                                          close: closed
+                                              ? null
+                                              : _state.perWeekday[i + 1]!
+                                                  .close,
+                                        ),
+                                      );
+                                    });
+                                  },
+                                  onPickOpen: () => _pickTime(
+                                    initial: _state.perWeekday[i + 1]!.open ??
+                                        _state.defaultOpen,
+                                    onPick: (t) {
+                                      setState(() {
+                                        _state = _state.updateWeekday(
+                                          i + 1,
+                                          _state.perWeekday[i + 1]!.copyWith(
+                                            open: t,
+                                            closed: false,
+                                          ),
+                                        );
+                                      });
+                                    },
+                                  ),
+                                  onPickClose: () => _pickTime(
+                                    initial: _state.perWeekday[i + 1]!
+                                            .close ??
+                                        _state.defaultClose,
+                                    onPick: (t) {
+                                      setState(() {
+                                        _state = _state.updateWeekday(
+                                          i + 1,
+                                          _state.perWeekday[i + 1]!.copyWith(
+                                            close: t,
+                                            closed: false,
+                                          ),
+                                        );
+                                      });
+                                    },
+                                  ),
+                                  onUseDefault: () {
+                                    setState(() {
+                                      _state = _state.updateWeekday(
+                                        i + 1,
+                                        const ArenaDayScheduleConfig(
+                                          closed: false,
+                                        ),
+                                      );
+                                    });
+                                  },
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          height: 52,
+                          child: FilledButton(
+                            onPressed: _busy ? null : _save,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.brand,
+                              foregroundColor: AppColors.black,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: _busy
+                                ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.4,
+                                      color: AppColors.black,
+                                    ),
+                                  )
+                                : const Text(
+                                    'Salvar alterações',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  _AvailabilitySettingsSection(
-                    title: 'Dias da semana',
-                    subtitle:
-                        'Marque fechado ou ajuste horários por dia (usa o padrão acima quando em branco).',
-                    child: Column(
-                      children: [
-                        for (var i = 0; i < 7; i++) ...[
-                          if (i > 0) const SizedBox(height: 12),
-                          _AvailabilityWeekdayRow(
-                            label: kArenaSettingsWeekdayLabels[i],
-                            config: _state.perWeekday[i + 1]!,
-                            defaultOpen: _state.defaultOpen,
-                            defaultClose: _state.defaultClose,
-                            formatTime: _fmtTime,
-                            onClosedChanged: (closed) {
-                              setState(() {
-                                _state = _state.updateWeekday(
-                                  i + 1,
-                                  ArenaDayScheduleConfig(
-                                    closed: closed,
-                                    open: closed
-                                        ? null
-                                        : _state.perWeekday[i + 1]!.open,
-                                    close: closed
-                                        ? null
-                                        : _state.perWeekday[i + 1]!.close,
-                                  ),
-                                );
-                              });
-                            },
-                            onPickOpen: () => _pickTime(
-                              initial: _state.perWeekday[i + 1]!.open ??
-                                  _state.defaultOpen,
-                              onPick: (t) {
-                                setState(() {
-                                  _state = _state.updateWeekday(
-                                    i + 1,
-                                    _state.perWeekday[i + 1]!.copyWith(
-                                      open: t,
-                                      closed: false,
-                                    ),
-                                  );
-                                });
-                              },
-                            ),
-                            onPickClose: () => _pickTime(
-                              initial: _state.perWeekday[i + 1]!.close ??
-                                  _state.defaultClose,
-                              onPick: (t) {
-                                setState(() {
-                                  _state = _state.updateWeekday(
-                                    i + 1,
-                                    _state.perWeekday[i + 1]!.copyWith(
-                                      close: t,
-                                      closed: false,
-                                    ),
-                                  );
-                                });
-                              },
-                            ),
-                            onUseDefault: () {
-                              setState(() {
-                                _state = _state.updateWeekday(
-                                  i + 1,
-                                  const ArenaDayScheduleConfig(closed: false),
-                                );
-                              });
-                            },
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  SizedBox(
-                    height: 54,
-                    child: FilledButton(
-                      onPressed: _busy ? null : _generateSlots,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.brand,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: _busy
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.4,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Text(
-                              'Gerar horários',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         );
       },
     );
@@ -401,54 +450,47 @@ class _ArenaAvailabilityFormState extends ConsumerState<_ArenaAvailabilityForm> 
 
 class _AvailabilitySettingsSection extends StatelessWidget {
   const _AvailabilitySettingsSection({
-    required this.title,
+    required this.sectionLabel,
     required this.subtitle,
     required this.child,
   });
 
-  final String title;
+  final String sectionLabel;
   final String subtitle;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.1),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 22,
-            offset: const Offset(0, 10),
-          ),
-        ],
+      decoration: ArenaDashboardTokens.cardDecoration(
+        color: AppColors.surfaceRaised,
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 20, 22, 22),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
+              sectionLabel,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: AppColors.brand,
                 fontWeight: FontWeight.w800,
-                letterSpacing: -0.4,
+                letterSpacing: 0.6,
+                fontSize: 10,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               subtitle,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
+                color: AppColors.onSurfaceMuted,
+                fontWeight: FontWeight.w500,
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             child,
           ],
         ),
@@ -471,40 +513,111 @@ class _AvailabilityTimeField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return Material(
-      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-      borderRadius: BorderRadius.circular(16),
+      color: AppColors.surfaceSheet,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                label,
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                ),
-              ),
-              const SizedBox(height: 4),
               Row(
                 children: [
                   Text(
-                    value,
-                    style: theme.textTheme.titleLarge?.copyWith(
+                    label,
+                    style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
+                      letterSpacing: 0.5,
+                      fontSize: 9,
+                      color: AppColors.onSurfaceMuted,
                     ),
                   ),
                   const Spacer(),
                   Icon(
                     Icons.schedule_rounded,
-                    color: theme.colorScheme.primary.withValues(alpha: 0.7),
+                    size: 16,
+                    color: AppColors.brand.withValues(alpha: 0.95),
                   ),
                 ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                value,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.onSurface,
+                  letterSpacing: 1,
+                  height: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SlotDurationOption extends StatelessWidget {
+  const _SlotDurationOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.brand : AppColors.surfaceSheet,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: selected
+                ? null
+                : Border.all(
+                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.3),
+                  ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (selected) ...[
+                const Icon(
+                  Icons.check_rounded,
+                  size: 16,
+                  color: AppColors.black,
+                ),
+                const SizedBox(width: 4),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    color: selected ? AppColors.black : AppColors.onSurface,
+                  ),
+                ),
               ),
             ],
           ),
@@ -542,41 +655,51 @@ class _AvailabilityWeekdayRow extends StatelessWidget {
     final theme = Theme.of(context);
     final effectiveOpen = config.open ?? defaultOpen;
     final effectiveClose = config.close ?? defaultClose;
+    final statusLabel = config.closed ? 'FECHADO' : 'ABERTO';
+    final statusColor =
+        config.closed ? AppColors.brand : AppColors.onSurfaceMuted;
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.surfaceSheet.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+          color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
                 Expanded(
                   child: Text(
                     label,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.onSurface,
                     ),
                   ),
                 ),
                 Text(
-                  'Fechado',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                    fontWeight: FontWeight.w600,
+                  statusLabel,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                    fontSize: 10,
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Switch.adaptive(
                   value: config.closed,
-                  activeTrackColor: AppColors.brand.withValues(alpha: 0.35),
+                  activeTrackColor: AppColors.brand.withValues(alpha: 0.45),
                   activeThumbColor: AppColors.brand,
+                  inactiveTrackColor:
+                      AppColors.onSurfaceMuted.withValues(alpha: 0.25),
+                  inactiveThumbColor: AppColors.onSurface,
                   onChanged: onClosedChanged,
                 ),
               ],
@@ -584,50 +707,115 @@ class _AvailabilityWeekdayRow extends StatelessWidget {
             if (!config.closed) ...[
               const SizedBox(height: 12),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
-                    child: OutlinedButton(
-                      onPressed: onPickOpen,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        'Abre ${formatTime(effectiveOpen)}',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
+                    child: _WeekdayTimeField(
+                      label: 'Abre',
+                      value: formatTime(effectiveOpen),
+                      onTap: onPickOpen,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: OutlinedButton(
-                      onPressed: onPickClose,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        'Fecha ${formatTime(effectiveClose)}',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
+                    child: _WeekdayTimeField(
+                      label: 'Fecha',
+                      value: formatTime(effectiveClose),
+                      onTap: onPickClose,
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  _UseDefaultButton(onTap: onUseDefault),
                 ],
               ),
-              if (config.open != null || config.close != null)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: onUseDefault,
-                    child: const Text('Usar padrão'),
-                  ),
-                ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WeekdayTimeField extends StatelessWidget {
+  const _WeekdayTimeField({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceSheet,
+      borderRadius: BorderRadius.circular(10),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: AppColors.onSurfaceMuted,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.brand,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UseDefaultButton extends StatelessWidget {
+  const _UseDefaultButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: AppColors.brand.withValues(alpha: 0.55),
+            ),
+          ),
+          child: Text(
+            'USAR\nPADRÃO',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppColors.brand,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 9,
+                  height: 1.2,
+                  letterSpacing: 0.3,
+                ),
+          ),
         ),
       ),
     );

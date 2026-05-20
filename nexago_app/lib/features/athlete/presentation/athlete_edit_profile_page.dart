@@ -37,6 +37,11 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
   String? _pickedContentType;
   String? _existingAvatarUrl;
 
+  Uint8List? _pickedCoverBytes;
+  String? _pickedCoverContentType;
+  String? _existingCoverPhotoUrl;
+  bool _removeCoverRequested = false;
+
   bool _initialized = false;
   bool _saving = false;
   bool _useBiometric = false;
@@ -56,6 +61,10 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
     _cityCtrl.text = p.city;
     _bioCtrl.text = p.bio ?? '';
     _existingAvatarUrl = p.avatarUrl;
+    _existingCoverPhotoUrl = p.coverPhotoUrl;
+    _removeCoverRequested = false;
+    _pickedCoverBytes = null;
+    _pickedCoverContentType = null;
     _sport = _matchOrFirst(AthleteProfileOptions.sports, p.sport);
     _level = _matchOrFirst(AthleteProfileOptions.levels, p.level);
     _useBiometric = p.useBiometric;
@@ -112,6 +121,47 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
     });
   }
 
+  Future<void> _pickCoverPhoto() async {
+    final picker = ImagePicker();
+    final x = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 2200,
+      imageQuality: 85,
+    );
+    if (x == null) return;
+    final bytes = await x.readAsBytes();
+    final path = x.path.toLowerCase();
+    String contentType = 'image/jpeg';
+    if (path.endsWith('.png')) {
+      contentType = 'image/png';
+    } else if (path.endsWith('.webp')) {
+      contentType = 'image/webp';
+    }
+    setState(() {
+      _pickedCoverBytes = bytes;
+      _pickedCoverContentType = contentType;
+      _removeCoverRequested = false;
+    });
+  }
+
+  void _removeCoverPhoto() {
+    setState(() {
+      if (_pickedCoverBytes != null) {
+        _pickedCoverBytes = null;
+        _pickedCoverContentType = null;
+        return;
+      }
+      if (_existingCoverPhotoUrl != null &&
+          _existingCoverPhotoUrl!.trim().isNotEmpty) {
+        _removeCoverRequested = true;
+      }
+    });
+  }
+
+  void _undoRemoveCoverPhoto() {
+    setState(() => _removeCoverRequested = false);
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -137,10 +187,26 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
         _existingAvatarUrl = avatarUrl;
       }
 
+      String? coverPhotoUrl = _removeCoverRequested
+          ? null
+          : _existingCoverPhotoUrl;
+      if (_pickedCoverBytes != null && _pickedCoverContentType != null) {
+        coverPhotoUrl = await repo.uploadCoverPhoto(
+          uid: user.uid,
+          bytes: _pickedCoverBytes!,
+          contentType: _pickedCoverContentType!,
+        );
+        _existingCoverPhotoUrl = coverPhotoUrl;
+        _pickedCoverBytes = null;
+        _pickedCoverContentType = null;
+        _removeCoverRequested = false;
+      }
+
       final profile = AthleteProfile(
         id: user.uid,
         name: _nameCtrl.text.trim(),
         avatarUrl: avatarUrl,
+        coverPhotoUrl: coverPhotoUrl,
         sport: _sport,
         level: _level,
         phoneNumber: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
@@ -218,6 +284,28 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
                           name: _nameCtrl.text,
                           onTap: _pickAvatar,
                         )),
+                        const SizedBox(height: 20),
+                        _EditCoverBanner(
+                          coverRemovedPending: _removeCoverRequested,
+                          existingUrl: _pickedCoverBytes == null
+                              ? _existingCoverPhotoUrl
+                              : null,
+                          pickedBytes: _pickedCoverBytes,
+                          onTap: _pickCoverPhoto,
+                          onRemove: !_removeCoverRequested &&
+                                  ((_existingCoverPhotoUrl != null &&
+                                          _existingCoverPhotoUrl!
+                                              .trim()
+                                              .isNotEmpty) ||
+                                      _pickedCoverBytes != null)
+                              ? _removeCoverPhoto
+                              : null,
+                          onUndoRemove: _removeCoverRequested &&
+                                  (_existingCoverPhotoUrl != null &&
+                                      _existingCoverPhotoUrl!.trim().isNotEmpty)
+                              ? _undoRemoveCoverPhoto
+                              : null,
+                        ),
                         const SizedBox(height: 28),
                         TextFormField(
                           controller: _nameCtrl,
@@ -368,6 +456,138 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
   }
 }
 
+class _EditCoverBanner extends StatelessWidget {
+  const _EditCoverBanner({
+    required this.coverRemovedPending,
+    required this.existingUrl,
+    required this.pickedBytes,
+    required this.onTap,
+    this.onRemove,
+    this.onUndoRemove,
+  });
+
+  final bool coverRemovedPending;
+  final String? existingUrl;
+  final Uint8List? pickedBytes;
+  final VoidCallback onTap;
+  final VoidCallback? onRemove;
+  final VoidCallback? onUndoRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const height = 112.0;
+
+    Widget preview;
+    if (coverRemovedPending) {
+      preview = ColoredBox(
+        color: theme.colorScheme.surfaceContainerHighest,
+        child: Center(
+          child: Text(
+            'Capa será removida ao salvar',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    } else if (pickedBytes != null) {
+      preview = Image.memory(
+        pickedBytes!,
+        fit: BoxFit.cover,
+        height: height,
+        width: double.infinity,
+      );
+    } else if (existingUrl != null && existingUrl!.isNotEmpty) {
+      preview = CachedNetworkImage(
+        imageUrl: existingUrl!,
+        fit: BoxFit.cover,
+        height: height,
+        width: double.infinity,
+        placeholder: (context, url) => ColoredBox(
+          color: theme.colorScheme.surfaceContainerHigh,
+          child: const Center(
+            child: SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+      );
+    } else {
+      preview = ColoredBox(
+        color: theme.colorScheme.surfaceContainerHigh,
+        child: Center(
+          child: Text(
+            'Toque para adicionar uma foto de capa',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Foto de capa (opcional)',
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Ink(
+              height: height,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(11),
+                child: preview,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            TextButton.icon(
+              onPressed: onTap,
+              icon: const Icon(Icons.add_photo_alternate_outlined, size: 20),
+              label: const Text('Escolher imagem'),
+            ),
+            if (onRemove != null)
+              TextButton.icon(
+                onPressed: onRemove,
+                icon: const Icon(Icons.delete_outline, size: 20),
+                label: const Text('Remover capa'),
+              ),
+            if (onUndoRemove != null)
+              TextButton(
+                onPressed: onUndoRemove,
+                child: const Text('Desfazer remoção'),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _EditAvatar extends StatelessWidget {
   const _EditAvatar({
     required this.existingUrl,
@@ -400,7 +620,7 @@ class _EditAvatar extends StatelessWidget {
         fit: BoxFit.cover,
         width: size,
         height: size,
-        placeholder: (_, __) => const Center(
+        placeholder: (context, url) => const Center(
           child: SizedBox(
             width: 28,
             height: 28,

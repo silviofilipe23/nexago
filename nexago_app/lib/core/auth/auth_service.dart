@@ -1,4 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:google_sign_in/google_sign_in.dart';
+
+import '../../firebase_options.dart';
 
 /// Serviço de autenticação baseado em [FirebaseAuth].
 ///
@@ -8,6 +13,26 @@ class AuthService {
   AuthService(this._auth);
 
   final FirebaseAuth _auth;
+  /// Web client ID do Firebase (necessário para [idToken] no login com Google).
+  static const String _firebaseWebClientId =
+      '735357850346-bqbopppe97eqhjs9n1sfph1dgpuag70v.apps.googleusercontent.com';
+
+  late final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: const <String>['email'],
+    clientId: _appleGoogleClientId,
+    serverClientId: _firebaseWebClientId,
+  );
+
+  static String? get _appleGoogleClientId {
+    if (kIsWeb) return null;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.iOS:
+      case TargetPlatform.macOS:
+        return DefaultFirebaseOptions.ios.iosClientId;
+      default:
+        return null;
+    }
+  }
 
   Stream<User?> authStateChanges() => _auth.authStateChanges();
 
@@ -33,7 +58,34 @@ class AuthService {
     );
   }
 
-  Future<void> signOut() => _auth.signOut();
+  Future<void> signOut() async {
+    await Future.wait<void>([
+      _auth.signOut(),
+      _googleSignIn.signOut(),
+    ]);
+  }
+
+  /// Login com Google. Retorna `null` se o usuário cancelar o fluxo.
+  Future<UserCredential?> signInWithGoogle() async {
+    final account = await _googleSignIn.signIn();
+    if (account == null) return null;
+
+    final googleAuth = await account.authentication;
+    final idToken = googleAuth.idToken;
+    if (idToken == null || idToken.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'missing-google-id-token',
+        message:
+            'Não foi possível obter o token do Google. Verifique o OAuth no console Firebase.',
+      );
+    }
+
+    final credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: idToken,
+    );
+    return _auth.signInWithCredential(credential);
+  }
 
   Future<void> sendPasswordResetEmail({
     required String email,

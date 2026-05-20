@@ -18,9 +18,23 @@ function authErrorMessage(code: string): string {
       return 'Muitas tentativas. Tente novamente em instantes.';
     case 'auth/network-request-failed':
       return 'Falha de rede. Verifique sua conexão.';
+    case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
+      return 'Login com Google cancelado.';
+    case 'auth/popup-blocked':
+      return 'O navegador bloqueou o popup. Permita popups para este site.';
+    case 'auth/backoffice-access-denied':
+      return 'Sua conta não tem acesso ao backoffice.';
     default:
       return 'Não foi possível entrar. Tente de novo.';
   }
+}
+
+function errorCode(err: unknown): string {
+  if (typeof err === 'object' && err !== null && 'code' in err) {
+    return String((err as { code?: string }).code);
+  }
+  return '';
 }
 
 @Component({
@@ -54,13 +68,23 @@ export class LoginComponent {
 
     try {
       await this.auth.signIn(email, password);
-      await this.router.navigateByUrl('/');
+      await this.router.navigateByUrl(this.auth.defaultRouteAfterLogin());
     } catch (err: unknown) {
-      const code =
-        typeof err === 'object' && err !== null && 'code' in err
-          ? String((err as { code?: string }).code)
-          : '';
-      this.errorMessage.set(authErrorMessage(code));
+      this.errorMessage.set(authErrorMessage(errorCode(err)));
+    } finally {
+      this.submitting.set(false);
+    }
+  }
+
+  protected async onGoogleSignIn(): Promise<void> {
+    this.errorMessage.set(null);
+    this.submitting.set(true);
+
+    try {
+      await this.auth.signInWithGoogle();
+      await this.router.navigateByUrl(this.auth.defaultRouteAfterLogin());
+    } catch (err: unknown) {
+      this.errorMessage.set(authErrorMessage(errorCode(err)));
     } finally {
       this.submitting.set(false);
     }

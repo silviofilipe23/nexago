@@ -235,19 +235,12 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     return courts.first.id;
   }
 
-  double _totalReaisForRange(List<ArenaSlot> slots, int s, int e) {
-    double sum = 0;
-    var missing = false;
+  double? _totalReaisForRange(List<ArenaSlot> slots, int s, int e) {
+    var sum = 0.0;
     for (var i = s; i <= e; i++) {
       final p = slots[i].priceReais;
-      if (p == null) {
-        missing = true;
-      } else {
-        sum += p;
-      }
-    }
-    if (missing) {
-      return widget.arena.pricePerHourReais * (e - s + 1);
+      if (p == null || p <= 0) return null;
+      sum += p;
     }
     return sum;
   }
@@ -271,6 +264,18 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
       }
     }
     final total = _totalReaisForRange(slots, s, e);
+    if (total == null || total <= 0) {
+      showAppSnackBar(
+        context,
+        'Configure o preço da quadra antes de reservar.',
+        isError: true,
+      );
+      return;
+    }
+
+    final selectedStarts = <String>[
+      for (var i = s; i <= e; i++) slots[i].startTime.trim(),
+    ];
 
     context.pushNamed(
       AppRouteNames.arenaBookingConfirm,
@@ -284,6 +289,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
         startTime: first.startTime,
         endTime: last.endTime,
         amountReais: total,
+        selectedSlotStartTimes: selectedStarts,
       ),
     );
   }
@@ -544,7 +550,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
           arenaId: arenaId,
           courtId: courtId,
           date: _selectedDay,
-          fallbackPriceReais: widget.arena.pricePerHourReais,
+          arenaFallbackPricePerHourReais: widget.arena.pricePerHourReais,
         );
         final slotsAsync = ref.watch(slotsStreamProvider(query));
 

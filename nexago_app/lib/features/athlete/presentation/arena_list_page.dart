@@ -10,6 +10,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/domain/arena_court.dart';
+import '../../arenas/domain/court_pricing.dart';
 import '../../arenas/domain/arena_list_item.dart';
 import '../../arenas/domain/arena_slot.dart';
 import '../../arenas/domain/arenas_providers.dart';
@@ -239,6 +240,8 @@ class ArenaSearchResult {
     required this.courtName,
     required this.isExactMatch,
     required this.minutesDistance,
+    required this.displayPricePerHourReais,
+    this.showStartingFrom = false,
   });
 
   final ArenaListItem arena;
@@ -246,6 +249,10 @@ class ArenaSearchResult {
   final String? courtName;
   final bool isExactMatch;
   final int? minutesDistance;
+
+  /// Preço exibido no card (menor entre quadras ou fallback da arena).
+  final double displayPricePerHourReais;
+  final bool showStartingFrom;
 
   bool get hasAvailability => selectedSlot != null;
 }
@@ -278,6 +285,10 @@ Future<ArenaSearchResult> _buildArenaResult(
   ArenaListItem arena,
 ) async {
   final courts = await ref.watch(courtsStreamProvider(arena.id).future);
+  final minCourtPrice = CourtPricing.minHourlyPriceAmongCourts(courts);
+  final displayPrice = minCourtPrice ?? arena.pricePerHourReais;
+  final showStartingFrom = minCourtPrice != null;
+
   if (courts.isEmpty) {
     return ArenaSearchResult(
       arena: arena,
@@ -285,6 +296,7 @@ Future<ArenaSearchResult> _buildArenaResult(
       courtName: null,
       isExactMatch: false,
       minutesDistance: null,
+      displayPricePerHourReais: displayPrice,
     );
   }
 
@@ -294,7 +306,7 @@ Future<ArenaSearchResult> _buildArenaResult(
       arenaId: arena.id,
       courtId: court.id,
       date: filters.dateOnly,
-      fallbackPriceReais: arena.pricePerHourReais,
+      arenaFallbackPricePerHourReais: arena.pricePerHourReais,
     );
     final slots = await ref.watch(slotsStreamProvider(query).future);
     for (final slot in slots) {
@@ -311,6 +323,8 @@ Future<ArenaSearchResult> _buildArenaResult(
       courtName: null,
       isExactMatch: false,
       minutesDistance: null,
+      displayPricePerHourReais: displayPrice,
+      showStartingFrom: showStartingFrom,
     );
   }
 
@@ -347,6 +361,8 @@ Future<ArenaSearchResult> _buildArenaResult(
     courtName: picked?.court.name,
     isExactMatch: exact != null,
     minutesDistance: exact != null ? 0 : nearestDistance,
+    displayPricePerHourReais: displayPrice,
+    showStartingFrom: showStartingFrom,
   );
 }
 
@@ -627,6 +643,8 @@ class _ArenaSearchCard extends StatelessWidget {
           children: [
             ArenaCard(
               arena: result.arena,
+              displayPricePerHourReais: result.displayPricePerHourReais,
+              showStartingFrom: result.showStartingFrom,
               title: _buildHighlightedName(
                 context,
                 result.arena.name,

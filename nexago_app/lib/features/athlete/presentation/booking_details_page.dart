@@ -3,13 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../arena/domain/arena_booking_labels.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../domain/booking_attendance_providers.dart';
+import '../domain/booking_invite_providers.dart';
 
 class BookingDetailsPage extends ConsumerStatefulWidget {
   const BookingDetailsPage({
@@ -48,6 +51,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
   bool _checkingIn = false;
   bool _attendancePulse = false;
   bool _locationVerified = false;
+  bool _inviting = false;
 
   @override
   void initState() {
@@ -77,10 +81,18 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     final address = arena?.addressLine?.trim().isNotEmpty == true
         ? arena!.addressLine!.trim()
         : (arena?.locationLabel ?? 'Local a confirmar');
+    final bookingSnap = ref.watch(arenaBookingDocProvider(widget.bookingId)).valueOrNull;
+    final bookingData = bookingSnap?.data();
+    final currency = NumberFormat.currency(locale: 'pt_BR', symbol: r'R$', decimalDigits: 2);
     final paymentLabel = widget.amountReais != null
-        ? NumberFormat.currency(locale: 'pt_BR', symbol: r'R$', decimalDigits: 2).format(widget.amountReais)
+        ? currency.format(widget.amountReais)
         : 'A confirmar';
-    final paymentType = _paymentTypeLabel(widget.paymentType);
+    final paymentTypeLabel = arenaBookingPaymentLabel(bookingData);
+    final paymentType =
+        paymentTypeLabel != '—' ? paymentTypeLabel : _paymentTypeLabel(widget.paymentType);
+    final ps = (bookingData?['paymentStatus'] as String?)?.toLowerCase().trim();
+    final paidOnline = (bookingData?['amountPaidOnlineReais'] as num?)?.toDouble();
+    final dueOnsite = (bookingData?['amountDueOnsiteReais'] as num?)?.toDouble();
     final assistantState = getAssistantState(
       now: _now,
       startAt: widget.startAt,
@@ -159,13 +171,27 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
                 Text('Valor: $paymentLabel', style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
                 Text('Tipo: $paymentType', style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.onSurfaceMuted)),
+                if (ps == 'partial' && paidOnline != null && paidOnline > 0) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Sinal PIX pago: ${currency.format(paidOnline)}',
+                    style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.brand),
+                  ),
+                ],
+                if (ps == 'partial' && dueOnsite != null && dueOnsite > 0.02) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    'Restante no local: ${currency.format(dueOnsite)}',
+                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ],
               ],
             ),
           ),
           const SizedBox(height: 14),
           _SectionCard(
             title: 'Confirmação de presença',
-            child: _buildAttendanceSection(theme, attendance),
+            child: _buildAttendanceSection(theme, attendance, status),
           ),
           const SizedBox(height: 14),
           _SectionCard(
@@ -174,7 +200,13 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
               children: [
                 _ActionBtn(label: 'Como chegar', icon: Icons.directions_outlined, onTap: () => _openMaps(address)),
                 const SizedBox(height: 8),
-                _ActionBtn(label: 'Convidar jogador', icon: Icons.person_add_alt_1_outlined, onTap: _invitePlayer),
+                _ActionBtn(
+                  label: _inviting ? 'Gerando link...' : 'Convidar jogador',
+                  icon: Icons.person_add_alt_1_outlined,
+                  onTap: (_inviting || status == _DetailsStatus.past || status == _DetailsStatus.canceled)
+                      ? null
+                      : _invitePlayer,
+                ),
                 const SizedBox(height: 8),
                 _ActionBtn(
                   label: 'Cancelar reserva',
@@ -193,6 +225,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
   Widget _buildAttendanceSection(
     ThemeData theme,
     BookingAttendanceState? attendance,
+    _DetailsStatus bookingStatus,
   ) {
     final startAt = widget.startAt;
     final deadline = attendance?.confirmationDeadline ??
@@ -204,6 +237,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         status == 'confirmed' ||
         status == 'checked_in';
     final isCheckedIn = status == 'checked_in';
+    final isFinished = bookingStatus == _DetailsStatus.past || bookingStatus == _DetailsStatus.canceled;
     final confirmedPlayers = attendance?.confirmedPlayers ?? widget.confirmedParticipants;
     final canCheckIn = attendance?.checkInAllowed == true && !isCheckedIn;
 
@@ -240,6 +274,18 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             ),
           ),
         ],
+      );
+    }
+
+    if (isFinished) {
+      return Text(
+        bookingStatus == _DetailsStatus.canceled
+            ? 'Reserva cancelada.'
+            : 'Reserva encerrada.',
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: AppColors.onSurfaceMuted,
+          fontWeight: FontWeight.w600,
+        ),
       );
     }
 
@@ -461,10 +507,38 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  void _invitePlayer() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Convite em breve.')),
-    );
+  Future<void> _invitePlayer() async {
+    if (_inviting) return;
+    setState(() => _inviting = true);
+    try {
+      final user = ref.read(authProvider).valueOrNull;
+      if (user == null) return;
+      final displayName = user.displayName?.trim().isNotEmpty == true
+          ? user.displayName!.trim()
+          : 'Um jogador';
+
+      final invite = await ref.read(bookingInviteServiceProvider).createInvite(
+            bookingId: widget.bookingId,
+            invitedByUid: user.uid,
+            invitedByName: displayName,
+          );
+
+      final link = 'https://voleigo.com.br/convite/${invite.id}';
+      final text =
+          '$displayName te convidou para jogar em ${widget.arenaName}!\n'
+          '📅 ${DateFormat("d 'de' MMMM", 'pt_BR').format(widget.startAt)} · '
+          '${DateFormat('HH:mm', 'pt_BR').format(widget.startAt)}\n\n'
+          'Aceite o convite: $link';
+
+      await Share.share(text);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível gerar o convite: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _inviting = false);
+    }
   }
 
   void _openChat() {

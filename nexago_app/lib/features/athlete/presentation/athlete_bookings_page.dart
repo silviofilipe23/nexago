@@ -843,8 +843,12 @@ class _AthleteBooking {
 
 _AthleteBooking? _athleteBookingFromFirestore(MyBookingItem item) {
   final start = _parseBookingDateTime(item.dateRaw, item.startTime);
-  final end = _parseBookingDateTime(item.dateRaw, item.endTime);
-  if (start == null || end == null || !end.isAfter(start)) return null;
+  var end = _parseBookingDateTime(item.dateRaw, item.endTime);
+  if (start == null || end == null) return null;
+  if (!end.isAfter(start)) {
+    // Reserva cruzando meia-noite (ex.: 23:00 -> 00:00).
+    end = end.add(const Duration(days: 1));
+  }
 
   return _AthleteBooking(
     id: item.id,

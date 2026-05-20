@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../arenas/data/slots_repository.dart';
 import '../../arenas/domain/arena_slot.dart';
+import '../../arenas/domain/arena_slot_block_reason.dart';
 
 class SlotServiceException implements Exception {
   SlotServiceException(this.message);
@@ -42,7 +43,11 @@ class SlotService {
   ///
   /// A UI que usa [watchArenaDaySlots] atualiza em tempo real (snapshots).
   /// Slots **virtuais** (id gerado localmente, prefixo `v_`) não têm documento — use [blockVirtualSlot].
-  Future<void> blockSlot(String slotId) async {
+  Future<void> blockSlot(
+    String slotId, {
+    ArenaSlotBlockReason? blockReason,
+    String? blockNote,
+  }) async {
     final id = slotId.trim();
     if (id.isEmpty) {
       throw SlotServiceException('slotId inválido.');
@@ -68,14 +73,15 @@ class SlotService {
       return;
     }
 
-    await ref.update(<String, dynamic>{
-      'status': 'blocked',
-      'blockedAt': FieldValue.serverTimestamp(),
-    });
+    await ref.update(_blockPayload(blockReason: blockReason, blockNote: blockNote));
   }
 
   /// Cria documento em `arenaSlots` para bloquear um slot **virtual** (sem doc no Firestore).
-  Future<void> blockVirtualSlot(ArenaSlot slot) async {
+  Future<void> blockVirtualSlot(
+    ArenaSlot slot, {
+    ArenaSlotBlockReason? blockReason,
+    String? blockNote,
+  }) async {
     if (!slot.isVirtual) {
       throw SlotServiceException('Use blockSlot(slotId) para horários já salvos.');
     }
@@ -92,9 +98,26 @@ class SlotService {
       'date': Timestamp.fromDate(slot.date),
       'startTime': slot.startTime,
       'endTime': slot.endTime,
+      ..._blockPayload(blockReason: blockReason, blockNote: blockNote),
+    });
+  }
+
+  static Map<String, dynamic> _blockPayload({
+    ArenaSlotBlockReason? blockReason,
+    String? blockNote,
+  }) {
+    final payload = <String, dynamic>{
       'status': 'blocked',
       'blockedAt': FieldValue.serverTimestamp(),
-    });
+    };
+    if (blockReason != null) {
+      payload['blockReason'] = blockReason.firestoreValue;
+    }
+    final note = blockNote?.trim();
+    if (note != null && note.isNotEmpty) {
+      payload['blockNote'] = note;
+    }
+    return payload;
   }
 
   /// Libera um horário bloqueado em `arenaSlots/{slotId}` (`status: available`).
@@ -127,6 +150,8 @@ class SlotService {
     await ref.update(<String, dynamic>{
       'status': 'available',
       'blockedAt': FieldValue.delete(),
+      'blockReason': FieldValue.delete(),
+      'blockNote': FieldValue.delete(),
     });
   }
 

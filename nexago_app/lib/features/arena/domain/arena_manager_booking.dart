@@ -7,6 +7,7 @@ class ArenaManagerBooking {
   const ArenaManagerBooking({
     required this.id,
     required this.athleteId,
+    required this.courtId,
     required this.courtName,
     required this.dateKey,
     required this.startTime,
@@ -16,6 +17,9 @@ class ArenaManagerBooking {
 
   final String id;
   final String athleteId;
+
+  /// ID em `arenas/{arenaId}/courts/{courtId}` (pode estar vazio em docs antigos).
+  final String courtId;
   final String courtName;
 
   /// `YYYY-MM-DD`
@@ -43,20 +47,63 @@ class ArenaManagerBooking {
 
     final aid = d['athleteId'];
     final athleteId = aid is String && aid.trim().isNotEmpty ? aid.trim() : '';
-    final courtRaw = d['courtName'] ?? d['court'] ?? d['courtId'];
-    final courtName = courtRaw is String && courtRaw.trim().isNotEmpty
-        ? courtRaw.trim()
-        : 'Quadra';
+    final courtId = _optionalTrimmedString(d['courtId']);
+    final labelFromDoc = _optionalTrimmedString(d['courtName']) ??
+        _optionalTrimmedString(d['court']);
+    final courtName = _initialCourtDisplayName(
+      courtId: courtId,
+      labelFromDoc: labelFromDoc,
+    );
 
     return ArenaManagerBooking(
       id: doc.id,
       athleteId: athleteId,
+      courtId: courtId ?? '',
       courtName: courtName,
       dateKey: dateKey,
       startTime: _timeStr(d['startTime']),
       endTime: _timeStr(d['endTime']),
       data: d,
     );
+  }
+
+  /// Substitui placeholder ou ID pelo nome da quadra quando disponível.
+  ArenaManagerBooking enrichCourtName(Map<String, String> namesByCourtId) {
+    final resolvedId = courtId.trim();
+    if (resolvedId.isEmpty || namesByCourtId.isEmpty) return this;
+
+    final resolved = namesByCourtId[resolvedId]?.trim();
+    if (resolved == null || resolved.isEmpty) return this;
+    if (courtName == resolved) return this;
+
+    return ArenaManagerBooking(
+      id: id,
+      athleteId: athleteId,
+      courtId: courtId,
+      courtName: resolved,
+      dateKey: dateKey,
+      startTime: startTime,
+      endTime: endTime,
+      data: data,
+    );
+  }
+
+  static String? _optionalTrimmedString(dynamic value) {
+    if (value is! String) return null;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  static String _initialCourtDisplayName({
+    required String? courtId,
+    required String? labelFromDoc,
+  }) {
+    if (labelFromDoc != null &&
+        labelFromDoc.isNotEmpty &&
+        (courtId == null || labelFromDoc != courtId)) {
+      return labelFromDoc;
+    }
+    return 'Quadra';
   }
 
   static String _timeStr(dynamic v) {

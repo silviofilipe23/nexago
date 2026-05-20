@@ -20,6 +20,7 @@ abstract final class AppRoutes {
 
   /// Edição do perfil do atleta.
   static const String athleteProfileEdit = '/athlete/profile/edit';
+  static const String athleteSettings = '/athlete/settings';
 
   /// Sucesso após salvar perfil do atleta.
   static const String athleteProfileUpdateSuccess = '/athlete/profile/updated';
@@ -33,6 +34,9 @@ abstract final class AppRoutes {
 
   /// Detalhe de reserva (gestor): `/arena/bookings/detail/:bookingId`
   static const String arenaBookingDetail = '/arena/bookings/detail/:bookingId';
+
+  /// Pós-cancelamento com undo: `/arena/bookings/canceled`
+  static const String arenaBookingCanceled = '/arena/bookings/canceled';
 
   static const String arenaSettings = '/arena/settings';
 
@@ -68,14 +72,23 @@ abstract final class AppRoutes {
   /// Confirmação (paridade com web `/arenas/:id/book`).
   static const String arenaBookingConfirm = '/arena/:arenaId/book/confirm';
 
+  /// Pagamento PIX in-app.
+  static const String arenaBookingPix = '/arena/:arenaId/book/pix';
+
   /// Sucesso após confirmação.
   static const String arenaBookingSuccess = '/arena/:arenaId/book/success';
+
+  /// Pagamentos / saldo (gestor). Filha de [arenaSettings] — evita conflito com `/arena/:arenaId`.
+  static const String arenaPayments = '/arena/settings/payments';
 
   /// Bloqueio do atleta ao tentar reservar.
   static const String arenaBookingBlocked = '/arena/:arenaId/book/blocked';
 
   /// Legado: manter rota simples se necessário.
   static const String bookingSuccess = '/booking/success';
+
+  /// Convite para jogar: `/convite/:inviteId`
+  static const String bookingInvite = '/convite/:inviteId';
 }
 
 abstract final class AppRouteNames {
@@ -89,6 +102,7 @@ abstract final class AppRouteNames {
   static const String myBookings = 'myBookings';
   static const String athleteProfile = 'athleteProfile';
   static const String athleteProfileEdit = 'athleteProfileEdit';
+  static const String athleteSettings = 'athleteSettings';
   static const String athleteProfileUpdateSuccess =
       'athleteProfileUpdateSuccess';
 
@@ -97,6 +111,7 @@ abstract final class AppRouteNames {
   static const String arenaCourts = 'arenaCourts';
   static const String arenaBookings = 'arenaBookings';
   static const String arenaBookingDetail = 'arenaBookingDetail';
+  static const String arenaBookingCanceled = 'arenaBookingCanceled';
   static const String arenaSettings = 'arenaSettings';
   static const String arenaAvailabilitySettings = 'arenaAvailabilitySettings';
   static const String arenaAvailabilitySlotsSuccess =
@@ -113,7 +128,10 @@ abstract final class AppRouteNames {
   static const String arenaSlots = 'arenaSlots';
   static const String arenaReviews = 'arenaReviews';
   static const String arenaBookingConfirm = 'arenaBookingConfirm';
+  static const String arenaBookingPix = 'arenaBookingPix';
   static const String arenaBookingSuccess = 'arenaBookingSuccess';
+  static const String arenaPayments = 'arenaPayments';
   static const String arenaBookingBlocked = 'arenaBookingBlocked';
   static const String bookingSuccess = 'bookingSuccess';
+  static const String bookingInvite = 'bookingInvite';
 }

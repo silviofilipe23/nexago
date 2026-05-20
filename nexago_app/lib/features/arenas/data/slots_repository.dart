@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../domain/arena_promotion.dart';
 import '../domain/arena_slot.dart';
 import '../domain/slots_query.dart';
 import '../domain/virtual_slot_generator.dart';
@@ -34,29 +35,48 @@ class SlotsRepository {
         .doc(arenaId)
         .collection('courts')
         .snapshots();
+    final arenaStream =
+        _firestore.collection('arenas').doc(arenaId).snapshots();
+    final promotionsStream = _firestore
+        .collection('arenas')
+        .doc(arenaId)
+        .collection('promotions')
+        .where('active', isEqualTo: true)
+        .snapshots();
 
-    return _combineLatest2<QuerySnapshot<Map<String, dynamic>>,
-        QuerySnapshot<Map<String, dynamic>>, List<ArenaSlot>>(
+    return _combineLatest4<
+        QuerySnapshot<Map<String, dynamic>>,
+        QuerySnapshot<Map<String, dynamic>>,
+        DocumentSnapshot<Map<String, dynamic>>,
+        QuerySnapshot<Map<String, dynamic>>,
+        List<ArenaSlot>>(
       slotsStream,
       courtsStream,
-      (slotSnap, courtsSnap) {
+      arenaStream,
+      promotionsStream,
+      (slotSnap, courtsSnap, arenaSnap, promoSnap) {
         final docs = courtsSnap.docs;
         if (docs.isEmpty) {
           return <ArenaSlot>[];
         }
+        final arenaFallback = readArenaFallbackPricePerHour(
+          arenaSnap.exists ? arenaSnap.data() : null,
+        );
+        final promotions = _parsePromotions(promoSnap);
         final merged = <ArenaSlot>[];
         for (final courtDoc in docs) {
           final query = SlotsQuery(
             arenaId: arenaId,
             courtId: courtDoc.id,
             date: day,
-            fallbackPriceReais: null,
+            arenaFallbackPricePerHourReais: arenaFallback,
           );
           final persisted = _extractPersisted(slotSnap, query, day);
           final virtual = VirtualSlotGenerator.build(
             query: query,
             courtData: courtDoc.data(),
             date: day,
+            promotions: promotions,
           );
           merged.addAll(VirtualSlotGenerator.merge(persisted, virtual));
         }
@@ -84,22 +104,54 @@ class SlotsRepository {
         .collection('courts')
         .doc(query.courtId)
         .snapshots();
+    final arenaStream =
+        _firestore.collection('arenas').doc(query.arenaId).snapshots();
+    final promotionsStream = _firestore
+        .collection('arenas')
+        .doc(query.arenaId)
+        .collection('promotions')
+        .where('active', isEqualTo: true)
+        .snapshots();
 
-    return _combineLatest2<QuerySnapshot<Map<String, dynamic>>,
-        DocumentSnapshot<Map<String, dynamic>>, List<ArenaSlot>>(
+    return _combineLatest4<
+        QuerySnapshot<Map<String, dynamic>>,
+        DocumentSnapshot<Map<String, dynamic>>,
+        DocumentSnapshot<Map<String, dynamic>>,
+        QuerySnapshot<Map<String, dynamic>>,
+        List<ArenaSlot>>(
       slotsStream,
       courtStream,
-      (slotSnap, courtSnap) {
-        final persisted = _extractPersisted(slotSnap, query, day);
+      arenaStream,
+      promotionsStream,
+      (slotSnap, courtSnap, arenaSnap, promoSnap) {
+        final arenaFallback = readArenaFallbackPricePerHour(
+              arenaSnap.exists ? arenaSnap.data() : null,
+            ) ??
+            query.arenaFallbackPricePerHourReais;
+        final effectiveQuery = SlotsQuery(
+          arenaId: query.arenaId,
+          courtId: query.courtId,
+          date: query.date,
+          arenaFallbackPricePerHourReais: arenaFallback,
+        );
+        final persisted = _extractPersisted(slotSnap, effectiveQuery, day);
         final courtData = courtSnap.exists ? courtSnap.data() : null;
+        final promotions = _parsePromotions(promoSnap);
         final virtual = VirtualSlotGenerator.build(
-          query: query,
+          query: effectiveQuery,
           courtData: courtData,
           date: day,
+          promotions: promotions,
         );
         return VirtualSlotGenerator.merge(persisted, virtual);
       },
     );
+  }
+
+  static List<ArenaPromotion> _parsePromotions(
+    QuerySnapshot<Map<String, dynamic>> snap,
+  ) {
+    return snap.docs.map(ArenaPromotion.fromFirestore).toList();
   }
 
   List<ArenaSlot> _extractPersisted(
@@ -133,26 +185,84 @@ class SlotsRepository {
       a.year == b.year && a.month == b.month && a.day == b.day;
 }
 
-/// Emite quando [a] e [b] já emitiram pelo menos uma vez cada.
-Stream<R> _combineLatest2<A, B, R>(
+Stream<R> _combineLatest4<A, B, C, D, R>(
   Stream<A> streamA,
   Stream<B> streamB,
-  R Function(A, B) combine,
+  Stream<C> streamC,
+  Stream<D> streamD,
+  R Function(A, B, C, D) combine,
 ) {
   final controller = StreamController<R>.broadcast();
   A? lastA;
   B? lastB;
+  C? lastC;
+  D? lastD;
 
   void emit() {
     final x = lastA;
     final y = lastB;
-    if (x != null && y != null) {
-      controller.add(combine(x, y));
+    final z = lastC;
+    final w = lastD;
+    if (x != null && y != null && z != null && w != null) {
+      controller.add(combine(x, y, z, w));
     }
   }
 
   late final StreamSubscription<A> subA;
   late final StreamSubscription<B> subB;
+  late final StreamSubscription<C> subC;
+  late final StreamSubscription<D> subD;
+
+  subA = streamA.listen((a) {
+    lastA = a;
+    emit();
+  }, onError: controller.addError);
+  subB = streamB.listen((b) {
+    lastB = b;
+    emit();
+  }, onError: controller.addError);
+  subC = streamC.listen((c) {
+    lastC = c;
+    emit();
+  }, onError: controller.addError);
+  subD = streamD.listen((d) {
+    lastD = d;
+    emit();
+  }, onError: controller.addError);
+
+  controller.onCancel = () async {
+    await subA.cancel();
+    await subB.cancel();
+    await subC.cancel();
+    await subD.cancel();
+  };
+
+  return controller.stream;
+}
+
+Stream<R> _combineLatest3<A, B, C, R>(
+  Stream<A> streamA,
+  Stream<B> streamB,
+  Stream<C> streamC,
+  R Function(A, B, C) combine,
+) {
+  final controller = StreamController<R>.broadcast();
+  A? lastA;
+  B? lastB;
+  C? lastC;
+
+  void emit() {
+    final x = lastA;
+    final y = lastB;
+    final z = lastC;
+    if (x != null && y != null && z != null) {
+      controller.add(combine(x, y, z));
+    }
+  }
+
+  late final StreamSubscription<A> subA;
+  late final StreamSubscription<B> subB;
+  late final StreamSubscription<C> subC;
 
   subA = streamA.listen(
     (a) {
@@ -168,10 +278,18 @@ Stream<R> _combineLatest2<A, B, R>(
     },
     onError: controller.addError,
   );
+  subC = streamC.listen(
+    (c) {
+      lastC = c;
+      emit();
+    },
+    onError: controller.addError,
+  );
 
   controller.onCancel = () async {
     await subA.cancel();
     await subB.cancel();
+    await subC.cancel();
   };
 
   return controller.stream;

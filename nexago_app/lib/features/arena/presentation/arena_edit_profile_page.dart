@@ -6,57 +6,43 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/domain/arena_list_item.dart';
 import '../data/arena_profile_edit_service.dart';
 import '../domain/arena_providers.dart';
+import '../domain/payout_pix_key_type.dart';
+import 'widgets/arena_async_state.dart';
+import 'widgets/arena_dashboard_tokens.dart';
 
 class ArenaEditProfilePage extends ConsumerWidget {
   const ArenaEditProfilePage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final arenaAsync = ref.watch(managedArenaDetailProvider);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surfaceContainerLowest,
-      appBar: AppBar(
-        title: const Text('Editar perfil'),
-      ),
+      backgroundColor: AppColors.canvas,
       body: arenaAsync.when(
-        // Após salvar, o Firestore re-emite o documento e o provider pode entrar
-        // brevemente em loading (reload). Sem isto o body vira spinner, o form dispõe
-        // e o primeiro pushReplacement não roda.
         skipLoadingOnReload: true,
         data: (arena) {
           if (arena == null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Nenhuma arena vinculada ao seu usuário como gestor.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                ),
+            return const SafeArea(
+              child: ArenaEmptyState(
+                title: 'Arena não encontrada',
+                message:
+                    'Nenhuma arena vinculada ao seu usuário como gestor.',
+                icon: Icons.storefront_outlined,
               ),
             );
           }
-          return _ArenaEditProfileForm(initial: arena);
+          return FadeSlideIn(child: _ArenaEditProfileForm(initial: arena));
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Não foi possível carregar os dados.\n$e',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            ),
-          ),
+        loading: () => const SafeArea(
+          child: ArenaLoadingState(label: 'Carregando perfil...'),
+        ),
+        error: (e, _) => SafeArea(
+          child: ArenaErrorState(message: '$e'),
         ),
       ),
     );
@@ -87,7 +73,13 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
   late List<String> _courtTypes;
   late bool _onlinePayment;
   late bool _onsitePayment;
+  late final TextEditingController _payoutPixKey;
+  late PayoutPixKeyType _payoutPixKeyType;
   bool _saving = false;
+
+  static const _headerH = 200.0;
+  static const _logoSize = 88.0;
+  static const _logoOverlap = 36.0;
 
   @override
   void initState() {
@@ -104,6 +96,11 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
     _courtTypes = List<String>.from(a.courtTypes);
     _onlinePayment = a.onlinePaymentEnabled;
     _onsitePayment = a.onsitePaymentEnabled;
+    _payoutPixKey = TextEditingController(text: a.payoutPixKey);
+    _payoutPixKeyType = PayoutPixKeyType.initial(
+      storedType: a.payoutPixKeyType,
+      pixKey: a.payoutPixKey,
+    );
   }
 
   @override
@@ -114,6 +111,7 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
     _whatsapp.dispose();
     _address.dispose();
     _city.dispose();
+    _payoutPixKey.dispose();
     super.dispose();
   }
 
@@ -127,23 +125,38 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: Text(title),
+          backgroundColor: AppColors.surfaceSheet,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(ArenaDashboardTokens.cardRadius),
+          ),
+          title: Text(
+            title,
+            style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.onSurface,
+                ),
+          ),
           content: TextField(
             controller: ctrl,
             keyboardType: TextInputType.url,
-            decoration: const InputDecoration(
-              hintText: 'https://…',
-              border: OutlineInputBorder(),
-            ),
+            style: const TextStyle(color: AppColors.onSurface),
+            decoration: _fieldDecoration(label: 'URL', hint: 'https://…'),
             autofocus: true,
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
+              child: Text(
+                'Cancelar',
+                style: TextStyle(color: AppColors.onSurfaceMuted),
+              ),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: AppColors.black,
+              ),
               child: const Text('OK'),
             ),
           ],
@@ -162,6 +175,10 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: AppColors.surfaceSheet,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       showDragHandle: true,
       builder: (ctx) {
         final bottom = MediaQuery.of(ctx).padding.bottom;
@@ -175,6 +192,15 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                 'Adicionar tipo de quadra',
                 style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
+                      color: AppColors.onSurface,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Toque em um tipo sugerido ou informe outro.',
+                style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceMuted,
+                      height: 1.35,
                     ),
               ),
               const SizedBox(height: 14),
@@ -186,6 +212,14 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                     if (!_courtTypes.contains(opt))
                       ActionChip(
                         label: Text(opt),
+                        backgroundColor: AppColors.surfaceRaised,
+                        labelStyle: const TextStyle(
+                          color: AppColors.onSurface,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        side: BorderSide(
+                          color: AppColors.onSurfaceMuted.withValues(alpha: 0.25),
+                        ),
                         onPressed: () {
                           setState(() => _courtTypes.add(opt));
                           Navigator.pop(ctx);
@@ -196,9 +230,9 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
               const SizedBox(height: 20),
               TextField(
                 controller: customCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Outro tipo',
-                  border: OutlineInputBorder(),
+                style: const TextStyle(color: AppColors.onSurface),
+                decoration: _fieldDecoration(
+                  label: 'Outro tipo',
                 ),
                 textCapitalization: TextCapitalization.sentences,
               ),
@@ -211,6 +245,11 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                   }
                   Navigator.pop(ctx);
                 },
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: AppColors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
                 child: const Text('Adicionar'),
               ),
             ],
@@ -247,6 +286,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
             courtTypes: _courtTypes,
             onlinePaymentEnabled: _onlinePayment,
             onsitePaymentEnabled: _onsitePayment,
+            payoutPixKey: _payoutPixKey.text,
+            payoutPixKeyType: _payoutPixKeyType.asaasValue,
           );
       if (!mounted) return;
       leftForSuccessRoute = true;
@@ -268,9 +309,7 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = theme.colorScheme.onSurface.withValues(alpha: 0.55);
-    const headerH = 210.0;
-    const logoR = 44.0;
+    final arenaName = widget.initial.name.trim();
 
     return Column(
       children: [
@@ -282,67 +321,39 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
               slivers: [
                 SliverToBoxAdapter(
                   child: SizedBox(
-                    height: headerH,
+                    height: _headerH + _logoOverlap,
                     child: Stack(
                       clipBehavior: Clip.none,
-                      fit: StackFit.expand,
                       children: [
-                        _HeaderCover(url: _coverUrl),
                         Positioned(
-                          top: 12,
-                          right: 12,
-                          child: Material(
-                            color: theme.colorScheme.surface.withValues(
-                              alpha: 0.92,
-                            ),
-                            borderRadius: BorderRadius.circular(12),
-                            child: InkWell(
-                              onTap: () => _editUrl(
-                                title: 'URL da imagem de capa',
-                                current: _coverUrl,
-                                onSet: (v) => _coverUrl = v,
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.photo_camera_outlined,
-                                      size: 18,
-                                      color: theme.colorScheme.primary,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Alterar capa',
-                                      style: theme.textTheme.labelLarge
-                                          ?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: _headerH,
+                          child: _EditCoverHeader(
+                            coverUrl: _coverUrl,
+                            onBack: () => context.pop(),
+                            onEditCover: () => _editUrl(
+                              title: 'URL da imagem de capa',
+                              current: _coverUrl,
+                              onSet: (v) => _coverUrl = v,
                             ),
                           ),
                         ),
                         Positioned(
-                          left: 22,
-                          bottom: -logoR + 8,
+                          left: ArenaDashboardTokens.horizontalPadding,
+                          top: _headerH - _logoOverlap,
                           child: Stack(
                             clipBehavior: Clip.none,
                             children: [
-                              _HeaderLogo(
-                                url: _logoUrl,
+                              _EditLogoBadge(
+                                logoUrl: _logoUrl,
                                 name: _name.text,
+                                size: _logoSize,
                               ),
                               Positioned(
-                                right: -4,
-                                bottom: 0,
+                                right: -2,
+                                bottom: -2,
                                 child: Material(
                                   color: AppColors.brand,
                                   shape: const CircleBorder(),
@@ -354,11 +365,11 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                       onSet: (v) => _logoUrl = v,
                                     ),
                                     child: const Padding(
-                                      padding: EdgeInsets.all(6),
+                                      padding: EdgeInsets.all(7),
                                       child: Icon(
                                         Icons.edit_rounded,
                                         size: 16,
-                                        color: Colors.white,
+                                        color: AppColors.black,
                                       ),
                                     ),
                                   ),
@@ -373,156 +384,212 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                 ),
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(
-                    22,
-                    logoR + 4,
-                    22,
+                    ArenaDashboardTokens.horizontalPadding,
+                    12,
+                    ArenaDashboardTokens.horizontalPadding,
                     24 + MediaQuery.of(context).viewInsets.bottom,
                   ),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
-                      const _FormSectionTitle(label: 'Dados da arena'),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        controller: _name,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: _fieldDecoration(
-                          theme,
-                          label: 'Nome da arena',
-                        ),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Nome obrigatório';
-                          }
-                          return null;
-                        },
-                        onChanged: (_) => setState(() {}),
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _description,
-                        minLines: 3,
-                        maxLines: 6,
-                        decoration: _fieldDecoration(
-                          theme,
-                          label: 'Descrição',
-                          alignLabel: true,
+                      Text(
+                        'Editar perfil',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.4,
+                          color: AppColors.onSurface,
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _phone,
-                        keyboardType: TextInputType.phone,
-                        decoration: _fieldDecoration(
-                          theme,
-                          label: 'Telefone',
-                          hint: '(DDD) número',
-                        ),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Telefone obrigatório';
-                          }
-                          if (!isValidArenaPhoneDigits(v)) {
-                            return 'Telefone inválido';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _whatsapp,
-                        keyboardType: TextInputType.phone,
-                        decoration: _fieldDecoration(
-                          theme,
-                          label: 'WhatsApp',
-                          hint: 'Opcional',
-                        ),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) return null;
-                          if (!isValidArenaPhoneDigits(v)) {
-                            return 'Número inválido';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _address,
-                        textCapitalization: TextCapitalization.sentences,
-                        decoration: _fieldDecoration(
-                          theme,
-                          label: 'Endereço',
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _city,
-                        textCapitalization: TextCapitalization.words,
-                        decoration: _fieldDecoration(
-                          theme,
-                          label: 'Cidade',
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      const _FormSectionTitle(label: 'Tipos de quadra'),
                       const SizedBox(height: 8),
                       Text(
-                        'Toque em um tipo sugerido ou adicione um personalizado.',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: muted,
-                          height: 1.35,
+                        arenaName.isNotEmpty
+                            ? '$arenaName • visível para atletas na busca'
+                            : 'Atualize como sua arena aparece no app.',
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: AppColors.onSurfaceMuted,
+                          fontWeight: FontWeight.w500,
+                          height: 1.45,
                         ),
                       ),
-                      const SizedBox(height: 14),
-                      if (_courtTypes.isEmpty)
-                        Text(
-                          'Nenhum tipo listado ainda.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: muted,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        )
-                      else
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+                      const SizedBox(height: ArenaDashboardTokens.sectionGap),
+                      const _EditSectionLabel(label: 'DADOS DA ARENA'),
+                      const SizedBox(height: 10),
+                      _EditProfileCard(
+                        child: Column(
                           children: [
-                            for (var i = 0; i < _courtTypes.length; i++)
-                              InputChip(
-                                label: Text(_courtTypes[i]),
-                                onDeleted: () {
-                                  setState(() => _courtTypes.removeAt(i));
-                                },
+                            TextFormField(
+                              controller: _name,
+                              textCapitalization: TextCapitalization.words,
+                              style: const TextStyle(color: AppColors.onSurface),
+                              decoration: _fieldDecoration(
+                                label: 'Nome da arena',
                               ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Nome obrigatório';
+                                }
+                                return null;
+                              },
+                              onChanged: (_) => setState(() {}),
+                            ),
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              controller: _description,
+                              minLines: 3,
+                              maxLines: 6,
+                              style: const TextStyle(color: AppColors.onSurface),
+                              decoration: _fieldDecoration(
+                                label: 'Descrição',
+                                alignLabel: true,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              controller: _phone,
+                              keyboardType: TextInputType.phone,
+                              style: const TextStyle(color: AppColors.onSurface),
+                              decoration: _fieldDecoration(
+                                label: 'Telefone',
+                                hint: '(DDD) número',
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'Telefone obrigatório';
+                                }
+                                if (!isValidArenaPhoneDigits(v)) {
+                                  return 'Telefone inválido';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              controller: _whatsapp,
+                              keyboardType: TextInputType.phone,
+                              style: const TextStyle(color: AppColors.onSurface),
+                              decoration: _fieldDecoration(
+                                label: 'WhatsApp',
+                                hint: 'Opcional',
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return null;
+                                if (!isValidArenaPhoneDigits(v)) {
+                                  return 'Número inválido';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              controller: _address,
+                              textCapitalization: TextCapitalization.sentences,
+                              style: const TextStyle(color: AppColors.onSurface),
+                              decoration: _fieldDecoration(label: 'Endereço'),
+                            ),
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              controller: _city,
+                              textCapitalization: TextCapitalization.words,
+                              style: const TextStyle(color: AppColors.onSurface),
+                              decoration: _fieldDecoration(label: 'Cidade'),
+                            ),
                           ],
                         ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: _addCourtType,
-                        icon: const Icon(Icons.add_rounded),
-                        label: const Text('Adicionar tipo'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
+                      ),
+                      const SizedBox(height: ArenaDashboardTokens.sectionGap),
+                      const _EditSectionLabel(label: 'TIPOS DE QUADRA'),
+                      const SizedBox(height: 10),
+                      _EditProfileCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Toque em um tipo sugerido ou adicione um personalizado.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppColors.onSurfaceMuted,
+                                height: 1.35,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            if (_courtTypes.isEmpty)
+                              Text(
+                                'Nenhum tipo listado ainda.',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: AppColors.onSurfaceMuted,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              )
+                            else
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  for (var i = 0; i < _courtTypes.length; i++)
+                                    InputChip(
+                                      label: Text(_courtTypes[i]),
+                                      labelStyle: const TextStyle(
+                                        color: AppColors.onSurface,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      backgroundColor:
+                                          AppColors.brand.withValues(alpha: 0.12),
+                                      deleteIconColor: AppColors.onSurfaceMuted,
+                                      side: BorderSide(
+                                        color: AppColors.brand
+                                            .withValues(alpha: 0.35),
+                                      ),
+                                      onDeleted: () {
+                                        setState(() => _courtTypes.removeAt(i));
+                                      },
+                                    ),
+                                ],
+                              ),
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                              onPressed: _addCourtType,
+                              icon: const Icon(Icons.add_rounded, size: 20),
+                              label: const Text('Adicionar tipo'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.onSurface,
+                                side: BorderSide(
+                                  color: AppColors.onSurfaceMuted
+                                      .withValues(alpha: 0.35),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 32),
-                      const _FormSectionTitle(label: 'Pagamentos'),
-                      const SizedBox(height: 8),
-                      _SettingsCard(
+                      const SizedBox(height: ArenaDashboardTokens.sectionGap),
+                      const _EditSectionLabel(label: 'PAGAMENTOS'),
+                      const SizedBox(height: 10),
+                      _EditProfileCard(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Column(
                           children: [
                             SwitchListTile.adaptive(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('Pagamento online'),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              title: Text(
+                                'Pagamento online',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.onSurface,
+                                ),
+                              ),
                               subtitle: Text(
                                 'Reservas com pagamento antecipado',
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: muted,
+                                  color: AppColors.onSurfaceMuted,
+                                  height: 1.35,
                                 ),
                               ),
                               value: _onlinePayment,
@@ -540,16 +607,25 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                             ),
                             Divider(
                               height: 1,
-                              color: theme.colorScheme.outline
-                                  .withValues(alpha: 0.12),
+                              color: AppColors.onSurfaceMuted
+                                  .withValues(alpha: 0.15),
                             ),
                             SwitchListTile.adaptive(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text('Pagamento no local'),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              title: Text(
+                                'Pagamento no local',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.onSurface,
+                                ),
+                              ),
                               subtitle: Text(
                                 'Aceitar pagamento na arena',
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: muted,
+                                  color: AppColors.onSurfaceMuted,
+                                  height: 1.35,
                                 ),
                               ),
                               value: _onsitePayment,
@@ -565,6 +641,88 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                 });
                               },
                             ),
+                            if (_onlinePayment) ...[
+                              Divider(
+                                height: 1,
+                                color: AppColors.onSurfaceMuted
+                                    .withValues(alpha: 0.15),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      'Recebimento PIX online',
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.onSurface,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Atletas pagam PIX via NexaGO (Asaas). Repasses automáticos usam a chave abaixo.',
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: AppColors.onSurfaceMuted,
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    DropdownButtonFormField<PayoutPixKeyType>(
+                                      value: _payoutPixKeyType,
+                                      dropdownColor: AppColors.surfaceSheet,
+                                      style: const TextStyle(
+                                        color: AppColors.onSurface,
+                                      ),
+                                      decoration: _fieldDecoration(
+                                        label: 'Tipo da chave PIX',
+                                      ),
+                                      items: [
+                                        for (final t in PayoutPixKeyType.values)
+                                          DropdownMenuItem(
+                                            value: t,
+                                            child: Text(t.label),
+                                          ),
+                                      ],
+                                      onChanged: _onlinePayment
+                                          ? (v) {
+                                              if (v != null) {
+                                                setState(() => _payoutPixKeyType = v);
+                                              }
+                                            }
+                                          : null,
+                                      validator: (v) {
+                                        if (!_onlinePayment) return null;
+                                        if (v == null) {
+                                          return 'Selecione o tipo da chave PIX';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                    const SizedBox(height: 10),
+                                    TextFormField(
+                                      controller: _payoutPixKey,
+                                      style: const TextStyle(
+                                        color: AppColors.onSurface,
+                                      ),
+                                      decoration: _fieldDecoration(
+                                        label: 'Chave PIX da arena',
+                                        hint: _payoutPixKeyType.hintForField(),
+                                      ),
+                                      validator: (v) {
+                                        if (!_onlinePayment) return null;
+                                        if ((v?.trim().length ?? 0) < 5) {
+                                          return 'Informe uma chave PIX válida';
+                                        }
+                                        return _payoutPixKeyType.validateKey(
+                                          v ?? '',
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -576,201 +734,376 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
             ),
           ),
         ),
-        Material(
-          elevation: 10,
-          shadowColor: Colors.black26,
-          color: theme.colorScheme.surface,
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(22, 12, 22, 12),
-              child: SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: FilledButton(
-                  onPressed: _saving ? null : _save,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: _saving
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.4,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          'Salvar alterações',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                ),
-              ),
-            ),
-          ),
-        ),
+        _StickySaveBar(saving: _saving, onSave: _save),
       ],
     );
   }
 
-  static InputDecoration _fieldDecoration(
-    ThemeData theme, {
+  static InputDecoration _fieldDecoration({
     required String label,
     String? hint,
     bool alignLabel = false,
   }) {
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(
+        color: AppColors.onSurfaceMuted.withValues(alpha: 0.22),
+      ),
+    );
     return InputDecoration(
       labelText: label,
       hintText: hint,
       alignLabelWithHint: alignLabel,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+      labelStyle: const TextStyle(
+        color: AppColors.onSurfaceMuted,
+        fontWeight: FontWeight.w500,
+      ),
+      hintStyle: TextStyle(
+        color: AppColors.onSurfaceMuted.withValues(alpha: 0.75),
       ),
       filled: true,
-      fillColor: theme.colorScheme.surface,
+      fillColor: AppColors.surfaceSheet,
+      border: border,
+      enabledBorder: border,
+      focusedBorder: border.copyWith(
+        borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
+      ),
+      errorBorder: border.copyWith(
+        borderSide: const BorderSide(color: AppColors.live),
+      ),
+      focusedErrorBorder: border.copyWith(
+        borderSide: const BorderSide(color: AppColors.live, width: 1.5),
+      ),
     );
   }
 }
 
-class _FormSectionTitle extends StatelessWidget {
-  const _FormSectionTitle({required this.label});
+class _EditSectionLabel extends StatelessWidget {
+  const _EditSectionLabel({required this.label});
 
   final String label;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Text(
       label,
-      style: theme.textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.w800,
-        letterSpacing: -0.3,
-      ),
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: AppColors.onSurfaceMuted,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.8,
+            fontSize: 10,
+          ),
     );
   }
 }
 
-class _SettingsCard extends StatelessWidget {
-  const _SettingsCard({required this.child});
+class _EditProfileCard extends StatelessWidget {
+  const _EditProfileCard({
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+  });
 
   final Widget child;
+  final EdgeInsets padding;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.1),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
+      decoration: ArenaDashboardTokens.cardDecoration(
+        color: AppColors.surfaceRaised,
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
+        padding: padding,
         child: child,
       ),
     );
   }
 }
 
-class _HeaderCover extends StatelessWidget {
-  const _HeaderCover({required this.url});
+class _StickySaveBar extends StatelessWidget {
+  const _StickySaveBar({
+    required this.saving,
+    required this.onSave,
+  });
 
-  final String? url;
+  final bool saving;
+  final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final fallback = ColoredBox(
-      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
-      child: Center(
-        child: Icon(
-          Icons.panorama_wide_angle_outlined,
-          size: 48,
-          color: theme.colorScheme.onSurface.withValues(alpha: 0.22),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        border: Border(
+          top: BorderSide(
+            color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+          ),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            ArenaDashboardTokens.horizontalPadding,
+            12,
+            ArenaDashboardTokens.horizontalPadding,
+            12,
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton(
+              onPressed: saving ? null : onSave,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: AppColors.black,
+                disabledBackgroundColor:
+                    AppColors.brand.withValues(alpha: 0.45),
+                disabledForegroundColor:
+                    AppColors.black.withValues(alpha: 0.5),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: saving
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        color: AppColors.black,
+                      ),
+                    )
+                  : const Text(
+                      'Salvar alterações',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+            ),
+          ),
         ),
       ),
     );
+  }
+}
 
-    if (url == null || url!.isEmpty) return fallback;
+class _EditCoverHeader extends StatelessWidget {
+  const _EditCoverHeader({
+    required this.coverUrl,
+    required this.onBack,
+    required this.onEditCover,
+  });
 
+  final String? coverUrl;
+  final VoidCallback onBack;
+  final VoidCallback onEditCover;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        _CoverImage(coverUrl: coverUrl),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black.withValues(alpha: 0.2),
+                Colors.black.withValues(alpha: 0.6),
+              ],
+            ),
+          ),
+        ),
+        SafeArea(
+          bottom: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 4, 12, 12),
+            child: Row(
+              children: [
+                IconButton(
+                  onPressed: onBack,
+                  icon: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                Material(
+                  color: AppColors.surfaceRaised.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(10),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: onEditCover,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.image_outlined,
+                            size: 16,
+                            color: AppColors.onSurface.withValues(alpha: 0.9),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'ALTERAR CAPA',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelSmall
+                                ?.copyWith(
+                                  color: AppColors.onSurface,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                  fontSize: 10,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CoverImage extends StatelessWidget {
+  const _CoverImage({required this.coverUrl});
+
+  final String? coverUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    const fallback = _CoverSkeleton();
+
+    if (coverUrl == null || coverUrl!.isEmpty) {
+      return fallback;
+    }
     return CachedNetworkImage(
-      imageUrl: url!,
+      imageUrl: coverUrl!,
       fit: BoxFit.cover,
-      fadeInDuration: const Duration(milliseconds: 240),
+      fadeInDuration: const Duration(milliseconds: 280),
       placeholder: (_, __) => fallback,
       errorWidget: (_, __, ___) => fallback,
     );
   }
 }
 
-class _HeaderLogo extends StatelessWidget {
-  const _HeaderLogo({required this.url, required this.name});
-
-  final String? url;
-  final String name;
+class _CoverSkeleton extends StatelessWidget {
+  const _CoverSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    return ColoredBox(
+      color: AppColors.surfaceRaised,
+      child: Center(
+        child: Icon(
+          Icons.panorama_wide_angle_outlined,
+          size: 48,
+          color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditLogoBadge extends StatelessWidget {
+  const _EditLogoBadge({
+    required this.logoUrl,
+    required this.name,
+    required this.size,
+  });
+
+  final String? logoUrl;
+  final String name;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final monogram = _arenaMonogram(name);
+
     return Container(
-      width: 88,
-      height: 88,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+          color: AppColors.surfaceRaised,
           width: 3,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.14),
-            blurRadius: 14,
-            offset: const Offset(0, 5),
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: url != null && url!.isNotEmpty
+      child: logoUrl != null && logoUrl!.isNotEmpty
           ? CachedNetworkImage(
-              imageUrl: url!,
+              imageUrl: logoUrl!,
               fit: BoxFit.cover,
-              fadeInDuration: const Duration(milliseconds: 200),
-              errorWidget: (_, __, ___) => _fallback(theme),
+              fadeInDuration: const Duration(milliseconds: 220),
+              placeholder: (_, __) => _LogoGradient(monogram: monogram),
+              errorWidget: (_, __, ___) => _LogoGradient(monogram: monogram),
             )
-          : _fallback(theme),
+          : _LogoGradient(monogram: monogram),
     );
   }
+}
 
-  Widget _fallback(ThemeData theme) {
-    return ColoredBox(
-      color: AppColors.brand.withValues(alpha: 0.12),
+String _arenaMonogram(String name) {
+  final words =
+      name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  if (words.length >= 2) {
+    return words.take(3).map((w) => w[0].toUpperCase()).join();
+  }
+  final t = name.trim();
+  if (t.isEmpty) return '?';
+  if (t.length <= 3) return t.toUpperCase();
+  return t.substring(0, 3).toUpperCase();
+}
+
+class _LogoGradient extends StatelessWidget {
+  const _LogoGradient({required this.monogram});
+
+  final String monogram;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFFF8A4A),
+            AppColors.brand,
+            Color(0xFFE5560E),
+          ],
+        ),
+      ),
       child: Center(
         child: Text(
-          name.trim().isNotEmpty
-              ? name.trim().substring(0, 1).toUpperCase()
-              : '?',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: AppColors.brand,
+          monogram,
+          style: const TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+            color: AppColors.black,
+            letterSpacing: -0.5,
           ),
         ),
       ),

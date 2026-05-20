@@ -21,11 +21,16 @@ class AthleteProfileRepository {
   }
 
   Future<void> saveProfile(AthleteProfile profile) async {
+    final data = <String, dynamic>{
+      ...profile.toFirestore(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    final cover = profile.coverPhotoUrl?.trim();
+    if (cover == null || cover.isEmpty) {
+      data['coverPhotoUrl'] = FieldValue.delete();
+    }
     await _users.doc(profile.id).set(
-          <String, dynamic>{
-            ...profile.toFirestore(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          },
+          data,
           SetOptions(merge: true),
         );
   }
@@ -41,6 +46,24 @@ class AthleteProfileRepository {
         .child('athletes')
         .child(uid)
         .child('avatar.jpg');
+    await ref.putData(
+      bytes,
+      SettableMetadata(contentType: contentType),
+    );
+    return ref.getDownloadURL();
+  }
+
+  /// Upload em `athletes/{uid}/cover.jpg` e retorna a URL de download.
+  Future<String> uploadCoverPhoto({
+    required String uid,
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child('athletes')
+        .child(uid)
+        .child('cover.jpg');
     await ref.putData(
       bytes,
       SettableMetadata(contentType: contentType),

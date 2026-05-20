@@ -130,7 +130,7 @@ class ArenaDashboardRevenueChart extends StatelessWidget {
                       radius: 4,
                       color: AppColors.brand,
                       strokeWidth: 2,
-                      strokeColor: theme.colorScheme.surface,
+                      strokeColor: AppColors.surfaceCard,
                     );
                   },
                 ),

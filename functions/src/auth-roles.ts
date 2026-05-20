@@ -47,6 +47,20 @@ export function callerIsOrganizer(user: UserRecord): boolean {
   return hasRoleInClaims(user.customClaims, "admin");
 }
 
+/** Gestor de arena no app mobile (`role` / `roles` contém `arena`). */
+export function callerIsArenaManager(user: UserRecord): boolean {
+  return hasRoleInClaims(user.customClaims, "arena");
+}
+
+/** OAuth Mercado Pago: admin da plataforma ou gestor de arena. */
+export function callerCanLinkMercadoPago(user: UserRecord): boolean {
+  return (
+    callerIsOrganizer(user) ||
+    callerIsArenaManager(user) ||
+    isSuperAdminClaim(user.customClaims)
+  );
+}
+
 /** Acesso ao backoffice: admin da plataforma, gestor de torneios (`organizer`) ou super admin. */
 export function callerCanAccessBackoffice(user: UserRecord): boolean {
   return (

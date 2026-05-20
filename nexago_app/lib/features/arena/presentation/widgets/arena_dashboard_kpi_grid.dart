@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../domain/arena_dashboard_period_metrics.dart';
+import 'arena_dashboard_tokens.dart';
 
-/// Quatro KPIs em grade 2×2 (estilo SaaS).
+/// Quatro KPIs em grade 2×2 (dark NexaGO).
 class ArenaDashboardKpiGrid extends StatelessWidget {
   const ArenaDashboardKpiGrid({
     super.key,
@@ -19,9 +21,9 @@ class ArenaDashboardKpiGrid extends StatelessWidget {
       crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 16,
-      crossAxisSpacing: 16,
-      childAspectRatio: 1.42,
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: 1.35,
       children: items.map((e) => _KpiTile(item: e, theme: theme)).toList(),
     );
   }
@@ -32,11 +34,13 @@ class ArenaDashboardKpiItem {
     required this.label,
     required this.value,
     required this.icon,
+    this.badge,
   });
 
   final String label;
   final String value;
   final IconData icon;
+  final ArenaDashboardKpiBadge? badge;
 }
 
 class _KpiTile extends StatelessWidget {
@@ -50,58 +54,95 @@ class _KpiTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muted = theme.colorScheme.onSurface.withValues(alpha: 0.5);
     return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.1),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
+      decoration: ArenaDashboardTokens.cardDecoration(),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
+        child: Stack(
           children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: AppColors.brand.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+            if (item.badge != null)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: _KpiBadgeChip(badge: item.badge!),
               ),
-              child: Icon(item.icon, color: AppColors.brand, size: 22),
-            ),
-            const Spacer(),
-            Text(
-              item.label.toUpperCase(),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: muted,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.6,
-                height: 1.2,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              item.value,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.8,
-                height: 1.05,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.brand.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(item.icon, color: AppColors.brand, size: 20),
+                ),
+                const Spacer(),
+                Text(
+                  item.label.toUpperCase(),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: AppColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  item.value,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.6,
+                    height: 1.05,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _KpiBadgeChip extends StatelessWidget {
+  const _KpiBadgeChip({required this.badge});
+
+  final ArenaDashboardKpiBadge badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, fg) = switch (badge.tone) {
+      ArenaDashboardKpiBadgeTone.positive => (
+          AppColors.win.withValues(alpha: 0.18),
+          AppColors.win,
+        ),
+      ArenaDashboardKpiBadgeTone.negative => (
+          AppColors.live.withValues(alpha: 0.18),
+          AppColors.live,
+        ),
+      ArenaDashboardKpiBadgeTone.neutral => (
+          AppColors.surfaceRaised,
+          AppColors.onSurfaceMuted,
+        ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        badge.label,
+        style: TextStyle(
+          color: fg,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

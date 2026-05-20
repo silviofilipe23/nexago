@@ -1,26 +1,61 @@
 import '../domain/arena_dashboard_summary.dart';
 
+enum ArenaDashboardInsightTone { warning, success, highlight }
+
+class ArenaDashboardInsightLine {
+  const ArenaDashboardInsightLine({
+    required this.message,
+    required this.tone,
+    required this.iconName,
+  });
+
+  final String message;
+  final ArenaDashboardInsightTone tone;
+
+  /// Material icon key: warning, check, crown
+  final String iconName;
+}
+
 /// Textos automáticos para o painel (regras de negócio leves, sem I/O).
 abstract final class ArenaDashboardInsights {
   ArenaDashboardInsights._();
 
-  static List<String> lines(ArenaDashboardSummary s) {
-    final out = <String>[];
+  static List<ArenaDashboardInsightLine> lines(ArenaDashboardSummary s) {
+    final out = <ArenaDashboardInsightLine>[];
 
     if (s.todaySlotsTotal > 0 && s.occupancyRatePercent < 40) {
-      out.add('Baixa ocupação hoje');
+      out.add(
+        ArenaDashboardInsightLine(
+          message:
+              'Baixa ocupação hoje. Alguns horários ainda estão livres — uma promoção rápida pode ajudar a encher.',
+          tone: ArenaDashboardInsightTone.warning,
+          iconName: 'warning',
+        ),
+      );
     }
 
     if (_isStrongRevenueToday(s)) {
-      out.add('🔥 Ótimo desempenho hoje');
+      out.add(
+        const ArenaDashboardInsightLine(
+          message:
+              'Ótimo desempenho hoje. Suas quadras estão com boa movimentação no período.',
+          tone: ArenaDashboardInsightTone.success,
+          iconName: 'check',
+        ),
+      );
     }
 
     if (s.bestWeekdayLabel != null &&
         s.bestWeekdayLabel!.isNotEmpty &&
         s.bestWeekdayRevenue > 0) {
       out.add(
-        'Melhor dia da semana: ${s.bestWeekdayLabel} '
-        '(${_shortMoney(s.bestWeekdayRevenue)} na amostra)',
+        ArenaDashboardInsightLine(
+          message:
+              'Melhor dia: ${s.bestWeekdayLabel}. '
+              'Soma ${_shortMoney(s.bestWeekdayRevenue)} na amostra dos últimos dias.',
+          tone: ArenaDashboardInsightTone.highlight,
+          iconName: 'crown',
+        ),
       );
     }
 

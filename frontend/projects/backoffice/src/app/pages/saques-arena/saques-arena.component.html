@@ -1,0 +1,98 @@
+<div class="mx-auto max-w-4xl p-6">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900">Saques de arenas</h1>
+      <p class="mt-1 text-sm text-slate-600">
+        Saques até R$ 500 tentam PIX automático na solicitação. Esta fila mostra pendentes e falhas de
+        auto. «Aprovar (PIX automático)» reenvia via Asaas; se falhar de novo, use «PIX manual».
+      </p>
+    </div>
+    <button
+      type="button"
+      class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+      [disabled]="lista() === null || processandoId() !== null"
+      (click)="carregar()"
+    >
+      Atualizar
+    </button>
+  </div>
+
+  @if (erro(); as msg) {
+    <p class="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+      {{ msg }}
+    </p>
+  }
+
+  @if (lista() === null) {
+    <p class="mt-8 text-slate-500">Carregando…</p>
+  } @else if (lista()!.length === 0) {
+    <p class="mt-8 text-slate-500">Nenhum saque pendente.</p>
+  } @else {
+    <ul class="mt-6 divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
+      @for (row of lista()!; track row.id) {
+        <li class="flex flex-wrap items-center justify-between gap-4 px-4 py-4">
+          <div class="min-w-0 flex-1">
+            <p class="font-semibold text-slate-900">
+              {{ row.amountReais | currency: 'BRL' }}
+            </p>
+            <p class="text-sm text-slate-600">
+              Arena: {{ row.arenaName || row.arenaId }}
+            </p>
+            <p class="text-sm text-slate-600 break-all">PIX: {{ row.pixKey }}</p>
+            @if (row.payoutStatus === 'failed' && row.payoutError && !isStalePayoutError(row)) {
+              <p class="mt-2 rounded bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-900">
+                Falha PIX automático
+              </p>
+            }
+            @if (row.payoutStatus === 'failed' && isStalePayoutError(row)) {
+              <p class="mt-2 text-xs text-amber-800">
+                Falha de tentativa anterior (integração antiga). Tente «Aprovar (PIX automático)»
+                novamente ou use «PIX manual».
+              </p>
+            }
+            @if (row.payoutStatus) {
+              <p class="text-xs text-slate-500">Repasse Asaas: {{ row.payoutStatus }}</p>
+            }
+            @if (row.asaasTransferId) {
+              <p class="text-xs text-slate-500 break-all">ID transferência: {{ row.asaasTransferId }}</p>
+            }
+            @if (row.payoutError) {
+              <p class="mt-1 text-xs text-red-700 break-all">{{ row.payoutError }}</p>
+            }
+            @if (row.createdAt) {
+              <p class="text-xs text-slate-400">
+                {{ row.createdAt | date: 'short' }}
+              </p>
+            }
+          </div>
+          <div class="flex shrink-0 flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              class="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+              [disabled]="processandoId() === row.id"
+              (click)="aprovarComPix(row)"
+            >
+              Aprovar (PIX automático)
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border border-emerald-600 px-3 py-1.5 text-sm font-semibold text-emerald-800 disabled:opacity-50"
+              [disabled]="processandoId() === row.id"
+              (click)="aprovarManual(row)"
+            >
+              PIX manual
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-800 disabled:opacity-50"
+              [disabled]="processandoId() === row.id"
+              (click)="rejeitar(row)"
+            >
+              Rejeitar
+            </button>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</div>

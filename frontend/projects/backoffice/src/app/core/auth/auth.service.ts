@@ -1,7 +1,9 @@
 import { Injectable, signal } from '@angular/core';
 import {
+  GoogleAuthProvider,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   type User,
 } from 'firebase/auth';
@@ -103,10 +105,35 @@ export class AuthService {
     }
   }
 
+  /** Rota inicial após login (organizador operacional vs painel admin). */
+  defaultRouteAfterLogin(): string {
+    if (!this.canManageUsers() && this.hasRole('organizer')) {
+      return '/operacional';
+    }
+    return '/';
+  }
+
   async signIn(email: string, password: string): Promise<void> {
     const cred = await signInWithEmailAndPassword(this.auth, email, password);
-    await cred.user.getIdToken(true);
-    await this.syncRolesFromUser(cred.user);
+    await this.finishSignIn(cred.user);
+  }
+
+  async signInWithGoogle(): Promise<void> {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const cred = await signInWithPopup(this.auth, provider);
+    await this.finishSignIn(cred.user);
+  }
+
+  private async finishSignIn(user: User): Promise<void> {
+    await user.getIdToken(true);
+    await this.syncRolesFromUser(user);
+    if (!this.canAccessBackoffice()) {
+      await signOut(this.auth);
+      const err = new Error('Sua conta não tem acesso ao backoffice.');
+      (err as Error & { code: string }).code = 'auth/backoffice-access-denied';
+      throw err;
+    }
   }
 
   signOut() {

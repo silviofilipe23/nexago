@@ -49,8 +49,13 @@ dependencies:
   firebase_app_installations: ^0.3.3
   fl_chart: ^0.70.2
   firebase_storage: ^12.4.10
+  google_sign_in: ^6.3.0
   image_picker: ^1.2.1
   local_auth: ^2.3.0
+  app_links: ^6.3.0
+  share_plus: ^10.0.0
+  google_fonts: ^6.2.1
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   firebase_auth_mocks: ^0.14.1

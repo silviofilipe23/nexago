@@ -1,4 +1,6 @@
+import 'arena_promotion.dart';
 import 'arena_slot.dart';
+import 'court_pricing.dart';
 import 'slots_query.dart';
 
 /// Gera slots “virtuais” quando não há documentos em [arenaSlots] ou para preencher lacunas.
@@ -84,8 +86,9 @@ abstract final class VirtualSlotGenerator {
     required SlotsQuery query,
     required Map<String, dynamic>? courtData,
     required DateTime date,
+    List<ArenaPromotion> promotions = const [],
   }) {
-    final duration = _readDuration(courtData);
+    final duration = readSlotDurationMinutes(courtData);
     final ranges = _readRanges(courtData, date.weekday);
     final day = DateTime(date.year, date.month, date.day);
 
@@ -95,6 +98,16 @@ abstract final class VirtualSlotGenerator {
       while (cursor + duration <= range.endMin) {
         final start = _fmt(cursor);
         final end = _fmt(cursor + duration);
+        final pricing = CourtPricing.virtualSlotPricing(
+          arenaId: query.arenaId,
+          courtId: query.courtId,
+          date: day,
+          startTime: start,
+          slotDurationMinutes: duration,
+          courtData: courtData,
+          arenaFallbackPerHourReais: query.arenaFallbackPricePerHourReais,
+          promotions: promotions,
+        );
         slots.add(
           ArenaSlot.virtual(
             arenaId: query.arenaId,
@@ -102,7 +115,9 @@ abstract final class VirtualSlotGenerator {
             date: day,
             startTime: start,
             endTime: end,
-            priceReais: query.fallbackPriceReais,
+            priceReais: pricing?.finalSlotPriceReais,
+            basePriceReais: pricing?.baseSlotPriceReais,
+            appliedPromotionId: pricing?.appliedPromotionId,
           ),
         );
         cursor += duration;
@@ -111,7 +126,7 @@ abstract final class VirtualSlotGenerator {
     return slots;
   }
 
-  static int _readDuration(Map<String, dynamic>? courtData) {
+  static int readSlotDurationMinutes(Map<String, dynamic>? courtData) {
     final v = courtData?['slotDurationMinutes'];
     final n = v is num ? v.toInt() : _defaultDurationMin;
     if (n < 15 || n > 240) return _defaultDurationMin;

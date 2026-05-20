@@ -42,26 +42,29 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final arenaPanelAsync = ref.watch(arenaPanelAccessProvider);
+    final hideAppBarForProfile = _index == 4;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
-      appBar: AppBar(
-        title: Text(_titles[_index]),
-        actions: [
-          ...arenaPanelAsync.maybeWhen(
-            data: (allowed) => allowed
-                ? [
-                    IconButton(
-                      tooltip: 'Painel da arena',
-                      onPressed: () => context.push(AppRoutes.arenaDashboard),
-                      icon: const Icon(Icons.admin_panel_settings_outlined),
-                    ),
-                  ]
-                : <Widget>[],
-            orElse: () => <Widget>[],
-          ),
-        ],
-      ),
+      appBar: hideAppBarForProfile
+          ? null
+          : AppBar(
+              title: Text(_titles[_index]),
+              actions: [
+                ...arenaPanelAsync.maybeWhen(
+                  data: (allowed) => allowed
+                      ? [
+                          IconButton(
+                            tooltip: 'Painel da arena',
+                            onPressed: () => context.push(AppRoutes.arenaDashboard),
+                            icon: const Icon(Icons.admin_panel_settings_outlined),
+                          ),
+                        ]
+                      : <Widget>[],
+                  orElse: () => <Widget>[],
+                ),
+              ],
+            ),
       body: IndexedStack(
         index: _index,
         children: const [

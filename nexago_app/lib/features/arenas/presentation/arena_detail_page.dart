@@ -9,7 +9,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_list_item.dart';
+import '../domain/court_pricing.dart';
 import '../domain/arenas_providers.dart';
+import '../domain/slots_providers.dart';
 import '../../athlete/domain/arena_review_providers.dart';
 import '../../athlete/domain/arena_reputation.dart';
 import '../../arena/domain/review_reply_providers.dart';
@@ -58,12 +60,20 @@ class ArenaDetailPage extends ConsumerWidget {
             ),
           );
         }
+        final courts = ref.watch(courtsStreamProvider(arenaId)).valueOrNull;
+        final minCourtPrice =
+            courts != null ? CourtPricing.minHourlyPriceAmongCourts(courts) : null;
+        final displayPrice = minCourtPrice ?? arena.pricePerHourReais;
+        final showStartingFrom = minCourtPrice != null;
+
         return FadeSlideIn(
           child: _ArenaDetailBody(
             arena: arena,
+            displayPricePerHourReais: displayPrice,
+            showStartingFrom: showStartingFrom,
             recentReviewer: recentReviewerAsync.valueOrNull,
-              reputation: reputationAsync.valueOrNull,
-              socialProof: socialProofAsync.valueOrNull,
+            reputation: reputationAsync.valueOrNull,
+            socialProof: socialProofAsync.valueOrNull,
           ),
         );
       },
@@ -72,6 +82,7 @@ class ArenaDetailPage extends ConsumerWidget {
           return FadeSlideIn(
             child: _ArenaDetailBody(
               arena: initialArena!,
+              displayPricePerHourReais: initialArena!.pricePerHourReais,
               recentReviewer: recentReviewerAsync.valueOrNull,
               reputation: reputationAsync.valueOrNull,
               socialProof: socialProofAsync.valueOrNull,
@@ -98,12 +109,16 @@ class ArenaDetailPage extends ConsumerWidget {
 class _ArenaDetailBody extends StatefulWidget {
   const _ArenaDetailBody({
     required this.arena,
+    required this.displayPricePerHourReais,
+    this.showStartingFrom = false,
     required this.recentReviewer,
     required this.reputation,
     required this.socialProof,
   });
 
   final ArenaListItem arena;
+  final double displayPricePerHourReais;
+  final bool showStartingFrom;
   final String? recentReviewer;
   final ArenaReputation? reputation;
   final String? socialProof;
@@ -417,7 +432,9 @@ class _ArenaDetailBodyState extends State<_ArenaDetailBody> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Preço por hora',
+                                  widget.showStartingFrom
+                                      ? 'A partir de'
+                                      : 'Preço por hora',
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     fontWeight: FontWeight.w600,
                                     color: theme.colorScheme.onSurface
@@ -426,8 +443,9 @@ class _ArenaDetailBodyState extends State<_ArenaDetailBody> {
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  ArenaDetailPage.formatPrice(
-                                      arena.pricePerHourReais),
+                                  widget.showStartingFrom
+                                      ? 'A partir de ${ArenaDetailPage.formatPrice(widget.displayPricePerHourReais)} / hora'
+                                      : '${ArenaDetailPage.formatPrice(widget.displayPricePerHourReais)} / hora',
                                   style:
                                       theme.textTheme.headlineSmall?.copyWith(
                                     fontWeight: FontWeight.w800,

@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../domain/arena_tab.dart';
 
-/// Shell com [BottomNavigationBar] para o módulo gestor da arena.
+/// Shell com navegação inferior escura (gestor da arena).
 class ArenaShellPage extends StatelessWidget {
   const ArenaShellPage({
     super.key,
@@ -22,34 +22,93 @@ class ArenaShellPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final currentIndex =
+        navigationShell.currentIndex.clamp(0, _tabs.length - 1);
 
     return Scaffold(
+      backgroundColor: AppColors.canvas,
       body: navigationShell,
-      bottomNavigationBar: Theme(
-        data: theme.copyWith(
-          splashColor: AppColors.brand.withValues(alpha: 0.08),
-          highlightColor: AppColors.brand.withValues(alpha: 0.05),
-        ),
-        child: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          currentIndex: navigationShell.currentIndex.clamp(0, _tabs.length - 1),
-          selectedFontSize: 11,
-          unselectedFontSize: 11,
-          onTap: (index) => navigationShell.goBranch(
-            index,
-            initialLocation: index == navigationShell.currentIndex,
+      bottomNavigationBar: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.surfaceSheet,
+          border: Border(
+            top: BorderSide(
+              color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+            ),
           ),
-          selectedItemColor: AppColors.brand,
-          unselectedItemColor:
-              theme.colorScheme.onSurface.withValues(alpha: 0.55),
-          items: [
-            for (final tab in _tabs)
-              BottomNavigationBarItem(
-                icon: Icon(_iconFor(tab, selected: false)),
-                activeIcon: Icon(_iconFor(tab, selected: true)),
-                label: tab.label,
+        ),
+        child: SafeArea(
+          top: false,
+          child: SizedBox(
+            height: 64,
+            child: Row(
+              children: [
+                for (var i = 0; i < _tabs.length; i++)
+                  Expanded(
+                    child: _NavItem(
+                      tab: _tabs[i],
+                      selected: i == currentIndex,
+                      onTap: () => navigationShell.goBranch(
+                        i,
+                        initialLocation: i == navigationShell.currentIndex,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.tab,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ArenaTab tab;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _iconFor(tab, selected: selected),
+              size: 22,
+              color: selected ? AppColors.onSurface : AppColors.onSurfaceMuted,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              tab.label.toUpperCase(),
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+                color:
+                    selected ? AppColors.onSurface : AppColors.onSurfaceMuted,
               ),
+            ),
+            const SizedBox(height: 4),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(
+                color: selected ? AppColors.brand : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+            ),
           ],
         ),
       ),
@@ -59,7 +118,9 @@ class ArenaShellPage extends StatelessWidget {
   static IconData _iconFor(ArenaTab tab, {required bool selected}) {
     switch (tab) {
       case ArenaTab.dashboard:
-        return selected ? Icons.dashboard_rounded : Icons.dashboard_outlined;
+        return selected
+            ? Icons.dashboard_rounded
+            : Icons.dashboard_outlined;
       case ArenaTab.schedule:
         return selected
             ? Icons.calendar_month_rounded

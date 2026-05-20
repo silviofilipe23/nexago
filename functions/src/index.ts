@@ -15,6 +15,7 @@ import {
   type AppRole,
   rolesFromClaims,
   hasRoleInClaims,
+  callerCanLinkMercadoPago,
   callerIsOrganizer,
   callerCanAccessBackoffice,
   callerIsSuperAdmin,
@@ -28,6 +29,28 @@ import {
   processArenaBookingMercadoPagoNotification,
 } from "./mercadopago-arena-booking-webhook";
 import {recalculateArenaReviewAggregates} from "./arena-review-aggregates";
+import {quoteArenaBooking, createArenaBooking} from "./arena-booking-create";
+import {
+  cancelPendingArenaBookingPayment,
+  createArenaBookingPixPayment,
+  expirePendingArenaBookingPayments,
+  requestArenaWithdrawal,
+  listPendingArenaWithdrawals,
+  reviewArenaWithdrawal,
+} from "./arena-booking-pix";
+import {asaasWebhook} from "./asaas-webhook";
+
+export {
+  quoteArenaBooking,
+  createArenaBooking,
+  cancelPendingArenaBookingPayment,
+  createArenaBookingPixPayment,
+  expirePendingArenaBookingPayments,
+  requestArenaWithdrawal,
+  listPendingArenaWithdrawals,
+  reviewArenaWithdrawal,
+  asaasWebhook,
+};
 
 // Initialize Firebase Admin
 initializeApp();
@@ -2622,15 +2645,21 @@ export const getMercadoPagoAuthUrl = onCall({
 }, async (request) => {
   const uid = request.auth?.uid;
   if (!uid) {
-    throw new Error("Usuário não autenticado");
+    throw new HttpsError("unauthenticated", "Faça login para continuar.");
   }
   const callerUser = await getAuth().getUser(uid);
-  if (!callerIsOrganizer(callerUser)) {
-    throw new Error("Apenas organizadores podem vincular conta Mercado Pago");
+  if (!callerCanLinkMercadoPago(callerUser)) {
+    throw new HttpsError(
+      "permission-denied",
+      "Apenas gestores de arena ou administradores podem vincular Mercado Pago.",
+    );
   }
+  const payload = (request.data ?? {}) as {redirectTarget?: string};
+  const redirectTarget =
+    payload.redirectTarget === "app" ? "app" : "web";
   const appId = MERCADOPAGO_APP_ID.value();
   if (!appId) {
-    throw new Error("MERCADOPAGO_APP_ID não configurado");
+    throw new HttpsError("failed-precondition", "MERCADOPAGO_APP_ID não configurado");
   }
   // Log seguro: só mascarado para conferir qual App ID está em uso (nunca logar secret)
   const mask = (s: string) => s.length <= 8 ? "***" : s.slice(0, 4) + "…" + s.slice(-4);
@@ -2641,6 +2670,7 @@ export const getMercadoPagoAuthUrl = onCall({
   const db = getFirestore();
   await db.doc(`users/${uid}/mercadopago/oauthPkce`).set({
     codeVerifier,
+    redirectTarget,
     createdAt: FieldValue.serverTimestamp(),
   });
   // Mantém o authorize com parâmetros mínimos para evitar 400 por escopo incompatível.
@@ -2652,23 +2682,38 @@ export const getMercadoPagoAuthUrl = onCall({
  * Callback OAuth do Mercado Pago: troca code por tokens e grava em users/{managerId}/mercadopago/credentials.
  * Redireciona para o app com ?mp=success ou ?mp=error.
  */
+function mercadoPagoOAuthReturnBase(
+  redirectTarget: string | undefined,
+): string {
+  if (redirectTarget === "app") {
+    return "nexago://mercadopago";
+  }
+  return "https://voleigo.com.br/admin/profile";
+}
+
 export const mercadopagoOAuthCallback = onRequest({
   secrets: [MERCADOPAGO_APP_ID, MERCADOPAGO_APP_SECRET],
 }, async (req, res) => {
   const projectId = getFirebaseProjectId();
-  const appUrl = `https://voleigo.com.br`; // Ajuste se o app tiver URL diferente
   const code = req.query?.code as string | undefined;
   const state = req.query?.state as string | undefined; // managerId (uid)
   const errorQuery = req.query?.error as string | undefined;
+  const db = getFirestore();
+  const pkceRef = state ?
+    db.doc(`users/${state}/mercadopago/oauthPkce`) :
+    null;
+  const pkceSnap = pkceRef ? await pkceRef.get() : null;
+  const redirectTarget = pkceSnap?.data()?.["redirectTarget"] as string | undefined;
+  const returnBase = mercadoPagoOAuthReturnBase(redirectTarget);
 
   if (errorQuery) {
     logger.warn("Mercado Pago OAuth error:", errorQuery);
     const reason = errorQuery === "access_denied" ? "access_denied" : "oauth_error";
-    res.redirect(`${appUrl}/admin/profile?mp=error&reason=${encodeURIComponent(reason)}`);
+    res.redirect(`${returnBase}?mp=error&reason=${encodeURIComponent(reason)}`);
     return;
   }
   if (!code || !state) {
-    res.redirect(`${appUrl}/admin/profile?mp=error&reason=no_code`);
+    res.redirect(`${returnBase}?mp=error&reason=no_code`);
     return;
   }
 
@@ -2676,7 +2721,7 @@ export const mercadopagoOAuthCallback = onRequest({
   const appSecret = MERCADOPAGO_APP_SECRET.value();
   if (!appId || !appSecret) {
     logger.warn(`mercadopagoOAuthCallback: credenciais ausentes hasAppId=${!!appId} hasAppSecret=${!!appSecret}`);
-    res.redirect(`${appUrl}/admin/profile?mp=error&reason=config`);
+    res.redirect(`${returnBase}?mp=error&reason=config`);
     return;
   }
   // Log seguro: App ID mascarado; Client Secret nunca logado (só comprimento)
@@ -2684,13 +2729,15 @@ export const mercadopagoOAuthCallback = onRequest({
   logger.info(`mercadopagoOAuthCallback: credenciais em uso appIdMasked=${mask(appId)} appIdLength=${appId.length} appSecretLength=${appSecret.length}`);
 
   const redirectUri = `https://us-central1-${projectId}.cloudfunctions.net/mercadopagoOAuthCallback`;
-  const db = getFirestore();
-  const pkceRef = db.doc(`users/${state}/mercadopago/oauthPkce`);
-  const pkceSnap = await pkceRef.get();
+  if (!pkceRef || !pkceSnap?.exists) {
+    logger.warn(`mercadopagoOAuthCallback: PKCE doc ausente para uid=${state}`);
+    res.redirect(`${returnBase}?mp=error&reason=pkce_missing`);
+    return;
+  }
   const codeVerifier = pkceSnap.data()?.["codeVerifier"];
   if (!codeVerifier || typeof codeVerifier !== "string") {
     logger.warn(`mercadopagoOAuthCallback: PKCE ausente para uid=${state}`);
-    res.redirect(`${appUrl}/admin/profile?mp=error&reason=pkce_missing`);
+    res.redirect(`${returnBase}?mp=error&reason=pkce_missing`);
     return;
   }
   const body = new URLSearchParams({
@@ -2712,7 +2759,7 @@ export const mercadopagoOAuthCallback = onRequest({
       const errText = await tokenRes.text();
       logger.error("MP OAuth token exchange failed:", tokenRes.status, errText);
       const reason = tokenRes.status === 401 ? "token_failed_invalid_client" : `token_failed_${tokenRes.status}`;
-      res.redirect(`${appUrl}/admin/profile?mp=error&reason=${encodeURIComponent(reason)}`);
+      res.redirect(`${returnBase}?mp=error&reason=${encodeURIComponent(reason)}`);
       return;
     }
     const data = await tokenRes.json() as {
@@ -2731,10 +2778,10 @@ export const mercadopagoOAuthCallback = onRequest({
     });
     await pkceRef.delete().catch(() => undefined);
     logger.info(`Mercado Pago vinculado para usuário ${state}`);
-    res.redirect(`${appUrl}/admin/profile?mp=success`);
+    res.redirect(`${returnBase}?mp=success`);
   } catch (e) {
     logger.error("mercadopagoOAuthCallback error:", e);
-    res.redirect(`${appUrl}/admin/profile?mp=error&reason=exception`);
+    res.redirect(`${returnBase}?mp=error&reason=exception`);
   }
 });
 
@@ -3286,3 +3333,183 @@ export const mercadopagoWebhook = onRequest({
   logger.info(`MP webhook: registration ${registrationId} paidAmount=${newPaidAmount} isPaid=${isPaid}`);
   res.status(200).send("OK");
 });
+
+/**
+ * Vincula perfil do usuário autenticado com unicidade forte de e-mail.
+ * Usa doc de reserva em userEmails/{normalizedEmail} para impedir duplicidade entre UIDs.
+ */
+export const linkAuthenticatedUserProfile = onCall(async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Usuário não autenticado.");
+  }
+
+  const rawEmail = request.data?.email;
+  if (typeof rawEmail !== "string" || !rawEmail.trim()) {
+    throw new HttpsError("invalid-argument", "E-mail inválido para vincular perfil.");
+  }
+
+  const normalizedEmail = normalizeEmail(rawEmail);
+  const fullName = typeof request.data?.fullName === "string" ? request.data.fullName.trim() : "";
+  const profilePhotoUrl = typeof request.data?.profilePhotoUrl === "string" ? request.data.profilePhotoUrl.trim() : "";
+
+  const db = getFirestore();
+  const usersByEmailSnapshot = await db
+    .collection("users")
+    .where("email", "==", normalizedEmail)
+    .get();
+
+  const matchingUids = Array.from(new Set(usersByEmailSnapshot.docs.map((item) => item.id)));
+  const foreignMatches = matchingUids.filter((uid) => uid !== callerUid);
+
+  if (foreignMatches.length > 1) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Foram encontrados perfis duplicados com o mesmo e-mail. Contate o suporte para saneamento."
+    );
+  }
+
+  const userRef = db.doc(`users/${callerUid}`);
+  const emailLockRef = db.doc(`userEmails/${normalizedEmail}`);
+  const legacyUid = foreignMatches.length === 1 ? foreignMatches[0] : null;
+  const legacyRef = legacyUid ? db.doc(`users/${legacyUid}`) : null;
+
+  let mergedFromLegacy = false;
+  try {
+    await db.runTransaction(async (tx) => {
+      const docsToRead = [tx.get(emailLockRef), tx.get(userRef)];
+      if (legacyRef) {
+        docsToRead.push(tx.get(legacyRef));
+      }
+      const [lockSnap, userSnap, legacySnap] = await Promise.all(docsToRead);
+
+      if (lockSnap.exists) {
+        const lockUid = lockSnap.get("uid");
+        const canTakeOverLegacyLock = !!(legacyUid && typeof lockUid === "string" && lockUid === legacyUid);
+        if (typeof lockUid === "string" && lockUid && lockUid !== callerUid && !canTakeOverLegacyLock) {
+          throw new HttpsError(
+            "already-exists",
+            "Este e-mail já está em uso por outro usuário."
+          );
+        }
+      }
+
+      const userData = userSnap.exists ? userSnap.data() || {} : {};
+      const nextPayload: Record<string, unknown> = {
+        email: normalizedEmail,
+        role: typeof userData["role"] === "string" ? userData["role"] : "athlete",
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      if (!userSnap.exists || !userData["createdAt"]) {
+        nextPayload["createdAt"] = FieldValue.serverTimestamp();
+      }
+
+      if (!userData["historicalPoints"]) {
+        nextPayload["historicalPoints"] = 0;
+      }
+      if (userData["isProfileComplete"] === undefined) {
+        nextPayload["isProfileComplete"] = false;
+      }
+
+      if (fullName && !userData["fullName"]) {
+        nextPayload["fullName"] = fullName;
+      }
+      if (profilePhotoUrl && !userData["profilePhotoUrl"]) {
+        nextPayload["profilePhotoUrl"] = profilePhotoUrl;
+      }
+
+      if (legacyUid && legacySnap?.exists) {
+        mergedFromLegacy = true;
+        const legacyData = legacySnap.data() || {};
+        const mergedPayload: Record<string, unknown> = {
+          ...legacyData,
+          ...nextPayload,
+          email: normalizedEmail,
+          role: typeof nextPayload["role"] === "string" ? nextPayload["role"] : (legacyData["role"] || "athlete"),
+          updatedAt: FieldValue.serverTimestamp(),
+        };
+        delete mergedPayload["uid"];
+        delete mergedPayload["mergedInto"];
+        tx.set(userRef, mergedPayload, {merge: true});
+        tx.set(legacyRef!, {
+          mergedInto: callerUid,
+          email: FieldValue.delete(),
+          partnerInviteStatus: "accepted",
+          updatedAt: FieldValue.serverTimestamp(),
+        }, {merge: true});
+      } else {
+        tx.set(userRef, nextPayload, {merge: true});
+      }
+
+      tx.set(emailLockRef, {
+        uid: callerUid,
+        email: normalizedEmail,
+        updatedAt: FieldValue.serverTimestamp(),
+        createdAt: lockSnap.exists ? lockSnap.get("createdAt") || FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
+      }, {merge: true});
+    });
+  } catch (error) {
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    logger.error("Erro ao vincular perfil autenticado com unicidade de e-mail:", error);
+    throw new HttpsError("internal", "Não foi possível vincular o perfil do usuário.");
+  }
+
+  let migratedTeams = 0;
+  if (legacyUid) {
+    try {
+      const teamsRef = db.collection(`artifacts/${getFirebaseProjectId()}/public/data/teams`);
+      const [player1Snap, player2Snap] = await Promise.all([
+        teamsRef.where("player1Id", "==", legacyUid).get(),
+        teamsRef.where("player2Id", "==", legacyUid).get(),
+      ]);
+
+      const updatesByDocId = new Map<string, Record<string, unknown>>();
+      player1Snap.docs.forEach((teamDoc) => {
+        const current = updatesByDocId.get(teamDoc.id) || {};
+        current["player1Id"] = callerUid;
+        updatesByDocId.set(teamDoc.id, current);
+      });
+      player2Snap.docs.forEach((teamDoc) => {
+        const current = updatesByDocId.get(teamDoc.id) || {};
+        current["player2Id"] = callerUid;
+        updatesByDocId.set(teamDoc.id, current);
+      });
+
+      if (updatesByDocId.size > 0) {
+        const batch = db.batch();
+        updatesByDocId.forEach((payload, docId) => {
+          batch.update(teamsRef.doc(docId), {
+            ...payload,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        });
+        await batch.commit();
+        migratedTeams = updatesByDocId.size;
+      }
+    } catch (error) {
+      logger.error("Erro ao migrar playerId legado nas equipes:", {legacyUid, callerUid, error});
+      throw new HttpsError(
+        "internal",
+        "Perfil vinculado, mas não foi possível migrar as inscrições/equipes automaticamente."
+      );
+    }
+  }
+
+  return {
+    success: true,
+    email: normalizedEmail,
+    uid: callerUid,
+    mergedFromLegacy,
+    legacyUid: legacyUid || null,
+    migratedTeams,
+  };
+});
+
+
+
+function normalizeEmail(email: string): string {
+  return (email || "").trim().toLowerCase();
+}

@@ -285,6 +285,27 @@ String arenaBookingStatusLabel(Map<String, dynamic>? data) {
   return parts.join(' · ');
 }
 
+/// Exibe o botão de check-in do gestor apenas enquanto a presença ainda pode ser registrada.
+bool arenaBookingShowsCheckInAction(Map<String, dynamic>? data) {
+  if (data == null) return false;
+
+  final bookingStatus =
+      (data['status'] as String?)?.trim().toLowerCase() ?? '';
+  if (bookingStatus == 'cancelled' ||
+      bookingStatus == 'canceled' ||
+      bookingStatus == 'completed') {
+    return false;
+  }
+
+  final attendance =
+      (data['attendanceStatus'] as String?)?.trim().toLowerCase() ?? 'pending';
+  if (attendance == 'checked_in' || attendance == 'no_show') {
+    return false;
+  }
+
+  return true;
+}
+
 String _mapBookingStatus(String raw) {
   switch (raw.toLowerCase()) {
     case 'active':

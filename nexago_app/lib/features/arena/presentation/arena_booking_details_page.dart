@@ -180,7 +180,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
           ArenaBookingDetailCheckin(
             bookingId: id,
             athleteId: athleteId,
-            attendanceStatus: resolvedBooking.attendanceStatus,
+            bookingData: data,
           ),
           const SizedBox(height: 14),
           ArenaBookingDetailHistory(

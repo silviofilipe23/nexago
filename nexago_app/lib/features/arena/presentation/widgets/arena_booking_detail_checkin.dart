@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
+import '../../domain/arena_booking_labels.dart';
+import '../../domain/arena_slot_detail_providers.dart';
 import '../../../arenas/domain/booking_providers.dart';
 
 class ArenaBookingDetailCheckin extends ConsumerStatefulWidget {
@@ -10,12 +12,12 @@ class ArenaBookingDetailCheckin extends ConsumerStatefulWidget {
     super.key,
     required this.bookingId,
     required this.athleteId,
-    required this.attendanceStatus,
+    required this.bookingData,
   });
 
   final String bookingId;
   final String athleteId;
-  final String attendanceStatus;
+  final Map<String, dynamic>? bookingData;
 
   @override
   ConsumerState<ArenaBookingDetailCheckin> createState() =>
@@ -28,7 +30,7 @@ class _ArenaBookingDetailCheckinState
 
   @override
   Widget build(BuildContext context) {
-    if (widget.attendanceStatus == 'checked_in') {
+    if (!arenaBookingShowsCheckInAction(widget.bookingData)) {
       return const SizedBox.shrink();
     }
 
@@ -62,6 +64,7 @@ class _ArenaBookingDetailCheckinState
             locationVerified: true,
           );
       if (!mounted) return;
+      ref.invalidate(arenaBookingDetailMapProvider(widget.bookingId));
       showAppSnackBar(context, 'Check-in registrado.');
     } catch (e) {
       if (!mounted) return;

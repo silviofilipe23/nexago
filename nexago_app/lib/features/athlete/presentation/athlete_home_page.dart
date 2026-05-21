@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../domain/gamification_providers.dart';
+import '../../tournaments/presentation/widgets/my_tournaments_home_section.dart';
+import 'widgets/athlete_compete_entry_card.dart';
 import 'widgets/gamification_home_card.dart';
 
 /// Aba Início do atleta com card de gamificação.
@@ -40,6 +42,10 @@ class AthleteHomePage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 16),
+              const AthleteCompeteEntryCard(),
+              const SizedBox(height: 14),
+              const MyTournamentsHomeSection(),
+              const SizedBox(height: 14),
               GamificationHomeCard(
                 summary: summary,
                 dailyMissions: missionsAsync.valueOrNull,

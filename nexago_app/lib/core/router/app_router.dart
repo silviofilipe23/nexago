@@ -37,7 +37,14 @@ import '../../features/arena/presentation/arena_shell_page.dart';
 import '../../features/arena/domain/arena_slot_detail_args.dart';
 import '../../features/arenas/presentation/my_bookings_page.dart';
 import '../../features/arena/domain/arena_route_guard.dart';
+import '../../features/athlete/domain/athlete_profile_providers.dart';
 import '../../features/athlete/domain/booking_invite_providers.dart';
+import '../../features/athlete/onboarding/presentation/athlete_onboarding_welcome_page.dart';
+import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_goals_step.dart';
+import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_level_step.dart';
+import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_other_sports_step.dart';
+import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_primary_sport_step.dart';
+import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_profile_step.dart';
 import '../../features/athlete/presentation/athlete_edit_profile_page.dart';
 import '../../features/athlete/presentation/booking_invite_page.dart';
 import '../../features/athlete/presentation/athlete_profile_page.dart';
@@ -45,13 +52,60 @@ import '../../features/athlete/presentation/athlete_settings_page.dart';
 import '../../features/athlete/presentation/athlete_profile_update_success_page.dart';
 import '../../features/athlete/presentation/arena_reviews_page.dart';
 import '../../features/athlete/presentation/athlete_shell_page.dart';
+import '../../features/tournaments/presentation/league_detail_page.dart';
+import '../../features/tournaments/presentation/tournament_detail_page.dart';
+import '../../features/tournaments/presentation/tournament_registration_page.dart';
 import '../auth/auth_providers.dart';
 import '../auth/user_roles.dart';
 import 'go_router_refresh.dart';
 import 'routes.dart';
 
+bool _routeIsRegister(GoRouterState state) {
+  final path = state.uri.path;
+  final matched = state.matchedLocation;
+  return path == AppRoutes.register ||
+      matched == AppRoutes.register ||
+      path.startsWith('${AppRoutes.register}/') ||
+      matched.startsWith('${AppRoutes.register}/');
+}
+
+bool _routeIsAthleteOnboarding(GoRouterState state) {
+  final path = state.uri.path;
+  final matched = state.matchedLocation;
+  return path == AppRoutes.athleteOnboarding ||
+      matched == AppRoutes.athleteOnboarding ||
+      path.startsWith('${AppRoutes.athleteOnboarding}/') ||
+      matched.startsWith('${AppRoutes.athleteOnboarding}/');
+}
+
+bool _needsAthleteOnboarding(AsyncValue profileAsync) {
+  return profileAsync.when(
+    data: (profile) =>
+        profile == null || !profile.onboardingCompleted,
+    loading: () => false,
+    error: (_, __) => false,
+  );
+}
+
+/// Mantém o bypass até o stream refletir [AthleteProfile.onboardingCompleted].
+bool _shouldBypassAthleteOnboardingRedirect(Ref ref) {
+  if (!ref.read(athleteOnboardingJustCompletedProvider)) {
+    return false;
+  }
+  final profileAsync = ref.read(athleteProfileProvider);
+  final isComplete = profileAsync.whenOrNull(
+    data: (profile) => profile?.onboardingCompleted == true,
+  );
+  if (isComplete == true) {
+    ref.read(athleteOnboardingJustCompletedProvider.notifier).state = false;
+    return false;
+  }
+  return true;
+}
+
 /// Router centralizado com guard baseado em [authProvider].
 final goRouterProvider = Provider<GoRouter>((ref) {
+  ref.keepAlive();
   final refresh = ref.watch(goRouterRefreshNotifierProvider);
 
   return GoRouter(
@@ -78,9 +132,25 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (user != null && isAuthRoute) {
+        // Cadastro controla a navegação (tela de sucesso → completar perfil).
+        if (_routeIsRegister(state)) {
+          return null;
+        }
         final token = await _safeGetIdTokenResult(user);
         if (token == null) {
           return AppRoutes.login;
+        }
+        if (!userIsArenaOnlyManager(token)) {
+          final profileAsync = ref.read(athleteProfileProvider);
+          if (profileAsync.isLoading) {
+            return null;
+          }
+          if (_shouldBypassAthleteOnboardingRedirect(ref)) {
+            return null;
+          }
+          if (_needsAthleteOnboarding(profileAsync)) {
+            return AppRoutes.athleteOnboardingWelcome;
+          }
         }
         // Redireciona para o convite pendente recebido via deep link
         final pendingInvite = ref.read(pendingInviteIdProvider);
@@ -95,9 +165,28 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (user != null) {
+        if (_routeIsRegister(state) || _routeIsAthleteOnboarding(state)) {
+          return null;
+        }
+
         final token = await _safeGetIdTokenResult(user);
         if (token == null) {
           return isAuthRoute ? null : AppRoutes.login;
+        }
+
+        if (!userIsArenaOnlyManager(token)) {
+          final profileAsync = ref.read(athleteProfileProvider);
+          if (profileAsync.isLoading) {
+            return null;
+          }
+          if (_shouldBypassAthleteOnboardingRedirect(ref)) {
+            return null;
+          }
+          if (_needsAthleteOnboarding(profileAsync) &&
+              !isAuthRoute &&
+              !isPublicRoute) {
+            return AppRoutes.athleteOnboardingWelcome;
+          }
         }
 
         if (isArenaManagerPanelPath(path)) {
@@ -150,7 +239,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final initialIndex = switch (tab) {
             'agenda' => 1,
             'reservar' => 2,
-            'feed' => 3,
+            'torneios' || 'competir' || 'feed' => 3,
             'perfil' || 'profile' => 4,
             _ => 0,
           };
@@ -186,6 +275,75 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.athleteProfileUpdateSuccess,
         name: AppRouteNames.athleteProfileUpdateSuccess,
         builder: (context, state) => const AthleteProfileUpdateSuccessPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteOnboarding,
+        redirect: (context, state) {
+          final path = state.uri.path;
+          // Só redireciona a raiz; redirect incondicional no pai bloqueia rotas filhas.
+          if (path == AppRoutes.athleteOnboarding ||
+              path == '${AppRoutes.athleteOnboarding}/') {
+            return AppRoutes.athleteOnboardingWelcome;
+          }
+          return null;
+        },
+        routes: [
+          GoRoute(
+            path: 'welcome',
+            name: AppRouteNames.athleteOnboardingWelcome,
+            builder: (context, state) => const AthleteOnboardingWelcomePage(),
+          ),
+          GoRoute(
+            path: 'primary-sport',
+            name: AppRouteNames.athleteOnboardingPrimarySport,
+            builder: (context, state) =>
+                const AthleteOnboardingPrimarySportStep(),
+          ),
+          GoRoute(
+            path: 'other-sports',
+            name: AppRouteNames.athleteOnboardingOtherSports,
+            builder: (context, state) => const AthleteOnboardingOtherSportsStep(),
+          ),
+          GoRoute(
+            path: 'level',
+            name: AppRouteNames.athleteOnboardingLevel,
+            builder: (context, state) => const AthleteOnboardingLevelStep(),
+          ),
+          GoRoute(
+            path: 'goals',
+            name: AppRouteNames.athleteOnboardingGoals,
+            builder: (context, state) => const AthleteOnboardingGoalsStep(),
+          ),
+          GoRoute(
+            path: 'profile',
+            name: AppRouteNames.athleteOnboardingProfile,
+            builder: (context, state) => const AthleteOnboardingProfileStep(),
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentDetail,
+        name: AppRouteNames.tournamentDetail,
+        builder: (context, state) {
+          final id = state.pathParameters['tournamentId']?.trim() ?? '';
+          return TournamentDetailPage(tournamentId: id);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentRegistration,
+        name: AppRouteNames.tournamentRegistration,
+        builder: (context, state) {
+          final id = state.pathParameters['tournamentId']?.trim() ?? '';
+          return TournamentRegistrationPage(tournamentId: id);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.leagueDetail,
+        name: AppRouteNames.leagueDetail,
+        builder: (context, state) {
+          final id = state.pathParameters['leagueId']?.trim() ?? '';
+          return LeagueDetailPage(leagueId: id);
+        },
       ),
       GoRoute(
         path: '/arena',

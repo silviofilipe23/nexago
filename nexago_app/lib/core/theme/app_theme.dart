@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'app_colors.dart';
+import 'app_typography.dart';
 
 abstract final class AppTheme {
   AppTheme._();
@@ -13,20 +13,7 @@ abstract final class AppTheme {
   static ThemeData _build(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     final colorScheme = isDark ? _darkColorScheme : _lightColorScheme;
-
-    final inter = GoogleFonts.interTextTheme();
-    final sora = GoogleFonts.soraTextTheme();
-    final textTheme = inter.copyWith(
-      displayLarge: sora.displayLarge,
-      displayMedium: sora.displayMedium,
-      displaySmall: sora.displaySmall,
-      headlineLarge: sora.headlineLarge,
-      headlineMedium: sora.headlineMedium,
-      headlineSmall: sora.headlineSmall,
-      titleLarge: sora.titleLarge,
-      titleMedium: sora.titleMedium,
-      titleSmall: sora.titleSmall,
-    );
+    final textTheme = _textTheme(brightness, colorScheme);
 
     return ThemeData(
       useMaterial3: true,
@@ -35,6 +22,7 @@ abstract final class AppTheme {
       scaffoldBackgroundColor:
           isDark ? AppColors.canvas : AppColors.canvasLight,
       textTheme: textTheme,
+      primaryTextTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: isDark ? AppColors.canvas : AppColors.canvasLight,
         foregroundColor:
@@ -43,6 +31,9 @@ abstract final class AppTheme {
         scrolledUnderElevation: 0,
         centerTitle: true,
         surfaceTintColor: Colors.transparent,
+        titleTextStyle: textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+        ),
       ),
       cardTheme: CardThemeData(
         color: isDark ? AppColors.surfaceCard : AppColors.white,
@@ -61,6 +52,9 @@ abstract final class AppTheme {
           backgroundColor: AppColors.brand,
           foregroundColor: AppColors.black,
           elevation: 0,
+          textStyle: textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -70,6 +64,9 @@ abstract final class AppTheme {
           side: BorderSide(
             color: colorScheme.outline.withValues(alpha: 0.35),
           ),
+          textStyle: textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
@@ -78,12 +75,14 @@ abstract final class AppTheme {
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return TextStyle(
+              fontFamily: AppTypography.fontFamily,
               fontWeight: FontWeight.w700,
               fontSize: 11,
               color: isDark ? AppColors.onSurface : AppColors.brand,
             );
           }
           return TextStyle(
+            fontFamily: AppTypography.fontFamily,
             fontWeight: FontWeight.w600,
             fontSize: 11,
             color: AppColors.onSurfaceMuted,
@@ -97,12 +96,47 @@ abstract final class AppTheme {
         unselectedItemColor: AppColors.onSurfaceMuted,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
+        selectedLabelStyle: const TextStyle(
+          fontFamily: AppTypography.fontFamily,
+          fontWeight: FontWeight.w700,
+          fontSize: 11,
+        ),
+        unselectedLabelStyle: const TextStyle(
+          fontFamily: AppTypography.fontFamily,
+          fontWeight: FontWeight.w600,
+          fontSize: 11,
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.surfaceRaised,
-        contentTextStyle: const TextStyle(color: AppColors.onSurface),
+        contentTextStyle: textTheme.bodyMedium?.copyWith(
+          color: AppColors.onSurface,
+        ),
         behavior: SnackBarBehavior.floating,
       ),
+      inputDecorationTheme: InputDecorationTheme(
+        hintStyle: textTheme.bodyLarge?.copyWith(
+          color: AppColors.onSurfaceMuted.withValues(alpha: 0.75),
+          fontWeight: FontWeight.w400,
+        ),
+        labelStyle: textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
+  static TextTheme _textTheme(Brightness brightness, ColorScheme colorScheme) {
+    final typography = Typography.material2021();
+    final base = brightness == Brightness.dark
+        ? typography.white
+        : typography.black;
+
+    return base.apply(
+      fontFamily: AppTypography.fontFamily,
+      bodyColor: colorScheme.onSurface,
+      displayColor: colorScheme.onSurface,
     );
   }
 

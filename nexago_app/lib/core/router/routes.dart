@@ -25,6 +25,17 @@ abstract final class AppRoutes {
   /// Sucesso após salvar perfil do atleta.
   static const String athleteProfileUpdateSuccess = '/athlete/profile/updated';
 
+  /// Onboarding pós-cadastro do atleta.
+  static const String athleteOnboarding = '/athlete/onboarding';
+  static const String athleteOnboardingWelcome = '/athlete/onboarding/welcome';
+  static const String athleteOnboardingPrimarySport =
+      '/athlete/onboarding/primary-sport';
+  static const String athleteOnboardingOtherSports =
+      '/athlete/onboarding/other-sports';
+  static const String athleteOnboardingLevel = '/athlete/onboarding/level';
+  static const String athleteOnboardingGoals = '/athlete/onboarding/goals';
+  static const String athleteOnboardingProfile = '/athlete/onboarding/profile';
+
   // --- Painel da arena (gestor) — literais antes de [arenaDetail] no router ---
 
   static const String arenaDashboard = '/arena/dashboard';
@@ -89,6 +100,16 @@ abstract final class AppRoutes {
 
   /// Convite para jogar: `/convite/:inviteId`
   static const String bookingInvite = '/convite/:inviteId';
+
+  /// Detalhe de torneio: `/torneios/:tournamentId`
+  static const String tournamentDetail = '/torneios/:tournamentId';
+
+  /// Inscrição: `/torneios/:tournamentId/inscricao`
+  static const String tournamentRegistration =
+      '/torneios/:tournamentId/inscricao';
+
+  /// Detalhe de liga: `/ligas/:leagueId`
+  static const String leagueDetail = '/ligas/:leagueId';
 }
 
 abstract final class AppRouteNames {
@@ -105,6 +126,14 @@ abstract final class AppRouteNames {
   static const String athleteSettings = 'athleteSettings';
   static const String athleteProfileUpdateSuccess =
       'athleteProfileUpdateSuccess';
+  static const String athleteOnboardingWelcome = 'athleteOnboardingWelcome';
+  static const String athleteOnboardingPrimarySport =
+      'athleteOnboardingPrimarySport';
+  static const String athleteOnboardingOtherSports =
+      'athleteOnboardingOtherSports';
+  static const String athleteOnboardingLevel = 'athleteOnboardingLevel';
+  static const String athleteOnboardingGoals = 'athleteOnboardingGoals';
+  static const String athleteOnboardingProfile = 'athleteOnboardingProfile';
 
   static const String arenaDashboard = 'arenaDashboard';
   static const String arenaSchedule = 'arenaSchedule';
@@ -134,4 +163,7 @@ abstract final class AppRouteNames {
   static const String arenaBookingBlocked = 'arenaBookingBlocked';
   static const String bookingSuccess = 'bookingSuccess';
   static const String bookingInvite = 'bookingInvite';
+  static const String tournamentDetail = 'tournamentDetail';
+  static const String tournamentRegistration = 'tournamentRegistration';
+  static const String leagueDetail = 'leagueDetail';
 }

@@ -9,6 +9,9 @@ final athleteProfileRepositoryProvider = Provider<AthleteProfileRepository>((ref
   return AthleteProfileRepository(ref.watch(firestoreProvider));
 });
 
+/// Evita que o redirect do router mande de volta ao onboarding logo após concluir.
+final athleteOnboardingJustCompletedProvider = StateProvider<bool>((ref) => false);
+
 /// Documento `users/{uid}` do atleta logado ou `null` se ainda não existir.
 final athleteProfileProvider = StreamProvider.autoDispose<AthleteProfile?>((ref) {
   final user = ref.watch(authProvider).valueOrNull;

@@ -93,6 +93,14 @@ class AuthService {
     return _auth.sendPasswordResetEmail(email: email.trim());
   }
 
+  /// Envia e-mail de verificação para o usuário recém-cadastrado.
+  Future<void> sendEmailVerification() async {
+    final user = _auth.currentUser;
+    if (user != null && !user.emailVerified) {
+      await user.sendEmailVerification();
+    }
+  }
+
   /// Reautenticação com e-mail/senha (ex.: desbloqueio quando Face ID não é usado).
   Future<void> reauthenticateWithEmailAndPassword({
     required String email,

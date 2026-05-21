@@ -51,5 +51,6 @@ void main() {
     expect(find.byType(BottomNavigationBar), findsOneWidget);
     expect(find.text('Início'), findsWidgets);
     expect(find.text('Perfil'), findsOneWidget);
+    expect(find.text('Competir'), findsOneWidget);
   });
 }

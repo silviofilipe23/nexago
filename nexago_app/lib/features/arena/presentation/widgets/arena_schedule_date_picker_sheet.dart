@@ -141,22 +141,22 @@ class _ArenaScheduleDatePickerSheetState
               onSelect: (d) => setState(() => _selected = d),
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Text(
-                  'OCUPAÇÃO',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-                const Spacer(),
-                _LegendDot(color: AppColors.pending, label: 'baixa'),
-                const SizedBox(width: 12),
-                _LegendDot(color: AppColors.live, label: 'cheia'),
-              ],
-            ),
+            // Row(
+            //   children: [
+            //     Text(
+            //       'OCUPAÇÃO',
+            //       style: theme.textTheme.labelSmall?.copyWith(
+            //         color: AppColors.onSurfaceMuted,
+            //         fontWeight: FontWeight.w800,
+            //         letterSpacing: 0.6,
+            //       ),
+            //     ),
+            //     const Spacer(),
+            //     _LegendDot(color: AppColors.pending, label: 'baixa'),
+            //     const SizedBox(width: 12),
+            //     _LegendDot(color: AppColors.live, label: 'cheia'),
+            //   ],
+            // ),
             const SizedBox(height: 20),
             Row(
               children: [

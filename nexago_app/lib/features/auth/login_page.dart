@@ -1,5 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,7 +7,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_providers.dart';
 import '../../core/auth/firebase_auth_error_mapper.dart';
 import '../../core/router/routes.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/ui/app_snackbar.dart';
+import '../../core/ui/fade_slide_in.dart';
+import 'widgets/auth_form_widgets.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -16,8 +19,7 @@ class LoginPage extends ConsumerStatefulWidget {
   ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends ConsumerState<LoginPage>
-    with SingleTickerProviderStateMixin {
+class _LoginPageState extends ConsumerState<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -27,20 +29,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
   String? _emailError;
   String? _passwordError;
 
-  late AnimationController _fadeController;
-
-  @override
-  void initState() {
-    super.initState();
-    _fadeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    )..forward();
-  }
-
   @override
   void dispose() {
-    _fadeController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -119,419 +109,179 @@ class _LoginPageState extends ConsumerState<LoginPage>
 
   @override
   Widget build(BuildContext context) {
-    const pageBg = Color(0xFFF4F4F5);
-    const fieldBg = Color(0xFFEDEDEF);
-    const primary = Color(0xFF6657F6);
-    const textMuted = Color(0xFF6E6E73);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final busy = _submitting || _googleSubmitting;
 
-    return CupertinoPageScaffold(
-      backgroundColor: pageBg,
-      child: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeController,
-          child: DefaultTextStyle.merge(
-            style: const TextStyle(decoration: TextDecoration.none),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 10),
-                  const _LoginLogoBadge(),
-                  const SizedBox(height: 18),
-                  const Text(
-                    'Bem-vindo de volta',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: CupertinoColors.black,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Viva uma nova experiência no esporte',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w400,
-                      fontSize: 14,
-                      color: textMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 26),
-                  _fieldLabel('E-MAIL'),
-                  _buildField(
-                    controller: _emailController,
-                    placeholder: 'seu@email.com',
-                    backgroundColor: fieldBg,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.email],
-                    errorText: _emailError,
-                    onChanged: (_) {
-                      if (_emailError != null) {
-                        setState(() => _emailError = null);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _fieldLabel('SENHA'),
-                  _buildField(
-                    controller: _passwordController,
-                    placeholder: '••••••••',
-                    backgroundColor: fieldBg,
-                    obscure: _obscurePassword,
-                    textInputAction: TextInputAction.done,
-                    autofillHints: const [AutofillHints.password],
-                    onSubmitted: (_) => _submit(),
-                    errorText: _passwordError,
-                    suffix: _buildEye(
-                      isObscured: _obscurePassword,
-                      onTap: () {
-                        HapticFeedback.selectionClick();
-                        setState(() => _obscurePassword = !_obscurePassword);
-                      },
-                    ),
-                    onChanged: (_) {
-                      if (_passwordError != null) {
-                        setState(() => _passwordError = null);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  Center(
-                    child: CupertinoButton(
-                      padding: EdgeInsets.zero,
-                      minimumSize: Size.zero,
-                      onPressed: (_submitting || _googleSubmitting)
-                          ? null
-                          : () => context.push(AppRoutes.forgotPassword),
-                      child: const Text(
-                        'Esqueceu a senha?',
-                        style: TextStyle(
-                          color: primary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: (_submitting || _googleSubmitting) ? null : _submit,
-                    child: Container(
-                      height: 54,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF5F63F6), Color(0xFF7A4EF4)],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF7B61FF).withValues(alpha: 0.35),
-                            blurRadius: 16,
-                            offset: const Offset(0, 8),
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            const AuthCanvasGlow(),
+            FadeSlideIn(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const AuthLogo(showTagline: true),
+                        const SizedBox(height: 28),
+                        Text(
+                          'Bem-vindo de volta.',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.onSurface,
+                            letterSpacing: -0.5,
+                            height: 1.15,
                           ),
-                        ],
-                      ),
-                      alignment: Alignment.center,
-                      child: _submitting
-                          ? const CupertinoActivityIndicator(
-                              color: CupertinoColors.white,
-                            )
-                          : const Text(
-                              'Entrar',
-                              style: TextStyle(
-                                color: CupertinoColors.white,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: -0.1,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Entra pra continuar de onde parou na quadra.',
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppColors.onSurfaceMuted,
+                            height: 1.45,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        const AuthFieldLabel(label: 'E-MAIL'),
+                        AuthTextField(
+                          controller: _emailController,
+                          hintText: 'seu@email.com',
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.email],
+                          errorText: _emailError,
+                          borderless: true,
+                          onChanged: (_) {
+                            if (_emailError != null) {
+                              setState(() => _emailError = null);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        const AuthFieldLabel(label: 'SENHA'),
+                        AuthTextField(
+                          controller: _passwordController,
+                          hintText: '••••••••',
+                          obscureText: _obscurePassword,
+                          textInputAction: TextInputAction.done,
+                          autofillHints: const [AutofillHints.password],
+                          errorText: _passwordError,
+                          borderless: true,
+                          onSubmitted: (_) => _submit(),
+                          onChanged: (_) {
+                            if (_passwordError != null) {
+                              setState(() => _passwordError = null);
+                            }
+                          },
+                          suffixIcon: authPasswordVisibilityIcon(
+                            obscured: _obscurePassword,
+                            onToggle: () {
+                              HapticFeedback.selectionClick();
+                              setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: AuthLinkButton(
+                            label: 'Esqueceu a senha?',
+                            onPressed: busy
+                                ? null
+                                : () => context.push(AppRoutes.forgotPassword),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: FilledButton(
+                            onPressed: busy ? null : _submit,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.brandPressed,
+                              foregroundColor: AppColors.black,
+                              disabledBackgroundColor:
+                                  AppColors.brandPressed.withValues(alpha: 0.35),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  const _OrDivider(),
-                  const SizedBox(height: 14),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: (_submitting || _googleSubmitting)
-                        ? null
-                        : _signInWithGoogle,
-                    child: Container(
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: fieldBg,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      alignment: Alignment.center,
-                      child: _googleSubmitting
-                          ? const CupertinoActivityIndicator()
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              mainAxisSize: MainAxisSize.min,
-                              children: const [
-                                _GoogleGlyph(size: 20),
-                                SizedBox(width: 10),
-                                Text(
-                                  'Continuar com Google',
-                                  style: TextStyle(
-                                    color: CupertinoColors.black,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
+                            child: _submitting
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.black,
+                                    ),
+                                  )
+                                : Text(
+                                    'Entrar',
+                                    style:
+                                        theme.textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.black,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  CupertinoButton(
-                    padding: EdgeInsets.zero,
-                    onPressed: (_submitting || _googleSubmitting) ? null : () {},
-                    child: Container(
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: fieldBg,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        'Continuar com Apple',
-                        style: TextStyle(
-                          color: CupertinoColors.black,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        'Não tem conta? ',
-                        style: TextStyle(
-                          color: textMuted,
-                          fontSize: 14,
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: (_submitting || _googleSubmitting)
-                            ? null
-                            : () => context.push(AppRoutes.register),
-                        child: const Text(
-                          'Criar conta',
-                          style: TextStyle(
-                            color: primary,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 24),
+                        AuthOrDivider(color: scheme.outline),
+                        const SizedBox(height: 24),
+                        AuthSocialButton(
+                          onPressed: busy ? null : _signInWithGoogle,
+                          loading: _googleSubmitting,
+                          icon: const AuthGoogleGlyph(),
+                          label: 'Continuar com Google',
+                        ),
+                        const SizedBox(height: 10),
+                        AuthSocialButton(
+                          onPressed: null,
+                          icon: const Icon(
+                            Icons.apple,
+                            size: 22,
+                            color: AppColors.onSurface,
+                          ),
+                          label: 'Continuar com Apple',
+                        ),
+                        const SizedBox(height: 28),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Novo por aqui? ',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: AppColors.onSurfaceMuted,
+                              ),
+                            ),
+                            AuthLinkButton(
+                              label: 'Criar conta',
+                              onPressed: busy
+                                  ? null
+                                  : () => context.go(AppRoutes.register),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 14),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _fieldLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 2, bottom: 6),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFF636366),
-          fontWeight: FontWeight.w400,
-          fontSize: 11,
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildField({
-    required TextEditingController controller,
-    required String placeholder,
-    required Color backgroundColor,
-    TextInputType? keyboardType,
-    bool obscure = false,
-    Widget? suffix,
-    String? errorText,
-    List<String>? autofillHints,
-    TextInputAction? textInputAction,
-    ValueChanged<String>? onSubmitted,
-    ValueChanged<String>? onChanged,
-  }) {
-    final hasError = errorText != null && errorText.isNotEmpty;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(12),
-            border: hasError
-                ? Border.all(color: CupertinoColors.systemRed, width: 1)
-                : null,
-          ),
-          child: CupertinoTextField(
-            controller: controller,
-            keyboardType: keyboardType,
-            obscureText: obscure,
-            autofillHints: autofillHints,
-            textInputAction: textInputAction,
-            onSubmitted: onSubmitted,
-            onChanged: onChanged,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            placeholder: placeholder,
-            placeholderStyle: const TextStyle(
-              color: Color(0xFF9B9BA1),
-              fontSize: 17,
-              fontWeight: FontWeight.w400,
-              letterSpacing: -0.1,
-            ),
-            style: const TextStyle(
-              color: CupertinoColors.black,
-              fontSize: 17,
-              fontWeight: FontWeight.w400,
-              letterSpacing: -0.1,
-            ),
-            decoration: const BoxDecoration(
-              color: CupertinoColors.transparent,
-            ),
-            suffix: suffix == null
-                ? null
-                : Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: suffix,
-                  ),
-          ),
-        ),
-        if (hasError) ...[
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.only(left: 4),
-            child: Text(
-              errorText,
-              style: const TextStyle(
-                fontWeight: FontWeight.w400,
-                color: CupertinoColors.systemRed,
-                fontSize: 12,
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildEye({
-    required bool isObscured,
-    required VoidCallback onTap,
-  }) {
-    return CupertinoButton(
-      padding: EdgeInsets.zero,
-      minimumSize: const Size(28, 28),
-      onPressed: onTap,
-      child: Icon(
-        isObscured ? CupertinoIcons.eye : CupertinoIcons.eye_slash,
-        size: 18,
-        color: const Color(0xFF7D7D83),
-      ),
-    );
-  }
-}
-
-class _GoogleGlyph extends StatelessWidget {
-  const _GoogleGlyph({this.size = 20});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-      ),
-      child: Text(
-        'G',
-        style: TextStyle(
-          color: const Color(0xFF4285F4),
-          fontSize: size * 0.65,
-          fontWeight: FontWeight.w800,
-          height: 1,
-        ),
-      ),
-    );
-  }
-}
-
-class _LoginLogoBadge extends StatelessWidget {
-  const _LoginLogoBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 64,
-        height: 64,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: const LinearGradient(
-            colors: [Color(0xFF5F63F6), Color(0xFF7A4EF4)],
-          ),
-        ),
-        alignment: Alignment.center,
-        child: const Icon(
-          CupertinoIcons.sportscourt_fill,
-          size: 30,
-          color: CupertinoColors.white,
-        ),
-      ),
-    );
-  }
-}
-
-class _OrDivider extends StatelessWidget {
-  const _OrDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(height: 1, color: const Color(0xFFD6D6DB)),
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8),
-          child: Text(
-            'OU',
-            style: TextStyle(
-              fontSize: 16,
-              color: Color(0xFF8A8A8F),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Container(height: 1, color: const Color(0xFFD6D6DB)),
-        ),
-      ],
     );
   }
 }

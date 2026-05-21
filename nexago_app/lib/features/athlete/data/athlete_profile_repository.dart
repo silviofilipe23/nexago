@@ -21,21 +21,31 @@ class AthleteProfileRepository {
   }
 
   Future<void> saveProfile(AthleteProfile profile) async {
+    final docRef = _users.doc(profile.id);
+    final snap = await docRef.get();
+    final exists = snap.exists;
+
     final data = <String, dynamic>{
       ...profile.toFirestore(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
+
+    if (!exists) {
+      // Primeiro save (ex.: onboarding): define papel de atleta.
+      data['role'] = 'athlete';
+      data['roles'] = ['athlete'];
+    }
+
+    // FieldValue.delete() em documento inexistente falha no Firestore.
     final cover = profile.coverPhotoUrl?.trim();
-    if (cover == null || cover.isEmpty) {
+    if (exists && (cover == null || cover.isEmpty)) {
       data['coverPhotoUrl'] = FieldValue.delete();
     }
-    await _users.doc(profile.id).set(
-          data,
-          SetOptions(merge: true),
-        );
+
+    await docRef.set(data, SetOptions(merge: true));
   }
 
-  /// Upload em `athletes/{uid}/avatar.jpg` e retorna a URL de download.
+  /// Upload em `profiles/{uid}/avatar.jpg` (regras do Storage) e retorna a URL.
   Future<String> uploadAvatar({
     required String uid,
     required Uint8List bytes,
@@ -43,7 +53,7 @@ class AthleteProfileRepository {
   }) async {
     final ref = FirebaseStorage.instance
         .ref()
-        .child('athletes')
+        .child('profiles')
         .child(uid)
         .child('avatar.jpg');
     await ref.putData(
@@ -53,7 +63,7 @@ class AthleteProfileRepository {
     return ref.getDownloadURL();
   }
 
-  /// Upload em `athletes/{uid}/cover.jpg` e retorna a URL de download.
+  /// Upload em `profiles/{uid}/cover.jpg` e retorna a URL de download.
   Future<String> uploadCoverPhoto({
     required String uid,
     required Uint8List bytes,
@@ -61,7 +71,7 @@ class AthleteProfileRepository {
   }) async {
     final ref = FirebaseStorage.instance
         .ref()
-        .child('athletes')
+        .child('profiles')
         .child(uid)
         .child('cover.jpg');
     await ref.putData(

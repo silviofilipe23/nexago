@@ -5,11 +5,13 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../arena/domain/arena_access_provider.dart';
+import '../domain/athlete_shell_providers.dart';
 import 'arena_list_page.dart';
 import 'athlete_bookings_page.dart';
 import 'athlete_home_page.dart';
 import 'athlete_profile_page.dart';
-import 'feed_page.dart';
+import '../../tournaments/presentation/tournament_discovery_page.dart'
+    show TournamentDiscoveryPage;
 
 /// Container principal do atleta com [BottomNavigationBar] e [IndexedStack].
 class AthleteShellPage extends ConsumerStatefulWidget {
@@ -28,7 +30,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
     'Início',
     'Agenda',
     'Reservar',
-    'Feed',
+    'Competir',
     'Perfil',
   ];
 
@@ -36,6 +38,10 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
   void initState() {
     super.initState();
     _index = widget.initialIndex.clamp(0, _titles.length - 1);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(athleteShellTabIndexProvider.notifier).state = _index;
+    });
   }
 
   @override
@@ -43,6 +49,12 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
     final theme = Theme.of(context);
     final arenaPanelAsync = ref.watch(arenaPanelAccessProvider);
     final hideAppBarForProfile = _index == 4;
+
+    ref.listen<int>(athleteShellTabIndexProvider, (previous, next) {
+      if (next != _index && next >= 0 && next < _titles.length) {
+        setState(() => _index = next);
+      }
+    });
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
@@ -71,7 +83,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
           AthleteHomePage(),
           AthleteBookingsPage(),
           ArenaListPage(),
-          FeedPage(),
+          TournamentDiscoveryPage(),
           AthleteProfilePage(embedded: true),
         ],
       ),
@@ -83,7 +95,10 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
         child: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
           currentIndex: _index,
-          onTap: (i) => setState(() => _index = i),
+          onTap: (i) {
+            ref.read(athleteShellTabIndexProvider.notifier).state = i;
+            setState(() => _index = i);
+          },
           selectedItemColor: AppColors.brand,
           unselectedItemColor:
               theme.colorScheme.onSurface.withValues(alpha: 0.55),
@@ -107,9 +122,9 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
               label: 'Reservar',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.dynamic_feed_outlined),
-              activeIcon: Icon(Icons.dynamic_feed),
-              label: 'Feed',
+              icon: Icon(Icons.emoji_events_outlined),
+              activeIcon: Icon(Icons.emoji_events),
+              label: 'Competir',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),

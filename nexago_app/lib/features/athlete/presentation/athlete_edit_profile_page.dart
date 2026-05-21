@@ -45,6 +45,12 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
   bool _initialized = false;
   bool _saving = false;
   bool _useBiometric = false;
+  bool _onboardingCompleted = true;
+  List<String> _sports = const [];
+  List<String> _goals = const [];
+  String? _nickname;
+  String? _birthDate;
+  String? _gender;
 
   @override
   void dispose() {
@@ -68,6 +74,12 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
     _sport = _matchOrFirst(AthleteProfileOptions.sports, p.sport);
     _level = _matchOrFirst(AthleteProfileOptions.levels, p.level);
     _useBiometric = p.useBiometric;
+    _onboardingCompleted = p.onboardingCompleted;
+    _sports = List<String>.from(p.sports);
+    _goals = List<String>.from(p.goals);
+    _nickname = p.nickname;
+    _birthDate = p.birthDate;
+    _gender = p.gender;
   }
 
   Future<void> _onUseBiometricChanged(bool value) async {
@@ -212,6 +224,12 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
         phoneNumber: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
         city: _cityCtrl.text.trim(),
         bio: _bioCtrl.text.trim().isEmpty ? null : _bioCtrl.text.trim(),
+        sports: _sports,
+        goals: _goals,
+        nickname: _nickname,
+        birthDate: _birthDate,
+        gender: _gender,
+        onboardingCompleted: _onboardingCompleted,
         useBiometric: _useBiometric,
       );
 

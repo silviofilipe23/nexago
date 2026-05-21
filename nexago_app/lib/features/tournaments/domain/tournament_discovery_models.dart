@@ -1,0 +1,151 @@
+/// Modelos de descoberta de ligas e torneios (paridade com athlete web).
+enum TournamentGenderCat { m, f, mix }
+
+enum TournamentFormat { dupla, individual }
+
+enum TournamentListingStatus {
+  scheduled,
+  open,
+  bracketsReady,
+  almostFull,
+  live,
+  completed,
+  ended,
+}
+
+class DiscoveryLeague {
+  const DiscoveryLeague({
+    required this.id,
+    required this.name,
+    required this.stages,
+    this.seasonLabel,
+    this.city,
+  });
+
+  final String id;
+  final String name;
+  final String? seasonLabel;
+  final String? city;
+  final List<DiscoveryLeagueStage> stages;
+}
+
+class DiscoveryLeagueStage {
+  const DiscoveryLeagueStage({
+    required this.id,
+    required this.name,
+    required this.order,
+    required this.tournamentIds,
+    this.dateLabel,
+  });
+
+  final String id;
+  final String name;
+  final int order;
+  final String? dateLabel;
+  final List<String> tournamentIds;
+}
+
+class DiscoveryTournament {
+  const DiscoveryTournament({
+    required this.id,
+    required this.name,
+    required this.location,
+    required this.city,
+    required this.dateLabel,
+    required this.startDate,
+    required this.categories,
+    required this.format,
+    required this.priceLabel,
+    required this.priceValue,
+    required this.spotsLeft,
+    required this.spotsTotal,
+    required this.status,
+    required this.featured,
+    required this.enrolledCount,
+    required this.liveMatchesNow,
+    this.offerEndsAt,
+    this.leagueId,
+    this.leagueStageId,
+    this.imageUrl,
+    this.categoryOffers = const [],
+  });
+
+  final String id;
+  final String name;
+  final String location;
+  final String city;
+  final String dateLabel;
+  final DateTime startDate;
+  final List<TournamentGenderCat> categories;
+  final TournamentFormat format;
+  final String priceLabel;
+  final double priceValue;
+  final int spotsLeft;
+  final int spotsTotal;
+  final TournamentListingStatus status;
+  final bool featured;
+  final int enrolledCount;
+  final int liveMatchesNow;
+  final DateTime? offerEndsAt;
+  final String? leagueId;
+  final String? leagueStageId;
+
+  /// Capa do torneio (`coverUrl`, `imageUrl`, etc. no Firestore).
+  final String? imageUrl;
+
+  /// Categorias para inscrição (espelha Firestore `categories[]`).
+  final List<TournamentCategoryOffer> categoryOffers;
+}
+
+class TournamentCategoryOffer {
+  const TournamentCategoryOffer({
+    required this.id,
+    required this.name,
+    required this.entryFee,
+    this.spotsLeft = 0,
+    this.spotsTotal = 0,
+    this.level = '',
+  });
+
+  /// Id usado em inscrição / MP (`categoryName`).
+  final String id;
+  final String name;
+  final double entryFee;
+  final int spotsLeft;
+  final int spotsTotal;
+  final String level;
+}
+
+class TournamentDiscoveryLiveStats {
+  const TournamentDiscoveryLiveStats({
+    required this.activeTournaments,
+    required this.matchesLiveNow,
+    required this.openRegistrations,
+  });
+
+  final int activeTournaments;
+  final int matchesLiveNow;
+  final int openRegistrations;
+}
+
+enum TournamentDiscoveryCategoryFilter { all, m, f, mix }
+
+class MyTournamentRegistration {
+  const MyTournamentRegistration({
+    required this.registrationId,
+    required this.tournamentId,
+    required this.tournamentName,
+    required this.dateLabel,
+    required this.statusLabel,
+    required this.isPaid,
+    required this.categoryId,
+  });
+
+  final String registrationId;
+  final String tournamentId;
+  final String tournamentName;
+  final String dateLabel;
+  final String statusLabel;
+  final bool isPaid;
+  final String categoryId;
+}

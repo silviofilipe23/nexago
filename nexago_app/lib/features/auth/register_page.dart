@@ -1,12 +1,20 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/auth_providers.dart';
+import '../../features/athlete/onboarding/domain/athlete_onboarding_providers.dart';
 import '../../core/auth/firebase_auth_error_mapper.dart';
 import '../../core/router/routes.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/ui/app_snackbar.dart';
+import '../../core/ui/fade_slide_in.dart';
+import 'auth_legal_urls.dart';
+import 'domain/auth_password_strength.dart';
+import 'widgets/auth_form_widgets.dart';
 
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
@@ -15,44 +23,132 @@ class RegisterPage extends ConsumerStatefulWidget {
   ConsumerState<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _RegisterPageState extends ConsumerState<RegisterPage>
-    with SingleTickerProviderStateMixin {
+class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _passwordFocusNode = FocusNode();
 
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
   bool _submitting = false;
   bool _googleSubmitting = false;
+  bool _termsAccepted = false;
+  bool _passwordFocused = false;
+  bool _pendingSuccess = false;
+
+  bool _isSuccessPhase(BuildContext context) =>
+      _pendingSuccess ||
+      GoRouterState.of(context).uri.queryParameters['step'] == 'success';
+
+  void _goToSuccessScreen() {
+    context.go(
+      Uri(
+        path: AppRoutes.register,
+        queryParameters: const {'step': 'success'},
+      ).toString(),
+    );
+  }
+
   String? _emailError;
   String? _passwordError;
   String? _confirmPasswordError;
 
-  late AnimationController _fadeController;
-
   @override
   void initState() {
     super.initState();
-    _fadeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    )..forward();
+    _passwordFocusNode.addListener(_onPasswordFocusChange);
+    _passwordController.addListener(_onPasswordFieldsChanged);
+    _confirmPasswordController.addListener(_onPasswordFieldsChanged);
+  }
+
+  void _onPasswordFocusChange() {
+    setState(() => _passwordFocused = _passwordFocusNode.hasFocus);
+  }
+
+  void _onPasswordFieldsChanged() {
+    if (_confirmPasswordController.text.isNotEmpty) {
+      _syncConfirmError();
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _syncConfirmError() {
+    final confirm = _confirmPasswordController.text;
+    final password = _passwordController.text;
+    if (confirm.isEmpty) {
+      _confirmPasswordError = null;
+    } else if (confirm != password) {
+      _confirmPasswordError = 'Senhas ainda não conferem.';
+    } else {
+      _confirmPasswordError = null;
+    }
   }
 
   @override
   void dispose() {
-    _fadeController.dispose();
+    _passwordFocusNode.removeListener(_onPasswordFocusChange);
+    _passwordFocusNode.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
+  bool get _busy => _submitting || _googleSubmitting;
+
+  PasswordStrengthResult get _passwordStrength =>
+      evaluatePasswordStrength(_passwordController.text);
+
+  Future<void> _openLegalUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!mounted) return;
+    if (!ok) {
+      showAppSnackBar(
+        context,
+        'Não foi possível abrir o link.',
+        isError: true,
+      );
+    }
+  }
+
+  void _goBack() {
+    if (_isSuccessPhase(context)) {
+      _signOutAndGoLogin();
+      return;
+    }
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(AppRoutes.login);
+    }
+  }
+
+  Future<void> _signOutAndGoLogin() async {
+    setState(() => _submitting = true);
+    try {
+      await ref.read(authServiceProvider).signOut();
+      if (!mounted) return;
+      context.go(AppRoutes.login);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Não foi possível sair. Tente novamente.',
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   Future<void> _submit() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     final confirm = _confirmPasswordController.text;
+    final strength = _passwordStrength;
 
     String? emailError;
     String? passwordError;
@@ -60,18 +156,28 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
 
     if (email.isEmpty) {
       emailError = 'Informe o e-mail';
-    } else if (!email.contains('@')) {
+    } else if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email)) {
       emailError = 'E-mail inválido';
     }
 
     if (password.isEmpty) {
       passwordError = 'Informe a senha';
-    } else if (password.length < 8) {
-      passwordError = 'Mínimo 8 caracteres';
+    } else if (!strength.isStrongEnough) {
+      passwordError = 'A senha não atende todos os requisitos';
     }
 
-    if (confirm != password) {
-      confirmPasswordError = 'As senhas não coincidem';
+    if (confirm.isEmpty) {
+      confirmPasswordError = 'Confirme a senha';
+    } else if (confirm != password) {
+      confirmPasswordError = 'Senhas ainda não conferem.';
+    }
+
+    if (!_termsAccepted) {
+      showAppSnackBar(
+        context,
+        'Aceite os termos para continuar.',
+        isError: true,
+      );
     }
 
     setState(() {
@@ -80,498 +186,405 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
       _confirmPasswordError = confirmPasswordError;
     });
 
-    if (emailError != null || passwordError != null || confirmPasswordError != null) {
+    if (emailError != null ||
+        passwordError != null ||
+        confirmPasswordError != null ||
+        !_termsAccepted) {
       return;
     }
 
     HapticFeedback.mediumImpact();
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _pendingSuccess = false;
+    });
 
     try {
       await ref.read(authServiceProvider).registerWithEmailAndPassword(
             email: email,
             password: password,
           );
+      await ref.read(authServiceProvider).sendEmailVerification();
+      if (!mounted) return;
+      setState(() => _pendingSuccess = true);
+      _goToSuccessScreen();
     } on FirebaseAuthException catch (e) {
+      if (mounted) setState(() => _pendingSuccess = false);
       if (!mounted) return;
-      _showError(mapFirebaseAuthException(e));
+      showAppSnackBar(context, mapFirebaseAuthException(e), isError: true);
     } catch (_) {
+      if (mounted) setState(() => _pendingSuccess = false);
       if (!mounted) return;
-      _showError('Erro inesperado');
+      showAppSnackBar(
+        context,
+        'Erro inesperado. Tente novamente.',
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
   }
 
-  void _showError(String message) {
-    showCupertinoDialog(
-      context: context,
-      builder: (_) => CupertinoAlertDialog(
-        title: const Text('Ops'),
-        content: Text(message),
-        actions: [
-          CupertinoDialogAction(
-            child: const Text('OK'),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _signInWithGoogle() async {
-    if (_submitting || _googleSubmitting) return;
+    if (_busy) return;
     HapticFeedback.mediumImpact();
     setState(() => _googleSubmitting = true);
     try {
       final cred = await ref.read(authServiceProvider).signInWithGoogle();
       if (!mounted) return;
       if (cred == null) return;
+      context.go(AppRoutes.discover);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      _showError(mapFirebaseAuthException(e));
+      showAppSnackBar(context, mapFirebaseAuthException(e), isError: true);
     } catch (_) {
       if (!mounted) return;
-      _showError('Não foi possível entrar com Google. Tente novamente.');
+      showAppSnackBar(
+        context,
+        'Não foi possível entrar com Google. Tente novamente.',
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _googleSubmitting = false);
     }
   }
 
+  void _completeProfile() {
+    ref.read(athleteOnboardingDraftProvider.notifier).reset();
+    context.go(AppRoutes.athleteOnboardingWelcome);
+  }
+
   @override
   Widget build(BuildContext context) {
-    const pageBg = Color(0xFFF4F4F5);
-    const fieldBg = Color(0xFFEDEDEF);
-    const primary = Color(0xFF6657F6);
-    const textMuted = Color(0xFF6E6E73);
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final strength = _passwordStrength;
+    final showStrength = _passwordController.text.isNotEmpty;
+    final confirmMismatch = _confirmPasswordError != null;
 
-    return CupertinoPageScaffold(
-      backgroundColor: pageBg,
-      child: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeController,
-          child: DefaultTextStyle.merge(
-            style: const TextStyle(decoration: TextDecoration.none),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                const SizedBox(height: 10),
-                const _LogoBadge(),
-                const SizedBox(height: 18),
-                const Text(
-                  'Criar conta',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: CupertinoColors.black,
-                    letterSpacing: -0.2,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Faça parte da maior comunidade de atletas do Brasil',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w400,
-                    fontSize: 14,
-                    color: textMuted,
-                  ),
-                ),
-                const SizedBox(height: 26),
-                _fieldLabel('E-MAIL'),
-                _buildField(
-                  controller: _emailController,
-                  placeholder: 'seu@email.com',
-                  backgroundColor: fieldBg,
-                  keyboardType: TextInputType.emailAddress,
-                  errorText: _emailError,
-
-                ),
-                const SizedBox(height: 8),
-                _fieldLabel('SENHA'),
-                _buildField(
-                  controller: _passwordController,
-                  placeholder: '••••••••',
-                  backgroundColor: fieldBg,
-                  obscure: _obscurePassword,
-                  errorText: _passwordError,
-                  suffix: _buildEye(
-                    isObscured: _obscurePassword,
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      setState(() => _obscurePassword = !_obscurePassword);
-                    },
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _fieldLabel('CONFIRMAR SENHA'),
-                _buildField(
-                  controller: _confirmPasswordController,
-                  placeholder: '••••••••',
-                  backgroundColor: fieldBg,
-                  obscure: _obscureConfirm,
-                  errorText: _confirmPasswordError,
-                  suffix: _buildEye(
-                    isObscured: _obscureConfirm,
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      setState(() => _obscureConfirm = !_obscureConfirm);
-                    },
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFDFE5FF),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFC8D2FF)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(
-                        CupertinoIcons.lock_fill,
-                        size: 14,
-                        color: Color(0xFF3249E8),
-                      ),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Mínimo 8 caracteres com letras, números e símbolos',
-                          style: TextStyle(
-                            color: Color(0xFF3249E8),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: (_submitting || _googleSubmitting) ? null : _submit,
-                  child: Container(
-                    height: 54,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF5F63F6), Color(0xFF7A4EF4)],
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: _submitting
-                        ? const CupertinoActivityIndicator(color: CupertinoColors.white)
-                        : const Text(
-                            'Criar Conta',
-                            style: TextStyle(
-                              color: CupertinoColors.white,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.1,
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            const AuthCanvasGlow(),
+            FadeSlideIn(
+              child: _isSuccessPhase(context)
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints:
+                                  const BoxConstraints(maxWidth: 420),
+                              child: Row(
+                                children: [
+                                  AuthBackButton(
+                                    onPressed: _busy ? null : _goBack,
+                                  ),
+                                  const Spacer(),
+                                  const AuthStepBadge(
+                                    current: 1,
+                                    total: 5,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: (_submitting || _googleSubmitting)
-                      ? null
-                      : () => context.go(AppRoutes.login),
-                  child: Container(
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: fieldBg,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Text(
-                      'Cancelar',
-                      style: TextStyle(
-                        color: CupertinoColors.black,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const _OrDivider(),
-                const SizedBox(height: 10),
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: (_submitting || _googleSubmitting)
-                      ? null
-                      : _signInWithGoogle,
-                  child: Container(
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: fieldBg,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    alignment: Alignment.center,
-                    child: _googleSubmitting
-                        ? const CupertinoActivityIndicator()
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              _GoogleGlyph(size: 20),
-                              SizedBox(width: 10),
-                              Text(
-                                'Continuar com Google',
-                                style: TextStyle(
-                                  color: CupertinoColors.black,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(maxWidth: 420),
+                                  child: const AuthRegisterSuccessHero(),
                                 ),
                               ),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                          child: Center(
+                            child: ConstrainedBox(
+                              constraints:
+                                  const BoxConstraints(maxWidth: 420),
+                              child: AuthContinueButton(
+                                label: 'Completar perfil de atleta',
+                                loading: _submitting,
+                                onPressed:
+                                    _busy ? null : _completeProfile,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Center(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 420),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Row(
+                                children: [
+                                  AuthBackButton(
+                                    onPressed: _busy ? null : _goBack,
+                                  ),
+                                  const Spacer(),
+                                  const AuthStepBadge(current: 1, total: 5),
+                                ],
+                              ),
+                              _buildCredentialsForm(
+                                theme,
+                                scheme,
+                                strength,
+                                showStrength,
+                                confirmMismatch,
+                              ),
+                              const SizedBox(height: 24),
+                              _buildBottomActions(theme, scheme),
                             ],
                           ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                CupertinoButton(
-                  padding: EdgeInsets.zero,
-                  onPressed: (_submitting || _googleSubmitting) ? null : () {},
-                  child: Container(
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: fieldBg,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Text(
-                      'Continuar com Apple',
-                      style: TextStyle(
-                        color: CupertinoColors.black,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      'Já tem conta? ',
-                      style: TextStyle(
-                        color: textMuted,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: (_submitting || _googleSubmitting)
-                          ? null
-                          : () => context.go(AppRoutes.login),
-                      child: const Text(
-                        'Faça login',
-                        style: TextStyle(
-                          color: primary,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
                         ),
                       ),
                     ),
-                  ],
-                ),
-                  const SizedBox(height: 14),
-                ],
-              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _fieldLabel(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 2, bottom: 6),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFF636366),
-          fontWeight: FontWeight.w400,
-          fontSize: 11,
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildField({
-    required TextEditingController controller,
-    required String placeholder,
-    required Color backgroundColor,
-    TextInputType? keyboardType,
-    bool obscure = false,
-    Widget? suffix,
-    String? errorText,
-  }) {
-    final hasError = errorText != null && errorText.isNotEmpty;
+  Widget _buildCredentialsForm(
+    ThemeData theme,
+    ColorScheme scheme,
+    PasswordStrengthResult strength,
+    bool showStrength,
+    bool confirmMismatch,
+  ) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          decoration: BoxDecoration(
-            color: backgroundColor,
-            borderRadius: BorderRadius.circular(12),
-            border: hasError
-                ? Border.all(color: CupertinoColors.systemRed, width: 1)
-                : null,
-          ),
-          child: CupertinoTextField(
-            controller: controller,
-            keyboardType: keyboardType,
-            obscureText: obscure,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            placeholder: placeholder,
-            placeholderStyle: const TextStyle(
-              color: Color(0xFF9B9BA1),
-              fontSize: 17,
-              fontWeight: FontWeight.w400,
-              letterSpacing: -0.1,
-            ),
-            style: const TextStyle(
-              color: CupertinoColors.black,
-              fontSize: 17,
-              fontWeight: FontWeight.w400,
-              letterSpacing: -0.1,
-            ),
-            decoration: const BoxDecoration(
-              color: CupertinoColors.transparent,
-            ),
-            suffix: suffix == null
-                ? null
-                : Padding(
-                    padding: const EdgeInsets.only(right: 10),
-                    child: suffix,
-                  ),
+        const AuthLogo(),
+        const SizedBox(height: 12),
+        const AuthKicker(label: 'NOVA CONTA • ATLETA'),
+        const SizedBox(height: 24),
+        Text(
+          'Criar conta.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: AppColors.onSurface,
+            letterSpacing: -0.5,
+            height: 1.12,
           ),
         ),
-        if (hasError) ...[
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.only(left: 4),
-            child: Text(
-              errorText,
-              style: const TextStyle(
-                fontWeight: FontWeight.w400,
-                color: CupertinoColors.systemRed,
-                fontSize: 12,
-              ),
-            ),
+        const SizedBox(height: 10),
+        Text(
+          'Faça parte da maior comunidade de beach volley do Brasil.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: AppColors.onSurfaceMuted,
+            height: 1.45,
           ),
-        ],
+        ),
+        const SizedBox(height: 28),
+        const AuthFieldLabel(label: 'E-MAIL'),
+        AuthTextField(
+          controller: _emailController,
+          hintText: 'seu@email.com',
+          keyboardType: TextInputType.emailAddress,
+          textInputAction: TextInputAction.next,
+          autofillHints: const [AutofillHints.email],
+          errorText: _emailError,
+          borderless: true,
+          onChanged: (_) {
+            if (_emailError != null) setState(() => _emailError = null);
+          },
+        ),
+        const SizedBox(height: 14),
+        AuthFieldLabel(
+          label: 'SENHA',
+          highlighted: _passwordFocused,
+        ),
+        AuthTextField(
+          controller: _passwordController,
+          focusNode: _passwordFocusNode,
+          hintText: '••••••••',
+          obscureText: _obscurePassword,
+          textInputAction: TextInputAction.next,
+          autofillHints: const [AutofillHints.newPassword],
+          errorText: _passwordError,
+          borderless: true,
+          suffixIcon: authPasswordVisibilityIcon(
+            obscured: _obscurePassword,
+            onToggle: () {
+              HapticFeedback.selectionClick();
+              setState(() => _obscurePassword = !_obscurePassword);
+            },
+          ),
+          onChanged: (_) {
+            if (_passwordError != null) setState(() => _passwordError = null);
+          },
+        ),
+        const SizedBox(height: 10),
+        AuthPasswordStrength(
+          result: strength,
+          visible: showStrength,
+        ),
+        const SizedBox(height: 14),
+        AuthFieldLabel(
+          label: 'CONFIRMAR SENHA',
+          highlighted: confirmMismatch,
+        ),
+        AuthTextField(
+          controller: _confirmPasswordController,
+          hintText: '••••••••',
+          obscureText: _obscureConfirm,
+          textInputAction: TextInputAction.done,
+          autofillHints: const [AutofillHints.newPassword],
+          errorText: _confirmPasswordError,
+          borderless: true,
+          onSubmitted: (_) => _submit(),
+          suffixIcon: authPasswordVisibilityIcon(
+            obscured: _obscureConfirm,
+            onToggle: () {
+              HapticFeedback.selectionClick();
+              setState(() => _obscureConfirm = !_obscureConfirm);
+            },
+          ),
+          onChanged: (_) {
+            _syncConfirmError();
+            setState(() {});
+          },
+        ),
+        const SizedBox(height: 16),
+        AuthTermsConsent(
+          value: _termsAccepted,
+          onChanged: _busy
+              ? null
+              : (v) => setState(() => _termsAccepted = v ?? false),
+          onTermsTap: () => _openLegalUrl(AuthLegalUrls.termsUrl),
+          onPrivacyTap: () => _openLegalUrl(AuthLegalUrls.privacyUrl),
+        ),
       ],
     );
   }
 
-  Widget _buildEye({
-    required bool isObscured,
-    required VoidCallback onTap,
-  }) {
-    return CupertinoButton(
-      padding: EdgeInsets.zero,
-      minimumSize: const Size(28, 28),
-      onPressed: onTap,
-      child: Icon(
-        isObscured ? CupertinoIcons.eye : CupertinoIcons.eye_slash,
-        size: 18,
-        color: const Color(0xFF7D7D83),
-      ),
-    );
-  }
-}
-
-class _GoogleGlyph extends StatelessWidget {
-  const _GoogleGlyph({this.size = 20});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: CupertinoColors.white,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: const Color(0xFFE0E0E0)),
-      ),
-      child: Text(
-        'G',
-        style: TextStyle(
-          color: const Color(0xFF4285F4),
-          fontSize: size * 0.65,
-          fontWeight: FontWeight.w800,
-          height: 1,
-        ),
-      ),
-    );
-  }
-}
-
-class _LogoBadge extends StatelessWidget {
-  const _LogoBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        width: 64,
-        height: 64,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: const LinearGradient(
-            colors: [Color(0xFF5F63F6), Color(0xFF7A4EF4)],
+  Widget _buildBottomActions(ThemeData theme, ColorScheme scheme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: FilledButton(
+            onPressed: (_busy || !_termsAccepted) ? null : _submit,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.brand,
+              foregroundColor: AppColors.black,
+              disabledBackgroundColor:
+                  AppColors.brand.withValues(alpha: 0.35),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: _submitting
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.black,
+                    ),
+                  )
+                : Text(
+                    'Criar conta',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.black,
+                    ),
+                  ),
           ),
         ),
-        alignment: Alignment.center,
-        child: const Icon(
-          CupertinoIcons.sportscourt_fill,
-          size: 30,
-          color: CupertinoColors.white,
-        ),
-      ),
-    );
-  }
-}
-
-class _OrDivider extends StatelessWidget {
-  const _OrDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(height: 1, color: const Color(0xFFD6D6DB)),
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8),
-          child: Text(
-            'OU',
-            style: TextStyle(
-              fontSize: 16,
-              color: Color(0xFF8A8A8F),
-              fontWeight: FontWeight.w700,
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: OutlinedButton(
+            onPressed: _busy ? null : () => context.go(AppRoutes.login),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.onSurface,
+              backgroundColor: Colors.transparent,
+              side: BorderSide(
+                color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: Text(
+              'Cancelar',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ),
-        Expanded(
-          child: Container(height: 1, color: const Color(0xFFD6D6DB)),
+        const SizedBox(height: 20),
+        AuthOrDivider(
+          color: scheme.outline,
+          label: 'OU CADASTRA-SE COM',
+          uppercaseLabel: true,
         ),
+        const SizedBox(height: 20),
+        AuthSocialButton(
+          onPressed: _busy ? null : _signInWithGoogle,
+          loading: _googleSubmitting,
+          icon: const AuthGoogleGlyph(),
+          label: 'Continuar com Google',
+        ),
+        const SizedBox(height: 10),
+        AuthSocialButton(
+          onPressed: null,
+          icon: const Icon(
+            Icons.apple,
+            size: 22,
+            color: AppColors.onSurface,
+          ),
+          label: 'Continuar com Apple',
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Já tem conta? ',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: AppColors.onSurfaceMuted,
+              ),
+            ),
+            AuthLinkButton(
+              label: 'Entrar',
+              onPressed: _busy ? null : () => context.go(AppRoutes.login),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
       ],
     );
   }

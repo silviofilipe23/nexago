@@ -1,0 +1,192 @@
+import '../domain/tournament_discovery_models.dart';
+
+DateTime mockDiscoveryDate(int days, {int hour = 12, int minute = 0}) {
+  final x = DateTime.now();
+  return DateTime(x.year, x.month, x.day + days, hour, minute);
+}
+
+const _ligaVerao = 'circuito-verao-nexago-2026';
+const _etapaNordeste = 'cv-26-nordeste';
+const _etapaSudeste = 'cv-26-sudeste';
+
+const mockDiscoveryLeagues = <DiscoveryLeague>[
+  DiscoveryLeague(
+    id: _ligaVerao,
+    name: 'Circuito Verão NexaGO',
+    seasonLabel: 'Temporada 2026',
+    city: 'Circuito nacional',
+    stages: [
+      DiscoveryLeagueStage(
+        id: _etapaNordeste,
+        name: 'Etapa Nordeste',
+        order: 1,
+        dateLabel: 'Abr–mai',
+        tournamentIds: ['nx-beach-pro-2026', 'ranked-friday-recife'],
+      ),
+      DiscoveryLeagueStage(
+        id: _etapaSudeste,
+        name: 'Etapa Sudeste',
+        order: 2,
+        dateLabel: 'Jun–jul',
+        tournamentIds: ['night-open-sp', 'circuito-verao-rj'],
+      ),
+    ],
+  ),
+];
+
+List<DiscoveryTournament> buildMockDiscoveryTournaments() {
+  return [
+    DiscoveryTournament(
+      id: 'nx-beach-pro-2026',
+      name: 'NexaGO Beach Pro Series',
+      location: 'Arena NexaGO Sul',
+      city: 'Salvador',
+      dateLabel: '18–20 abr',
+      startDate: mockDiscoveryDate(8, hour: 8),
+      categories: [
+        TournamentGenderCat.m,
+        TournamentGenderCat.f,
+        TournamentGenderCat.mix,
+      ],
+      format: TournamentFormat.dupla,
+      priceLabel: r'R$ 240',
+      priceValue: 240,
+      spotsLeft: 3,
+      spotsTotal: 64,
+      status: TournamentListingStatus.almostFull,
+      featured: true,
+      enrolledCount: 428,
+      liveMatchesNow: 0,
+      offerEndsAt: mockDiscoveryDate(2, hour: 23, minute: 59),
+      leagueId: _ligaVerao,
+      leagueStageId: _etapaNordeste,
+      imageUrl:
+          'https://images.unsplash.com/photo-1612872087720-55664ec103cb?w=800&q=80',
+      categoryOffers: const [
+        TournamentCategoryOffer(
+          id: 'Misto A',
+          name: 'Misto A',
+          entryFee: 240,
+          spotsLeft: 3,
+          spotsTotal: 64,
+        ),
+      ],
+    ),
+    DiscoveryTournament(
+      id: 'night-open-sp',
+      name: 'Night Open São Paulo',
+      location: 'Praia Artificial Pinheiros',
+      city: 'São Paulo',
+      dateLabel: '12 abr',
+      startDate: mockDiscoveryDate(2, hour: 19),
+      categories: [TournamentGenderCat.mix, TournamentGenderCat.f],
+      format: TournamentFormat.dupla,
+      priceLabel: r'R$ 180',
+      priceValue: 180,
+      spotsLeft: 14,
+      spotsTotal: 48,
+      status: TournamentListingStatus.open,
+      featured: true,
+      enrolledCount: 186,
+      liveMatchesNow: 6,
+      leagueId: _ligaVerao,
+      leagueStageId: _etapaSudeste,
+      imageUrl:
+          'https://images.unsplash.com/photo-1554068865-24cecd4cd24b?w=800&q=80',
+      categoryOffers: const [
+        TournamentCategoryOffer(
+          id: 'Fem B',
+          name: 'Fem B',
+          entryFee: 180,
+          spotsLeft: 14,
+          spotsTotal: 48,
+        ),
+      ],
+    ),
+    DiscoveryTournament(
+      id: 'circuito-verao-rj',
+      name: 'Circuito Verão RJ',
+      location: 'Arena Copacabana Sports',
+      city: 'Rio de Janeiro',
+      dateLabel: '25 abr – 2 mai',
+      startDate: mockDiscoveryDate(15, hour: 9),
+      categories: [TournamentGenderCat.m, TournamentGenderCat.f],
+      format: TournamentFormat.dupla,
+      priceLabel: r'R$ 320',
+      priceValue: 320,
+      spotsLeft: 22,
+      spotsTotal: 96,
+      status: TournamentListingStatus.open,
+      featured: false,
+      enrolledCount: 312,
+      liveMatchesNow: 0,
+      offerEndsAt: mockDiscoveryDate(5, hour: 12),
+      leagueId: _ligaVerao,
+      leagueStageId: _etapaSudeste,
+    ),
+    DiscoveryTournament(
+      id: 'flash-individual-bh',
+      name: 'Flash Individual BH',
+      location: 'Centro de Treino Minas Beach',
+      city: 'Belo Horizonte',
+      dateLabel: '10 abr',
+      startDate: mockDiscoveryDate(0, hour: 14),
+      categories: [
+        TournamentGenderCat.m,
+        TournamentGenderCat.f,
+        TournamentGenderCat.mix,
+      ],
+      format: TournamentFormat.individual,
+      priceLabel: r'R$ 95',
+      priceValue: 95,
+      spotsLeft: 8,
+      spotsTotal: 32,
+      status: TournamentListingStatus.live,
+      featured: false,
+      enrolledCount: 94,
+      liveMatchesNow: 4,
+    ),
+    DiscoveryTournament(
+      id: 'misto-experience-floripa',
+      name: 'Misto Experience Floripa',
+      location: 'Arena Jurerê Internacional',
+      city: 'Florianópolis',
+      dateLabel: '6 mai',
+      startDate: mockDiscoveryDate(26, hour: 10),
+      categories: [TournamentGenderCat.mix],
+      format: TournamentFormat.dupla,
+      priceLabel: r'R$ 210',
+      priceValue: 210,
+      spotsLeft: 28,
+      spotsTotal: 40,
+      status: TournamentListingStatus.open,
+      featured: false,
+      enrolledCount: 72,
+      liveMatchesNow: 0,
+    ),
+    DiscoveryTournament(
+      id: 'ranked-friday-recife',
+      name: 'Ranked Friday Recife',
+      location: 'Boa Viagem Beach Arena',
+      city: 'Recife',
+      dateLabel: '11 abr',
+      startDate: mockDiscoveryDate(1, hour: 20, minute: 30),
+      categories: [
+        TournamentGenderCat.m,
+        TournamentGenderCat.f,
+        TournamentGenderCat.mix,
+      ],
+      format: TournamentFormat.dupla,
+      priceLabel: r'R$ 120',
+      priceValue: 120,
+      spotsLeft: 0,
+      spotsTotal: 24,
+      status: TournamentListingStatus.ended,
+      featured: false,
+      enrolledCount: 128,
+      liveMatchesNow: 0,
+      leagueId: _ligaVerao,
+      leagueStageId: _etapaNordeste,
+    ),
+  ];
+}

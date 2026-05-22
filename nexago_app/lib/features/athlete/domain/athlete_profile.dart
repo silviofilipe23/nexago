@@ -219,8 +219,10 @@ class AthleteProfile {
   }
 
   static String? _resolveState(Map<String, dynamic> data) {
-    final stateField = (data['state'] as String?)?.trim() ?? '';
-    if (stateField.isNotEmpty) return stateField.toUpperCase();
+    final stateField = BrLocationsData.resolveStateSigla(
+      (data['state'] as String?) ?? (data['uf'] as String?),
+    );
+    if (stateField.isNotEmpty) return stateField;
     final cityField = (data['city'] as String?)?.trim() ?? '';
     if (cityField.isEmpty) return null;
     final parsed = BrLocationsData.parseLegacyLocation(cityField);
@@ -279,8 +281,9 @@ class AthleteProfile {
         if (levelFs.isNotEmpty) 'level': levelFs,
       },
       'useBiometric': useBiometric,
-      if (city.isNotEmpty) 'city': city,
-      if (state != null && state!.trim().isNotEmpty) 'state': state!.trim().toUpperCase(),
+      'city': city.trim(),
+      if (state != null && state!.trim().isNotEmpty)
+        'state': state!.trim().toUpperCase(),
       if (bio != null && bio!.trim().isNotEmpty) 'bio': bio!.trim(),
       if (coverPhotoUrl != null && coverPhotoUrl!.trim().isNotEmpty)
         'coverPhotoUrl': coverPhotoUrl!.trim(),
@@ -313,6 +316,8 @@ class AthleteProfile {
     return map[label];
   }
 
+  static const Object _copyWithUnset = Object();
+
   AthleteProfile copyWith({
     String? name,
     String? avatarUrl,
@@ -320,13 +325,13 @@ class AthleteProfile {
     String? sport,
     String? level,
     String? city,
-    String? state,
+    Object? state = _copyWithUnset,
     String? phoneNumber,
     String? cpfCnpj,
     String? bio,
     List<String>? sports,
     List<String>? goals,
-    String? nickname,
+    Object? nickname = _copyWithUnset,
     String? birthDate,
     String? gender,
     String? primarySportFirestoreId,
@@ -349,13 +354,15 @@ class AthleteProfile {
       sport: sport ?? this.sport,
       level: level ?? this.level,
       city: city ?? this.city,
-      state: state ?? this.state,
+      state: identical(state, _copyWithUnset) ? this.state : state as String?,
       phoneNumber: clearPhone ? null : (phoneNumber ?? this.phoneNumber),
       cpfCnpj: cpfCnpj ?? this.cpfCnpj,
       bio: clearBio ? null : (bio ?? this.bio),
       sports: sports ?? this.sports,
       goals: goals ?? this.goals,
-      nickname: nickname ?? this.nickname,
+      nickname: identical(nickname, _copyWithUnset)
+          ? this.nickname
+          : nickname as String?,
       birthDate: birthDate ?? this.birthDate,
       gender: gender ?? this.gender,
       primarySportFirestoreId:

@@ -1,21 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/auth/auth_providers.dart';
-import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
-import '../../arenas/domain/arena_court.dart';
-import '../../arenas/domain/court_pricing.dart';
 import '../../arenas/domain/arena_list_item.dart';
-import '../../arenas/domain/arena_slot.dart';
-import '../../arenas/domain/arenas_providers.dart';
-import '../../arenas/domain/slots_providers.dart';
-import '../../arenas/domain/slots_query.dart';
+import '../../arenas/domain/arena_search_providers.dart';
+import '../../arenas/presentation/arena_booking_navigation.dart';
 import '../../arenas/presentation/widgets/arena_card.dart';
 import '../domain/favorites_providers.dart';
 import '../domain/gamification_providers.dart';
@@ -92,7 +86,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
               final aStarts = search.isNotEmpty && aName.startsWith(search);
               final bStarts = search.isNotEmpty && bName.startsWith(search);
               if (aStarts != bStarts) return aStarts ? -1 : 1;
-              return _compareResults(a.result, b.result);
+              return compareArenaSearchResults(a.result, b.result);
             });
 
           return _ArenaBookingList(
@@ -198,65 +192,6 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
   }
 }
 
-@immutable
-class ArenaSearchFilters {
-  const ArenaSearchFilters({
-    required this.date,
-    required this.requestedTime,
-  });
-
-  final DateTime date;
-  final TimeOfDay requestedTime;
-
-  int get requestedMinutes => requestedTime.hour * 60 + requestedTime.minute;
-
-  DateTime get dateOnly => DateTime(date.year, date.month, date.day);
-
-  String get requestedTimeLabel {
-    final hh = requestedTime.hour.toString().padLeft(2, '0');
-    final mm = requestedTime.minute.toString().padLeft(2, '0');
-    return '$hh:$mm';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is ArenaSearchFilters &&
-        other.dateOnly.year == dateOnly.year &&
-        other.dateOnly.month == dateOnly.month &&
-        other.dateOnly.day == dateOnly.day &&
-        other.requestedMinutes == requestedMinutes;
-  }
-
-  @override
-  int get hashCode => Object.hash(
-      dateOnly.year, dateOnly.month, dateOnly.day, requestedMinutes);
-}
-
-class ArenaSearchResult {
-  const ArenaSearchResult({
-    required this.arena,
-    required this.selectedSlot,
-    required this.courtName,
-    required this.isExactMatch,
-    required this.minutesDistance,
-    required this.displayPricePerHourReais,
-    this.showStartingFrom = false,
-  });
-
-  final ArenaListItem arena;
-  final ArenaSlot? selectedSlot;
-  final String? courtName;
-  final bool isExactMatch;
-  final int? minutesDistance;
-
-  /// Preço exibido no card (menor entre quadras ou fallback da arena).
-  final double displayPricePerHourReais;
-  final bool showStartingFrom;
-
-  bool get hasAvailability => selectedSlot != null;
-}
-
 class _ArenaDisplayItem {
   const _ArenaDisplayItem({
     required this.result,
@@ -265,141 +200,6 @@ class _ArenaDisplayItem {
 
   final ArenaSearchResult result;
   final bool isFavorite;
-}
-
-final arenaSearchResultsProvider = FutureProvider.autoDispose
-    .family<List<ArenaSearchResult>, ArenaSearchFilters>(
-  (ref, filters) async {
-    final arenas = await ref.watch(arenasStreamProvider.future);
-    final results = await Future.wait(
-      arenas.map((arena) => _buildArenaResult(ref, filters, arena)),
-    );
-    results.sort(_compareResults);
-    return results;
-  },
-);
-
-Future<ArenaSearchResult> _buildArenaResult(
-  Ref ref,
-  ArenaSearchFilters filters,
-  ArenaListItem arena,
-) async {
-  final courts = await ref.watch(courtsStreamProvider(arena.id).future);
-  final minCourtPrice = CourtPricing.minHourlyPriceAmongCourts(courts);
-  final displayPrice = minCourtPrice ?? arena.pricePerHourReais;
-  final showStartingFrom = minCourtPrice != null;
-
-  if (courts.isEmpty) {
-    return ArenaSearchResult(
-      arena: arena,
-      selectedSlot: null,
-      courtName: null,
-      isExactMatch: false,
-      minutesDistance: null,
-      displayPricePerHourReais: displayPrice,
-    );
-  }
-
-  final allSlots = <({ArenaSlot slot, ArenaCourt court})>[];
-  for (final court in courts) {
-    final query = SlotsQuery(
-      arenaId: arena.id,
-      courtId: court.id,
-      date: filters.dateOnly,
-      arenaFallbackPricePerHourReais: arena.pricePerHourReais,
-    );
-    final slots = await ref.watch(slotsStreamProvider(query).future);
-    for (final slot in slots) {
-      if (!slot.isAvailable) continue;
-      if (_isPastSlot(filters.dateOnly, slot.startTime)) continue;
-      allSlots.add((slot: slot, court: court));
-    }
-  }
-
-  if (allSlots.isEmpty) {
-    return ArenaSearchResult(
-      arena: arena,
-      selectedSlot: null,
-      courtName: null,
-      isExactMatch: false,
-      minutesDistance: null,
-      displayPricePerHourReais: displayPrice,
-      showStartingFrom: showStartingFrom,
-    );
-  }
-
-  ({ArenaSlot slot, ArenaCourt court})? exact;
-  ({ArenaSlot slot, ArenaCourt court})? nearest;
-  int? nearestDistance;
-  int? nearestSignedDelta;
-  final requested = filters.requestedMinutes;
-
-  for (final entry in allSlots) {
-    final startMinutes = _timeToMinutes(entry.slot.startTime);
-    if (startMinutes == requested) {
-      exact = entry;
-      break;
-    }
-
-    final signedDelta = startMinutes - requested;
-    final distance = signedDelta.abs();
-    final replaceCurrent = nearestDistance == null ||
-        distance < nearestDistance ||
-        (distance == nearestDistance &&
-            _preferSignedDelta(signedDelta, nearestSignedDelta));
-    if (replaceCurrent) {
-      nearest = entry;
-      nearestDistance = distance;
-      nearestSignedDelta = signedDelta;
-    }
-  }
-
-  final picked = exact ?? nearest;
-  return ArenaSearchResult(
-    arena: arena,
-    selectedSlot: picked?.slot,
-    courtName: picked?.court.name,
-    isExactMatch: exact != null,
-    minutesDistance: exact != null ? 0 : nearestDistance,
-    displayPricePerHourReais: displayPrice,
-    showStartingFrom: showStartingFrom,
-  );
-}
-
-bool _preferSignedDelta(int candidate, int? current) {
-  if (current == null) return true;
-  if (candidate >= 0 && current < 0) return true;
-  return false;
-}
-
-int _compareResults(ArenaSearchResult a, ArenaSearchResult b) {
-  final aRank = a.isExactMatch ? 0 : (a.hasAvailability ? 1 : 2);
-  final bRank = b.isExactMatch ? 0 : (b.hasAvailability ? 1 : 2);
-  if (aRank != bRank) return aRank.compareTo(bRank);
-
-  final aDist = a.minutesDistance ?? 99999;
-  final bDist = b.minutesDistance ?? 99999;
-  if (aDist != bDist) return aDist.compareTo(bDist);
-  return a.arena.name.toLowerCase().compareTo(b.arena.name.toLowerCase());
-}
-
-bool _isPastSlot(DateTime selectedDate, String startTime) {
-  final now = DateTime.now();
-  final day = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
-  final today = DateTime(now.year, now.month, now.day);
-  if (day.isAfter(today)) return false;
-  if (day.isBefore(today)) return true;
-  final minutes = _timeToMinutes(startTime);
-  final startAt =
-      DateTime(day.year, day.month, day.day, minutes ~/ 60, minutes % 60);
-  return startAt.isBefore(now);
-}
-
-int _timeToMinutes(String value) {
-  final parts = value.split(':');
-  final hh = parts.isNotEmpty ? int.tryParse(parts[0]) ?? 0 : 0;
-  final mm = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
-  return hh * 60 + mm;
 }
 
 class _ArenaBookingList extends StatelessWidget {
@@ -546,7 +346,7 @@ class _ArenaBookingList extends StatelessWidget {
                     return _FavoriteArenaMiniCard(
                       arena: item.result.arena,
                       searchQuery: searchQuery,
-                      onTap: () => _goToArenaDetail(context, item.result.arena),
+                      onTap: () => openArenaDetail(context, item.result.arena),
                       isPending: isFavoritePending(item.result.arena.id),
                       onToggleFavorite: isFavoritePending(item.result.arena.id)
                           ? null
@@ -572,13 +372,13 @@ class _ArenaBookingList extends StatelessWidget {
                     searchQuery: searchQuery,
                     isFavorite: item.isFavorite,
                     isFavoritePending: isFavoritePending(result.arena.id),
-                    onOpenArena: () => _goToArenaDetail(context, result.arena),
+                    onOpenArena: () => openArenaDetail(context, result.arena),
                     onToggleFavorite: isFavoritePending(result.arena.id)
                         ? null
                         : () =>
                             onToggleFavorite(result.arena.id, item.isFavorite),
                     onReserve: result.hasAvailability
-                        ? () => _goToArenaSlots(
+                        ? () => openArenaBookingSlots(
                               context,
                               arena: result.arena,
                               slot: result.selectedSlot,
@@ -860,34 +660,3 @@ TextSpan _buildHighlightedName(BuildContext context, String value, String query,
   );
 }
 
-void _goToArenaDetail(BuildContext context, ArenaListItem arena) {
-  context.pushNamed(
-    AppRouteNames.arenaDetail,
-    pathParameters: {'arenaId': arena.id},
-    extra: arena,
-  );
-}
-
-void _goToArenaSlots(
-  BuildContext context, {
-  required ArenaListItem arena,
-  required ArenaSlot? slot,
-  required DateTime date,
-}) {
-  final y = date.year.toString().padLeft(4, '0');
-  final m = date.month.toString().padLeft(2, '0');
-  final d = date.day.toString().padLeft(2, '0');
-  final dateKey = '$y-$m-$d';
-  context.pushNamed(
-    AppRouteNames.arenaSlots,
-    pathParameters: {'arenaId': arena.id},
-    queryParameters: <String, String>{
-      if (slot?.courtId.trim().isNotEmpty == true)
-        'courtId': slot!.courtId.trim(),
-      if (slot?.startTime.trim().isNotEmpty == true)
-        'startTime': slot!.startTime.trim(),
-      'date': dateKey,
-    },
-    extra: arena,
-  );
-}

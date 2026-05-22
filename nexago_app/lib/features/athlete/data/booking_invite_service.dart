@@ -63,10 +63,58 @@ class BookingInviteService {
     return BookingInvite.fromFirestore(snap);
   }
 
-  Future<void> acceptInvite(String inviteId) async {
-    await _db.collection(_collection).doc(inviteId).update({
+  Future<void> acceptInvite(
+    String inviteId, {
+    required String acceptedByUid,
+    String? acceptedByName,
+  }) async {
+    final inviteRef = _db.collection(_collection).doc(inviteId);
+    final inviteSnap = await inviteRef.get();
+    if (!inviteSnap.exists) {
+      throw Exception('Convite não encontrado');
+    }
+    final invite = inviteSnap.data() ?? {};
+    final bookingId = (invite['bookingId'] as String?)?.trim() ?? '';
+    final uid = acceptedByUid.trim();
+    if (uid.isEmpty) {
+      throw Exception('Faça login para aceitar o convite.');
+    }
+
+    await inviteRef.update({
       'status': 'accepted',
+      'acceptedByUid': uid,
+      if (acceptedByName != null && acceptedByName.trim().isNotEmpty)
+        'acceptedByName': acceptedByName.trim(),
       'acceptedAt': FieldValue.serverTimestamp(),
     });
+
+    if (bookingId.isEmpty) return;
+
+    final bookingRef = _db.collection('arenaBookings').doc(bookingId);
+    final bookingSnap = await bookingRef.get();
+    if (!bookingSnap.exists) return;
+    final booking = bookingSnap.data() ?? {};
+
+    final ownerId = ((booking['athleteId'] ?? booking['bookingAthleteId']) as String?)
+            ?.trim() ??
+        '';
+    if (ownerId == uid) return;
+
+    final updates = <String, dynamic>{
+      'confirmedParticipants': FieldValue.increment(1),
+      'guestAthleteId': uid,
+      if (acceptedByName != null && acceptedByName.trim().isNotEmpty)
+        'guestAthleteName': acceptedByName.trim(),
+    };
+
+    final existingGuest = (booking['guestAthleteId'] as String?)?.trim();
+    if (existingGuest != null &&
+        existingGuest.isNotEmpty &&
+        existingGuest != uid) {
+      updates.remove('guestAthleteId');
+      updates.remove('guestAthleteName');
+    }
+
+    await bookingRef.set(updates, SetOptions(merge: true));
   }
 }

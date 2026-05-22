@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/location/br_locations_data.dart';
+import '../../../core/location/user_location_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../../athlete/presentation/widgets/br_state_city_fields.dart';
 import '../../arenas/domain/arena_list_item.dart';
 import '../data/arena_profile_edit_service.dart';
 import '../domain/arena_providers.dart';
@@ -66,7 +69,11 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
   late final TextEditingController _phone;
   late final TextEditingController _whatsapp;
   late final TextEditingController _address;
-  late final TextEditingController _city;
+  late final TextEditingController _latitude;
+  late final TextEditingController _longitude;
+
+  String? _selectedState;
+  String? _selectedCity;
 
   late String? _coverUrl;
   late String? _logoUrl;
@@ -90,7 +97,21 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
     _phone = TextEditingController(text: a.phone ?? '');
     _whatsapp = TextEditingController(text: a.whatsapp ?? '');
     _address = TextEditingController(text: a.addressLine ?? '');
-    _city = TextEditingController(text: a.city ?? '');
+    _latitude = TextEditingController(
+      text: a.latitude != null ? a.latitude!.toStringAsFixed(6) : '',
+    );
+    _longitude = TextEditingController(
+      text: a.longitude != null ? a.longitude!.toStringAsFixed(6) : '',
+    );
+    if (a.state?.trim().isNotEmpty == true) {
+      _selectedState = a.state!.trim().toUpperCase();
+      final c = a.city?.trim() ?? '';
+      _selectedCity = c.isNotEmpty ? c : null;
+    } else {
+      final legacy = BrLocationsData.parseLegacyLocation(a.city ?? '');
+      _selectedState = legacy.state.isNotEmpty ? legacy.state : null;
+      _selectedCity = legacy.city.isNotEmpty ? legacy.city : null;
+    }
     _coverUrl = a.coverUrl;
     _logoUrl = a.logoUrl;
     _courtTypes = List<String>.from(a.courtTypes);
@@ -110,7 +131,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
     _phone.dispose();
     _whatsapp.dispose();
     _address.dispose();
-    _city.dispose();
+    _latitude.dispose();
+    _longitude.dispose();
     _payoutPixKey.dispose();
     super.dispose();
   }
@@ -259,12 +281,66 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
     );
   }
 
+  double? _parseOptionalCoord(String raw) {
+    final t = raw.trim().replaceAll(',', '.');
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+
+  Future<void> _useCurrentLocation() async {
+    final snap =
+        await ref.read(userLocationServiceProvider).tryCurrentPosition();
+    if (!mounted) return;
+    if (snap == null || !snap.hasCoordinates) {
+      showAppSnackBar(
+        context,
+        'Ative a localização do aparelho ou preencha as coordenadas manualmente.',
+        isError: true,
+      );
+      return;
+    }
+    setState(() {
+      _latitude.text = snap.latitude!.toStringAsFixed(6);
+      _longitude.text = snap.longitude!.toStringAsFixed(6);
+    });
+    showAppSnackBar(context, 'Coordenadas atualizadas com a localização atual.');
+  }
+
+  String? _validateOptionalLatitude(String? value) {
+    final t = value?.trim() ?? '';
+    if (t.isEmpty) return null;
+    final n = double.tryParse(t.replaceAll(',', '.'));
+    if (n == null) return 'Latitude inválida';
+    if (n < -90 || n > 90) return 'Entre -90 e 90';
+    return null;
+  }
+
+  String? _validateOptionalLongitude(String? value) {
+    final t = value?.trim() ?? '';
+    if (t.isEmpty) return null;
+    final n = double.tryParse(t.replaceAll(',', '.'));
+    if (n == null) return 'Longitude inválida';
+    if (n < -180 || n > 180) return 'Entre -180 e 180';
+    return null;
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (!_onlinePayment && !_onsitePayment) {
       showAppSnackBar(
         context,
         'Ative pelo menos uma forma de pagamento.',
+        isError: true,
+      );
+      return;
+    }
+
+    final lat = _parseOptionalCoord(_latitude.text);
+    final lng = _parseOptionalCoord(_longitude.text);
+    if ((lat == null) != (lng == null)) {
+      showAppSnackBar(
+        context,
+        'Informe latitude e longitude juntas, ou deixe ambas vazias.',
         isError: true,
       );
       return;
@@ -280,7 +356,10 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
             phone: _phone.text,
             whatsapp: _whatsapp.text.trim().isEmpty ? null : _whatsapp.text,
             address: _address.text,
-            city: _city.text,
+            city: _selectedCity?.trim() ?? '',
+            state: _selectedState,
+            latitude: lat,
+            longitude: lng,
             coverUrl: _coverUrl,
             logoUrl: _logoUrl,
             courtTypes: _courtTypes,
@@ -486,11 +565,95 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                               decoration: _fieldDecoration(label: 'Endereço'),
                             ),
                             const SizedBox(height: 14),
-                            TextFormField(
-                              controller: _city,
-                              textCapitalization: TextCapitalization.words,
-                              style: const TextStyle(color: AppColors.onSurface),
-                              decoration: _fieldDecoration(label: 'Cidade'),
+                            BrStateCityFields(
+                              selectedState: _selectedState,
+                              selectedCity: _selectedCity,
+                              onStateChanged: (v) =>
+                                  setState(() => _selectedState = v),
+                              onCityChanged: (v) =>
+                                  setState(() => _selectedCity = v),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              'Coordenadas (opcional)',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: AppColors.onSurfaceMuted,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Usadas para sugerir sua arena a atletas perto. '
+                              'Você pode usar o GPS no local ou informar manualmente.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: AppColors.onSurfaceMuted,
+                                height: 1.35,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _latitude,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                      signed: true,
+                                    ),
+                                    style: const TextStyle(
+                                      color: AppColors.onSurface,
+                                    ),
+                                    decoration: _fieldDecoration(
+                                      label: 'Latitude',
+                                      hint: '-16.686891',
+                                    ),
+                                    validator: _validateOptionalLatitude,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _longitude,
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                      signed: true,
+                                    ),
+                                    style: const TextStyle(
+                                      color: AppColors.onSurface,
+                                    ),
+                                    decoration: _fieldDecoration(
+                                      label: 'Longitude',
+                                      hint: '-49.264794',
+                                    ),
+                                    validator: _validateOptionalLongitude,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            OutlinedButton.icon(
+                              onPressed: _saving ? null : _useCurrentLocation,
+                              icon: const Icon(
+                                Icons.my_location_rounded,
+                                size: 20,
+                              ),
+                              label: const Text('Usar localização atual'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.brand,
+                                side: BorderSide(
+                                  color: AppColors.brand.withValues(alpha: 0.45),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
                             ),
                           ],
                         ),

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/location/br_locations_data.dart';
+
 /// Quem recebe o PIX online: conta NexaGO (padrão) ou Mercado Pago do gestor.
 enum ArenaPaymentReceiver {
   platform,
@@ -36,6 +38,8 @@ class ArenaListItem {
     this.addressLine,
     this.city,
     this.state,
+    this.latitude,
+    this.longitude,
     this.courtTypes = const [],
     this.onlinePaymentEnabled = true,
     this.onsitePaymentEnabled = true,
@@ -68,6 +72,10 @@ class ArenaListItem {
   /// Cidade e estado persistidos (quando existirem no documento).
   final String? city;
   final String? state;
+
+  /// Coordenadas da arena (`latitude`/`longitude` ou `location` GeoPoint).
+  final double? latitude;
+  final double? longitude;
 
   /// Tipos de quadra oferecidos pela arena (lista editável no painel).
   final List<String> courtTypes;
@@ -109,8 +117,20 @@ class ArenaListItem {
     final resolvedName =
         (name == null || name.isEmpty) ? 'Arena ${doc.id}' : name;
 
-    final city = (data['city'] as String?)?.trim() ?? '';
-    final state = (data['state'] as String?)?.trim() ?? '';
+    var city = (data['city'] as String?)?.trim() ?? '';
+    var state = BrLocationsData.resolveStateSigla(
+      (data['state'] as String?) ?? (data['uf'] as String?),
+    );
+    if (city.isNotEmpty) {
+      final parsed = BrLocationsData.parseLegacyLocation(city);
+      if (parsed.city.isNotEmpty &&
+          (city.contains('·') || city.contains(',') || state.isEmpty)) {
+        city = parsed.city;
+      }
+      if (state.isEmpty && parsed.state.isNotEmpty) {
+        state = BrLocationsData.resolveStateSigla(parsed.state);
+      }
+    }
     String locationLabel;
     if (city.isNotEmpty || state.isNotEmpty) {
       locationLabel = [city, state].where((e) => e.isNotEmpty).join(', ');
@@ -207,6 +227,16 @@ class ArenaListItem {
 
     final cityValue = city.isEmpty ? null : city;
     final stateValue = state.isEmpty ? null : state;
+
+    double? latitude;
+    double? longitude;
+    final geo = data['location'] ?? data['geo'] ?? data['coordinates'];
+    if (geo is GeoPoint) {
+      latitude = geo.latitude;
+      longitude = geo.longitude;
+    }
+    latitude ??= (data['latitude'] as num?)?.toDouble();
+    longitude ??= (data['longitude'] as num?)?.toDouble();
     final ratingAverage = (data['ratingAverage'] as num?)?.toDouble() ?? 0;
     final reviewsCount = (data['reviewsCount'] as num?)?.toInt() ?? 0;
     final reputationScore = (data['reputationScore'] as num?)?.toInt() ?? 0;
@@ -227,6 +257,8 @@ class ArenaListItem {
       addressLine: addressLine,
       city: cityValue,
       state: stateValue,
+      latitude: latitude,
+      longitude: longitude,
       courtTypes: courtTypes,
       onlinePaymentEnabled: onlinePayment,
       onsitePaymentEnabled: onsitePayment,

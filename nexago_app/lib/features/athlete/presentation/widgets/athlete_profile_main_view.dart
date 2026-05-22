@@ -230,10 +230,16 @@ class AthleteProfileMainView extends StatelessWidget {
                         ranking: AthleteProfileMock.ranking,
                       ),
                       const SizedBox(height: 14),
-                      _NextBookingCard(
-                        booking: nextBooking,
-                        onTap: onOpenAgenda,
-                      ),
+                      if (nextBooking != null)
+                        _NextBookingCard(
+                          booking: nextBooking!,
+                          onTap: onOpenAgenda,
+                        )
+                      else
+                        _NextBookingEmptyCard(
+                          readOnly: readOnly,
+                          onTap: onOpenAgenda,
+                        ),
                       const SizedBox(height: 20),
                       _SectionHeader(
                         title: 'Conquistas',
@@ -556,6 +562,7 @@ class _ProfileIdentityRow extends StatelessWidget {
     final theme = Theme.of(context);
 
     const avatarSize = 72.0;
+
     /// Espaço extra para sombra do avatar + badge de nível sem cortar o círculo.
     const avatarSlotSize = 84.0;
 
@@ -767,7 +774,6 @@ class _SportTag extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF2E1A0C),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.brand.withValues(alpha: 0.28)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1143,35 +1149,127 @@ class _StatCard extends StatelessWidget {
   }
 }
 
+class _NextBookingEmptyCard extends StatelessWidget {
+  const _NextBookingEmptyCard({
+    required this.readOnly,
+    required this.onTap,
+  });
+
+  final bool readOnly;
+  final VoidCallback onTap;
+
+  static const _cardRadius = 14.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final card = Ink(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceRaised.withValues(alpha: 0.75),
+        borderRadius: BorderRadius.circular(_cardRadius),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 52,
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceCard,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.calendar_today_outlined,
+                size: 22,
+                color: AppColors.onSurface,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'PRÓXIMA RESERVA',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: AppColors.brand,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                      fontSize: 10,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Nenhuma reserva próxima',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Reserve uma quadra e ela aparece aqui.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceMuted,
+                      fontWeight: FontWeight.w500,
+                      height: 1.35,
+                    ),
+                  ),
+                  if (!readOnly) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      'Ver minhas reservas',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.brand,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (readOnly) {
+      return Material(color: Colors.transparent, child: card);
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(_cardRadius),
+        child: card,
+      ),
+    );
+  }
+}
+
 class _NextBookingCard extends StatelessWidget {
   const _NextBookingCard({required this.booking, required this.onTap});
 
-  final MyBookingItem? booking;
+  final MyBookingItem booking;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final item = booking;
-    final mock = item == null;
-    final dateBlock = mock
-        ? _MockBooking.dateBlock
-        : _formatDateBlock(item.dateRaw);
-    final courtSuffix =
-        item != null && item.courtName != null && item.courtName!.isNotEmpty
+    final dateBlock = _formatDateBlock(item.dateRaw);
+    final courtSuffix = item.courtName != null && item.courtName!.isNotEmpty
         ? ' · ${item.courtName}'
         : '';
-    final arena = mock
-        ? 'Arena CFC · Quadra 1'
-        : '${item.arenaName}$courtSuffix';
-    final timeLine = mock
-        ? '11:00 – 12:00 · com Enzo R.'
-        : '${item.startTime} – ${item.endTime}';
-    final amount = mock
-        ? 'R\$ 60 / PAGO'
-        : (item.amountReais != null
-              ? 'R\$ ${item.amountReais!.toStringAsFixed(0)}'
-              : '');
+    final arena = '${item.arenaName}$courtSuffix';
+    final timeLine = '${item.startTime} – ${item.endTime}';
+    final amount = item.amountReais != null
+        ? 'R\$ ${item.amountReais!.toStringAsFixed(0)}'
+        : '';
 
     return Material(
       color: Colors.transparent,
@@ -1282,9 +1380,7 @@ class _NextBookingCard extends StatelessWidget {
   }
 }
 
-class _MockBooking {
-  static const dateBlock = _DateBlock(weekday: 'SAB', day: '24', month: 'MAI');
-}
+const _invalidDateBlock = _DateBlock(weekday: '—', day: '?', month: '—');
 
 class _DateBlock {
   const _DateBlock({
@@ -1302,7 +1398,7 @@ _DateBlock _formatDateBlock(String dateRaw) {
   final parsed = DateTime.tryParse(
     dateRaw.length >= 10 ? dateRaw.substring(0, 10) : dateRaw,
   );
-  if (parsed == null) return _MockBooking.dateBlock;
+  if (parsed == null) return _invalidDateBlock;
   const weekdays = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SAB'];
   const months = [
     'JAN',

@@ -90,6 +90,8 @@
 	<string>O Nexago precisa acessar suas fotos para definir a foto do perfil.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>O Nexago usa Face ID para proteger o acesso à sua conta neste aparelho.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>O NexaGO usa sua localização para sugerir arenas perto de você.</string>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

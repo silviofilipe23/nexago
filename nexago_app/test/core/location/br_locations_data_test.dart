@@ -18,6 +18,12 @@ void main() {
     );
   });
 
+  test('resolveStateSigla aceita sigla ou nome', () {
+    expect(BrLocationsData.resolveStateSigla('go'), 'GO');
+    expect(BrLocationsData.resolveStateSigla('Goiás'), 'GO');
+    expect(BrLocationsData.resolveStateSigla('  goias  '), 'GO');
+  });
+
   test('searchCities is accent-insensitive', () async {
     final data = await BrLocationsData.load();
     final hits = data.searchCities(uf: 'GO', query: 'goiania');

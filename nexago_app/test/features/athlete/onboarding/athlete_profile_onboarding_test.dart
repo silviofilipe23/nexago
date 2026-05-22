@@ -51,6 +51,51 @@ void main() {
       expect(onboarding['goals'], ['RESERVAR_ARENA', 'COMPETIR']);
       expect(onboarding.containsKey('completedAt'), isTrue);
     });
+
+    test('persists city and state on user document', () {
+      const profile = AthleteProfile(
+        id: 'u1',
+        name: 'Ana',
+        sport: 'Vôlei de praia',
+        level: 'Intermediário',
+        city: 'Goiânia',
+        state: 'go',
+      );
+
+      final data = profile.toFirestore();
+      expect(data['city'], 'Goiânia');
+      expect(data['state'], 'GO');
+    });
+
+    test('copyWith updates or clears state explicitly', () {
+      const profile = AthleteProfile(
+        id: 'u1',
+        name: 'Ana',
+        sport: 'Vôlei de praia',
+        level: 'Intermediário',
+        city: 'Goiânia',
+        state: 'SP',
+      );
+
+      expect(profile.copyWith(state: 'GO').state, 'GO');
+      expect(profile.copyWith(state: null).state, isNull);
+      expect(profile.copyWith().state, 'SP');
+    });
+
+    test('copyWith updates or clears nickname explicitly', () {
+      const profile = AthleteProfile(
+        id: 'u1',
+        name: 'Ana',
+        sport: 'Vôlei de praia',
+        level: 'Intermediário',
+        city: '',
+        nickname: 'Aninha',
+      );
+
+      expect(profile.copyWith(nickname: 'Nana').nickname, 'Nana');
+      expect(profile.copyWith(nickname: null).nickname, isNull);
+      expect(profile.copyWith().nickname, 'Aninha');
+    });
   });
 
   group('AthleteOnboardingDraft.toAthleteProfile', () {

@@ -135,6 +135,26 @@ class BrLocationsData {
     return (city: trimmed, state: '');
   }
 
+  /// Comparação case-insensitive sem acento (cidade/UF).
+  static String normalizeLocationToken(String value) => _normalize(value);
+
+  /// Aceita sigla (`GO`) ou nome do estado (`Goiás`, `goias`).
+  static String resolveStateSigla(String? raw) {
+    final trimmed = raw?.trim() ?? '';
+    if (trimmed.isEmpty) return '';
+
+    final upper = trimmed.toUpperCase();
+    if (upper.length == 2 && RegExp(r'^[A-Z]{2}$').hasMatch(upper)) {
+      return upper;
+    }
+
+    final norm = _normalize(trimmed);
+    for (final st in states) {
+      if (_normalize(st.name) == norm) return st.sigla;
+    }
+    return '';
+  }
+
   static String _normalize(String value) {
     const accents = 'àáâãäåèéêëìíîïòóôõöùúûüçñ';
     const plain = 'aaaaaaeeeeiiiioooooouuuucn';

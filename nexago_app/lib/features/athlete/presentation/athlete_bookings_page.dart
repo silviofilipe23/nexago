@@ -863,7 +863,7 @@ _AthleteBooking? _athleteBookingFromFirestore(MyBookingItem item) {
         : 'Quadra',
     startAt: start,
     endAt: end,
-    confirmedParticipants: 1,
+    confirmedParticipants: item.confirmedParticipants,
     rawStatus: item.rawStatus,
     amountReais: item.amountReais,
     paymentType: item.paymentType,

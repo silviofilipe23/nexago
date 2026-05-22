@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 import '../domain/athlete_profile.dart';
@@ -27,8 +28,31 @@ class AthleteProfileRepository {
 
     final data = <String, dynamic>{
       ...profile.toFirestore(),
+      'city': profile.city.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
+
+    final stateTrim = profile.state?.trim() ?? '';
+    if (stateTrim.isNotEmpty) {
+      data['state'] = stateTrim.toUpperCase();
+    } else if (exists) {
+      data['state'] = FieldValue.delete();
+    }
+
+    final nicknameTrim = profile.nickname?.trim() ?? '';
+    if (nicknameTrim.isNotEmpty) {
+      data['nickname'] = nicknameTrim;
+    } else if (exists) {
+      data['nickname'] = FieldValue.delete();
+    }
+
+    final authUser = FirebaseAuth.instance.currentUser;
+    if (authUser != null && authUser.uid == profile.id) {
+      final email = authUser.email?.trim();
+      if (email != null && email.isNotEmpty) {
+        data['email'] = email;
+      }
+    }
 
     if (!exists) {
       // Primeiro save (ex.: onboarding): define papel de atleta.

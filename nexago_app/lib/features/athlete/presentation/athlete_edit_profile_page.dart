@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/location/user_location_providers.dart';
 import '../../../core/biometric/biometric_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -36,6 +37,8 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
   final _phoneSectionKey = GlobalKey();
   final _citySectionKey = GlobalKey();
   final _nameCtrl = TextEditingController();
+  final _nicknameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _bioCtrl = TextEditingController();
 
@@ -60,13 +63,14 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
   bool _onboardingCompleted = true;
   List<String> _sports = const [];
   List<String> _goals = const [];
-  String? _nickname;
   String? _birthDate;
   String? _gender;
 
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _nicknameCtrl.dispose();
+    _emailCtrl.dispose();
     _phoneCtrl.dispose();
     _bioCtrl.dispose();
     super.dispose();
@@ -74,6 +78,7 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
 
   void _applyProfile(AthleteProfile p) {
     _nameCtrl.text = p.name;
+    _nicknameCtrl.text = p.nickname ?? '';
     _phoneCtrl.text = p.phoneNumber ?? '';
     _selectedState = p.state;
     _selectedCity = p.city.trim().isEmpty ? null : p.city.trim();
@@ -89,7 +94,6 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
     _onboardingCompleted = p.onboardingCompleted;
     _sports = List<String>.from(p.sports);
     _goals = List<String>.from(p.goals);
-    _nickname = p.nickname;
     _birthDate = p.birthDate;
     _gender = p.gender;
   }
@@ -250,6 +254,11 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
 
       final base =
           ref.read(athleteProfileProvider).valueOrNull ?? AthleteProfile.draft(user);
+      final city = _selectedCity?.trim() ?? '';
+      final stateRaw = _selectedState?.trim();
+      final state =
+          stateRaw != null && stateRaw.isNotEmpty ? stateRaw.toUpperCase() : null;
+      final nicknameTrim = _nicknameCtrl.text.trim();
       final profile = base.copyWith(
         name: _nameCtrl.text.trim(),
         avatarUrl: avatarUrl,
@@ -258,12 +267,12 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
         level: _level,
         phoneNumber:
             _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-        city: _selectedCity?.trim() ?? '',
-        state: _selectedState?.trim().toUpperCase(),
+        city: city,
+        state: state,
         bio: _bioCtrl.text.trim().isEmpty ? null : _bioCtrl.text.trim(),
         sports: _sports,
         goals: _goals,
-        nickname: _nickname,
+        nickname: nicknameTrim.isEmpty ? null : nicknameTrim,
         birthDate: _birthDate,
         gender: _gender,
         onboardingCompleted: _onboardingCompleted,
@@ -271,6 +280,8 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
       );
 
       await repo.saveProfile(profile);
+      ref.invalidate(athleteProfileProvider);
+      ref.invalidate(userLocationProvider);
       await ref.read(gamificationServiceProvider).syncProfileCompletionRewards(
             userId: user.uid,
             profile: profile,
@@ -320,6 +331,7 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
               if (!mounted || _initialized) return;
               setState(() {
                 _applyProfile(p);
+                _emailCtrl.text = user.email?.trim() ?? '';
                 _initialized = true;
               });
               _scrollToFocus();
@@ -390,6 +402,29 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
                             return null;
                           },
                           onChanged: (_) => setState(() {}),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _nicknameCtrl,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: const InputDecoration(
+                            labelText: 'Apelido (opcional)',
+                            hintText: 'Como prefere ser chamado',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _emailCtrl,
+                          readOnly: true,
+                          enabled: false,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'E-mail',
+                            hintText: 'Vinculado à sua conta',
+                            helperText: 'O e-mail não pode ser alterado aqui.',
+                            border: OutlineInputBorder(),
+                          ),
                         ),
                         const SizedBox(height: 16),
                         KeyedSubtree(

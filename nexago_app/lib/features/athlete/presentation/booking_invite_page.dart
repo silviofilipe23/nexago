@@ -53,12 +53,29 @@ class _BookingInvitePageState extends ConsumerState<BookingInvitePage> {
     setState(() => _accepting = true);
 
     try {
+      final user = ref.read(authProvider).valueOrNull;
+      final uid = user?.uid;
+      if (uid == null || uid.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Faça login para aceitar o convite.')),
+        );
+        return;
+      }
+
+      final displayName = user?.displayName?.trim().isNotEmpty == true
+          ? user!.displayName!.trim()
+          : 'Atleta';
+
       final service = ref.read(bookingInviteServiceProvider);
-      await service.acceptInvite(invite.id);
+      await service.acceptInvite(
+        invite.id,
+        acceptedByUid: uid,
+        acceptedByName: displayName,
+      );
 
       // Concede XP ao jogador que enviou o convite
-      final uid = ref.read(authProvider).valueOrNull?.uid;
-      if (uid != null) {
+      if (uid.isNotEmpty) {
         await ref.read(gamificationServiceProvider).onPlayerInvited(
               userId: invite.invitedByUid,
               inviteId: invite.id,

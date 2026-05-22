@@ -45,6 +45,9 @@ class ArenaProfileEditService {
     String? whatsapp,
     required String address,
     required String city,
+    String? state,
+    double? latitude,
+    double? longitude,
     String? coverUrl,
     String? logoUrl,
     required List<String> courtTypes,
@@ -72,6 +75,23 @@ class ArenaProfileEditService {
         'Ative pelo menos uma forma de pagamento.',
       );
     }
+    final trimmedCity = city.trim();
+    if (trimmedCity.isEmpty) {
+      throw ArenaProfileEditException('Selecione a cidade da arena.');
+    }
+    final trimmedState = state?.trim().toUpperCase() ?? '';
+    if (trimmedState.isEmpty) {
+      throw ArenaProfileEditException('Selecione o estado da arena.');
+    }
+    if ((latitude == null) != (longitude == null)) {
+      throw ArenaProfileEditException(
+        'Informe latitude e longitude juntas, ou deixe ambas vazias.',
+      );
+    }
+    if (latitude != null &&
+        (latitude < -90 || latitude > 90 || longitude! < -180 || longitude > 180)) {
+      throw ArenaProfileEditException('Coordenadas geográficas inválidas.');
+    }
     final trimmedPixKey = payoutPixKey.trim();
     final trimmedPixType = payoutPixKeyType.trim().toUpperCase();
     if (onlinePaymentEnabled && trimmedPixKey.length < 5) {
@@ -98,7 +118,17 @@ class ArenaProfileEditService {
         'phone': phone.trim(),
         'whatsapp': wa.isEmpty ? FieldValue.delete() : wa,
         'address': address.trim(),
-        'city': city.trim(),
+        'city': trimmedCity,
+        'state': trimmedState,
+        if (latitude != null && longitude != null) ...<String, dynamic>{
+          'latitude': latitude,
+          'longitude': longitude,
+          'location': GeoPoint(latitude, longitude),
+        } else ...<String, dynamic>{
+          'latitude': FieldValue.delete(),
+          'longitude': FieldValue.delete(),
+          'location': FieldValue.delete(),
+        },
         'coverUrl': _urlOrDelete(coverUrl),
         'logoUrl': _urlOrDelete(logoUrl),
         'courtTypes': uniqueTypes,

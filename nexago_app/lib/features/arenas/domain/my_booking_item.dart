@@ -1,10 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'my_booking_confirmed_athlete.dart';
+import 'my_booking_payment.dart';
+
 /// Linha de `arenaBookings` para a lista “Minhas reservas”.
 class MyBookingItem {
   const MyBookingItem({
     required this.id,
     this.arenaId,
+    this.ownerAthleteId,
     required this.arenaName,
     this.courtName,
     this.coverUrl,
@@ -15,15 +19,19 @@ class MyBookingItem {
     required this.rawStatus,
     this.amountReais,
     this.paymentType,
+    required this.paymentDisplay,
     this.createdAt,
     this.attendanceConfirmed = false,
     this.attendanceStatus = 'pending',
     this.attendanceConfirmedAt,
     this.confirmationDeadline,
+    this.confirmedParticipants = 1,
+    this.confirmedAthletes = const [],
   });
 
   final String id;
   final String? arenaId;
+  final String? ownerAthleteId;
   final String arenaName;
   final String? courtName;
   final String? coverUrl;
@@ -35,11 +43,18 @@ class MyBookingItem {
   final String rawStatus;
   final double? amountReais;
   final String? paymentType;
+  final MyBookingPaymentDisplay paymentDisplay;
   final DateTime? createdAt;
   final bool attendanceConfirmed;
   final String attendanceStatus;
   final DateTime? attendanceConfirmedAt;
   final DateTime? confirmationDeadline;
+
+  /// Total de atletas com presença confirmada (inclui o dono da reserva).
+  final int confirmedParticipants;
+
+  /// Parceiros / convidados confirmados quando disponível no documento.
+  final List<MyBookingConfirmedAthlete> confirmedAthletes;
 
   factory MyBookingItem.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -91,9 +106,21 @@ class MyBookingItem {
     final arenaId =
         arenaIdRaw is String && arenaIdRaw.trim().isNotEmpty ? arenaIdRaw.trim() : null;
 
+    final ownerRaw = data['athleteId'] ?? data['bookingAthleteId'];
+    final ownerAthleteId =
+        ownerRaw is String && ownerRaw.trim().isNotEmpty ? ownerRaw.trim() : null;
+
+    final confirmedAthletes = parseConfirmedAthletesFromBooking(data);
+    final participantsRaw = (data['confirmedParticipants'] as num?)?.toInt() ??
+        (data['participantsConfirmedCount'] as num?)?.toInt();
+    final confirmedParticipants = participantsRaw != null && participantsRaw > 0
+        ? participantsRaw
+        : (confirmedAthletes.isNotEmpty ? confirmedAthletes.length + 1 : 1);
+
     return MyBookingItem(
       id: doc.id,
       arenaId: arenaId,
+      ownerAthleteId: ownerAthleteId,
       arenaName: arenaName,
       courtName: courtName,
       coverUrl: pickUrl(data['coverUrl']) ?? pickUrl(data['arenaCoverUrl']) ?? pickUrl(data['coverImageUrl']),
@@ -104,6 +131,7 @@ class MyBookingItem {
       rawStatus: status,
       amountReais: amountReais,
       paymentType: paymentType,
+      paymentDisplay: myBookingPaymentDisplayFromData(data),
       createdAt: createdAt,
       attendanceConfirmed: data['attendanceConfirmed'] == true,
       attendanceStatus: ((data['attendanceStatus'] as String?)?.trim().isNotEmpty ?? false)
@@ -111,7 +139,107 @@ class MyBookingItem {
           : 'pending',
       attendanceConfirmedAt: (data['attendanceConfirmedAt'] as Timestamp?)?.toDate(),
       confirmationDeadline: (data['confirmationDeadline'] as Timestamp?)?.toDate(),
+      confirmedParticipants: confirmedParticipants,
+      confirmedAthletes: confirmedAthletes,
     );
+  }
+
+  /// Extrai convidados/parceiros confirmados de campos conhecidos em `arenaBookings`.
+  static List<MyBookingConfirmedAthlete> parseConfirmedAthletesFromBooking(
+    Map<String, dynamic> data,
+  ) {
+    final out = <MyBookingConfirmedAthlete>[];
+    final seen = <String>{};
+
+    void add({
+      String? userId,
+      String? name,
+      String? avatarUrl,
+    }) {
+      final uid = userId?.trim();
+      final label = name?.trim() ?? '';
+      if (uid != null && uid.isNotEmpty) {
+        if (seen.contains('uid:$uid')) return;
+        seen.add('uid:$uid');
+        out.add(
+          MyBookingConfirmedAthlete(
+            userId: uid,
+            displayName: label.isEmpty ? null : label,
+            avatarUrl: avatarUrl,
+          ),
+        );
+        return;
+      }
+      if (label.isNotEmpty) {
+        final key = 'name:$label';
+        if (seen.contains(key)) return;
+        seen.add(key);
+        out.add(
+          MyBookingConfirmedAthlete(
+            displayName: label,
+            avatarUrl: avatarUrl,
+          ),
+        );
+      }
+    }
+
+    for (final key in [
+      'confirmedAthletes',
+      'participants',
+      'attendees',
+      'guests',
+      'players',
+    ]) {
+      final raw = data[key];
+      if (raw is! List) continue;
+      for (final entry in raw) {
+        if (entry is Map) {
+          add(
+            userId: _pickString(entry['userId']) ??
+                _pickString(entry['uid']) ??
+                _pickString(entry['athleteId']),
+            name: _pickString(entry['name']) ??
+                _pickString(entry['displayName']) ??
+                _pickString(entry['fullName']) ??
+                _pickString(entry['nickname']),
+            avatarUrl: _pickString(entry['avatarUrl']) ??
+                _pickString(entry['photoUrl']) ??
+                _pickString(entry['profilePhotoUrl']),
+          );
+        } else if (entry is String) {
+          final t = entry.trim();
+          if (t.contains(' ')) {
+            add(name: t);
+          } else if (t.isNotEmpty) {
+            add(userId: t);
+          }
+        }
+      }
+    }
+
+    const guestPairs = <(String idKey, String nameKey)>[
+      ('guestAthleteId', 'guestAthleteName'),
+      ('guestUserId', 'guestName'),
+      ('partnerAthleteId', 'partnerName'),
+      ('partnerUserId', 'partnerUserName'),
+      ('secondAthleteId', 'secondAthleteName'),
+      ('invitedAthleteId', 'invitedAthleteName'),
+    ];
+    for (final pair in guestPairs) {
+      final id = _pickString(data[pair.$1]);
+      final name = _pickString(data[pair.$2]);
+      if (id != null || name != null) {
+        add(userId: id, name: name);
+      }
+    }
+
+    return out;
+  }
+
+  static String? _pickString(dynamic value) {
+    if (value is! String) return null;
+    final t = value.trim();
+    return t.isEmpty ? null : t;
   }
 
   static String _timeStr(dynamic v) {

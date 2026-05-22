@@ -47,7 +47,10 @@ void main() {
       expect(onboarding['version'], 1);
       expect(onboarding['primarySportId'], 'VOLEI_PRAIA');
       expect(onboarding['secondarySportIds'], ['BEACH_TENNIS']);
-      expect(onboarding['levelsBySport'], {'VOLEI_PRAIA': 'intermediario'});
+      expect(onboarding['levelsBySport'], {
+        'VOLEI_PRAIA': 'intermediario',
+        'BEACH_TENNIS': 'iniciante',
+      });
       expect(onboarding['goals'], ['RESERVAR_ARENA', 'COMPETIR']);
       expect(onboarding.containsKey('completedAt'), isTrue);
     });

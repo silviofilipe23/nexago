@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/location/br_locations_data.dart';
 import '../../../../core/location/br_locations_provider.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'edit_profile/edit_profile_field_decorations.dart';
 
 /// UF (dropdown) + cidade (campo com busca em lista IBGE).
 class BrStateCityFields extends ConsumerStatefulWidget {
@@ -15,6 +16,7 @@ class BrStateCityFields extends ConsumerStatefulWidget {
     required this.onCityChanged,
     this.stateValidator,
     this.cityValidator,
+    this.useEditProfileStyle = false,
   });
 
   final String? selectedState;
@@ -23,6 +25,7 @@ class BrStateCityFields extends ConsumerStatefulWidget {
   final ValueChanged<String?> onCityChanged;
   final FormFieldValidator<String>? stateValidator;
   final FormFieldValidator<String>? cityValidator;
+  final bool useEditProfileStyle;
 
   @override
   ConsumerState<BrStateCityFields> createState() => _BrStateCityFieldsState();
@@ -119,10 +122,15 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
             DropdownButtonFormField<String>(
               key: ValueKey<String>('uf_$uf'),
               initialValue: stateItem?.sigla,
-              decoration: const InputDecoration(
-                labelText: 'Estado',
-                border: OutlineInputBorder(),
-              ),
+              decoration: widget.useEditProfileStyle
+                  ? editProfileInputDecoration(
+                      label: 'ESTADO',
+                      required: true,
+                    )
+                  : const InputDecoration(
+                      labelText: 'Estado',
+                      border: OutlineInputBorder(),
+                    ),
               items: BrLocationsData.states
                   .map(
                     (s) => DropdownMenuItem(
@@ -148,17 +156,38 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
               controller: _cityCtrl,
               readOnly: true,
               onTap: () => _openCitySearch(data),
-              decoration: InputDecoration(
-                labelText: 'Cidade',
-                hintText: uf == null ? 'Selecione o estado' : 'Buscar cidade',
-                border: const OutlineInputBorder(),
-                suffixIcon: Icon(
-                  Icons.search_rounded,
-                  color: uf == null
-                      ? AppColors.onSurfaceMuted.withValues(alpha: 0.4)
-                      : AppColors.brand,
-                ),
-              ),
+              decoration: widget.useEditProfileStyle
+                  ? editProfileInputDecoration(
+                      label: 'CIDADE',
+                      required: true,
+                      hintText:
+                          uf == null ? 'Selecione o estado' : 'Buscar cidade',
+                      prefixIcon: Icon(
+                        Icons.location_on_outlined,
+                        size: 20,
+                        color: uf == null
+                            ? AppColors.onSurfaceMuted.withValues(alpha: 0.4)
+                            : AppColors.onSurfaceMuted,
+                      ),
+                      suffixIcon: Icon(
+                        Icons.search_rounded,
+                        color: uf == null
+                            ? AppColors.onSurfaceMuted.withValues(alpha: 0.4)
+                            : AppColors.brand,
+                      ),
+                    )
+                  : InputDecoration(
+                      labelText: 'Cidade',
+                      hintText:
+                          uf == null ? 'Selecione o estado' : 'Buscar cidade',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: Icon(
+                        Icons.search_rounded,
+                        color: uf == null
+                            ? AppColors.onSurfaceMuted.withValues(alpha: 0.4)
+                            : AppColors.brand,
+                      ),
+                    ),
               validator: widget.cityValidator ??
                   (v) {
                     if (v == null || v.trim().isEmpty) {

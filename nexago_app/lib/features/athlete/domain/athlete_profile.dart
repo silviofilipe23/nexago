@@ -29,6 +29,7 @@ class AthleteProfile {
     this.otherSportNote,
     this.onboardingCompleted = false,
     this.useBiometric = false,
+    this.levelsBySportFirestore = const {},
   });
 
   final String id;
@@ -55,6 +56,8 @@ class AthleteProfile {
   final String? otherSportNote;
   final bool onboardingCompleted;
   final bool useBiometric;
+  /// Nível por esporte em `sportOnboarding.levelsBySport` (código FS → código nível).
+  final Map<String, String> levelsBySportFirestore;
 
   factory AthleteProfile.draft(User user) {
     final email = user.email;
@@ -105,6 +108,7 @@ class AthleteProfile {
     String? primarySportFirestoreId;
     List<String> secondarySportFirestoreIds = const [];
     String? otherSportNote;
+    Map<String, String> levelsBySportFirestore = const {};
 
     if (sportOnboarding is Map) {
       final rawPrimary = sportOnboarding['primarySportId'] as String?;
@@ -133,12 +137,24 @@ class AthleteProfile {
       }
 
       final levelsBySport = sportOnboarding['levelsBySport'];
-      if (levelsBySport is Map &&
-          primarySportFirestoreId != null &&
-          primarySportFirestoreId!.isNotEmpty) {
-        final levelCode = levelsBySport[primarySportFirestoreId];
-        if (levelCode is String && levelCode.isNotEmpty) {
-          level = AthleteFirestoreCodes.levelFirestoreToLabel(levelCode);
+      if (levelsBySport is Map) {
+        final parsed = <String, String>{};
+        for (final entry in levelsBySport.entries) {
+          final sportKey = entry.key.toString().trim();
+          final levelVal = entry.value?.toString().trim() ?? '';
+          if (sportKey.isNotEmpty && levelVal.isNotEmpty) {
+            parsed[sportKey] = levelVal;
+          }
+        }
+        if (parsed.isNotEmpty) {
+          levelsBySportFirestore = parsed;
+        }
+        final primaryId = primarySportFirestoreId;
+        if (primaryId != null && primaryId.isNotEmpty) {
+          final levelCode = parsed[primaryId];
+          if (levelCode != null && levelCode.isNotEmpty) {
+            level = AthleteFirestoreCodes.levelFirestoreToLabel(levelCode);
+          }
         }
       }
 
@@ -199,6 +215,7 @@ class AthleteProfile {
       otherSportNote: otherSportNote,
       onboardingCompleted: onboardingCompleted,
       useBiometric: data['useBiometric'] == true,
+      levelsBySportFirestore: levelsBySportFirestore,
     );
   }
 
@@ -251,8 +268,21 @@ class AthleteProfile {
     final birthIso =
         AthleteFirestoreCodes.birthDateBrToIso(birthDate) ?? birthDate;
 
-    final levelsBySport = <String, String>{};
-    if (primaryFs != null && primaryFs.isNotEmpty && levelFs.isNotEmpty) {
+    final levelsBySport = Map<String, String>.from(levelsBySportFirestore);
+    final enrolledIds = <String>[
+      if (primaryFs != null && primaryFs.isNotEmpty) primaryFs,
+      ...secondarySportFirestoreIds,
+    ];
+    for (final sportId in enrolledIds) {
+      if (!levelsBySport.containsKey(sportId) || levelsBySport[sportId]!.isEmpty) {
+        levelsBySport[sportId] =
+            sportId == primaryFs && levelFs.isNotEmpty ? levelFs : 'iniciante';
+      }
+    }
+    if (primaryFs != null &&
+        primaryFs.isNotEmpty &&
+        levelFs.isNotEmpty &&
+        (levelsBySport[primaryFs] == null || levelsBySport[primaryFs]!.isEmpty)) {
       levelsBySport[primaryFs] = levelFs;
     }
 
@@ -261,7 +291,7 @@ class AthleteProfile {
       if (onboardingCompleted) 'completedAt': FieldValue.serverTimestamp(),
       if (primaryFs != null && primaryFs.isNotEmpty) 'primarySportId': primaryFs,
       'secondarySportIds': secondarySportFirestoreIds,
-      if (levelsBySport.isNotEmpty) 'levelsBySport': levelsBySport,
+      'levelsBySport': levelsBySport,
       'goals': goals,
       'otherSportNote': otherSportNote,
     };
@@ -277,6 +307,9 @@ class AthleteProfile {
         'profilePhotoUrl': avatarUrl!.trim(),
       'isProfileComplete': onboardingCompleted,
       'sportOnboarding': sportOnboarding,
+      if (sport.trim().isNotEmpty) 'sport': sport.trim(),
+      if (level.trim().isNotEmpty) 'level': level.trim(),
+      'sports': sports,
       'sportProfile': <String, dynamic>{
         if (levelFs.isNotEmpty) 'level': levelFs,
       },
@@ -339,6 +372,7 @@ class AthleteProfile {
     String? otherSportNote,
     bool? onboardingCompleted,
     bool? useBiometric,
+    Map<String, String>? levelsBySportFirestore,
     bool clearAvatar = false,
     bool clearCoverPhoto = false,
     bool clearPhone = false,
@@ -372,6 +406,8 @@ class AthleteProfile {
       otherSportNote: otherSportNote ?? this.otherSportNote,
       onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
       useBiometric: useBiometric ?? this.useBiometric,
+      levelsBySportFirestore:
+          levelsBySportFirestore ?? this.levelsBySportFirestore,
     );
   }
 }

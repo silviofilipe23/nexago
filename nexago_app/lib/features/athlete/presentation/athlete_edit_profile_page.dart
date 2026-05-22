@@ -1,14 +1,14 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:typed_data';
+
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/location/user_location_providers.dart';
-import '../../../core/biometric/biometric_providers.dart';
+import '../../../core/media/profile_image_crop_config.dart';
+import '../../../core/media/profile_image_picker.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../domain/athlete_profile.dart';
@@ -17,6 +17,12 @@ import '../domain/athlete_profile_providers.dart';
 import '../domain/gamification_providers.dart';
 import '../domain/profile_completion_providers.dart';
 import 'widgets/br_state_city_fields.dart';
+import 'widgets/edit_profile/edit_profile_account_prefs_group.dart';
+import 'widgets/edit_profile/edit_profile_completion_banner.dart';
+import 'widgets/edit_profile/edit_profile_dropdown_field.dart';
+import 'widgets/edit_profile/edit_profile_media_header.dart';
+import 'widgets/edit_profile/edit_profile_section_header.dart';
+import 'widgets/edit_profile/edit_profile_text_field.dart';
 
 /// Edição do perfil do atleta (Firestore `athletes` + Storage para avatar).
 class AthleteEditProfilePage extends ConsumerStatefulWidget {
@@ -59,7 +65,6 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
 
   bool _initialized = false;
   bool _saving = false;
-  bool _useBiometric = false;
   bool _onboardingCompleted = true;
   List<String> _sports = const [];
   List<String> _goals = const [];
@@ -90,32 +95,11 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
     _pickedCoverContentType = null;
     _sport = _matchOrFirst(AthleteProfileOptions.sports, p.sport);
     _level = _matchOrFirst(AthleteProfileOptions.levels, p.level);
-    _useBiometric = p.useBiometric;
     _onboardingCompleted = p.onboardingCompleted;
     _sports = List<String>.from(p.sports);
     _goals = List<String>.from(p.goals);
     _birthDate = p.birthDate;
     _gender = p.gender;
-  }
-
-  Future<void> _onUseBiometricChanged(bool value) async {
-    if (value) {
-      final svc = ref.read(biometricServiceProvider);
-      final supported = await svc.isDeviceSupported();
-      final enrolled = await svc.hasEnrolledBiometrics();
-      if (!supported || !enrolled) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Cadastre Face ID ou impressão digital nas configurações do aparelho.',
-            ),
-          ),
-        );
-        return;
-      }
-    }
-    setState(() => _useBiometric = value);
   }
 
   String _matchOrFirst(List<String> options, String value) {
@@ -128,66 +112,28 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
   }
 
   Future<void> _pickAvatar() async {
-    final picker = ImagePicker();
-    final x = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1600,
-      imageQuality: 88,
+    final result = await pickProfileImage(
+      context: context,
+      target: ProfileImageCropTarget.avatar,
     );
-    if (x == null) return;
-    final bytes = await x.readAsBytes();
-    final path = x.path.toLowerCase();
-    String contentType = 'image/jpeg';
-    if (path.endsWith('.png')) {
-      contentType = 'image/png';
-    } else if (path.endsWith('.webp')) {
-      contentType = 'image/webp';
-    }
+    if (result == null || !mounted) return;
     setState(() {
-      _pickedBytes = bytes;
-      _pickedContentType = contentType;
+      _pickedBytes = result.bytes;
+      _pickedContentType = result.contentType;
     });
   }
 
   Future<void> _pickCoverPhoto() async {
-    final picker = ImagePicker();
-    final x = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 2200,
-      imageQuality: 85,
+    final result = await pickProfileImage(
+      context: context,
+      target: ProfileImageCropTarget.cover,
     );
-    if (x == null) return;
-    final bytes = await x.readAsBytes();
-    final path = x.path.toLowerCase();
-    String contentType = 'image/jpeg';
-    if (path.endsWith('.png')) {
-      contentType = 'image/png';
-    } else if (path.endsWith('.webp')) {
-      contentType = 'image/webp';
-    }
+    if (result == null || !mounted) return;
     setState(() {
-      _pickedCoverBytes = bytes;
-      _pickedCoverContentType = contentType;
+      _pickedCoverBytes = result.bytes;
+      _pickedCoverContentType = result.contentType;
       _removeCoverRequested = false;
     });
-  }
-
-  void _removeCoverPhoto() {
-    setState(() {
-      if (_pickedCoverBytes != null) {
-        _pickedCoverBytes = null;
-        _pickedCoverContentType = null;
-        return;
-      }
-      if (_existingCoverPhotoUrl != null &&
-          _existingCoverPhotoUrl!.trim().isNotEmpty) {
-        _removeCoverRequested = true;
-      }
-    });
-  }
-
-  void _undoRemoveCoverPhoto() {
-    setState(() => _removeCoverRequested = false);
   }
 
   void _scrollToFocus() {
@@ -259,6 +205,11 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
       final state =
           stateRaw != null && stateRaw.isNotEmpty ? stateRaw.toUpperCase() : null;
       final nicknameTrim = _nicknameCtrl.text.trim();
+      final bioRaw = _bioCtrl.text.trim();
+      final bio = bioRaw.isEmpty
+          ? null
+          : (bioRaw.length > 160 ? bioRaw.substring(0, 160) : bioRaw);
+
       final profile = base.copyWith(
         name: _nameCtrl.text.trim(),
         avatarUrl: avatarUrl,
@@ -269,14 +220,13 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
             _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
         city: city,
         state: state,
-        bio: _bioCtrl.text.trim().isEmpty ? null : _bioCtrl.text.trim(),
+        bio: bio,
         sports: _sports,
         goals: _goals,
         nickname: nicknameTrim.isEmpty ? null : nicknameTrim,
         birthDate: _birthDate,
         gender: _gender,
         onboardingCompleted: _onboardingCompleted,
-        useBiometric: _useBiometric,
       );
 
       await repo.saveProfile(profile);
@@ -305,6 +255,14 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
     }
   }
 
+  void _popOrBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(AppRoutes.athleteProfile);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -313,16 +271,18 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
 
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Editar perfil')),
+        backgroundColor: AppColors.canvas,
+        appBar: AppBar(
+          backgroundColor: AppColors.canvas,
+          title: const Text('Editar perfil'),
+        ),
         body: const Center(child: Text('Faça login para editar o perfil.')),
       );
     }
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surfaceContainerLowest,
-      appBar: AppBar(
-        title: const Text('Editar perfil'),
-      ),
+      backgroundColor: AppColors.canvas,
+      appBar: _editProfileAppBar(theme),
       body: profileAsync.when(
         data: (doc) {
           if (!_initialized) {
@@ -339,13 +299,15 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
           }
 
           if (!_initialized) {
-            return const Center(child: CircularProgressIndicator());
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.brand),
+            );
           }
 
           return AbsorbPointer(
             absorbing: _saving,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 420),
@@ -354,47 +316,34 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        const EditProfileCompletionBanner(),
                         KeyedSubtree(
                           key: _avatarSectionKey,
-                          child: Center(child: _EditAvatar(
-                          existingUrl: _pickedBytes == null
-                              ? _existingAvatarUrl
-                              : null,
-                          pickedBytes: _pickedBytes,
-                          name: _nameCtrl.text,
-                          onTap: _pickAvatar,
-                        )),
-                        ),
-                        const SizedBox(height: 20),
-                        _EditCoverBanner(
-                          coverRemovedPending: _removeCoverRequested,
-                          existingUrl: _pickedCoverBytes == null
-                              ? _existingCoverPhotoUrl
-                              : null,
-                          pickedBytes: _pickedCoverBytes,
-                          onTap: _pickCoverPhoto,
-                          onRemove: !_removeCoverRequested &&
-                                  ((_existingCoverPhotoUrl != null &&
-                                          _existingCoverPhotoUrl!
-                                              .trim()
-                                              .isNotEmpty) ||
-                                      _pickedCoverBytes != null)
-                              ? _removeCoverPhoto
-                              : null,
-                          onUndoRemove: _removeCoverRequested &&
-                                  (_existingCoverPhotoUrl != null &&
-                                      _existingCoverPhotoUrl!.trim().isNotEmpty)
-                              ? _undoRemoveCoverPhoto
-                              : null,
-                        ),
-                        const SizedBox(height: 28),
-                        TextFormField(
-                          controller: _nameCtrl,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                            labelText: 'Nome',
-                            border: OutlineInputBorder(),
+                          child: EditProfileMediaHeader(
+                            name: _nameCtrl.text,
+                            coverRemovedPending: _removeCoverRequested,
+                            existingCoverUrl: _pickedCoverBytes == null
+                                ? _existingCoverPhotoUrl
+                                : null,
+                            pickedCoverBytes: _pickedCoverBytes,
+                            onEditCover: _pickCoverPhoto,
+                            existingAvatarUrl: _pickedBytes == null
+                                ? _existingAvatarUrl
+                                : null,
+                            pickedAvatarBytes: _pickedBytes,
+                            onEditAvatar: _pickAvatar,
                           ),
+                        ),
+                        const SizedBox(height: 52),
+                        const EditProfileSectionHeader(
+                          icon: Icons.badge_outlined,
+                          title: 'IDENTIDADE',
+                        ),
+                        EditProfileTextField(
+                          controller: _nameCtrl,
+                          label: 'NOME',
+                          required: true,
+                          textCapitalization: TextCapitalization.words,
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) {
                               return 'Informe seu nome';
@@ -403,147 +352,152 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
                           },
                           onChanged: (_) => setState(() {}),
                         ),
-                        const SizedBox(height: 16),
-                        TextFormField(
+                        const SizedBox(height: 12),
+                        EditProfileTextField(
                           controller: _nicknameCtrl,
+                          label: 'APELIDO',
+                          helperText: 'Como prefere ser chamado',
                           textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                            labelText: 'Apelido (opcional)',
-                            hintText: 'Como prefere ser chamado',
-                            border: OutlineInputBorder(),
-                          ),
                         ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _emailCtrl,
-                          readOnly: true,
-                          enabled: false,
-                          keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(
-                            labelText: 'E-mail',
-                            hintText: 'Vinculado à sua conta',
-                            helperText: 'O e-mail não pode ser alterado aqui.',
-                            border: OutlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         KeyedSubtree(
                           key: _sportSectionKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              DropdownButtonFormField<String>(
-                                key: ValueKey<String>('sport_$_sport'),
-                                initialValue: _sport,
-                                decoration: const InputDecoration(
-                                  labelText: 'Esporte',
-                                  border: OutlineInputBorder(),
+                              Expanded(
+                                child: EditProfileDropdownField<String>(
+                                  value: _sport,
+                                  label: 'ESPORTE',
+                                  required: true,
+                                  items: AthleteProfileOptions.sports
+                                      .map(
+                                        (e) => DropdownMenuItem(
+                                          value: e,
+                                          child: Text(e),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (v) {
+                                    if (v == null) return;
+                                    setState(() => _sport = v);
+                                  },
                                 ),
-                                items: AthleteProfileOptions.sports
-                                    .map(
-                                      (e) => DropdownMenuItem(
-                                        value: e,
-                                        child: Text(e),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (v) {
-                                  if (v == null) return;
-                                  setState(() => _sport = v);
-                                },
                               ),
-                              const SizedBox(height: 16),
-                              DropdownButtonFormField<String>(
-                                key: ValueKey<String>('level_$_level'),
-                                initialValue: _level,
-                                decoration: const InputDecoration(
-                                  labelText: 'Nível',
-                                  border: OutlineInputBorder(),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: EditProfileDropdownField<String>(
+                                  value: _level,
+                                  label: 'NÍVEL',
+                                  required: true,
+                                  items: AthleteProfileOptions.levels
+                                      .map(
+                                        (e) => DropdownMenuItem(
+                                          value: e,
+                                          child: Text(e),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (v) {
+                                    if (v == null) return;
+                                    setState(() => _level = v);
+                                  },
                                 ),
-                                items: AthleteProfileOptions.levels
-                                    .map(
-                                      (e) => DropdownMenuItem(
-                                        value: e,
-                                        child: Text(e),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (v) {
-                                  if (v == null) return;
-                                  setState(() => _level = v);
-                                },
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 28),
+                        const EditProfileSectionHeader(
+                          icon: Icons.forum_outlined,
+                          title: 'CONTATO',
+                        ),
                         KeyedSubtree(
                           key: _phoneSectionKey,
-                          child: TextFormField(
-                          controller: _phoneCtrl,
-                          keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(
-                            labelText: 'Telefone',
-                            hintText: '(11) 99999-9999',
-                            border: OutlineInputBorder(),
+                          child: EditProfileTextField(
+                            controller: _phoneCtrl,
+                            label: 'WHATSAPP',
+                            required: true,
+                            keyboardType: TextInputType.phone,
+                            hintText: '(00) 00000-0000',
+                            prefixIcon: Icon(
+                              Icons.chat_bubble_outline_rounded,
+                              size: 20,
+                              color: AppColors.onSurfaceMuted,
+                            ),
                           ),
                         ),
-                        ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         KeyedSubtree(
                           key: _citySectionKey,
                           child: BrStateCityFields(
                             selectedState: _selectedState,
                             selectedCity: _selectedCity,
+                            useEditProfileStyle: true,
                             onStateChanged: (v) =>
                                 setState(() => _selectedState = v),
                             onCityChanged: (v) =>
                                 setState(() => _selectedCity = v),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _bioCtrl,
-                          maxLines: 4,
-                          decoration: const InputDecoration(
-                            labelText: 'Bio (opcional)',
-                            alignLabelWithHint: true,
-                            border: OutlineInputBorder(),
-                          ),
+                        const SizedBox(height: 28),
+                        const EditProfileSectionHeader(
+                          icon: Icons.person_outline_rounded,
+                          title: 'SOBRE VOCÊ',
                         ),
-                        if (!kIsWeb) ...[
-                          const SizedBox(height: 20),
-                          SwitchListTile.adaptive(
-                            value: _useBiometric,
-                            onChanged: _saving ? null : _onUseBiometricChanged,
-                            title: const Text('Usar Face ID'),
-                            subtitle: const Text(
-                              'Pedir biometria ao abrir o app. Você pode usar a senha se preferir.',
-                            ),
-                            contentPadding: EdgeInsets.zero,
-                          ),
-                        ],
-                        const SizedBox(height: 32),
+                        EditProfileTextField(
+                          controller: _bioCtrl,
+                          label: 'BIO',
+                          maxLines: 4,
+                          maxLength: 160,
+                          showCounter: true,
+                          helperText: 'Aparece no seu perfil público.',
+                        ),
+                        const SizedBox(height: 28),
+                        const EditProfileSectionHeader(
+                          icon: Icons.settings_outlined,
+                          title: 'CONTA E PREFERÊNCIAS',
+                        ),
+                        EditProfileAccountPrefsGroup(
+                          email: _emailCtrl.text.trim().isEmpty
+                              ? user.email
+                              : _emailCtrl.text.trim(),
+                        ),
+                        const SizedBox(height: 28),
                         FilledButton(
                           onPressed: _saving ? null : _save,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.brand,
-                            foregroundColor: AppColors.white,
+                            foregroundColor: AppColors.canvas,
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                          child: _saving
-                              ? const SizedBox(
-                                  height: 22,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (_saving)
+                                const SizedBox(
                                   width: 22,
+                                  height: 22,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: AppColors.white,
+                                    color: AppColors.canvas,
                                   ),
                                 )
-                              : const Text('Salvar alterações'),
+                              else
+                                const Icon(Icons.check_rounded),
+                              const SizedBox(width: 10),
+                              Text(
+                                _saving ? 'Salvando…' : 'Salvar alterações',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -553,249 +507,60 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
             ),
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(
+          child: CircularProgressIndicator(color: AppColors.brand),
+        ),
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Text(
               'Não foi possível carregar.\n$e',
               textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: AppColors.onSurfaceMuted,
+              ),
             ),
           ),
         ),
       ),
     );
   }
-}
 
-class _EditCoverBanner extends StatelessWidget {
-  const _EditCoverBanner({
-    required this.coverRemovedPending,
-    required this.existingUrl,
-    required this.pickedBytes,
-    required this.onTap,
-    this.onRemove,
-    this.onUndoRemove,
-  });
-
-  final bool coverRemovedPending;
-  final String? existingUrl;
-  final Uint8List? pickedBytes;
-  final VoidCallback onTap;
-  final VoidCallback? onRemove;
-  final VoidCallback? onUndoRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    const height = 112.0;
-
-    Widget preview;
-    if (coverRemovedPending) {
-      preview = ColoredBox(
-        color: theme.colorScheme.surfaceContainerHighest,
+  PreferredSizeWidget _editProfileAppBar(ThemeData theme) {
+    return AppBar(
+      backgroundColor: AppColors.canvas,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      centerTitle: true,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 12),
         child: Center(
-          child: Text(
-            'Capa será removida ao salvar',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      );
-    } else if (pickedBytes != null) {
-      preview = Image.memory(
-        pickedBytes!,
-        fit: BoxFit.cover,
-        height: height,
-        width: double.infinity,
-      );
-    } else if (existingUrl != null && existingUrl!.isNotEmpty) {
-      preview = CachedNetworkImage(
-        imageUrl: existingUrl!,
-        fit: BoxFit.cover,
-        height: height,
-        width: double.infinity,
-        placeholder: (context, url) => ColoredBox(
-          color: theme.colorScheme.surfaceContainerHigh,
-          child: const Center(
-            child: SizedBox(
-              width: 28,
-              height: 28,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-        ),
-      );
-    } else {
-      preview = ColoredBox(
-        color: theme.colorScheme.surfaceContainerHigh,
-        child: Center(
-          child: Text(
-            'Toque para adicionar uma foto de capa',
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Foto de capa (opcional)',
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
+          child: Material(
+            color: AppColors.surfaceRaised,
             borderRadius: BorderRadius.circular(12),
-            child: Ink(
-              height: height,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.2),
+            child: InkWell(
+              onTap: _popOrBack,
+              borderRadius: BorderRadius.circular(12),
+              child: const SizedBox(
+                width: 40,
+                height: 40,
+                child: Icon(
+                  Icons.chevron_left_rounded,
+                  color: AppColors.onSurface,
                 ),
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(11),
-                child: preview,
-              ),
             ),
           ),
         ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            TextButton.icon(
-              onPressed: onTap,
-              icon: const Icon(Icons.add_photo_alternate_outlined, size: 20),
-              label: const Text('Escolher imagem'),
-            ),
-            if (onRemove != null)
-              TextButton.icon(
-                onPressed: onRemove,
-                icon: const Icon(Icons.delete_outline, size: 20),
-                label: const Text('Remover capa'),
-              ),
-            if (onUndoRemove != null)
-              TextButton(
-                onPressed: onUndoRemove,
-                child: const Text('Desfazer remoção'),
-              ),
-          ],
+      ),
+      title: Text(
+        'Editar perfil',
+        style: theme.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+          color: AppColors.onSurface,
+          letterSpacing: -0.3,
         ),
-      ],
+      ),
     );
   }
-}
-
-class _EditAvatar extends StatelessWidget {
-  const _EditAvatar({
-    required this.existingUrl,
-    required this.pickedBytes,
-    required this.name,
-    required this.onTap,
-  });
-
-  final String? existingUrl;
-  final Uint8List? pickedBytes;
-  final String name;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    const size = 120.0;
-    final theme = Theme.of(context);
-
-    Widget child;
-    if (pickedBytes != null) {
-      child = Image.memory(
-        pickedBytes!,
-        fit: BoxFit.cover,
-        width: size,
-        height: size,
-      );
-    } else if (existingUrl != null && existingUrl!.isNotEmpty) {
-      child = CachedNetworkImage(
-        imageUrl: existingUrl!,
-        fit: BoxFit.cover,
-        width: size,
-        height: size,
-        placeholder: (context, url) => const Center(
-          child: SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    } else {
-      final initial = _initialLetter(name);
-      child = Container(
-        color: theme.colorScheme.surfaceContainerHigh,
-        alignment: Alignment.center,
-        child: Text(
-          initial,
-          style: theme.textTheme.headlineMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            customBorder: const CircleBorder(),
-            child: Ink(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.2),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.colorScheme.shadow.withValues(alpha: 0.08),
-                    blurRadius: 20,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: ClipOval(child: child),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        TextButton.icon(
-          onPressed: onTap,
-          icon: const Icon(Icons.photo_camera_back_outlined, size: 20),
-          label: const Text('Alterar foto'),
-        ),
-      ],
-    );
-  }
-}
-
-String _initialLetter(String name) {
-  final t = name.trim();
-  if (t.isEmpty) return '?';
-  final it = t.runes.iterator;
-  if (!it.moveNext()) return '?';
-  return String.fromCharCode(it.current).toUpperCase();
 }

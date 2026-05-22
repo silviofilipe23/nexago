@@ -66,6 +66,32 @@ class AthleteSettingsViewData {
 
   String get profileSubtitle => 'Nome, esporte, bio';
 
+  String get sportsLevelSubtitle {
+    final sport = profile.sport.trim();
+    final level = profile.level.trim();
+    final extraCount = profile.secondarySportFirestoreIds.length;
+
+    if (sport.isEmpty && level.isEmpty) {
+      return extraCount > 0
+          ? '$extraCount esporte${extraCount == 1 ? '' : 's'} cadastrado${extraCount == 1 ? '' : 's'}'
+          : 'Defina esporte e nível';
+    }
+
+    String base;
+    if (sport.isEmpty) {
+      base = level;
+    } else if (level.isEmpty) {
+      base = sport;
+    } else {
+      base = '$sport · $level';
+    }
+
+    if (extraCount <= 0) return base;
+    final suffix =
+        extraCount == 1 ? '(+1 esporte)' : '(+$extraCount esportes)';
+    return '$base $suffix';
+  }
+
   String get achievementsSubtitle =>
       '${achievements.unlockedCount} desbloqueadas · ${achievements.inProgressCount} em progresso';
 

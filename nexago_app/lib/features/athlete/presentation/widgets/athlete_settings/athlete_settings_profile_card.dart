@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
@@ -11,14 +12,18 @@ class AthleteSettingsProfileCard extends StatelessWidget {
     required this.email,
     required this.displayLevel,
     required this.onEdit,
+    this.avatarUrl,
     this.isLoading = false,
   });
 
   final String name;
   final String? email;
+  final String? avatarUrl;
   final int displayLevel;
   final VoidCallback? onEdit;
   final bool isLoading;
+
+  static const double _avatarSize = 52;
 
   @override
   Widget build(BuildContext context) {
@@ -40,35 +45,11 @@ class AthleteSettingsProfileCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         child: Row(
           children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFFCC0000), Color(0xFFFF6A1A)],
-                ),
-              ),
-              alignment: Alignment.center,
-              child: isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.black,
-                      ),
-                    )
-                  : Text(
-                      initials,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.black,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
+            _SettingsProfileAvatar(
+              size: _avatarSize,
+              avatarUrl: avatarUrl,
+              initials: initials,
+              isLoading: isLoading,
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -117,6 +98,107 @@ class AthleteSettingsProfileCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsProfileAvatar extends StatelessWidget {
+  const _SettingsProfileAvatar({
+    required this.size,
+    required this.avatarUrl,
+    required this.initials,
+    required this.isLoading,
+  });
+
+  final double size;
+  final String? avatarUrl;
+  final String initials;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final url = avatarUrl?.trim();
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: AppColors.brand.withValues(alpha: 0.5),
+          width: 1.5,
+        ),
+      ),
+      child: ClipOval(
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: isLoading
+              ? const ColoredBox(
+                  color: AppColors.surfaceRaised,
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.brand,
+                      ),
+                    ),
+                  ),
+                )
+              : url != null && url.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: url,
+                      width: size,
+                      height: size,
+                      fit: BoxFit.cover,
+                      placeholder: (_, _) => _InitialsBadge(
+                        initials: initials,
+                        theme: theme,
+                      ),
+                      errorWidget: (_, _, _) => _InitialsBadge(
+                        initials: initials,
+                        theme: theme,
+                      ),
+                    )
+                  : _InitialsBadge(initials: initials, theme: theme),
+        ),
+      ),
+    );
+  }
+}
+
+class _InitialsBadge extends StatelessWidget {
+  const _InitialsBadge({
+    required this.initials,
+    required this.theme,
+  });
+
+  final String initials;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFCC0000), Color(0xFFFF6A1A)],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w900,
+            color: AppColors.black,
+            letterSpacing: -0.5,
+          ),
         ),
       ),
     );

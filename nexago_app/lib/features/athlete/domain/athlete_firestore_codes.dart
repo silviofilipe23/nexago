@@ -81,6 +81,12 @@ abstract final class AthleteFirestoreCodes {
     return _sportFirestoreToLabel[code] ?? _sportFirestoreToLabel[code.toUpperCase()];
   }
 
+  static String? sportFirestoreToApp(String? code) {
+    if (code == null || code.isEmpty) return null;
+    final key = code.toUpperCase();
+    return _sportFirestoreToApp[key] ?? _sportFirestoreToApp[code];
+  }
+
   static List<String> sportFirestoreIdsToLabels(Iterable<String> codes) {
     return codes
         .map(sportFirestoreToLabel)

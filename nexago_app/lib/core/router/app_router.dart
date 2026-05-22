@@ -52,6 +52,7 @@ import '../../features/athlete/presentation/booking_invite_page.dart';
 import '../../features/athlete/presentation/achievements/athlete_achievements_page.dart';
 import '../../features/athlete/presentation/athlete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_settings_page.dart';
+import '../../features/athlete/presentation/athlete_sports_levels_page.dart';
 import '../../features/athlete/presentation/athlete_profile_update_success_page.dart';
 import '../../features/athlete/presentation/arena_reviews_page.dart';
 import '../../features/athlete/presentation/athlete_shell_page.dart';
@@ -291,6 +292,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.athleteSettings,
         name: AppRouteNames.athleteSettings,
         builder: (context, state) => const AthleteSettingsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteSportsLevels,
+        name: AppRouteNames.athleteSportsLevels,
+        builder: (context, state) => const AthleteSportsLevelsPage(),
       ),
       GoRoute(
         path: AppRoutes.athleteProfileUpdateSuccess,

@@ -78,10 +78,7 @@ class _AthleteCompleteProfilePageState
           queryParameters: {'focus': 'photo'},
         );
       case ProfileCompletionStep.sportLevel:
-        context.pushNamed(
-          AppRouteNames.athleteProfileEdit,
-          queryParameters: {'focus': 'sport'},
-        );
+        context.pushNamed(AppRouteNames.athleteSportsLevels);
       case ProfileCompletionStep.city:
         context.pushNamed(
           AppRouteNames.athleteProfileEdit,

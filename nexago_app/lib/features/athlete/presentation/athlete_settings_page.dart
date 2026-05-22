@@ -182,6 +182,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
             AthleteSettingsProfileCard(
               name: profile.name,
               email: user.email,
+              avatarUrl: profile.avatarUrl,
               displayLevel: viewData.displayLevel,
               isLoading: profileAsync.isLoading && profileAsync.value == null,
               onEdit: () =>
@@ -197,6 +198,15 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   subtitle: viewData.profileSubtitle,
                   onTap: () =>
                       context.pushNamed(AppRouteNames.athleteProfileEdit),
+                  showDivider: true,
+                ),
+                AthleteSettingsTile(
+                  icon: Icons.sports_volleyball_rounded,
+                  title: 'Esportes e níveis',
+                  subtitle: viewData.sportsLevelSubtitle,
+                  onTap: () => context.pushNamed(
+                    AppRouteNames.athleteSportsLevels,
+                  ),
                   showDivider: true,
                 ),
                 AthleteSettingsTile(

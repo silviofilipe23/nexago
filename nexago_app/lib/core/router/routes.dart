@@ -32,6 +32,9 @@ abstract final class AppRoutes {
 
   static const String athleteSettings = '/athlete/settings';
 
+  /// Esportes e níveis do atleta.
+  static const String athleteSportsLevels = '/athlete/profile/sports-levels';
+
   /// Sucesso após salvar perfil do atleta.
   static const String athleteProfileUpdateSuccess = '/athlete/profile/updated';
 
@@ -137,6 +140,7 @@ abstract final class AppRouteNames {
   static const String athleteProfileGoals = 'athleteProfileGoals';
   static const String athleteAchievements = 'athleteAchievements';
   static const String athleteSettings = 'athleteSettings';
+  static const String athleteSportsLevels = 'athleteSportsLevels';
   static const String athleteProfileUpdateSuccess =
       'athleteProfileUpdateSuccess';
   static const String athleteOnboardingWelcome = 'athleteOnboardingWelcome';

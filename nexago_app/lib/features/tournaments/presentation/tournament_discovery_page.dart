@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../arena/presentation/widgets/arena_dashboard_tokens.dart';
+import '../../athlete/domain/tournament_access_providers.dart';
+import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../domain/tournament_discovery_helpers.dart';
 import '../domain/tournament_discovery_labels.dart';
 import '../domain/tournament_discovery_models.dart';
@@ -33,6 +35,7 @@ class _TournamentDiscoveryPageState
     final tournamentsAsync = ref.watch(discoveryTournamentsProvider);
     final leaguesAsync = ref.watch(discoveryLeaguesProvider);
     final stats = ref.watch(discoveryLiveStatsProvider);
+    final access = ref.watch(tournamentAccessStateProvider);
 
     return ColoredBox(
       color: theme.colorScheme.surfaceContainerLowest,
@@ -89,6 +92,11 @@ class _TournamentDiscoveryPageState
                   28,
                 ),
                 children: [
+                  if (!access.canAccess)
+                    TournamentAccessBanner(
+                      onboardingCompleted: access.onboardingCompleted,
+                      profileStepsComplete: access.profileStepsComplete,
+                    ),
                   _LiveStatsRow(stats: stats),
                   const SizedBox(height: 18),
                   _FilterChips(

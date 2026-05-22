@@ -143,6 +143,7 @@ class AthleteOnboardingDraft {
       sport: primary,
       level: level ?? '',
       city: '',
+      state: null,
       phoneNumber: phone,
       sports: otherSportLabels,
       goals: goalsFs,

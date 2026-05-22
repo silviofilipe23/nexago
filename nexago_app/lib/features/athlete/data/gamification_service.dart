@@ -1,6 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../domain/achievements/achievement_catalog.dart';
+import '../domain/achievements/achievement_metrics.dart';
+import '../domain/achievements/achievement_state_resolver.dart';
+import '../domain/athlete_profile.dart';
 import '../domain/gamification_models.dart';
+import '../domain/profile_completion_models.dart';
+import '../domain/profile_completion_sync_result.dart';
 
 class GamificationService {
   GamificationService(this._firestore);
@@ -118,38 +124,120 @@ class GamificationService {
     required String userId,
     required String arenaId,
   }) async {
-    if (userId.trim().isEmpty || arenaId.trim().isEmpty) return;
-    await addXp(
-      userId: userId,
-      amount: xpFavoriteArena,
-      reason: 'FAVORITE_ARENA',
-    );
+    final uid = userId.trim();
+    final aid = arenaId.trim();
+    if (uid.isEmpty || aid.isEmpty) return;
+
+    final eventId = 'favorite_arena_$aid';
+    final event = await _eventRef(uid, eventId).get();
+    if (event.exists) return;
+
+    await _firestore.runTransaction((tx) async {
+      final ev = await tx.get(_eventRef(uid, eventId));
+      if (ev.exists) return;
+
+      final summaryRef = _summaryRef(uid);
+      final summarySnap = await tx.get(summaryRef);
+      final data = summarySnap.data() ?? <String, dynamic>{};
+      final favorites = (data['favoriteArenasCount'] as num?)?.toInt() ?? 0;
+      final xp = (data['xp'] as num?)?.toInt() ?? 0;
+      final nextXp = xp + xpFavoriteArena;
+
+      tx.set(
+        summaryRef,
+        <String, dynamic>{
+          'favoriteArenasCount': favorites + 1,
+          'xp': nextXp,
+          'level': nextXp ~/ 100,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'lastXpReason': 'FAVORITE_ARENA',
+        },
+        SetOptions(merge: true),
+      );
+      tx.set(
+        _eventRef(uid, eventId),
+        <String, dynamic>{
+          'type': 'FAVORITE_ARENA',
+          'arenaId': aid,
+          'createdAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    });
+
+    await syncAchievements(userId: uid);
+  }
+
+  Future<void> onProfileShared({required String userId}) async {
+    final uid = userId.trim();
+    if (uid.isEmpty) return;
+
+    await _firestore.runTransaction((tx) async {
+      final summaryRef = _summaryRef(uid);
+      final summarySnap = await tx.get(summaryRef);
+      final data = summarySnap.data() ?? <String, dynamic>{};
+      final shares = (data['profileSharesCount'] as num?)?.toInt() ?? 0;
+      tx.set(
+        summaryRef,
+        <String, dynamic>{
+          'profileSharesCount': shares + 1,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    });
+
+    await syncAchievements(userId: uid);
   }
 
   Future<void> onPlayerInvited({
     required String userId,
     required String inviteId,
   }) async {
-    if (userId.trim().isEmpty || inviteId.trim().isEmpty) return;
-    final eventId = 'invite_$inviteId';
-    final event = await _eventRef(userId, eventId).get();
+    final uid = userId.trim();
+    final iid = inviteId.trim();
+    if (uid.isEmpty || iid.isEmpty) return;
+    final eventId = 'invite_$iid';
+    final event = await _eventRef(uid, eventId).get();
     if (event.exists) return;
-    await addXp(
-      userId: userId,
-      amount: xpInvitePlayer,
-      reason: 'INVITE_PLAYER',
-    );
-    await _eventRef(userId, eventId).set(
-      <String, dynamic>{
-        'type': 'INVITE_PLAYER',
-        'createdAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+
+    await _firestore.runTransaction((tx) async {
+      final ev = await tx.get(_eventRef(uid, eventId));
+      if (ev.exists) return;
+
+      final summaryRef = _summaryRef(uid);
+      final summarySnap = await tx.get(summaryRef);
+      final data = summarySnap.data() ?? <String, dynamic>{};
+      final invites = (data['invitesCount'] as num?)?.toInt() ?? 0;
+      final xp = (data['xp'] as num?)?.toInt() ?? 0;
+      final nextXp = xp + xpInvitePlayer;
+
+      tx.set(
+        summaryRef,
+        <String, dynamic>{
+          'invitesCount': invites + 1,
+          'xp': nextXp,
+          'level': nextXp ~/ 100,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'lastXpReason': 'INVITE_PLAYER',
+        },
+        SetOptions(merge: true),
+      );
+      tx.set(
+        _eventRef(uid, eventId),
+        <String, dynamic>{
+          'type': 'INVITE_PLAYER',
+          'createdAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    });
+
     await _setMissionCompleted(
-      userId: userId,
+      userId: uid,
       mission: GamificationMission.inviteOnePlayer,
     );
+    await syncAchievements(userId: uid);
   }
 
   Future<GamificationFeedback?> processCompletedGame({
@@ -195,12 +283,14 @@ class GamificationService {
         final nextXp = current.xp + xpGameCompleted;
         final nextLevel = nextXp ~/ 100;
 
-        final unlocked = await _checkAndUnlockBadgesTx(
-          tx: tx,
-          userId: uid,
-          totalGames: nextTotalGames,
-          streak: nextStreak,
+        final existingDays = _parseGameDayKeys(
+          (summarySnap.data() ?? {})['gameCompletionDays'],
         );
+        final gameDays = AchievementMetrics.appendGameCompletionDay(
+          existingDays,
+          now,
+        );
+        final windowFields = AchievementMetrics.gameWindowFields(gameDays);
 
         tx.set(
           summaryRef,
@@ -212,6 +302,8 @@ class GamificationService {
             'totalGames': nextTotalGames,
             'updatedAt': FieldValue.serverTimestamp(),
             'lastXpReason': 'GAME_COMPLETED',
+            'gameCompletionDays': gameDays,
+            ...windowFields,
           },
           SetOptions(merge: true),
         );
@@ -243,13 +335,21 @@ class GamificationService {
           xpGained: xpGameCompleted,
           streakIncreased: streakIncreased,
           newStreak: nextStreak,
-          unlockedBadges: unlocked,
+          unlockedBadges: const [],
         );
       },
     );
 
     if (feedback.xpGained <= 0) return null;
-    return feedback;
+
+    final unlockedIds = await syncAchievements(userId: uid);
+    return GamificationFeedback(
+      xpGained: feedback.xpGained,
+      streakIncreased: feedback.streakIncreased,
+      newStreak: feedback.newStreak,
+      unlockedBadges: _legacyBadgesFromIds(unlockedIds),
+      unlockedAchievementIds: unlockedIds,
+    );
   }
 
   Future<void> _setMissionCompleted({
@@ -270,64 +370,144 @@ class GamificationService {
   Future<List<GamificationBadge>> checkAndUnlockBadges({
     required String userId,
   }) async {
+    final ids = await syncAchievements(userId: userId);
+    return _legacyBadgesFromIds(ids);
+  }
+
+  /// Sincroniza desbloqueios do catálogo (24) e XP de conquista (idempotente).
+  Future<List<String>> syncAchievements({
+    required String userId,
+    AchievementMetrics? metrics,
+    AthleteProfile? profile,
+    int totalBookings = 0,
+  }) async {
     final uid = userId.trim();
     if (uid.isEmpty) return const [];
-    return _firestore.runTransaction<List<GamificationBadge>>((tx) async {
+
+    final m = metrics ??
+        await loadAchievementMetrics(
+          uid,
+          profile: profile,
+          totalBookings: totalBookings,
+        );
+
+    final eligible = AchievementCatalog.all
+        .where((def) => AchievementStateResolver.isRuleMet(def.rule, m))
+        .toList(growable: false);
+
+    return _firestore.runTransaction<List<String>>((tx) async {
+      // Firestore: todas as leituras antes de qualquer escrita.
       final summarySnap = await tx.get(_summaryRef(uid));
-      final summary = summarySnap.exists
-          ? GamificationSummary.fromMap(
-              summarySnap.data() ?? <String, dynamic>{})
-          : GamificationSummary.initial();
-      return _checkAndUnlockBadgesTx(
-        tx: tx,
-        userId: uid,
-        totalGames: summary.totalGames,
-        streak: summary.streak,
-      );
+      final summaryData = summarySnap.data() ?? <String, dynamic>{};
+      var xp = (summaryData['xp'] as num?)?.toInt() ?? 0;
+      final initialXp = xp;
+
+      final badgeSnaps = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      final eventSnaps = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final def in eligible) {
+        badgeSnaps[def.id] = await tx.get(_badgesCol(uid).doc(def.id));
+        eventSnaps[def.id] =
+            await tx.get(_eventRef(uid, _achievementEventId(def.id)));
+      }
+
+      final unlockedNow = <String>[];
+      for (final def in eligible) {
+        final badgeSnap = badgeSnaps[def.id]!;
+        if (badgeSnap.exists) continue;
+
+        final eventId = _achievementEventId(def.id);
+        final evRef = _eventRef(uid, eventId);
+        final evSnap = eventSnaps[def.id]!;
+        if (!evSnap.exists && def.xpReward > 0) {
+          xp += def.xpReward;
+          tx.set(
+            evRef,
+            <String, dynamic>{
+              'type': 'ACHIEVEMENT_UNLOCK',
+              'achievementId': def.id,
+              'xp': def.xpReward,
+              'createdAt': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true),
+          );
+        }
+
+        tx.set(
+          _badgesCol(uid).doc(def.id),
+          <String, dynamic>{
+            'badgeId': def.id,
+            'title': def.title,
+            'description': def.description,
+            'xpReward': def.xpReward,
+            'unlockedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+        unlockedNow.add(def.id);
+      }
+
+      if (xp != initialXp) {
+        tx.set(
+          _summaryRef(uid),
+          <String, dynamic>{
+            'xp': xp,
+            'level': xp ~/ 100,
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+          SetOptions(merge: true),
+        );
+      }
+
+      return unlockedNow;
     });
   }
 
-  Future<List<GamificationBadge>> _checkAndUnlockBadgesTx({
-    required Transaction tx,
-    required String userId,
-    required int totalGames,
-    required int streak,
+  Future<AchievementMetrics> loadAchievementMetrics(
+    String userId, {
+    AthleteProfile? profile,
+    int totalBookings = 0,
   }) async {
-    final unlocked = <GamificationBadge>[];
-    final toUnlock = <GamificationBadge>{
-      if (totalGames >= 1) GamificationBadge.firstGame,
-      if (totalGames >= 5) GamificationBadge.fiveGames,
-      if (streak >= 3) GamificationBadge.streak3,
-      if (streak >= 7) GamificationBadge.streak7,
-    };
-    final refs = <GamificationBadge, DocumentReference<Map<String, dynamic>>>{};
-    final existsMap = <GamificationBadge, bool>{};
+    final uid = userId.trim();
+    final summarySnap = await _summaryRef(uid).get();
+    final summaryMap = summarySnap.data() ?? <String, dynamic>{};
+    final athleteProfile = profile ?? await _loadAthleteProfile(uid);
+    return AchievementMetricsBuilder.build(
+      summaryMap: summaryMap,
+      profile: athleteProfile,
+      totalBookings: totalBookings,
+    );
+  }
 
-    for (final badge in toUnlock) {
-      final ref = _badgesCol(userId).doc(badge.id);
-      refs[badge] = ref;
-      final snap = await tx.get(ref);
-      existsMap[badge] = snap.exists;
-    }
-
-    for (final badge in toUnlock) {
-      if (existsMap[badge] == true) continue;
-      final ref = refs[badge];
-      if (ref == null) continue;
-      tx.set(
-        ref,
-        <String, dynamic>{
-          'badgeId': badge.id,
-          'title': badge.title,
-          'description': badge.description,
-          'icon': badge.icon,
-          'unlockedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
+  Future<AthleteProfile> _loadAthleteProfile(String userId) async {
+    final snap = await _userRef(userId).get();
+    if (!snap.exists) {
+      return AthleteProfile(
+        id: userId,
+        name: '',
+        sport: '',
+        level: '',
+        city: '',
       );
-      unlocked.add(badge);
     }
-    return unlocked;
+    return AthleteProfile.fromFirestore(snap);
+  }
+
+  static String _achievementEventId(String achievementId) =>
+      'achievement_$achievementId';
+
+  static List<String> _parseGameDayKeys(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .map((e) => e?.toString().trim() ?? '')
+        .where((s) => s.length >= 8)
+        .toList(growable: false);
+  }
+
+  List<GamificationBadge> _legacyBadgesFromIds(List<String> ids) {
+    return ids
+        .map(GamificationBadge.fromId)
+        .whereType<GamificationBadge>()
+        .toList(growable: false);
   }
 
   static int updateStreak({
@@ -362,4 +542,133 @@ class GamificationService {
     final d = date.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
   }
+
+  DocumentReference<Map<String, dynamic>> _userRef(String userId) {
+    return _firestore.collection('users').doc(userId);
+  }
+
+  static String _profileStepEventId(ProfileCompletionStep step) {
+    return 'profile_step_${step.id}';
+  }
+
+  /// Concede XP de um passo de perfil (idempotente via [gamification_events]).
+  Future<GamificationFeedback?> awardProfileStepXp({
+    required String userId,
+    required ProfileCompletionStep step,
+  }) async {
+    final uid = userId.trim();
+    if (uid.isEmpty) return null;
+
+    final amount = step.xpReward;
+    if (amount <= 0) return null;
+
+    final eventId = _profileStepEventId(step);
+    final eventRef = _eventRef(uid, eventId);
+    final existing = await eventRef.get();
+    if (existing.exists) return null;
+
+    await _firestore.runTransaction((tx) async {
+      final inTx = await tx.get(eventRef);
+      if (inTx.exists) return;
+
+      final summaryRef = _summaryRef(uid);
+      final summarySnap = await tx.get(summaryRef);
+      final current = summarySnap.exists
+          ? GamificationSummary.fromMap(
+              summarySnap.data() ?? <String, dynamic>{})
+          : GamificationSummary.initial();
+
+      final nextXp = current.xp + amount;
+      tx.set(
+        summaryRef,
+        <String, dynamic>{
+          'xp': nextXp,
+          'level': nextXp ~/ 100,
+          'streak': current.streak,
+          'lastGameDate': current.lastGameDate != null
+              ? Timestamp.fromDate(current.lastGameDate!)
+              : null,
+          'totalGames': current.totalGames,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'lastXpReason': step.xpReason,
+        },
+        SetOptions(merge: true),
+      );
+
+      tx.set(
+        eventRef,
+        <String, dynamic>{
+          'type': step.xpReason,
+          'stepId': step.id,
+          'xp': amount,
+          'createdAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+    });
+
+    return GamificationFeedback(
+      xpGained: amount,
+      streakIncreased: false,
+      newStreak: 0,
+      unlockedBadges: const [],
+    );
+  }
+
+  /// Sincroniza XP retroativo dos passos já concluídos e badge de perfil completo.
+  Future<ProfileCompletionSyncResult> syncProfileCompletionRewards({
+    required String userId,
+    required AthleteProfile profile,
+  }) async {
+    final uid = userId.trim();
+    if (uid.isEmpty) return ProfileCompletionSyncResult.empty;
+
+    final state = ProfileCompletionState.fromProfile(profile);
+    var totalXp = 0;
+    final newlyAwarded = <String>[];
+
+    for (final status in state.steps) {
+      if (!status.isDone) continue;
+      final feedback = await awardProfileStepXp(
+        userId: uid,
+        step: status.step,
+      );
+      if (feedback != null && feedback.xpGained > 0) {
+        totalXp += feedback.xpGained;
+        newlyAwarded.add(status.step.id);
+      }
+    }
+
+    var profileMarkedComplete = false;
+    var unlockedProfileBadge = false;
+
+    if (state.allComplete) {
+      await _userRef(uid).set(
+        <String, dynamic>{
+          'isProfileComplete': true,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      profileMarkedComplete = true;
+
+      final unlockedIds = await syncAchievements(
+        userId: uid,
+        profile: profile,
+      );
+      unlockedProfileBadge =
+          unlockedIds.contains('PROFILE_COMPLETE') ||
+              unlockedIds.contains(GamificationBadge.profileComplete.id);
+    } else {
+      await syncAchievements(userId: uid, profile: profile);
+    }
+
+    return ProfileCompletionSyncResult(
+      totalXpGained: totalXp,
+      newlyAwardedStepIds: newlyAwarded,
+      profileMarkedComplete: profileMarkedComplete,
+      unlockedProfileBadge: unlockedProfileBadge,
+    );
+  }
+
 }

@@ -13,10 +13,16 @@ import '../../../core/theme/app_colors.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_options.dart';
 import '../domain/athlete_profile_providers.dart';
+import '../domain/gamification_providers.dart';
+import '../domain/profile_completion_providers.dart';
+import 'widgets/br_state_city_fields.dart';
 
 /// Edição do perfil do atleta (Firestore `athletes` + Storage para avatar).
 class AthleteEditProfilePage extends ConsumerStatefulWidget {
-  const AthleteEditProfilePage({super.key});
+  const AthleteEditProfilePage({super.key, this.initialFocus});
+
+  /// `photo` | `sport` | `city` | `phone` — scroll ao abrir (fluxo completar perfil).
+  final String? initialFocus;
 
   @override
   ConsumerState<AthleteEditProfilePage> createState() =>
@@ -25,10 +31,16 @@ class AthleteEditProfilePage extends ConsumerStatefulWidget {
 
 class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage> {
   final _formKey = GlobalKey<FormState>();
+  final _avatarSectionKey = GlobalKey();
+  final _sportSectionKey = GlobalKey();
+  final _phoneSectionKey = GlobalKey();
+  final _citySectionKey = GlobalKey();
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _cityCtrl = TextEditingController();
   final _bioCtrl = TextEditingController();
+
+  String? _selectedState;
+  String? _selectedCity;
 
   String _sport = AthleteProfileOptions.sports.first;
   String _level = AthleteProfileOptions.levels.first;
@@ -56,7 +68,6 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
   void dispose() {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
-    _cityCtrl.dispose();
     _bioCtrl.dispose();
     super.dispose();
   }
@@ -64,7 +75,8 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
   void _applyProfile(AthleteProfile p) {
     _nameCtrl.text = p.name;
     _phoneCtrl.text = p.phoneNumber ?? '';
-    _cityCtrl.text = p.city;
+    _selectedState = p.state;
+    _selectedCity = p.city.trim().isEmpty ? null : p.city.trim();
     _bioCtrl.text = p.bio ?? '';
     _existingAvatarUrl = p.avatarUrl;
     _existingCoverPhotoUrl = p.coverPhotoUrl;
@@ -174,6 +186,28 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
     setState(() => _removeCoverRequested = false);
   }
 
+  void _scrollToFocus() {
+    final focus = widget.initialFocus?.trim().toLowerCase();
+    if (focus == null || focus.isEmpty) return;
+    final key = switch (focus) {
+      'photo' => _avatarSectionKey,
+      'sport' => _sportSectionKey,
+      'city' => _citySectionKey,
+      'phone' => _phoneSectionKey,
+      _ => null,
+    };
+    if (key?.currentContext == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+        alignment: 0.1,
+      );
+    });
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -214,15 +248,18 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
         _removeCoverRequested = false;
       }
 
-      final profile = AthleteProfile(
-        id: user.uid,
+      final base =
+          ref.read(athleteProfileProvider).valueOrNull ?? AthleteProfile.draft(user);
+      final profile = base.copyWith(
         name: _nameCtrl.text.trim(),
         avatarUrl: avatarUrl,
         coverPhotoUrl: coverPhotoUrl,
         sport: _sport,
         level: _level,
-        phoneNumber: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
-        city: _cityCtrl.text.trim(),
+        phoneNumber:
+            _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+        city: _selectedCity?.trim() ?? '',
+        state: _selectedState?.trim().toUpperCase(),
         bio: _bioCtrl.text.trim().isEmpty ? null : _bioCtrl.text.trim(),
         sports: _sports,
         goals: _goals,
@@ -234,9 +271,19 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
       );
 
       await repo.saveProfile(profile);
+      await ref.read(gamificationServiceProvider).syncProfileCompletionRewards(
+            userId: user.uid,
+            profile: profile,
+          );
+      ref.invalidate(profileCompletionStateProvider);
+      ref.invalidate(gamificationSummaryProvider);
 
       if (!mounted) return;
-      context.go(AppRoutes.athleteProfileUpdateSuccess);
+      if (widget.initialFocus != null && widget.initialFocus!.isNotEmpty) {
+        context.pop();
+      } else {
+        context.go(AppRoutes.athleteProfileUpdateSuccess);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -275,6 +322,7 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
                 _applyProfile(p);
                 _initialized = true;
               });
+              _scrollToFocus();
             });
           }
 
@@ -294,7 +342,9 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Center(child: _EditAvatar(
+                        KeyedSubtree(
+                          key: _avatarSectionKey,
+                          child: Center(child: _EditAvatar(
                           existingUrl: _pickedBytes == null
                               ? _existingAvatarUrl
                               : null,
@@ -302,6 +352,7 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
                           name: _nameCtrl.text,
                           onTap: _pickAvatar,
                         )),
+                        ),
                         const SizedBox(height: 20),
                         _EditCoverBanner(
                           coverRemovedPending: _removeCoverRequested,
@@ -341,49 +392,59 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
                           onChanged: (_) => setState(() {}),
                         ),
                         const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          key: ValueKey<String>('sport_$_sport'),
-                          initialValue: _sport,
-                          decoration: const InputDecoration(
-                            labelText: 'Esporte',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: AthleteProfileOptions.sports
-                              .map(
-                                (e) => DropdownMenuItem(
-                                  value: e,
-                                  child: Text(e),
+                        KeyedSubtree(
+                          key: _sportSectionKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              DropdownButtonFormField<String>(
+                                key: ValueKey<String>('sport_$_sport'),
+                                initialValue: _sport,
+                                decoration: const InputDecoration(
+                                  labelText: 'Esporte',
+                                  border: OutlineInputBorder(),
                                 ),
-                              )
-                              .toList(),
-                          onChanged: (v) {
-                            if (v == null) return;
-                            setState(() => _sport = v);
-                          },
+                                items: AthleteProfileOptions.sports
+                                    .map(
+                                      (e) => DropdownMenuItem(
+                                        value: e,
+                                        child: Text(e),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  setState(() => _sport = v);
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              DropdownButtonFormField<String>(
+                                key: ValueKey<String>('level_$_level'),
+                                initialValue: _level,
+                                decoration: const InputDecoration(
+                                  labelText: 'Nível',
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: AthleteProfileOptions.levels
+                                    .map(
+                                      (e) => DropdownMenuItem(
+                                        value: e,
+                                        child: Text(e),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (v) {
+                                  if (v == null) return;
+                                  setState(() => _level = v);
+                                },
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 16),
-                        DropdownButtonFormField<String>(
-                          key: ValueKey<String>('level_$_level'),
-                          initialValue: _level,
-                          decoration: const InputDecoration(
-                            labelText: 'Nível',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: AthleteProfileOptions.levels
-                              .map(
-                                (e) => DropdownMenuItem(
-                                  value: e,
-                                  child: Text(e),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (v) {
-                            if (v == null) return;
-                            setState(() => _level = v);
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
+                        KeyedSubtree(
+                          key: _phoneSectionKey,
+                          child: TextFormField(
                           controller: _phoneCtrl,
                           keyboardType: TextInputType.phone,
                           decoration: const InputDecoration(
@@ -392,20 +453,18 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
                             border: OutlineInputBorder(),
                           ),
                         ),
+                        ),
                         const SizedBox(height: 16),
-                        TextFormField(
-                          controller: _cityCtrl,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(
-                            labelText: 'Cidade',
-                            border: OutlineInputBorder(),
+                        KeyedSubtree(
+                          key: _citySectionKey,
+                          child: BrStateCityFields(
+                            selectedState: _selectedState,
+                            selectedCity: _selectedCity,
+                            onStateChanged: (v) =>
+                                setState(() => _selectedState = v),
+                            onCityChanged: (v) =>
+                                setState(() => _selectedCity = v),
                           ),
-                          validator: (v) {
-                            if (v == null || v.trim().isEmpty) {
-                              return 'Informe sua cidade';
-                            }
-                            return null;
-                          },
                         ),
                         const SizedBox(height: 16),
                         TextFormField(

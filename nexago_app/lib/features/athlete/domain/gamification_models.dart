@@ -4,13 +4,15 @@ enum GamificationBadge {
   firstGame,
   fiveGames,
   streak3,
-  streak7;
+  streak7,
+  profileComplete;
 
   String get id => switch (this) {
         GamificationBadge.firstGame => 'FIRST_GAME',
         GamificationBadge.fiveGames => 'FIVE_GAMES',
         GamificationBadge.streak3 => 'STREAK_3',
         GamificationBadge.streak7 => 'STREAK_7',
+        GamificationBadge.profileComplete => 'PROFILE_COMPLETE',
       };
 
   String get title => switch (this) {
@@ -18,6 +20,7 @@ enum GamificationBadge {
         GamificationBadge.fiveGames => '5 jogos completos',
         GamificationBadge.streak3 => 'Sequência de 3 dias',
         GamificationBadge.streak7 => 'Sequência de 7 dias',
+        GamificationBadge.profileComplete => 'Perfil completo',
       };
 
   String get description => switch (this) {
@@ -25,6 +28,8 @@ enum GamificationBadge {
         GamificationBadge.fiveGames => 'Consistência de atleta dedicado.',
         GamificationBadge.streak3 => 'Disciplina em alta.',
         GamificationBadge.streak7 => 'Semana perfeita.',
+        GamificationBadge.profileComplete =>
+          'Você completou todos os passos do perfil.',
       };
 
   String get icon => switch (this) {
@@ -32,6 +37,7 @@ enum GamificationBadge {
         GamificationBadge.fiveGames => '🏐',
         GamificationBadge.streak3 => '🔥',
         GamificationBadge.streak7 => '👑',
+        GamificationBadge.profileComplete => '🏆',
       };
 
   static GamificationBadge? fromId(String raw) {
@@ -143,20 +149,50 @@ class GamificationSummary {
 
 class UserBadgeProgress {
   const UserBadgeProgress({
-    required this.badge,
+    required this.achievementId,
+    required this.title,
     required this.unlockedAt,
+    this.legacyBadge,
   });
 
-  final GamificationBadge badge;
+  final String achievementId;
+  final String title;
   final DateTime unlockedAt;
+  final GamificationBadge? legacyBadge;
+
+  /// Compatibilidade com código que usa [legacyBadge].
+  GamificationBadge get badge =>
+      legacyBadge ??
+      GamificationBadge.fromId(achievementId) ??
+      GamificationBadge.firstGame;
 
   factory UserBadgeProgress.fromMap(Map<String, dynamic> map) {
-    final badgeRaw = (map['badgeId'] as String?) ?? '';
-    final badge =
-        GamificationBadge.fromId(badgeRaw) ?? GamificationBadge.firstGame;
+    final badgeRaw =
+        (map['badgeId'] as String?) ?? (map['id'] as String?) ?? '';
+    final achievementId = _normalizeAchievementId(badgeRaw);
+    final title = (map['title'] as String?)?.trim();
+    final legacy = GamificationBadge.fromId(achievementId);
     final ts = map['unlockedAt'];
     final unlockedAt = ts is Timestamp ? ts.toDate() : DateTime.now();
-    return UserBadgeProgress(badge: badge, unlockedAt: unlockedAt);
+    return UserBadgeProgress(
+      achievementId: achievementId,
+      title: title?.isNotEmpty == true
+          ? title!
+          : (legacy?.title ?? achievementId),
+      unlockedAt: unlockedAt,
+      legacyBadge: legacy,
+    );
+  }
+
+  static String _normalizeAchievementId(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return t;
+    const aliases = {
+      'attendance_pontual': 'ATTENDANCE_STREAK_5',
+      'attendance_comprometido': 'ATTENDANCE_TOTAL_10',
+    };
+    if (aliases.containsKey(t)) return aliases[t]!;
+    return t.toUpperCase().replaceAll('-', '_');
   }
 }
 
@@ -186,10 +222,12 @@ class GamificationFeedback {
     required this.streakIncreased,
     required this.newStreak,
     required this.unlockedBadges,
+    this.unlockedAchievementIds = const [],
   });
 
   final int xpGained;
   final bool streakIncreased;
   final int newStreak;
   final List<GamificationBadge> unlockedBadges;
+  final List<String> unlockedAchievementIds;
 }

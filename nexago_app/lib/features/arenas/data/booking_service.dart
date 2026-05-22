@@ -536,10 +536,12 @@ class BookingService {
 
       if (nextStreak >= 5) {
         tx.set(
-          badgesRef.doc('attendance_pontual'),
+          badgesRef.doc('ATTENDANCE_STREAK_5'),
           <String, dynamic>{
-            'id': 'attendance_pontual',
+            'badgeId': 'ATTENDANCE_STREAK_5',
             'title': 'Pontual',
+            'description': '5 confirmações seguidas.',
+            'xpReward': 55,
             'unlockedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
@@ -547,10 +549,12 @@ class BookingService {
       }
       if (nextTotal >= 10) {
         tx.set(
-          badgesRef.doc('attendance_comprometido'),
+          badgesRef.doc('ATTENDANCE_TOTAL_10'),
           <String, dynamic>{
-            'id': 'attendance_comprometido',
+            'badgeId': 'ATTENDANCE_TOTAL_10',
             'title': 'Comprometido',
+            'description': '10 confirmações de presença.',
+            'xpReward': 75,
             'unlockedAt': FieldValue.serverTimestamp(),
           },
           SetOptions(merge: true),
@@ -644,6 +648,20 @@ class BookingService {
         'checkedInAt': FieldValue.serverTimestamp(),
         'locationVerified': locationVerified,
       });
+
+      final gamificationRef =
+          _firestore.collection('users').doc(uid).collection('gamification').doc('summary');
+      final gamificationSnap = await tx.get(gamificationRef);
+      final gData = gamificationSnap.data() ?? <String, dynamic>{};
+      final checkIns = (gData['checkInsCount'] as num?)?.toInt() ?? 0;
+      tx.set(
+        gamificationRef,
+        <String, dynamic>{
+          'checkInsCount': checkIns + 1,
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
     });
   }
 

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../athlete/domain/tournament_access_providers.dart';
+import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../data/tournament_registration_service.dart';
 import '../domain/tournament_discovery_models.dart';
@@ -29,6 +31,7 @@ class _TournamentRegistrationPageState
     final theme = Theme.of(context);
     final tournamentAsync =
         ref.watch(tournamentDetailProvider(widget.tournamentId));
+    final access = ref.watch(tournamentAccessStateProvider);
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -55,6 +58,11 @@ class _TournamentRegistrationPageState
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
             children: [
+              if (!access.canAccess)
+                TournamentAccessBanner(
+                  onboardingCompleted: access.onboardingCompleted,
+                  profileStepsComplete: access.profileStepsComplete,
+                ),
               Text(
                 tournament.name,
                 style: theme.textTheme.titleLarge?.copyWith(
@@ -147,7 +155,9 @@ class _TournamentRegistrationPageState
                 ),
                 const SizedBox(height: 16),
                 FilledButton(
-                  onPressed: _submitting ? null : () => _submit(tournament),
+                  onPressed: access.canAccess && !_submitting
+                      ? () => _submit(tournament)
+                      : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.brand,
                     foregroundColor: AppColors.black,

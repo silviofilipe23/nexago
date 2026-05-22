@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../../core/location/br_locations_data.dart';
 import 'athlete_firestore_codes.dart';
 import 'athlete_profile_options.dart';
 
@@ -14,6 +15,7 @@ class AthleteProfile {
     required this.sport,
     required this.level,
     required this.city,
+    this.state,
     this.phoneNumber,
     this.cpfCnpj,
     this.bio,
@@ -36,6 +38,8 @@ class AthleteProfile {
   final String sport;
   final String level;
   final String city;
+  /// Sigla da UF (ex.: `GO`).
+  final String? state;
   final String? phoneNumber;
   final String? cpfCnpj;
   final String? bio;
@@ -66,6 +70,7 @@ class AthleteProfile {
       sport: '',
       level: '',
       city: '',
+      state: null,
       phoneNumber: user.phoneNumber,
       onboardingCompleted: false,
     );
@@ -169,7 +174,8 @@ class AthleteProfile {
           (coverPhotoUrl != null && coverPhotoUrl.isNotEmpty) ? coverPhotoUrl : null,
       sport: sport,
       level: level,
-      city: (data['city'] as String?)?.trim() ?? '',
+      city: _resolveCity(data),
+      state: _resolveState(data),
       phoneNumber: (data['phoneNumber'] as String?)?.trim().isNotEmpty == true
           ? data['phoneNumber'] as String
           : null,
@@ -194,6 +200,31 @@ class AthleteProfile {
       onboardingCompleted: onboardingCompleted,
       useBiometric: data['useBiometric'] == true,
     );
+  }
+
+  /// Label `Cidade · UF` para exibição no perfil.
+  String get locationLabel => BrLocationsData.formatLocationLabel(
+        city: city,
+        state: state ?? '',
+      );
+
+  static String _resolveCity(Map<String, dynamic> data) {
+    final cityField = (data['city'] as String?)?.trim() ?? '';
+    final stateField = (data['state'] as String?)?.trim() ?? '';
+    if (cityField.isEmpty) return '';
+    if (stateField.isNotEmpty && !cityField.contains('·')) {
+      return cityField;
+    }
+    return BrLocationsData.parseLegacyLocation(cityField).city;
+  }
+
+  static String? _resolveState(Map<String, dynamic> data) {
+    final stateField = (data['state'] as String?)?.trim() ?? '';
+    if (stateField.isNotEmpty) return stateField.toUpperCase();
+    final cityField = (data['city'] as String?)?.trim() ?? '';
+    if (cityField.isEmpty) return null;
+    final parsed = BrLocationsData.parseLegacyLocation(cityField);
+    return parsed.state.isEmpty ? null : parsed.state;
   }
 
   static List<String> _stringList(dynamic raw) {
@@ -249,6 +280,7 @@ class AthleteProfile {
       },
       'useBiometric': useBiometric,
       if (city.isNotEmpty) 'city': city,
+      if (state != null && state!.trim().isNotEmpty) 'state': state!.trim().toUpperCase(),
       if (bio != null && bio!.trim().isNotEmpty) 'bio': bio!.trim(),
       if (coverPhotoUrl != null && coverPhotoUrl!.trim().isNotEmpty)
         'coverPhotoUrl': coverPhotoUrl!.trim(),
@@ -288,6 +320,7 @@ class AthleteProfile {
     String? sport,
     String? level,
     String? city,
+    String? state,
     String? phoneNumber,
     String? cpfCnpj,
     String? bio,
@@ -316,6 +349,7 @@ class AthleteProfile {
       sport: sport ?? this.sport,
       level: level ?? this.level,
       city: city ?? this.city,
+      state: state ?? this.state,
       phoneNumber: clearPhone ? null : (phoneNumber ?? this.phoneNumber),
       cpfCnpj: cpfCnpj ?? this.cpfCnpj,
       bio: clearBio ? null : (bio ?? this.bio),

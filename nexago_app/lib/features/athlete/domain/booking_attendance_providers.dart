@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import 'achievements/achievement_providers.dart';
 import 'gamification_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../arenas/domain/arenas_providers.dart';
@@ -125,6 +126,10 @@ class ConfirmAttendanceController {
             amount: 5,
             reason: 'attendance_confirmed',
           );
+      await ref.read(gamificationServiceProvider).syncAchievements(userId: uid);
+      ref.invalidate(gamificationBadgesProvider);
+      ref.invalidate(gamificationSummaryProvider);
+      ref.invalidate(achievementsScreenStateProvider);
     } catch (_) {
       // Nao bloqueia o fluxo principal quando gamificacao falhar.
     }
@@ -153,6 +158,10 @@ class CheckInController {
           athleteId: uid,
           locationVerified: locationVerified,
         );
+    await ref.read(gamificationServiceProvider).syncAchievements(userId: uid);
+    ref.invalidate(gamificationBadgesProvider);
+    ref.invalidate(achievementsScreenStateProvider);
+    ref.invalidate(gamificationSummaryProvider);
   }
 }
 

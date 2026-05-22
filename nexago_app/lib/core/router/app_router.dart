@@ -45,8 +45,11 @@ import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_other_sports_step.dart';
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_primary_sport_step.dart';
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_profile_step.dart';
+import '../../features/athlete/presentation/athlete_complete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_edit_profile_page.dart';
+import '../../features/athlete/presentation/athlete_profile_goals_page.dart';
 import '../../features/athlete/presentation/booking_invite_page.dart';
+import '../../features/athlete/presentation/achievements/athlete_achievements_page.dart';
 import '../../features/athlete/presentation/athlete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_settings_page.dart';
 import '../../features/athlete/presentation/athlete_profile_update_success_page.dart';
@@ -264,7 +267,25 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.athleteProfileEdit,
         name: AppRouteNames.athleteProfileEdit,
-        builder: (context, state) => const AthleteEditProfilePage(),
+        builder: (context, state) {
+          final focus = state.uri.queryParameters['focus'];
+          return AthleteEditProfilePage(initialFocus: focus);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.athleteCompleteProfile,
+        name: AppRouteNames.athleteCompleteProfile,
+        builder: (context, state) => const AthleteCompleteProfilePage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteProfileGoals,
+        name: AppRouteNames.athleteProfileGoals,
+        builder: (context, state) => const AthleteProfileGoalsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteAchievements,
+        name: AppRouteNames.athleteAchievements,
+        builder: (context, state) => const AthleteAchievementsPage(),
       ),
       GoRoute(
         path: AppRoutes.athleteSettings,

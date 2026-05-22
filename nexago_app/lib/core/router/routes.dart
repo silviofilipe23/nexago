@@ -20,6 +20,16 @@ abstract final class AppRoutes {
 
   /// Edição do perfil do atleta.
   static const String athleteProfileEdit = '/athlete/profile/edit';
+
+  /// Completar perfil (passos + XP).
+  static const String athleteCompleteProfile = '/athlete/profile/complete';
+
+  /// Objetivos do perfil (passo de completar perfil).
+  static const String athleteProfileGoals = '/athlete/profile/goals';
+
+  /// Conquistas / badges do atleta.
+  static const String athleteAchievements = '/athlete/achievements';
+
   static const String athleteSettings = '/athlete/settings';
 
   /// Sucesso após salvar perfil do atleta.
@@ -123,6 +133,9 @@ abstract final class AppRouteNames {
   static const String myBookings = 'myBookings';
   static const String athleteProfile = 'athleteProfile';
   static const String athleteProfileEdit = 'athleteProfileEdit';
+  static const String athleteCompleteProfile = 'athleteCompleteProfile';
+  static const String athleteProfileGoals = 'athleteProfileGoals';
+  static const String athleteAchievements = 'athleteAchievements';
   static const String athleteSettings = 'athleteSettings';
   static const String athleteProfileUpdateSuccess =
       'athleteProfileUpdateSuccess';

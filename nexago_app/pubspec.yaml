@@ -81,8 +81,20 @@ flutter:
 
   assets:
     - assets/images/nexago_logo.png
+    - assets/data/br_municipalities_by_uf.json
 
   fonts:
     - family: Sora
       fonts:
         - asset: assets/fonts/Sora/Sora-Variable.ttf
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono/JetBrainsMono-Regular.ttf
+        - asset: assets/fonts/JetBrainsMono/JetBrainsMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/JetBrainsMono/JetBrainsMono-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/JetBrainsMono/JetBrainsMono-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/JetBrainsMono/JetBrainsMono-ExtraBold.ttf
+          weight: 800

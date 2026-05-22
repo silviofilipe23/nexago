@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
@@ -9,8 +10,10 @@ import '../../arenas/domain/my_booking_item.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_providers.dart';
+import '../domain/achievements/achievement_providers.dart';
 import '../domain/gamification_models.dart';
 import '../domain/gamification_providers.dart';
+import '../domain/profile_completion_providers.dart';
 import 'widgets/athlete_profile_main_view.dart';
 
 /// Perfil do atleta.
@@ -235,7 +238,7 @@ void _showBriefAlert(
   );
 }
 
-class _AthleteProfileBody extends StatelessWidget {
+class _AthleteProfileBody extends ConsumerWidget {
   const _AthleteProfileBody({
     required this.embedded,
     required this.profile,
@@ -270,8 +273,30 @@ class _AthleteProfileBody extends StatelessWidget {
     );
   }
 
+  Future<void> _shareProfile(
+    BuildContext context,
+    WidgetRef ref,
+    AthleteProfile profile,
+  ) async {
+    final name = profile.name.trim().isNotEmpty ? profile.name.trim() : 'Atleta';
+    final sport = profile.sport.trim().isNotEmpty ? profile.sport.trim() : 'esporte';
+    await Share.share(
+      'Confira meu perfil no NexaGO: $name — $sport',
+    );
+    final uid = ref.read(authProvider).valueOrNull?.uid;
+    if (uid == null || uid.isEmpty) return;
+    await ref.read(gamificationServiceProvider).onProfileShared(userId: uid);
+    ref.invalidate(achievementsScreenStateProvider);
+    ref.invalidate(gamificationBadgesProvider);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final completion =
+        readOnly ? null : ref.watch(profileCompletionStateProvider);
+    final achievementsState =
+        readOnly ? null : ref.watch(achievementsScreenStateProvider);
+
     return AthleteProfileMainView(
       profile: profile,
       embedded: embedded,
@@ -280,6 +305,8 @@ class _AthleteProfileBody extends StatelessWidget {
       nextBooking: nextBooking,
       gamificationSummary: gamificationSummary,
       badges: badges,
+      achievementsState: achievementsState,
+      profileCompletion: completion,
       onBack: () {
         if (context.canPop()) {
           context.pop();
@@ -288,10 +315,15 @@ class _AthleteProfileBody extends StatelessWidget {
         }
       },
       onEdit: onEdit,
-      onShare: () => _comingSoon(context, 'Compartilhar perfil'),
-      onCompleteProfile: onEdit,
+      onShare: readOnly ? () {} : () => _shareProfile(context, ref, profile),
+      onOpenSettings: readOnly ? null : onOpenSettings,
+      showSettingsBadge: !profile.onboardingCompleted,
+      onCompleteProfile: () =>
+          context.pushNamed(AppRouteNames.athleteCompleteProfile),
       onOpenAgenda: onOpenAgenda,
-      onOpenAchievements: () => _comingSoon(context, 'Conquistas'),
+      onOpenAchievements: readOnly
+          ? () {}
+          : () => context.pushNamed(AppRouteNames.athleteAchievements),
       onOpenPlaysWith: () => _comingSoon(context, 'Parceiros de jogo'),
     );
   }

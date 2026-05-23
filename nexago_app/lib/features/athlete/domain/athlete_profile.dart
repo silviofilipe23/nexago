@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/location/br_locations_data.dart';
 import 'athlete_firestore_codes.dart';
+import 'athlete_notification_preferences.dart';
+import 'athlete_privacy_preferences.dart';
 import 'athlete_profile_options.dart';
 
 /// Perfil do atleta em `users/{uid}` (id = UID do Firebase Auth).
@@ -30,6 +32,9 @@ class AthleteProfile {
     this.onboardingCompleted = false,
     this.useBiometric = false,
     this.levelsBySportFirestore = const {},
+    this.notificationPreferences = AthleteNotificationPreferences.defaults,
+    this.privacyPreferences = AthletePrivacyPreferences.defaults,
+    this.publicProfileEnabled = true,
   });
 
   final String id;
@@ -58,6 +63,10 @@ class AthleteProfile {
   final bool useBiometric;
   /// Nível por esporte em `sportOnboarding.levelsBySport` (código FS → código nível).
   final Map<String, String> levelsBySportFirestore;
+  final AthleteNotificationPreferences notificationPreferences;
+  final AthletePrivacyPreferences privacyPreferences;
+  /// Alinhado com web (`athlete_profiles`); derivado de [privacyPreferences].
+  final bool publicProfileEnabled;
 
   factory AthleteProfile.draft(User user) {
     final email = user.email;
@@ -216,7 +225,27 @@ class AthleteProfile {
       onboardingCompleted: onboardingCompleted,
       useBiometric: data['useBiometric'] == true,
       levelsBySportFirestore: levelsBySportFirestore,
+      notificationPreferences: AthleteNotificationPreferences.fromFirestore(
+        data['notificationPreferences'],
+      ),
+      privacyPreferences: AthletePrivacyPreferences.fromFirestore(
+        data['privacyPreferences'],
+      ),
+      publicProfileEnabled: _resolvePublicProfileEnabled(data),
     );
+  }
+
+  static bool _resolvePublicProfileEnabled(Map<String, dynamic> data) {
+    final privacy = AthletePrivacyPreferences.fromFirestore(
+      data['privacyPreferences'],
+    );
+    if (data['privacyPreferences'] is Map) {
+      return privacy.publicProfileEnabled;
+    }
+    if (data['publicProfileEnabled'] is bool) {
+      return data['publicProfileEnabled'] as bool;
+    }
+    return true;
   }
 
   /// Label `Cidade · UF` para exibição no perfil.
@@ -373,6 +402,9 @@ class AthleteProfile {
     bool? onboardingCompleted,
     bool? useBiometric,
     Map<String, String>? levelsBySportFirestore,
+    AthleteNotificationPreferences? notificationPreferences,
+    AthletePrivacyPreferences? privacyPreferences,
+    bool? publicProfileEnabled,
     bool clearAvatar = false,
     bool clearCoverPhoto = false,
     bool clearPhone = false,
@@ -408,6 +440,11 @@ class AthleteProfile {
       useBiometric: useBiometric ?? this.useBiometric,
       levelsBySportFirestore:
           levelsBySportFirestore ?? this.levelsBySportFirestore,
+      notificationPreferences:
+          notificationPreferences ?? this.notificationPreferences,
+      privacyPreferences: privacyPreferences ?? this.privacyPreferences,
+      publicProfileEnabled:
+          publicProfileEnabled ?? this.publicProfileEnabled,
     );
   }
 }

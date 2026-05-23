@@ -36,7 +36,8 @@ class AthleteEditProfilePage extends ConsumerStatefulWidget {
       _AthleteEditProfilePageState();
 }
 
-class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage> {
+class _AthleteEditProfilePageState
+    extends ConsumerState<AthleteEditProfilePage> {
   final _formKey = GlobalKey<FormState>();
   final _avatarSectionKey = GlobalKey();
   final _sportSectionKey = GlobalKey();
@@ -199,11 +200,13 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
       }
 
       final base =
-          ref.read(athleteProfileProvider).valueOrNull ?? AthleteProfile.draft(user);
+          ref.read(athleteProfileProvider).valueOrNull ??
+          AthleteProfile.draft(user);
       final city = _selectedCity?.trim() ?? '';
       final stateRaw = _selectedState?.trim();
-      final state =
-          stateRaw != null && stateRaw.isNotEmpty ? stateRaw.toUpperCase() : null;
+      final state = stateRaw != null && stateRaw.isNotEmpty
+          ? stateRaw.toUpperCase()
+          : null;
       final nicknameTrim = _nicknameCtrl.text.trim();
       final bioRaw = _bioCtrl.text.trim();
       final bio = bioRaw.isEmpty
@@ -216,8 +219,9 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
         coverPhotoUrl: coverPhotoUrl,
         sport: _sport,
         level: _level,
-        phoneNumber:
-            _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+        phoneNumber: _phoneCtrl.text.trim().isEmpty
+            ? null
+            : _phoneCtrl.text.trim(),
         city: city,
         state: state,
         bio: bio,
@@ -232,10 +236,9 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
       await repo.saveProfile(profile);
       ref.invalidate(athleteProfileProvider);
       ref.invalidate(userLocationProvider);
-      await ref.read(gamificationServiceProvider).syncProfileCompletionRewards(
-            userId: user.uid,
-            profile: profile,
-          );
+      await ref
+          .read(gamificationServiceProvider)
+          .syncProfileCompletionRewards(userId: user.uid, profile: profile);
       ref.invalidate(profileCompletionStateProvider);
       ref.invalidate(gamificationSummaryProvider);
 
@@ -247,9 +250,9 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao salvar: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -456,7 +459,7 @@ class _AthleteEditProfilePageState extends ConsumerState<AthleteEditProfilePage>
                         const SizedBox(height: 28),
                         const EditProfileSectionHeader(
                           icon: Icons.settings_outlined,
-                          title: 'CONTA E PREFERÊNCIAS',
+                          title: 'E-MAIL E CONTA',
                         ),
                         EditProfileAccountPrefsGroup(
                           email: _emailCtrl.text.trim().isEmpty

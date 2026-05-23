@@ -101,8 +101,11 @@ class AthleteSettingsViewData {
   String get bookingsSubtitle =>
       '$totalBookings reservas · primeira ganha +$firstBookingXp XP';
 
-  String get matchHistorySubtitle =>
-      '$totalGames jogos · $totalBookings reservas';
+  String get notificationsSubtitle =>
+      profile.notificationPreferences.channelsSummaryForSettings();
+
+  String get privacySubtitle =>
+      profile.privacyPreferences.visibilitySettingsLabel;
 }
 
 AthleteSettingsViewData buildAthleteSettingsViewData({

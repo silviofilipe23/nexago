@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import '../../../../core/formatting/br_phone_format.dart';
 import '../../domain/athlete_firestore_codes.dart';
 import '../../domain/athlete_profile.dart';
 import 'athlete_onboarding_options.dart';
@@ -123,7 +124,7 @@ class AthleteOnboardingDraft {
     String? avatarUrl,
   }) {
     final primary = primarySportLabel ?? '';
-    final phone = _formatPhoneBr(phoneDigits);
+    final phone = formatPhoneBrDisplay(phoneDigits);
     final primaryFs =
         AthleteFirestoreCodes.sportAppToFirestore(primarySportId);
     final secondaryFs = otherSportIds
@@ -157,15 +158,4 @@ class AthleteOnboardingDraft {
     );
   }
 
-  static String? _formatPhoneBr(String digits) {
-    final d = digits.replaceAll(RegExp(r'\D'), '');
-    if (d.length < 10) return null;
-    if (d.length == 11) {
-      return '(${d.substring(0, 2)}) ${d.substring(2, 7)}-${d.substring(7)}';
-    }
-    if (d.length == 10) {
-      return '(${d.substring(0, 2)}) ${d.substring(2, 6)}-${d.substring(6)}';
-    }
-    return d;
-  }
 }

@@ -35,6 +35,22 @@ abstract final class AppRoutes {
   /// Esportes e níveis do atleta.
   static const String athleteSportsLevels = '/athlete/profile/sports-levels';
 
+  /// Preferências de notificação do atleta.
+  static const String athleteNotificationSettings =
+      '/athlete/settings/notifications';
+
+  /// Privacidade e segurança do atleta.
+  static const String athletePrivacySecurity = '/athlete/settings/privacy';
+
+  static const String athleteChangePassword =
+      '/athlete/settings/privacy/change-password';
+
+  static const String athleteActiveSessions =
+      '/athlete/settings/privacy/sessions';
+
+  /// Histórico de partidas e torneios do atleta.
+  static const String athleteMatchHistory = '/athlete/history';
+
   /// Sucesso após salvar perfil do atleta.
   static const String athleteProfileUpdateSuccess = '/athlete/profile/updated';
 
@@ -141,6 +157,12 @@ abstract final class AppRouteNames {
   static const String athleteAchievements = 'athleteAchievements';
   static const String athleteSettings = 'athleteSettings';
   static const String athleteSportsLevels = 'athleteSportsLevels';
+  static const String athleteNotificationSettings =
+      'athleteNotificationSettings';
+  static const String athletePrivacySecurity = 'athletePrivacySecurity';
+  static const String athleteChangePassword = 'athleteChangePassword';
+  static const String athleteActiveSessions = 'athleteActiveSessions';
+  static const String athleteMatchHistory = 'athleteMatchHistory';
   static const String athleteProfileUpdateSuccess =
       'athleteProfileUpdateSuccess';
   static const String athleteOnboardingWelcome = 'athleteOnboardingWelcome';

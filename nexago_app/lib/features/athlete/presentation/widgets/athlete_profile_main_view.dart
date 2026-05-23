@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../../../arenas/domain/my_booking_item.dart';
 import '../../domain/athlete_profile.dart';
@@ -10,6 +11,7 @@ import '../../domain/achievements/achievement_catalog.dart';
 import '../../domain/achievements/achievement_status.dart';
 import '../../domain/gamification_models.dart';
 import '../../domain/profile_completion_models.dart';
+import 'match_history/athlete_profile_history_section.dart';
 
 /// Dados mockados até integração com backend (parceiros, ranking, etc.).
 abstract final class AthleteProfileMock {
@@ -116,6 +118,7 @@ class AthleteProfileMainView extends StatelessWidget {
     required this.onCompleteProfile,
     required this.onOpenAgenda,
     required this.onOpenAchievements,
+    this.onOpenMatchHistory,
     required this.onOpenPlaysWith,
   });
 
@@ -136,6 +139,7 @@ class AthleteProfileMainView extends StatelessWidget {
   final VoidCallback onCompleteProfile;
   final VoidCallback onOpenAgenda;
   final VoidCallback onOpenAchievements;
+  final VoidCallback? onOpenMatchHistory;
   final VoidCallback onOpenPlaysWith;
 
   @override
@@ -255,6 +259,12 @@ class AthleteProfileMainView extends StatelessWidget {
                         ),
                         onTap: onOpenAchievements,
                       ),
+                      if (!readOnly && onOpenMatchHistory != null) ...[
+                        const SizedBox(height: 20),
+                        AthleteProfileHistorySection(
+                          onViewAll: onOpenMatchHistory!,
+                        ),
+                      ],
                       const SizedBox(height: 20),
                       _SectionHeader(
                         title: 'Joga com',
@@ -983,6 +993,55 @@ class _CompleteProfileCard extends StatelessWidget {
   }
 }
 
+/// Barra de XP com preenchimento laranja totalmente arredondado (formato cápsula).
+class _RoundedXpProgressBar extends StatelessWidget {
+  const _RoundedXpProgressBar({required this.progress, this.height = 6});
+
+  final double progress;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(height / 2);
+    final trackColor = AppColors.onSurfaceMuted.withValues(alpha: 0.15);
+    final clamped = progress.clamp(0.0, 1.0);
+
+    return SizedBox(
+      height: height,
+      width: double.infinity,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final fillWidth = constraints.maxWidth * clamped;
+
+          return Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: trackColor,
+                  borderRadius: radius,
+                ),
+                child: const SizedBox.expand(),
+              ),
+              if (fillWidth > 0)
+                SizedBox(
+                  width: fillWidth,
+                  height: height,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.brand,
+                      borderRadius: radius,
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _XpLevelSection extends StatelessWidget {
   const _XpLevelSection({
     required this.level,
@@ -1026,15 +1085,7 @@ class _XpLevelSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: progress,
-            minHeight: 6,
-            backgroundColor: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
-            color: AppColors.brand,
-          ),
-        ),
+        _RoundedXpProgressBar(progress: progress, height: 6),
       ],
     );
   }
@@ -1078,7 +1129,7 @@ class _StatsGrid extends StatelessWidget {
         Expanded(
           child: _StatCard(
             value: '$streak',
-            label: 'STREAK',
+            label: 'SEQUÊNCIA',
             icon: Icons.local_fire_department_rounded,
             iconColor: AppColors.brand,
           ),
@@ -1150,10 +1201,7 @@ class _StatCard extends StatelessWidget {
 }
 
 class _NextBookingEmptyCard extends StatelessWidget {
-  const _NextBookingEmptyCard({
-    required this.readOnly,
-    required this.onTap,
-  });
+  const _NextBookingEmptyCard({required this.readOnly, required this.onTap});
 
   final bool readOnly;
   final VoidCallback onTap;
@@ -1194,11 +1242,10 @@ class _NextBookingEmptyCard extends StatelessWidget {
                 children: [
                   Text(
                     'PRÓXIMA RESERVA',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: AppColors.brand,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.8,
+                    style: AppTypography.soraRegular(
                       fontSize: 10,
+                      color: AppColors.brand,
+                      letterSpacing: 0.6,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -1221,7 +1268,7 @@ class _NextBookingEmptyCard extends StatelessWidget {
                   if (!readOnly) ...[
                     const SizedBox(height: 10),
                     Text(
-                      'Ver minhas reservas',
+                      'Reserve uma quadra agora',
                       style: theme.textTheme.labelLarge?.copyWith(
                         fontWeight: FontWeight.w800,
                         color: AppColors.brand,

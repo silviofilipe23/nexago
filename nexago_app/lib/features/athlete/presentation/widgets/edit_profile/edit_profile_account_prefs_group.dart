@@ -6,10 +6,7 @@ import '../athlete_settings/athlete_settings_helpers.dart';
 
 /// Card CONTA E PREFERÊNCIAS do Editar perfil.
 class EditProfileAccountPrefsGroup extends StatelessWidget {
-  const EditProfileAccountPrefsGroup({
-    super.key,
-    required this.email,
-  });
+  const EditProfileAccountPrefsGroup({super.key, required this.email});
 
   final String? email;
 
@@ -64,27 +61,27 @@ class EditProfileAccountPrefsGroup extends StatelessWidget {
               height: 1,
               color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
             ),
-            AthleteSettingsTile(
-              icon: Icons.settings_outlined,
-              title: 'Configurações da conta',
-              subtitle: 'Idioma, região, pagamento',
-              onTap: () => showAthleteSettingsComingSoon(context),
-              showDivider: true,
-            ),
-            AthleteSettingsTile(
-              icon: Icons.notifications_outlined,
-              title: 'Notificações',
-              subtitle: '4 ativas · 2 silenciadas',
-              onTap: () => showAthleteSettingsComingSoon(context),
-              showDivider: true,
-            ),
-            AthleteSettingsTile(
-              icon: Icons.lock_outline_rounded,
-              title: 'Privacidade e segurança',
-              subtitle: 'Perfil público · 2FA ativo',
-              onTap: () => showAthleteSettingsComingSoon(context),
-              showDivider: false,
-            ),
+            // AthleteSettingsTile(
+            //   icon: Icons.settings_outlined,
+            //   title: 'Configurações da conta',
+            //   subtitle: 'Idioma, região, pagamento',
+            //   onTap: () => showAthleteSettingsComingSoon(context),
+            //   showDivider: true,
+            // ),
+            // AthleteSettingsTile(
+            //   icon: Icons.notifications_outlined,
+            //   title: 'Notificações',
+            //   subtitle: '4 ativas · 2 silenciadas',
+            //   onTap: () => showAthleteSettingsComingSoon(context),
+            //   showDivider: true,
+            // ),
+            // AthleteSettingsTile(
+            //   icon: Icons.lock_outline_rounded,
+            //   title: 'Privacidade e segurança',
+            //   subtitle: 'Perfil público · 2FA ativo',
+            //   onTap: () => showAthleteSettingsComingSoon(context),
+            //   showDivider: false,
+            // ),
           ],
         ),
       ),

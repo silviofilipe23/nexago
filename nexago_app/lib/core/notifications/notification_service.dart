@@ -98,6 +98,39 @@ class NotificationService {
     _initialized = true;
   }
 
+  /// Remove o token FCM do dispositivo atual em `users/{uid}/tokens/{installationId}`.
+  Future<void> clearCurrentDeviceToken([String? userId]) async {
+    final uid = userId?.trim() ?? _activeUserId?.trim();
+    if (uid == null || uid.isEmpty) return;
+
+    try {
+      final tokenId = await _getInstallationTokenId();
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('tokens')
+          .doc(tokenId)
+          .delete();
+    } catch (e) {
+      debugPrint('FCM clear token failed: $e');
+    }
+  }
+
+  Future<bool> _readPushChannelEnabled(String uid) async {
+    try {
+      final snap = await _firestore.collection('users').doc(uid).get();
+      if (!snap.exists) return true;
+      final prefs = snap.data()?['notificationPreferences'];
+      if (prefs is! Map) return true;
+      final channels = prefs['channels'];
+      if (channels is! Map) return true;
+      return channels['push'] as bool? ?? true;
+    } catch (e) {
+      debugPrint('FCM read push preference failed: $e');
+      return true;
+    }
+  }
+
   Future<void> syncUserToken(String? userId) async {
     final uid = userId?.trim();
     if (uid == null || uid.isEmpty) {
@@ -107,6 +140,7 @@ class NotificationService {
     _activeUserId = uid;
 
     if (!_pluginAvailable) return;
+    if (!await _readPushChannelEnabled(uid)) return;
     if (!kIsWeb && Platform.isIOS) {
       final apnsToken =
           await _safeMessagingCall<String?>(() => _messaging.getAPNSToken());

@@ -116,4 +116,33 @@ class AuthService {
     );
     return user.reauthenticateWithCredential(cred);
   }
+
+  /// Atualiza senha após reautenticação (contas e-mail/senha).
+  Future<void> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw StateError('Nenhum usuário autenticado.');
+    }
+    final email = user.email;
+    if (email == null || email.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'missing-email',
+        message: 'Conta sem e-mail para reautenticação.',
+      );
+    }
+    await reauthenticateWithEmailAndPassword(
+      email: email,
+      password: currentPassword,
+    );
+    await user.updatePassword(newPassword);
+  }
+
+  bool get hasPasswordProvider {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    return user.providerData.any((p) => p.providerId == 'password');
+  }
 }

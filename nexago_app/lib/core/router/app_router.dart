@@ -52,6 +52,11 @@ import '../../features/athlete/presentation/booking_invite_page.dart';
 import '../../features/athlete/presentation/achievements/athlete_achievements_page.dart';
 import '../../features/athlete/presentation/athlete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_settings_page.dart';
+import '../../features/athlete/presentation/athlete_active_sessions_page.dart';
+import '../../features/athlete/presentation/athlete_change_password_page.dart';
+import '../../features/athlete/presentation/athlete_notification_settings_page.dart';
+import '../../features/athlete/presentation/athlete_match_history_page.dart';
+import '../../features/athlete/presentation/athlete_privacy_security_page.dart';
 import '../../features/athlete/presentation/athlete_sports_levels_page.dart';
 import '../../features/athlete/presentation/athlete_profile_update_success_page.dart';
 import '../../features/athlete/presentation/arena_reviews_page.dart';
@@ -297,6 +302,32 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.athleteSportsLevels,
         name: AppRouteNames.athleteSportsLevels,
         builder: (context, state) => const AthleteSportsLevelsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteNotificationSettings,
+        name: AppRouteNames.athleteNotificationSettings,
+        builder: (context, state) =>
+            const AthleteNotificationSettingsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athletePrivacySecurity,
+        name: AppRouteNames.athletePrivacySecurity,
+        builder: (context, state) => const AthletePrivacySecurityPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteChangePassword,
+        name: AppRouteNames.athleteChangePassword,
+        builder: (context, state) => const AthleteChangePasswordPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteActiveSessions,
+        name: AppRouteNames.athleteActiveSessions,
+        builder: (context, state) => const AthleteActiveSessionsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteMatchHistory,
+        name: AppRouteNames.athleteMatchHistory,
+        builder: (context, state) => const AthleteMatchHistoryPage(),
       ),
       GoRoute(
         path: AppRoutes.athleteProfileUpdateSuccess,

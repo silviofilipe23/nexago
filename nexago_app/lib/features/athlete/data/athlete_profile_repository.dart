@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import '../domain/athlete_notification_preferences.dart';
+import '../domain/athlete_privacy_preferences.dart';
 import '../domain/athlete_profile.dart';
 
 class AthleteProfileRepository {
@@ -67,6 +69,48 @@ class AthleteProfileRepository {
     }
 
     await docRef.set(data, SetOptions(merge: true));
+  }
+
+  Future<void> saveNotificationPreferences({
+    required String uid,
+    required AthleteNotificationPreferences preferences,
+  }) async {
+    await _users.doc(uid).set(
+      <String, dynamic>{
+        'notificationPreferences': preferences.toFirestore(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> savePrivacyPreferences({
+    required String uid,
+    required AthletePrivacyPreferences preferences,
+  }) async {
+    await _users.doc(uid).set(
+      <String, dynamic>{
+        'privacyPreferences': preferences.toFirestore(),
+        'publicProfileEnabled': preferences.publicProfileEnabled,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Stream<List<Map<String, dynamic>>> watchUserTokens(String uid) {
+    return _users
+        .doc(uid)
+        .collection('tokens')
+        .snapshots()
+        .map((snap) => snap.docs.map((d) => {...d.data(), 'id': d.id}).toList());
+  }
+
+  Future<void> deleteUserToken({
+    required String uid,
+    required String tokenId,
+  }) async {
+    await _users.doc(uid).collection('tokens').doc(tokenId).delete();
   }
 
   /// Upload em `profiles/{uid}/avatar.jpg` (regras do Storage) e retorna a URL.

@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_providers.dart';
-import '../../../core/biometric/biometric_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
@@ -16,6 +15,7 @@ import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/gamification_models.dart';
 import '../domain/gamification_providers.dart';
+import '../domain/match_history/athlete_match_history_providers.dart';
 import 'widgets/athlete_settings/athlete_settings_group.dart';
 import 'widgets/athlete_settings/athlete_settings_helpers.dart';
 import 'widgets/athlete_settings/athlete_settings_profile_card.dart';
@@ -30,58 +30,11 @@ class AthleteSettingsPage extends ConsumerStatefulWidget {
 }
 
 class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
-  bool _savingBiometric = false;
-  bool? _biometricOverride;
-
   void _popOrDiscover() {
     if (context.canPop()) {
       context.pop();
     } else {
       context.go(AppRoutes.discover);
-    }
-  }
-
-  Future<void> _onBiometricChanged(bool value) async {
-    final user = ref.read(authProvider).valueOrNull;
-    if (user == null) return;
-
-    if (value) {
-      final svc = ref.read(biometricServiceProvider);
-      final supported = await svc.isDeviceSupported();
-      final enrolled = await svc.hasEnrolledBiometrics();
-      if (!supported || !enrolled) {
-        if (!mounted) return;
-        showAppSnackBar(
-          context,
-          'Cadastre Face ID ou impressão digital nas configurações do aparelho.',
-          isError: true,
-        );
-        return;
-      }
-    }
-
-    setState(() {
-      _biometricOverride = value;
-      _savingBiometric = true;
-    });
-
-    try {
-      final base = ref.read(athleteProfileProvider).valueOrNull ??
-          AthleteProfile.draft(user);
-      await ref.read(athleteProfileRepositoryProvider).saveProfile(
-            base.copyWith(useBiometric: value),
-          );
-      ref.invalidate(athleteProfileProvider);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _biometricOverride = null);
-      showAppSnackBar(
-        context,
-        'Não foi possível salvar: $e',
-        isError: true,
-      );
-    } finally {
-      if (mounted) setState(() => _savingBiometric = false);
     }
   }
 
@@ -138,9 +91,8 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
     final profileAsync = ref.watch(athleteProfileProvider);
     final summary =
         ref.watch(gamificationSummaryProvider).valueOrNull ??
-            GamificationSummary.initial();
-    final achievements =
-        ref.watch(achievementsScreenStateProvider);
+        GamificationSummary.initial();
+    final achievements = ref.watch(achievementsScreenStateProvider);
     final bookings =
         ref.watch(myBookingsStreamProvider).valueOrNull ?? const [];
 
@@ -158,7 +110,8 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
     }
 
     final profile = profileAsync.valueOrNull ?? AthleteProfile.draft(user);
-    final useBiometric = _biometricOverride ?? profile.useBiometric;
+    final matchHistorySubtitle =
+        ref.watch(athleteMatchHistorySettingsSubtitleProvider);
     final viewData = buildAthleteSettingsViewData(
       profile: profile,
       email: user.email,
@@ -185,8 +138,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
               avatarUrl: profile.avatarUrl,
               displayLevel: viewData.displayLevel,
               isLoading: profileAsync.isLoading && profileAsync.value == null,
-              onEdit: () =>
-                  context.pushNamed(AppRouteNames.athleteProfileEdit),
+              onEdit: () => context.pushNamed(AppRouteNames.athleteProfileEdit),
             ),
             const SizedBox(height: AthleteSettingsTokens.sectionGap),
             AthleteSettingsGroup(
@@ -204,9 +156,8 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   icon: Icons.sports_volleyball_rounded,
                   title: 'Esportes e níveis',
                   subtitle: viewData.sportsLevelSubtitle,
-                  onTap: () => context.pushNamed(
-                    AppRouteNames.athleteSportsLevels,
-                  ),
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.athleteSportsLevels),
                   showDivider: true,
                 ),
                 AthleteSettingsTile(
@@ -214,8 +165,9 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   title: 'Conquistas',
                   subtitle: viewData.achievementsSubtitle,
                   variant: AthleteSettingsIconVariant.yellow,
-                  trailingBadge:
-                      AthleteSettingsOrangeBadge(label: viewData.achievementsTrailing),
+                  trailingBadge: AthleteSettingsOrangeBadge(
+                    label: viewData.achievementsTrailing,
+                  ),
                   onTap: () =>
                       context.pushNamed(AppRouteNames.athleteAchievements),
                   showDivider: true,
@@ -231,8 +183,9 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                 AthleteSettingsTile(
                   icon: Icons.emoji_events_rounded,
                   title: 'Histórico de partidas',
-                  subtitle: viewData.matchHistorySubtitle,
-                  onTap: () => showAthleteSettingsComingSoon(context),
+                  subtitle: matchHistorySubtitle,
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.athleteMatchHistory),
                   showDivider: false,
                 ),
               ],
@@ -244,17 +197,21 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                 AthleteSettingsTile(
                   icon: Icons.notifications_outlined,
                   title: 'Notificações',
-                  subtitle: 'Push · WhatsApp · Email',
+                  subtitle: viewData.notificationsSubtitle,
                   variant: AthleteSettingsIconVariant.neutral,
-                  onTap: () => showAthleteSettingsComingSoon(context),
+                  onTap: () => context.pushNamed(
+                    AppRouteNames.athleteNotificationSettings,
+                  ),
                   showDivider: true,
                 ),
                 AthleteSettingsTile(
                   icon: Icons.visibility_outlined,
-                  title: 'Privacidade',
-                  subtitle: 'Perfil público',
+                  title: 'Privacidade e segurança',
+                  subtitle: viewData.privacySubtitle,
                   variant: AthleteSettingsIconVariant.neutral,
-                  onTap: () => showAthleteSettingsComingSoon(context),
+                  onTap: () => context.pushNamed(
+                    AppRouteNames.athletePrivacySecurity,
+                  ),
                   showDivider: true,
                 ),
                 AthleteSettingsTile(
@@ -262,7 +219,9 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   title: 'Idioma',
                   subtitle: 'Idioma do app',
                   variant: AthleteSettingsIconVariant.neutral,
-                  trailing: const AthleteSettingsMutedTrailing(label: 'Português'),
+                  trailing: const AthleteSettingsMutedTrailing(
+                    label: 'Português',
+                  ),
                   showChevron: false,
                   onTap: () => showAthleteSettingsComingSoon(context),
                   showDivider: true,
@@ -271,28 +230,6 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   icon: Icons.account_balance_wallet_outlined,
                   title: 'Pagamentos',
                   subtitle: 'Nenhum método salvo',
-                  variant: AthleteSettingsIconVariant.neutral,
-                  onTap: () => showAthleteSettingsComingSoon(context),
-                  showDivider: false,
-                ),
-              ],
-            ),
-            const SizedBox(height: AthleteSettingsTokens.sectionGap),
-            AthleteSettingsGroup(
-              sectionLabel: 'SEGURANÇA',
-              children: [
-                AthleteSettingsToggleTile(
-                  title: 'Face ID',
-                  subtitle: 'Pedir biometria ao abrir',
-                  value: useBiometric,
-                  enabled: !_savingBiometric,
-                  onChanged: _onBiometricChanged,
-                  showDivider: true,
-                ),
-                AthleteSettingsTile(
-                  icon: Icons.lock_outline_rounded,
-                  title: 'Senha e e-mail',
-                  subtitle: 'Gerenciar credenciais',
                   variant: AthleteSettingsIconVariant.neutral,
                   onTap: () => showAthleteSettingsComingSoon(context),
                   showDivider: false,
@@ -316,7 +253,9 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   title: 'Convidar amigos',
                   subtitle: 'Compartilhe o NexaGO',
                   variant: AthleteSettingsIconVariant.neutral,
-                  trailingBadge: const AthleteSettingsOrangeBadge(label: '+50 XP'),
+                  trailingBadge: const AthleteSettingsOrangeBadge(
+                    label: '+50 XP',
+                  ),
                   onTap: () => showAthleteSettingsComingSoon(context),
                   showDivider: true,
                 ),
@@ -371,8 +310,10 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
     );
   }
 
-  PreferredSizeWidget _settingsAppBar(ThemeData theme,
-      {required VoidCallback onBack}) {
+  PreferredSizeWidget _settingsAppBar(
+    ThemeData theme, {
+    required VoidCallback onBack,
+  }) {
     return AppBar(
       backgroundColor: AppColors.canvas,
       surfaceTintColor: Colors.transparent,

@@ -10,10 +10,7 @@ import '../../domain/arena_providers.dart';
 
 /// Bottom sheet para criar promoção de horário (gestor).
 class ArenaPromotionFormSheet extends ConsumerStatefulWidget {
-  const ArenaPromotionFormSheet({
-    super.key,
-    required this.arenaId,
-  });
+  const ArenaPromotionFormSheet({super.key, required this.arenaId});
 
   final String arenaId;
 
@@ -38,7 +35,8 @@ class ArenaPromotionFormSheet extends ConsumerStatefulWidget {
       _ArenaPromotionFormSheetState();
 }
 
-class _ArenaPromotionFormSheetState extends ConsumerState<ArenaPromotionFormSheet> {
+class _ArenaPromotionFormSheetState
+    extends ConsumerState<ArenaPromotionFormSheet> {
   final _labelController = TextEditingController(text: 'Tarde ociosa');
   final _startController = TextEditingController(text: '14:00');
   final _endController = TextEditingController(text: '18:00');
@@ -70,18 +68,26 @@ class _ArenaPromotionFormSheetState extends ConsumerState<ArenaPromotionFormShee
   Future<void> _save() async {
     final label = _labelController.text.trim();
     if (label.isEmpty) {
-      showAppSnackBar(context, 'Informe um nome para a promoção.', isError: true);
+      showAppSnackBar(
+        context,
+        'Informe um nome para a promoção.',
+        isError: true,
+      );
       return;
     }
-    final discount =
-        double.tryParse(_discountController.text.trim().replaceAll(',', '.'));
+    final discount = double.tryParse(
+      _discountController.text.trim().replaceAll(',', '.'),
+    );
     if (discount == null || discount <= 0 || discount > 100) {
       showAppSnackBar(context, 'Desconto entre 1% e 100%.', isError: true);
       return;
     }
     if (_weekdays.isEmpty) {
-      showAppSnackBar(context, 'Selecione ao menos um dia da semana.',
-          isError: true);
+      showAppSnackBar(
+        context,
+        'Selecione ao menos um dia da semana.',
+        isError: true,
+      );
       return;
     }
 
@@ -97,10 +103,9 @@ class _ArenaPromotionFormSheetState extends ConsumerState<ArenaPromotionFormShee
         endTime: _normalizeHm(_endController.text),
         discountPercent: discount,
       );
-      await ref.read(promotionsRepositoryProvider).createPromotion(
-            arenaId: widget.arenaId,
-            promotion: promo,
-          );
+      await ref
+          .read(promotionsRepositoryProvider)
+          .createPromotion(arenaId: widget.arenaId, promotion: promo);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -195,7 +200,9 @@ class _ArenaPromotionFormSheetState extends ConsumerState<ArenaPromotionFormShee
                 labelText: 'Desconto (%)',
                 suffixText: '%',
               ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
               ],
@@ -244,10 +251,13 @@ class _ArenaPromotionFormSheetState extends ConsumerState<ArenaPromotionFormShee
                   padding: EdgeInsets.symmetric(vertical: 8),
                   child: LinearProgressIndicator(),
                 ),
-                error: (_, __) => const Text('Não foi possível carregar quadras.'),
+                error: (_, _) =>
+                    const Text('Não foi possível carregar quadras.'),
                 data: (courts) {
                   if (courts.isEmpty) {
-                    return const Text('Cadastre quadras antes de limitar a promoção.');
+                    return const Text(
+                      'Cadastre quadras antes de limitar a promoção.',
+                    );
                   }
                   return Wrap(
                     spacing: 8,

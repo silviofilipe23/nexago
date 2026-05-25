@@ -5,17 +5,23 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../domain/tournament_discovery_providers.dart';
+import '../../athlete/domain/daily_mission_sync_provider.dart';
 import 'widgets/tournament_discovery_card.dart';
 
-class LeagueDetailPage extends ConsumerWidget {
+class LeagueDetailPage extends ConsumerStatefulWidget {
   const LeagueDetailPage({super.key, required this.leagueId});
 
   final String leagueId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LeagueDetailPage> createState() => _LeagueDetailPageState();
+}
+
+class _LeagueDetailPageState extends ConsumerState<LeagueDetailPage> {
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final leagueAsync = ref.watch(leagueDetailProvider(leagueId));
+    final leagueAsync = ref.watch(leagueDetailProvider(widget.leagueId));
     final tournamentsAsync = ref.watch(discoveryTournamentsProvider);
 
     return Scaffold(
@@ -41,6 +47,14 @@ class LeagueDetailPage extends ConsumerWidget {
           if (league == null) {
             return const Center(child: Text('Liga não encontrada.'));
           }
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            tryAwardExploreTournamentMission(
+              ref,
+              listingId: 'league_${widget.leagueId}',
+            );
+          });
+
           final tournaments = tournamentsAsync.valueOrNull ?? [];
           final byId = {for (final t in tournaments) t.id: t};
 

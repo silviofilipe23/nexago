@@ -6,7 +6,10 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../arena/domain/arena_access_provider.dart';
 import '../domain/athlete_shell_providers.dart';
+import '../domain/daily_mission_sync_provider.dart';
+import '../domain/gamification_models.dart';
 import 'arena_list_page.dart';
+import 'widgets/gamification_feedback_sheet.dart';
 import 'athlete_bookings_page.dart';
 import 'athlete_home_page.dart';
 import 'athlete_profile_page.dart';
@@ -48,12 +51,27 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final arenaPanelAsync = ref.watch(arenaPanelAccessProvider);
-    final hideAppBarForProfile = _index == 4;
+    final hideAppBarForProfile = _index == 0 || _index == 2 || _index == 4;
 
     ref.listen<int>(athleteShellTabIndexProvider, (previous, next) {
       if (next != _index && next >= 0 && next < _titles.length) {
         setState(() => _index = next);
       }
+    });
+
+    ref.watch(dailyMissionSyncProvider);
+
+    ref.listen<GamificationFeedback?>(dailyMissionFeedbackProvider, (
+      previous,
+      next,
+    ) {
+      if (next == null || next.xpGained <= 0) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        await showGamificationFeedbackSheet(context, feedback: next);
+        if (!mounted) return;
+        ref.read(dailyMissionFeedbackProvider.notifier).state = null;
+      });
     });
 
     return Scaffold(

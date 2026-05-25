@@ -13,47 +13,30 @@ import '../domain/arena_booking_confirm_args.dart';
 import '../domain/arena_court.dart';
 import '../domain/arena_list_item.dart';
 import '../domain/arena_slot.dart';
+import '../domain/court_pricing.dart';
+import '../../../core/auth/auth_providers.dart';
+import '../../athlete/domain/athlete_notification_preferences_providers.dart';
+import '../../athlete/domain/athlete_profile_providers.dart';
+import '../domain/slot_vacancy_alert.dart';
+import '../domain/slot_vacancy_alerts_provider.dart';
+import '../domain/slots_page_logic.dart';
+import '../domain/slots_page_providers.dart';
+import '../domain/slots_suggestion_models.dart';
+import '../domain/slots_suggestions_logic.dart';
+import '../domain/slots_suggestions_providers.dart';
 import '../domain/arenas_providers.dart';
 import '../domain/slots_providers.dart';
 import '../domain/slots_query.dart';
-
-/// Combina [date] (apenas ano/mês/dia) com [time] no formato `HH:mm`.
-DateTime _combineDateAndTime(DateTime date, String time) {
-  final t = time.trim();
-  if (t.length < 4) {
-    return DateTime(date.year, date.month, date.day);
-  }
-  final parts = t.split(':');
-  final h = int.tryParse(parts[0]) ?? 0;
-  final m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
-  return DateTime(date.year, date.month, date.day, h, m);
-}
-
-/// Instantâneo de término do slot no horário local.
-///
-/// Se `endTime` no mesmo dia não for depois de `startTime` (ex.: 23:00–00:00), o fim
-/// assume o dia seguinte — evita tratar `00:00` como início do dia e marcar como
-/// [Encerrado] à tarde.
-DateTime _slotStartDateTime(ArenaSlot slot) {
-  final d = DateTime(slot.date.year, slot.date.month, slot.date.day);
-  return _combineDateAndTime(d, slot.startTime);
-}
-
-DateTime _slotEndDateTime(ArenaSlot slot) {
-  final d = DateTime(slot.date.year, slot.date.month, slot.date.day);
-  final start = _combineDateAndTime(d, slot.startTime);
-  var end = _combineDateAndTime(d, slot.endTime);
-  if (!end.isAfter(start)) {
-    end = end.add(const Duration(days: 1));
-  }
-  return end;
-}
-
-/// Após [start] + esta duração, o slot deixa de poder ser alugado (ex.: 20:00 até 20:05).
-const Duration _slotBookingCutoffAfterStart = Duration(minutes: 5);
-
-DateTime _slotBookingCutoff(ArenaSlot slot) =>
-    _slotStartDateTime(slot).add(_slotBookingCutoffAfterStart);
+import 'widgets/slots/slots_all_suggestions_sheet.dart';
+import 'widgets/slots/slots_bottom_bar.dart';
+import 'widgets/slots/slots_fully_booked_body.dart';
+import 'widgets/slots/slots_court_carousel.dart';
+import 'widgets/slots/slots_day_strip.dart';
+import 'widgets/slots/slots_duration_picker.dart';
+import 'widgets/slots/slots_list_section.dart';
+import 'widgets/slots/slots_page_header.dart';
+import 'widgets/slots/slots_period_chips.dart';
+import 'widgets/slots/slots_search_sheet.dart';
 
 /// Seleção de horários: quadras (`arenas/.../courts`) + `arenaSlots` por dia (YYYY-MM-DD).
 class SlotsPage extends ConsumerWidget {
@@ -170,7 +153,11 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
   int? _selStart;
   int? _selEnd;
   String? _selectedCourtId;
+  SlotPeriodFilter _periodFilter = SlotPeriodFilter.all;
+  int? _selectedDurationMinutes;
   bool _didApplyInitialSuggestedSlot = false;
+  String? _pendingApplyStartTime;
+  bool _notifyLoading = false;
 
   final GlobalKey _nextSlotKey = GlobalKey();
   final GlobalKey _selectedSlotKey = GlobalKey();
@@ -180,12 +167,11 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
   /// item existir na árvore (ListView lazy não monta filhos fora da viewport).
   final ScrollController _slotListScrollController = ScrollController();
 
-  static final _weekdayFmt = DateFormat('EEE', 'pt_BR');
-  static final _monthDayFmt = DateFormat('d MMM', 'pt_BR');
+  static final _metaDateFmt = DateFormat('EEE, d MMM', 'pt_BR');
   static final _priceFmt = NumberFormat.currency(
     locale: 'pt_BR',
     symbol: r'R$',
-    decimalDigits: 2,
+    decimalDigits: 0,
   );
 
   @override
@@ -235,15 +221,6 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     return courts.first.id;
   }
 
-  double? _totalReaisForRange(List<ArenaSlot> slots, int s, int e) {
-    var sum = 0.0;
-    for (var i = s; i <= e; i++) {
-      final p = slots[i].priceReais;
-      if (p == null || p <= 0) return null;
-      sum += p;
-    }
-    return sum;
-  }
 
   void _goToConfirm(
     BuildContext context,
@@ -257,13 +234,18 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     final first = slots[s];
     final last = slots[e];
     var courtName = 'Quadra';
+    String? courtSubtitle;
     for (final c in courts) {
       if (c.id == courtId) {
         courtName = c.name;
+        final label = c.sportTypesLabel.trim();
+        if (label.isNotEmpty && label != '—') {
+          courtSubtitle = label;
+        }
         break;
       }
     }
-    final total = _totalReaisForRange(slots, s, e);
+    final total = totalPriceForRange(slots, s, e);
     if (total == null || total <= 0) {
       showAppSnackBar(
         context,
@@ -285,6 +267,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
         arenaName: widget.arena.name,
         courtId: courtId,
         courtName: courtName,
+        courtSubtitle: courtSubtitle,
         date: DateTime(first.date.year, first.date.month, first.date.day),
         startTime: first.startTime,
         endTime: last.endTime,
@@ -309,20 +292,22 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
 
   bool _rangeStillValid(List<ArenaSlot> slots, int s, int e) {
     if (s < 0 || e >= slots.length || s > e) return false;
+    final now = DateTime.now();
     for (var i = s; i <= e; i++) {
-      if (_isPastSlot(slots[i])) return false;
-      if (!slots[i].isSelectable) return false;
+      final slot = slots[i];
+      if (isPastBookableSlot(selectedDay: _selectedDay, slot: slot, now: now)) {
+        return false;
+      }
+      if (!slot.isSelectable) return false;
     }
     return true;
   }
 
-  /// Hoje: fora da janela de aluguel (após início + 5 min) ou slot já terminou.
-  bool _isPastSlot(ArenaSlot slot) {
-    if (!_sameDay(_selectedDay, _dateOnly(DateTime.now()))) return false;
-    final now = DateTime.now();
-    if (!_slotBookingCutoff(slot).isAfter(now)) return true;
-    return _slotEndDateTime(slot).isBefore(now);
-  }
+  bool _isPastSlot(ArenaSlot slot) => isPastBookableSlot(
+        selectedDay: _selectedDay,
+        slot: slot,
+        now: DateTime.now(),
+      );
 
   void _onSlotTap(int index, List<ArenaSlot> slots) {
     final slot = slots[index];
@@ -404,6 +389,13 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
   }
 
   void _applyInitialSuggestedSlotIfNeeded(String courtId, List<ArenaSlot> slots) {
+    final pending = _pendingApplyStartTime?.trim();
+    if (pending != null && pending.isNotEmpty) {
+      _applyStartTimeSelection(courtId, slots, pending);
+      _pendingApplyStartTime = null;
+      return;
+    }
+
     if (_didApplyInitialSuggestedSlot) return;
     final suggestedStart = widget.initialStartTime?.trim();
     if (suggestedStart == null || suggestedStart.isEmpty) {
@@ -415,8 +407,16 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
       return;
     }
 
-    final idx = slots.indexWhere((slot) => slot.startTime.trim() == suggestedStart);
     _didApplyInitialSuggestedSlot = true;
+    _applyStartTimeSelection(courtId, slots, suggestedStart);
+  }
+
+  void _applyStartTimeSelection(
+    String courtId,
+    List<ArenaSlot> slots,
+    String startTime,
+  ) {
+    final idx = slots.indexWhere((slot) => slot.startTime.trim() == startTime);
     if (idx < 0) return;
     final target = slots[idx];
     if (_isPastSlot(target) || !target.isSelectable) return;
@@ -429,6 +429,153 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
       });
       _scrollToSlotIndex(idx);
     });
+  }
+
+  void _onSuggestionAction(SlotsSuggestion suggestion) {
+    switch (suggestion.kind) {
+      case SlotsSuggestionKind.alternateCourt:
+        setState(() {
+          if (suggestion.courtId != null) {
+            _selectedCourtId = suggestion.courtId;
+          }
+          if (suggestion.date != null) {
+            _selectedDay = _dateOnly(suggestion.date!);
+          }
+          _pendingApplyStartTime = suggestion.startTime;
+          _clearSelection();
+          _didApplyInitialSuggestedSlot = false;
+        });
+        break;
+      case SlotsSuggestionKind.nextDay:
+        if (suggestion.date == null) return;
+        setState(() {
+          _selectedDay = _dateOnly(suggestion.date!);
+          _pendingApplyStartTime = suggestion.startTime;
+          _clearSelection();
+          _didApplyInitialSuggestedSlot = false;
+        });
+        break;
+      case SlotsSuggestionKind.nearbyArena:
+        final arena = suggestion.arena;
+        final arenaId = suggestion.arenaId;
+        if (arena == null || arenaId == null || arenaId.isEmpty) return;
+        final date = suggestion.date ?? _selectedDay;
+        final params = <String, String>{
+          'date': SlotVacancyAlert.dateKeyFrom(date),
+        };
+        final cid = suggestion.courtId?.trim();
+        if (cid != null && cid.isNotEmpty) params['courtId'] = cid;
+        final st = suggestion.startTime?.trim();
+        if (st != null && st.isNotEmpty) params['startTime'] = st;
+        context.pushNamed(
+          AppRouteNames.arenaSlots,
+          pathParameters: {'arenaId': arenaId},
+          extra: arena,
+          queryParameters: params,
+        );
+        return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_slotListScrollController.hasClients) {
+        _slotListScrollController.jumpTo(0);
+      }
+    });
+  }
+
+  Future<void> _openAllSuggestionsSheet(List<SlotsSuggestion> suggestions) async {
+    await showSlotsAllSuggestionsSheet(
+      context: context,
+      suggestions: suggestions,
+      onSuggestionAction: _onSuggestionAction,
+    );
+  }
+
+  Future<void> _toggleVacancyAlert({
+    required String courtId,
+    required String courtName,
+  }) async {
+    final user = ref.read(authServiceProvider).currentUser;
+    if (user == null) {
+      showAppSnackBar(context, 'Entre na conta para ativar alertas.');
+      return;
+    }
+
+    final key = SlotVacancyAlertKey(
+      arenaId: widget.arena.id,
+      courtId: courtId,
+      date: _selectedDay,
+    );
+    final service = ref.read(slotVacancyAlertServiceProvider);
+    final active =
+        ref.read(slotVacancyAlertActiveProvider(key)).valueOrNull ?? false;
+
+    setState(() => _notifyLoading = true);
+    try {
+      if (active) {
+        await service.unsubscribe(userId: user.uid, key: key);
+        if (mounted) {
+          showAppSnackBar(context, 'Alerta desativado.');
+        }
+        return;
+      }
+
+      final profile = ref.read(athleteProfileProvider).valueOrNull;
+      if (profile != null &&
+          !profile.notificationPreferences.topics.availableSlots) {
+        final enable = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AppColors.surfaceSheet,
+            title: const Text('Ativar notificações de vagas?'),
+            content: const Text(
+              'Para avisar quando liberar, ative o tópico '
+              '"Horários disponíveis" nas suas preferências.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Agora não'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Ativar'),
+              ),
+            ],
+          ),
+        );
+        if (enable == true) {
+          ref
+              .read(athleteNotificationPreferencesProvider.notifier)
+              .setTopic(availableSlots: true);
+          await ref
+              .read(athleteNotificationPreferencesProvider.notifier)
+              .saveNow();
+        }
+      }
+
+      await service.subscribe(
+        userId: user.uid,
+        key: key,
+        arenaName: widget.arena.name,
+        courtName: courtName,
+      );
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          'Você será avisado se abrir vaga nesta quadra.',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          'Não foi possível salvar o alerta. Tente novamente.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _notifyLoading = false);
+    }
   }
 
   void _ensureNextSlotVisible(int nextIdx) {
@@ -499,30 +646,66 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     _ensureNextSlotVisible(nextIdx);
   }
 
-  String? _selectionSummary(List<ArenaSlot> slots) {
+  void _clearSelection() {
+    _selStart = null;
+    _selEnd = null;
+    _selectedDurationMinutes = null;
+    _lastAutoScrollToken = null;
+  }
+
+  void _applyDurationMinutes(
+    int minutes,
+    List<ArenaSlot> slots,
+    int slotDurationMinutes,
+  ) {
+    final range = selectRangeForDuration(
+      slots: slots,
+      durationMinutes: minutes,
+      slotDurationMinutes: slotDurationMinutes,
+      selectedDay: _selectedDay,
+      anchorIndex: _selStart ?? _nextAvailableIndex(slots),
+    );
+    if (range == null) return;
+    setState(() {
+      _selStart = range.start;
+      _selEnd = range.end;
+      _selectedDurationMinutes = minutes;
+    });
+    _scrollToSlotIndex(range.end);
+  }
+
+  ({String? meta, String? total}) _bottomBarLabels(
+    List<ArenaSlot> slots,
+    int slotDurationMinutes,
+  ) {
     final s = _selStart;
     final e = _selEnd;
-    if (s == null || e == null || s > e || s < 0 || e >= slots.length) return null;
-    if (!_rangeStillValid(slots, s, e)) return null;
-    final first = slots[s];
-    final last = slots[e];
+    if (s == null || e == null || !_rangeStillValid(slots, s, e)) {
+      return (meta: null, total: null);
+    }
     final n = e - s + 1;
-    double? total;
-    var hasNull = false;
-    for (var i = s; i <= e; i++) {
-      final p = slots[i].priceReais;
-      if (p == null) {
-        hasNull = true;
-      } else {
-        total = (total ?? 0) + p;
-      }
+    final durationLabel = formatSelectionDurationLabel(n, slotDurationMinutes);
+    final meta =
+        '$durationLabel · ${_metaDateFmt.format(_selectedDay)}';
+    final totalVal = totalPriceForRange(slots, s, e);
+    final total =
+        totalVal != null ? _priceFmt.format(totalVal) : null;
+    return (meta: meta, total: total);
+  }
+
+  Future<void> _openSearchSheet(List<ArenaSlot> slots) async {
+    final time = await showSlotsSearchTimeSheet(context);
+    if (time == null || !mounted) return;
+    final idx = indexAtOrAfterTime(slots, time);
+    if (idx == null) return;
+    _scrollToSlotIndex(idx);
+  }
+
+  String _courtName(List<ArenaCourt> courts, String courtId) {
+    for (final c in courts) {
+      if (c.id == courtId) return c.name;
     }
-    final price = total != null ? '${hasNull ? '≥ ' : ''}${_priceFmt.format(total)}' : null;
-    final range = '${first.startTime}–${last.endTime}';
-    if (n == 1) {
-      return price != null ? '$range · $price' : range;
-    }
-    return '$range · $n horários${price != null ? ' · $price' : ''}';
+    return 'Quadra';
   }
 
   @override
@@ -592,7 +775,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
         );
       },
       loading: () => const Scaffold(
-        backgroundColor: AppColors.white,
+        backgroundColor: AppColors.canvas,
         body: AppLoadingView(message: 'Carregando quadras…'),
       ),
       error: (e, _) => AppScaffold(
@@ -618,6 +801,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     List<ArenaSlot> slots, {
     bool slotsLoading = false,
   }) {
+    final arenaId = widget.arena.id;
     if (!slotsLoading) {
       _applyInitialSuggestedSlotIfNeeded(courtId, slots);
     }
@@ -633,643 +817,226 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
         !_rangeStillValid(slots, s, e)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        setState(() {
-          _selStart = null;
-          _selEnd = null;
-        });
+        setState(() => _clearSelection());
+      });
+    }
+
+    final court = courts.firstWhere(
+      (c) => c.id == courtId,
+      orElse: () => courts.first,
+    );
+    final slotDurationMinutes = ref.watch(
+      courtSlotDurationMinutesProvider((arenaId: arenaId, courtId: courtId)),
+    );
+    final hourly = CourtPricing.resolveHourlyBase(
+      court: court,
+      arenaFallbackPerHourReais: widget.arena.pricePerHourReais,
+    );
+    final durationOptions = buildDurationOptions(
+      hourlyPrice: hourly,
+      slotDurationMinutes: slotDurationMinutes,
+    );
+    final periodCountsMap = periodCounts(slots, _selectedDay);
+    final popularIdx =
+        slotsLoading ? null : mostPopularSlotIndex(slots, _selectedDay);
+    final lastIdx =
+        slotsLoading ? null : lastAvailableSlotIndex(slots, _selectedDay);
+    final barLabels = _bottomBarLabels(slots, slotDurationMinutes);
+    final canContinue = !slotsLoading &&
+        _selStart != null &&
+        _selEnd != null &&
+        _rangeStillValid(slots, _selStart!, _selEnd!);
+
+    final calParams = SlotsCalendarParams(
+      arenaId: arenaId,
+      courtId: courtId,
+      startDay: _dateOnly(DateTime.now()),
+      daysCount: _calendarDays,
+      arenaFallbackPricePerHour: widget.arena.pricePerHourReais,
+    );
+    final calendarAsync =
+        ref.watch(slotsCalendarAvailabilityProvider(calParams));
+    final summariesAsync = ref.watch(
+      slotsCourtDaySummaryProvider((
+        arenaId: arenaId,
+        date: _selectedDay,
+        arena: widget.arena,
+      )),
+    );
+
+    final showFullyBookedBody = !slotsLoading &&
+        shouldShowSlotsFullyBookedBody(slots, _selectedDay);
+    final freeCount = slotsLoading
+        ? 0
+        : countFreeSlotsForDay(slots, _selectedDay);
+    final showPeriodEmptyOnly = !slotsLoading &&
+        !showFullyBookedBody &&
+        _periodFilter != SlotPeriodFilter.all &&
+        freeCount > 0 &&
+        filterSlotsByPeriod(slots, _periodFilter).where((s) {
+          return s.isAvailable &&
+              !isPastBookableSlot(
+                selectedDay: _selectedDay,
+                slot: s,
+                now: DateTime.now(),
+              );
+        }).isEmpty;
+
+    final suggestionsParams = SlotsSuggestionsParams(
+      arena: widget.arena,
+      courtId: courtId,
+      courtName: court.name,
+      selectedDay: _selectedDay,
+      enabled: showFullyBookedBody,
+    );
+    final suggestionsAsync =
+        ref.watch(slotsSmartSuggestionsProvider(suggestionsParams));
+
+    final bannerTitle = isDayWithoutSchedule(slots)
+        ? 'Sem horários neste dia'
+        : weekdayLotouLabel(_selectedDay);
+    final bannerSubtitle = isDayWithoutSchedule(slots)
+        ? noScheduleBannerSubtitle(court.name)
+        : fullyBookedBannerSubtitle(
+            courtName: court.name,
+            alternativeCount: suggestionsAsync.valueOrNull?.length ?? 0,
+          );
+    final weekdayNotify = formatWeekdayShort(_selectedDay);
+
+    void jumpListToTop() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (_slotListScrollController.hasClients) {
+          _slotListScrollController.jumpTo(0);
+        }
       });
     }
 
     return Scaffold(
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.canvas,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final maxW = constraints.maxWidth > 640 ? 560.0 : constraints.maxWidth;
+            final maxW =
+                constraints.maxWidth > 640 ? 560.0 : constraints.maxWidth;
             return Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: maxW),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.arrow_back_rounded),
-                            onPressed: _handleBack,
-                          ),
-                          Expanded(
-                            child: Text(
-                              'Escolha o horário',
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: -0.3,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                          const SizedBox(width: 48),
-                        ],
-                      ),
+                    SlotsPageHeader(
+                      title:
+                          '${widget.arena.name} · ${_courtName(courts, courtId)}',
+                      onBack: _handleBack,
+                      onSearch: slotsLoading
+                          ? () {}
+                          : () => _openSearchSheet(slots),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.arena.name,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.arena.locationLabel,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'Quadra',
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.5,
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: theme.colorScheme.outline.withValues(alpha: 0.25),
-                              ),
-                              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
-                                isExpanded: true,
-                                borderRadius: BorderRadius.circular(14),
-                                padding: const EdgeInsets.symmetric(horizontal: 16),
-                                value: courtId,
-                                items: courts
-                                    .map(
-                                      (c) => DropdownMenuItem(
-                                        value: c.id,
-                                        child: Text(c.name),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (id) {
-                                  if (id == null) return;
-                                  setState(() {
-                                    _selectedCourtId = id;
-                                    _selStart = null;
-                                    _selEnd = null;
-                                    _lastAutoScrollToken = null;
-                                  });
-                                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                                    if (!mounted) return;
-                                    if (_slotListScrollController.hasClients) {
-                                      _slotListScrollController.jumpTo(0);
-                                    }
-                                  });
-                                },
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Text(
-                        'DATA',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.45),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _HorizontalDayStrip(
+                    SlotsDayStrip(
                       selectedDay: _selectedDay,
-                      selectedDayHasSlots: !slotsLoading && slots.isNotEmpty,
                       daysCount: _calendarDays,
+                      calendarDays: calendarAsync.valueOrNull,
                       onSelect: (d) {
                         setState(() {
                           _selectedDay = d;
-                          _selStart = null;
-                          _selEnd = null;
-                          _lastAutoScrollToken = null;
+                          _clearSelection();
                         });
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (!mounted) return;
-                          if (_slotListScrollController.hasClients) {
-                            _slotListScrollController.jumpTo(0);
-                          }
-                        });
+                        jumpListToTop();
                       },
                       sameDay: _sameDay,
                       dateOnly: _dateOnly,
-                      weekdayFmt: _weekdayFmt,
                     ),
-                    const SizedBox(height: 24),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Horários',
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Toque em horários seguidos (um bloco contínuo).',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
-                                    height: 1.25,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            _monthDayFmt.format(_selectedDay),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: _buildSlotList(
-                        context,
-                        theme,
-                        slots,
-                        nextIdx,
-                        slotsLoading: slotsLoading,
-                      ),
-                    ),
-                    _ReserveBar(
-                      enabled: !slotsLoading &&
-                          _selStart != null &&
-                          _selEnd != null &&
-                          _rangeStillValid(slots, _selStart!, _selEnd!),
-                      summaryLabel:
-                          slotsLoading ? null : _selectionSummary(slots),
-                      actionLabel: 'Continuar',
-                      onPressed: () {
-                        if (slotsLoading) return;
-                        if (_selStart == null || _selEnd == null) return;
-                        _goToConfirm(context, courts, courtId, slots);
+                    const SizedBox(height: 8),
+                    SlotsCourtCarousel(
+                      arena: widget.arena,
+                      summaries: summariesAsync.valueOrNull ?? const [],
+                      selectedCourtId: courtId,
+                      loading: summariesAsync.isLoading,
+                      onSelected: (id) {
+                        if (id == courtId) return;
+                        setState(() {
+                          _selectedCourtId = id;
+                          _clearSelection();
+                        });
+                        jumpListToTop();
                       },
                     ),
+                    if (!showFullyBookedBody) ...[
+                      const SizedBox(height: 8),
+                      SlotsPeriodChips(
+                        selected: _periodFilter,
+                        counts: periodCountsMap,
+                        onSelected: (p) => setState(() => _periodFilter = p),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    Expanded(
+                      child: showFullyBookedBody
+                          ? SlotsFullyBookedBody(
+                              bannerTitle: bannerTitle,
+                              bannerSubtitle: bannerSubtitle,
+                              suggestionsParams: suggestionsParams,
+                              courtName: court.name,
+                              weekdayLabel: weekdayNotify,
+                              onSuggestionAction: _onSuggestionAction,
+                              onSeeAllSuggestions: () {
+                                final list =
+                                    suggestionsAsync.valueOrNull ?? const [];
+                                _openAllSuggestionsSheet(list);
+                              },
+                              onNotifyToggle: () => _toggleVacancyAlert(
+                                courtId: courtId,
+                                courtName: court.name,
+                              ),
+                              notifyLoading: _notifyLoading,
+                            )
+                          : SlotsListSection(
+                              slots: slots,
+                              periodFilter: _periodFilter,
+                              selectedDay: _selectedDay,
+                              scrollController: _slotListScrollController,
+                              isIndexSelected: _isIndexSelected,
+                              isSelectionAnchor: _isSelectionAnchorIndex,
+                              onSlotTap: (i) => _onSlotTap(i, slots),
+                              priceLabelFor: (slot) => slot.priceReais != null
+                                  ? _priceFmt.format(slot.priceReais)
+                                  : null,
+                              mostPopularIndex: popularIdx,
+                              lastAvailableIndex: lastIdx,
+                              nextAvailableIndex: nextIdx,
+                              nextSlotKey: _nextSlotKey,
+                              selectedSlotKey: _selectedSlotKey,
+                              slotsLoading: slotsLoading,
+                              periodEmptyOnly: showPeriodEmptyOnly,
+                            ),
+                    ),
+                    if (!showFullyBookedBody) ...[
+                      SlotsDurationPicker(
+                        options: durationOptions,
+                        selectedMinutes: _selectedDurationMinutes,
+                        onSelected: (minutes) => _applyDurationMinutes(
+                          minutes,
+                          slots,
+                          slotDurationMinutes,
+                        ),
+                      ),
+                      SlotsBottomBar(
+                        enabled: canContinue,
+                        metaLabel: slotsLoading ? null : barLabels.meta,
+                        totalLabel: slotsLoading ? null : barLabels.total,
+                        onPressed: () {
+                          if (slotsLoading) return;
+                          if (_selStart == null || _selEnd == null) return;
+                          _goToConfirm(context, courts, courtId, slots);
+                        },
+                      ),
+                    ],
                   ],
                 ),
               ),
             );
           },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSlotList(
-    BuildContext context,
-    ThemeData theme,
-    List<ArenaSlot> slots,
-    int? nextAvailableIndex, {
-    bool slotsLoading = false,
-  }) {
-    if (slotsLoading) {
-      return Center(
-        child: SizedBox(
-          width: 30,
-          height: 30,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.6,
-            color: AppColors.brand.withValues(alpha: 0.85),
-          ),
-        ),
-      );
-    }
-
-    if (slots.isEmpty) {
-      return CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: AppEmptyView(
-                icon: Icons.event_note_rounded,
-                title: 'Nenhum horário neste dia',
-                subtitle:
-                    'Ajuste a grade da quadra no Firestore ou escolha outra data no calendário acima.',
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    return ListView.separated(
-      controller: _slotListScrollController,
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      cacheExtent: 2200,
-      itemCount: slots.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final slot = slots[index];
-        final isPast = _isPastSlot(slot);
-        final selected = _isIndexSelected(index) && !isPast;
-        final isNext = nextAvailableIndex == index;
-        Widget tile = _SlotTile(
-          slot: slot,
-          selected: selected,
-          isPast: isPast,
-          isNext: isNext,
-          priceLabel: slot.priceReais != null ? _priceFmt.format(slot.priceReais) : null,
-          onTap: () => _onSlotTap(index, slots),
-        );
-        if (isNext) {
-          tile = KeyedSubtree(key: _nextSlotKey, child: tile);
-        }
-        if (selected && _isSelectionAnchorIndex(index)) {
-          tile = KeyedSubtree(key: _selectedSlotKey, child: tile);
-        }
-        return staggeredFadeSlide(
-          index: index,
-          child: tile,
-        );
-      },
-    );
-  }
-}
-
-class _HorizontalDayStrip extends StatelessWidget {
-  const _HorizontalDayStrip({
-    required this.selectedDay,
-    required this.selectedDayHasSlots,
-    required this.daysCount,
-    required this.onSelect,
-    required this.sameDay,
-    required this.dateOnly,
-    required this.weekdayFmt,
-  });
-
-  final DateTime selectedDay;
-  final bool selectedDayHasSlots;
-  final int daysCount;
-  final ValueChanged<DateTime> onSelect;
-  final bool Function(DateTime a, DateTime b) sameDay;
-  final DateTime Function(DateTime d) dateOnly;
-  final DateFormat weekdayFmt;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final today = dateOnly(DateTime.now());
-
-    return SizedBox(
-      height: 96,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: daysCount,
-        separatorBuilder: (context, index) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          final day = today.add(Duration(days: index));
-          final d = dateOnly(day);
-          final isSelected = sameDay(d, selectedDay);
-          final hasSlots = isSelected && selectedDayHasSlots;
-          final weekLabel = weekdayFmt.format(d).replaceAll('.', '');
-          final dayNum = d.day.toString();
-
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => onSelect(d),
-              borderRadius: BorderRadius.circular(18),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                width: 72,
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: isSelected
-                        ? AppColors.brand
-                        : theme.colorScheme.outline.withValues(alpha: 0.2),
-                    width: isSelected ? 2 : 1,
-                  ),
-                  color: isSelected
-                      ? AppColors.brand.withValues(alpha: 0.1)
-                      : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: AppColors.brand.withValues(alpha: 0.18),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      weekLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      dayNum,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: hasSlots
-                            ? const Color(0xFF43A047).withValues(alpha: 0.85)
-                            : theme.colorScheme.outline.withValues(alpha: 0.25),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SlotTile extends StatelessWidget {
-  const _SlotTile({
-    required this.slot,
-    required this.selected,
-    required this.onTap,
-    this.isPast = false,
-    this.isNext = false,
-    this.priceLabel,
-  });
-
-  final ArenaSlot slot;
-  final bool selected;
-  final bool isPast;
-  final bool isNext;
-  final VoidCallback onTap;
-  final String? priceLabel;
-
-  static const _greenBg = Color(0xFFE8F5E9);
-  static const _greenFg = Color(0xFF1B5E20);
-  static const _greyBg = Color(0xFFF1F1F1);
-  static const _greyFg = Color(0xFF757575);
-  static const _orangeBg = Color(0xFFFFF3E0);
-  static const _orangeFg = Color(0xFFE65100);
-  static const _orangeBorder = Color(0xFFFF9800);
-
-  String _statusLabel() {
-    if (isPast) return 'Encerrado';
-    if (slot.isBooked) return 'Ocupado';
-    if (slot.isBlocked) return 'Bloqueado';
-    if (slot.isAvailable) return 'Disponível';
-    return 'Indisponível';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final unavailable = !slot.isAvailable;
-    final blocked = slot.isBlocked;
-    final greyed = unavailable || isPast;
-
-    late Color bg;
-    late Color fg;
-    late Color border;
-    var borderWidth = 1.0;
-
-    if (selected && slot.isSelectable && !isPast) {
-      bg = _orangeBg;
-      fg = _orangeFg;
-      border = _orangeBorder;
-      borderWidth = isNext ? 2.8 : 2;
-    } else if (greyed) {
-      bg = _greyBg;
-      fg = _greyFg;
-      border = theme.colorScheme.outline.withValues(alpha: 0.15);
-    } else {
-      bg = _greenBg;
-      fg = _greenFg;
-      border = const Color(0xFFC8E6C9);
-      if (isNext && !isPast) {
-        border = AppColors.brand;
-        borderWidth = 2.6;
-      }
-    }
-
-    final card = Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: greyed ? null : onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: border, width: borderWidth),
-            boxShadow: isNext && !isPast
-                ? [
-                    BoxShadow(
-                      color: AppColors.brand.withValues(alpha: 0.22),
-                      blurRadius: 14,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                isPast
-                    ? Icons.history_rounded
-                    : slot.isBooked
-                        ? Icons.lock_outline_rounded
-                        : blocked
-                            ? Icons.block_rounded
-                            : unavailable
-                                ? Icons.block_rounded
-                                : Icons.schedule_rounded,
-                color: fg.withValues(alpha: 0.85),
-                size: 26,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (isNext && !isPast) ...[
-                      Text(
-                        '🔥 Próximo horário',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: AppColors.brand,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                    ],
-                    Text(
-                      '${slot.startTime} – ${slot.endTime}',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: fg,
-                        letterSpacing: -0.2,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${_statusLabel()}${slot.isVirtual ? ' · grade' : ''}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: fg.withValues(alpha: 0.85),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (priceLabel != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        priceLabel!,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: fg.withValues(alpha: 0.9),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              if (selected && slot.isSelectable && !isPast)
-                Icon(Icons.check_circle_rounded, color: _orangeFg, size: 26),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    if (isPast) {
-      return Opacity(
-        opacity: 0.58,
-        child: card,
-      );
-    }
-    return card;
-  }
-}
-
-class _ReserveBar extends StatelessWidget {
-  const _ReserveBar({
-    required this.enabled,
-    required this.onPressed,
-    this.summaryLabel,
-    this.actionLabel = 'Continuar',
-  });
-
-  final bool enabled;
-  final VoidCallback onPressed;
-  final String? summaryLabel;
-  final String actionLabel;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      elevation: 16,
-      shadowColor: Colors.black.withValues(alpha: 0.12),
-      color: AppColors.white,
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (summaryLabel != null && summaryLabel!.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Text(
-                    summaryLabel!,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
-                      fontWeight: FontWeight.w600,
-                      height: 1.25,
-                    ),
-                  ),
-                ),
-              ],
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: FilledButton(
-                  onPressed: enabled ? onPressed : null,
-                  style: FilledButton.styleFrom(
-                    elevation: 0,
-                    disabledBackgroundColor: theme.colorScheme.surfaceContainerHighest,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: Text(
-                    actionLabel,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

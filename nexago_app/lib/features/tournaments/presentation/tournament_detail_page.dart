@@ -8,17 +8,25 @@ import '../domain/tournament_discovery_helpers.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
 import '../domain/tournament_listing_status.dart';
+import '../../athlete/domain/daily_mission_sync_provider.dart';
 import 'widgets/tournament_discovery_card.dart';
 
-class TournamentDetailPage extends ConsumerWidget {
+class TournamentDetailPage extends ConsumerStatefulWidget {
   const TournamentDetailPage({super.key, required this.tournamentId});
 
   final String tournamentId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TournamentDetailPage> createState() =>
+      _TournamentDetailPageState();
+}
+
+class _TournamentDetailPageState extends ConsumerState<TournamentDetailPage> {
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final tournamentAsync = ref.watch(tournamentDetailProvider(tournamentId));
+    final tournamentAsync =
+        ref.watch(tournamentDetailProvider(widget.tournamentId));
     final leaguesAsync = ref.watch(discoveryLeaguesProvider);
 
     return Scaffold(
@@ -41,6 +49,13 @@ class TournamentDetailPage extends ConsumerWidget {
           if (tournament == null) {
             return const Center(child: Text('Torneio não encontrado.'));
           }
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            tryAwardExploreTournamentMission(
+              ref,
+              listingId: 'tournament_${widget.tournamentId}',
+            );
+          });
 
           final leagues = leaguesAsync.valueOrNull ?? [];
           final leagueCtx = resolveLeagueContext(leagues, tournament.id);

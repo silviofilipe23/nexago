@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
@@ -31,19 +32,15 @@ class ArenaCourtsPage extends ConsumerWidget {
                 return _NoArenaMessage(configTitle: config.title);
               }
               return courtsAsync.when(
-                data: (courts) => _CourtsBody(
-                  arenaId: arenaId,
-                  courts: courts,
-                ),
-                loading: () => const ArenaLoadingState(
-                  label: 'Carregando quadras...',
-                ),
-                error: (e, _) => ArenaErrorState(
-                  message: 'Erro ao carregar quadras.\n$e',
-                ),
+                data: (courts) => _CourtsBody(arenaId: arenaId, courts: courts),
+                loading: () =>
+                    const ArenaLoadingState(label: 'Carregando quadras...'),
+                error: (e, _) =>
+                    ArenaErrorState(message: 'Erro ao carregar quadras.\n$e'),
               );
             },
-            loading: () => const ArenaLoadingState(label: 'Carregando arena...'),
+            loading: () =>
+                const ArenaLoadingState(label: 'Carregando arena...'),
             error: (e, _) => ArenaErrorState(message: '$e'),
           ),
         ),
@@ -84,9 +81,9 @@ class _CourtsHeader extends StatelessWidget {
               'Quadras',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
-                  ),
+                fontWeight: FontWeight.w800,
+                color: AppColors.onSurface,
+              ),
             ),
           ),
           const SizedBox(width: 44),
@@ -97,10 +94,7 @@ class _CourtsHeader extends StatelessWidget {
 }
 
 class _CourtsBody extends ConsumerWidget {
-  const _CourtsBody({
-    required this.arenaId,
-    required this.courts,
-  });
+  const _CourtsBody({required this.arenaId, required this.courts});
 
   final String arenaId;
   final List<ArenaCourt> courts;
@@ -110,8 +104,7 @@ class _CourtsBody extends ConsumerWidget {
     final monthlyAsync = ref.watch(arenaCourtMonthlyBookingsProvider(arenaId));
     final monthly = monthlyAsync.valueOrNull ?? const <String, int>{};
 
-    final maintenanceCount =
-        courts.where((c) => c.isMaintenance).length;
+    final maintenanceCount = courts.where((c) => c.isMaintenance).length;
     final activeCount = courts.length - maintenanceCount;
 
     return Column(
@@ -201,11 +194,7 @@ class _CourtsSummaryHeader extends StatelessWidget {
             ),
           ),
           TextSpan(text: ' · $active ativa${active == 1 ? '' : 's'}'),
-          if (maintenance > 0)
-            TextSpan(
-              text:
-                  ' · $maintenance em manutenção',
-            ),
+          if (maintenance > 0) TextSpan(text: ' · $maintenance em manutenção'),
         ],
       ),
     );
@@ -228,15 +217,15 @@ class _CourtCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final typeLabel = court.type ?? '—';
+    final typeLabel = court.sportTypesLabel;
     final subtitleParts = <String>[typeLabel];
     if (court.dimensionsLabel != null && court.dimensionsLabel!.isNotEmpty) {
       subtitleParts.add(court.dimensionsLabel!);
     }
     final subtitle = subtitleParts.join(' · ');
     final priceFmt = NumberFormat.currency(locale: 'pt_BR', symbol: r'R$');
-    final priceLabel = court.basePricePerHourReais != null &&
-            court.basePricePerHourReais! > 0
+    final priceLabel =
+        court.basePricePerHourReais != null && court.basePricePerHourReais! > 0
         ? '${priceFmt.format(court.basePricePerHourReais)} / h'
         : null;
 
@@ -249,14 +238,6 @@ class _CourtCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 10, right: 4),
-              child: Icon(
-                Icons.drag_handle_rounded,
-                size: 20,
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.55),
-              ),
-            ),
             _CourtIconBadge(),
             const SizedBox(width: 12),
             Expanded(
@@ -292,9 +273,10 @@ class _CourtCard extends StatelessWidget {
                   if (priceLabel != null)
                     Text(
                       priceLabel,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.brand,
+                      style: AppTypography.soraRegular(
+                        fontSize: 13,
                         fontWeight: FontWeight.w800,
+                        color: AppColors.brand,
                       ),
                     ),
                   if (priceLabel != null) const SizedBox(height: 4),
@@ -349,11 +331,7 @@ class _CourtIconBadge extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Color(0xFFFF8A4A),
-            AppColors.brand,
-            Color(0xFFE5560E),
-          ],
+          colors: [Color(0xFFFF8A4A), AppColors.brand, Color(0xFFE5560E)],
         ),
       ),
       child: const Icon(
@@ -501,10 +479,7 @@ class _AddCourtButton extends StatelessWidget {
 }
 
 class _DashedBorderPainter extends CustomPainter {
-  _DashedBorderPainter({
-    required this.color,
-    required this.radius,
-  });
+  _DashedBorderPainter({required this.color, required this.radius});
 
   final Color color;
   final double radius;
@@ -571,7 +546,8 @@ class _EmptyCourts extends StatelessWidget {
           const Spacer(),
           const ArenaEmptyState(
             title: 'Nenhuma quadra cadastrada',
-            message: 'Adicione a primeira quadra para liberar horários na agenda.',
+            message:
+                'Adicione a primeira quadra para liberar horários na agenda.',
             icon: Icons.sports_tennis_outlined,
           ),
           const Spacer(),
@@ -631,10 +607,9 @@ Future<void> _confirmDelete(
   if (ok != true || !context.mounted) return;
 
   try {
-    await ref.read(courtServiceProvider).deleteCourt(
-          arenaId: arenaId,
-          courtId: court.id,
-        );
+    await ref
+        .read(courtServiceProvider)
+        .deleteCourt(arenaId: arenaId, courtId: court.id);
     if (!context.mounted) return;
     showAppSnackBar(context, 'Quadra removida.');
   } on CourtServiceException catch (e) {

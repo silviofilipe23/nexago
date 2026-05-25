@@ -4,12 +4,14 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/auth/auth_providers.dart';
+import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../../core/ui/app_status_views.dart';
 import '../../../../core/ui/fade_slide_in.dart';
 import '../../../athlete/domain/achievements/achievement_catalog.dart';
 import '../../../athlete/domain/athlete_profile_providers.dart';
+import '../../domain/arena_booking_cancellation_policy.dart';
 import '../../domain/arenas_providers.dart';
 import '../../domain/booking_providers.dart';
 import '../../domain/my_booking_item.dart';
@@ -50,7 +52,13 @@ class _MyBookingsPageState extends ConsumerState<MyBookingsPage> {
     return Scaffold(
       backgroundColor: AppColors.canvas,
       appBar: MyBookingsAppBar(
-        onBack: () => context.pop(),
+        onBack: () {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go(AppRoutes.discover);
+          }
+        },
         showReserveAction: async.valueOrNull?.isNotEmpty ?? false,
       ),
       body: SafeArea(
@@ -253,7 +261,10 @@ class _BookingsListBody extends ConsumerWidget {
     final locationQuery = arena?.locationLabel ?? item.arenaName;
     final startAt = _bookingStartDateTime(item);
     final canCancelByTime = startAt != null &&
-        DateTime.now().isBefore(startAt.subtract(const Duration(hours: 2)));
+        ArenaBookingCancellationPolicy.canCancelBookingForFree(
+          startAt,
+          DateTime.now(),
+        );
 
     await showModalBottomSheet<void>(
       context: context,
@@ -285,7 +296,9 @@ class _BookingsListBody extends ConsumerWidget {
               if (context.mounted) {
                 showAppSnackBar(
                   context,
-                  'Cancelamento disponível apenas até 2h antes do horário da reserva.',
+                  ArenaBookingCancellationPolicy.blockedCancellationMessage(
+                    arenaName: arena?.name ?? item.arenaName,
+                  ),
                 );
               }
               return;

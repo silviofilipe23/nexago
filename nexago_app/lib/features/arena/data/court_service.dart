@@ -1,5 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../arenas/data/arena_search_metadata_service.dart';
+import '../../arenas/domain/arena_search_metadata.dart';
+
 class CourtServiceException implements Exception {
   CourtServiceException(this.message);
   final String message;
@@ -10,9 +13,11 @@ class CourtServiceException implements Exception {
 
 /// CRUD de quadras em `arenas/{arenaId}/courts/{courtId}`.
 class CourtService {
-  CourtService(this._firestore);
+  CourtService(this._firestore, [ArenaSearchMetadataService? metadataSync])
+      : _metadataSync = metadataSync ?? ArenaSearchMetadataService(_firestore);
 
   final FirebaseFirestore _firestore;
+  final ArenaSearchMetadataService _metadataSync;
 
   static const Set<int> allowedSlotDurations = {30, 60, 120};
 
@@ -80,29 +85,35 @@ class CourtService {
     await batch.commit();
   }
 
+  static List<String> _normalizeSportTypes(List<String> sportTypes) {
+    final unique = ArenaSearchMetadata.uniqueLabels(sportTypes);
+    if (unique.isEmpty) {
+      throw CourtServiceException('Selecione ao menos um esporte na quadra.');
+    }
+    return unique;
+  }
+
   /// Cria uma nova quadra (ID gerado pelo Firestore).
   Future<void> addCourt({
     required String arenaId,
     required String name,
-    required String type,
+    required List<String> sportTypes,
     double? basePricePerHourReais,
   }) async {
     final a = arenaId.trim();
     final n = name.trim();
-    final t = type.trim();
+    final types = _normalizeSportTypes(sportTypes);
     if (a.isEmpty) {
       throw CourtServiceException('Arena inválida.');
     }
     if (n.isEmpty) {
       throw CourtServiceException('Informe o nome da quadra.');
     }
-    if (t.isEmpty) {
-      throw CourtServiceException('Selecione o tipo da quadra.');
-    }
 
     final data = <String, dynamic>{
       'name': n,
-      'type': t,
+      'types': types,
+      'type': types.first,
       'status': 'active',
       'createdAt': FieldValue.serverTimestamp(),
     };
@@ -111,33 +122,32 @@ class CourtService {
       data['basePriceReais'] = basePricePerHourReais;
     }
     await _firestore.collection('arenas').doc(a).collection('courts').add(data);
+    await _metadataSync.syncFromCourts(arenaId: a);
   }
 
-  /// Atualiza nome e tipo da quadra.
+  /// Atualiza nome e esportes da quadra.
   Future<void> updateCourt({
     required String arenaId,
     required String courtId,
     required String name,
-    required String type,
+    required List<String> sportTypes,
     double? basePricePerHourReais,
   }) async {
     final a = arenaId.trim();
     final c = courtId.trim();
     final n = name.trim();
-    final t = type.trim();
+    final types = _normalizeSportTypes(sportTypes);
     if (a.isEmpty || c.isEmpty) {
       throw CourtServiceException('Dados inválidos.');
     }
     if (n.isEmpty) {
       throw CourtServiceException('Informe o nome da quadra.');
     }
-    if (t.isEmpty) {
-      throw CourtServiceException('Selecione o tipo da quadra.');
-    }
 
     final data = <String, dynamic>{
       'name': n,
-      'type': t,
+      'types': types,
+      'type': types.first,
       'updatedAt': FieldValue.serverTimestamp(),
     };
     if (basePricePerHourReais != null && basePricePerHourReais > 0) {
@@ -150,6 +160,7 @@ class CourtService {
         .collection('courts')
         .doc(c)
         .update(data);
+    await _metadataSync.syncFromCourts(arenaId: a);
   }
 
   /// Remove a quadra.
@@ -163,6 +174,12 @@ class CourtService {
       throw CourtServiceException('Dados inválidos.');
     }
 
-    await _firestore.collection('arenas').doc(a).collection('courts').doc(c).delete();
+    await _firestore
+        .collection('arenas')
+        .doc(a)
+        .collection('courts')
+        .doc(c)
+        .delete();
+    await _metadataSync.syncFromCourts(arenaId: a);
   }
 }

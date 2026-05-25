@@ -7,7 +7,7 @@ import '../../../../core/ui/app_snackbar.dart';
 import '../../../arenas/domain/arena_court.dart';
 import '../../domain/arena_providers.dart';
 
-/// Bottom sheet para criar ou editar uma quadra (nome, tipo e preço base).
+/// Bottom sheet para criar ou editar uma quadra (nome, esportes e preço base).
 class ArenaCourtFormSheet extends ConsumerStatefulWidget {
   const ArenaCourtFormSheet({
     super.key,
@@ -39,14 +39,15 @@ class ArenaCourtFormSheet extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<ArenaCourtFormSheet> createState() => _ArenaCourtFormSheetState();
+  ConsumerState<ArenaCourtFormSheet> createState() =>
+      _ArenaCourtFormSheetState();
 }
 
 class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _customPriceController;
   late final FocusNode _nameFocus;
-  late String _type;
+  late Set<String> _sportTypes;
   late int? _presetPrice;
   late bool _customPrice;
   bool _busy = false;
@@ -59,7 +60,7 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
     final existing = widget.existing;
     _nameController = TextEditingController(text: existing?.name ?? '');
     _nameFocus = FocusNode();
-    _type = _resolveInitialType(existing?.type);
+    _sportTypes = _resolveInitialSportTypes(existing?.sportTypes ?? const []);
     _initPrice(existing?.basePricePerHourReais);
     _customPriceController = TextEditingController(
       text: _customPrice && existing?.basePricePerHourReais != null
@@ -71,9 +72,19 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
     });
   }
 
-  String _resolveInitialType(String? raw) {
-    if (raw != null && kCourtTypeOptions.contains(raw)) return raw;
-    return kCourtTypeOptions.first;
+  Set<String> _resolveInitialSportTypes(List<String> raw) {
+    if (raw.isEmpty) return {kCourtTypeOptions.first};
+    return raw.toSet();
+  }
+
+  void _toggleSport(String label) {
+    setState(() {
+      if (_sportTypes.contains(label)) {
+        if (_sportTypes.length > 1) _sportTypes.remove(label);
+      } else {
+        _sportTypes.add(label);
+      }
+    });
   }
 
   void _initPrice(double? price) {
@@ -115,8 +126,8 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
     final theme = Theme.of(context);
     final title = _isEdit ? 'Editar quadra' : 'Nova quadra';
     final subtitle = _isEdit
-        ? 'Atualize nome, tipo e preço exibidos na agenda.'
-        : 'Aparece na agenda e no app dos atletas.';
+        ? 'Atualize nome, esportes e preço exibidos na agenda e na busca.'
+        : 'Uma quadra de areia pode oferecer vários esportes.';
     final actionLabel = _isEdit ? 'Salvar alterações' : 'Criar quadra';
 
     return Padding(
@@ -184,7 +195,7 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
               ],
             ),
             const SizedBox(height: 24),
-            _SectionLabel('NOME', accent: true),
+            const _SectionLabel('NOME', accent: true),
             const SizedBox(height: 8),
             TextField(
               controller: _nameController,
@@ -195,7 +206,7 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
                 fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
-                hintText: 'Ex.: Quadra 4',
+                hintText: 'Ex.: Quadra 4 · Areia',
                 hintStyle: TextStyle(
                   color: AppColors.onSurfaceMuted.withValues(alpha: 0.7),
                   fontWeight: FontWeight.w500,
@@ -222,26 +233,37 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
               ),
             ),
             const SizedBox(height: 22),
-            const _SectionLabel('TIPO DE QUADRA'),
-            const SizedBox(height: 10),
-            SizedBox(
-              height: 108,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: kCourtTypeCards.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final option = kCourtTypeCards[index];
-                  return SizedBox(
-                    width: 100,
-                    child: _CourtTypeCard(
-                      option: option,
-                      selected: _type == option.value,
-                      onTap: () => setState(() => _type = option.value),
-                    ),
-                  );
-                },
+            const _SectionLabel('ESPORTES NA QUADRA'),
+            const SizedBox(height: 6),
+            Text(
+              'Selecione todos que se aplicam (ex.: areia com vôlei de praia e beach tennis).',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.onSurfaceMuted,
+                height: 1.35,
               ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: kCourtTypeOptions.map((label) {
+                final selected = _sportTypes.contains(label);
+                return FilterChip(
+                  label: Text(label),
+                  selected: selected,
+                  showCheckmark: true,
+                  checkmarkColor: AppColors.brand,
+                  selectedColor: AppColors.brand.withValues(alpha: 0.12),
+                  labelStyle: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: selected ? AppColors.brand : AppColors.onSurface,
+                  ),
+                  side: BorderSide(
+                    color: selected ? AppColors.brand : AppColors.surfaceRaised,
+                  ),
+                  onSelected: (_) => _toggleSport(label),
+                );
+              }).toList(),
             ),
             const SizedBox(height: 22),
             const _SectionLabel('PREÇO BASE / HORA'),
@@ -322,6 +344,15 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
   }
 
   Future<void> _confirm() async {
+    if (_sportTypes.isEmpty) {
+      showAppSnackBar(
+        context,
+        'Selecione ao menos um esporte na quadra.',
+        isError: true,
+      );
+      return;
+    }
+
     final price = _resolvedPrice;
     if (price == null) {
       showAppSnackBar(context, 'Informe um preço válido.', isError: true);
@@ -332,19 +363,20 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
     try {
       final service = ref.read(courtServiceProvider);
       final name = _nameController.text;
+      final types = _sportTypes.toList();
       if (_isEdit) {
         await service.updateCourt(
           arenaId: widget.arenaId,
           courtId: widget.existing!.id,
           name: name,
-          type: _type,
+          sportTypes: types,
           basePricePerHourReais: price,
         );
       } else {
         await service.addCourt(
           arenaId: widget.arenaId,
           name: name,
-          type: _type,
+          sportTypes: types,
           basePricePerHourReais: price,
         );
       }
@@ -377,66 +409,6 @@ class _SectionLabel extends StatelessWidget {
             fontWeight: FontWeight.w800,
             letterSpacing: 0.6,
           ),
-    );
-  }
-}
-
-class _CourtTypeCard extends StatelessWidget {
-  const _CourtTypeCard({
-    required this.option,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final FeaturedCourtType option;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final iconColor = selected ? AppColors.brand : AppColors.onSurface;
-    final textColor = selected ? AppColors.brand : AppColors.onSurface;
-    final borderColor = selected
-        ? AppColors.brand
-        : AppColors.onSurfaceMuted.withValues(alpha: 0.2);
-
-    return Material(
-      color: AppColors.surfaceRaised,
-      borderRadius: BorderRadius.circular(14),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: borderColor,
-              width: selected ? 1.5 : 1,
-            ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(option.icon, size: 28, color: iconColor),
-              const SizedBox(height: 10),
-              Text(
-                option.label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: textColor,
-                  height: 1.15,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }

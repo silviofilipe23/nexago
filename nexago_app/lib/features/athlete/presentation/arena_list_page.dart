@@ -1,21 +1,36 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/location/user_location_providers.dart';
+import '../../../core/location/user_location_snapshot.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
-import '../../arenas/domain/arena_list_item.dart';
+import '../../arenas/domain/arena_search_filter_logic.dart';
 import '../../arenas/domain/arena_search_providers.dart';
 import '../../arenas/presentation/arena_booking_navigation.dart';
-import '../../arenas/presentation/widgets/arena_card.dart';
+import '../domain/athlete_profile.dart';
+import '../domain/athlete_profile_providers.dart';
 import '../domain/favorites_providers.dart';
 import '../domain/gamification_providers.dart';
 import 'favorite_success_page.dart';
+import 'widgets/arena_search/arena_search_arena_card.dart';
+import 'widgets/arena_search/arena_search_bar.dart';
+import 'widgets/arena_search/arena_search_date_time_row.dart';
+import 'widgets/arena_search/arena_search_favorites_strip.dart';
+import 'widgets/arena_search/arena_search_filters_sheet.dart';
+import 'widgets/arena_search/arena_search_flexible_banner.dart';
+import 'widgets/arena_search/arena_search_header.dart';
+import 'widgets/arena_search/arena_search_location_sheet.dart';
+import 'widgets/arena_search/arena_search_section_header.dart';
+import 'widgets/arena_search/arena_search_sort_sheet.dart';
+import 'widgets/arena_search/arena_search_sport_chips.dart';
 
-/// Aba Reservar — lista de arenas para o atleta escolher e reservar horário.
+/// Aba Reservar — busca de horários (protótipo Buscar horários).
 class ArenaListPage extends ConsumerStatefulWidget {
   const ArenaListPage({super.key});
 
@@ -24,117 +39,177 @@ class ArenaListPage extends ConsumerStatefulWidget {
 }
 
 class _ArenaListPageState extends ConsumerState<ArenaListPage> {
-  static final DateFormat _dateFmt = DateFormat("EEE, dd 'de' MMM", 'pt_BR');
-  late DateTime _selectedDate;
-  late TimeOfDay _selectedTime;
-  String _searchQuery = '';
+  late ArenaSearchFilters _filters;
   final Map<String, bool> _favoriteOverrides = <String, bool>{};
   final Set<String> _favoritePendingArenaIds = <String>{};
+  final ScrollController _scrollController = ScrollController();
+  Timer? _searchDebounce;
+  bool _sportChipUserSelected = false;
+  static const _flexBoostPercent = 35;
 
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _selectedDate = DateTime(now.year, now.month, now.day);
-    final roundedMinute = now.minute >= 30 ? 30 : 0;
-    _selectedTime = TimeOfDay(hour: now.hour, minute: roundedMinute);
+    _filters = _filtersWithProfileSport(
+      ref.read(athleteProfileProvider).valueOrNull,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncProfileSportDefault();
+    });
+  }
+
+  ArenaSportChip _sportChipFromProfile(AthleteProfile? profile) {
+    if (profile == null) return ArenaSearchFilters.defaultSportChip;
+    final hasSport = profile.primarySportFirestoreId?.isNotEmpty == true ||
+        profile.sport.trim().isNotEmpty;
+    if (!hasSport) return ArenaSearchFilters.defaultSportChip;
+
+    final chip = defaultSportChipFromProfile(
+      sport: profile.sport,
+      primarySport: profile.primarySportFirestoreId,
+    );
+    return chip == ArenaSportChip.all
+        ? ArenaSearchFilters.defaultSportChip
+        : chip;
+  }
+
+  ArenaSearchFilters _filtersWithProfileSport(AthleteProfile? profile) {
+    return ArenaSearchFilters.defaults().copyWith(
+      sportChip: _sportChipFromProfile(profile),
+    );
+  }
+
+  void _syncProfileSportDefault() {
+    if (_sportChipUserSelected) return;
+    final chip = _sportChipFromProfile(
+      ref.read(athleteProfileProvider).valueOrNull,
+    );
+    if (_filters.sportChip == chip) return;
+    setState(() => _filters = _filters.copyWith(sportChip: chip));
+  }
+
+  int _rawSearchResultCount() {
+    return ref.read(arenaSearchResultsProvider(_filters.slot)).valueOrNull?.length ??
+        0;
   }
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final userId = ref.watch(authProvider).valueOrNull?.uid;
-    final favoriteIdsAsync = ref.watch(favoriteArenaIdsProvider);
-    final favoriteIds = favoriteIdsAsync.valueOrNull ?? const <String>[];
-    final favoriteIdsSet = favoriteIds.toSet();
-    final filters = ArenaSearchFilters(
-      date: _selectedDate,
-      requestedTime: _selectedTime,
-    );
-    final resultsAsync = ref.watch(arenaSearchResultsProvider(filters));
+  void dispose() {
+    _searchDebounce?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
 
-    return ColoredBox(
-      color: theme.colorScheme.surfaceContainerLowest,
-      child: resultsAsync.when(
-        loading: () => const AppLoadingView(message: 'Carregando arenas...'),
-        error: (e, _) => AppErrorView(
-          title: 'Não foi possível carregar horários',
-          message: e.toString().replaceFirst('Exception: ', ''),
-          onRetry: () => ref.invalidate(arenaSearchResultsProvider(filters)),
-        ),
-        data: (results) {
-          final search = _searchQuery.trim().toLowerCase();
+  void _updateFilters(ArenaSearchFilters filters) {
+    setState(() => _filters = filters);
+  }
 
-          final enriched = results
-              .map(
-            (r) => _ArenaDisplayItem(
-              result: r,
-              isFavorite: _favoriteOverrides[r.arena.id] ??
-                  favoriteIdsSet.contains(r.arena.id),
-            ),
-          )
-              .where((item) {
-            if (search.isEmpty) return true;
-            return item.result.arena.name.toLowerCase().contains(search);
-          }).toList(growable: false)
-            ..sort((a, b) {
-              if (a.isFavorite != b.isFavorite) {
-                return a.isFavorite ? -1 : 1;
-              }
-              final aName = a.result.arena.name.toLowerCase();
-              final bName = b.result.arena.name.toLowerCase();
-              final aStarts = search.isNotEmpty && aName.startsWith(search);
-              final bStarts = search.isNotEmpty && bName.startsWith(search);
-              if (aStarts != bStarts) return aStarts ? -1 : 1;
-              return compareArenaSearchResults(a.result, b.result);
-            });
+  void _showAllArenas() {
+    _searchDebounce?.cancel();
+    _updateFilters(ArenaSearchFilters.showAll(slot: _filters.slot));
+  }
 
-          return _ArenaBookingList(
-            filters: filters,
-            displayItems: enriched,
-            searchQuery: _searchQuery,
-            onSearchChanged: _onSearchChanged,
-            onChangeDate: _pickDate,
-            onChangeTime: _pickTime,
-            onToggleFavorite: (arenaId, isFavorite) => _toggleFavorite(
-              userId: userId,
-              arenaId: arenaId,
-              isFavorite: isFavorite,
-            ),
-            isFavoritePending: (arenaId) =>
-                _favoritePendingArenaIds.contains(arenaId),
-          );
-        },
-      ),
-    );
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() => _filters = _filters.copyWith(query: value));
+    });
   }
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
+      initialDate: _filters.slot.dateOnly,
       firstDate: DateTime(now.year, now.month, now.day),
       lastDate: DateTime(now.year + 1),
       locale: const Locale('pt', 'BR'),
     );
     if (picked == null) return;
-    setState(
-        () => _selectedDate = DateTime(picked.year, picked.month, picked.day));
+    _updateFilters(
+      _filters.copyWith(
+        slot: ArenaSearchSlotFilters(
+          date: DateTime(picked.year, picked.month, picked.day),
+          requestedTime: _filters.slot.requestedTime,
+          flexibleTime: _filters.slot.flexibleTime,
+        ),
+      ),
+    );
   }
 
   Future<void> _pickTime() async {
     final picked = await showTimePicker(
       context: context,
-      initialTime: _selectedTime,
+      initialTime: _filters.slot.requestedTime,
     );
     if (picked == null) return;
-    setState(() => _selectedTime = picked);
+    _updateFilters(
+      _filters.copyWith(
+        slot: ArenaSearchSlotFilters(
+          date: _filters.slot.dateOnly,
+          requestedTime: picked,
+          flexibleTime: false,
+        ),
+      ),
+    );
   }
 
-  void _onSearchChanged(String value) {
-    if (_searchQuery == value) return;
-    setState(() => _searchQuery = value);
+  void _toggleFlexibleTime() {
+    final next = !_filters.slot.flexibleTime;
+    _updateFilters(
+      _filters.copyWith(
+        slot: ArenaSearchSlotFilters(
+          date: _filters.slot.dateOnly,
+          requestedTime: _filters.slot.requestedTime,
+          flexibleTime: next,
+        ),
+      ),
+    );
+  }
+
+  int _previewFilterResultCount(ArenaSearchFilters draft) {
+    final slotResults =
+        ref.read(arenaSearchResultsProvider(_filters.slot)).valueOrNull ??
+            const <ArenaSearchResult>[];
+    final location = ref.read(userLocationProvider).valueOrNull ??
+        const UserLocationSnapshot(source: UserLocationSource.none);
+    final favorites =
+        ref.read(favoriteArenaIdsProvider).valueOrNull ?? const <String>[];
+
+    return filterAndSortArenaResults(
+      results: slotResults,
+      filters: draft,
+      userLocation: location,
+      favoriteIds: favorites.toSet(),
+    ).length;
+  }
+
+  Future<void> _openFilters() async {
+    final applied = await showArenaSearchFiltersSheet(
+      context: context,
+      initial: _filters,
+      previewResultCount: _previewFilterResultCount,
+    );
+    if (applied != null) _updateFilters(applied);
+  }
+
+  Future<void> _openSort() async {
+    final sort = await showArenaSearchSortSheet(
+      context: context,
+      current: _filters.sortBy,
+    );
+    if (sort != null) _updateFilters(_filters.copyWith(sortBy: sort));
+  }
+
+  Future<void> _openLocation() async {
+    final profile = ref.read(athleteProfileProvider).valueOrNull;
+    await showArenaSearchLocationSheet(
+      context: context,
+      ref: ref,
+      profileCity: profile?.city ?? '',
+      profileState: profile?.state ?? '',
+    );
   }
 
   Future<void> _toggleFavorite({
@@ -143,11 +218,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
     required bool isFavorite,
   }) async {
     if (userId == null || userId.isEmpty) {
-      showAppSnackBar(
-        context,
-        'Faça login para seguir arenas.',
-        isError: true,
-      );
+      showAppSnackBar(context, 'Faça login para seguir arenas.', isError: true);
       return;
     }
     if (_favoritePendingArenaIds.contains(arenaId)) return;
@@ -159,7 +230,9 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
     });
 
     try {
-      await ref.read(favoritesServiceProvider).toggleFavoriteArena(
+      await ref
+          .read(favoritesServiceProvider)
+          .toggleFavoriteArena(
             userId: userId,
             arenaId: arenaId,
             isFavorite: isFavorite,
@@ -170,10 +243,9 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
         _favoriteOverrides.remove(arenaId);
       });
       if (next) {
-        await ref.read(gamificationServiceProvider).onArenaFavorited(
-              userId: userId,
-              arenaId: arenaId,
-            );
+        await ref
+            .read(gamificationServiceProvider)
+            .onArenaFavorited(userId: userId, arenaId: arenaId);
         if (!mounted) return;
         await FavoriteSuccessPage.show(context);
       }
@@ -190,204 +262,242 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
       );
     }
   }
-}
-
-class _ArenaDisplayItem {
-  const _ArenaDisplayItem({
-    required this.result,
-    required this.isFavorite,
-  });
-
-  final ArenaSearchResult result;
-  final bool isFavorite;
-}
-
-class _ArenaBookingList extends StatelessWidget {
-  const _ArenaBookingList({
-    required this.filters,
-    required this.displayItems,
-    required this.searchQuery,
-    required this.onSearchChanged,
-    required this.onChangeDate,
-    required this.onChangeTime,
-    required this.onToggleFavorite,
-    required this.isFavoritePending,
-  });
-
-  final ArenaSearchFilters filters;
-  final List<_ArenaDisplayItem> displayItems;
-  final String searchQuery;
-  final ValueChanged<String> onSearchChanged;
-  final VoidCallback onChangeDate;
-  final VoidCallback onChangeTime;
-  final void Function(String arenaId, bool isFavorite) onToggleFavorite;
-  final bool Function(String arenaId) isFavoritePending;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dateLabel = _ArenaListPageState._dateFmt.format(filters.dateOnly);
-    final timeLabel = filters.requestedTimeLabel;
+    ref.listen(athleteProfileProvider, (previous, next) {
+      if (_sportChipUserSelected) return;
+      final chip = _sportChipFromProfile(next.valueOrNull);
+      if (_filters.sportChip == chip) return;
+      setState(() => _filters = _filters.copyWith(sportChip: chip));
+    });
 
-    final favoriteItems =
-        displayItems.where((x) => x.isFavorite).toList(growable: false);
+    final userId = ref.watch(authProvider).valueOrNull?.uid;
+    final favoriteIds =
+        ref.watch(favoriteArenaIdsProvider).valueOrNull ?? const <String>[];
+    final favoriteIdsSet = favoriteIds.toSet();
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
-          sliver: SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Buscar horários',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.4,
-                    color: AppColors.black,
+    final resultsAsync = ref.watch(arenaSearchResultsProvider(_filters.slot));
+    final filtered = ref.watch(arenaSearchFilteredProvider(_filters));
+
+    return SafeArea(
+      bottom: false,
+      child: ColoredBox(
+        color: AppColors.canvas,
+        child: resultsAsync.when(
+          loading: () => const AppLoadingView(message: 'Carregando arenas...'),
+          error: (e, _) => AppErrorView(
+            title: 'Não foi possível carregar horários',
+            message: e.toString().replaceFirst('Exception: ', ''),
+            onRetry: () =>
+                ref.invalidate(arenaSearchResultsProvider(_filters.slot)),
+          ),
+          data: (_) {
+            final items = filtered;
+            final rawCount = _rawSearchResultCount();
+            final bestPriceIds = bestPriceArenaIds(items.map((e) => e.result));
+            final favoriteItems = items
+                .where(
+                  (e) =>
+                      _favoriteOverrides[e.result.arena.id] ??
+                      favoriteIdsSet.contains(e.result.arena.id),
+                )
+                .toList(growable: false);
+
+            if (items.isEmpty && !_filters.showOnlyFavorites) {
+              return CustomScrollView(
+                controller: _scrollController,
+                slivers: [
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                    sliver: SliverToBoxAdapter(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildHeaderControls(),
+                          if (rawCount > 0) ...[
+                            const SizedBox(height: 16),
+                            _FiltersHiddenBanner(
+                              hiddenCount: rawCount,
+                              onShowAll: _showAllArenas,
+                              onOpenFilters: _openFilters,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: AppEmptyView(
+                      icon: rawCount > 0
+                          ? Icons.tune_rounded
+                          : Icons.heart_broken_outlined,
+                      title: rawCount > 0
+                          ? 'Filtros ocultaram as arenas'
+                          : 'Nenhuma arena encontrada',
+                      subtitle: rawCount > 0
+                          ? 'Temos $rawCount arena${rawCount == 1 ? '' : 's'} na base, '
+                              'mas nenhuma passou nos filtros atuais.'
+                          : 'Ajuste filtros, data ou horário para ver mais opções.',
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return CustomScrollView(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+                  sliver: SliverToBoxAdapter(
+                    child: _buildHeaderControls(),
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Selecione data e horário para encontrar o melhor slot em cada arena.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  onChanged: onSearchChanged,
-                  decoration: InputDecoration(
-                    hintText: 'Buscar arena...',
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    filled: true,
-                    fillColor: theme.colorScheme.surface,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
-                      ),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                if (favoriteItems.isNotEmpty)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: ArenaSearchFavoritesStrip(
+                        items: favoriteItems,
+                        searchQuery: _filters.query,
+                        onViewAll: () {
+                          _updateFilters(
+                            _filters.copyWith(showOnlyFavorites: true),
+                          );
+                          _scrollController.animateTo(
+                            0,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOut,
+                          );
+                        },
+                        onArenaTap: (arena) => openArenaDetail(context, arena),
+                        onToggleFavorite: (id, fav) => _toggleFavorite(
+                          userId: userId,
+                          arenaId: id,
+                          isFavorite: fav,
+                        ),
+                        isFavoritePending: _favoritePendingArenaIds.contains,
                       ),
                     ),
                   ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                  sliver: SliverToBoxAdapter(
+                    child: ArenaSearchSectionHeader(
+                      title: 'Arenas perto',
+                      trailingAccent: '· ${items.length}',
+                      trailingLabel: 'ordenar',
+                      onTrailingTap: _openSort,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: onChangeDate,
-                        icon:
-                            const Icon(Icons.calendar_today_rounded, size: 18),
-                        label: Text(dateLabel),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: onChangeTime,
-                        icon: const Icon(Icons.schedule_rounded, size: 18),
-                        label: Text(timeLabel),
-                      ),
-                    ),
-                  ],
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                  sliver: SliverList.separated(
+                    itemCount: items.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 16),
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      final result = item.result;
+                      final isFavorite =
+                          _favoriteOverrides[result.arena.id] ??
+                          favoriteIdsSet.contains(result.arena.id);
+
+                      return staggeredFadeSlide(
+                        index: index,
+                        child: ArenaSearchArenaCard(
+                          item: item,
+                          searchQuery: _filters.query,
+                          selectedSportChip: _filters.sportChip,
+                          isFavorite: isFavorite,
+                          isFavoritePending: _favoritePendingArenaIds.contains(
+                            result.arena.id,
+                          ),
+                          isBestPrice: bestPriceIds.contains(result.arena.id),
+                          onOpenArena: () => openArenaDetail(
+                            context,
+                            result.arena,
+                            isBestPrice: bestPriceIds.contains(result.arena.id),
+                          ),
+                          onToggleFavorite:
+                              _favoritePendingArenaIds.contains(result.arena.id)
+                              ? null
+                              : () => _toggleFavorite(
+                                  userId: userId,
+                                  arenaId: result.arena.id,
+                                  isFavorite: isFavorite,
+                                ),
+                          onReserve: result.hasAvailability
+                              ? () => openArenaBookingSlots(
+                                  context,
+                                  arena: result.arena,
+                                  slot: result.selectedSlot,
+                                  date: _filters.slot.dateOnly,
+                                )
+                              : null,
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ],
-            ),
-          ),
+            );
+          },
         ),
-        if (displayItems.isEmpty)
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: AppEmptyView(
-              icon: Icons.sports_volleyball_outlined,
-              title: 'Nenhuma arena disponível',
-              subtitle:
-                  'Quando houver arenas cadastradas, elas aparecerão aqui.',
-            ),
-          )
-        else ...[
-          if (favoriteItems.isNotEmpty) ...[
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-              sliver: SliverToBoxAdapter(
-                child: Text(
-                  'Suas arenas favoritas (${favoriteItems.length})',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
-                  ),
-                ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderControls() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ArenaSearchHeader(
+          activeFilterCount: countActiveSearchFilters(_filters),
+          onFiltersTap: _openFilters,
+          onLocationTap: _openLocation,
+        ),
+        const SizedBox(height: 16),
+        ArenaSearchBar(
+          initialValue: _filters.query,
+          onChanged: _onSearchChanged,
+        ),
+        const SizedBox(height: 12),
+        ArenaSearchSportChips(
+          selected: _filters.sportChip,
+          onSelected: (chip) {
+            _sportChipUserSelected = true;
+            _updateFilters(_filters.copyWith(sportChip: chip));
+          },
+        ),
+        const SizedBox(height: 12),
+        ArenaSearchDateTimeRow(
+          date: _filters.slot.dateOnly,
+          timeLabel: _filters.slot.requestedTimeLabel,
+          flexibleTime: _filters.slot.flexibleTime,
+          onDateTap: _pickDate,
+          onTimeTap: _pickTime,
+        ),
+        const SizedBox(height: 12),
+        ArenaSearchFlexibleBanner(
+          boostPercent: _flexBoostPercent,
+          flexibleTime: _filters.slot.flexibleTime,
+          onToggle: _toggleFlexibleTime,
+        ),
+        if (_filters.showOnlyFavorites) ...[
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () =>
+                  _updateFilters(_filters.copyWith(showOnlyFavorites: false)),
+              child: const Text(
+                'Ver todas as arenas',
+                style: TextStyle(fontWeight: FontWeight.w800),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 132,
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: favoriteItems.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(width: 10),
-                  itemBuilder: (context, index) {
-                    final item = favoriteItems[index];
-                    return _FavoriteArenaMiniCard(
-                      arena: item.result.arena,
-                      searchQuery: searchQuery,
-                      onTap: () => openArenaDetail(context, item.result.arena),
-                      isPending: isFavoritePending(item.result.arena.id),
-                      onToggleFavorite: isFavoritePending(item.result.arena.id)
-                          ? null
-                          : () => onToggleFavorite(item.result.arena.id, true),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 6, 20, 28),
-            sliver: SliverList.separated(
-              itemCount: displayItems.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 20),
-              itemBuilder: (context, index) {
-                final item = displayItems[index];
-                final result = item.result;
-                return staggeredFadeSlide(
-                  index: index,
-                  child: _ArenaSearchCard(
-                    result: result,
-                    searchQuery: searchQuery,
-                    isFavorite: item.isFavorite,
-                    isFavoritePending: isFavoritePending(result.arena.id),
-                    onOpenArena: () => openArenaDetail(context, result.arena),
-                    onToggleFavorite: isFavoritePending(result.arena.id)
-                        ? null
-                        : () =>
-                            onToggleFavorite(result.arena.id, item.isFavorite),
-                    onReserve: result.hasAvailability
-                        ? () => openArenaBookingSlots(
-                              context,
-                              arena: result.arena,
-                              slot: result.selectedSlot,
-                              date: filters.dateOnly,
-                            )
-                        : null,
-                  ),
-                );
-              },
             ),
           ),
         ],
@@ -396,267 +506,60 @@ class _ArenaBookingList extends StatelessWidget {
   }
 }
 
-class _ArenaSearchCard extends StatelessWidget {
-  const _ArenaSearchCard({
-    required this.result,
-    required this.searchQuery,
-    required this.isFavorite,
-    required this.isFavoritePending,
-    required this.onOpenArena,
-    required this.onToggleFavorite,
-    required this.onReserve,
+class _FiltersHiddenBanner extends StatelessWidget {
+  const _FiltersHiddenBanner({
+    required this.hiddenCount,
+    required this.onShowAll,
+    required this.onOpenFilters,
   });
 
-  final ArenaSearchResult result;
-  final String searchQuery;
-  final bool isFavorite;
-  final bool isFavoritePending;
-  final VoidCallback onOpenArena;
-  final VoidCallback? onToggleFavorite;
-  final VoidCallback? onReserve;
+  final int hiddenCount;
+  final VoidCallback onShowAll;
+  final VoidCallback onOpenFilters;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final slot = result.selectedSlot;
-    final message = switch ((result.isExactMatch, slot != null)) {
-      (true, true) => '🔥 ${slot!.startTime} disponível',
-      (false, true) => 'Próximo: ${slot!.startTime}',
-      _ => 'Sem disponibilidade no dia selecionado',
-    };
-    final messageColor = result.isExactMatch
-        ? const Color(0xFF2E7D32)
-        : (slot != null ? const Color(0xFFEF6C00) : AppColors.onSurfaceMuted);
-
     return Container(
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.12),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ArenaCard(
-              arena: result.arena,
-              displayPricePerHourReais: result.displayPricePerHourReais,
-              showStartingFrom: result.showStartingFrom,
-              title: _buildHighlightedName(
-                context,
-                result.arena.name,
-                searchQuery,
-                baseStyle: theme.textTheme.titleLarge?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.25,
-                ),
-              ),
-              onTap: onOpenArena,
-              isFavorite: isFavorite,
-              isFavoriteBusy: isFavoritePending,
-              onToggleFavorite: onToggleFavorite,
-            ),
-            const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                message,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: messageColor,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            if (result.courtName != null && result.courtName!.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(
-                  result.courtName!,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 46,
-              child: FilledButton(
-                onPressed: onReserve,
-                child: const Text('Reservar'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FavoriteArenaMiniCard extends StatelessWidget {
-  const _FavoriteArenaMiniCard({
-    required this.arena,
-    required this.searchQuery,
-    required this.onTap,
-    required this.isPending,
-    required this.onToggleFavorite,
-  });
-
-  final ArenaListItem arena;
-  final String searchQuery;
-  final VoidCallback onTap;
-  final bool isPending;
-  final VoidCallback? onToggleFavorite;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      width: 220,
-      child: Material(
-        color: theme.colorScheme.surface,
+        color: AppColors.brand.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(14),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Stack(
+        border: Border.all(color: AppColors.brand.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '$hiddenCount arena${hiddenCount == 1 ? '' : 's'} oculta${hiddenCount == 1 ? '' : 's'} pelos filtros',
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              color: AppColors.onSurface,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
             children: [
-              Positioned.fill(
-                child: Image.network(
-                  arena.imageUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => ColoredBox(
-                    color: theme.colorScheme.surfaceContainerHighest,
-                  ),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onOpenFilters,
+                  child: const Text('Ajustar filtros'),
                 ),
               ),
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.18),
-                        Colors.black.withValues(alpha: 0.48),
-                      ],
-                    ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton(
+                  onPressed: onShowAll,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: AppColors.black,
                   ),
-                ),
-              ),
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Material(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  borderRadius: BorderRadius.circular(999),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(999),
-                    onTap: onToggleFavorite,
-                    child: Padding(
-                      padding: const EdgeInsets.all(6),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 180),
-                        transitionBuilder: (child, animation) => FadeTransition(
-                          opacity: animation,
-                          child: ScaleTransition(
-                            scale: Tween<double>(begin: 0.86, end: 1)
-                                .animate(animation),
-                            child: child,
-                          ),
-                        ),
-                        child: isPending
-                            ? const SizedBox(
-                                key: ValueKey<String>('mini_favorite_busy'),
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.favorite,
-                                key: ValueKey<String>('mini_favorite_icon'),
-                                color: Color(0xFFE53935),
-                                size: 20,
-                              ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 10,
-                right: 10,
-                bottom: 10,
-                child: Text.rich(
-                  _buildHighlightedName(
-                    context,
-                    arena.name,
-                    searchQuery,
-                    baseStyle: theme.textTheme.titleSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
-                    highlightColor: Colors.white,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  child: const Text('Ver todas'),
                 ),
               ),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
 }
-
-TextSpan _buildHighlightedName(BuildContext context, String value, String query,
-    {TextStyle? baseStyle, Color? highlightColor}) {
-  final theme = Theme.of(context);
-  final q = query.trim();
-  final base = baseStyle ??
-      theme.textTheme.titleSmall?.copyWith(
-        fontWeight: FontWeight.w800,
-      );
-  if (q.isEmpty) {
-    return TextSpan(text: value, style: base);
-  }
-
-  final source = value.toLowerCase();
-  final needle = q.toLowerCase();
-  final i = source.indexOf(needle);
-  if (i < 0) {
-    return TextSpan(text: value, style: base);
-  }
-
-  final end = i + needle.length;
-  return TextSpan(
-    style: base,
-    children: [
-      if (i > 0) TextSpan(text: value.substring(0, i)),
-      TextSpan(
-        text: value.substring(i, end),
-        style: base?.copyWith(
-          color: highlightColor ?? AppColors.brand,
-          decoration: TextDecoration.underline,
-          decorationColor:
-              (highlightColor ?? AppColors.brand).withValues(alpha: 0.55),
-        ),
-      ),
-      if (end < value.length) TextSpan(text: value.substring(end)),
-    ],
-  );
-}
-

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../arenas/domain/arena_amenities.dart';
 import '../../arenas/domain/arena_list_item.dart';
 
 String _arenaDigitsOnly(String raw) {
@@ -51,8 +52,10 @@ class ArenaProfileEditService {
     String? coverUrl,
     String? logoUrl,
     required List<String> courtTypes,
+    List<String> surfaces = const [],
     required bool onlinePaymentEnabled,
     required bool onsitePaymentEnabled,
+    ArenaAmenities amenities = ArenaAmenities.empty,
     String payoutPixKey = '',
     String payoutPixKeyType = '',
   }) async {
@@ -110,6 +113,11 @@ class ArenaProfileEditService {
       final s = t.trim();
       if (s.isNotEmpty && !uniqueTypes.contains(s)) uniqueTypes.add(s);
     }
+    final uniqueSurfaces = <String>[];
+    for (final t in surfaces) {
+      final s = t.trim();
+      if (s.isNotEmpty && !uniqueSurfaces.contains(s)) uniqueSurfaces.add(s);
+    }
 
     await _firestore.collection('arenas').doc(arenaId).set(
       <String, dynamic>{
@@ -132,6 +140,8 @@ class ArenaProfileEditService {
         'coverUrl': _urlOrDelete(coverUrl),
         'logoUrl': _urlOrDelete(logoUrl),
         'courtTypes': uniqueTypes,
+        'surfaces': uniqueSurfaces,
+        'amenities': amenities.toFirestoreMap(),
         'onlinePaymentEnabled': onlinePaymentEnabled,
         'onsitePaymentEnabled': onsitePaymentEnabled,
         'paymentReceiver': ArenaPaymentReceiver.platform.firestoreValue,

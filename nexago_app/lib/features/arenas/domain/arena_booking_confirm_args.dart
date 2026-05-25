@@ -8,6 +8,7 @@ class ArenaBookingConfirmArgs {
     required this.arenaName,
     required this.courtId,
     required this.courtName,
+    this.courtSubtitle,
     required this.date,
     required this.startTime,
     required this.endTime,
@@ -19,6 +20,10 @@ class ArenaBookingConfirmArgs {
   final String arenaName;
   final String courtId;
   final String courtName;
+
+  /// Esporte/superfície exibido no hero (`Beach · Areia`).
+  final String? courtSubtitle;
+
   final DateTime date;
   final String startTime;
   final String endTime;
@@ -77,6 +82,7 @@ class ArenaBookingConfirmArgs {
     final arenaName = q['arenaName'] ?? '';
     final courtId = q['courtId'] ?? '';
     final courtName = q['courtName'] ?? '';
+    final courtSubtitle = q['courtSubtitle']?.trim();
     final dateStr = q['date'] ?? '';
     final start = q['startTime'] ?? '';
     final end = q['endTime'] ?? '';
@@ -93,6 +99,8 @@ class ArenaBookingConfirmArgs {
       arenaName: arenaName.isEmpty ? 'Arena' : arenaName,
       courtId: courtId,
       courtName: courtName.isEmpty ? 'Quadra' : courtName,
+      courtSubtitle:
+          courtSubtitle != null && courtSubtitle.isNotEmpty ? courtSubtitle : null,
       date: DateTime(parsed.year, parsed.month, parsed.day),
       startTime: start.length >= 5 ? start.substring(0, 5) : start,
       endTime: end.length >= 5 ? end.substring(0, 5) : end,

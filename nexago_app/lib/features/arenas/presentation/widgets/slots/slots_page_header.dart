@@ -1,0 +1,66 @@
+import 'package:flutter/material.dart';
+
+import '../../../../../core/theme/app_colors.dart';
+
+class SlotsPageHeader extends StatelessWidget {
+  const SlotsPageHeader({
+    super.key,
+    required this.title,
+    required this.onBack,
+    required this.onSearch,
+  });
+
+  final String title;
+  final VoidCallback onBack;
+  final VoidCallback onSearch;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+      child: Row(
+        children: [
+          _IconButton(icon: Icons.arrow_back_rounded, onTap: onBack),
+          Expanded(
+            child: Text(
+              title,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+                color: AppColors.onSurface,
+              ),
+            ),
+          ),
+          _IconButton(icon: Icons.search_rounded, onTap: onSearch),
+        ],
+      ),
+    );
+  }
+}
+
+class _IconButton extends StatelessWidget {
+  const _IconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceCard,
+      borderRadius: BorderRadius.circular(10),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(icon, color: AppColors.onSurface, size: 22),
+        ),
+      ),
+    );
+  }
+}

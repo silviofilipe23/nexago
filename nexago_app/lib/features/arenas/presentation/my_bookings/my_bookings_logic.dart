@@ -1,6 +1,7 @@
-import 'package:intl/intl.dart';
-
+import '../../domain/arena_booking_labels.dart';
 import '../../domain/my_booking_item.dart';
+
+export '../../domain/arena_booking_labels.dart' show formatBookingDateHeader;
 
 const int myBookingsStreakWeeksThreshold = 3;
 
@@ -87,21 +88,6 @@ Map<String, List<MyBookingItem>> groupUpcomingByDate(
     );
   }
   return out;
-}
-
-final _weekdayMonthFmt = DateFormat("EEEE · d 'de' MMMM", 'pt_BR');
-
-String formatBookingDateHeader(String dateRaw) {
-  if (dateRaw.length < 10) return dateRaw.isEmpty ? '—' : dateRaw;
-  final d = DateTime.tryParse(dateRaw.substring(0, 10));
-  if (d == null) return dateRaw;
-  try {
-    final formatted = _weekdayMonthFmt.format(d);
-    if (formatted.isEmpty) return formatted;
-    return formatted[0].toUpperCase() + formatted.substring(1);
-  } catch (_) {
-    return dateRaw;
-  }
 }
 
 String relativeBookingDayLabel(String dateRaw, {DateTime? now}) {

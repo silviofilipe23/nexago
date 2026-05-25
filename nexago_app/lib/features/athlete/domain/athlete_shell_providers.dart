@@ -8,3 +8,6 @@ const athleteShellReservarTabIndex = 2;
 
 /// Aba Competir / torneios.
 const athleteShellCompeteTabIndex = 3;
+
+/// Aba Perfil.
+const athleteShellProfileTabIndex = 4;

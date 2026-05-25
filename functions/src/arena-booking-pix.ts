@@ -64,6 +64,7 @@ export const createArenaBookingPixPayment = onCall({
     bookingId?: string;
     cpf?: string;
     cpfCnpj?: string;
+    paymentFraction?: number;
   };
   const bookingId = typeof data.bookingId === "string" ? data.bookingId.trim() : "";
   const cpfFromRequest =
@@ -99,7 +100,22 @@ export const createArenaBookingPixPayment = onCall({
     throw new HttpsError("failed-precondition", "Pagamento já registrado para esta reserva");
   }
 
-  const amountToPayNow = Number(booking.amountToPayNowReais);
+  let amountToPayNow = Number(booking.amountToPayNowReais);
+  const amountReais = Number(booking.amountReais);
+  const requestedFraction = normalizePixPaymentFraction(data.paymentFraction);
+  if (requestedFraction != null) {
+    if (!Number.isFinite(amountReais) || amountReais <= 0) {
+      throw new HttpsError("failed-precondition", "Valor da reserva inválido");
+    }
+    amountToPayNow = roundMoney(amountReais * requestedFraction);
+    const amountDueOnsiteReais = roundMoney(amountReais - amountToPayNow);
+    await bookingRef.update({
+      paymentFraction: requestedFraction,
+      amountToPayNowReais: amountToPayNow,
+      amountDueOnsiteReais,
+    });
+  }
+
   if (!Number.isFinite(amountToPayNow) || amountToPayNow <= 0) {
     throw new HttpsError("failed-precondition", "Valor PIX inválido na reserva");
   }
@@ -732,3 +748,10 @@ export const reviewArenaWithdrawal = onCall({
     throw new HttpsError("internal", "Falha ao processar repasse PIX.");
   }
 });
+
+/** 0.5 (sinal) ou 1 (integral) — alinhado a createArenaBooking. */
+function normalizePixPaymentFraction(raw: unknown): number | null {
+  const n = Number(raw);
+  if (n === 0.5 || n === 1) return n;
+  return null;
+}

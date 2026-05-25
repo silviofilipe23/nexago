@@ -70,7 +70,7 @@ class MyBookingsNearbySection extends ConsumerWidget {
                   context,
                   arena: snapshot.topArenas[i].arena,
                   slot: snapshot.topArenas[i].selectedSlot,
-                  date: snapshot.filters.dateOnly,
+                  date: snapshot.slotFilters.dateOnly,
                 ),
               ),
             ],

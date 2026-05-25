@@ -48,8 +48,18 @@ abstract final class AppRoutes {
   static const String athleteActiveSessions =
       '/athlete/settings/privacy/sessions';
 
+  /// Gamificação amplificada (protótipo Quest).
+  static const String athleteQuest = '/athlete/quest';
+
   /// Histórico de partidas e torneios do atleta.
   static const String athleteMatchHistory = '/athlete/history';
+
+  /// Detalhe de partida: `/athlete/history/match/:matchId`
+  static const String athleteMatchDetail = '/athlete/history/match/:matchId';
+
+  /// Detalhe do torneio (campanha): `/athlete/history/tournament/:tournamentId`
+  static const String athleteTournamentDetail =
+      '/athlete/history/tournament/:tournamentId';
 
   /// Sucesso após salvar perfil do atleta.
   static const String athleteProfileUpdateSuccess = '/athlete/profile/updated';
@@ -162,7 +172,10 @@ abstract final class AppRouteNames {
   static const String athletePrivacySecurity = 'athletePrivacySecurity';
   static const String athleteChangePassword = 'athleteChangePassword';
   static const String athleteActiveSessions = 'athleteActiveSessions';
+  static const String athleteQuest = 'athleteQuest';
   static const String athleteMatchHistory = 'athleteMatchHistory';
+  static const String athleteMatchDetail = 'athleteMatchDetail';
+  static const String athleteTournamentDetail = 'athleteTournamentDetail';
   static const String athleteProfileUpdateSuccess =
       'athleteProfileUpdateSuccess';
   static const String athleteOnboardingWelcome = 'athleteOnboardingWelcome';

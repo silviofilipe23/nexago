@@ -39,6 +39,7 @@ import {
   reviewArenaWithdrawal,
 } from "./arena-booking-pix";
 import {asaasWebhook} from "./asaas-webhook";
+import {onArenaBookingCanceledNotifySlotVacancyAlerts} from "./slot-vacancy-alerts";
 
 export {
   quoteArenaBooking,
@@ -50,6 +51,7 @@ export {
   listPendingArenaWithdrawals,
   reviewArenaWithdrawal,
   asaasWebhook,
+  onArenaBookingCanceledNotifySlotVacancyAlerts,
 };
 
 // Initialize Firebase Admin

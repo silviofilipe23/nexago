@@ -8,6 +8,7 @@ import '../../features/arenas/presentation/arena_booking_pix_page.dart';
 import '../../features/arenas/domain/arena_booking_pix_args.dart';
 import '../../features/arenas/presentation/booking_blocked_page.dart';
 import '../../features/arenas/presentation/arena_detail_page.dart';
+import '../../features/arenas/presentation/arena_detail_route_extra.dart';
 import '../../features/arenas/presentation/booking_success_page.dart';
 import '../../features/arenas/presentation/slots_page.dart';
 import '../../features/arenas/domain/arena_booking_confirm_args.dart';
@@ -55,7 +56,10 @@ import '../../features/athlete/presentation/athlete_settings_page.dart';
 import '../../features/athlete/presentation/athlete_active_sessions_page.dart';
 import '../../features/athlete/presentation/athlete_change_password_page.dart';
 import '../../features/athlete/presentation/athlete_notification_settings_page.dart';
+import '../../features/athlete/presentation/athlete_match_detail_page.dart';
+import '../../features/athlete/presentation/athlete_quest_page.dart';
 import '../../features/athlete/presentation/athlete_match_history_page.dart';
+import '../../features/athlete/presentation/athlete_tournament_detail_page.dart';
 import '../../features/athlete/presentation/athlete_privacy_security_page.dart';
 import '../../features/athlete/presentation/athlete_sports_levels_page.dart';
 import '../../features/athlete/presentation/athlete_profile_update_success_page.dart';
@@ -325,9 +329,32 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const AthleteActiveSessionsPage(),
       ),
       GoRoute(
+        path: AppRoutes.athleteQuest,
+        name: AppRouteNames.athleteQuest,
+        builder: (context, state) => const AthleteQuestPage(),
+      ),
+      GoRoute(
         path: AppRoutes.athleteMatchHistory,
         name: AppRouteNames.athleteMatchHistory,
         builder: (context, state) => const AthleteMatchHistoryPage(),
+        routes: [
+          GoRoute(
+            path: 'match/:matchId',
+            name: AppRouteNames.athleteMatchDetail,
+            builder: (context, state) {
+              final matchId = state.pathParameters['matchId'] ?? '';
+              return AthleteMatchDetailPage(matchId: matchId);
+            },
+          ),
+          GoRoute(
+            path: 'tournament/:tournamentId',
+            name: AppRouteNames.athleteTournamentDetail,
+            builder: (context, state) {
+              final tournamentId = state.pathParameters['tournamentId'] ?? '';
+              return AthleteTournamentDetailPage(tournamentId: tournamentId);
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.athleteProfileUpdateSuccess,
@@ -560,10 +587,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final arenaId = state.pathParameters['arenaId']!;
           final extra = state.extra;
-          final initial = extra is ArenaListItem ? extra : null;
+          ArenaListItem? initial;
+          var isBestPrice = state.uri.queryParameters['bestPrice'] == '1';
+          if (extra is ArenaDetailRouteExtra) {
+            initial = extra.arena;
+            isBestPrice = isBestPrice || extra.isBestPrice;
+          } else if (extra is ArenaListItem) {
+            initial = extra;
+          }
           return ArenaDetailPage(
             arenaId: arenaId,
             initialArena: initial?.id == arenaId ? initial : null,
+            isBestPrice: isBestPrice,
           );
         },
       ),

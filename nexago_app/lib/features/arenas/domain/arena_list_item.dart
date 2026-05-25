@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/location/br_locations_data.dart';
+import 'arena_amenities.dart';
 
 /// Quem recebe o PIX online: conta NexaGO (padrão) ou Mercado Pago do gestor.
 enum ArenaPaymentReceiver {
@@ -41,6 +42,7 @@ class ArenaListItem {
     this.latitude,
     this.longitude,
     this.courtTypes = const [],
+    this.surfaces = const [],
     this.onlinePaymentEnabled = true,
     this.onsitePaymentEnabled = true,
     this.paymentReceiver = ArenaPaymentReceiver.platform,
@@ -50,6 +52,7 @@ class ArenaListItem {
     this.reviewsCount = 0,
     this.reputationScore = 0,
     this.reviewResponseRate = 0,
+    this.amenities = ArenaAmenities.empty,
   });
 
   final String id;
@@ -77,8 +80,11 @@ class ArenaListItem {
   final double? latitude;
   final double? longitude;
 
-  /// Tipos de quadra oferecidos pela arena (lista editável no painel).
+  /// Esportes oferecidos (`courtTypes` no Firestore).
   final List<String> courtTypes;
+
+  /// Superfícies das quadras (`surfaces` no Firestore).
+  final List<String> surfaces;
 
   final bool onlinePaymentEnabled;
   final bool onsitePaymentEnabled;
@@ -89,6 +95,7 @@ class ArenaListItem {
   final int reviewsCount;
   final int reputationScore;
   final double reviewResponseRate;
+  final ArenaAmenities amenities;
 
   /// Compatibilidade com código legado.
   String get imageUrl => coverUrl ?? kDefaultImageUrl;
@@ -209,6 +216,14 @@ class ArenaListItem {
       }
     }
 
+    final surfaces = <String>[];
+    final rawSurfaces = data['surfaces'];
+    if (rawSurfaces is List) {
+      for (final e in rawSurfaces) {
+        if (e is String && e.trim().isNotEmpty) surfaces.add(e.trim());
+      }
+    }
+
     bool readBool(dynamic v, {required bool defaultValue}) {
       if (v is bool) return v;
       return defaultValue;
@@ -243,6 +258,11 @@ class ArenaListItem {
     final reviewResponseRate =
         (data['reviewResponseRate'] as num?)?.toDouble() ?? 0;
 
+    final amenitiesRaw = data['amenities'];
+    final amenities = amenitiesRaw is Map<String, dynamic>
+        ? ArenaAmenities.fromMap(amenitiesRaw)
+        : ArenaAmenities.fromMap(null);
+
     return ArenaListItem(
       id: doc.id,
       name: resolvedName,
@@ -260,6 +280,7 @@ class ArenaListItem {
       latitude: latitude,
       longitude: longitude,
       courtTypes: courtTypes,
+      surfaces: surfaces,
       onlinePaymentEnabled: onlinePayment,
       onsitePaymentEnabled: onsitePayment,
       // Arenas usam só conta NexaGO (Asaas); ignora legado `manager` no Firestore.
@@ -270,6 +291,7 @@ class ArenaListItem {
       reviewsCount: reviewsCount,
       reputationScore: reputationScore,
       reviewResponseRate: reviewResponseRate,
+      amenities: amenities,
     );
   }
 }

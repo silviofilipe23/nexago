@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/daily_mission_catalog.dart';
 import '../../domain/gamification_models.dart';
 
 Future<void> showGamificationFeedbackSheet(
@@ -49,6 +50,10 @@ class _GamificationFeedbackSheetState extends State<_GamificationFeedbackSheet>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final unlocked = widget.feedback.unlockedBadges;
+    final missionIds = widget.feedback.completedMissionIds;
+    final missionLines = missionIds
+        .map((id) => DailyMissionCatalog.byId(id)?.title ?? id)
+        .toList(growable: false);
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
@@ -64,11 +69,27 @@ class _GamificationFeedbackSheetState extends State<_GamificationFeedbackSheet>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
+                    widget.feedback.title ?? 'Você ganhou XP!',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
                     '+${widget.feedback.xpGained} XP',
                     style: theme.textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
                   ),
+                  if (missionLines.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      missionLines.join(' · '),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   if (widget.feedback.streakIncreased)
                     Text(

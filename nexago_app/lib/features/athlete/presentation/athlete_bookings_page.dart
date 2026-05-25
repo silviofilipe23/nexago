@@ -12,9 +12,7 @@ import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../arenas/domain/my_booking_item.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
-import '../domain/gamification_providers.dart';
 import '../domain/arena_review_providers.dart';
-import 'widgets/gamification_feedback_sheet.dart';
 import 'widgets/rating_dialog.dart';
 
 /// Agenda do atleta em tempo real (Firestore `arenaBookings`).
@@ -28,7 +26,6 @@ class AthleteBookingsPage extends ConsumerStatefulWidget {
 
 class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
   final ScrollController _scrollController = ScrollController();
-  final Set<String> _processedCompletedBookings = <String>{};
   final Set<String> _promptedReviewBookingIds = <String>{};
   bool _didAutoScroll = false;
 
@@ -139,7 +136,6 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
               ? 'Sem próximos jogos confirmados'
               : 'Próximo em ${_minutesUntilLabel(now, nextBooking.startAt)}';
           final rows = _buildTimelineRows(now: now, bookings: bookings);
-          _processCompletedBookings(bookings);
           final pendingReview = pendingReviewAsync.valueOrNull;
           if (pendingReview != null &&
               !_promptedReviewBookingIds.contains(pendingReview.bookingId)) {
@@ -254,48 +250,6 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
     }
   }
 
-  void _processCompletedBookings(List<_AthleteBooking> bookings) {
-    final userId = ref.read(authProvider).valueOrNull?.uid;
-    if (userId == null || userId.isEmpty) return;
-
-    for (final booking in bookings) {
-      final status = booking.rawStatus.trim().toLowerCase();
-      if (status != 'completed') continue;
-      if (_processedCompletedBookings.contains(booking.id)) continue;
-      _processedCompletedBookings.add(booking.id);
-      _handleCompletedBooking(userId: userId, bookingId: booking.id);
-    }
-  }
-
-  Future<void> _handleCompletedBooking({
-    required String userId,
-    required String bookingId,
-  }) async {
-    try {
-      final feedback =
-          await ref.read(gamificationServiceProvider).processCompletedGame(
-                userId: userId,
-                bookingId: bookingId,
-                now: DateTime.now(),
-              );
-      if (!mounted || feedback == null) return;
-      await showGamificationFeedbackSheet(
-        context,
-        feedback: feedback,
-      );
-    } catch (_) {
-      // Evita crash/erro não tratado quando as regras ainda não foram publicadas
-      // ou quando houver indisponibilidade temporária do Firestore.
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('Nao foi possivel atualizar sua gamificacao agora.'),
-          ),
-        );
-    }
-  }
 }
 
 class _AgendaHeader extends StatelessWidget {

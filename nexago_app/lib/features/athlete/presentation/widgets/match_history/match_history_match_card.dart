@@ -9,10 +9,12 @@ class MatchHistoryMatchCard extends StatelessWidget {
     super.key,
     required this.match,
     this.compact = false,
+    this.onTap,
   });
 
   final AthleteMatchHistoryItem match;
   final bool compact;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -21,130 +23,141 @@ class MatchHistoryMatchCard extends StatelessWidget {
     final accent = isWin ? AppColors.win : AppColors.live;
     final resultLabel = isWin ? 'V' : 'D';
     final dateStr = DateFormat('d MMM', 'pt_BR').format(match.playedAt);
+    final radius = compact ? 12.0 : 14.0;
 
-    return Container(
-      margin: EdgeInsets.only(bottom: compact ? 8 : 10),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: EdgeInsets.only(bottom: compact ? 8 : 10),
+      child: Material(
         color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(compact ? 12 : 14),
-        border: Border.all(color: AppColors.surfaceRaised),
-      ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              width: 4,
-              decoration: BoxDecoration(
-                color: accent,
-                borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(14),
-                ),
-              ),
+        borderRadius: BorderRadius.circular(radius),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(radius),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(color: AppColors.surfaceRaised),
             ),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(compact ? 12 : 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: compact ? 28 : 32,
-                          height: compact ? 28 : 32,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: accent.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            resultLabel,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w900,
-                              color: accent,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    width: 4,
+                    decoration: BoxDecoration(
+                      color: accent,
+                      borderRadius: BorderRadius.horizontal(
+                        left: Radius.circular(radius),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.all(compact ? 12 : 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
                             children: [
-                              Text(
-                                match.opponentLabel,
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.onSurface,
+                              Container(
+                                width: compact ? 28 : 32,
+                                height: compact ? 28 : 32,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: accent.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                child: Text(
+                                  resultLabel,
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: accent,
+                                  ),
+                                ),
                               ),
-                              Text(
-                                match.competitionLabel,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      match.opponentLabel,
+                                      style:
+                                          theme.textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.onSurface,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      match.competitionLabel,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: AppColors.onSurfaceMuted,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    match.scoreDisplay,
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.onSurface,
+                                    ),
+                                  ),
+                                  Text(
+                                    dateStr,
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: AppColors.onSurfaceMuted,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
+                          if (!compact && match.setsDisplay != null) ...[
+                            const SizedBox(height: 8),
                             Text(
-                              match.scoreDisplay,
-                              style: theme.textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                color: AppColors.onSurface,
-                              ),
-                            ),
-                            Text(
-                              dateStr,
+                              match.setsDisplay!,
                               style: theme.textTheme.labelSmall?.copyWith(
                                 color: AppColors.onSurfaceMuted,
                               ),
                             ),
                           ],
-                        ),
-                      ],
-                    ),
-                    if (!compact && match.setsDisplay != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        match.setsDisplay!,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
-                        ),
-                      ),
-                    ],
-                    if (match.isMvp) ...[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.star_rounded,
-                            size: compact ? 14 : 16,
-                            color: AppColors.pending,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'MVP',
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.pending,
+                          if (match.isMvp) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.star_rounded,
+                                  size: compact ? 14 : 16,
+                                  color: AppColors.pending,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'MVP',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.pending,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
+                          ],
                         ],
                       ),
-                    ],
-                  ],
-                ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

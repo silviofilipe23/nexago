@@ -138,7 +138,10 @@ class _ReadyBody extends ConsumerWidget {
                   summaryLabel: group.summaryLabel,
                 ),
                 ...group.matches.map(
-                  (m) => MatchHistoryMatchCard(match: m),
+                  (m) => MatchHistoryMatchCard(
+                    match: m,
+                    onTap: () => _openMatchDetail(context, m.id),
+                  ),
                 ),
               ];
             }),
@@ -156,11 +159,18 @@ class _ReadyBody extends ConsumerWidget {
     );
   }
 
+  void _openMatchDetail(BuildContext context, String matchId) {
+    context.pushNamed(
+      AppRouteNames.athleteMatchDetail,
+      pathParameters: {'matchId': matchId},
+    );
+  }
+
   void _onTournamentTap(BuildContext context, AthleteTournamentHistoryItem t) {
-    final id = t.tournamentId?.trim();
-    if (id != null && id.isNotEmpty) {
+    final id = (t.tournamentId ?? t.id).trim();
+    if (id.isNotEmpty) {
       context.pushNamed(
-        AppRouteNames.tournamentDetail,
+        AppRouteNames.athleteTournamentDetail,
         pathParameters: {'tournamentId': id},
       );
       return;

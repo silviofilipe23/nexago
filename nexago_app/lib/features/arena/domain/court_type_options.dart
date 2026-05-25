@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 
-/// Rótulos sugeridos para o tipo de quadra (`arenas/{arenaId}/courts/{id}.type`).
+import '../../arenas/domain/arena_search_metadata.dart';
+
+/// Esportes por quadra (`courts.types` — lista; `type` mantém o primeiro por legado).
+/// Alinhado a [ArenaSearchMetadata.sportLabels].
 const List<String> kCourtTypeOptions = [
-  'Futevôlei',
-  'Beach tennis',
   'Vôlei de praia',
+  'Beach tennis',
   'Vôlei indoor',
   'Tênis',
+  'Padel',
+  'Futebol',
+  'Futevôlei',
   'Pickleball',
-  'Outro',
 ];
 
-/// Tipos em destaque no formulário de quadra (cards horizontais).
+/// Cards do formulário de quadra.
 class FeaturedCourtType {
   const FeaturedCourtType({
     required this.value,
@@ -19,30 +23,21 @@ class FeaturedCourtType {
     required this.icon,
   });
 
-  /// Valor persistido em `type`.
   final String value;
-
-  /// Rótulo no card (ex.: Beach Volley).
   final String label;
   final IconData icon;
 }
 
-/// Cards do formulário de quadra (todos os esportes de [kCourtTypeOptions]).
 const List<FeaturedCourtType> kCourtTypeCards = [
   FeaturedCourtType(
-    value: 'Futevôlei',
-    label: 'Futevôlei',
-    icon: Icons.sports_soccer_outlined,
+    value: 'Vôlei de praia',
+    label: 'Vôlei de praia',
+    icon: Icons.sports_volleyball_outlined,
   ),
   FeaturedCourtType(
     value: 'Beach tennis',
     label: 'Beach tennis',
     icon: Icons.sports_tennis_outlined,
-  ),
-  FeaturedCourtType(
-    value: 'Vôlei de praia',
-    label: 'Vôlei de praia',
-    icon: Icons.sports_volleyball_outlined,
   ),
   FeaturedCourtType(
     value: 'Vôlei indoor',
@@ -55,15 +50,28 @@ const List<FeaturedCourtType> kCourtTypeCards = [
     icon: Icons.sports_tennis,
   ),
   FeaturedCourtType(
+    value: 'Padel',
+    label: 'Padel',
+    icon: Icons.sports_handball_outlined,
+  ),
+  FeaturedCourtType(
+    value: 'Futebol',
+    label: 'Futebol',
+    icon: Icons.sports_soccer_outlined,
+  ),
+  FeaturedCourtType(
+    value: 'Futevôlei',
+    label: 'Futevôlei',
+    icon: Icons.sports_soccer_outlined,
+  ),
+  FeaturedCourtType(
     value: 'Pickleball',
     label: 'Pickleball',
     icon: Icons.sports_baseball_outlined,
   ),
-  FeaturedCourtType(
-    value: 'Outro',
-    label: 'Outro',
-    icon: Icons.grid_view_rounded,
-  ),
 ];
 
 const List<int> kCourtBasePricePresets = [60, 80, 100];
+
+/// Superfícies no perfil da arena (mesmas do filtro do atleta).
+const List<String> kArenaSurfaceOptions = ArenaSearchMetadata.surfaceOptions;

@@ -1,11 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/auth/auth_providers.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/ui/app_snackbar.dart';
 import '../../domain/arena_review.dart';
 import '../../domain/arena_review_providers.dart';
 import '../../domain/gamification_providers.dart';
+
+const _xpReward = 10;
+
+const _highlightTags = <String>[
+  'Quadra impecável',
+  'Atendimento bom',
+  'Iluminação',
+  'Vestiário',
+  'Pontualidade',
+  'Estacionamento',
+];
 
 Future<void> showRatingDialog(
   BuildContext context, {
@@ -14,6 +28,7 @@ Future<void> showRatingDialog(
   return showDialog<void>(
     context: context,
     barrierDismissible: false,
+    barrierColor: AppColors.black.withValues(alpha: 0.72),
     builder: (_) => _RatingDialog(pending: pending),
   );
 }
@@ -28,9 +43,10 @@ class _RatingDialog extends ConsumerStatefulWidget {
 }
 
 class _RatingDialogState extends ConsumerState<_RatingDialog> {
-  static const int _xpReward = 10;
   final TextEditingController _commentController = TextEditingController();
-  int _rating = 0;
+  final Set<String> _selectedTags = {'Quadra impecável', 'Atendimento bom'};
+  int _rating = 4;
+  bool _showCommentField = false;
   bool _sending = false;
 
   @override
@@ -39,23 +55,54 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
     super.dispose();
   }
 
-  String get _emotionMessage {
-    if (_rating == 5) return '🔥 Que bom que você gostou!';
-    if (_rating > 0 && _rating <= 3) return '😕 O que podemos melhorar?';
-    return '';
+  String get _ratingLabel => switch (_rating) {
+    0 => '',
+    1 => 'Péssimo',
+    2 => 'Ruim',
+    3 => 'Regular',
+    4 => 'Bom',
+    5 => 'Excelente',
+    _ => '',
+  };
+
+  String get _sessionSubtitle {
+    final court = widget.pending.courtName.trim().isNotEmpty
+        ? widget.pending.courtName.trim().toUpperCase()
+        : 'QUADRA';
+    final time = '${widget.pending.startTime}-${widget.pending.endTime}';
+    final rawDate = widget.pending.dateRaw.trim();
+    if (rawDate.isEmpty) return '$time · $court';
+
+    final parsed = DateTime.tryParse(
+      rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate,
+    );
+    if (parsed == null) return '$rawDate · $time · $court';
+
+    final now = DateTime.now();
+    final bookingDay = DateTime(parsed.year, parsed.month, parsed.day);
+    final today = DateTime(now.year, now.month, now.day);
+    final diffDays = today.difference(bookingDay).inDays;
+    final dayLabel = switch (diffDays) {
+      0 => 'HOJE',
+      1 => 'ONTEM',
+      _ => DateFormat('dd/MM', 'pt_BR').format(parsed).toUpperCase(),
+    };
+    return '$dayLabel · $time · $court';
   }
 
-  String get _scheduleLabel {
-    final rawDate = widget.pending.dateRaw.trim();
-    if (rawDate.isEmpty) {
-      return '${widget.pending.startTime} - ${widget.pending.endTime}';
+  String? _composedComment() {
+    final tags = _selectedTags.toList()..sort();
+    final userText = _commentController.text.trim();
+    if (tags.isEmpty && userText.isEmpty) return null;
+    final buffer = StringBuffer();
+    if (tags.isNotEmpty) {
+      buffer.write('Destaques: ${tags.join(', ')}');
     }
-    final parsed = DateTime.tryParse(rawDate.length >= 10 ? rawDate.substring(0, 10) : rawDate);
-    if (parsed == null) {
-      return '$rawDate • ${widget.pending.startTime} - ${widget.pending.endTime}';
+    if (userText.isNotEmpty) {
+      if (buffer.isNotEmpty) buffer.writeln();
+      buffer.write(userText);
     }
-    final formattedDate = DateFormat('dd/MM/yyyy').format(parsed);
-    return '$formattedDate • ${widget.pending.startTime} - ${widget.pending.endTime}';
+    return buffer.toString().trim();
   }
 
   Future<void> _submit() async {
@@ -64,207 +111,382 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
     if (userId == null || userId.isEmpty) return;
     setState(() => _sending = true);
     try {
-      await ref.read(arenaReviewServiceProvider).submitArenaReview(
+      await ref
+          .read(arenaReviewServiceProvider)
+          .submitArenaReview(
             arenaId: widget.pending.arenaId,
             bookingId: widget.pending.bookingId,
             userId: userId,
             rating: _rating,
-            comment: _commentController.text,
+            comment: _composedComment(),
           );
-      await ref.read(gamificationServiceProvider).addXp(
-            userId: userId,
-            amount: _xpReward,
-            reason: 'ARENA_REVIEW',
-          );
+      await ref
+          .read(gamificationServiceProvider)
+          .addXp(userId: userId, amount: _xpReward, reason: 'ARENA_REVIEW');
       if (!mounted) return;
       Navigator.of(context).pop();
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Obrigado pela sua avaliação! ⭐'),
-          content: Text(
-            'Sua opinião ajuda outros atletas e melhora a arena.\n\n+$_xpReward XP adicionados ao seu progresso! 🚀',
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Fechar'),
-            ),
-          ],
-        ),
-      );
+      showAppSnackBar(context, 'Obrigado! +$_xpReward XP no seu progresso.');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível enviar avaliação: $e')),
+      showAppSnackBar(
+        context,
+        'Não foi possível enviar avaliação.',
+        isError: true,
       );
     } finally {
       if (mounted) setState(() => _sending = false);
     }
   }
 
+  void _toggleTag(String tag) {
+    setState(() {
+      if (_selectedTags.contains(tag)) {
+        _selectedTags.remove(tag);
+      } else {
+        _selectedTags.add(tag);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return AlertDialog(
-      title: const Text('Como foi sua experiência?'),
-      content: SingleChildScrollView(
+    final arenaName = widget.pending.arenaName.trim();
+
+    return Dialog(
+      backgroundColor: AppColors.surfaceCard,
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Avalie a ${widget.pending.arenaName}'),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            Row(
+              children: [
+                Text(
+                  'RESERVA · CONCLUÍDA',
+                  style: AppTypography.mono(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.brand,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceRaised,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.brand.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Text(
+                    '+$_xpReward XP',
+                    style: AppTypography.mono(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 10,
+                      color: AppColors.brand,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            RichText(
+              text: TextSpan(
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.onSurface,
+                  height: 1.2,
+                ),
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.storefront_rounded,
-                        size: 18,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          widget.pending.arenaName,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
+                  const TextSpan(text: 'Como foi o jogo na\n'),
+                  TextSpan(
+                    text: arenaName.isEmpty ? 'sua arena' : arenaName,
+                    style: const TextStyle(color: AppColors.brand),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.schedule_rounded,
-                        size: 18,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _scheduleLabel,
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.sports_volleyball_rounded,
-                        size: 18,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          widget.pending.courtName,
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ),
-                    ],
-                  ),
+                  const TextSpan(text: '?'),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF8E1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: const Color(0xFFFFC107).withValues(alpha: 0.45),
-                ),
-              ),
-              child: Text(
-                'Avalie esta reserva e ganhe +$_xpReward XP no seu perfil.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFF8D6E00),
-                  fontWeight: FontWeight.w700,
-                ),
+            const SizedBox(height: 8),
+            Text(
+              _sessionSubtitle,
+              style: AppTypography.mono(
+                fontSize: 12,
+                color: AppColors.onSurfaceMuted,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.3,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
+            if (_ratingLabel.isNotEmpty)
+              Center(
+                child: Text(
+                  _ratingLabel,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.win,
+                  ),
+                ),
+              ),
+            if (_ratingLabel.isNotEmpty) const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(5, (i) {
                 final value = i + 1;
-                final selected = _rating >= value;
-                return IconButton(
-                  onPressed:
-                      _sending ? null : () => setState(() => _rating = value),
-                  iconSize: selected ? 34 : 30,
-                  icon: AnimatedScale(
-                    scale: selected ? 1.12 : 1.0,
-                    duration: const Duration(milliseconds: 180),
-                    child: Icon(
-                      selected
-                          ? Icons.star_rounded
-                          : Icons.star_outline_rounded,
-                      color: selected
-                          ? const Color(0xFFFFC107)
-                          : theme.colorScheme.outline,
+                final filled = _rating >= value;
+                return Padding(
+                  padding: EdgeInsets.only(left: i == 0 ? 0 : 6),
+                  child: Material(
+                    color: AppColors.surfaceRaised,
+                    borderRadius: BorderRadius.circular(10),
+                    child: InkWell(
+                      onTap: _sending
+                          ? null
+                          : () => setState(() => _rating = value),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: filled
+                                ? AppColors.brand.withValues(alpha: 0.55)
+                                : Colors.transparent,
+                          ),
+                        ),
+                        child: Icon(
+                          filled
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
+                          color: filled
+                              ? AppColors.brand
+                              : AppColors.onSurfaceMuted,
+                          size: 28,
+                        ),
+                      ),
                     ),
                   ),
                 );
               }),
             ),
-            if (_emotionMessage.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                _emotionMessage,
+            const SizedBox(height: 20),
+            Text(
+              'O QUE DESTACOU? OPCIONAL',
+              style: AppTypography.mono(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppColors.onSurfaceMuted,
+                letterSpacing: 0.4,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ..._highlightTags.map(
+                  (tag) => _HighlightChip(
+                    label: tag,
+                    selected: _selectedTags.contains(tag),
+                    onTap: _sending ? null : () => _toggleTag(tag),
+                  ),
+                ),
+                _CommentChip(
+                  active: _showCommentField,
+                  onTap: _sending
+                      ? null
+                      : () => setState(
+                          () => _showCommentField = !_showCommentField,
+                        ),
+                ),
+              ],
+            ),
+            if (_showCommentField) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _commentController,
+                minLines: 2,
+                maxLines: 4,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: _rating >= 5
-                      ? const Color(0xFF2E7D32)
-                      : const Color(0xFFEF6C00),
+                  color: AppColors.onSurface,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Escreva um comentário…',
+                  hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.onSurfaceMuted,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.surfaceRaised,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.surfaceRaised),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.surfaceRaised),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: AppColors.brand.withValues(alpha: 0.6),
+                    ),
+                  ),
                 ),
               ),
             ],
-            const SizedBox(height: 12),
-            TextField(
-              controller: _commentController,
-              minLines: 2,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                hintText: 'Deixe um comentário',
-                border: OutlineInputBorder(),
-              ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                TextButton(
+                  onPressed: _sending
+                      ? null
+                      : () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.onSurfaceMuted,
+                  ),
+                  child: const Text('Agora não'),
+                ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: (_rating > 0 && !_sending) ? _submit : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: AppColors.black,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                  ),
+                  child: _sending
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.black,
+                          ),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Enviar e ganhar +$_xpReward XP',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.black,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Icon(
+                              Icons.bolt_rounded,
+                              size: 18,
+                              color: AppColors.black,
+                            ),
+                          ],
+                        ),
+                ),
+              ],
             ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _sending ? null : () => Navigator.of(context).pop(),
-          child: const Text('Agora não'),
+    );
+  }
+}
+
+class _HighlightChip extends StatelessWidget {
+  const _HighlightChip({
+    required this.label,
+    required this.selected,
+    this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.brand.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected
+                  ? AppColors.brand
+                  : AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+            ),
+          ),
+          child: Text(
+            selected ? '✓ $label' : label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: selected ? AppColors.brand : AppColors.onSurfaceMuted,
+            ),
+          ),
         ),
-        FilledButton(
-          onPressed: (_rating > 0 && !_sending) ? _submit : null,
-          child: _sending
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Enviar avaliação'),
+      ),
+    );
+  }
+}
+
+class _CommentChip extends StatelessWidget {
+  const _CommentChip({required this.active, this.onTap});
+
+  final bool active;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: active
+                  ? AppColors.brand
+                  : AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+              style: active ? BorderStyle.solid : BorderStyle.solid,
+            ),
+          ),
+          child: Text(
+            '+ comentário',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: active ? AppColors.brand : AppColors.onSurfaceMuted,
+            ),
+          ),
         ),
-      ],
+      ),
     );
   }
 }

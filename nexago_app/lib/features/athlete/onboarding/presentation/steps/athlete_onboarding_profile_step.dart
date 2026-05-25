@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -56,11 +57,23 @@ class _AthleteOnboardingProfileStepState
 
   Future<void> _pickPhoto() async {
     final picker = ImagePicker();
-    final x = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1600,
-      imageQuality: 88,
-    );
+    XFile? x;
+    try {
+      x = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        imageQuality: 88,
+        requestFullMetadata: false,
+      );
+    } on PlatformException {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Não foi possível carregar esta foto. Tente outra imagem.',
+        isError: true,
+      );
+      return;
+    }
     if (x == null) return;
     final bytes = await x.readAsBytes();
     final path = x.path.toLowerCase();

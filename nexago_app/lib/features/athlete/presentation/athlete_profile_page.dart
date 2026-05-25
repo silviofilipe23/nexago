@@ -8,6 +8,7 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../arenas/domain/my_booking_item.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
+import '../domain/athlete_booking_helpers.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/achievements/achievement_providers.dart';
@@ -115,11 +116,7 @@ class AthleteProfilePage extends ConsumerWidget {
 
       return Scaffold(
         backgroundColor: AppColors.canvas,
-        body: MediaQuery.removePadding(
-          context: context,
-          removeTop: true,
-          child: bodyOther(),
-        ),
+        body: bodyOther(),
       );
     }
 
@@ -139,7 +136,7 @@ class AthleteProfilePage extends ConsumerWidget {
               profile: profile,
               email: user.email,
               totalBookings: _countCompletedBookings(bookings),
-              nextBooking: _findNextBooking(bookings),
+              nextBooking: findNextAthleteBooking(bookings),
               gamificationSummary: gamificationSummaryAsync.valueOrNull ??
                   GamificationSummary.initial(),
               badges: badgesAsync.valueOrNull ?? const <UserBadgeProgress>[],
@@ -200,11 +197,7 @@ class AthleteProfilePage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      body: MediaQuery.removePadding(
-        context: context,
-        removeTop: true,
-        child: bodyContent(),
-      ),
+      body: bodyContent(),
     );
   }
 }
@@ -392,29 +385,3 @@ int _countCompletedBookings(List<MyBookingItem> bookings) {
   }).length;
 }
 
-MyBookingItem? _findNextBooking(List<MyBookingItem> bookings) {
-  final now = DateTime.now();
-  MyBookingItem? next;
-  DateTime? nextStart;
-  for (final booking in bookings) {
-    final status = booking.rawStatus.trim().toLowerCase();
-    if (status == 'canceled' || status == 'cancelled') continue;
-    final start = _parseBookingStart(booking);
-    if (start == null || !start.isAfter(now)) continue;
-    if (nextStart == null || start.isBefore(nextStart)) {
-      nextStart = start;
-      next = booking;
-    }
-  }
-  return next;
-}
-
-DateTime? _parseBookingStart(MyBookingItem item) {
-  if (item.dateRaw.length < 10) return null;
-  final day = DateTime.tryParse(item.dateRaw.substring(0, 10));
-  if (day == null) return null;
-  final parts = item.startTime.split(':');
-  final hh = parts.isNotEmpty ? int.tryParse(parts[0]) ?? 0 : 0;
-  final mm = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
-  return DateTime(day.year, day.month, day.day, hh, mm);
-}

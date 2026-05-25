@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/athlete_quest/athlete_quest_logic.dart';
 import '../../domain/gamification_models.dart';
 
 class GamificationHomeCard extends StatelessWidget {
@@ -102,7 +103,7 @@ class GamificationHomeCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        mission.mission.title,
+                        missionTitle(mission.mission),
                         style: theme.textTheme.bodyMedium?.copyWith(
                           fontWeight: mission.completed
                               ? FontWeight.w700

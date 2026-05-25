@@ -8,37 +8,37 @@ enum GamificationBadge {
   profileComplete;
 
   String get id => switch (this) {
-        GamificationBadge.firstGame => 'FIRST_GAME',
-        GamificationBadge.fiveGames => 'FIVE_GAMES',
-        GamificationBadge.streak3 => 'STREAK_3',
-        GamificationBadge.streak7 => 'STREAK_7',
-        GamificationBadge.profileComplete => 'PROFILE_COMPLETE',
-      };
+    GamificationBadge.firstGame => 'FIRST_GAME',
+    GamificationBadge.fiveGames => 'FIVE_GAMES',
+    GamificationBadge.streak3 => 'STREAK_3',
+    GamificationBadge.streak7 => 'STREAK_7',
+    GamificationBadge.profileComplete => 'PROFILE_COMPLETE',
+  };
 
   String get title => switch (this) {
-        GamificationBadge.firstGame => 'Primeiro jogo',
-        GamificationBadge.fiveGames => '5 jogos completos',
-        GamificationBadge.streak3 => 'Sequência de 3 dias',
-        GamificationBadge.streak7 => 'Sequência de 7 dias',
-        GamificationBadge.profileComplete => 'Perfil completo',
-      };
+    GamificationBadge.firstGame => 'Primeiro jogo',
+    GamificationBadge.fiveGames => '5 jogos completos',
+    GamificationBadge.streak3 => 'Sequência de 3 dias',
+    GamificationBadge.streak7 => 'Sequência de 7 dias',
+    GamificationBadge.profileComplete => 'Perfil completo',
+  };
 
   String get description => switch (this) {
-        GamificationBadge.firstGame => 'Você entrou no ritmo.',
-        GamificationBadge.fiveGames => 'Consistência de atleta dedicado.',
-        GamificationBadge.streak3 => 'Disciplina em alta.',
-        GamificationBadge.streak7 => 'Semana perfeita.',
-        GamificationBadge.profileComplete =>
-          'Você completou todos os passos do perfil.',
-      };
+    GamificationBadge.firstGame => 'Você entrou no ritmo.',
+    GamificationBadge.fiveGames => 'Consistência de atleta dedicado.',
+    GamificationBadge.streak3 => 'Disciplina em alta.',
+    GamificationBadge.streak7 => 'Semana perfeita.',
+    GamificationBadge.profileComplete =>
+      'Você completou todos os passos do perfil.',
+  };
 
   String get icon => switch (this) {
-        GamificationBadge.firstGame => '🎯',
-        GamificationBadge.fiveGames => '🏐',
-        GamificationBadge.streak3 => '🔥',
-        GamificationBadge.streak7 => '👑',
-        GamificationBadge.profileComplete => '🏆',
-      };
+    GamificationBadge.firstGame => '🎯',
+    GamificationBadge.fiveGames => '🏐',
+    GamificationBadge.streak3 => '🔥',
+    GamificationBadge.streak7 => '👑',
+    GamificationBadge.profileComplete => '🏆',
+  };
 
   static GamificationBadge? fromId(String raw) {
     final id = raw.trim().toUpperCase();
@@ -51,17 +51,28 @@ enum GamificationBadge {
 
 enum GamificationMission {
   playToday,
-  inviteOnePlayer;
+  // inviteOnePlayer,
+  reserveToday,
+  favoriteArena,
+  exploreTournament,
+  shareProfile;
 
   String get id => switch (this) {
-        GamificationMission.playToday => 'PLAY_TODAY',
-        GamificationMission.inviteOnePlayer => 'INVITE_ONE_PLAYER',
-      };
+    GamificationMission.playToday => 'PLAY_TODAY',
+    // GamificationMission.inviteOnePlayer => 'INVITE_ONE_PLAYER',
+    GamificationMission.reserveToday => 'RESERVE_TODAY',
+    GamificationMission.favoriteArena => 'FAVORITE_ARENA',
+    GamificationMission.exploreTournament => 'EXPLORE_TOURNAMENT',
+    GamificationMission.shareProfile => 'SHARE_PROFILE',
+  };
 
-  String get title => switch (this) {
-        GamificationMission.playToday => 'Jogue 1x hoje',
-        GamificationMission.inviteOnePlayer => 'Convide 1 jogador',
-      };
+  static GamificationMission? fromId(String raw) {
+    final id = raw.trim().toUpperCase();
+    for (final m in GamificationMission.values) {
+      if (m.id == id) return m;
+    }
+    return null;
+  }
 }
 
 class GamificationSummary {
@@ -197,20 +208,14 @@ class UserBadgeProgress {
 }
 
 class DailyMissionStatus {
-  const DailyMissionStatus({
-    required this.mission,
-    required this.completed,
-  });
+  const DailyMissionStatus({required this.mission, required this.completed});
 
   final GamificationMission mission;
   final bool completed;
 }
 
 class DailyMissionBundle {
-  const DailyMissionBundle({
-    required this.dayKey,
-    required this.missions,
-  });
+  const DailyMissionBundle({required this.dayKey, required this.missions});
 
   final String dayKey;
   final List<DailyMissionStatus> missions;
@@ -223,6 +228,8 @@ class GamificationFeedback {
     required this.newStreak,
     required this.unlockedBadges,
     this.unlockedAchievementIds = const [],
+    this.completedMissionIds = const [],
+    this.title,
   });
 
   final int xpGained;
@@ -230,4 +237,6 @@ class GamificationFeedback {
   final int newStreak;
   final List<GamificationBadge> unlockedBadges;
   final List<String> unlockedAchievementIds;
+  final List<String> completedMissionIds;
+  final String? title;
 }

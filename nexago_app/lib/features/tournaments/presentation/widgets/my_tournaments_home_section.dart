@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../data/my_tournament_registrations_repository.dart';
 import '../../../athlete/domain/athlete_shell_providers.dart';
+import '../../../athlete/presentation/widgets/athlete_home/athlete_home_section_header.dart';
 import '../../domain/tournament_discovery_models.dart';
 
 class MyTournamentsHomeSection extends ConsumerWidget {
@@ -11,7 +12,6 @@ class MyTournamentsHomeSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
     final regsAsync = ref.watch(myTournamentRegistrationsProvider);
 
     return regsAsync.when(
@@ -21,26 +21,15 @@ class MyTournamentsHomeSection extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Text(
-                  'Meus torneios',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-                const Spacer(),
-                TextButton(
-                  onPressed: () {
-                    ref.read(athleteShellTabIndexProvider.notifier).state =
-                        athleteShellCompeteTabIndex;
-                  },
-                  child: const Text('Ver todos'),
-                ),
-              ],
+            AthleteHomeSectionHeader(
+              title: 'Meus torneios',
+              trailingLabel: 'VER TODOS',
+              onTrailingTap: () {
+                ref.read(athleteShellTabIndexProvider.notifier).state =
+                    athleteShellCompeteTabIndex;
+              },
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             for (final r in preview) ...[
               _RegistrationRow(registration: r),
               const SizedBox(height: 8),
@@ -49,7 +38,7 @@ class MyTournamentsHomeSection extends ConsumerWidget {
         );
       },
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
     );
   }
 }
@@ -62,18 +51,33 @@ class _RegistrationRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final badgeColor =
+        registration.isPaid ? AppColors.pending : AppColors.pending;
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
-        ),
+        border: Border.all(color: AppColors.surfaceRaised),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Row(
           children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceRaised,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.emoji_events_outlined,
+                color: AppColors.onSurfaceMuted,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,9 +85,11 @@ class _RegistrationRow extends StatelessWidget {
                   Text(
                     registration.tournamentName,
                     style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                       color: AppColors.onSurface,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   if (registration.dateLabel.isNotEmpty)
                     Text(
@@ -91,23 +97,27 @@ class _RegistrationRow extends StatelessWidget {
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: AppColors.onSurfaceMuted,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: (registration.isPaid ? AppColors.win : AppColors.pending)
-                    .withValues(alpha: 0.15),
+                color: badgeColor.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: badgeColor.withValues(alpha: 0.35)),
               ),
               child: Text(
-                registration.statusLabel,
+                registration.statusLabel.toUpperCase(),
                 style: theme.textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color:
-                      registration.isPaid ? AppColors.win : AppColors.pending,
+                  fontWeight: FontWeight.w800,
+                  color: badgeColor,
+                  fontSize: 9,
+                  letterSpacing: 0.2,
                 ),
               ),
             ),

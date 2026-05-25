@@ -6,31 +6,39 @@ import '../../../core/router/routes.dart';
 import '../../athlete/domain/athlete_shell_providers.dart';
 import '../domain/arena_list_item.dart';
 import '../domain/arena_slot.dart';
+import 'arena_detail_route_extra.dart';
 
-void openArenaDetail(BuildContext context, ArenaListItem arena) {
+void openArenaDetail(
+  BuildContext context,
+  ArenaListItem arena, {
+  bool isBestPrice = false,
+}) {
   context.pushNamed(
     AppRouteNames.arenaDetail,
     pathParameters: {'arenaId': arena.id},
-    extra: arena,
+    extra: ArenaDetailRouteExtra(arena: arena, isBestPrice: isBestPrice),
   );
 }
 
 void openArenaBookingSlots(
   BuildContext context, {
   required ArenaListItem arena,
-  required ArenaSlot? slot,
+  ArenaSlot? slot,
   required DateTime date,
+  String? courtId,
 }) {
   final y = date.year.toString().padLeft(4, '0');
   final m = date.month.toString().padLeft(2, '0');
   final d = date.day.toString().padLeft(2, '0');
   final dateKey = '$y-$m-$d';
+  final resolvedCourtId =
+      courtId?.trim().isNotEmpty == true ? courtId!.trim() : slot?.courtId.trim();
   context.pushNamed(
     AppRouteNames.arenaSlots,
     pathParameters: {'arenaId': arena.id},
     queryParameters: <String, String>{
-      if (slot?.courtId.trim().isNotEmpty == true)
-        'courtId': slot!.courtId.trim(),
+      if (resolvedCourtId != null && resolvedCourtId.isNotEmpty)
+        'courtId': resolvedCourtId,
       if (slot?.startTime.trim().isNotEmpty == true)
         'startTime': slot!.startTime.trim(),
       'date': dateKey,

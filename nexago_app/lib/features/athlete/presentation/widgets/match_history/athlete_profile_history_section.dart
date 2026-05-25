@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../../core/router/routes.dart';
 import '../../../domain/match_history/athlete_match_history_providers.dart';
 import '../athlete_profile_section_header.dart';
 import 'match_history_match_card.dart';
@@ -37,7 +39,14 @@ class AthleteProfileHistorySection extends ConsumerWidget {
             ),
             const SizedBox(height: 10),
             ...items.map(
-              (m) => MatchHistoryMatchCard(match: m, compact: true),
+              (m) => MatchHistoryMatchCard(
+                match: m,
+                compact: true,
+                onTap: () => context.pushNamed(
+                  AppRouteNames.athleteMatchDetail,
+                  pathParameters: {'matchId': m.id},
+                ),
+              ),
             ),
           ],
         );

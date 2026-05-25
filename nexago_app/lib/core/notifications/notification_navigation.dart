@@ -20,6 +20,31 @@ void navigateFromNotification(
 String? _resolveRoute(Map<String, dynamic> data) {
   final type = (data['type'] as String?)?.toLowerCase().trim() ?? '';
 
+  final url = (data['url'] as String?)?.trim();
+  if (url != null && url.startsWith('/')) {
+    return url;
+  }
+
+  if (type == 'slot_vacancy_available') {
+    final arenaId = (data['arenaId'] as String?)?.trim() ?? '';
+    if (arenaId.isEmpty) return null;
+    final date = (data['date'] as String?)?.trim();
+    final courtId = (data['courtId'] as String?)?.trim();
+    final startTime = (data['startTime'] as String?)?.trim();
+    final path = AppRoutes.arenaSlots.replaceAll(':arenaId', arenaId);
+    final params = <String, String>{};
+    if (date != null && date.isNotEmpty) params['date'] = date;
+    if (courtId != null && courtId.isNotEmpty) params['courtId'] = courtId;
+    if (startTime != null && startTime.isNotEmpty) {
+      params['startTime'] = startTime;
+    }
+    if (params.isEmpty) return path;
+    final query = params.entries
+        .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+        .join('&');
+    return '$path?$query';
+  }
+
   // Fluxo de reserva (atleta) -> tela de reservas.
   if (type.contains('booking') || data['bookingId'] != null) {
     return AppRoutes.myBookings;

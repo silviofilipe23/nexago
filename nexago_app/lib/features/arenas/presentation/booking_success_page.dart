@@ -1,241 +1,401 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/layout/app_scaffold.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../domain/arena_booking_labels.dart';
+import '../domain/arena_booking_success_actions.dart';
+import '../domain/arena_booking_success_args.dart';
+import '../domain/arenas_providers.dart';
+import 'widgets/booking_success/booking_success_action_grid.dart';
+import 'widgets/booking_success/booking_success_confetti.dart';
+import 'widgets/booking_success/booking_success_header.dart';
+import 'widgets/booking_success/booking_success_ticket_card.dart';
 
-/// Argumentos opcionais para [BookingSuccessPage] (via `GoRouterState.extra`).
-class BookingSuccessArgs {
-  const BookingSuccessArgs({
-    required this.arenaName,
-    required this.dateLabel,
-    required this.timeRangeLabel,
-    this.bookingIds = const [],
-    this.amountLabel,
-    this.paymentLabel,
-    /// Ex.: `Pagamento confirmado` (Mercado Pago) ou `Reserva registrada` (pagamento no local).
-    this.headline,
-  });
+export '../domain/arena_booking_success_args.dart' show BookingSuccessArgs;
 
-  final String arenaName;
-  final String dateLabel;
-  final String timeRangeLabel;
-  final List<String> bookingIds;
-  final String? amountLabel;
-  final String? paymentLabel;
-  final String? headline;
-}
-
-/// Confirmação após `createBookingAtomically` (paridade com `/arenas/:id/book/success` no web).
-class BookingSuccessPage extends StatelessWidget {
-  const BookingSuccessPage({
-    super.key,
-    this.args,
-  });
+/// Confirmação após `createBookingAtomically` ou PIX pago.
+class BookingSuccessPage extends ConsumerWidget {
+  const BookingSuccessPage({super.key, this.args});
 
   final BookingSuccessArgs? args;
 
-  static final _currency = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 2,
-  );
-
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  Widget build(BuildContext context, WidgetRef ref) {
     final state = GoRouterState.of(context);
     final q = state.uri.queryParameters;
-    final extraFromState =
-        state.extra is BookingSuccessArgs ? state.extra! as BookingSuccessArgs : null;
-    final merged = _mergeDisplay(extra: extraFromState ?? args, query: q);
+    final extraFromState = state.extra is BookingSuccessArgs
+        ? state.extra! as BookingSuccessArgs
+        : null;
+    final resolved = _resolveArgs(
+      extra: extraFromState ?? args,
+      query: q,
+      pathArenaId: state.pathParameters['arenaId'],
+    );
 
-    return AppScaffold(
-      title: 'Reserva',
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: FadeSlideIn(
-            child: Column(
-              children: [
-              const SizedBox(height: 24),
-              Container(
-                width: 88,
-                height: 88,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.brand.withValues(alpha: 0.2),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
+    if (resolved == null) {
+      return _successScaffold(
+        body: Center(
+          child: TextButton(
+            onPressed: () => context.go(AppRoutes.discover),
+            child: const Text('Voltar ao início'),
+          ),
+        ),
+      );
+    }
+
+    final arenaAsync = resolved.arenaId.isNotEmpty
+        ? ref.watch(arenaByIdProvider(resolved.arenaId))
+        : null;
+    final arena = arenaAsync?.valueOrNull;
+
+    final bookingId = resolved.primaryBookingId ?? '';
+    final paymentSubtitle = ArenaBookingSuccessActions.formatPaymentSubtitle(
+      paymentApproved: resolved.paymentApproved,
+      amountReais: resolved.amountReais,
+      bookingId: bookingId.isEmpty ? '—' : bookingId,
+    );
+    final ticketDate = formatTicketDateCompact(resolved.dateKey);
+    final ticketTime = _ticketTimeRange(resolved.startTime, resolved.endTime);
+    final locationLabel = '${resolved.arenaName} · ${resolved.courtName}';
+    final statusBarHeight = MediaQuery.paddingOf(context).top;
+    final confettiFallHeight = statusBarHeight + 300;
+
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: Stack(
+        children: [
+          Positioned(
+            top: -80,
+            left: 0,
+            right: 0,
+            child: Container(
+              height: 220,
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.topCenter,
+                  radius: 1.2,
+                  colors: [
+                    AppColors.win.withValues(alpha: 0.12),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: confettiFallHeight,
+            child: IgnorePointer(
+              child: BookingSuccessConfetti(statusBarHeight: statusBarHeight),
+            ),
+          ),
+          SafeArea(
+            child: FadeSlideIn(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+                child: Column(
+                  children: [
+                    BookingSuccessHeader(paymentSubtitle: paymentSubtitle),
+                    const SizedBox(height: 24),
+                    BookingSuccessTicketCard(
+                      dateCompact: ticketDate,
+                      timeRange: ticketTime,
+                      locationLabel: locationLabel,
+                      qrPayload: bookingId,
+                    ),
+                    const SizedBox(height: 20),
+                    BookingSuccessActionGrid(
+                      onCalendar: () =>
+                          _openCalendar(context, resolved, locationLabel),
+                      onShare: () => _shareBooking(context, resolved),
+                      onWhatsApp: () =>
+                          _openWhatsApp(context, resolved, arena?.whatsapp),
+                      onDirections: () => _openMaps(
+                        context,
+                        arenaName: resolved.arenaName,
+                        locationLabel: arena?.locationLabel,
+                        addressLine: arena?.addressLine,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: FilledButton(
+                        onPressed: () => context.go(AppRoutes.myBookings),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.brand,
+                          foregroundColor: AppColors.black,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Ver minha reserva',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15,
+                              ),
+                            ),
+                            SizedBox(width: 6),
+                            Icon(Icons.arrow_forward_rounded, size: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextButton(
+                      onPressed: () => context.go(AppRoutes.discover),
+                      child: Text(
+                        'Voltar ao início',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.onSurfaceMuted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ],
                 ),
-                child: Icon(
-                  Icons.check_rounded,
-                  size: 52,
-                  color: AppColors.brand,
-                ),
               ),
-              const SizedBox(height: 28),
-              Text(
-                merged.headline ?? 'Reserva registrada',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                merged.bodyText,
-                style: theme.textTheme.bodyLarge?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.75),
-                  height: 1.45,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              if (merged.bookingId != null && merged.bookingId!.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Text(
-                  'Código: ${merged.bookingId}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-              if (merged.paymentLabel != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  merged.paymentLabel!,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.55),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-              const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: FilledButton(
-                  onPressed: () => context.go(AppRoutes.discover),
-                  style: FilledButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    'Ir para início',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () {
-                  if (context.canPop()) {
-                    context.pop();
-                  } else {
-                    context.go(AppRoutes.discover);
-                  }
-                },
-                child: const Text('Fechar'),
-              ),
-            ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 
-  _SuccessDisplay _mergeDisplay({
+  static Widget _successScaffold({required Widget body}) {
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: body,
+    );
+  }
+
+  static String _ticketTimeRange(String start, String end) {
+    final s = start.length >= 5 ? start.substring(0, 5) : start;
+    final e = end.length >= 5 ? end.substring(0, 5) : end;
+    if (s.isEmpty && e.isEmpty) return '—';
+    return '$s - $e'.trim();
+  }
+
+  Future<void> _shareBooking(
+    BuildContext context,
+    BookingSuccessArgs resolved,
+  ) async {
+    final id = resolved.primaryBookingId ?? '';
+    final text = ArenaBookingSuccessActions.buildBookingShareMessage(
+      arenaName: resolved.arenaName,
+      courtName: resolved.courtName,
+      dateLabel: resolved.dateLabel,
+      timeRangeLabel: resolved.timeRangeLabel,
+      bookingId: id,
+    );
+    await Share.share(text);
+  }
+
+  Future<void> _openCalendar(
+    BuildContext context,
+    BookingSuccessArgs resolved,
+    String locationLabel,
+  ) async {
+    final url = ArenaBookingSuccessActions.buildGoogleCalendarEventUrl(
+      title: 'Reserva · ${resolved.arenaName}',
+      dateKey: resolved.dateKey,
+      startTime: resolved.startTime,
+      endTime: resolved.endTime,
+      details: resolved.primaryBookingId != null
+          ? 'Código ${ArenaBookingSuccessActions.formatBookingDisplayCode(resolved.primaryBookingId!)}'
+          : null,
+      location: locationLabel,
+    );
+    if (url == null) {
+      if (context.mounted) {
+        showAppSnackBar(
+          context,
+          'Não foi possível montar o evento.',
+          isError: true,
+        );
+      }
+      return;
+    }
+    final uri = Uri.parse(url);
+    if (!await canLaunchUrl(uri)) {
+      if (context.mounted) {
+        showAppSnackBar(
+          context,
+          'Não foi possível abrir o calendário.',
+          isError: true,
+        );
+      }
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _openWhatsApp(
+    BuildContext context,
+    BookingSuccessArgs resolved,
+    String? whatsapp,
+  ) async {
+    final id = resolved.primaryBookingId ?? '';
+    final message = ArenaBookingSuccessActions.buildBookingShareMessage(
+      arenaName: resolved.arenaName,
+      courtName: resolved.courtName,
+      dateLabel: resolved.dateLabel,
+      timeRangeLabel: resolved.timeRangeLabel,
+      bookingId: id,
+    );
+    final url = ArenaBookingSuccessActions.buildWhatsAppUrl(
+      phone: whatsapp,
+      message: message,
+    );
+    if (url == null) {
+      if (context.mounted) {
+        showAppSnackBar(
+          context,
+          'Esta arena ainda não cadastrou WhatsApp. Use Compartilhar para enviar aos amigos.',
+        );
+      }
+      return;
+    }
+    final uri = Uri.parse(url);
+    if (!await canLaunchUrl(uri)) {
+      if (context.mounted) {
+        showAppSnackBar(
+          context,
+          'Não foi possível abrir o WhatsApp.',
+          isError: true,
+        );
+      }
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _openMaps(
+    BuildContext context, {
+    required String arenaName,
+    String? locationLabel,
+    String? addressLine,
+  }) async {
+    final query = ArenaBookingSuccessActions.mapsQueryFromArena(
+      arenaName: arenaName,
+      locationLabel: locationLabel,
+      addressLine: addressLine,
+    );
+    final uri = Uri.parse(ArenaBookingSuccessActions.buildMapsSearchUrl(query));
+    if (!await canLaunchUrl(uri)) {
+      if (context.mounted) {
+        showAppSnackBar(
+          context,
+          'Não foi possível abrir o Google Maps.',
+          isError: true,
+        );
+      }
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  static BookingSuccessArgs? _resolveArgs({
     required BookingSuccessArgs? extra,
     required Map<String, String> query,
+    String? pathArenaId,
   }) {
-    if (extra != null) {
-      final pay = extra.paymentLabel ??
-          (query['payment'] == 'paid'
-              ? 'Pagamento: combinado na arena'
-              : query['payment'] == 'mp_pending'
-                  ? 'Pagamento Mercado Pago: ao concluir, volte ao app.'
-                  : null);
-      final headline = extra.headline ??
-          (query['payment'] == 'mp_ok' ? 'Pagamento confirmado' : null);
-      return _SuccessDisplay(
-        headline: headline,
-        bodyText:
-            '${extra.arenaName}\n${extra.dateLabel} · ${extra.timeRangeLabel}${extra.amountLabel != null ? '\n${extra.amountLabel}' : ''}',
-        bookingId: extra.bookingIds.isNotEmpty ? extra.bookingIds.first : query['bookingId'],
-        paymentLabel: pay,
-      );
+    if (extra != null && extra.arenaName.isNotEmpty) {
+      return _fillFromQuery(extra, query, pathArenaId);
     }
 
-    final arena = query['arenaName'] ?? 'Arena';
+    final arenaId = (query['arenaId'] ?? pathArenaId ?? '').trim();
+    final arenaName = query['arenaName'] ?? 'Arena';
+    final courtName = query['courtName'] ?? 'Quadra';
     final dateRaw = query['date'] ?? '';
     final start = query['startTime'] ?? '';
     final end = query['endTime'] ?? '';
-    final bookingId = query['bookingId'];
+    final bookingId = query['bookingId']?.trim();
     final amountRaw = query['amountReais'];
-    final payment = query['payment'];
+    final payment = query['payment'] ?? '';
 
+    if (dateRaw.length < 10) return null;
+
+    final dateKey = dateRaw.length >= 10 ? dateRaw.substring(0, 10) : dateRaw;
     String dateLabel = dateRaw;
-    if (dateRaw.length >= 10) {
-      final d = DateTime.tryParse(dateRaw.substring(0, 10));
-      if (d != null) {
-        dateLabel = DateFormat('d MMM yyyy', 'pt_BR').format(d);
-      }
+    final d = DateTime.tryParse(dateKey);
+    if (d != null) {
+      dateLabel = DateFormat('d MMM yyyy', 'pt_BR').format(d);
     }
-
-    final timeRange = (start.isNotEmpty && end.isNotEmpty) ? '$start – $end' : '';
+    final timeRangeLabel = (start.isNotEmpty && end.isNotEmpty)
+        ? '$start – $end'
+        : '';
     final amount = amountRaw != null ? double.tryParse(amountRaw) : null;
-    final amountStr = amount != null ? _currency.format(amount) : null;
+    final paymentApproved = payment == 'pix_ok' || payment == 'mp_ok';
 
-    final buf = StringBuffer()..write(arena);
-    if (dateLabel.isNotEmpty) {
-      buf.write('\n$dateLabel');
-      if (timeRange.isNotEmpty) buf.write(' · $timeRange');
-    }
-    if (amountStr != null) buf.write('\n$amountStr');
-
-    return _SuccessDisplay(
-      headline: payment == 'mp_ok'
-          ? 'Pagamento confirmado'
-          : payment == 'paid'
-              ? 'Reserva registrada'
-              : null,
-      bodyText: buf.toString().trim(),
-      bookingId: bookingId,
-      paymentLabel: payment == 'paid'
-          ? 'Pagamento: combinado na arena'
-          : payment == 'mp_pending'
-              ? 'Pagamento Mercado Pago: ao concluir, volte ao app.'
-              : null,
+    return BookingSuccessArgs(
+      arenaId: arenaId,
+      arenaName: arenaName,
+      courtName: courtName,
+      dateKey: dateKey,
+      startTime: start.length >= 5 ? start.substring(0, 5) : start,
+      endTime: end.length >= 5 ? end.substring(0, 5) : end,
+      dateLabel: dateLabel,
+      timeRangeLabel: timeRangeLabel,
+      bookingIds: bookingId != null && bookingId.isNotEmpty
+          ? <String>[bookingId]
+          : const [],
+      amountReais: amount,
+      paymentApproved: paymentApproved,
     );
   }
-}
 
-class _SuccessDisplay {
-  const _SuccessDisplay({
-    required this.bodyText,
-    this.headline,
-    this.bookingId,
-    this.paymentLabel,
-  });
+  static BookingSuccessArgs _fillFromQuery(
+    BookingSuccessArgs extra,
+    Map<String, String> query,
+    String? pathArenaId,
+  ) {
+    final bookingId = extra.primaryBookingId ?? query['bookingId'];
+    final payment = query['payment'] ?? '';
+    final paymentApproved =
+        extra.paymentApproved || payment == 'pix_ok' || payment == 'mp_ok';
+    final amountRaw = query['amountReais'];
+    final amount =
+        extra.amountReais ??
+        (amountRaw != null ? double.tryParse(amountRaw) : null);
 
-  final String? headline;
-  final String bodyText;
-  final String? bookingId;
-  final String? paymentLabel;
+    return BookingSuccessArgs(
+      arenaId: extra.arenaId.isNotEmpty
+          ? extra.arenaId
+          : (query['arenaId'] ?? pathArenaId ?? ''),
+      arenaName: extra.arenaName,
+      courtName: extra.courtName,
+      dateKey: extra.dateKey.isNotEmpty
+          ? extra.dateKey
+          : (query['date']?.length == 10 ? query['date']! : ''),
+      startTime: extra.startTime,
+      endTime: extra.endTime,
+      dateLabel: extra.dateLabel,
+      timeRangeLabel: extra.timeRangeLabel,
+      bookingIds: extra.bookingIds.isNotEmpty
+          ? extra.bookingIds
+          : (bookingId != null && bookingId.isNotEmpty
+                ? <String>[bookingId]
+                : const []),
+      amountReais: amount,
+      paymentApproved: paymentApproved,
+      amountLabel: extra.amountLabel,
+      paymentLabel: extra.paymentLabel,
+      headline: extra.headline,
+    );
+  }
 }

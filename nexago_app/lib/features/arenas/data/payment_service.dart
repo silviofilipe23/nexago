@@ -35,7 +35,7 @@ class ArenaBookingPaymentResult {
 /// Chama a Cloud Function e abre o checkout (navegador in-app ou externo).
 class PaymentService {
   PaymentService({FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+    : _functions = functions ?? FirebaseFunctions.instance;
 
   final FirebaseFunctions _functions;
 
@@ -53,18 +53,23 @@ class PaymentService {
   Future<ArenaBookingPixPaymentResult> createArenaBookingPixPayment({
     required String bookingId,
     String? cpfCnpj,
+    double? paymentFraction,
   }) async {
     if (bookingId.isEmpty) {
       throw PaymentException('Reserva inválida.');
     }
 
     try {
-      final callable =
-          _functions.httpsCallable(_callableCreateArenaBookingPixPayment);
+      final callable = _functions.httpsCallable(
+        _callableCreateArenaBookingPixPayment,
+      );
       final payload = <String, dynamic>{'bookingId': bookingId};
       final cpf = cpfCnpj?.replaceAll(RegExp(r'\D'), '') ?? '';
       if (cpf.length == 11 || cpf.length == 14) {
         payload['cpfCnpj'] = cpf;
+      }
+      if (paymentFraction == 0.5 || paymentFraction == 1.0) {
+        payload['paymentFraction'] = paymentFraction;
       }
       final raw = await callable.call(payload);
       final data = raw.data;
@@ -76,8 +81,7 @@ class PaymentService {
       final qrCode = map['qrCode'] as String?;
       final qrCodeBase64 = map['qrCodeBase64'] as String?;
       final expiresAtRaw = map['expiresAt'] as String?;
-      final amount =
-          (map['amountToPayNowReais'] as num?)?.toDouble();
+      final amount = (map['amountToPayNowReais'] as num?)?.toDouble();
       if (paymentId == null ||
           paymentId.isEmpty ||
           qrCode == null ||
@@ -88,7 +92,7 @@ class PaymentService {
       }
       final expiresAt = expiresAtRaw != null
           ? DateTime.tryParse(expiresAtRaw) ??
-              DateTime.now().add(arenaBookingPixExpiryFallback)
+                DateTime.now().add(arenaBookingPixExpiryFallback)
           : DateTime.now().add(arenaBookingPixExpiryFallback);
       return ArenaBookingPixPaymentResult(
         paymentId: paymentId,
@@ -113,8 +117,9 @@ class PaymentService {
       throw PaymentException('Reserva inválida.');
     }
     try {
-      final callable =
-          _functions.httpsCallable(_callableCancelPendingArenaBookingPayment);
+      final callable = _functions.httpsCallable(
+        _callableCancelPendingArenaBookingPayment,
+      );
       await callable.call(<String, dynamic>{'bookingId': bookingId});
     } on FirebaseFunctionsException catch (e) {
       if (e.code == 'failed-precondition') {
@@ -144,7 +149,9 @@ class PaymentService {
     }
 
     try {
-      final callable = _functions.httpsCallable(_callableCreateArenaBookingMercadoPagoPayment);
+      final callable = _functions.httpsCallable(
+        _callableCreateArenaBookingMercadoPagoPayment,
+      );
       final raw = await callable.call(<String, dynamic>{
         'bookingId': bookingId,
         'userId': userId,
@@ -184,7 +191,9 @@ class PaymentService {
     }
     final can = await canLaunchUrl(uri);
     if (!can) {
-      throw PaymentException('Não foi possível abrir o link de pagamento neste dispositivo.');
+      throw PaymentException(
+        'Não foi possível abrir o link de pagamento neste dispositivo.',
+      );
     }
 
     final mode = kIsWeb ? LaunchMode.platformDefault : LaunchMode.inAppWebView;
@@ -194,7 +203,10 @@ class PaymentService {
       webOnlyWindowName: kIsWeb ? '_blank' : null,
     );
     if (!ok) {
-      final fallback = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final fallback = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
       if (!fallback) {
         throw PaymentException('Não foi possível abrir o link de pagamento.');
       }

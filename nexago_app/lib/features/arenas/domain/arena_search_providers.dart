@@ -4,8 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/location/user_location_providers.dart';
 import '../../../core/location/user_location_snapshot.dart';
 import '../../../features/athlete/domain/athlete_profile_providers.dart';
+import '../../../features/athlete/domain/favorites_providers.dart';
 import 'arena_court.dart';
 import 'arena_list_item.dart';
+import 'arena_search_filter_logic.dart';
+import 'arena_search_filters.dart';
 import 'arena_slot.dart';
 import 'arenas_providers.dart';
 import 'court_pricing.dart';
@@ -13,44 +16,7 @@ import 'nearby_arenas_logic.dart';
 import 'slots_providers.dart';
 import 'slots_query.dart';
 
-@immutable
-class ArenaSearchFilters {
-  const ArenaSearchFilters({
-    required this.date,
-    required this.requestedTime,
-  });
-
-  final DateTime date;
-  final TimeOfDay requestedTime;
-
-  int get requestedMinutes => requestedTime.hour * 60 + requestedTime.minute;
-
-  DateTime get dateOnly => DateTime(date.year, date.month, date.day);
-
-  String get requestedTimeLabel {
-    final hh = requestedTime.hour.toString().padLeft(2, '0');
-    final mm = requestedTime.minute.toString().padLeft(2, '0');
-    return '$hh:$mm';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is ArenaSearchFilters &&
-        other.dateOnly.year == dateOnly.year &&
-        other.dateOnly.month == dateOnly.month &&
-        other.dateOnly.day == dateOnly.day &&
-        other.requestedMinutes == requestedMinutes;
-  }
-
-  @override
-  int get hashCode => Object.hash(
-        dateOnly.year,
-        dateOnly.month,
-        dateOnly.day,
-        requestedMinutes,
-      );
-}
+export 'arena_search_filters.dart';
 
 class ArenaSearchResult {
   const ArenaSearchResult({
@@ -71,28 +37,45 @@ class ArenaSearchResult {
   final int? minutesDistance;
   final double displayPricePerHourReais;
   final bool showStartingFrom;
-
-  /// Quadras com pelo menos um slot livre no dia filtrado.
   final int availableCourtsCount;
 
   bool get hasAvailability => selectedSlot != null;
 }
 
 final arenaSearchResultsProvider = FutureProvider.autoDispose
-    .family<List<ArenaSearchResult>, ArenaSearchFilters>(
-  (ref, filters) async {
+    .family<List<ArenaSearchResult>, ArenaSearchSlotFilters>(
+  (ref, slotFilters) async {
     final arenas = await ref.watch(arenasStreamProvider.future);
     final results = await Future.wait(
-      arenas.map((arena) => buildArenaSearchResult(ref, filters, arena)),
+      arenas.map((arena) => buildArenaSearchResult(ref, slotFilters, arena)),
     );
     results.sort(compareArenaSearchResults);
     return results;
   },
 );
 
+final arenaSearchFilteredProvider = Provider.autoDispose
+    .family<List<FilteredArenaSearchResult>, ArenaSearchFilters>((ref, filters) {
+  final slotAsync = ref.watch(arenaSearchResultsProvider(filters.slot));
+  final location = ref.watch(userLocationProvider).valueOrNull ??
+      const UserLocationSnapshot(source: UserLocationSource.none);
+  final favorites =
+      ref.watch(favoriteArenaIdsProvider).valueOrNull ?? const <String>[];
+
+  return slotAsync.maybeWhen(
+    data: (slotResults) => filterAndSortArenaResults(
+      results: slotResults,
+      filters: filters,
+      userLocation: location,
+      favoriteIds: favorites.toSet(),
+    ),
+    orElse: () => const <FilteredArenaSearchResult>[],
+  );
+});
+
 Future<ArenaSearchResult> buildArenaSearchResult(
   Ref ref,
-  ArenaSearchFilters filters,
+  ArenaSearchSlotFilters filters,
   ArenaListItem arena,
 ) async {
   final courts = await ref.watch(courtsStreamProvider(arena.id).future);
@@ -139,6 +122,26 @@ Future<ArenaSearchResult> buildArenaSearchResult(
       minutesDistance: null,
       displayPricePerHourReais: displayPrice,
       showStartingFrom: showStartingFrom,
+    );
+  }
+
+  if (filters.flexibleTime) {
+    allSlots.sort(
+      (a, b) => arenaSlotTimeToMinutes(a.slot.startTime)
+          .compareTo(arenaSlotTimeToMinutes(b.slot.startTime)),
+    );
+    final picked = allSlots.first;
+    final startMinutes = arenaSlotTimeToMinutes(picked.slot.startTime);
+    final delta = (startMinutes - filters.requestedMinutes).abs();
+    return ArenaSearchResult(
+      arena: arena,
+      selectedSlot: picked.slot,
+      courtName: picked.court.name,
+      isExactMatch: false,
+      minutesDistance: delta,
+      displayPricePerHourReais: displayPrice,
+      showStartingFrom: showStartingFrom,
+      availableCourtsCount: availableCourtsCount,
     );
   }
 
@@ -217,7 +220,6 @@ int arenaSlotTimeToMinutes(String value) {
   return hh * 60 + mm;
 }
 
-/// Resultado mínimo quando a busca de horários falha ou ainda não carregou.
 ArenaSearchResult placeholderArenaSearchResult(ArenaListItem arena) {
   return ArenaSearchResult(
     arena: arena,
@@ -229,12 +231,11 @@ ArenaSearchResult placeholderArenaSearchResult(ArenaListItem arena) {
   );
 }
 
-/// Arenas próximas para empty state de Minhas reservas.
 final myBookingsNearbyTodayProvider =
     FutureProvider.autoDispose<MyBookingsNearbySnapshot>((ref) async {
   ref.watch(athleteProfileProvider);
   final now = DateTime.now();
-  final filters = ArenaSearchFilters(
+  final slotFilters = ArenaSearchSlotFilters(
     date: DateTime(now.year, now.month, now.day),
     requestedTime: TimeOfDay(hour: now.hour, minute: now.minute),
   );
@@ -248,13 +249,11 @@ final myBookingsNearbyTodayProvider =
   final searchById = <String, ArenaSearchResult>{};
   try {
     final searchResults =
-        await ref.watch(arenaSearchResultsProvider(filters).future);
+        await ref.watch(arenaSearchResultsProvider(slotFilters).future);
     for (final r in searchResults) {
       searchById[r.arena.id] = r;
     }
-  } catch (_) {
-    // Horários indisponíveis — ainda listamos arenas da região.
-  }
+  } catch (_) {}
 
   final inRegion = nearbyItems
       .map((a) => searchById[a.id] ?? placeholderArenaSearchResult(a))
@@ -278,7 +277,7 @@ final myBookingsNearbyTodayProvider =
     totalAvailableToday: rankedWithSlots.length,
     topArenas: top,
     rankedArenas: displayRanked,
-    filters: filters,
+    slotFilters: slotFilters,
     userLocation: userLocation,
   );
 });
@@ -288,14 +287,14 @@ class MyBookingsNearbySnapshot {
     required this.totalAvailableToday,
     required this.topArenas,
     required this.rankedArenas,
-    required this.filters,
+    required this.slotFilters,
     required this.userLocation,
   });
 
   final int totalAvailableToday;
   final List<ArenaSearchResult> topArenas;
   final List<RankedArenaSearchResult> rankedArenas;
-  final ArenaSearchFilters filters;
+  final ArenaSearchSlotFilters slotFilters;
   final UserLocationSnapshot userLocation;
 
   String get proximityPhrase => userLocation.proximityPhrase;

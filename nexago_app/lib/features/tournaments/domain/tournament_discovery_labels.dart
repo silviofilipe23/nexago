@@ -1,8 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'tournament_discovery_models.dart';
 import 'tournament_listing_status.dart';
+
+final _discoveryCardDateFmt = DateFormat('dd/MM', 'pt_BR');
+
+/// Data curta no card (ex.: 21/04).
+String tournamentDiscoveryCardDateShort(DiscoveryTournament tournament) {
+  return _discoveryCardDateFmt.format(tournament.startDate);
+}
+
+String tournamentDiscoveryCardCtaLabel({
+  required bool isEnrolled,
+  required TournamentListingStatus status,
+}) {
+  if (isEnrolled) return 'Ver inscrição →';
+  if (canRegisterForTournament(status)) return 'Inscrever →';
+  return 'Ver detalhes →';
+}
 
 String tournamentStatusLabel(TournamentListingStatus status) {
   return switch (status) {

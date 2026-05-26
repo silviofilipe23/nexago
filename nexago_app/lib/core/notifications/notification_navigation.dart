@@ -45,6 +45,18 @@ String? _resolveRoute(Map<String, dynamic> data) {
     return '$path?$query';
   }
 
+  if (type == 'tournament_partner_invite') {
+    final inviteId = (data['inviteId'] as String?)?.trim() ?? '';
+    if (inviteId.isEmpty) return null;
+    return AppRoutes.tournamentPartnerInvite.replaceAll(':inviteId', inviteId);
+  }
+
+  if (type == 'booking_invite') {
+    final inviteId = (data['inviteId'] as String?)?.trim() ?? '';
+    if (inviteId.isEmpty) return null;
+    return AppRoutes.bookingInvite.replaceAll(':inviteId', inviteId);
+  }
+
   // Fluxo de reserva (atleta) -> tela de reservas.
   if (type.contains('booking') || data['bookingId'] != null) {
     return AppRoutes.myBookings;

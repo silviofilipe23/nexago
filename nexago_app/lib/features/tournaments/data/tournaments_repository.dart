@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import 'nexago_artifacts_paths.dart';
 import 'tournament_document_mapper.dart';
@@ -28,15 +29,19 @@ class TournamentsRepository {
   }
 
   Stream<DiscoveryTournament?> watchTournament(String id) {
+    return watchTournamentDetail(id).map((d) => d?.toDiscovery());
+  }
+
+  Stream<TournamentDetail?> watchTournamentDetail(String id) {
     if (id.isEmpty) return Stream.value(null);
     return _root.doc(id).snapshots().asyncMap((doc) async {
       if (doc.exists) {
-        return TournamentDocumentMapper.fromSnapshot(doc);
+        return TournamentDocumentMapper.detailFromSnapshot(doc);
       }
       final legacy = await _firestore
           .doc(NexagoArtifactsPaths.legacyTournamentDoc(id))
           .get();
-      return TournamentDocumentMapper.fromSnapshot(legacy);
+      return TournamentDocumentMapper.detailFromSnapshot(legacy);
     });
   }
 }

@@ -7,10 +7,7 @@ import '../../../domain/athlete_quest/athlete_quest_models.dart';
 import '../athlete_home/athlete_home_section_header.dart';
 
 class AthleteQuestBigQuestCard extends StatelessWidget {
-  const AthleteQuestBigQuestCard({
-    super.key,
-    required this.quest,
-  });
+  const AthleteQuestBigQuestCard({super.key, required this.quest});
 
   final AthleteBigQuest quest;
 
@@ -18,14 +15,15 @@ class AthleteQuestBigQuestCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final endsLabel = DateFormat('EEEE', 'pt_BR').format(quest.endsAt);
-    final endsCapitalized =
-        endsLabel.isEmpty ? endsLabel : '${endsLabel[0].toUpperCase()}${endsLabel.substring(1)}';
+    final endsCapitalized = endsLabel.isEmpty
+        ? endsLabel
+        : '${endsLabel[0].toUpperCase()}${endsLabel.substring(1)}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AthleteHomeSectionHeader(
-          title: 'Big quest',
+          title: '',
           trailingAccent: 'DESAFIO DA SEMANA',
           trailingLabel: 'VER REGRAS',
           onTrailingTap: () => showAppSnackBar(context, 'Em breve.'),
@@ -128,7 +126,9 @@ class AthleteQuestBigQuestCard extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: theme.textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: done ? AppColors.brand : AppColors.onSurfaceMuted,
+                        color: done
+                            ? AppColors.brand
+                            : AppColors.onSurfaceMuted,
                         fontSize: 9,
                       ),
                     ),
@@ -162,10 +162,7 @@ class AthleteQuestBigQuestCard extends StatelessWidget {
 }
 
 class _SegmentedBar extends StatelessWidget {
-  const _SegmentedBar({
-    required this.goalCount,
-    required this.completedCount,
-  });
+  const _SegmentedBar({required this.goalCount, required this.completedCount});
 
   final int goalCount;
   final int completedCount;

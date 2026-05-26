@@ -118,6 +118,7 @@ async function sendWebPushToSubscriptions(
 export interface UserNotificationPrefs {
   pushEnabled: boolean;
   availableSlotsTopic: boolean;
+  bookingsAndGamesTopic: boolean;
 }
 
 export async function loadUserNotificationPrefs(
@@ -127,13 +128,14 @@ export async function loadUserNotificationPrefs(
   const data = snap.data() ?? {};
   const prefs = data["notificationPreferences"];
   if (!prefs || typeof prefs !== "object") {
-    return {pushEnabled: true, availableSlotsTopic: false};
+    return {pushEnabled: true, availableSlotsTopic: false, bookingsAndGamesTopic: true};
   }
   const channels = (prefs as {channels?: Record<string, unknown>}).channels;
   const topics = (prefs as {topics?: Record<string, unknown>}).topics;
   const pushEnabled = channels?.["push"] !== false;
   const availableSlotsTopic = topics?.["availableSlots"] === true;
-  return {pushEnabled, availableSlotsTopic};
+  const bookingsAndGamesTopic = topics?.["bookingsAndGames"] !== false;
+  return {pushEnabled, availableSlotsTopic, bookingsAndGamesTopic};
 }
 
 export interface DeliverNotificationInput {
@@ -143,6 +145,8 @@ export interface DeliverNotificationInput {
   type: string;
   data: Record<string, string>;
   requireInteraction?: boolean;
+  /** Se true, grava apenas inbox (sem FCM/Web Push). */
+  skipPush?: boolean;
 }
 
 /**
@@ -151,9 +155,15 @@ export interface DeliverNotificationInput {
 export async function deliverNotificationToUser(
   input: DeliverNotificationInput
 ): Promise<{sent: number; failed: number}> {
-  const {userId, title, body, type, data, requireInteraction = true} = input;
-  const {fcmTokens, webPushSubscriptions} = await getUserNotificationChannels(userId);
+  const {userId, title, body, type, data, requireInteraction = true, skipPush = false} = input;
   const messaging = getMessaging();
+
+  let fcmSuccessful = 0;
+  let fcmFailed = 0;
+  let webPushResult = {sent: 0, failed: 0};
+
+  if (!skipPush) {
+    const {fcmTokens, webPushSubscriptions} = await getUserNotificationChannels(userId);
 
   const message = {
     notification: {title, body},
@@ -172,21 +182,22 @@ export async function deliverNotificationToUser(
     },
   };
 
-  const fcmResults =
-    fcmTokens.length > 0
-      ? await Promise.allSettled(
-        fcmTokens.map((token) => messaging.send({...message, token}))
-      )
-      : [];
+    const fcmResults =
+      fcmTokens.length > 0
+        ? await Promise.allSettled(
+          fcmTokens.map((token) => messaging.send({...message, token}))
+        )
+        : [];
 
-  const fcmSuccessful = fcmResults.filter((r) => r.status === "fulfilled").length;
-  const fcmFailed = fcmResults.length - fcmSuccessful;
+    fcmSuccessful = fcmResults.filter((r) => r.status === "fulfilled").length;
+    fcmFailed = fcmResults.length - fcmSuccessful;
 
-  const webPushResult = await sendWebPushToSubscriptions(webPushSubscriptions, {
-    notification: {title, body},
-    data: {...data, type},
-    requireInteraction,
-  });
+    webPushResult = await sendWebPushToSubscriptions(webPushSubscriptions, {
+      notification: {title, body},
+      data: {...data, type},
+      requireInteraction,
+    });
+  }
 
   const sent = fcmSuccessful + webPushResult.sent;
   const failed = fcmFailed + webPushResult.failed;

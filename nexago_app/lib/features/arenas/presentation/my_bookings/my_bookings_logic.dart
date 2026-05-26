@@ -1,4 +1,3 @@
-import '../../domain/arena_booking_labels.dart';
 import '../../domain/my_booking_item.dart';
 
 export '../../domain/arena_booking_labels.dart' show formatBookingDateHeader;
@@ -84,7 +83,7 @@ Map<String, List<MyBookingItem>> groupUpcomingByDate(
   }
   for (final list in out.values) {
     list.sort(
-      (a, b) => bookingStartMinutes(a).compareTo(bookingStartMinutes(b)),
+      (a, b) => bookingStartMinutes(b).compareTo(bookingStartMinutes(a)),
     );
   }
   return out;

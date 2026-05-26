@@ -1,61 +1,55 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
+import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_listing_status.dart';
 
-/// Mapeia `tournaments/{id}` (ou legado artifacts) → [DiscoveryTournament].
+/// Mapeia `tournaments/{id}` (ou legado artifacts) → [DiscoveryTournament] / [TournamentDetail].
 ///
-/// Campos recomendados no Firestore: `name`, `city`, `location`/`venueName`,
+/// Campos recomendados no Firestore: `name`, `city`, `location`/`locationName`,
 /// `startAt`, `endAt`, `dateLabel`, `format`, `capacity`, `enrolledCount`,
-/// `featured`, `liveMatchesNow`, `listingStatus`, `leagueId`, `leagueStageId`,
-/// `coverUrl` / `imageUrl` / `posterUrl`, `categories[]` com `categoryName`, etc.
+/// `featured`, `liveMatchesNow`, `listingStatus`, `leagueId`, `categories[]`, etc.
 abstract final class TournamentDocumentMapper {
   TournamentDocumentMapper._();
 
-  static final _dateFmt = DateFormat("dd/MM", 'pt_BR');
+  static final _dateFmt = DateFormat('dd/MM', 'pt_BR');
 
-  static DiscoveryTournament? fromSnapshot(DocumentSnapshot<Map<String, dynamic>> doc) {
+  static DiscoveryTournament? fromSnapshot(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
     if (!doc.exists) return null;
     final data = doc.data();
     if (data == null) return null;
     return fromMap(doc.id, data);
   }
 
-  static DiscoveryTournament fromMap(String id, Map<String, dynamic> data) {
-    final categoriesRaw = data['categories'];
-    final offers = <TournamentCategoryOffer>[];
-    final genderCats = <TournamentGenderCat>[];
+  static TournamentDetail? detailFromSnapshot(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    if (!doc.exists) return null;
+    final data = doc.data();
+    if (data == null) return null;
+    return detailFromMap(doc.id, data);
+  }
 
-    if (categoriesRaw is List) {
-      for (final item in categoriesRaw) {
-        if (item is! Map) continue;
-        final map = Map<String, dynamic>.from(item);
-        final name = _str(map['categoryName'] ?? map['name']) ?? 'Categoria';
-        final entryFee = _num(map['entryFee']) ?? 0;
-        final spotsTotal = _int(map['spotsTotal'] ?? map['capacity']) ?? 0;
-        final spotsLeft = _int(map['spotsLeft']) ??
-            (spotsTotal > 0 ? spotsTotal : 0);
-        offers.add(
-          TournamentCategoryOffer(
-            id: name,
-            name: name,
-            entryFee: entryFee,
-            spotsLeft: spotsLeft,
-            spotsTotal: spotsTotal,
-            level: _str(map['level']) ?? '',
-          ),
-        );
-        final g = _parseGender(name);
-        if (g != null && !genderCats.contains(g)) genderCats.add(g);
-      }
-    }
+  static DiscoveryTournament fromMap(String id, Map<String, dynamic> data) {
+    return detailFromMap(id, data).toDiscovery();
+  }
+
+  static TournamentDetail detailFromMap(String id, Map<String, dynamic> data) {
+    final offers = _parseCategoryOffers(data['categories']);
+    final genderCats = _genderCatsFromOffers(offers);
 
     final capacity = _int(data['capacity']) ?? 0;
     final enrolled = _int(data['enrolledCount']) ?? 0;
-    var spotsTotal = capacity > 0 ? capacity : offers.fold<int>(0, (m, o) => m + o.spotsTotal);
+    var spotsTotal = capacity > 0
+        ? capacity
+        : offers.fold<int>(0, (m, o) => m + o.spotsTotal);
     if (spotsTotal <= 0 && offers.isNotEmpty) spotsTotal = 32;
-    var spotsLeft = spotsTotal > 0 ? (spotsTotal - enrolled).clamp(0, spotsTotal) : 0;
+    var spotsLeft = spotsTotal > 0
+        ? (spotsTotal - enrolled).clamp(0, spotsTotal)
+        : 0;
     if (offers.isNotEmpty) {
       final offerMins = offers
           .map((o) => o.spotsLeft)
@@ -70,11 +64,14 @@ abstract final class TournamentDocumentMapper {
     final endAt = _timestamp(data['endAt'] ?? data['endDate']);
     final minFee = offers.isEmpty
         ? (_num(data['entryFee']) ?? 0)
-        : offers.map((o) => o.entryFee).where((f) => f > 0).fold<double?>(
-            null,
-            (min, f) => min == null || f < min ? f : min,
-          ) ??
-            0;
+        : offers
+                  .map((o) => o.entryFee)
+                  .where((f) => f > 0)
+                  .fold<double?>(
+                    null,
+                    (min, f) => min == null || f < min ? f : min,
+                  ) ??
+              0;
 
     final status = resolveListingStatus(
       listingStatusRaw: _str(data['listingStatus'] ?? data['status']),
@@ -84,16 +81,22 @@ abstract final class TournamentDocumentMapper {
       liveMatchesNow: _int(data['liveMatchesNow']) ?? 0,
     );
 
-    final dateLabel = _str(data['dateLabel']) ??
-        _formatDateRange(startAt, endAt);
+    final dateLabel =
+        _str(data['dateLabel']) ?? _formatDateRange(startAt, endAt);
 
-    return DiscoveryTournament(
+    final location =
+        _str(data['locationName']) ??
+        _str(data['location'] ?? data['venueName']) ??
+        'Local a confirmar';
+
+    return TournamentDetail(
       id: id,
       name: _str(data['name']) ?? 'Torneio',
-      location: _str(data['location'] ?? data['venueName']) ?? 'Local a confirmar',
+      location: location,
       city: _str(data['city']) ?? 'Cidade a confirmar',
       dateLabel: dateLabel,
       startDate: startAt ?? DateTime.now(),
+      endDate: endAt,
       categories: genderCats.isNotEmpty
           ? genderCats
           : const [TournamentGenderCat.mix],
@@ -111,7 +114,119 @@ abstract final class TournamentDocumentMapper {
       leagueStageId: _str(data['leagueStageId']),
       imageUrl: _imageUrl(data),
       categoryOffers: offers,
+      locationAddress: _str(data['locationAddress']),
+      regulationsText: _str(data['regulationsText']),
+      managerId: _str(data['managerId']),
+      leagueStageOrder: _int(data['leagueStageOrder']),
+      leagueStageName: _str(data['leagueStageName']),
+      tournamentPrizes: _parsePrizes(data['prizes']),
     );
+  }
+
+  static List<TournamentCategoryOffer> _parseCategoryOffers(dynamic raw) {
+    final offers = <TournamentCategoryOffer>[];
+    if (raw is! List) return offers;
+
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final map = Map<String, dynamic>.from(item);
+      final name = _str(map['categoryName'] ?? map['name']) ?? 'Categoria';
+      final entryFee = _num(map['entryFee']) ?? 0;
+      final maxTeams = _int(map['maxTeams']) ?? 0;
+      final spotsTotalLegacy =
+          _int(map['spotsTotal'] ?? map['capacity']) ?? 0;
+      final capacity = maxTeams > 0 ? maxTeams : spotsTotalLegacy;
+      final spotsLeft =
+          _int(map['spotsLeft']) ?? (capacity > 0 ? capacity : 0);
+      offers.add(
+        TournamentCategoryOffer(
+          id: name,
+          name: name,
+          entryFee: entryFee,
+          spotsLeft: spotsLeft,
+          maxTeams: capacity,
+          spotsTotal: capacity,
+          level: _str(map['level']) ?? '',
+          genderType: _str(map['genderType']) ?? '',
+          bracketFormat: _str(map['bracketFormat']) ?? '',
+          registrationClosed: map['registrationClosed'] == true,
+          isCompleted: map['isCompleted'] == true,
+          prizes: _parseCategoryPrizes(map['prizes']),
+        ),
+      );
+    }
+    return offers;
+  }
+
+  static List<TournamentCategoryPrize> _parseCategoryPrizes(dynamic raw) {
+    return _parsePrizeList(raw);
+  }
+
+  static List<TournamentPrize> _parsePrizes(dynamic raw) {
+    final items = _parsePrizeList(raw);
+    return items
+        .map(
+          (p) => TournamentPrize(
+            position: p.position,
+            value: p.value,
+            label: p.label,
+          ),
+        )
+        .toList();
+  }
+
+  /// Prêmios em `categories[].prizes` ou `prizes[]` no torneio.
+  ///
+  /// No volley-track, `value` é gravado como **string** (`"2000"`, `"R$ 2.000,00"`).
+  static List<TournamentCategoryPrize> _parsePrizeList(dynamic raw) {
+    if (raw is! List) return const [];
+    final out = <TournamentCategoryPrize>[];
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final map = Map<String, dynamic>.from(item);
+      final position =
+          _str(map['position']) ??
+          _str(map['place']) ??
+          _str(map['rank']) ??
+          '${out.length + 1}';
+      final value = _parseMoneyValue(map['value'] ?? map['amount']) ?? 0;
+      if (position.isEmpty && value <= 0) continue;
+      out.add(
+        TournamentCategoryPrize(
+          position: position,
+          value: value,
+          label: _str(map['label'] ?? map['description']),
+        ),
+      );
+    }
+    return out;
+  }
+
+  static double? _parseMoneyValue(dynamic v) {
+    if (v is num) return v.toDouble();
+    if (v is! String) return null;
+    var s = v.trim();
+    if (s.isEmpty) return null;
+
+    s = s.replaceAll('R\$', '').replaceAll(r'R$', '').trim();
+    s = s.replaceAll(' ', '');
+
+    if (s.contains(',')) {
+      s = s.replaceAll('.', '').replaceAll(',', '.');
+    }
+
+    return double.tryParse(s);
+  }
+
+  static List<TournamentGenderCat> _genderCatsFromOffers(
+    List<TournamentCategoryOffer> offers,
+  ) {
+    final genderCats = <TournamentGenderCat>[];
+    for (final o in offers) {
+      final g = _parseGender(o.name) ?? _parseGender(o.genderType);
+      if (g != null && !genderCats.contains(g)) genderCats.add(g);
+    }
+    return genderCats;
   }
 
   static String? _imageUrl(Map<String, dynamic> data) {
@@ -132,7 +247,8 @@ abstract final class TournamentDocumentMapper {
     final n = name.toLowerCase();
     if (n.contains('masc') || n == 'm') return TournamentGenderCat.m;
     if (n.contains('fem') || n == 'f') return TournamentGenderCat.f;
-    if (n.contains('misto') || n.contains('mix')) return TournamentGenderCat.mix;
+    if (n.contains('misto') || n.contains('mix'))
+      return TournamentGenderCat.mix;
     return null;
   }
 
@@ -150,7 +266,9 @@ abstract final class TournamentDocumentMapper {
   static String _formatDateRange(DateTime? start, DateTime? end) {
     if (start == null) return 'Data a confirmar';
     if (end == null) return _dateFmt.format(start);
-    if (start.year == end.year && start.month == end.month && start.day == end.day) {
+    if (start.year == end.year &&
+        start.month == end.month &&
+        start.day == end.day) {
       return _dateFmt.format(start);
     }
     return '${_dateFmt.format(start)} – ${_dateFmt.format(end)}';

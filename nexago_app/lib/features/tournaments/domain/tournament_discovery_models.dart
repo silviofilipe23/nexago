@@ -103,8 +103,14 @@ class TournamentCategoryOffer {
     required this.name,
     required this.entryFee,
     this.spotsLeft = 0,
+    this.maxTeams = 0,
     this.spotsTotal = 0,
     this.level = '',
+    this.genderType = '',
+    this.bracketFormat = '',
+    this.registrationClosed = false,
+    this.isCompleted = false,
+    this.prizes = const [],
   });
 
   /// Id usado em inscrição / MP (`categoryName`).
@@ -112,8 +118,28 @@ class TournamentCategoryOffer {
   final String name;
   final double entryFee;
   final int spotsLeft;
+  /// Capacidade máxima da categoria (duplas ou vagas individuais).
+  final int maxTeams;
+  /// Legado / agregação; alinhado a [maxTeams] quando o Firestore envia `maxTeams`.
   final int spotsTotal;
   final String level;
+  final String genderType;
+  final String bracketFormat;
+  final bool registrationClosed;
+  final bool isCompleted;
+  final List<TournamentCategoryPrize> prizes;
+}
+
+class TournamentCategoryPrize {
+  const TournamentCategoryPrize({
+    required this.position,
+    required this.value,
+    this.label,
+  });
+
+  final String position;
+  final double value;
+  final String? label;
 }
 
 class TournamentDiscoveryLiveStats {

@@ -1,15 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/ui/app_snackbar.dart';
+import '../../athlete/domain/daily_mission_sync_provider.dart';
+import '../domain/tournament_detail_logic.dart';
+import '../domain/tournament_detail_tab.dart';
 import '../domain/tournament_discovery_helpers.dart';
-import '../domain/tournament_discovery_models.dart';
+import '../data/tournament_inscriptions_repository.dart';
 import '../domain/tournament_discovery_providers.dart';
 import '../domain/tournament_listing_status.dart';
-import '../../athlete/domain/daily_mission_sync_provider.dart';
-import 'widgets/tournament_discovery_card.dart';
+import 'widgets/tournament_detail/tournament_detail_bottom_bar.dart';
+import 'widgets/tournament_detail/tournament_detail_bracket_tab.dart';
+import 'widgets/tournament_detail/tournament_detail_categories_tab.dart';
+import 'widgets/tournament_detail/tournament_detail_groups_tab.dart';
+import 'widgets/tournament_detail/tournament_detail_hero.dart';
+import 'widgets/tournament_detail/tournament_detail_overview_tab.dart';
+import 'widgets/tournament_detail/tournament_detail_prizes_tab.dart';
+import 'widgets/tournament_detail/tournament_detail_tab_bar.dart';
 
 class TournamentDetailPage extends ConsumerStatefulWidget {
   const TournamentDetailPage({super.key, required this.tournamentId});
@@ -21,33 +32,53 @@ class TournamentDetailPage extends ConsumerStatefulWidget {
       _TournamentDetailPageState();
 }
 
-class _TournamentDetailPageState extends ConsumerState<TournamentDetailPage> {
+class _TournamentDetailPageState extends ConsumerState<TournamentDetailPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(
+      length: TournamentDetailTab.values.length,
+      vsync: this,
+    );
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  TournamentDetailTab get _currentTab =>
+      TournamentDetailTab.values[_tabController.index];
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final tournamentAsync =
         ref.watch(tournamentDetailProvider(widget.tournamentId));
     final leaguesAsync = ref.watch(discoveryLeaguesProvider);
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      appBar: AppBar(
-        backgroundColor: AppColors.canvas,
-        title: const Text('Torneio'),
-      ),
       body: tournamentAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
-        error: (e, _) => Center(
-          child: Text(
-            'Não foi possível carregar o torneio.\n$e',
-            style: theme.textTheme.bodyLarge?.copyWith(color: AppColors.live),
-          ),
+        error: (e, _) => _ErrorBody(
+          message: 'Não foi possível carregar o torneio.\n$e',
+          onBack: () => context.pop(),
         ),
         data: (tournament) {
           if (tournament == null) {
-            return const Center(child: Text('Torneio não encontrado.'));
+            return _ErrorBody(
+              message: 'Torneio não encontrado.',
+              onBack: () => context.pop(),
+            );
           }
 
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -59,131 +90,167 @@ class _TournamentDetailPageState extends ConsumerState<TournamentDetailPage> {
 
           final leagues = leaguesAsync.valueOrNull ?? [];
           final leagueCtx = resolveLeagueContext(leagues, tournament.id);
-          final categories = tournament.categoryOffers;
+          final enrollment = ref
+                  .watch(
+                    tournamentCategoryEnrollmentCountsProvider(
+                      widget.tournamentId,
+                    ),
+                  )
+                  .valueOrNull ??
+              const <String, int>{};
+          final stats = tournamentDetailStats(
+            tournament,
+            enrollmentByCategoryId: enrollment,
+          );
+          final organizerName = ref.watch(
+            tournamentOrganizerDisplayProvider(tournament.managerId ?? ''),
+          );
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+          final canRegister = canRegisterForTournament(tournament.status);
+          final ctaLabel = canRegister ? 'Inscrever →' : 'Ver detalhes →';
+          final showBottomBar = _currentTab == TournamentDetailTab.overview;
+
+          return Column(
             children: [
-              if (leagueCtx != null) ...[
-                Text(
-                  leagueContextLabel(leagueCtx),
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: AppColors.brand,
-                    fontWeight: FontWeight.w700,
+              Expanded(
+                child: NestedScrollView(
+                  headerSliverBuilder: (context, innerBoxIsScrolled) {
+                    return [
+                      SliverAppBar(
+                        pinned: true,
+                        backgroundColor: AppColors.canvas,
+                        elevation: 0,
+                        scrolledUnderElevation: 0,
+                        leading: IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back_rounded,
+                            color: AppColors.onSurface,
+                          ),
+                          onPressed: () => context.pop(),
+                        ),
+                        actions: [
+                          IconButton(
+                            icon: const Icon(
+                              Icons.bookmark_border_rounded,
+                              color: AppColors.onSurface,
+                            ),
+                            onPressed: () {
+                              showAppSnackBar(
+                                context,
+                                'Favoritos em breve.',
+                              );
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.ios_share_rounded,
+                              color: AppColors.onSurface,
+                            ),
+                            onPressed: () =>
+                                _shareTournament(tournament.name),
+                          ),
+                        ],
+                      ),
+                      SliverToBoxAdapter(
+                        child: TournamentDetailHero(
+                          tournament: tournament,
+                          stats: stats,
+                        ),
+                      ),
+                      SliverPersistentHeader(
+                        pinned: true,
+                        delegate: TournamentDetailTabBarHeader(
+                          selected: _currentTab,
+                          onSelected: (tab) {
+                            _tabController.animateTo(tab.index);
+                          },
+                        ),
+                      ),
+                    ];
+                  },
+                  body: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      TournamentDetailOverviewTab(
+                        tournament: tournament,
+                        organizerName: organizerName,
+                        leagueContextLabel: leagueCtx != null
+                            ? leagueContextLabel(leagueCtx)
+                            : null,
+                        enrollmentByCategoryId: enrollment,
+                      ),
+                      TournamentDetailCategoriesTab(
+                        tournament: tournament,
+                        enrollmentByCategoryId: enrollment,
+                      ),
+                      TournamentDetailBracketTab(tournament: tournament),
+                      TournamentDetailGroupsTab(tournament: tournament),
+                      TournamentDetailPrizesTab(tournament: tournament),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
-              ],
-              TournamentDiscoveryCard(
-                tournament: tournament,
-                onTap: () {},
               ),
-              const SizedBox(height: 20),
-              Text(
-                'Categorias',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
+              if (showBottomBar)
+                TournamentDetailBottomBar(
+                  enabled: true,
+                  label: ctaLabel,
+                  onPressed: () {
+                    if (canRegister) {
+                      context.pushNamed(
+                        AppRouteNames.tournamentRegistration,
+                        pathParameters: {'tournamentId': tournament.id},
+                      );
+                    } else {
+                      context.pop();
+                    }
+                  },
                 ),
-              ),
-              const SizedBox(height: 10),
-              if (categories.isEmpty)
-                Text(
-                  'Categorias serão publicadas em breve pelo organizador.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
-                  ),
-                )
-              else
-                for (final cat in categories) ...[
-                  _CategoryTile(category: cat),
-                  const SizedBox(height: 8),
-                ],
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: FilledButton(
-                  onPressed: canRegisterForTournament(tournament.status)
-                      ? () => context.pushNamed(
-                            AppRouteNames.tournamentRegistration,
-                            pathParameters: {'tournamentId': tournament.id},
-                          )
-                      : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: Text(
-                    'Inscrever-se',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.black,
-                    ),
-                  ),
-                ),
-              ),
             ],
           );
         },
       ),
     );
   }
+
+  Future<void> _shareTournament(String name) async {
+    await Share.share('Confira o torneio $name no NexaGO!');
+  }
 }
 
-class _CategoryTile extends StatelessWidget {
-  const _CategoryTile({required this.category});
+class _ErrorBody extends StatelessWidget {
+  const _ErrorBody({required this.message, required this.onBack});
 
-  final TournamentCategoryOffer category;
+  final String message;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    category.name,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
-                    ),
+    return SafeArea(
+      child: Column(
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_back_rounded),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: AppColors.live,
                   ),
-                  if (category.level.isNotEmpty)
-                    Text(
-                      category.level,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
-                      ),
-                    ),
-                ],
+                ),
               ),
             ),
-            Text(
-              'R\$ ${category.entryFee.toStringAsFixed(0)}',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: AppColors.brand,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

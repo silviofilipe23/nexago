@@ -39,6 +39,9 @@ abstract final class AppRoutes {
   static const String athleteNotificationSettings =
       '/athlete/settings/notifications';
 
+  /// Caixa de entrada de notificações do atleta.
+  static const String athleteNotifications = '/athlete/notifications';
+
   /// Privacidade e segurança do atleta.
   static const String athletePrivacySecurity = '/athlete/settings/privacy';
 
@@ -147,6 +150,10 @@ abstract final class AppRoutes {
   static const String tournamentRegistration =
       '/torneios/:tournamentId/inscricao';
 
+  /// Convite de parceiro para torneio: `/torneios-convite/:inviteId`
+  static const String tournamentPartnerInvite =
+      '/torneios-convite/:inviteId';
+
   /// Detalhe de liga: `/ligas/:leagueId`
   static const String leagueDetail = '/ligas/:leagueId';
 }
@@ -169,6 +176,7 @@ abstract final class AppRouteNames {
   static const String athleteSportsLevels = 'athleteSportsLevels';
   static const String athleteNotificationSettings =
       'athleteNotificationSettings';
+  static const String athleteNotifications = 'athleteNotifications';
   static const String athletePrivacySecurity = 'athletePrivacySecurity';
   static const String athleteChangePassword = 'athleteChangePassword';
   static const String athleteActiveSessions = 'athleteActiveSessions';
@@ -217,5 +225,6 @@ abstract final class AppRouteNames {
   static const String bookingInvite = 'bookingInvite';
   static const String tournamentDetail = 'tournamentDetail';
   static const String tournamentRegistration = 'tournamentRegistration';
+  static const String tournamentPartnerInvite = 'tournamentPartnerInvite';
   static const String leagueDetail = 'leagueDetail';
 }

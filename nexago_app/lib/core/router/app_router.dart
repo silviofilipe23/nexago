@@ -56,6 +56,7 @@ import '../../features/athlete/presentation/athlete_settings_page.dart';
 import '../../features/athlete/presentation/athlete_active_sessions_page.dart';
 import '../../features/athlete/presentation/athlete_change_password_page.dart';
 import '../../features/athlete/presentation/athlete_notification_settings_page.dart';
+import '../../features/athlete/presentation/athlete_notifications_page.dart';
 import '../../features/athlete/presentation/athlete_match_detail_page.dart';
 import '../../features/athlete/presentation/athlete_quest_page.dart';
 import '../../features/athlete/presentation/athlete_match_history_page.dart';
@@ -67,6 +68,8 @@ import '../../features/athlete/presentation/arena_reviews_page.dart';
 import '../../features/athlete/presentation/athlete_shell_page.dart';
 import '../../features/tournaments/presentation/league_detail_page.dart';
 import '../../features/tournaments/presentation/tournament_detail_page.dart';
+import '../../features/tournaments/presentation/tournament_partner_invite_page.dart';
+import '../../features/tournaments/domain/tournament_registration_logic.dart';
 import '../../features/tournaments/presentation/tournament_registration_page.dart';
 import '../auth/auth_providers.dart';
 import '../auth/user_roles.dart';
@@ -314,6 +317,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             const AthleteNotificationSettingsPage(),
       ),
       GoRoute(
+        path: AppRoutes.athleteNotifications,
+        name: AppRouteNames.athleteNotifications,
+        builder: (context, state) => const AthleteNotificationsPage(),
+      ),
+      GoRoute(
         path: AppRoutes.athletePrivacySecurity,
         name: AppRouteNames.athletePrivacySecurity,
         builder: (context, state) => const AthletePrivacySecurityPage(),
@@ -419,7 +427,28 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.tournamentRegistration,
         builder: (context, state) {
           final id = state.pathParameters['tournamentId']?.trim() ?? '';
-          return TournamentRegistrationPage(tournamentId: id);
+          final categoryId = state.uri.queryParameters['categoryId']?.trim();
+          final registrationId =
+              state.uri.queryParameters['registrationId']?.trim();
+          final stepParam = state.uri.queryParameters['step']?.trim();
+          TournamentRegistrationStep? initialStep;
+          if (stepParam == 'payment') {
+            initialStep = TournamentRegistrationStep.payment;
+          }
+          return TournamentRegistrationPage(
+            tournamentId: id,
+            initialCategoryId: categoryId,
+            initialRegistrationId: registrationId,
+            initialStep: initialStep,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentPartnerInvite,
+        name: AppRouteNames.tournamentPartnerInvite,
+        builder: (context, state) {
+          final inviteId = state.pathParameters['inviteId']?.trim() ?? '';
+          return TournamentPartnerInvitePage(inviteId: inviteId);
         },
       ),
       GoRoute(

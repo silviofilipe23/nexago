@@ -17,7 +17,6 @@ import '../../domain/booking_providers.dart';
 import '../../domain/my_booking_item.dart';
 import '../../domain/arena_search_providers.dart';
 import '../../domain/my_bookings_providers.dart';
-import '../arena_booking_navigation.dart';
 import 'my_bookings_details_sheet.dart';
 import 'my_bookings_logic.dart';
 import 'widgets/my_bookings_app_bar.dart';

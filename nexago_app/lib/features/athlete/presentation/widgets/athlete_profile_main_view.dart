@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -11,6 +10,7 @@ import '../../domain/achievements/achievement_catalog.dart';
 import '../../domain/achievements/achievement_status.dart';
 import '../../domain/gamification_models.dart';
 import '../../domain/profile_completion_models.dart';
+import 'athlete_profile_avatar.dart';
 import 'match_history/athlete_profile_history_section.dart';
 
 /// Dados mockados até integração com backend (parceiros, ranking, etc.).
@@ -591,7 +591,7 @@ class _ProfileIdentityRow extends StatelessWidget {
                   Positioned(
                     left: 0,
                     top: 0,
-                    child: _ProfileAvatar(
+                    child: AthleteProfileAvatar(
                       size: avatarSize,
                       imageUrl: avatarUrl,
                       initials: initials,
@@ -681,93 +681,6 @@ class _ProfileIdentityRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _ProfileAvatar extends StatelessWidget {
-  const _ProfileAvatar({
-    required this.size,
-    required this.imageUrl,
-    required this.initials,
-  });
-
-  final double size;
-  final String? imageUrl;
-  final String initials;
-
-  @override
-  Widget build(BuildContext context) {
-    final url = imageUrl?.trim();
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: AppColors.brand.withValues(alpha: 0.85),
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.brand.withValues(alpha: 0.35),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ClipOval(
-        child: SizedBox(
-          width: size,
-          height: size,
-          child: url != null && url.isNotEmpty
-              ? CachedNetworkImage(
-                  imageUrl: url,
-                  width: size,
-                  height: size,
-                  fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) =>
-                      _Initials(initials: initials, size: size),
-                )
-              : _Initials(initials: initials, size: size),
-        ),
-      ),
-    );
-  }
-}
-
-class _Initials extends StatelessWidget {
-  const _Initials({required this.initials, this.size = 72});
-
-  final String initials;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.brandHover,
-            AppColors.brand,
-            AppColors.brandPressed,
-          ],
-        ),
-      ),
-      child: Center(
-        child: Text(
-          initials,
-          style: TextStyle(
-            fontSize: size * 0.36,
-            fontWeight: FontWeight.w900,
-            color: AppColors.black,
-            letterSpacing: -0.5,
-          ),
-        ),
-      ),
     );
   }
 }

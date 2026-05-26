@@ -1,3 +1,4 @@
+import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_config.dart';
 import '../domain/tournament_discovery_models.dart';
 import 'leagues_repository.dart';
@@ -46,10 +47,15 @@ class FirestoreTournamentDiscoveryDataSource
 
   @override
   Stream<DiscoveryTournament?> watchTournament(String id) {
-    return _tournamentsRepository.watchTournament(id).asyncMap((t) async {
+    return watchTournamentDetail(id).map((d) => d?.toDiscovery());
+  }
+
+  @override
+  Stream<TournamentDetail?> watchTournamentDetail(String id) {
+    return _tournamentsRepository.watchTournamentDetail(id).asyncMap((t) async {
       if (t != null) return t;
       if (!kFallbackToMockIfEmpty) return null;
-      return _mockFallback.watchTournament(id).first;
+      return _mockFallback.watchTournamentDetail(id).first;
     });
   }
 

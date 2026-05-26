@@ -114,9 +114,13 @@ class _ArenaBookingConfirmPageState
 
     setState(() => _submitting = true);
     try {
-      final created = await ref
-          .read(bookingServiceProvider)
-          .createBookingAtomically(
+      final bookingService = ref.read(bookingServiceProvider);
+      final resumed = await bookingService.findResumablePixBooking(
+        athleteId: user.uid,
+        args: args,
+      );
+      final created = resumed ??
+          await bookingService.createBookingAtomically(
             args: args,
             athleteId: user.uid,
             paymentMode: 'pix',
@@ -128,9 +132,17 @@ class _ArenaBookingConfirmPageState
           ? DateTime.tryParse(created.paymentExpiresAt!)
           : null;
 
-      await tryAwardReserveTodayMission(ref, dateKey: args.dateKey);
+      if (resumed == null) {
+        await tryAwardReserveTodayMission(ref, dateKey: args.dateKey);
+      }
 
       if (!mounted) return;
+      if (resumed != null) {
+        showAppSnackBar(
+          context,
+          'Retomando pagamento PIX da sua reserva.',
+        );
+      }
       context.pushNamed(
         AppRouteNames.arenaBookingPix,
         pathParameters: <String, String>{'arenaId': widget.arenaId},
@@ -139,7 +151,7 @@ class _ArenaBookingConfirmPageState
           confirmArgs: args,
           amountToPayNowReais: created.amountToPayNowReais,
           amountDueOnsiteReais: created.amountDueOnsiteReais,
-          paymentFraction: 1.0,
+          paymentFraction: created.paymentFraction,
           paymentExpiresAt: expiresAt,
         ),
       );

@@ -28,7 +28,9 @@ Não usar `torneios/` (visão operacional do backoffice).
 | `liveMatchesNow` | number | Jogos ao vivo (denormalizado) |
 | `status` / `listingStatus` | string | Operacional: `Draft`, `Open`, `Brackets Ready`, `In Progress`, `Completed` (ou legado `open`, `live`, `ended`, `finalizado`, etc.) |
 | `leagueId` / `leagueStageId` | string | Liga / etapa |
-| `categories` | array | `{ categoryName, entryFee, spotsLeft?, spotsTotal?, level? }` |
+| `categories` | array | `{ categoryName, entryFee, maxTeams?, spotsLeft? (legado), level? }` |
+
+Capacidade exibida no app: `maxTeams` por categoria. Inscritos contados em `artifacts/{projectId}/public/data/inscriptions` (`tournamentId` + `categoryId` = `categoryName`).
 
 Mapper: `nexago_app/lib/features/tournaments/data/tournament_document_mapper.dart`.
 
@@ -52,9 +54,33 @@ Mapper: `nexago_app/lib/features/tournaments/data/tournament_document_mapper.dar
 }
 ```
 
+## Convite de parceiro
+
+| Coleção | Uso |
+|---------|-----|
+| `tournamentRegistrationInvites/{id}` | Convite pendente/aceito entre dois atletas |
+
+Campos: `tournamentId`, `categoryId`, `inviterUid`, `inviterName`, `inviteeUid`, `inviteeName`, `status` (`pending` \| `accepted` \| `declined` \| `cancelled` \| `expired`), `teamId`, `registrationId`, `createdAt`, `expiresAt`, `acceptedAt`.
+
+Callables: `sendTournamentPartnerInvite`, `acceptTournamentPartnerInvite`, `cancelTournamentPartnerInvite`.
+
+Fluxo: enviar convite → parceiro aceita (cria `teams` + `inscriptions`) → cada atleta paga `share` → webhook soma `paidAmount` até `isPaid`.
+
+## Inscrição (`artifacts/.../inscriptions`)
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `tournamentId` | string | Torneio |
+| `categoryId` | string | Nome/id da categoria (`categoryName`) |
+| `teamId` | string | Referência em `teams` |
+| `isPaid` | boolean | Inscrição confirmada após pagamento |
+| `paidAmount` | number | Total pago (dupla: soma das parcelas) |
+
+O app agrega inscrições por `categoryId` para exibir `N/M inscritas` e vagas restantes (`maxTeams - count`).
+
 ## Inscrição + pagamento
 
-1. App cria `teams` + `inscriptions` (regras Firestore).
+1. Após aceite do convite (ou fluxo legado), existem `teams` + `inscriptions`.
 2. Callable `createMercadoPagoPreference` com `registrationId` e `amountType` (`share` | `full`).
 
 ## Config Flutter

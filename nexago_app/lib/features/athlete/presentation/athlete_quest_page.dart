@@ -60,9 +60,9 @@ class AthleteQuestPage extends ConsumerWidget {
                     navigateForDailyMission(context, ref, mission),
               ),
               const SizedBox(height: 24),
-              AthleteQuestBigQuestCard(quest: questUi.bigQuest),
-              const SizedBox(height: 24),
-              AthleteQuestLeagueSection(entries: questUi.leagueEntries),
+              // AthleteQuestBigQuestCard(quest: questUi.bigQuest),
+              // const SizedBox(height: 24),
+              // AthleteQuestLeagueSection(entries: questUi.leagueEntries),
             ],
           );
         },
@@ -104,7 +104,7 @@ class AthleteQuestPage extends ConsumerWidget {
         ),
       ),
       title: Text(
-        'Quest',
+        'Desafios',
         style: theme.textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w800,
           color: AppColors.onSurface,

@@ -56,8 +56,8 @@ class AthleteHomeQuickActions extends StatelessWidget {
         onTap: onTournaments,
       ),
       AthleteHomeQuickAction(
-        icon: Icons.sports_tennis_rounded,
-        label: 'Drop-in',
+        icon: Icons.person_search_rounded,
+        label: 'Play Match',
         onTap: () {},
       ),
     ];

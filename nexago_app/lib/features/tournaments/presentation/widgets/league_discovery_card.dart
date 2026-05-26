@@ -9,16 +9,25 @@ class LeagueDiscoveryCard extends StatelessWidget {
     required this.league,
     required this.tournamentCount,
     required this.onTap,
+    this.completedStages = 0,
+    this.totalStagesLabel,
+    this.enrolled = false,
+    this.open = false,
   });
 
   final DiscoveryLeague league;
   final int tournamentCount;
   final VoidCallback onTap;
+  final int completedStages;
+  final String? totalStagesLabel;
+  final bool enrolled;
+  final bool open;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final stageCount = league.stages.length;
+    final stagesLabel = totalStagesLabel ?? '$completedStages/$stageCount ETAPAS';
 
     return Material(
       color: AppColors.surfaceRaised,
@@ -43,68 +52,112 @@ class LeagueDiscoveryCard extends StatelessWidget {
           ),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AppColors.brand.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.emoji_events_rounded,
-                    color: AppColors.brand,
-                    size: 26,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        league.name,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.onSurface,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      if (league.seasonLabel != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          league.seasonLabel!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.brand,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 6),
-                      Text(
-                        [
-                          if (league.city != null) league.city!,
-                          '$stageCount etapas',
-                          '$tournamentCount torneios',
-                        ].join(' · '),
-                        style: theme.textTheme.bodySmall?.copyWith(
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Ligas',
+                        style: theme.textTheme.labelSmall?.copyWith(
                           color: AppColors.onSurfaceMuted,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.6,
                         ),
                       ),
-                    ],
+                    ),
+                    if (enrolled)
+                      _TopPill(
+                        label: 'Inscrito',
+                        fg: AppColors.black,
+                        bg: AppColors.brand,
+                      )
+                    else if (open)
+                      _TopPill(
+                        label: 'Inscrições abertas',
+                        fg: AppColors.win,
+                        bg: Colors.transparent,
+                        border: AppColors.win.withValues(alpha: 0.65),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  league.name,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.onSurface,
+                    letterSpacing: -0.3,
                   ),
                 ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.8),
+                const SizedBox(height: 6),
+                Text(
+                  [
+                    if (league.city != null) league.city!,
+                    '$stageCount etapas',
+                  ].join(' · '),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        stagesLabel,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: AppColors.brand,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: AppColors.onSurfaceMuted.withValues(alpha: 0.8),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _TopPill extends StatelessWidget {
+  const _TopPill({
+    required this.label,
+    required this.fg,
+    required this.bg,
+    this.border,
+  });
+
+  final String label;
+  final Color fg;
+  final Color bg;
+  final Color? border;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: border != null ? Border.all(color: border!) : null,
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: fg,
+              fontWeight: FontWeight.w800,
+            ),
       ),
     );
   }

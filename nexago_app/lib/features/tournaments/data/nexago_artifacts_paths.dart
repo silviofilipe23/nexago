@@ -14,6 +14,8 @@ abstract final class NexagoArtifactsPaths {
   static String inscriptionsCollection() =>
       '$publicDataBase/inscriptions';
 
+  static String matchesCollection() => '$publicDataBase/matches';
+
   static String legacyTournamentDoc(String tournamentId) =>
       '$publicDataBase/tournaments/$tournamentId';
 }

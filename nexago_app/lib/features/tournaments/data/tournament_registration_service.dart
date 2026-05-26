@@ -30,6 +30,30 @@ class TournamentPaymentResult {
   final String initPoint;
 }
 
+/// Estado da inscrição no Firestore (pagamento acumulado).
+class TournamentRegistrationSnapshot {
+  const TournamentRegistrationSnapshot({
+    required this.registrationId,
+    required this.isPaid,
+    required this.paidAmount,
+  });
+
+  final String registrationId;
+  final bool isPaid;
+  final double paidAmount;
+
+  factory TournamentRegistrationSnapshot.fromDoc(
+    String registrationId,
+    Map<String, dynamic> data,
+  ) {
+    return TournamentRegistrationSnapshot(
+      registrationId: registrationId,
+      isPaid: data['isPaid'] == true,
+      paidAmount: (data['paidAmount'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
 /// Cria equipe + inscrição no Firestore e gera preferência Mercado Pago.
 class TournamentRegistrationService {
   TournamentRegistrationService({
@@ -143,6 +167,25 @@ class TournamentRegistrationService {
         'Não foi possível abrir o checkout.',
       );
     }
+  }
+
+  Stream<TournamentRegistrationSnapshot?> watchRegistration(
+    String registrationId,
+  ) {
+    if (registrationId.isEmpty) return Stream.value(null);
+    return _inscriptions.doc(registrationId).snapshots().map((snap) {
+      if (!snap.exists) return null;
+      return TournamentRegistrationSnapshot.fromDoc(snap.id, snap.data()!);
+    });
+  }
+
+  /// Pagamento da parcela do atleta (`share`) em inscrição já criada.
+  Future<void> payShare(String registrationId) async {
+    final payment = await createMercadoPagoPreference(
+      registrationId: registrationId,
+      amountType: 'share',
+    );
+    await openCheckout(payment.initPoint);
   }
 }
 

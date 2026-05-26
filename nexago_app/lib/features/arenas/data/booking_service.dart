@@ -6,6 +6,7 @@ import '../../arena/domain/arena_manager_booking.dart';
 import '../domain/arena_booking_confirm_args.dart';
 import '../domain/arena_booking_quote.dart';
 import '../domain/my_booking_item.dart';
+import '../domain/pending_pix_booking_match.dart';
 
 /// Paridade com o fluxo web: transação em `arenaSlotLocks` + `arenaSlots` + `arenaBookings`,
 /// depois [notifyArenaBookingCreated] (notificação ao gestor; não duplica gravação).
@@ -238,6 +239,69 @@ class BookingService {
       if (e is BookingException) rethrow;
       throw BookingException('Não foi possível concluir a reserva: $e');
     }
+  }
+
+  /// Retoma reserva PIX pendente do mesmo horário (ex.: voltou da tela PIX sem pagar).
+  Future<CreateBookingResult?> findResumablePixBooking({
+    required String athleteId,
+    required ArenaBookingConfirmArgs args,
+  }) async {
+    if (athleteId.isEmpty || !args.isValid) return null;
+
+    final candidates = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+
+    Future<void> collect(String field) async {
+      final snap = await _firestore
+          .collection(arenaBookingsCollection)
+          .where(field, isEqualTo: athleteId)
+          .where('status', isEqualTo: 'pending_payment')
+          .limit(24)
+          .get();
+      for (final doc in snap.docs) {
+        if (candidates.every((c) => c.id != doc.id)) {
+          candidates.add(doc);
+        }
+      }
+    }
+
+    await collect('athleteId');
+    await collect('bookingAthleteId');
+
+    CreateBookingResult? best;
+    int bestSort = -1;
+
+    for (final doc in candidates) {
+      final data = doc.data();
+      if (!PendingPixBookingMatch.isResumablePendingPix(data)) continue;
+      if (!PendingPixBookingMatch.matchesConfirmArgs(data, args)) continue;
+
+      final created = data['createdAt'];
+      var sort = 0;
+      if (created is Timestamp) {
+        sort = created.millisecondsSinceEpoch;
+      }
+
+      if (best != null && sort <= bestSort) continue;
+      bestSort = sort;
+
+      final amount = (data['amountReais'] as num?)?.toDouble();
+      if (amount == null) continue;
+
+      best = CreateBookingResult(
+        bookingId: doc.id,
+        amountReais: amount,
+        amountToPayNowReais:
+            (data['amountToPayNowReais'] as num?)?.toDouble() ?? amount,
+        amountDueOnsiteReais:
+            (data['amountDueOnsiteReais'] as num?)?.toDouble() ?? 0,
+        paymentMode: 'pix',
+        paymentFraction:
+            (data['paymentFraction'] as num?)?.toDouble() ?? 1.0,
+        paymentExpiresAt: PendingPixBookingMatch.paymentExpiresAtIso(data),
+      );
+    }
+
+    return best;
   }
 
   static Map<String, dynamic> _bookingCallablePayload(

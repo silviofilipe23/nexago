@@ -1,3 +1,4 @@
+import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 
 DateTime mockDiscoveryDate(int days, {int hour = 12, int minute = 0}) {
@@ -34,51 +35,104 @@ const mockDiscoveryLeagues = <DiscoveryLeague>[
   ),
 ];
 
-List<DiscoveryTournament> buildMockDiscoveryTournaments() {
+List<TournamentDetail> buildMockTournamentDetails() {
+  final beachStart = mockDiscoveryDate(8, hour: 8);
   return [
-    DiscoveryTournament(
+    TournamentDetail(
       id: 'nx-beach-pro-2026',
-      name: 'NexaGO Beach Pro Series',
-      location: 'Arena NexaGO Sul',
-      city: 'Salvador',
+      name: 'Etapa Garden',
+      location: 'Arena Garden',
+      city: 'Goiânia, GO',
       dateLabel: '18–20 abr',
-      startDate: mockDiscoveryDate(8, hour: 8),
+      startDate: beachStart,
+      endDate: beachStart.add(const Duration(days: 2)),
       categories: [
         TournamentGenderCat.m,
         TournamentGenderCat.f,
         TournamentGenderCat.mix,
       ],
       format: TournamentFormat.dupla,
-      priceLabel: r'R$ 240',
-      priceValue: 240,
-      spotsLeft: 3,
-      spotsTotal: 64,
-      status: TournamentListingStatus.almostFull,
+      priceLabel: r'R$ 90',
+      priceValue: 90,
+      spotsLeft: 10,
+      spotsTotal: 32,
+      status: TournamentListingStatus.open,
       featured: true,
-      enrolledCount: 428,
+      enrolledCount: 60,
       liveMatchesNow: 0,
       offerEndsAt: mockDiscoveryDate(2, hour: 23, minute: 59),
       leagueId: _ligaVerao,
       leagueStageId: _etapaNordeste,
+      leagueStageOrder: 1,
+      leagueStageName: '1 ETAPA',
       imageUrl:
           'https://images.unsplash.com/photo-1612872087720-55664ec103cb?w=800&q=80',
+      regulationsText:
+          'Etapa estadual da temporada de praia 2026. Formato fase de grupos + eliminatória simples, melhor de 3 sets até a final (melhor de 5).',
+      managerId: 'mock-organizer',
+      locationAddress: 'Av. T-63, Goiânia',
+      tournamentPrizes: const [
+        TournamentPrize(position: '1', value: 8000),
+        TournamentPrize(position: '2', value: 3500),
+        TournamentPrize(position: '3', value: 2000),
+      ],
       categoryOffers: const [
         TournamentCategoryOffer(
-          id: 'Misto A',
-          name: 'Misto A',
-          entryFee: 240,
-          spotsLeft: 3,
-          spotsTotal: 64,
+          id: 'Masculino C',
+          name: 'Masculino C',
+          entryFee: 90,
+          genderType: 'Masculino',
+          spotsLeft: 0,
+          maxTeams: 15,
+          spotsTotal: 15,
+          bracketFormat: 'Pool Play + SE',
+          registrationClosed: true,
+          prizes: [
+            TournamentCategoryPrize(position: '1', value: 2000),
+            TournamentCategoryPrize(position: '2', value: 2000),
+            TournamentCategoryPrize(position: '3', value: 500),
+          ],
+        ),
+        TournamentCategoryOffer(
+          id: 'Masculino B',
+          name: 'Masculino B',
+          entryFee: 90,
+          genderType: 'Masculino',
+          spotsLeft: 8,
+          maxTeams: 15,
+          spotsTotal: 15,
+          bracketFormat: 'Pool Play + SE',
+          prizes: [
+            TournamentCategoryPrize(position: '1', value: 2000),
+            TournamentCategoryPrize(position: '2', value: 2000),
+            TournamentCategoryPrize(position: '3', value: 500),
+          ],
+        ),
+        TournamentCategoryOffer(
+          id: 'Misto',
+          name: 'Misto',
+          entryFee: 90,
+          genderType: 'Misto',
+          spotsLeft: 12,
+          maxTeams: 16,
+          spotsTotal: 16,
+          bracketFormat: 'Pool Play + SE',
+          prizes: [
+            TournamentCategoryPrize(position: '1', value: 2000),
+            TournamentCategoryPrize(position: '2', value: 2000),
+            TournamentCategoryPrize(position: '3', value: 500),
+          ],
         ),
       ],
     ),
-    DiscoveryTournament(
+    TournamentDetail(
       id: 'night-open-sp',
       name: 'Night Open São Paulo',
       location: 'Praia Artificial Pinheiros',
       city: 'São Paulo',
       dateLabel: '12 abr',
       startDate: mockDiscoveryDate(2, hour: 19),
+      endDate: null,
       categories: [TournamentGenderCat.mix, TournamentGenderCat.f],
       format: TournamentFormat.dupla,
       priceLabel: r'R$ 180',
@@ -99,17 +153,20 @@ List<DiscoveryTournament> buildMockDiscoveryTournaments() {
           name: 'Fem B',
           entryFee: 180,
           spotsLeft: 14,
-          spotsTotal: 48,
+          maxTeams: 24,
+          spotsTotal: 24,
+          bracketFormat: 'Single Elimination',
         ),
       ],
     ),
-    DiscoveryTournament(
+    TournamentDetail(
       id: 'circuito-verao-rj',
       name: 'Circuito Verão RJ',
       location: 'Arena Copacabana Sports',
       city: 'Rio de Janeiro',
       dateLabel: '25 abr – 2 mai',
       startDate: mockDiscoveryDate(15, hour: 9),
+      endDate: mockDiscoveryDate(22, hour: 18),
       categories: [TournamentGenderCat.m, TournamentGenderCat.f],
       format: TournamentFormat.dupla,
       priceLabel: r'R$ 320',
@@ -124,13 +181,14 @@ List<DiscoveryTournament> buildMockDiscoveryTournaments() {
       leagueId: _ligaVerao,
       leagueStageId: _etapaSudeste,
     ),
-    DiscoveryTournament(
+    TournamentDetail(
       id: 'flash-individual-bh',
       name: 'Flash Individual BH',
       location: 'Centro de Treino Minas Beach',
       city: 'Belo Horizonte',
       dateLabel: '10 abr',
       startDate: mockDiscoveryDate(0, hour: 14),
+      endDate: null,
       categories: [
         TournamentGenderCat.m,
         TournamentGenderCat.f,
@@ -146,13 +204,14 @@ List<DiscoveryTournament> buildMockDiscoveryTournaments() {
       enrolledCount: 94,
       liveMatchesNow: 4,
     ),
-    DiscoveryTournament(
+    TournamentDetail(
       id: 'misto-experience-floripa',
       name: 'Misto Experience Floripa',
       location: 'Arena Jurerê Internacional',
       city: 'Florianópolis',
       dateLabel: '6 mai',
       startDate: mockDiscoveryDate(26, hour: 10),
+      endDate: null,
       categories: [TournamentGenderCat.mix],
       format: TournamentFormat.dupla,
       priceLabel: r'R$ 210',
@@ -164,13 +223,14 @@ List<DiscoveryTournament> buildMockDiscoveryTournaments() {
       enrolledCount: 72,
       liveMatchesNow: 0,
     ),
-    DiscoveryTournament(
+    TournamentDetail(
       id: 'ranked-friday-recife',
       name: 'Ranked Friday Recife',
       location: 'Boa Viagem Beach Arena',
       city: 'Recife',
       dateLabel: '11 abr',
       startDate: mockDiscoveryDate(1, hour: 20, minute: 30),
+      endDate: null,
       categories: [
         TournamentGenderCat.m,
         TournamentGenderCat.f,
@@ -189,4 +249,8 @@ List<DiscoveryTournament> buildMockDiscoveryTournaments() {
       leagueStageId: _etapaNordeste,
     ),
   ];
+}
+
+List<DiscoveryTournament> buildMockDiscoveryTournaments() {
+  return buildMockTournamentDetails().map((d) => d.toDiscovery()).toList();
 }

@@ -1,0 +1,247 @@
+import 'package:intl/intl.dart';
+
+import 'tournament_category_spots.dart';
+import 'tournament_detail_logic.dart';
+import 'tournament_detail_model.dart';
+import 'tournament_discovery_helpers.dart';
+import 'tournament_discovery_models.dart';
+
+/// Taxa fixa da plataforma (espelha `PLATFORM_FEE_FIXED_BRL` no backend MP).
+const double kTournamentPlatformFeeBrl = 2.0;
+
+enum TournamentRegistrationStep {
+  category,
+  summary,
+  partner,
+  waiting,
+  payment,
+}
+
+class TournamentRegistrationPartnerCandidate {
+  const TournamentRegistrationPartnerCandidate({
+    required this.userId,
+    required this.initials,
+    required this.name,
+    required this.rankLabel,
+    this.tagLabel,
+  });
+
+  final String userId;
+  final String initials;
+  final String name;
+  final String rankLabel;
+  final String? tagLabel;
+}
+
+String partnerResultsHeader({
+  required int count,
+  required TournamentCategoryOffer category,
+}) {
+  final label = categoryBadgeLabel(category);
+  final n = count == 1 ? '1 RESULTADO' : '$count RESULTADOS';
+  return '$n · $label';
+}
+
+String registrationHeaderTitle(TournamentRegistrationStep step) {
+  switch (step) {
+    case TournamentRegistrationStep.partner:
+      return 'Convidar parceiro';
+    default:
+      return 'Inscrição';
+  }
+}
+
+bool registrationStepShowsHero(TournamentRegistrationStep step) {
+  return step != TournamentRegistrationStep.partner &&
+      step != TournamentRegistrationStep.waiting;
+}
+
+class TournamentRegistrationQuote {
+  const TournamentRegistrationQuote({
+    required this.entryFee,
+    this.platformFee = kTournamentPlatformFeeBrl,
+  });
+
+  final double entryFee;
+  final double platformFee;
+
+  /// Valor integral da dupla (cobrado no MP com `amountType: full`).
+  double get displayTotal => entryFee;
+
+  /// Parcela por atleta (`amountType: share`).
+  double get shareAmount => entryFee > 0 ? entryFee / 2 : 0;
+}
+
+TournamentRegistrationQuote buildRegistrationQuote({
+  required double entryFee,
+  double platformFee = kTournamentPlatformFeeBrl,
+}) {
+  return TournamentRegistrationQuote(
+    entryFee: entryFee < 0 ? 0 : entryFee,
+    platformFee: platformFee,
+  );
+}
+
+String formatRegistrationMoney(double value) => formatMoney(value);
+
+/// Badge do hero (ex.: `COPA GOIÁS 2026`).
+String leagueBadgeLabel(ResolvedLeagueContext? leagueContext) {
+  if (leagueContext == null) return 'TORNEIO';
+  final league = leagueContext.league;
+  final season = league.seasonLabel?.trim();
+  if (season != null && season.isNotEmpty) {
+    return '${league.name.toUpperCase()} · $season'.toUpperCase();
+  }
+  return league.name.toUpperCase();
+}
+
+final _compactDayFmt = DateFormat('d', 'pt_BR');
+final _compactMonthFmt = DateFormat('MMM', 'pt_BR');
+
+/// Subtítulo do hero: `18–20 Mai · Arena Garden · Goiânia`.
+String tournamentRegistrationHeroSubtitle(TournamentDetail tournament) {
+  final datePart = _compactDateRange(tournament);
+  final city = tournament.city.trim();
+  final location = tournament.location.trim();
+  final place = city.isEmpty ? location : '$location · $city';
+  if (datePart.isEmpty) return place;
+  if (place.isEmpty) return datePart;
+  return '$datePart · $place';
+}
+
+String _compactDateRange(TournamentDetail tournament) {
+  final start = tournament.startDate;
+  final end = tournament.endDate;
+  final month = _compactMonthFmt.format(start);
+  final capitalizedMonth =
+      month.isEmpty ? month : '${month[0].toUpperCase()}${month.substring(1)}';
+
+  if (end != null &&
+      (end.year != start.year ||
+          end.month != start.month ||
+          end.day != start.day)) {
+    final endMonth = _compactMonthFmt.format(end);
+    final endCap = endMonth.isEmpty
+        ? endMonth
+        : '${endMonth[0].toUpperCase()}${endMonth.substring(1)}';
+    if (start.month == end.month && start.year == end.year) {
+      return '${_compactDayFmt.format(start)}–${_compactDayFmt.format(end)} $capitalizedMonth';
+    }
+    return '${_compactDayFmt.format(start)} $capitalizedMonth – ${_compactDayFmt.format(end)} $endCap';
+  }
+
+  final label = tournament.dateLabel.trim();
+  if (label.isNotEmpty) return label;
+  return '${_compactDayFmt.format(start)} $capitalizedMonth';
+}
+
+/// Chip da categoria (ex.: `S19`, `MC`).
+String categoryBadgeLabel(TournamentCategoryOffer offer) {
+  final level = offer.level.trim();
+  if (level.isNotEmpty) {
+    final compact = level.split(' ').join();
+    if (compact.length <= 4) return compact.toUpperCase();
+    return compact.substring(0, 4).toUpperCase();
+  }
+
+  final name = offer.name.trim();
+  if (name.isEmpty) return 'CAT';
+
+  final words = name.split(' ');
+  if (words.length >= 2) {
+    final initials = words
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0])
+        .take(3)
+        .join();
+    return initials.toUpperCase();
+  }
+
+  return name.length <= 4
+      ? name.toUpperCase()
+      : name.substring(0, 4).toUpperCase();
+}
+
+/// Subtítulo do card de categoria: `8 duplas · 5/8 inscritas`.
+String categoryRegistrationSubtitle(
+  TournamentCategoryOffer offer, {
+  TournamentFormat format = TournamentFormat.dupla,
+  int? inscriptionCount,
+}) {
+  final capacity = categoryMaxTeams(offer);
+  if (capacity <= 0) {
+    return 'Vagas a confirmar';
+  }
+
+  final enrolled = categoryEnrolledCount(
+    offer,
+    inscriptionCount: inscriptionCount,
+  );
+  final unit = format == TournamentFormat.dupla ? 'duplas' : 'vagas';
+  return '$capacity $unit · $enrolled/$capacity inscritas';
+}
+
+bool isCategorySelectable(
+  TournamentCategoryOffer offer, {
+  int? inscriptionCount,
+}) {
+  if (offer.registrationClosed || offer.isCompleted) return false;
+  final capacity = categoryMaxTeams(offer);
+  if (capacity > 0 &&
+      categorySpotsLeft(offer, inscriptionCount: inscriptionCount) <= 0) {
+    return false;
+  }
+  return true;
+}
+
+String paymentAmountLabel({
+  required TournamentRegistrationQuote quote,
+  required String amountType,
+}) {
+  final amount =
+      amountType == 'full' ? quote.displayTotal : quote.shareAmount;
+  return formatRegistrationMoney(amount);
+}
+
+/// CTA de pagamento habilitado só após convite aceito e inscrição criada.
+bool registrationWaitingCanProceed({
+  required bool inviteAccepted,
+  required String? registrationId,
+}) {
+  return inviteAccepted &&
+      registrationId != null &&
+      registrationId.isNotEmpty;
+}
+
+/// Uma parcela (`share`) já foi paga (aproximação via `paidAmount` acumulado).
+bool registrationSharePaid({
+  required double paidAmount,
+  required double shareAmount,
+}) {
+  if (shareAmount <= 0) return paidAmount > 0;
+  return paidAmount >= shareAmount - 0.01;
+}
+
+/// Texto de progresso do pagamento em dupla.
+String registrationDualPaymentProgressLabel({
+  required TournamentRegistrationQuote quote,
+  required double paidAmount,
+  required bool isPaid,
+}) {
+  if (isPaid) return 'Inscrição confirmada — dupla inscrita no torneio.';
+  if (paidAmount <= 0) {
+    return 'Aguardando o pagamento de cada atleta (sua parcela + parceiro).';
+  }
+  if (registrationSharePaid(
+    paidAmount: paidAmount,
+    shareAmount: quote.shareAmount,
+  )) {
+    final remaining = (quote.displayTotal - paidAmount)
+        .clamp(0.0, quote.displayTotal)
+        .toDouble();
+    if (remaining > 0.01) {
+      return 'Sua parcela paga. Falta ${formatRegistrationMoney(remaining)} para confirmar a dupla.';
+    }
+  }
+  return 'Pagamento parcial: ${formatRegistrationMoney(paidAmount)} de ${formatRegistrationMoney(quote.displayTotal)}.';
+}

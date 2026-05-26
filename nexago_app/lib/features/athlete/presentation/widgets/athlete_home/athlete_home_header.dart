@@ -3,24 +3,30 @@ import 'package:intl/intl.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../core/ui/app_snackbar.dart';
+import '../../../domain/athlete_quest/athlete_quest_logic.dart';
 import '../../../domain/gamification_models.dart';
+import '../athlete_profile_avatar.dart';
 import '../../widgets/athlete_settings/athlete_settings_helpers.dart';
-import '../../../data/mock_athlete_home_data.dart';
 
 class AthleteHomeHeader extends StatelessWidget {
   const AthleteHomeHeader({
     super.key,
     required this.displayName,
     required this.summary,
+    this.avatarUrl,
     this.onAvatarTap,
     this.onXpTap,
+    this.onNotificationsTap,
+    this.unreadNotificationCount = 0,
   });
 
   final String displayName;
   final GamificationSummary summary;
+  final String? avatarUrl;
   final VoidCallback? onAvatarTap;
   final VoidCallback? onXpTap;
+  final VoidCallback? onNotificationsTap;
+  final int unreadNotificationCount;
 
   @override
   Widget build(BuildContext context) {
@@ -34,57 +40,57 @@ class AthleteHomeHeader extends StatelessWidget {
     final initials = athleteInitialsFromName(displayName);
     final xpCurrent = summary.xpInCurrentLevel;
     final xpGoal = 100;
+    final displayLevel = gamificationDisplayLevel(summary);
+
+    const avatarSize = 48.0;
+    const avatarSlotSize = 56.0;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         GestureDetector(
           onTap: onAvatarTap,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  color: AppColors.brand,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(
-                  initials,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.white,
+          child: SizedBox(
+            width: avatarSlotSize,
+            height: avatarSlotSize,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  child: AthleteProfileAvatar(
+                    size: avatarSize,
+                    initials: initials,
+                    imageUrl: avatarUrl,
                   ),
                 ),
-              ),
-              if (mockHomeNotificationCount > 0)
                 Positioned(
-                  right: -2,
-                  top: -2,
+                  right: 0,
+                  bottom: 0,
                   child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: AppColors.brand,
-                      shape: BoxShape.circle,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
                     ),
-                    constraints: const BoxConstraints(
-                      minWidth: 18,
-                      minHeight: 18,
+                    decoration: BoxDecoration(
+                      color: AppColors.brand,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.black, width: 2),
                     ),
                     child: Text(
-                      '$mockHomeNotificationCount',
-                      textAlign: TextAlign.center,
+                      '$displayLevel',
                       style: theme.textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.w900,
-                        color: AppColors.white,
-                        fontSize: 9,
+                        color: AppColors.black,
+                        fontSize: 10,
+                        letterSpacing: 0.3,
                       ),
                     ),
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -114,7 +120,7 @@ class AthleteHomeHeader extends StatelessWidget {
           ),
         ),
         Tooltip(
-          message: 'Ver sua Quest',
+          message: 'Ver seus Desafios',
           child: Material(
             color: AppColors.surfaceRaised,
             borderRadius: BorderRadius.circular(20),
@@ -155,7 +161,7 @@ class AthleteHomeHeader extends StatelessWidget {
           color: AppColors.surfaceRaised,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
-            onTap: () => showAppSnackBar(context, 'Em breve.'),
+            onTap: onNotificationsTap,
             borderRadius: BorderRadius.circular(12),
             child: SizedBox(
               width: 40,
@@ -168,7 +174,7 @@ class AthleteHomeHeader extends StatelessWidget {
                     color: AppColors.onSurface,
                     size: 22,
                   ),
-                  if (mockHomeNotificationCount > 0)
+                  if (unreadNotificationCount > 0)
                     Positioned(
                       right: 8,
                       top: 8,

@@ -60,4 +60,66 @@ void main() {
     expect(t.name, 'Torneio X');
     expect(t.status, isNot(TournamentListingStatus.ended));
   });
+
+  test('detailFromMap maps regulations and category fields', () {
+    final d = TournamentDocumentMapper.detailFromMap('d1', {
+      'name': 'Etapa Garden',
+      'locationName': 'Arena Garden',
+      'city': 'Goiânia',
+      'startDate': DateTime(2026, 4, 21),
+      'dateLabel': '21/04',
+      'regulationsText': 'Texto do regulamento.',
+      'managerId': 'org-1',
+      'leagueStageOrder': 2,
+      'prizes': [
+        {'position': '1', 'value': 5000},
+      ],
+      'categories': [
+        {
+          'categoryName': 'Misto',
+          'entryFee': 90,
+          'maxTeams': 16,
+          'spotsLeft': 4,
+          'bracketFormat': 'Pool Play + SE',
+          'registrationClosed': false,
+        },
+      ],
+    });
+
+    expect(d.regulationsText, 'Texto do regulamento.');
+    expect(d.location, 'Arena Garden');
+    expect(d.leagueStageOrder, 2);
+    expect(d.tournamentPrizes, hasLength(1));
+    expect(d.categoryOffers.first.bracketFormat, 'Pool Play + SE');
+    expect(d.categoryOffers.first.maxTeams, 16);
+    expect(d.categoryOffers.first.spotsTotal, 16);
+  });
+
+  test('detailFromMap parses category prizes with string values', () {
+    final d = TournamentDocumentMapper.detailFromMap('d2', {
+      'name': 'Open',
+      'capacity': 32,
+      'enrolledCount': 0,
+      'categories': [
+        {
+          'categoryName': 'Masculino C',
+          'entryFee': 90,
+          'maxTeams': 30,
+          'genderType': 'Masculino',
+          'bracketFormat': 'Pool Play + SE',
+          'prizes': [
+            {'position': '1', 'value': '2000'},
+            {'position': '2', 'value': '2000.00'},
+            {'position': '3', 'value': 'R\$ 500,00'},
+          ],
+        },
+      ],
+    });
+
+    final prizes = d.categoryOffers.first.prizes;
+    expect(prizes, hasLength(3));
+    expect(prizes[0].value, 2000);
+    expect(prizes[1].value, 2000);
+    expect(prizes[2].value, 500);
+  });
 }

@@ -736,6 +736,16 @@ service cloud.firestore {
       allow create, update, delete: if request.auth != null && canWriteOperationalTorneios();
     }
 
+    // Convites de parceiro para inscrição em torneio (escrita via Cloud Functions)
+    match /tournamentRegistrationInvites/{inviteId} {
+      allow read: if request.auth != null && (
+        resource.data.inviterUid == request.auth.uid ||
+        resource.data.inviteeUid == request.auth.uid
+      );
+      allow list: if request.auth != null;
+      allow create, update, delete: if false;
+    }
+
     // Regras padrão para outras coleções (ajuste conforme necessário)
     // IMPORTANTE: Esta regra NÃO deve interferir com as regras específicas acima
     // As regras específicas têm prioridade sobre esta regra padrão

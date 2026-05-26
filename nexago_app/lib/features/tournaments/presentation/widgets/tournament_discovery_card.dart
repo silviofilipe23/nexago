@@ -1,35 +1,64 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/tournament_discovery_labels.dart';
 import '../../domain/tournament_discovery_models.dart';
+import '../../domain/tournament_listing_status.dart';
+import 'tournament_category_spots_section.dart';
 
-/// Card de torneio com capa, status e vagas (paridade visual com [ArenaCard]).
+/// Card de torneio com capa, status, vagas por categoria e CTA (hub Competir).
 class TournamentDiscoveryCard extends StatelessWidget {
   const TournamentDiscoveryCard({
     super.key,
     required this.tournament,
     required this.onTap,
-    this.imageHeight = 156,
+    this.registration,
+    this.topLabel,
+    this.imageHeight = 140,
+    this.showCategorySpots = true,
+    this.showFooter = true,
   });
 
   final DiscoveryTournament tournament;
   final VoidCallback onTap;
+  final MyTournamentRegistration? registration;
+  final String? topLabel;
   final double imageHeight;
+  final bool showCategorySpots;
+  final bool showFooter;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final statusColor = tournamentStatusColor(tournament.status);
+    final isEnrolled = registration != null;
+    final statusColor = isEnrolled
+        ? AppColors.brand
+        : tournamentStatusColor(tournament.status);
+    final statusLabel = (isEnrolled
+            ? 'Inscrito'
+            : tournamentStatusLabel(tournament.status))
+        .toUpperCase();
     final fillRatio = tournament.spotsTotal > 0
         ? 1 - (tournament.spotsLeft / tournament.spotsTotal)
         : 0.0;
     final imageUrl = tournament.imageUrl?.trim();
     final hasImage = imageUrl != null && imageUrl.isNotEmpty;
 
+    final offers = tournament.categoryOffers;
+    final hasCategoryOffers = offers.isNotEmpty;
+    final showSpotsSection = showCategorySpots && hasCategoryOffers;
+    final used = (tournament.spotsTotal - tournament.spotsLeft).clamp(0, 999999);
+    final total = tournament.spotsTotal.clamp(0, 999999);
+    final capacityLeftLabel = tournament.spotsLeft <= 0
+        ? 'LOTADO'
+        : total > 0
+        ? '${(fillRatio.clamp(0, 1) * 100).round()}%'
+        : '';
+
     return Material(
-      color: AppColors.surfaceRaised,
+      color: AppColors.surfaceCard,
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -59,7 +88,7 @@ class TournamentDiscoveryCard extends StatelessWidget {
                       left: 0,
                       right: 0,
                       bottom: 0,
-                      height: 72,
+                      height: 56,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
@@ -67,7 +96,7 @@ class TournamentDiscoveryCard extends StatelessWidget {
                             end: Alignment.bottomCenter,
                             colors: [
                               Colors.transparent,
-                              AppColors.black.withValues(alpha: 0.75),
+                              AppColors.black.withValues(alpha: 0.55),
                             ],
                           ),
                         ),
@@ -81,12 +110,15 @@ class TournamentDiscoveryCard extends StatelessWidget {
                       ),
                     Positioned(
                       right: 10,
-                      bottom: 10,
+                      top: 10,
                       child: _StatusChip(
-                        label: tournamentStatusLabel(tournament.status),
+                        label: statusLabel,
                         color: statusColor,
-                        live: tournament.status == TournamentListingStatus.live ||
-                            tournament.liveMatchesNow > 0,
+                        live:
+                            !isEnrolled &&
+                            (tournament.status ==
+                                    TournamentListingStatus.live ||
+                                tournament.liveMatchesNow > 0),
                       ),
                     ),
                   ],
@@ -98,74 +130,113 @@ class TournamentDiscoveryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
+                      (topLabel ?? 'TORNEIO · 1 ETAPA').toUpperCase(),
+                      style: AppTypography.mono(
+                        fontSize: 11,
+                        color: AppColors.onSurfaceMuted,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
                       tournament.name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
+                      style: AppTypography.soraRegular(
+                        fontSize: 18,
                         fontWeight: FontWeight.w800,
                         color: AppColors.onSurface,
-                        letterSpacing: -0.3,
-                        height: 1.2,
+                        letterSpacing: -0.35,
+                        height: 1.15,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${tournament.location} · ${tournament.city}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    const SizedBox(height: 8),
+                    _TournamentMetaRow(
+                      location: tournament.location,
+                      city: tournament.city,
+                      dateLabel: showSpotsSection
+                          ? tournamentDiscoveryCardDateShort(tournament)
+                          : tournament.dateLabel,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      tournament.dateLabel,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                    if (showSpotsSection) ...[
+                      const SizedBox(height: 14),
+                      _CardDivider(),
+                      const SizedBox(height: 14),
+                      TournamentCategorySpotsSection(
+                        tournamentId: tournament.id,
+                        offers: offers,
+                        format: tournament.format,
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        ...tournament.categories.map(
-                          (c) => _MetaChip(label: tournamentCategoryLabel(c)),
+                    ] else ...[
+                      if (tournament.categories.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            ...tournament.categories.map(
+                              (c) => _MetaChip(
+                                label: tournamentCategoryLabel(c),
+                              ),
+                            ),
+                            _MetaChip(
+                              label: tournamentFormatLabel(tournament.format),
+                            ),
+                          ],
                         ),
-                        _MetaChip(label: tournamentFormatLabel(tournament.format)),
-                        _MetaChip(label: tournament.priceLabel),
                       ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: fillRatio.clamp(0.0, 1.0),
-                              minHeight: 6,
-                              backgroundColor:
-                                  AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: fillRatio.clamp(0.0, 1.0),
+                          minHeight: 8,
+                          backgroundColor: AppColors.onSurfaceMuted.withValues(
+                            alpha: 0.18,
+                          ),
+                          color: statusColor,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Text(
+                            total > 0 ? '$used/$total DUPLAS' : '',
+                            style: AppTypography.mono(
                               color: statusColor,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0.6,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Text(
-                          tournament.spotsLeft > 0
-                              ? '${tournament.spotsLeft} vagas'
-                              : 'Lotado',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: AppColors.onSurfaceMuted,
-                            fontWeight: FontWeight.w700,
+                          const Spacer(),
+                          Text(
+                            capacityLeftLabel,
+                            style: AppTypography.mono(
+                              color: AppColors.onSurfaceMuted,
+                              fontWeight: FontWeight.w500,
+                              letterSpacing: 0.6,
+                            ),
                           ),
+                        ],
+                      ),
+                    ],
+                    if (showFooter) ...[
+                      const SizedBox(height: 14),
+                      _CardDivider(),
+                      const SizedBox(height: 14),
+                      _TournamentCardFooter(
+                        priceLabel: tournament.priceLabel,
+                        ctaLabel: tournamentDiscoveryCardCtaLabel(
+                          isEnrolled: isEnrolled,
+                          status: tournament.status,
                         ),
-                      ],
-                    ),
+                        emphasizeCta: isEnrolled ||
+                            canRegisterForTournament(tournament.status),
+                      ),
+                    ],
                     if (tournament.liveMatchesNow > 0) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Text(
                         '${tournament.liveMatchesNow} jogos ao vivo agora',
                         style: theme.textTheme.labelSmall?.copyWith(
@@ -185,11 +256,146 @@ class TournamentDiscoveryCard extends StatelessWidget {
   }
 }
 
-class _TournamentCoverImage extends StatelessWidget {
-  const _TournamentCoverImage({
-    required this.imageUrl,
-    required this.featured,
+class _TournamentMetaRow extends StatelessWidget {
+  const _TournamentMetaRow({
+    required this.location,
+    required this.city,
+    required this.dateLabel,
   });
+
+  final String location;
+  final String city;
+  final String dateLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = AppColors.onSurfaceMuted;
+    final iconStyle = IconThemeData(
+      size: 14,
+      color: muted.withValues(alpha: 0.85),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.location_on_outlined, color: iconStyle.color, size: 14),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                '$location · $city',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.soraRegular(
+                  fontSize: 13,
+                  color: muted,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Icon(Icons.calendar_today_outlined,
+                color: iconStyle.color, size: 14),
+            const SizedBox(width: 6),
+            Text(
+              dateLabel,
+              style: AppTypography.soraRegular(
+                fontSize: 13,
+                color: muted,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _CardDivider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Divider(
+      height: 1,
+      thickness: 1,
+      color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+    );
+  }
+}
+
+class _TournamentCardFooter extends StatelessWidget {
+  const _TournamentCardFooter({
+    required this.priceLabel,
+    required this.ctaLabel,
+    required this.emphasizeCta,
+  });
+
+  final String priceLabel;
+  final String ctaLabel;
+  final bool emphasizeCta;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'A PARTIR DE',
+                style: AppTypography.mono(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                  color: AppColors.onSurfaceMuted,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                priceLabel,
+                style: AppTypography.soraRegular(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.brand,
+                  height: 1,
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+          decoration: BoxDecoration(
+            color: emphasizeCta
+                ? AppColors.brand
+                : AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            ctaLabel,
+            style: AppTypography.soraRegular(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: emphasizeCta ? AppColors.black : AppColors.onSurfaceMuted,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TournamentCoverImage extends StatelessWidget {
+  const _TournamentCoverImage({required this.imageUrl, required this.featured});
 
   final String? imageUrl;
   final bool featured;
@@ -223,13 +429,10 @@ class _CoverPlaceholder extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: featured
               ? [
-                  AppColors.brand.withValues(alpha: 0.35),
+                  AppColors.win.withValues(alpha: 0.22),
                   AppColors.surfaceCard,
                 ]
-              : [
-                  AppColors.surfaceCard,
-                  AppColors.surfaceRaised,
-                ],
+              : [AppColors.surfaceCard, AppColors.surfaceRaised],
         ),
       ),
       child: Center(
@@ -237,7 +440,7 @@ class _CoverPlaceholder extends StatelessWidget {
           Icons.sports_volleyball_rounded,
           size: 48,
           color: featured
-              ? AppColors.brand.withValues(alpha: 0.85)
+              ? AppColors.win.withValues(alpha: 0.7)
               : AppColors.onSurfaceMuted.withValues(alpha: 0.45),
         ),
       ),
@@ -286,9 +489,9 @@ class _StatusChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.black.withValues(alpha: 0.55),
+        color: AppColors.black.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.65)),
+        border: Border.all(color: color.withValues(alpha: 0.7)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -297,19 +500,18 @@ class _StatusChip extends StatelessWidget {
             Container(
               width: 6,
               height: 6,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
             const SizedBox(width: 6),
           ],
           Text(
             label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w800,
-                ),
+            style: AppTypography.mono(
+              fontSize: 10,
+              color: color,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+            ),
           ),
         ],
       ),
@@ -327,7 +529,7 @@ class _MetaChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: AppColors.surfaceRaised,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),

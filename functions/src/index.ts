@@ -40,6 +40,19 @@ import {
 } from "./arena-booking-pix";
 import {asaasWebhook} from "./asaas-webhook";
 import {onArenaBookingCanceledNotifySlotVacancyAlerts} from "./slot-vacancy-alerts";
+import {
+  sendTournamentPartnerInvite,
+  acceptTournamentPartnerInvite,
+  cancelTournamentPartnerInvite,
+} from "./tournament-partner-invite";
+import {onBookingInviteCreatedNotifyInvitee} from "./booking-invite-notify";
+import {
+  BOOKING_REMINDER_15M_MINUTES_BEFORE,
+  BOOKING_REMINDER_15M_TYPE,
+  collectConfirmedAthleteIds,
+  parseDateKeyFromBookingDate as parseBookingDateKey,
+  sendBooking15mReminderToAthletes,
+} from "./arena-booking-reminder-15m";
 
 export {
   quoteArenaBooking,
@@ -52,6 +65,10 @@ export {
   reviewArenaWithdrawal,
   asaasWebhook,
   onArenaBookingCanceledNotifySlotVacancyAlerts,
+  sendTournamentPartnerInvite,
+  acceptTournamentPartnerInvite,
+  cancelTournamentPartnerInvite,
+  onBookingInviteCreatedNotifyInvitee,
 };
 
 // Initialize Firebase Admin
@@ -216,9 +233,6 @@ function bookingStartAt(dateKey: string, startTime: string): Date | null {
   return dt;
 }
 
-const BOOKING_REMINDER_15M_TYPE = "arena_booking_15m_reminder";
-const BOOKING_REMINDER_15M_MINUTES_BEFORE = 15;
-
 function parseDateKeyFromBookingDate(value: unknown): string | null {
   if (!value) return null;
   if (typeof value === "string") {
@@ -243,18 +257,6 @@ function parseDateKeyFromBookingDate(value: unknown): string | null {
     return `${y}-${m}-${day}`;
   }
   return null;
-}
-
-function bookingAthleteUserId(booking: {[k: string]: unknown}): string {
-  const bookingAthleteId = booking["bookingAthleteId"];
-  if (typeof bookingAthleteId === "string" && bookingAthleteId.trim().length > 0) {
-    return bookingAthleteId.trim();
-  }
-  const athleteId = booking["athleteId"];
-  if (typeof athleteId === "string" && athleteId.trim().length > 0) {
-    return athleteId.trim();
-  }
-  return "";
 }
 
 async function getUserFcmTokens(userId: string): Promise<string[]> {
@@ -366,7 +368,6 @@ export const sendArenaBookingReminders15m = onSchedule({
   timeZone: "America/Sao_Paulo",
 }, async () => {
   const db = getFirestore();
-  const messaging = getMessaging();
   const projectId = getFirebaseProjectId();
   const reminderLocksRef = db.collection(`artifacts/${projectId}/public/data/arenaBookingReminders15m`);
 
@@ -389,19 +390,17 @@ export const sendArenaBookingReminders15m = onSchedule({
   let failed = 0;
 
   for (const bookingDoc of bookingsSnap.docs) {
-    const booking = bookingDoc.data() as {[k: string]: unknown};
+    const booking = bookingDoc.data() as Record<string, unknown>;
     const status = typeof booking["status"] === "string" ? booking["status"].toLowerCase() : "";
     if (status && status !== "booked" && status !== "active" && status !== "confirmed") {
       skipped += 1;
       continue;
     }
 
-    const athleteId = bookingAthleteUserId(booking);
-    const dateKey = parseDateKeyFromBookingDate(booking["date"]);
+    const dateKey = parseBookingDateKey(booking["date"]);
     const startTime = typeof booking["startTime"] === "string" ? booking["startTime"].trim() : "";
-    const arenaName = typeof booking["arenaName"] === "string" ? booking["arenaName"].trim() : "Arena";
 
-    if (!athleteId || !dateKey || !startTime) {
+    if (!dateKey || !startTime) {
       skipped += 1;
       continue;
     }
@@ -418,6 +417,12 @@ export const sendArenaBookingReminders15m = onSchedule({
       continue;
     }
 
+    const recipientIds = await collectConfirmedAthleteIds(booking, bookingDoc.id, db);
+    if (recipientIds.length === 0) {
+      skipped += 1;
+      continue;
+    }
+
     const lockRef = reminderLocksRef.doc(`${bookingDoc.id}_15m`);
     const lockAcquired = await db.runTransaction(async (tx) => {
       const lockSnap = await tx.get(lockRef);
@@ -426,7 +431,8 @@ export const sendArenaBookingReminders15m = onSchedule({
       }
       tx.set(lockRef, {
         bookingId: bookingDoc.id,
-        athleteId,
+        recipientCount: recipientIds.length,
+        recipientIds,
         type: BOOKING_REMINDER_15M_TYPE,
         createdAt: FieldValue.serverTimestamp(),
       });
@@ -438,64 +444,14 @@ export const sendArenaBookingReminders15m = onSchedule({
     }
 
     try {
-      const fcmTokens = await getUserFcmTokens(athleteId);
-      if (fcmTokens.length === 0) {
-        await lockRef.set({skippedNoFcmToken: true, sentAt: FieldValue.serverTimestamp()}, {merge: true});
-        skipped += 1;
-        continue;
-      }
-
-      const title = "Seu jogo começa em breve";
-      const body = `${arenaName} • ${startTime}`;
-
-      const message = {
-        notification: {title, body},
-        data: {
-          type: BOOKING_REMINDER_15M_TYPE,
-          bookingId: bookingDoc.id,
-          arenaId: String(booking["arenaId"] || ""),
-          date: dateKey,
-          startTime,
-        },
-        android: {
-          priority: "high" as const,
-          notification: {
-            channelId: "default",
-            sound: "default",
-          },
-        },
-        apns: {
-          headers: {"apns-priority": "10"},
-          payload: {aps: {sound: "default"}},
-        },
-      };
-
-      const fcmResults = await Promise.allSettled(
-        fcmTokens.map((token) => messaging.send({...message, token}))
+      const result = await sendBooking15mReminderToAthletes(
+        bookingDoc.id,
+        booking,
+        recipientIds
       );
-      const successful = fcmResults.filter((r) => r.status === "fulfilled").length;
-      const failedCount = fcmResults.length - successful;
-      sent += successful;
-      failed += failedCount;
 
-      if (successful > 0) {
-        await db.collection(`users/${athleteId}/notifications`).add({
-          userId: athleteId,
-          title,
-          body,
-          type: BOOKING_REMINDER_15M_TYPE,
-          data: {
-            bookingId: bookingDoc.id,
-            arenaId: booking["arenaId"] || "",
-            date: dateKey,
-            startTime,
-            minutesBefore: String(BOOKING_REMINDER_15M_MINUTES_BEFORE),
-          },
-          read: false,
-          createdAt: FieldValue.serverTimestamp(),
-          readAt: null,
-        });
-      }
+      sent += result.sent;
+      failed += result.failed;
 
       await bookingDoc.ref.set({
         reminder15mSentAt: FieldValue.serverTimestamp(),
@@ -503,8 +459,10 @@ export const sendArenaBookingReminders15m = onSchedule({
 
       await lockRef.set({
         sentAt: FieldValue.serverTimestamp(),
-        sent: successful,
-        failed: failedCount,
+        sent: result.sent,
+        failed: result.failed,
+        inboxWritten: result.inboxWritten,
+        recipientCount: recipientIds.length,
       }, {merge: true});
     } catch (error) {
       failed += 1;

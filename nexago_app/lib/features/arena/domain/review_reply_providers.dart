@@ -51,6 +51,7 @@ final managedArenaReviewsProvider =
         .toSet()
         .toList(growable: false);
     final names = <String, String>{};
+    final avatars = <String, String>{};
     for (var i = 0; i < ids.length; i += 10) {
       final chunk = ids.sublist(i, i + 10 > ids.length ? ids.length : i + 10);
       final usersSnap = await firestore
@@ -58,12 +59,20 @@ final managedArenaReviewsProvider =
           .where(FieldPath.documentId, whereIn: chunk)
           .get();
       for (final d in usersSnap.docs) {
-        final n = (d.data()['name'] as String?)?.trim();
+        final data = d.data();
+        final n = (data['name'] as String?)?.trim();
         if (n != null && n.isNotEmpty) names[d.id] = n;
+        final avatar = ArenaReview.avatarUrlFromUserData(data);
+        if (avatar != null) avatars[d.id] = avatar;
       }
     }
     return items
-        .map((r) => r.copyWith(athleteName: names[r.userId]))
+        .map(
+          (r) => r.copyWith(
+            athleteName: names[r.userId],
+            athleteAvatarUrl: avatars[r.userId],
+          ),
+        )
         .toList(growable: false);
   });
 });

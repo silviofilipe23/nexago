@@ -268,6 +268,44 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
 
   logger.info("Tournament partner invite accepted", {inviteId, ...result});
 
+  const inviteAfter = (await inviteRef.get()).data();
+  const inviterUid = (inviteAfter?.inviterUid as string | undefined)?.trim() ?? "";
+  const inviteeName =
+    (inviteAfter?.inviteeName as string | undefined)?.trim() || "Seu parceiro";
+  const tournamentId = result.tournamentId;
+  const categoryId = result.categoryId;
+  const registrationId = result.registrationId;
+
+  if (inviterUid) {
+    const paymentPath =
+      `/torneios/${tournamentId}/inscricao` +
+      `?registrationId=${encodeURIComponent(registrationId)}` +
+      `&categoryId=${encodeURIComponent(categoryId)}` +
+      `&inviteId=${encodeURIComponent(inviteId)}` +
+      "&step=payment";
+    try {
+      await deliverNotificationToUser({
+        userId: inviterUid,
+        title: "Parceiro confirmou!",
+        body: `${inviteeName} aceitou! Conclua o pagamento da inscrição.`,
+        type: "tournament_partner_invite_accepted",
+        data: {
+          inviteId,
+          tournamentId,
+          categoryId,
+          registrationId,
+          url: paymentPath,
+        },
+      });
+    } catch (notifyError) {
+      logger.warn("Falha ao notificar convidador do torneio", {
+        inviteId,
+        inviterUid,
+        notifyError,
+      });
+    }
+  }
+
   return result;
 });
 

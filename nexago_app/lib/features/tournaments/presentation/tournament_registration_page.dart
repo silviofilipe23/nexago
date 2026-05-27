@@ -32,12 +32,14 @@ class TournamentRegistrationPage extends ConsumerStatefulWidget {
     required this.tournamentId,
     this.initialCategoryId,
     this.initialRegistrationId,
+    this.initialInviteId,
     this.initialStep,
   });
 
   final String tournamentId;
   final String? initialCategoryId;
   final String? initialRegistrationId;
+  final String? initialInviteId;
   final TournamentRegistrationStep? initialStep;
 
   @override
@@ -56,6 +58,7 @@ class _TournamentRegistrationPageState
   bool _submitting = false;
   bool _appliedInitialCategory = false;
   bool _appliedInitialRegistration = false;
+  bool _appliedInitialInvite = false;
   bool _paidPopHandled = false;
 
   @override
@@ -65,6 +68,13 @@ class _TournamentRegistrationPageState
     if (regId != null && regId.isNotEmpty) {
       _registrationId = regId;
       _step = widget.initialStep ?? TournamentRegistrationStep.payment;
+    }
+    final invId = widget.initialInviteId?.trim();
+    if (invId != null && invId.isNotEmpty) {
+      _inviteId = invId;
+      if (_step == TournamentRegistrationStep.category) {
+        _step = widget.initialStep ?? TournamentRegistrationStep.waiting;
+      }
     }
   }
 
@@ -88,6 +98,50 @@ class _TournamentRegistrationPageState
         _category = match;
         if (_registrationId == null) {
           _step = TournamentRegistrationStep.summary;
+        }
+      });
+    });
+  }
+
+  void _scheduleInitialInvite(List<TournamentCategoryOffer> categories) {
+    if (_appliedInitialInvite) return;
+    final invId = _inviteId?.trim();
+    if (invId == null || invId.isEmpty) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || _appliedInitialInvite) return;
+      final invite = await ref
+          .read(tournamentPartnerInviteServiceProvider)
+          .watchInvite(invId)
+          .first;
+      if (!mounted || invite == null) return;
+
+      TournamentCategoryOffer? match;
+      for (final c in categories) {
+        if (c.id == invite.categoryId) {
+          match = c;
+          break;
+        }
+      }
+
+      setState(() {
+        _appliedInitialInvite = true;
+        _inviteId = invite.id;
+        if (match != null) _category = match;
+        _partnerUserId = invite.inviteeUid;
+        _selectedPartner = TournamentRegistrationPartnerCandidate(
+          userId: invite.inviteeUid,
+          initials: _initialsFromName(invite.inviteeName),
+          name: invite.inviteeName,
+          rankLabel: '',
+        );
+        if (invite.isAccepted &&
+            invite.registrationId != null &&
+            invite.registrationId!.isNotEmpty) {
+          _registrationId = invite.registrationId;
+          _step = TournamentRegistrationStep.payment;
+        } else if (!invite.isAccepted) {
+          _step = TournamentRegistrationStep.waiting;
         }
       });
     });
@@ -133,7 +187,7 @@ class _TournamentRegistrationPageState
       case TournamentRegistrationStep.partner:
         _goToStep(TournamentRegistrationStep.summary);
       case TournamentRegistrationStep.waiting:
-        _goToStep(TournamentRegistrationStep.partner);
+        context.pop();
       case TournamentRegistrationStep.payment:
         if (_inviteId != null) {
           _goToStep(TournamentRegistrationStep.waiting);
@@ -425,6 +479,7 @@ class _TournamentRegistrationPageState
 
           _scheduleInitialCategory(categories);
           _scheduleInitialRegistration(categories);
+          _scheduleInitialInvite(categories);
 
           final enrollment = ref
                   .watch(
@@ -625,12 +680,32 @@ class _TournamentRegistrationPageState
         }
         final inviteLink =
             _inviteId != null ? '/torneios-convite/${_inviteId!}' : null;
+        final pendingInviteId = _inviteId?.trim() ?? '';
+        final invite = pendingInviteId.isNotEmpty
+            ? ref
+                .watch(tournamentPartnerInviteProvider(pendingInviteId))
+                .valueOrNull
+            : null;
+        final partnerSubtitle = inviteAccepted
+            ? '${partner.name.split(' ').first} · confirmado'
+            : invite != null
+                ? 'Pendente · ${tournamentInviteExpiryLabel(invite.expiresAt)}'
+                : 'Pendente';
+        final reservationHours = invite != null
+            ? tournamentInviteReservationHoursLabel(
+                invite.expiresAt,
+                invite.createdAt,
+              )
+            : '24 horas';
         return [
           TournamentRegistrationWaitingStep(
             partner: partner,
             athleteDisplayName: athleteName,
             athleteInitials: athleteInitials,
             inviteAccepted: inviteAccepted,
+            partnerPendingSubtitle: partnerSubtitle,
+            reservationHoursLabel: reservationHours,
+            onContinueBrowsing: () => context.pop(),
             onResendInvite: () {
               if (inviteLink != null) {
                 showAppSnackBar(

@@ -176,15 +176,10 @@ class AthleteHomeHeader extends StatelessWidget {
                   ),
                   if (unreadNotificationCount > 0)
                     Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: AppColors.brand,
-                          shape: BoxShape.circle,
-                        ),
+                      right: 4,
+                      top: 4,
+                      child: _NotificationCountBadge(
+                        count: unreadNotificationCount,
                       ),
                     ),
                 ],
@@ -200,5 +195,39 @@ class AthleteHomeHeader extends StatelessWidget {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return 'Atleta';
     return parts.first;
+  }
+}
+
+class _NotificationCountBadge extends StatelessWidget {
+  const _NotificationCountBadge({required this.count});
+
+  final int count;
+
+  String get _label {
+    if (count > 99) return '99+';
+    return '$count';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.brand,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.black, width: 1.5),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        _label,
+        style: const TextStyle(
+          color: AppColors.black,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          height: 1,
+        ),
+      ),
+    );
   }
 }

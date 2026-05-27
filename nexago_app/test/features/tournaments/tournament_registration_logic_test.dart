@@ -10,6 +10,17 @@ void main() {
     await initializeDateFormatting('pt_BR');
   });
 
+  group('tournamentInviteExpiryLabel', () {
+    test('formats hours and minutes remaining', () {
+      final now = DateTime(2026, 5, 27, 12);
+      final expires = now.add(const Duration(hours: 23, minutes: 47));
+      expect(
+        tournamentInviteExpiryLabel(expires, now),
+        'expira em 23h 47min',
+      );
+    });
+  });
+
   group('buildRegistrationQuote', () {
     test('computes display total, share and platform fee', () {
       final quote = buildRegistrationQuote(entryFee: 160);

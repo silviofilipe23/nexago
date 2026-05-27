@@ -13,7 +13,10 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
     required this.athleteInitials,
     this.onResendInvite,
     this.onCancelRegistration,
+    this.onContinueBrowsing,
     this.inviteAccepted = false,
+    this.partnerPendingSubtitle = 'Pendente',
+    this.reservationHoursLabel = '24 horas',
   });
 
   final TournamentRegistrationPartnerCandidate partner;
@@ -21,7 +24,10 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
   final String athleteInitials;
   final VoidCallback? onResendInvite;
   final VoidCallback? onCancelRegistration;
+  final VoidCallback? onContinueBrowsing;
   final bool inviteAccepted;
+  final String partnerPendingSubtitle;
+  final String reservationHoursLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +140,7 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
                             'Avisamos pelo app e por celular. Sua vaga fica reservada por ',
                       ),
                       TextSpan(
-                        text: '24 horas',
+                        text: reservationHoursLabel,
                         style: TextStyle(
                           color: AppColors.pending,
                           fontWeight: FontWeight.w700,
@@ -183,14 +189,30 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
               _DuoRow(
                 initials: partner.initials,
                 name: partner.name,
-                subtitle: 'Pendente · expira em 23h 47min',
-                confirmed: false,
-                dashedAvatar: true,
+                subtitle: partnerPendingSubtitle,
+                confirmed: inviteAccepted,
+                dashedAvatar: !inviteAccepted,
               ),
             ],
           ),
         ),
         const SizedBox(height: 24),
+        FilledButton(
+          onPressed: onContinueBrowsing,
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.brand,
+            foregroundColor: AppColors.black,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: const Text(
+            'Continuar no app',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+        const SizedBox(height: 10),
         OutlinedButton(
           onPressed: onResendInvite,
           style: OutlinedButton.styleFrom(

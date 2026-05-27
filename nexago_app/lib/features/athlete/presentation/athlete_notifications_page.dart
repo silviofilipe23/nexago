@@ -11,6 +11,7 @@ import '../data/athlete_notifications_repository.dart';
 import '../domain/athlete_inbox_notification.dart';
 import '../domain/athlete_notifications_logic.dart';
 import '../domain/athlete_notifications_providers.dart';
+import 'widgets/athlete_notifications/animated_notification_removal.dart';
 import 'widgets/athlete_notifications/athlete_notification_card.dart';
 import 'widgets/athlete_notifications/athlete_notifications_filter_bar.dart';
 import 'widgets/athlete_notifications/athlete_notifications_section_header.dart';
@@ -27,6 +28,7 @@ class _AthleteNotificationsPageState
     extends ConsumerState<AthleteNotificationsPage> {
   bool _unreadOnly = false;
   bool _markingAll = false;
+  final Set<String> _removingIds = <String>{};
 
   String? get _uid => ref.read(authProvider).valueOrNull?.uid;
 
@@ -51,6 +53,21 @@ class _AthleteNotificationsPageState
         .dismiss(uid, notification.id);
   }
 
+  void _animateRemoval(AthleteInboxNotification notification) {
+    if (_removingIds.contains(notification.id)) return;
+    setState(() => _removingIds.add(notification.id));
+  }
+
+  Future<void> _commitRemoval(AthleteInboxNotification notification) async {
+    try {
+      await _dismiss(notification);
+    } finally {
+      if (mounted) {
+        setState(() => _removingIds.remove(notification.id));
+      }
+    }
+  }
+
   Future<void> _markRead(AthleteInboxNotification notification) async {
     final uid = _uid;
     if (uid == null || notification.read) return;
@@ -73,6 +90,7 @@ class _AthleteNotificationsPageState
     final type = notification.type.toLowerCase();
 
     if (type == 'tournament_partner_invite' ||
+        type == 'tournament_partner_invite_accepted' ||
         type == 'booking_invite') {
       _navigateForNotification(notification);
       return;
@@ -108,7 +126,7 @@ class _AthleteNotificationsPageState
         _navigateForNotification(notification);
         return;
       }
-      await _dismiss(notification);
+      _animateRemoval(notification);
     } on TournamentPartnerInviteException catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, e.message, isError: true);
@@ -205,22 +223,36 @@ class _AthleteNotificationsPageState
                           }
                           final n = item.notification!;
                           final presentation = notificationPresentation(n);
-                          return AthleteNotificationCard(
-                            notification: n,
-                            presentation: presentation,
-                            timeLabel: notificationRelativeTimeLabel(
-                              n.createdAt,
-                              now,
+                          final isRemoving = _removingIds.contains(n.id);
+                          return AnimatedNotificationRemoval(
+                            isRemoving: isRemoving,
+                            onRemoved: () => _commitRemoval(n),
+                            child: AbsorbPointer(
+                              absorbing: isRemoving,
+                              child: AthleteNotificationCard(
+                              notification: n,
+                              presentation: presentation,
+                              timeLabel: notificationRelativeTimeLabel(
+                                n.createdAt,
+                                now,
+                              ),
+                              onDismiss: isRemoving
+                                  ? () {}
+                                  : () => _animateRemoval(n),
+                              onPrimaryAction: isRemoving
+                                  ? () {}
+                                  : () => _handlePrimaryAction(n),
+                              onSecondaryAction:
+                                  presentation.actions.length > 1 && !isRemoving
+                                      ? () => _handleSecondaryAction(n)
+                                      : null,
+                              onTap: isRemoving ||
+                                      presentation.routePath == null ||
+                                      presentation.actions.isNotEmpty
+                                  ? null
+                                  : () => _navigateForNotification(n),
+                              ),
                             ),
-                            onDismiss: () => _dismiss(n),
-                            onPrimaryAction: () => _handlePrimaryAction(n),
-                            onSecondaryAction: presentation.actions.length > 1
-                                ? () => _handleSecondaryAction(n)
-                                : null,
-                            onTap: presentation.routePath != null &&
-                                    presentation.actions.isEmpty
-                                ? () => _navigateForNotification(n)
-                                : null,
                           );
                         },
                       ),

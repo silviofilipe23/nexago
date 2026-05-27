@@ -106,6 +106,34 @@ void main() {
       expect(p.icon, Icons.emoji_events_outlined);
     });
 
+    test('tournament invite accepted routes to payment', () {
+      final n = AthleteInboxNotification(
+        id: 'x',
+        title: 'Parceiro confirmou',
+        body: 'Body',
+        type: 'tournament_partner_invite_accepted',
+        data: const {
+          'tournamentId': 't1',
+          'registrationId': 'r1',
+          'categoryId': 'catA',
+          'inviteId': 'inv1',
+        },
+        read: false,
+        dismissed: false,
+        createdAt: now,
+      );
+      final p = notificationPresentation(n);
+      expect(p.actions.single.label, 'Ir para pagamento');
+      expect(
+        p.routePath,
+        '/torneios/t1/inscricao'
+            '?registrationId=r1'
+            '&categoryId=catA'
+            '&inviteId=inv1'
+            '&step=payment',
+      );
+    });
+
     test('booking reminder uses clock icon', () {
       final n = _notification(
         id: '1',

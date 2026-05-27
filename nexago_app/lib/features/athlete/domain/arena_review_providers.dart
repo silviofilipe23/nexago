@@ -211,6 +211,7 @@ final arenaReviewsStreamProvider = StreamProvider.autoDispose
         .toSet()
         .toList(growable: false);
     final userNames = <String, String>{};
+    final userAvatars = <String, String>{};
     for (var i = 0; i < userIds.length; i += 10) {
       final chunk =
           userIds.sublist(i, i + 10 > userIds.length ? userIds.length : i + 10);
@@ -219,13 +220,21 @@ final arenaReviewsStreamProvider = StreamProvider.autoDispose
           .where(FieldPath.documentId, whereIn: chunk)
           .get();
       for (final doc in usersSnap.docs) {
-        final name = (doc.data()['name'] as String?)?.trim();
+        final data = doc.data();
+        final name = (data['name'] as String?)?.trim();
         if (name != null && name.isNotEmpty) userNames[doc.id] = name;
+        final avatar = ArenaReview.avatarUrlFromUserData(data);
+        if (avatar != null) userAvatars[doc.id] = avatar;
       }
     }
 
     return List.unmodifiable(
-      capped.map((r) => r.copyWith(athleteName: userNames[r.userId])),
+      capped.map(
+        (r) => r.copyWith(
+          athleteName: userNames[r.userId],
+          athleteAvatarUrl: userAvatars[r.userId],
+        ),
+      ),
     );
   });
 });

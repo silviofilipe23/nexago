@@ -8,7 +8,7 @@ void navigateFromNotification(
   RemoteMessage message,
   GoRouter router,
 ) {
-  final target = _resolveRoute(message.data);
+  final target = resolveNotificationRoute(message.data);
   if (target == null || target.isEmpty) return;
 
   // Garante navegação após estabilizar o frame atual.
@@ -17,7 +17,7 @@ void navigateFromNotification(
   });
 }
 
-String? _resolveRoute(Map<String, dynamic> data) {
+String? resolveNotificationRoute(Map<String, dynamic> data) {
   final type = (data['type'] as String?)?.toLowerCase().trim() ?? '';
 
   final url = (data['url'] as String?)?.trim();
@@ -49,6 +49,28 @@ String? _resolveRoute(Map<String, dynamic> data) {
     final inviteId = (data['inviteId'] as String?)?.trim() ?? '';
     if (inviteId.isEmpty) return null;
     return AppRoutes.tournamentPartnerInvite.replaceAll(':inviteId', inviteId);
+  }
+
+  if (type == 'tournament_partner_invite_accepted') {
+    final url = (data['url'] as String?)?.trim();
+    if (url != null && url.startsWith('/')) return url;
+    final tournamentId = (data['tournamentId'] as String?)?.trim() ?? '';
+    final registrationId = (data['registrationId'] as String?)?.trim() ?? '';
+    final categoryId = (data['categoryId'] as String?)?.trim() ?? '';
+    final inviteId = (data['inviteId'] as String?)?.trim() ?? '';
+    if (tournamentId.isEmpty || registrationId.isEmpty) return null;
+    final path = AppRoutes.tournamentRegistration
+        .replaceAll(':tournamentId', tournamentId);
+    final params = <String, String>{
+      'registrationId': registrationId,
+      'step': 'payment',
+    };
+    if (categoryId.isNotEmpty) params['categoryId'] = categoryId;
+    if (inviteId.isNotEmpty) params['inviteId'] = inviteId;
+    final query = params.entries
+        .map((e) => '${e.key}=${Uri.encodeComponent(e.value)}')
+        .join('&');
+    return '$path?$query';
   }
 
   if (type == 'booking_invite') {

@@ -33,7 +33,11 @@ class AthleteHomeSlotsSection extends StatelessWidget {
             itemCount: slots.length,
             separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (context, index) {
-              return _SlotCard(slot: slots[index]);
+              return SizedBox(
+                width: 168,
+                height: 148,
+                child: _SlotCard(slot: slots[index]),
+              );
             },
           ),
         ),
@@ -52,7 +56,8 @@ class _SlotCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
-      width: 168,
+      width: double.infinity,
+      height: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: slot.tintColor,
@@ -104,7 +109,7 @@ class _SlotCard extends StatelessWidget {
               ),
             ],
           ),
-          const Spacer(),
+          const SizedBox(height: 8),
           Container(
             height: 36,
             decoration: BoxDecoration(
@@ -132,13 +137,17 @@ class _SlotCard extends StatelessWidget {
           const SizedBox(height: 4),
           Row(
             children: [
-              Text(
-                slot.timeLabel,
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+              Expanded(
+                child: Text(
+                  slot.timeLabel,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: AppColors.onSurfaceMuted,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 6),
               Text(
                 slot.priceLabel,
                 style: theme.textTheme.labelMedium?.copyWith(

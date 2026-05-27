@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/router/routes.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../domain/athlete_booking_helpers.dart';
@@ -36,8 +38,7 @@ void navigateForDailyMission(
           athleteShellCompeteTabIndex;
       break;
     case GamificationMission.shareProfile:
-      ref.read(athleteShellTabIndexProvider.notifier).state =
-          athleteShellProfileTabIndex;
+      context.pushNamed(AppRouteNames.athleteProfile);
       showAppSnackBar(context, 'Toque em compartilhar no topo do seu perfil.');
       break;
   }

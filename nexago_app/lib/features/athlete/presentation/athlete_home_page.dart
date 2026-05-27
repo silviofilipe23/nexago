@@ -20,6 +20,7 @@ import 'widgets/athlete_home/athlete_home_quick_actions.dart';
 import 'daily_mission_navigation.dart';
 import 'widgets/athlete_home/athlete_home_slots_section.dart';
 import '../../tournaments/presentation/widgets/my_tournaments_home_section.dart';
+import '../../tournaments/presentation/widgets/pending_tournament_inviter_invites_section.dart';
 
 /// Aba Início do atleta (protótipo 01 — Hoje).
 class AthleteHomePage extends ConsumerWidget {
@@ -58,7 +59,8 @@ class AthleteHomePage extends ConsumerWidget {
                   displayName: name,
                   avatarUrl: profile?.avatarUrl,
                   summary: summary,
-                  onAvatarTap: () => _goToTab(ref, 4),
+                  onAvatarTap: () =>
+                      context.pushNamed(AppRouteNames.athleteProfile),
                   onXpTap: () => context.pushNamed(AppRouteNames.athleteQuest),
                   unreadNotificationCount: unreadNotifications,
                   onNotificationsTap: () =>
@@ -100,6 +102,10 @@ class AthleteHomePage extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 24),
+                const PendingTournamentInviterInvitesSection(),
+                const SizedBox(height: 24),
+                const MyTournamentsHomeSection(),
+                const SizedBox(height: 24),
                 AthleteHomeDailyMissionsSection(
                   missions: missionsAsync.valueOrNull,
                   onViewAll: () =>
@@ -112,8 +118,6 @@ class AthleteHomePage extends ConsumerWidget {
                   slots: mockAthleteHomeSlots(),
                   onViewAll: () => _goToTab(ref, athleteShellReservarTabIndex),
                 ),
-                const SizedBox(height: 24),
-                const MyTournamentsHomeSection(),
                 const SizedBox(height: 24),
                 AthleteHomePlaysWithSection(
                   partners: mockAthleteHomePlayPartners(),

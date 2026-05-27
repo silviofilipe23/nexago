@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import 'athlete_inbox_notification.dart';
 
+/// Fundo do ícone em notificações de reserva/lembrete (protótipo).
+const _bookingIconBackground = Color(0xFF2B1A12);
+
 enum AthleteNotificationActionKind {
   primary,
   secondary,
@@ -130,7 +133,7 @@ AthleteNotificationPresentation notificationPresentation(
       return AthleteNotificationPresentation(
         icon: Icons.schedule_rounded,
         iconColor: AppColors.brand,
-        iconBackground: AppColors.brand.withValues(alpha: 0.15),
+        iconBackground: _bookingIconBackground,
         actions: const [
           AthleteNotificationAction(
             label: 'Ver detalhes',
@@ -191,6 +194,33 @@ AthleteNotificationPresentation notificationPresentation(
         routePath:
             inviteId.isNotEmpty ? '/torneios-convite/$inviteId' : null,
       );
+    case 'tournament_partner_invite_accepted':
+      final tournamentId = data['tournamentId'] ?? '';
+      final registrationId = data['registrationId'] ?? '';
+      final categoryId = data['categoryId'] ?? '';
+      final inviteId = data['inviteId'] ?? '';
+      final url = data['url'] ?? '';
+      final routePath = url.startsWith('/')
+          ? url
+          : tournamentId.isNotEmpty && registrationId.isNotEmpty
+              ? '/torneios/$tournamentId/inscricao'
+                  '?registrationId=$registrationId'
+                  '&categoryId=$categoryId'
+                  '&inviteId=$inviteId'
+                  '&step=payment'
+              : null;
+      return AthleteNotificationPresentation(
+        icon: Icons.check_circle_outline_rounded,
+        iconColor: AppColors.win,
+        iconBackground: AppColors.win.withValues(alpha: 0.15),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Ir para pagamento',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: routePath,
+      );
     case 'booking_invite':
       final inviteId = data['inviteId'] ?? '';
       return AthleteNotificationPresentation(
@@ -215,7 +245,7 @@ AthleteNotificationPresentation notificationPresentation(
       return AthleteNotificationPresentation(
         icon: Icons.sports_tennis_rounded,
         iconColor: AppColors.brand,
-        iconBackground: AppColors.brand.withValues(alpha: 0.12),
+        iconBackground: _bookingIconBackground,
         actions: const [
           AthleteNotificationAction(
             label: 'Ver detalhes',

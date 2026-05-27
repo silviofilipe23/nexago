@@ -358,7 +358,11 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                               ? () => context.pushNamed(
                                     AppRouteNames.arenaReviews,
                                     pathParameters: {'arenaId': arena.id},
-                                    queryParameters: {'arenaName': arena.name},
+                                    queryParameters: {
+                                      'arenaName': arena.name,
+                                      if (arena.city?.trim().isNotEmpty == true)
+                                        'arenaCity': arena.city!.trim(),
+                                    },
                                   )
                               : null,
                         ),

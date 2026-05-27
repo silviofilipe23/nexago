@@ -16,6 +16,7 @@ import '../domain/tournament_discovery_labels.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
 import 'widgets/league_discovery_card.dart';
+import 'widgets/pending_tournament_inviter_invites_section.dart';
 import 'widgets/tournament_discovery_card.dart';
 
 /// Aba Competir — descoberta de ligas e torneios.
@@ -246,6 +247,8 @@ class _TournamentDiscoveryPageState
                       onboardingCompleted: access.onboardingCompleted,
                       profileStepsComplete: access.profileStepsComplete,
                     ),
+                  const PendingTournamentInviterInvitesSection(),
+                  const SizedBox(height: 16),
                   _HubHeader(
                     searching: _searching,
                     controller: _searchController,

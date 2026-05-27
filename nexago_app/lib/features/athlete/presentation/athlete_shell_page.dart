@@ -11,10 +11,11 @@ import '../domain/gamification_models.dart';
 import 'arena_list_page.dart';
 import 'widgets/gamification_feedback_sheet.dart';
 import 'athlete_bookings_page.dart';
+import 'athlete_community_page.dart';
 import 'athlete_home_page.dart';
-import 'athlete_profile_page.dart';
 import '../../tournaments/presentation/tournament_discovery_page.dart'
     show TournamentDiscoveryPage;
+import '../../tournaments/presentation/widgets/tournament_invite_accept_coordinator.dart';
 
 /// Container principal do atleta com [BottomNavigationBar] e [IndexedStack].
 class AthleteShellPage extends ConsumerStatefulWidget {
@@ -34,7 +35,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
     'Agenda',
     'Reservar',
     'Competir',
-    'Perfil',
+    'Comunidade',
   ];
 
   @override
@@ -51,7 +52,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final arenaPanelAsync = ref.watch(arenaPanelAccessProvider);
-    final hideAppBarForProfile = _index == 0 || _index == 2 || _index == 4;
+    final hideAppBarForImmersiveTabs = _index == 0 || _index == 2 || _index == 4;
 
     ref.listen<int>(athleteShellTabIndexProvider, (previous, next) {
       if (next != _index && next >= 0 && next < _titles.length) {
@@ -74,9 +75,10 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
       });
     });
 
-    return Scaffold(
+    return TournamentInviteAcceptCoordinator(
+      child: Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
-      appBar: hideAppBarForProfile
+      appBar: hideAppBarForImmersiveTabs
           ? null
           : AppBar(
               title: Text(_titles[_index]),
@@ -86,8 +88,11 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
                       ? [
                           IconButton(
                             tooltip: 'Painel da arena',
-                            onPressed: () => context.push(AppRoutes.arenaDashboard),
-                            icon: const Icon(Icons.admin_panel_settings_outlined),
+                            onPressed: () =>
+                                context.push(AppRoutes.arenaDashboard),
+                            icon: const Icon(
+                              Icons.admin_panel_settings_outlined,
+                            ),
                           ),
                         ]
                       : <Widget>[],
@@ -102,7 +107,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
           AthleteBookingsPage(),
           ArenaListPage(),
           TournamentDiscoveryPage(),
-          AthleteProfilePage(embedded: true),
+          AthleteCommunityPage(),
         ],
       ),
       bottomNavigationBar: Theme(
@@ -118,8 +123,9 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
             setState(() => _index = i);
           },
           selectedItemColor: AppColors.brand,
-          unselectedItemColor:
-              theme.colorScheme.onSurface.withValues(alpha: 0.55),
+          unselectedItemColor: theme.colorScheme.onSurface.withValues(
+            alpha: 0.55,
+          ),
           selectedFontSize: 12,
           unselectedFontSize: 12,
           showUnselectedLabels: true,
@@ -145,13 +151,14 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
               label: 'Competir',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Perfil',
+              icon: Icon(Icons.diversity_3_outlined),
+              activeIcon: Icon(Icons.diversity_3_rounded),
+              label: 'Comunidade',
             ),
           ],
         ),
       ),
+    ),
     );
   }
 }

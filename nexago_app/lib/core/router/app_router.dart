@@ -430,15 +430,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final categoryId = state.uri.queryParameters['categoryId']?.trim();
           final registrationId =
               state.uri.queryParameters['registrationId']?.trim();
+          final inviteId = state.uri.queryParameters['inviteId']?.trim();
           final stepParam = state.uri.queryParameters['step']?.trim();
           TournamentRegistrationStep? initialStep;
           if (stepParam == 'payment') {
             initialStep = TournamentRegistrationStep.payment;
+          } else if (stepParam == 'waiting') {
+            initialStep = TournamentRegistrationStep.waiting;
           }
           return TournamentRegistrationPage(
             tournamentId: id,
             initialCategoryId: categoryId,
             initialRegistrationId: registrationId,
+            initialInviteId: inviteId,
             initialStep: initialStep,
           );
         },
@@ -669,9 +673,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final arenaId = state.pathParameters['arenaId'] ?? '';
           final arenaName = state.uri.queryParameters['arenaName']?.trim();
+          final arenaCity = state.uri.queryParameters['arenaCity']?.trim();
           return ArenaReviewsPage(
             arenaId: arenaId,
             arenaName: arenaName,
+            arenaCity: arenaCity,
           );
         },
       ),

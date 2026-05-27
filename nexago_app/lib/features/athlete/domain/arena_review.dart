@@ -12,6 +12,7 @@ class ArenaReview {
     required this.likesCount,
     required this.reported,
     this.athleteName,
+    this.athleteAvatarUrl,
     this.reply,
   });
 
@@ -25,10 +26,21 @@ class ArenaReview {
   final int likesCount;
   final bool reported;
   final String? athleteName;
+  final String? athleteAvatarUrl;
   final ArenaReviewReply? reply;
+
+  /// URL da foto em `users/{uid}` (`profilePhotoUrl`, `avatarUrl` ou `photoURL`).
+  static String? avatarUrlFromUserData(Map<String, dynamic> data) {
+    for (final key in ['profilePhotoUrl', 'avatarUrl', 'photoURL']) {
+      final raw = data[key];
+      if (raw is String && raw.trim().isNotEmpty) return raw.trim();
+    }
+    return null;
+  }
 
   ArenaReview copyWith({
     String? athleteName,
+    String? athleteAvatarUrl,
     ArenaReviewReply? reply,
     int? likesCount,
     bool? reported,
@@ -44,6 +56,7 @@ class ArenaReview {
       likesCount: likesCount ?? this.likesCount,
       reported: reported ?? this.reported,
       athleteName: athleteName ?? this.athleteName,
+      athleteAvatarUrl: athleteAvatarUrl ?? this.athleteAvatarUrl,
       reply: reply ?? this.reply,
     );
   }

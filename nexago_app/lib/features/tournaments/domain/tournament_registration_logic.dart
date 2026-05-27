@@ -203,6 +203,31 @@ String paymentAmountLabel({
   return formatRegistrationMoney(amount);
 }
 
+/// Rótulo de expiração do convite para o card da dupla.
+String tournamentInviteExpiryLabel(DateTime expiresAt, [DateTime? now]) {
+  final clock = now ?? DateTime.now();
+  final remaining = expiresAt.difference(clock);
+  if (remaining.isNegative) return 'Expirado';
+  if (remaining.inHours >= 1) {
+    final h = remaining.inHours;
+    final m = remaining.inMinutes % 60;
+    if (m > 0) return 'expira em ${h}h ${m}min';
+    return 'expira em ${h}h';
+  }
+  if (remaining.inMinutes > 0) {
+    return 'expira em ${remaining.inMinutes} min';
+  }
+  return 'expira em breve';
+}
+
+/// Horas de reserva exibidas no texto do passo de espera.
+String tournamentInviteReservationHoursLabel(DateTime expiresAt, DateTime createdAt) {
+  final hours = expiresAt.difference(createdAt).inHours;
+  if (hours <= 0) return '24 horas';
+  if (hours == 1) return '1 hora';
+  return '$hours horas';
+}
+
 /// CTA de pagamento habilitado só após convite aceito e inscrição criada.
 bool registrationWaitingCanProceed({
   required bool inviteAccepted,

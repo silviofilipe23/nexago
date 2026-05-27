@@ -23,6 +23,51 @@ service cloud.firestore {
     function isTournamentOrganizer() {
       return request.auth != null && hasRoleClaim('organizer');
     }
+    function isTournamentOwner(tournamentId) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/tournaments/$(tournamentId)) &&
+        get(/databases/$(database)/documents/tournaments/$(tournamentId)).data.managerId == request.auth.uid;
+    }
+    function isTournamentStaff(tournamentId, allowedRoles) {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/tournaments/$(tournamentId)/staff/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/tournaments/$(tournamentId)/staff/$(request.auth.uid)).data.status == 'active' &&
+        allowedRoles.hasAny([
+          get(/databases/$(database)/documents/tournaments/$(tournamentId)/staff/$(request.auth.uid)).data.role
+        ]);
+    }
+    function canManageTournament(tournamentId) {
+      return request.auth != null && (
+        isAdmin() ||
+        isSuperAdmin() ||
+        isTournamentOrganizer() ||
+        isTournamentOwner(tournamentId) ||
+        isTournamentStaff(tournamentId, ['manager'])
+      );
+    }
+    function canScoreTournament(tournamentId) {
+      return request.auth != null && (
+        isAdmin() ||
+        isSuperAdmin() ||
+        isTournamentOrganizer() ||
+        isTournamentOwner(tournamentId) ||
+        isTournamentStaff(tournamentId, ['manager', 'scorer'])
+      );
+    }
+    function scorerCanOnlyEditScoreFields() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        'resultA',
+        'resultB',
+        'winnerId',
+        'status',
+        'sets',
+        'currentSetIndex',
+        'matchStartedAt',
+        'matchEndedAt',
+        'lastActions',
+        'updatedAt'
+      ]);
+    }
     function canWriteOperationalTorneios() {
       return isAdmin() || isSuperAdmin() || isTournamentOrganizer();
     }
@@ -417,6 +462,7 @@ service cloud.firestore {
           !('reported' in request.resource.data) ||
           request.resource.data.reported == false
         );
+
       allow update: if request.auth != null && (
         // atleta autor pode editar sua própria avaliação sem tocar em `reply`
         (
@@ -444,6 +490,30 @@ service cloud.firestore {
             !('repliedBy' in request.resource.data.reply) ||
             request.resource.data.reply.repliedBy == request.auth.uid ||
             request.resource.data.reply.repliedBy == resource.data.arenaId
+          )
+        ) ||
+        // qualquer usuário autenticado pode apenas sincronizar likesCount
+        // junto com sua subcoleção likes/{uid} (transação like/unlike)
+        (
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.arenaId == resource.data.arenaId &&
+          request.resource.data.bookingId == resource.data.bookingId &&
+          request.resource.data.rating == resource.data.rating &&
+          request.resource.data.comment == resource.data.comment &&
+          request.resource.data.reply == resource.data.reply &&
+          request.resource.data.reported == resource.data.reported &&
+          (
+            (
+              request.resource.data.likesCount == resource.data.likesCount + 1 &&
+              !exists(/databases/$(database)/documents/arena_reviews/$(reviewId)/likes/$(request.auth.uid)) &&
+              existsAfter(/databases/$(database)/documents/arena_reviews/$(reviewId)/likes/$(request.auth.uid))
+            ) ||
+            (
+              request.resource.data.likesCount == resource.data.likesCount - 1 &&
+              resource.data.likesCount > 0 &&
+              exists(/databases/$(database)/documents/arena_reviews/$(reviewId)/likes/$(request.auth.uid)) &&
+              !existsAfter(/databases/$(database)/documents/arena_reviews/$(reviewId)/likes/$(request.auth.uid))
+            )
           )
         )
       );
@@ -516,11 +586,20 @@ service cloud.firestore {
       
       // Atualizar/deletar: gestor do torneio, admin da plataforma ou gestor de torneios
       allow update, delete: if request.auth != null && (
-        resource.data.managerId == request.auth.uid ||
         isAdmin() ||
         isSuperAdmin() ||
-        isTournamentOrganizer()
+        isTournamentOrganizer() ||
+        resource.data.managerId == request.auth.uid ||
+        isTournamentStaff(tournamentId, ['manager'])
       );
+
+      match /staff/{staffUserId} {
+        allow read: if request.auth != null && (
+          canManageTournament(tournamentId) ||
+          request.auth.uid == staffUserId
+        );
+        allow create, update, delete: if request.auth != null && canManageTournament(tournamentId);
+      }
     }
 
     // Regras para a coleção de equipes (equipes base - apenas dupla de atletas)
@@ -597,8 +676,21 @@ service cloud.firestore {
       // Criar partida: apenas admins podem criar
       allow create: if request.auth != null && isAdmin();
       
-      // Atualizar partida: apenas admins podem atualizar
-      allow update: if request.auth != null && isAdmin();
+      // Atualizar partida: admin/global organizer ou ACL por torneio (owner/manager/scorer).
+      allow update: if request.auth != null && (
+        isAdmin() ||
+        isSuperAdmin() ||
+        isTournamentOrganizer() ||
+        (
+          canManageTournament(resource.data.tournamentId) &&
+          request.resource.data.tournamentId == resource.data.tournamentId
+        ) ||
+        (
+          canScoreTournament(resource.data.tournamentId) &&
+          request.resource.data.tournamentId == resource.data.tournamentId &&
+          scorerCanOnlyEditScoreFields()
+        )
+      );
       
       // Deletar partida: apenas admins podem deletar
       allow delete: if request.auth != null && isAdmin();

@@ -123,6 +123,24 @@ class TournamentPartnerInviteService {
             .where((i) => !i.isExpired)
             .toList());
   }
+
+  /// Convites enviados pelo atleta (pendentes ou aceitos, ainda relevantes).
+  Stream<List<TournamentPartnerInvite>> watchInvitesAsInviter(String uid) {
+    if (uid.isEmpty) return Stream.value(const []);
+    return _firestore
+        .collection(_collection)
+        .where('inviterUid', isEqualTo: uid)
+        .where('status', whereIn: ['pending', 'accepted'])
+        .snapshots()
+        .map((snap) {
+      final invites = snap.docs
+          .map(TournamentPartnerInvite.fromFirestore)
+          .where((i) => !i.isExpired)
+          .toList();
+      invites.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return invites;
+    });
+  }
 }
 
 final tournamentPartnerInviteServiceProvider =

@@ -186,6 +186,21 @@
       ]
     },
     {
+      "collectionGroup": "staff",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
       "collectionGroup": "arenaWithdrawals",
       "queryScope": "COLLECTION",
       "fields": [
@@ -245,6 +260,20 @@
         },
         {
           "fieldPath": "active",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tournamentRegistrationInvites",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "inviterUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
           "order": "ASCENDING"
         }
       ]

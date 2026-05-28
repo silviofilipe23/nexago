@@ -70,7 +70,11 @@ import '../../features/tournaments/presentation/league_detail_page.dart';
 import '../../features/tournaments/presentation/tournament_detail_page.dart';
 import '../../features/tournaments/presentation/tournament_partner_invite_page.dart';
 import '../../features/tournaments/domain/tournament_registration_logic.dart';
+import '../../features/tournaments/domain/tournament_registration_pix_args.dart';
+import '../../features/tournaments/domain/tournament_registration_success_args.dart';
 import '../../features/tournaments/presentation/tournament_registration_page.dart';
+import '../../features/tournaments/presentation/tournament_registration_pix_page.dart';
+import '../../features/tournaments/presentation/tournament_registration_success_page.dart';
 import '../auth/auth_providers.dart';
 import '../auth/user_roles.dart';
 import 'go_router_refresh.dart';
@@ -444,6 +448,95 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             initialRegistrationId: registrationId,
             initialInviteId: inviteId,
             initialStep: initialStep,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentRegistrationPix,
+        name: AppRouteNames.tournamentRegistrationPix,
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is TournamentRegistrationPixArgs) {
+            return TournamentRegistrationPixPage(args: extra);
+          }
+
+          // Fallback para restore/deeplink sem `extra`.
+          final tournamentId = state.pathParameters['tournamentId']?.trim() ?? '';
+          final registrationId =
+              state.uri.queryParameters['registrationId']?.trim() ?? '';
+          final categoryId = state.uri.queryParameters['categoryId']?.trim();
+          final tournamentName =
+              state.uri.queryParameters['tournamentName']?.trim() ?? '';
+          final categoryName =
+              state.uri.queryParameters['categoryName']?.trim() ?? '';
+          final shareAmountRaw =
+              state.uri.queryParameters['shareAmountReais']?.trim() ?? '';
+          final shareAmount = double.tryParse(shareAmountRaw);
+
+          if (tournamentId.isNotEmpty &&
+              registrationId.isNotEmpty &&
+              tournamentName.isNotEmpty &&
+              categoryName.isNotEmpty &&
+              shareAmount != null &&
+              shareAmount > 0) {
+            return TournamentRegistrationPixPage(
+              args: TournamentRegistrationPixArgs(
+                registrationId: registrationId,
+                tournamentId: tournamentId,
+                tournamentName: tournamentName,
+                categoryName: categoryName,
+                shareAmountReais: shareAmount,
+              ),
+            );
+          }
+
+          return TournamentRegistrationPage(
+            tournamentId: tournamentId,
+            initialCategoryId: categoryId,
+            initialRegistrationId: registrationId.isNotEmpty
+                ? registrationId
+                : null,
+            initialStep: TournamentRegistrationStep.payment,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentRegistrationSuccess,
+        name: AppRouteNames.tournamentRegistrationSuccess,
+        builder: (context, state) {
+          final tournamentId = state.pathParameters['tournamentId']?.trim() ?? '';
+          final extra = state.extra;
+          if (extra is TournamentRegistrationSuccessArgs) {
+            return TournamentRegistrationSuccessPage(args: extra);
+          }
+
+          final registrationId =
+              state.uri.queryParameters['registrationId']?.trim() ?? '';
+          final tournamentName =
+              state.uri.queryParameters['tournamentName']?.trim() ?? '';
+          final categoryName =
+              state.uri.queryParameters['categoryName']?.trim() ?? '';
+
+          if (tournamentId.isNotEmpty &&
+              registrationId.isNotEmpty &&
+              tournamentName.isNotEmpty &&
+              categoryName.isNotEmpty) {
+            return TournamentRegistrationSuccessPage(
+              args: TournamentRegistrationSuccessArgs(
+                tournamentId: tournamentId,
+                registrationId: registrationId,
+                tournamentName: tournamentName,
+                categoryName: categoryName,
+              ),
+            );
+          }
+
+          return TournamentRegistrationPage(
+            tournamentId: tournamentId,
+            initialRegistrationId: registrationId.isNotEmpty
+                ? registrationId
+                : null,
+            initialStep: TournamentRegistrationStep.payment,
           );
         },
       ),

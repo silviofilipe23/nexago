@@ -150,6 +150,14 @@ abstract final class AppRoutes {
   static const String tournamentRegistration =
       '/torneios/:tournamentId/inscricao';
 
+  /// PIX da inscrição: `/torneios/:tournamentId/inscricao/pix`
+  static const String tournamentRegistrationPix =
+      '/torneios/:tournamentId/inscricao/pix';
+
+  /// Sucesso da inscrição: `/torneios/:tournamentId/inscricao/sucesso`
+  static const String tournamentRegistrationSuccess =
+      '/torneios/:tournamentId/inscricao/sucesso';
+
   /// Convite de parceiro para torneio: `/torneios-convite/:inviteId`
   static const String tournamentPartnerInvite =
       '/torneios-convite/:inviteId';
@@ -225,6 +233,9 @@ abstract final class AppRouteNames {
   static const String bookingInvite = 'bookingInvite';
   static const String tournamentDetail = 'tournamentDetail';
   static const String tournamentRegistration = 'tournamentRegistration';
+  static const String tournamentRegistrationPix = 'tournamentRegistrationPix';
+  static const String tournamentRegistrationSuccess =
+      'tournamentRegistrationSuccess';
   static const String tournamentPartnerInvite = 'tournamentPartnerInvite';
   static const String leagueDetail = 'leagueDetail';
 }

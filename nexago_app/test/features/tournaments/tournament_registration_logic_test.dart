@@ -200,6 +200,25 @@ void main() {
     });
   });
 
+  group('currentAthleteSharePaid', () {
+    test('true when uid in sharePaidUids', () {
+      expect(
+        currentAthleteSharePaid(
+          sharePaidUids: const ['a', 'b'],
+          athleteUid: 'a',
+        ),
+        isTrue,
+      );
+      expect(
+        currentAthleteSharePaid(
+          sharePaidUids: const ['a'],
+          athleteUid: 'b',
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('registrationDualPaymentProgressLabel', () {
     test('shows confirmed when fully paid', () {
       final quote = buildRegistrationQuote(entryFee: 160);
@@ -222,6 +241,132 @@ void main() {
     });
   });
 
+  group('categoryRequiresUniform', () {
+    test('returns true for top_only, full and legacy top', () {
+      expect(
+        categoryRequiresUniform(
+          const TournamentCategoryOffer(
+            id: 'c',
+            name: 'Cat',
+            entryFee: 100,
+            uniformType: 'top_only',
+          ),
+        ),
+        isTrue,
+      );
+      expect(
+        categoryRequiresUniform(
+          const TournamentCategoryOffer(
+            id: 'c',
+            name: 'Cat',
+            entryFee: 100,
+            uniformType: 'full',
+          ),
+        ),
+        isTrue,
+      );
+      expect(
+        categoryRequiresUniform(
+          const TournamentCategoryOffer(
+            id: 'c',
+            name: 'Cat',
+            entryFee: 100,
+            uniformType: 'top',
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('returns false for none or missing', () {
+      expect(
+        categoryRequiresUniform(
+          const TournamentCategoryOffer(
+            id: 'c',
+            name: 'Cat',
+            entryFee: 100,
+            uniformType: 'none',
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        categoryRequiresUniform(
+          const TournamentCategoryOffer(id: 'c', name: 'Cat', entryFee: 100),
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('registration step navigation with uniform', () {
+    const withUniform = TournamentCategoryOffer(
+      id: 'c',
+      name: 'Cat',
+      entryFee: 100,
+      uniformType: 'top_only',
+      uniformNumberOnShirt: true,
+    );
+    const withoutUniform = TournamentCategoryOffer(
+      id: 'c',
+      name: 'Cat',
+      entryFee: 100,
+      uniformType: 'none',
+    );
+
+    test('summary leads to uniform when required', () {
+      expect(
+        nextStepAfterSummary(withUniform),
+        TournamentRegistrationStep.uniform,
+      );
+      expect(
+        nextStepAfterSummary(withoutUniform),
+        TournamentRegistrationStep.partner,
+      );
+    });
+
+    test('partner back goes to uniform or summary', () {
+      expect(
+        previousStepFromPartner(withUniform),
+        TournamentRegistrationStep.uniform,
+      );
+      expect(
+        previousStepFromPartner(withoutUniform),
+        TournamentRegistrationStep.summary,
+      );
+    });
+  });
+
+  group('validateUniformSelection', () {
+    test('requires top size and jersey number when configured', () {
+      const category = TournamentCategoryOffer(
+        id: 'c',
+        name: 'Cat',
+        entryFee: 100,
+        uniformType: 'top_only',
+        uniformNumberOnShirt: true,
+        uniformSizeOptionsTop: ['M', 'G'],
+      );
+      expect(
+        validateUniformSelection(
+          category: category,
+          selection: const TournamentUniformSelection(
+            sizeTop: 'M',
+            jerseyNumber: 10,
+          ),
+        ),
+        isNull,
+      );
+      expect(
+        validateUniformSelection(
+          category: category,
+          selection: const TournamentUniformSelection(jerseyNumber: 10),
+        ),
+        isNotNull,
+      );
+    });
+  });
+
   group('isCategorySelectable', () {
     test('returns false when closed or full', () {
       const closed = TournamentCategoryOffer(
@@ -240,6 +385,26 @@ void main() {
 
       expect(isCategorySelectable(closed), isFalse);
       expect(isCategorySelectable(full), isFalse);
+    });
+  });
+
+  group('registrationStickyEnabled', () {
+    test('disabled when profile blocks tournament access', () {
+      expect(
+        registrationStickyEnabled(canAccess: false, stepEnabled: true),
+        isFalse,
+      );
+    });
+
+    test('follows step when access is allowed', () {
+      expect(
+        registrationStickyEnabled(canAccess: true, stepEnabled: false),
+        isFalse,
+      );
+      expect(
+        registrationStickyEnabled(canAccess: true, stepEnabled: true),
+        isTrue,
+      );
     });
   });
 }

@@ -45,6 +45,13 @@ class PaymentService {
       'createArenaBookingPixPayment';
   static const String _callableCancelPendingArenaBookingPayment =
       'cancelPendingArenaBookingPayment';
+  static const String _callableCreateTournamentRegistrationPixPayment =
+      'createTournamentRegistrationPixPayment';
+  static const String _callableCancelPendingTournamentRegistrationPix =
+      'cancelPendingTournamentRegistrationPix';
+
+  static const Duration tournamentRegistrationPixExpiryFallback =
+      Duration(minutes: 15);
 
   /// Prazo PIX (alinhado a `ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES` no backend).
   static const Duration arenaBookingPixExpiryFallback = Duration(minutes: 5);
@@ -106,6 +113,85 @@ class PaymentService {
     } catch (e) {
       if (e is PaymentException) rethrow;
       throw PaymentException('Não foi possível gerar o PIX: $e');
+    }
+  }
+
+  /// Gera cobrança PIX in-app para parcela de inscrição em torneio.
+  Future<ArenaBookingPixPaymentResult> createTournamentRegistrationPixPayment({
+    required String registrationId,
+    String? cpfCnpj,
+  }) async {
+    if (registrationId.isEmpty) {
+      throw PaymentException('Inscrição inválida.');
+    }
+
+    try {
+      final callable = _functions.httpsCallable(
+        _callableCreateTournamentRegistrationPixPayment,
+      );
+      final payload = <String, dynamic>{'registrationId': registrationId};
+      final cpf = cpfCnpj?.replaceAll(RegExp(r'\D'), '') ?? '';
+      if (cpf.length == 11 || cpf.length == 14) {
+        payload['cpfCnpj'] = cpf;
+      }
+      final raw = await callable.call(payload);
+      final data = raw.data;
+      if (data is! Map) {
+        throw PaymentException('Resposta inválida do servidor.');
+      }
+      final map = Map<String, dynamic>.from(data);
+      final paymentId = map['paymentId'] as String?;
+      final qrCode = map['qrCode'] as String?;
+      final qrCodeBase64 = map['qrCodeBase64'] as String?;
+      final expiresAtRaw = map['expiresAt'] as String?;
+      final amount = (map['amountReais'] as num?)?.toDouble();
+      if (paymentId == null ||
+          paymentId.isEmpty ||
+          qrCode == null ||
+          qrCode.isEmpty ||
+          amount == null ||
+          amount <= 0) {
+        throw PaymentException('Resposta inválida do servidor de pagamento.');
+      }
+      final expiresAt = expiresAtRaw != null
+          ? DateTime.tryParse(expiresAtRaw) ??
+                DateTime.now().add(tournamentRegistrationPixExpiryFallback)
+          : DateTime.now().add(tournamentRegistrationPixExpiryFallback);
+      return ArenaBookingPixPaymentResult(
+        paymentId: paymentId,
+        qrCode: qrCode,
+        qrCodeBase64: qrCodeBase64 ?? '',
+        expiresAt: expiresAt,
+        amountToPayNowReais: amount,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      throw PaymentException(_mapFunctionsMessage(e));
+    } catch (e) {
+      if (e is PaymentException) rethrow;
+      throw PaymentException('Não foi possível gerar o PIX: $e');
+    }
+  }
+
+  /// Cancela cobrança PIX pendente da parcela (não cancela a inscrição).
+  Future<void> cancelPendingTournamentRegistrationPix({
+    required String registrationId,
+  }) async {
+    if (registrationId.isEmpty) {
+      throw PaymentException('Inscrição inválida.');
+    }
+    try {
+      final callable = _functions.httpsCallable(
+        _callableCancelPendingTournamentRegistrationPix,
+      );
+      await callable.call(<String, dynamic>{'registrationId': registrationId});
+    } on FirebaseFunctionsException catch (e) {
+      if (e.code == 'failed-precondition') {
+        return;
+      }
+      throw PaymentException(_mapFunctionsMessage(e));
+    } catch (e) {
+      if (e is PaymentException) rethrow;
+      throw PaymentException('Não foi possível cancelar o pagamento: $e');
     }
   }
 

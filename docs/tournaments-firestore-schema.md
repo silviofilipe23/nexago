@@ -28,7 +28,9 @@ Não usar `torneios/` (visão operacional do backoffice).
 | `liveMatchesNow` | number | Jogos ao vivo (denormalizado) |
 | `status` / `listingStatus` | string | Operacional: `Draft`, `Open`, `Brackets Ready`, `In Progress`, `Completed` (ou legado `open`, `live`, `ended`, `finalizado`, etc.) |
 | `leagueId` / `leagueStageId` | string | Liga / etapa |
-| `categories` | array | `{ categoryName, entryFee, maxTeams?, spotsLeft? (legado), level? }` |
+| `categories` | array | `{ categoryName, entryFee, maxTeams?, spotsLeft? (legado), level?, uniformType?, uniformNameOnShirt?, uniformNumberOnShirt?, uniformSizeOptionsTop?, uniformSizeOptionsShorts? }` |
+
+`uniformType` (por categoria): `none` | `top_only` | `full`.
 
 Capacidade exibida no app: `maxTeams` por categoria. Inscritos contados em `artifacts/{projectId}/public/data/inscriptions` (`tournamentId` + `categoryId` = `categoryName`).
 
@@ -60,11 +62,21 @@ Mapper: `nexago_app/lib/features/tournaments/data/tournament_document_mapper.dar
 |---------|-----|
 | `tournamentRegistrationInvites/{id}` | Convite pendente/aceito entre dois atletas |
 
-Campos: `tournamentId`, `categoryId`, `inviterUid`, `inviterName`, `inviteeUid`, `inviteeName`, `status` (`pending` \| `accepted` \| `declined` \| `cancelled` \| `expired`), `teamId`, `registrationId`, `createdAt`, `expiresAt`, `acceptedAt`.
+Campos: `tournamentId`, `categoryId`, `inviterUid`, `inviterName`, `inviteeUid`, `inviteeName`, `status` (`pending` \| `accepted` \| `declined` \| `cancelled` \| `expired`), `teamId`, `registrationId`, `createdAt`, `expiresAt`, `acceptedAt`, `inviterSizeTop`, `inviterSizeShorts`, `inviterJerseyNumber`, `inviterJerseyName` (uniforme do titular até aceite).
 
 Callables: `sendTournamentPartnerInvite`, `acceptTournamentPartnerInvite`, `cancelTournamentPartnerInvite`.
 
 Fluxo: enviar convite → parceiro aceita (cria `teams` + `inscriptions`) → cada atleta paga `share` → webhook soma `paidAmount` até `isPaid`.
+
+**Perfil obrigatório:** inscrição, convite (`sendTournamentPartnerInvite` / `acceptTournamentPartnerInvite`) e PIX (`createTournamentRegistrationPixPayment`) exigem onboarding concluído e os 5 passos de “Completar perfil” (foto, esporte/nível, cidade+UF, WhatsApp, objetivos), validados no app (`tournamentAccessStateProvider`) e no backend (`athlete-tournament-access.ts`).
+
+## Equipe (`artifacts/.../teams`)
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `player1Id` | string | Titular (quem convidou) |
+| `player2Id` | string | Parceiro |
+| `gender` | string | Preenchido quando `isPaid` na inscrição: `Masculino`, `Feminino` ou `Misto` (derivado de `users/{uid}.gender` dos dois) |
 
 ## Inscrição (`artifacts/.../inscriptions`)
 
@@ -75,13 +87,22 @@ Fluxo: enviar convite → parceiro aceita (cria `teams` + `inscriptions`) → ca
 | `teamId` | string | Referência em `teams` |
 | `isPaid` | boolean | Inscrição confirmada após pagamento |
 | `paidAmount` | number | Total pago (dupla: soma das parcelas) |
+| `sharePaidUids` | string[] | UIDs dos atletas que já pagaram a parcela (`entryFee/2`) |
+| `sizeTopPlayer1` / `sizeTopPlayer2` | string | Tamanho da regata (opcional) |
+| `sizeShortsPlayer1` / `sizeShortsPlayer2` | string | Tamanho do shorts quando `uniformType === full` |
+| `jerseyNumberPlayer1` / `jerseyNumberPlayer2` | number | Número na camisa (opcional) |
+| `jerseyNamePlayer1` / `jerseyNamePlayer2` | string | Nome na camisa (opcional) |
+
+Subcoleção `pixPending/{payerUid}` (somente Cloud Functions): cobrança Asaas aberta por atleta (`asaasPaymentId`, `amountReais`, `status`, `paymentExpiresAt`).
 
 O app agrega inscrições por `categoryId` para exibir `N/M inscritas` e vagas restantes (`maxTeams - count`).
 
 ## Inscrição + pagamento
 
 1. Após aceite do convite (ou fluxo legado), existem `teams` + `inscriptions`.
-2. Callable `createMercadoPagoPreference` com `registrationId` e `amountType` (`share` | `full`).
+2. App: callable `createTournamentRegistrationPixPayment` com `registrationId` (+ CPF) → tela PIX in-app (Asaas).
+3. Webhook `asaasWebhook` com `externalReference` `tournamentRegistration:{registrationId}:{payerUid}` atualiza `paidAmount`, `sharePaidUids` e `isPaid`; ao fechar pagamento (`isPaid=true`), define `teams/{teamId}.gender`.
+4. Legado (não usado no app): `createMercadoPagoPreference` + `mercadopagoWebhook`.
 
 ## Config Flutter
 

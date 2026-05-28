@@ -4,7 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/ui/app_snackbar.dart';
 import '../../../athlete/domain/athlete_shell_providers.dart';
+import '../../../athlete/domain/profile_access.dart';
+import '../../../athlete/domain/tournament_access_providers.dart';
 import '../../domain/tournament_partner_invite.dart';
 import '../../domain/tournament_partner_invite_providers.dart';
 import '../../domain/tournament_registration_navigation.dart';
@@ -73,6 +76,25 @@ class _TournamentInviteAcceptCoordinatorState
     }
 
     _handledAcceptIds.add(invite.id);
+
+    final access = ref.read(tournamentAccessStateProvider);
+    if (!access.canAccess) {
+      if (!context.mounted) return;
+      final message = tournamentAccessBlockMessage(
+        onboardingCompleted: access.onboardingCompleted,
+        profileStepsComplete: access.profileStepsComplete,
+      );
+      if (message != null) {
+        showAppSnackBar(context, message, isError: true);
+      }
+      if (!access.onboardingCompleted) {
+        context.go(AppRoutes.athleteOnboardingWelcome);
+      } else {
+        context.pushNamed(AppRouteNames.athleteCompleteProfile);
+      }
+      return;
+    }
+
     final firstName = invite.inviteeName.split(' ').first;
     final tab = ref.read(athleteShellTabIndexProvider);
     final onHomeOrCompete =
@@ -107,6 +129,22 @@ class _TournamentInviteAcceptCoordinatorState
           textColor: AppColors.brand,
           onPressed: () {
             if (!context.mounted) return;
+            final snackAccess = ref.read(tournamentAccessStateProvider);
+            if (!snackAccess.canAccess) {
+              final message = tournamentAccessBlockMessage(
+                onboardingCompleted: snackAccess.onboardingCompleted,
+                profileStepsComplete: snackAccess.profileStepsComplete,
+              );
+              if (message != null) {
+                showAppSnackBar(context, message, isError: true);
+              }
+              if (!snackAccess.onboardingCompleted) {
+                context.go(AppRoutes.athleteOnboardingWelcome);
+              } else {
+                context.pushNamed(AppRouteNames.athleteCompleteProfile);
+              }
+              return;
+            }
             context.pushNamed(
               AppRouteNames.tournamentRegistration,
               pathParameters: {'tournamentId': invite.tournamentId},

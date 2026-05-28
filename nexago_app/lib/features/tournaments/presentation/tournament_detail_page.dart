@@ -7,6 +7,8 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
+import '../../athlete/domain/profile_access.dart';
+import '../../athlete/domain/tournament_access_providers.dart';
 import '../domain/tournament_detail_logic.dart';
 import '../domain/tournament_detail_tab.dart';
 import '../domain/tournament_discovery_helpers.dart';
@@ -107,6 +109,7 @@ class _TournamentDetailPageState extends ConsumerState<TournamentDetailPage>
           );
 
           final canRegister = canRegisterForTournament(tournament.status);
+          final access = ref.watch(tournamentAccessStateProvider);
           final ctaLabel = canRegister ? 'Inscrever →' : 'Ver detalhes →';
           final showBottomBar = _currentTab == TournamentDetailTab.overview;
 
@@ -182,6 +185,11 @@ class _TournamentDetailPageState extends ConsumerState<TournamentDetailPage>
                       TournamentDetailCategoriesTab(
                         tournament: tournament,
                         enrollmentByCategoryId: enrollment,
+                        canAccessTournaments: access.canAccess,
+                        onRegisterBlocked: () => _onTournamentRegisterBlocked(
+                          context,
+                          access,
+                        ),
                       ),
                       TournamentDetailBracketTab(tournament: tournament),
                       TournamentDetailGroupsTab(tournament: tournament),
@@ -195,14 +203,18 @@ class _TournamentDetailPageState extends ConsumerState<TournamentDetailPage>
                   enabled: true,
                   label: ctaLabel,
                   onPressed: () {
-                    if (canRegister) {
-                      context.pushNamed(
-                        AppRouteNames.tournamentRegistration,
-                        pathParameters: {'tournamentId': tournament.id},
-                      );
-                    } else {
+                    if (!canRegister) {
                       context.pop();
+                      return;
                     }
+                    if (!access.canAccess) {
+                      _onTournamentRegisterBlocked(context, access);
+                      return;
+                    }
+                    context.pushNamed(
+                      AppRouteNames.tournamentRegistration,
+                      pathParameters: {'tournamentId': tournament.id},
+                    );
                   },
                 ),
             ],
@@ -214,6 +226,24 @@ class _TournamentDetailPageState extends ConsumerState<TournamentDetailPage>
 
   Future<void> _shareTournament(String name) async {
     await Share.share('Confira o torneio $name no NexaGO!');
+  }
+
+  void _onTournamentRegisterBlocked(
+    BuildContext context,
+    TournamentAccessState access,
+  ) {
+    final message = tournamentAccessBlockMessage(
+      onboardingCompleted: access.onboardingCompleted,
+      profileStepsComplete: access.profileStepsComplete,
+    );
+    if (message != null) {
+      showAppSnackBar(context, message, isError: true);
+    }
+    if (!access.onboardingCompleted) {
+      context.go(AppRoutes.athleteOnboardingWelcome);
+    } else {
+      context.pushNamed(AppRouteNames.athleteCompleteProfile);
+    }
   }
 }
 

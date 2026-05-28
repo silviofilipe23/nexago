@@ -20,6 +20,7 @@ import {
   releaseWithdrawalReservation,
 } from "./arena-wallet";
 import {
+  ARENA_BOOKING_PAYMENT_REF_PREFIX,
   ARENA_WITHDRAWAL_AUTO_MAX_REAIS,
 } from "./arena-booking-payment-constants";
 import {
@@ -202,7 +203,8 @@ export const createArenaBookingPixPayment = onCall({
       valueReais: roundMoney(amountToPayNow),
       dueDate: expiresAtDate,
       description,
-      bookingId,
+      externalReference: `${ARENA_BOOKING_PAYMENT_REF_PREFIX}${bookingId}`,
+      idempotencyKey: `arena-booking-pix-${bookingId}`,
     });
   } catch (e) {
     if (e instanceof AsaasApiError) {

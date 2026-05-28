@@ -45,6 +45,10 @@ import {
   acceptTournamentPartnerInvite,
   cancelTournamentPartnerInvite,
 } from "./tournament-partner-invite";
+import {
+  createTournamentRegistrationPixPayment,
+  cancelPendingTournamentRegistrationPix,
+} from "./tournament-registration-pix";
 import {onBookingInviteCreatedNotifyInvitee} from "./booking-invite-notify";
 import {
   BOOKING_REMINDER_15M_MINUTES_BEFORE,
@@ -68,6 +72,8 @@ export {
   sendTournamentPartnerInvite,
   acceptTournamentPartnerInvite,
   cancelTournamentPartnerInvite,
+  createTournamentRegistrationPixPayment,
+  cancelPendingTournamentRegistrationPix,
   onBookingInviteCreatedNotifyInvitee,
 };
 

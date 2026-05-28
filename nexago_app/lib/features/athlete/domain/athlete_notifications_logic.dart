@@ -221,6 +221,20 @@ AthleteNotificationPresentation notificationPresentation(
         ],
         routePath: routePath,
       );
+    case 'tournament_registration_confirmed':
+      final url = data['url'] ?? '';
+      return AthleteNotificationPresentation(
+        icon: Icons.verified_rounded,
+        iconColor: AppColors.win,
+        iconBackground: AppColors.win.withValues(alpha: 0.15),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Ver inscricao',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: url.startsWith('/') ? url : null,
+      );
     case 'booking_invite':
       final inviteId = data['inviteId'] ?? '';
       return AthleteNotificationPresentation(

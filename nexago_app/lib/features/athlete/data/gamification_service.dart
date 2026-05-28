@@ -294,6 +294,14 @@ class GamificationService {
             )
           : GamificationSummary.initial();
       final nextXp = current.xp + def.xpReward;
+      final countsForStreak = _missionCountsForStreakActivity(mission.id);
+      final streakFields = countsForStreak
+          ? _streakActivityFields(current: current, now: at)
+          : <String, dynamic>{};
+      final nextStreak = countsForStreak
+          ? streakFields['streak'] as int
+          : current.streak;
+      final streakIncreased = countsForStreak && nextStreak > current.streak;
 
       tx.set(missionRef, <String, dynamic>{
         'date': dayKey,
@@ -312,19 +320,22 @@ class GamificationService {
       tx.set(summaryRef, <String, dynamic>{
         'xp': nextXp,
         'level': nextXp ~/ 100,
-        'streak': current.streak,
-        'lastGameDate': current.lastGameDate != null
-            ? Timestamp.fromDate(current.lastGameDate!)
-            : null,
         'totalGames': current.totalGames,
         'updatedAt': FieldValue.serverTimestamp(),
         'lastXpReason': 'DAILY_MISSION_${mission.id}',
+        if (!countsForStreak) ...<String, dynamic>{
+          'streak': current.streak,
+          'lastGameDate': current.lastGameDate != null
+              ? Timestamp.fromDate(current.lastGameDate!)
+              : null,
+        },
+        if (countsForStreak) ...streakFields,
       }, SetOptions(merge: true));
 
       return GamificationFeedback(
         xpGained: def.xpReward,
-        streakIncreased: false,
-        newStreak: current.streak,
+        streakIncreased: streakIncreased,
+        newStreak: nextStreak,
         unlockedBadges: const [],
         completedMissionIds: [mission.id],
         title: 'Missão concluída',
@@ -383,35 +394,20 @@ class GamificationService {
             )
           : GamificationSummary.initial();
 
-      final nextStreak = updateStreak(
-        currentStreak: current.streak,
-        lastGameDate: current.lastGameDate,
-        now: now,
-      );
+      final streakFields = _streakActivityFields(current: current, now: now);
+      final nextStreak = streakFields['streak'] as int;
       final streakIncreased = nextStreak > current.streak;
       final nextTotalGames = current.totalGames + 1;
       final nextXp = current.xp + xpGameCompleted;
       final nextLevel = nextXp ~/ 100;
 
-      final existingDays = _parseGameDayKeys(
-        (summarySnap.data() ?? {})['gameCompletionDays'],
-      );
-      final gameDays = AchievementMetrics.appendGameCompletionDay(
-        existingDays,
-        now,
-      );
-      final windowFields = AchievementMetrics.gameWindowFields(gameDays);
-
       tx.set(summaryRef, <String, dynamic>{
         'xp': nextXp,
         'level': nextLevel,
-        'streak': nextStreak,
-        'lastGameDate': Timestamp.fromDate(now),
         'totalGames': nextTotalGames,
         'updatedAt': FieldValue.serverTimestamp(),
         'lastXpReason': 'GAME_COMPLETED',
-        'gameCompletionDays': gameDays,
-        ...windowFields,
+        ...streakFields,
       }, SetOptions(merge: true));
 
       tx.set(eventRef, <String, dynamic>{
@@ -603,6 +599,34 @@ class GamificationService {
     final m = date.month.toString().padLeft(2, '0');
     final d = date.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
+  }
+
+  static bool _missionCountsForStreakActivity(String missionId) {
+    final id = missionId.trim().toUpperCase();
+    return id == 'PLAY_TODAY' || id == 'RESERVE_TODAY';
+  }
+
+  /// Atualiza sequência e histórico de dias ao jogar ou manter a chama (reserva/jogo).
+  Map<String, dynamic> _streakActivityFields({
+    required GamificationSummary current,
+    required DateTime now,
+  }) {
+    final nextStreak = updateStreak(
+      currentStreak: current.streak,
+      lastGameDate: current.lastGameDate,
+      now: now,
+    );
+    final gameDays = AchievementMetrics.appendGameCompletionDay(
+      current.gameCompletionDays,
+      now,
+    );
+    final windowFields = AchievementMetrics.gameWindowFields(gameDays);
+    return <String, dynamic>{
+      'streak': nextStreak,
+      'lastGameDate': Timestamp.fromDate(now),
+      'gameCompletionDays': gameDays,
+      ...windowFields,
+    };
   }
 
   DocumentReference<Map<String, dynamic>> _userRef(String userId) {

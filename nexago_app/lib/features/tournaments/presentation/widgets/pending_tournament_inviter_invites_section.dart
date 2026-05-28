@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
+import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../athlete/presentation/widgets/athlete_home/athlete_home_section_header.dart';
 import '../../domain/tournament_partner_invite.dart';
@@ -15,7 +16,8 @@ class PendingTournamentInviterInvitesSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final invitesAsync = ref.watch(inviterTournamentPartnerInvitesProvider);
+    final invitesAsync = ref.watch(ongoingTournamentPartnerInvitesHomeProvider);
+    final currentUid = ref.watch(authProvider).valueOrNull?.uid ?? '';
 
     return invitesAsync.when(
       data: (invites) {
@@ -24,12 +26,10 @@ class PendingTournamentInviterInvitesSection extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const AthleteHomeSectionHeader(
-              title: 'Inscrições em andamento',
-            ),
+            const AthleteHomeSectionHeader(title: 'Inscrições em andamento'),
             const SizedBox(height: 10),
             for (final invite in preview) ...[
-              _InviteCard(invite: invite),
+              _InviteCard(invite: invite, currentUid: currentUid),
               const SizedBox(height: 8),
             ],
           ],
@@ -42,18 +42,19 @@ class PendingTournamentInviterInvitesSection extends ConsumerWidget {
 }
 
 class _InviteCard extends StatelessWidget {
-  const _InviteCard({required this.invite});
+  const _InviteCard({required this.invite, required this.currentUid});
 
   final TournamentPartnerInvite invite;
+  final String currentUid;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final partnerFirst = invite.inviteeName.split(' ').first;
+    final isInviter = invite.inviterUid == currentUid;
+    final partnerName = isInviter ? invite.inviteeName : invite.inviterName;
+    final partnerFirst = partnerName.split(' ').first;
     final isPending = invite.isPending;
-    final title = isPending
-        ? 'Aguardando $partnerFirst'
-        : 'Pagar inscrição';
+    final title = isPending ? 'Aguardando $partnerFirst' : 'Pagar inscrição';
     final subtitle = isPending
         ? 'Convite enviado · toque para ver status'
         : '$partnerFirst confirmou · finalize o pagamento';
@@ -64,13 +65,10 @@ class _InviteCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () {
-          final params = isPending
-              ? tournamentRegistrationWaitingParams(invite)
-              : tournamentRegistrationPaymentParams(invite);
           context.pushNamed(
             AppRouteNames.tournamentRegistration,
             pathParameters: {'tournamentId': invite.tournamentId},
-            queryParameters: params,
+            queryParameters: tournamentRegistrationWaitingParams(invite),
           );
         },
         borderRadius: BorderRadius.circular(12),
@@ -90,9 +88,7 @@ class _InviteCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
-                  isPending
-                      ? Icons.schedule_rounded
-                      : Icons.payments_outlined,
+                  isPending ? Icons.schedule_rounded : Icons.payments_outlined,
                   color: accent,
                 ),
               ),

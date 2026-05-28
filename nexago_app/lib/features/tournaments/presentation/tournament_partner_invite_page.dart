@@ -1,15 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
+import '../../athlete/domain/profile_access.dart';
+import '../../athlete/domain/tournament_access_providers.dart';
+import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../data/tournament_partner_invite_service.dart';
+import '../domain/tournament_detail_model.dart';
+import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
 import '../domain/tournament_partner_invite.dart';
 import '../domain/tournament_partner_invite_providers.dart';
+import '../domain/tournament_registration_logic.dart';
+import '../domain/tournament_uniform_selection.dart';
+import 'widgets/tournament_registration/tournament_registration_uniform_step.dart';
+
+enum _PartnerInviteWizardStep { confirm, uniform }
 
 class TournamentPartnerInvitePage extends ConsumerStatefulWidget {
   const TournamentPartnerInvitePage({super.key, required this.inviteId});
@@ -23,27 +35,86 @@ class TournamentPartnerInvitePage extends ConsumerStatefulWidget {
 
 class _TournamentPartnerInvitePageState
     extends ConsumerState<TournamentPartnerInvitePage> {
+  _PartnerInviteWizardStep _wizardStep = _PartnerInviteWizardStep.confirm;
   bool _accepting = false;
   bool _declining = false;
+  TournamentUniformSelection _inviteeUniform = const TournamentUniformSelection(
+    sizeTop: 'M',
+    jerseyNumber: 10,
+    sizeShorts: 'M',
+  );
 
-  Future<void> _accept() async {
+  TournamentCategoryOffer? _categoryForInvite(
+    TournamentDetail? tournament,
+    TournamentPartnerInvite invite,
+  ) {
+    if (tournament == null) return null;
+    for (final c in tournament.categoryOffers) {
+      if (c.id == invite.categoryId) return c;
+    }
+    return null;
+  }
+
+  void _initUniformForCategory(TournamentCategoryOffer category) {
+    final tops = uniformSizeOptionsTopForCategory(category);
+    final shorts = uniformSizeOptionsShortsForCategory(category);
+    _inviteeUniform = TournamentUniformSelection(
+      sizeTop: tops.contains('M') ? 'M' : tops.first,
+      sizeShorts: categoryRequiresShorts(category)
+          ? (shorts.contains('M') ? 'M' : shorts.first)
+          : null,
+      jerseyNumber: category.uniformNumberOnShirt ? 10 : null,
+    );
+  }
+
+  void _showProfileAccessBlocked() {
+    final access = ref.read(tournamentAccessStateProvider);
+    final message = tournamentAccessBlockMessage(
+      onboardingCompleted: access.onboardingCompleted,
+      profileStepsComplete: access.profileStepsComplete,
+    );
+    if (message != null && mounted) {
+      showAppSnackBar(context, message, isError: true);
+    }
+  }
+
+  Future<void> _acceptInvite({
+    required TournamentPartnerInvite invite,
+    TournamentCategoryOffer? category,
+  }) async {
     if (_accepting) return;
+
+    if (!ref.read(tournamentAccessStateProvider).canAccess) {
+      _showProfileAccessBlocked();
+      return;
+    }
+
     setState(() => _accepting = true);
 
     try {
       final uid = ref.read(authProvider).valueOrNull?.uid;
       if (uid == null || uid.isEmpty) {
         if (!mounted) return;
-        showAppSnackBar(context, 'Faça login para aceitar o convite.', isError: true);
+        showAppSnackBar(
+          context,
+          'Faça login para aceitar o convite.',
+          isError: true,
+        );
         return;
       }
 
       final result = await ref
           .read(tournamentPartnerInviteServiceProvider)
-          .acceptInvite(widget.inviteId);
+          .acceptInvite(
+            widget.inviteId,
+            inviteeUniform: category != null &&
+                    categoryRequiresUniform(category)
+                ? _inviteeUniform
+                : null,
+          );
 
       if (!mounted) return;
-      showAppSnackBar(context, 'Convite aceito! Agora pague sua parcela.');
+      showAppSnackBar(context, 'Convite aceito! Sua dupla está formada.');
 
       context.goNamed(
         AppRouteNames.tournamentRegistration,
@@ -51,7 +122,8 @@ class _TournamentPartnerInvitePageState
         queryParameters: {
           'registrationId': result.registrationId,
           'categoryId': result.categoryId,
-          'step': 'payment',
+          'inviteId': widget.inviteId,
+          'step': 'waiting',
         },
       );
     } on TournamentPartnerInviteException catch (e) {
@@ -67,6 +139,41 @@ class _TournamentPartnerInvitePageState
     } finally {
       if (mounted) setState(() => _accepting = false);
     }
+  }
+
+  void _onContinueFromConfirm({
+    required TournamentPartnerInvite invite,
+    required TournamentCategoryOffer? category,
+  }) {
+    if (!ref.read(tournamentAccessStateProvider).canAccess) {
+      _showProfileAccessBlocked();
+      return;
+    }
+    if (category != null && categoryRequiresUniform(category)) {
+      _initUniformForCategory(category);
+      setState(() => _wizardStep = _PartnerInviteWizardStep.uniform);
+      return;
+    }
+    unawaited(_acceptInvite(invite: invite, category: category));
+  }
+
+  void _onContinueFromUniform({
+    required TournamentPartnerInvite invite,
+    required TournamentCategoryOffer category,
+  }) {
+    if (!ref.read(tournamentAccessStateProvider).canAccess) {
+      _showProfileAccessBlocked();
+      return;
+    }
+    final error = validateUniformSelection(
+      category: category,
+      selection: _inviteeUniform,
+    );
+    if (error != null) {
+      showAppSnackBar(context, error, isError: true);
+      return;
+    }
+    unawaited(_acceptInvite(invite: invite, category: category));
   }
 
   Future<void> _decline() async {
@@ -97,13 +204,27 @@ class _TournamentPartnerInvitePageState
       backgroundColor: AppColors.canvas,
       appBar: AppBar(
         backgroundColor: AppColors.canvas,
-        title: const Text('Convite de dupla'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () {
+            if (_wizardStep == _PartnerInviteWizardStep.uniform) {
+              setState(() => _wizardStep = _PartnerInviteWizardStep.confirm);
+            } else {
+              context.pop();
+            }
+          },
+        ),
+        title: Text(
+          _wizardStep == _PartnerInviteWizardStep.uniform
+              ? 'Seu uniforme'
+              : 'Convite de dupla',
+        ),
       ),
       body: inviteAsync.when(
         loading: () => const Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
-        error: (_, __) => _MessageBody(
+        error: (_, __) => const _MessageBody(
           message: 'Não foi possível carregar o convite.',
         ),
         data: (invite) {
@@ -116,7 +237,7 @@ class _TournamentPartnerInvitePageState
           if (invite.isAccepted) {
             return _MessageBody(
               message: 'Convite já aceito.',
-              actionLabel: 'Ir para pagamento',
+              actionLabel: 'Ir para inscrição',
               onAction: () {
                 final regId = invite.registrationId;
                 if (regId == null || regId.isEmpty) return;
@@ -126,7 +247,8 @@ class _TournamentPartnerInvitePageState
                   queryParameters: {
                     'registrationId': regId,
                     'categoryId': invite.categoryId,
-                    'step': 'payment',
+                    'inviteId': invite.id,
+                    'step': 'waiting',
                   },
                 );
               },
@@ -145,25 +267,115 @@ class _TournamentPartnerInvitePageState
             loading: () => const Center(
               child: CircularProgressIndicator(color: AppColors.brand),
             ),
-            error: (_, __) => _InviteContent(
+            error: (_, __) => _buildWizard(
               invite: invite,
-              tournamentName: 'Torneio',
-              accepting: _accepting,
-              declining: _declining,
-              onAccept: _accept,
-              onDecline: _decline,
+              tournament: null,
+              category: null,
             ),
-            data: (tournament) => _InviteContent(
-              invite: invite,
-              tournamentName: tournament?.name ?? 'Torneio',
-              accepting: _accepting,
-              declining: _declining,
-              onAccept: _accept,
-              onDecline: _decline,
-            ),
+            data: (tournament) {
+              final category = _categoryForInvite(tournament, invite);
+              return _buildWizard(
+                invite: invite,
+                tournament: tournament,
+                category: category,
+              );
+            },
           );
         },
       ),
+    );
+  }
+
+  Widget _buildWizard({
+    required TournamentPartnerInvite invite,
+    required TournamentDetail? tournament,
+    required TournamentCategoryOffer? category,
+  }) {
+    final access = ref.watch(tournamentAccessStateProvider);
+    final profileGate = !access.canAccess
+        ? Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+            child: TournamentAccessBanner(
+              onboardingCompleted: access.onboardingCompleted,
+              profileStepsComplete: access.profileStepsComplete,
+            ),
+          )
+        : null;
+
+    if (_wizardStep == _PartnerInviteWizardStep.uniform &&
+        tournament != null &&
+        category != null) {
+      return Column(
+        children: [
+          if (profileGate != null) profileGate,
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              child: access.canAccess
+                  ? TournamentRegistrationUniformStep(
+                tournament: tournament,
+                category: category,
+                selection: _inviteeUniform,
+                leagueBadge: tournament.name.toUpperCase(),
+                onChanged: (v) => setState(() => _inviteeUniform = v),
+              )
+                  : const SizedBox.shrink(),
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: FilledButton(
+                onPressed: !access.canAccess || _accepting
+                    ? null
+                    : () => _onContinueFromUniform(
+                          invite: invite,
+                          category: category,
+                        ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: AppColors.black,
+                  minimumSize: const Size.fromHeight(52),
+                ),
+                child: _accepting
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text(
+                        'Confirmar e formar dupla',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        if (profileGate != null) profileGate,
+        Expanded(
+          child: _InviteContent(
+            invite: invite,
+            tournamentName: tournament?.name ?? 'Torneio',
+            accepting: _accepting,
+            declining: _declining,
+            canAccept: access.canAccess,
+            onContinue: () => _onContinueFromConfirm(
+              invite: invite,
+              category: category,
+            ),
+            onDecline: _decline,
+            continueLabel: category != null && categoryRequiresUniform(category)
+                ? 'Continuar'
+                : 'Aceitar convite',
+          ),
+        ),
+      ],
     );
   }
 }
@@ -209,16 +421,20 @@ class _InviteContent extends StatelessWidget {
     required this.tournamentName,
     required this.accepting,
     required this.declining,
-    required this.onAccept,
+    required this.canAccept,
+    required this.onContinue,
     required this.onDecline,
+    required this.continueLabel,
   });
 
   final TournamentPartnerInvite invite;
   final String tournamentName;
   final bool accepting;
   final bool declining;
-  final VoidCallback onAccept;
+  final bool canAccept;
+  final VoidCallback onContinue;
   final VoidCallback onDecline;
+  final String continueLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -254,7 +470,7 @@ class _InviteContent extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Ao aceitar, vocês poderão pagar cada um sua parcela. A inscrição da dupla é confirmada quando os dois pagarem.',
+            'Confirme a dupla e escolha seu uniforme. Depois vocês poderão pagar cada um sua parcela.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: AppColors.onSurfaceMuted,
               height: 1.45,
@@ -262,14 +478,14 @@ class _InviteContent extends StatelessWidget {
           ),
           const Spacer(),
           FilledButton(
-            onPressed: accepting || declining ? null : onAccept,
+            onPressed: !canAccept || accepting || declining ? null : onContinue,
             child: accepting
                 ? const SizedBox(
                     height: 22,
                     width: 22,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Aceitar convite'),
+                : Text(continueLabel),
           ),
           const SizedBox(height: 12),
           OutlinedButton(

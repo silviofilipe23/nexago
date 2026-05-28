@@ -1,8 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import 'nexago_artifacts_paths.dart';
 
@@ -24,33 +22,43 @@ class TournamentRegistrationResult {
   final String teamId;
 }
 
-class TournamentPaymentResult {
-  const TournamentPaymentResult({required this.initPoint});
-
-  final String initPoint;
-}
-
 /// Estado da inscrição no Firestore (pagamento acumulado).
 class TournamentRegistrationSnapshot {
   const TournamentRegistrationSnapshot({
     required this.registrationId,
     required this.isPaid,
     required this.paidAmount,
+    this.sharePaidUids = const [],
   });
 
   final String registrationId;
   final bool isPaid;
   final double paidAmount;
+  final List<String> sharePaidUids;
 
   factory TournamentRegistrationSnapshot.fromDoc(
     String registrationId,
     Map<String, dynamic> data,
   ) {
+    final rawUids = data['sharePaidUids'];
+    final uids = rawUids is List
+        ? rawUids
+            .whereType<String>()
+            .map((id) => id.trim())
+            .where((id) => id.isNotEmpty)
+            .toList()
+        : <String>[];
     return TournamentRegistrationSnapshot(
       registrationId: registrationId,
       isPaid: data['isPaid'] == true,
       paidAmount: (data['paidAmount'] as num?)?.toDouble() ?? 0,
+      sharePaidUids: uids,
     );
+  }
+
+  bool athleteSharePaid(String athleteUid) {
+    if (athleteUid.isEmpty) return false;
+    return sharePaidUids.contains(athleteUid);
   }
 }
 
@@ -58,14 +66,11 @@ class TournamentRegistrationSnapshot {
 class TournamentRegistrationService {
   TournamentRegistrationService({
     FirebaseFirestore? firestore,
-    FirebaseFunctions? functions,
     FirebaseAuth? auth,
   })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _functions = functions ?? FirebaseFunctions.instance,
         _auth = auth ?? FirebaseAuth.instance;
 
   final FirebaseFirestore _firestore;
-  final FirebaseFunctions _functions;
   final FirebaseAuth _auth;
 
   CollectionReference<Map<String, dynamic>> get _teams =>
@@ -121,54 +126,6 @@ class TournamentRegistrationService {
     }
   }
 
-  Future<TournamentPaymentResult> createMercadoPagoPreference({
-    required String registrationId,
-    required String amountType,
-  }) async {
-    if (registrationId.isEmpty) {
-      throw TournamentRegistrationException('Inscrição inválida.');
-    }
-    if (amountType != 'share' && amountType != 'full') {
-      throw TournamentRegistrationException('Tipo de pagamento inválido.');
-    }
-
-    try {
-      final callable = _functions.httpsCallable('createMercadoPagoPreference');
-      final raw = await callable.call({
-        'registrationId': registrationId,
-        'amountType': amountType,
-      });
-      final data = raw.data;
-      if (data is! Map) {
-        throw TournamentRegistrationException('Resposta inválida do servidor.');
-      }
-      final initPoint = data['initPoint'] as String?;
-      if (initPoint == null || initPoint.isEmpty) {
-        throw TournamentRegistrationException(
-          'Link de pagamento não retornado.',
-        );
-      }
-      return TournamentPaymentResult(initPoint: initPoint);
-    } on FirebaseFunctionsException catch (e) {
-      throw TournamentRegistrationException(
-        e.message ?? 'Não foi possível iniciar o pagamento.',
-      );
-    }
-  }
-
-  Future<void> openCheckout(String initPoint) async {
-    final uri = Uri.tryParse(initPoint);
-    if (uri == null) {
-      throw TournamentRegistrationException('URL de pagamento inválida.');
-    }
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!ok) {
-      throw TournamentRegistrationException(
-        'Não foi possível abrir o checkout.',
-      );
-    }
-  }
-
   Stream<TournamentRegistrationSnapshot?> watchRegistration(
     String registrationId,
   ) {
@@ -179,14 +136,6 @@ class TournamentRegistrationService {
     });
   }
 
-  /// Pagamento da parcela do atleta (`share`) em inscrição já criada.
-  Future<void> payShare(String registrationId) async {
-    final payment = await createMercadoPagoPreference(
-      registrationId: registrationId,
-      amountType: 'share',
-    );
-    await openCheckout(payment.initPoint);
-  }
 }
 
 final tournamentRegistrationServiceProvider =

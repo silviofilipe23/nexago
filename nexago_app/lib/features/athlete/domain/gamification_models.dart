@@ -83,6 +83,7 @@ class GamificationSummary {
     required this.totalGames,
     required this.lastGameDate,
     required this.updatedAt,
+    this.gameCompletionDays = const [],
   });
 
   final int xp;
@@ -92,6 +93,9 @@ class GamificationSummary {
   final DateTime? lastGameDate;
   final DateTime? updatedAt;
 
+  /// Dias com atividade (`YYYY-MM-DD`), usados na UI de sequência.
+  final List<String> gameCompletionDays;
+
   factory GamificationSummary.initial() {
     return const GamificationSummary(
       xp: 0,
@@ -100,6 +104,7 @@ class GamificationSummary {
       totalGames: 0,
       lastGameDate: null,
       updatedAt: null,
+      gameCompletionDays: [],
     );
   }
 
@@ -110,6 +115,14 @@ class GamificationSummary {
       return null;
     }
 
+    final rawDays = map['gameCompletionDays'];
+    final gameDays = rawDays is List
+        ? rawDays
+            .map((e) => e?.toString().trim() ?? '')
+            .where((s) => s.length >= 8)
+            .toList(growable: false)
+        : const <String>[];
+
     final xp = (map['xp'] as num?)?.toInt() ?? 0;
     final level = (map['level'] as num?)?.toInt() ?? _levelFromXp(xp);
     return GamificationSummary(
@@ -119,6 +132,7 @@ class GamificationSummary {
       totalGames: (map['totalGames'] as num?)?.toInt() ?? 0,
       lastGameDate: parseDate(map['lastGameDate']),
       updatedAt: parseDate(map['updatedAt']),
+      gameCompletionDays: gameDays,
     );
   }
 

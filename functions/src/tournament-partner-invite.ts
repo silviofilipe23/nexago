@@ -6,6 +6,7 @@ import {
   type Firestore,
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
+import {assertCanRegisterInTournament} from "./athlete-tournament-access";
 import {deliverNotificationToUser} from "./notification-delivery";
 
 const INVITES_COLLECTION = "tournamentRegistrationInvites";
@@ -23,7 +24,183 @@ function artifactsInscriptionsPath(projectId: string): string {
   return `artifacts/${projectId}/public/data/inscriptions`;
 }
 
-type TournamentCategory = {categoryName: string; entryFee?: number};
+type UniformType = "none" | "top_only" | "full";
+
+type TournamentCategory = {
+  categoryName: string;
+  entryFee?: number;
+  uniformType?: UniformType;
+  uniformNameOnShirt?: boolean;
+  uniformNumberOnShirt?: boolean;
+  uniformSizeOptionsTop?: string[];
+  uniformSizeOptionsShorts?: string[];
+};
+
+type UniformPayload = {
+  sizeTop?: string;
+  sizeShorts?: string;
+  jerseyNumber?: number;
+  jerseyName?: string;
+};
+
+const DEFAULT_TOP_SIZES = ["PP", "P", "M", "G", "GG", "XGG"];
+const DEFAULT_SHORTS_SIZES = ["PP", "P", "M", "G", "GG", "XGG"];
+
+function findCategory(
+  tournament: Record<string, unknown>,
+  categoryId: string,
+): TournamentCategory | null {
+  const categories = (tournament.categories || []) as TournamentCategory[];
+  return categories.find((c) => c.categoryName === categoryId) ?? null;
+}
+
+function categoryRequiresUniform(category: TournamentCategory): boolean {
+  const t = (category.uniformType ?? "none") as string;
+  return t === "top_only" || t === "top" || t === "full";
+}
+
+function categoryRequiresShorts(category: TournamentCategory): boolean {
+  return category.uniformType === "full";
+}
+
+function topSizeOptions(category: TournamentCategory): string[] {
+  const list = (category.uniformSizeOptionsTop || [])
+    .map((s) => (typeof s === "string" ? s.trim() : ""))
+    .filter((s) => s.length > 0);
+  return list.length > 0 ? list : DEFAULT_TOP_SIZES;
+}
+
+function shortsSizeOptions(category: TournamentCategory): string[] {
+  const list = (category.uniformSizeOptionsShorts || [])
+    .map((s) => (typeof s === "string" ? s.trim() : ""))
+    .filter((s) => s.length > 0);
+  return list.length > 0 ? list : DEFAULT_SHORTS_SIZES;
+}
+
+function parseUniformPayload(raw: unknown): UniformPayload | null {
+  if (!raw || typeof raw !== "object") return null;
+  const data = raw as Record<string, unknown>;
+  const sizeTop = typeof data.sizeTop === "string" ? data.sizeTop.trim() : "";
+  const sizeShorts =
+    typeof data.sizeShorts === "string" ? data.sizeShorts.trim() : "";
+  const jerseyName =
+    typeof data.jerseyName === "string" ? data.jerseyName.trim() : "";
+  const jerseyNumberRaw = data.jerseyNumber;
+  const jerseyNumber =
+    typeof jerseyNumberRaw === "number"
+      ? Math.trunc(jerseyNumberRaw)
+      : typeof jerseyNumberRaw === "string"
+        ? Math.trunc(Number(jerseyNumberRaw))
+        : NaN;
+
+  const payload: UniformPayload = {};
+  if (sizeTop) payload.sizeTop = sizeTop;
+  if (sizeShorts) payload.sizeShorts = sizeShorts;
+  if (jerseyName) payload.jerseyName = jerseyName;
+  if (!Number.isNaN(jerseyNumber)) payload.jerseyNumber = jerseyNumber;
+  return Object.keys(payload).length > 0 ? payload : null;
+}
+
+function validateUniformPayload(
+  category: TournamentCategory,
+  uniform: UniformPayload | null,
+  required: boolean,
+): void {
+  if (!required) return;
+  if (!uniform?.sizeTop) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Informe o tamanho da regata para esta categoria.",
+    );
+  }
+
+  const tops = topSizeOptions(category);
+  if (!tops.includes(uniform.sizeTop)) {
+    throw new HttpsError("invalid-argument", "Tamanho da regata inválido.");
+  }
+
+  if (categoryRequiresShorts(category)) {
+    if (!uniform.sizeShorts) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Informe o tamanho do shorts para esta categoria.",
+      );
+    }
+    const shorts = shortsSizeOptions(category);
+    if (!shorts.includes(uniform.sizeShorts)) {
+      throw new HttpsError("invalid-argument", "Tamanho do shorts inválido.");
+    }
+  }
+
+  if (category.uniformNumberOnShirt) {
+    const n = uniform.jerseyNumber;
+    if (n == null || n < 1 || n > 99) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Informe um número de camisa entre 1 e 99.",
+      );
+    }
+  }
+
+  if (category.uniformNameOnShirt) {
+    if (!uniform.jerseyName?.trim()) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Informe o nome para a camisa.",
+      );
+    }
+  }
+}
+
+function uniformToInviteFields(
+  uniform: UniformPayload,
+  prefix: "inviter" | "invitee",
+): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  if (uniform.sizeTop) out[`${prefix}SizeTop`] = uniform.sizeTop;
+  if (uniform.sizeShorts) out[`${prefix}SizeShorts`] = uniform.sizeShorts;
+  if (uniform.jerseyNumber != null) {
+    out[`${prefix}JerseyNumber`] = uniform.jerseyNumber;
+  }
+  if (uniform.jerseyName) out[`${prefix}JerseyName`] = uniform.jerseyName;
+  return out;
+}
+
+function registrationUniformFromInvite(
+  invite: Record<string, unknown>,
+): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  const sizeTop = invite.inviterSizeTop;
+  const sizeShorts = invite.inviterSizeShorts;
+  const jerseyNumber = invite.inviterJerseyNumber;
+  const jerseyName = invite.inviterJerseyName;
+  if (typeof sizeTop === "string" && sizeTop.trim()) {
+    out.sizeTopPlayer1 = sizeTop.trim();
+  }
+  if (typeof sizeShorts === "string" && sizeShorts.trim()) {
+    out.sizeShortsPlayer1 = sizeShorts.trim();
+  }
+  if (typeof jerseyNumber === "number") {
+    out.jerseyNumberPlayer1 = jerseyNumber;
+  }
+  if (typeof jerseyName === "string" && jerseyName.trim()) {
+    out.jerseyNamePlayer1 = jerseyName.trim();
+  }
+  return out;
+}
+
+function registrationUniformPlayer2(
+  uniform: UniformPayload,
+): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  if (uniform.sizeTop) out.sizeTopPlayer2 = uniform.sizeTop;
+  if (uniform.sizeShorts) out.sizeShortsPlayer2 = uniform.sizeShorts;
+  if (uniform.jerseyNumber != null) {
+    out.jerseyNumberPlayer2 = uniform.jerseyNumber;
+  }
+  if (uniform.jerseyName) out.jerseyNamePlayer2 = uniform.jerseyName;
+  return out;
+}
 
 async function loadTournamentData(
   db: Firestore,
@@ -36,11 +213,6 @@ async function loadTournamentData(
   }
   if (!snap.exists) return null;
   return snap.data() ?? null;
-}
-
-function categoryExists(tournament: Record<string, unknown>, categoryId: string): boolean {
-  const categories = (tournament.categories || []) as TournamentCategory[];
-  return categories.some((c) => c.categoryName === categoryId);
 }
 
 async function userHasCategoryRegistration(
@@ -115,13 +287,20 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
   const projectId = getFirebaseProjectId();
   const db = getFirestore();
 
+  await assertCanRegisterInTournament(db, uid);
+
   const tournament = await loadTournamentData(db, projectId, tournamentId);
   if (!tournament) {
     throw new HttpsError("not-found", "Torneio não encontrado.");
   }
-  if (!categoryExists(tournament, categoryId)) {
+  const category = findCategory(tournament, categoryId);
+  if (!category) {
     throw new HttpsError("not-found", "Categoria não encontrada neste torneio.");
   }
+
+  const uniformRequired = categoryRequiresUniform(category);
+  const inviterUniform = parseUniformPayload(request.data?.inviterUniform);
+  validateUniformPayload(category, inviterUniform, uniformRequired);
 
   if (await userHasCategoryRegistration(db, projectId, uid, tournamentId, categoryId)) {
     throw new HttpsError(
@@ -147,7 +326,7 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
   const expiresAt = Timestamp.fromMillis(now + INVITE_TTL_MS);
   const ref = db.collection(INVITES_COLLECTION).doc();
 
-  await ref.set({
+  const inviteData: Record<string, unknown> = {
     tournamentId,
     categoryId,
     inviterUid: uid,
@@ -157,7 +336,14 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
     status: "pending",
     createdAt: FieldValue.serverTimestamp(),
     expiresAt,
-  });
+  };
+  if (inviterUniform) {
+    Object.assign(
+      inviteData,
+      uniformToInviteFields(inviterUniform, "inviter"),
+    );
+  }
+  await ref.set(inviteData);
 
   try {
     await deliverNotificationToUser({
@@ -204,7 +390,37 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
 
   const projectId = getFirebaseProjectId();
   const db = getFirestore();
+
+  await assertCanRegisterInTournament(db, uid);
+
   const inviteRef = db.collection(INVITES_COLLECTION).doc(inviteId);
+
+  const inviteeUniform = parseUniformPayload(request.data?.inviteeUniform);
+
+  const invitePreview = await inviteRef.get();
+  if (!invitePreview.exists) {
+    throw new HttpsError("not-found", "Convite não encontrado.");
+  }
+  const invitePreviewData = invitePreview.data()!;
+  const previewTournamentId = invitePreviewData.tournamentId as string;
+  const previewCategoryId = invitePreviewData.categoryId as string;
+  const previewTournament = await loadTournamentData(
+    db,
+    projectId,
+    previewTournamentId,
+  );
+  if (!previewTournament) {
+    throw new HttpsError("not-found", "Torneio não encontrado.");
+  }
+  const previewCategory = findCategory(previewTournament, previewCategoryId);
+  if (!previewCategory) {
+    throw new HttpsError("not-found", "Categoria não encontrada.");
+  }
+  validateUniformPayload(
+    previewCategory,
+    inviteeUniform,
+    categoryRequiresUniform(previewCategory),
+  );
 
   const result = await db.runTransaction(async (tx) => {
     const inviteSnap = await tx.get(inviteRef);
@@ -242,14 +458,22 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    tx.set(regRef, {
+    const registrationData: Record<string, unknown> = {
       teamId: teamRef.id,
       tournamentId,
       categoryId,
       isPaid: false,
       paidAmount: 0,
       createdAt: FieldValue.serverTimestamp(),
-    });
+      ...registrationUniformFromInvite(invite),
+    };
+    if (inviteeUniform) {
+      Object.assign(
+        registrationData,
+        registrationUniformPlayer2(inviteeUniform),
+      );
+    }
+    tx.set(regRef, registrationData);
 
     tx.update(inviteRef, {
       status: "accepted",

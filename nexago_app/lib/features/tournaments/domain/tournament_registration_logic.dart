@@ -5,6 +5,19 @@ import 'tournament_detail_logic.dart';
 import 'tournament_detail_model.dart';
 import 'tournament_discovery_helpers.dart';
 import 'tournament_discovery_models.dart';
+import 'tournament_uniform_selection.dart';
+
+export 'tournament_uniform_selection.dart'
+    show
+        TournamentUniformSelection,
+        categoryRequiresShorts,
+        categoryRequiresUniform,
+        isUniformSelectionComplete,
+        kDefaultUniformSizeOptionsTop,
+        kUniformChangeDeadlineDays,
+        uniformSizeOptionsShortsForCategory,
+        uniformSizeOptionsTopForCategory,
+        validateUniformSelection;
 
 /// Taxa fixa da plataforma (espelha `PLATFORM_FEE_FIXED_BRL` no backend MP).
 const double kTournamentPlatformFeeBrl = 2.0;
@@ -12,6 +25,7 @@ const double kTournamentPlatformFeeBrl = 2.0;
 enum TournamentRegistrationStep {
   category,
   summary,
+  uniform,
   partner,
   waiting,
   payment,
@@ -24,6 +38,7 @@ class TournamentRegistrationPartnerCandidate {
     required this.name,
     required this.rankLabel,
     this.tagLabel,
+    this.avatarUrl,
   });
 
   final String userId;
@@ -31,6 +46,7 @@ class TournamentRegistrationPartnerCandidate {
   final String name;
   final String rankLabel;
   final String? tagLabel;
+  final String? avatarUrl;
 }
 
 String partnerResultsHeader({
@@ -53,8 +69,30 @@ String registrationHeaderTitle(TournamentRegistrationStep step) {
 
 bool registrationStepShowsHero(TournamentRegistrationStep step) {
   return step != TournamentRegistrationStep.partner &&
-      step != TournamentRegistrationStep.waiting;
+      step != TournamentRegistrationStep.waiting &&
+      step != TournamentRegistrationStep.uniform;
 }
+
+TournamentRegistrationStep nextStepAfterSummary(
+  TournamentCategoryOffer? category,
+) {
+  if (category != null && categoryRequiresUniform(category)) {
+    return TournamentRegistrationStep.uniform;
+  }
+  return TournamentRegistrationStep.partner;
+}
+
+TournamentRegistrationStep previousStepFromPartner(
+  TournamentCategoryOffer? category,
+) {
+  if (category != null && categoryRequiresUniform(category)) {
+    return TournamentRegistrationStep.uniform;
+  }
+  return TournamentRegistrationStep.summary;
+}
+
+TournamentRegistrationStep previousStepFromUniform() =>
+    TournamentRegistrationStep.summary;
 
 class TournamentRegistrationQuote {
   const TournamentRegistrationQuote({
@@ -238,6 +276,15 @@ bool registrationWaitingCanProceed({
       registrationId.isNotEmpty;
 }
 
+/// Parcela do atleta autenticado já consta em `sharePaidUids`.
+bool currentAthleteSharePaid({
+  required List<String> sharePaidUids,
+  required String? athleteUid,
+}) {
+  if (athleteUid == null || athleteUid.isEmpty) return false;
+  return sharePaidUids.contains(athleteUid);
+}
+
 /// Uma parcela (`share`) já foi paga (aproximação via `paidAmount` acumulado).
 bool registrationSharePaid({
   required double paidAmount,
@@ -252,12 +299,18 @@ String registrationDualPaymentProgressLabel({
   required TournamentRegistrationQuote quote,
   required double paidAmount,
   required bool isPaid,
+  List<String> sharePaidUids = const [],
+  String? currentAthleteUid,
 }) {
   if (isPaid) return 'Inscrição confirmada — dupla inscrita no torneio.';
-  if (paidAmount <= 0) {
+  final selfPaid = currentAthleteSharePaid(
+    sharePaidUids: sharePaidUids,
+    athleteUid: currentAthleteUid,
+  );
+  if (paidAmount <= 0 && !selfPaid) {
     return 'Aguardando o pagamento de cada atleta (sua parcela + parceiro).';
   }
-  if (registrationSharePaid(
+  if (selfPaid || registrationSharePaid(
     paidAmount: paidAmount,
     shareAmount: quote.shareAmount,
   )) {
@@ -268,5 +321,15 @@ String registrationDualPaymentProgressLabel({
       return 'Sua parcela paga. Falta ${formatRegistrationMoney(remaining)} para confirmar a dupla.';
     }
   }
-  return 'Pagamento parcial: ${formatRegistrationMoney(paidAmount)} de ${formatRegistrationMoney(quote.displayTotal)}.';
+  if (paidAmount > 0) {
+    return 'Pagamento parcial: ${formatRegistrationMoney(paidAmount)} de ${formatRegistrationMoney(quote.displayTotal)}.';
+  }
+  return 'Aguardando o pagamento de cada atleta (sua parcela + parceiro).';
 }
+
+/// Sticky da inscrição só habilita ações quando o perfil permite torneios.
+bool registrationStickyEnabled({
+  required bool canAccess,
+  required bool stepEnabled,
+}) =>
+    canAccess && stepEnabled;

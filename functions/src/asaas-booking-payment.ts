@@ -1,6 +1,5 @@
 import * as logger from "firebase-functions/logger";
 import {AsaasApiError, fetchAsaas} from "./asaas-client";
-import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
 
 export type AsaasPixChargeResult = {
   paymentId: string;
@@ -126,7 +125,8 @@ export async function createAsaasPixCharge(params: {
   valueReais: number;
   dueDate: Date;
   description: string;
-  bookingId: string;
+  externalReference: string;
+  idempotencyKey: string;
 }): Promise<AsaasPixChargeResult> {
   const dueDate = resolveDueDate(params.dueDate);
 
@@ -138,9 +138,9 @@ export async function createAsaasPixCharge(params: {
       value: params.valueReais,
       dueDate,
       description: params.description.slice(0, 500),
-      externalReference: `${ARENA_BOOKING_PAYMENT_REF_PREFIX}${params.bookingId}`,
+      externalReference: params.externalReference,
     },
-    idempotencyKey: `arena-booking-pix-${params.bookingId}`,
+    idempotencyKey: params.idempotencyKey,
   });
 
   const paymentId = payment.id?.trim() ?? "";

@@ -45,6 +45,7 @@ TournamentRegistrationPartnerCandidate partnerCandidateFromProfile(
     name: appUserDisplayName(profile),
     rankLabel: rankParts.isEmpty ? 'Atleta NexaGO' : rankParts.join(' · '),
     tagLabel: tagLabel,
+    avatarUrl: profile.profilePhotoUrl,
   );
 }
 

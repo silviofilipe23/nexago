@@ -111,6 +111,11 @@ class TournamentCategoryOffer {
     this.registrationClosed = false,
     this.isCompleted = false,
     this.prizes = const [],
+    this.uniformType,
+    this.uniformNameOnShirt = false,
+    this.uniformNumberOnShirt = false,
+    this.uniformSizeOptionsTop = const [],
+    this.uniformSizeOptionsShorts = const [],
   });
 
   /// Id usado em inscrição / MP (`categoryName`).
@@ -128,6 +133,13 @@ class TournamentCategoryOffer {
   final bool registrationClosed;
   final bool isCompleted;
   final List<TournamentCategoryPrize> prizes;
+
+  /// `none` | `top_only` | `full` (backoffice UniformType).
+  final String? uniformType;
+  final bool uniformNameOnShirt;
+  final bool uniformNumberOnShirt;
+  final List<String> uniformSizeOptionsTop;
+  final List<String> uniformSizeOptionsShorts;
 }
 
 class TournamentCategoryPrize {

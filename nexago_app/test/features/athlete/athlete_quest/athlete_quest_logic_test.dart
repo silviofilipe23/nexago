@@ -15,6 +15,30 @@ void main() {
   });
 
   group('buildStreakWeekDays', () {
+    test('marks completed days from gameCompletionDays', () {
+      final now = DateTime(2026, 5, 22);
+      final summary = GamificationSummary(
+        xp: 200,
+        level: 2,
+        streak: 3,
+        totalGames: 8,
+        lastGameDate: now,
+        updatedAt: now,
+        gameCompletionDays: ['2026-05-20', '2026-05-21', '2026-05-22'],
+      );
+
+      final days = buildStreakWeekDays(summary, now);
+      final completed = days
+          .where((d) => d.state == StreakWeekDayState.completed)
+          .length;
+
+      expect(completed, 3);
+      expect(
+        days.any((d) => d.state == StreakWeekDayState.today),
+        isFalse,
+      );
+    });
+
     test('streak 3 with last game yesterday yields 3 completed and today', () {
       final now = DateTime(2026, 5, 22); // Thursday
       final yesterday = now.subtract(const Duration(days: 1));

@@ -45,7 +45,7 @@ class _RatingDialog extends ConsumerStatefulWidget {
 class _RatingDialogState extends ConsumerState<_RatingDialog> {
   final TextEditingController _commentController = TextEditingController();
   final Set<String> _selectedTags = {'Quadra impecável', 'Atendimento bom'};
-  int _rating = 4;
+  int _rating = 5;
   bool _showCommentField = false;
   bool _sending = false;
 

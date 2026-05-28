@@ -8,8 +8,12 @@ import {
 import {PLATFORM_FEE_FIXED_BRL} from "./mercadopago-arena-helpers";
 import {getAsaasPayment} from "./asaas-booking-payment";
 import {processArenaBookingAsaasNotification} from "./asaas-arena-booking-webhook";
-import {ARENA_BOOKING_PAYMENT_REF_PREFIX} from "./arena-booking-payment-constants";
+import {
+  ARENA_BOOKING_PAYMENT_REF_PREFIX,
+  TOURNAMENT_REGISTRATION_PAYMENT_REF_PREFIX,
+} from "./arena-booking-payment-constants";
 import {processArenaWithdrawalTransferWebhook} from "./asaas-withdrawal-webhook";
+import {processTournamentRegistrationAsaasNotification} from "./asaas-tournament-registration-webhook";
 
 const PAYMENT_EVENTS = new Set([
   "PAYMENT_RECEIVED",
@@ -30,8 +34,7 @@ type AsaasWebhookBody = {
 };
 
 /**
- * Webhook Asaas — cobranças de reserva de arena (`arenaBooking:*`).
- * Inscrições em torneio continuam no `mercadopagoWebhook`.
+ * Webhook Asaas — reservas (`arenaBooking:*`) e inscrições (`tournamentRegistration:*`).
  */
 export const asaasWebhook = onRequest({
   secrets: [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL],
@@ -114,11 +117,16 @@ export const asaasWebhook = onRequest({
   try {
     const payment = await getAsaasPayment(paymentId);
     const externalRef = (payment.externalReference || "").trim();
-    if (!externalRef.startsWith(ARENA_BOOKING_PAYMENT_REF_PREFIX)) {
-      res.status(200).send("OK");
-      return;
+    if (externalRef.startsWith(TOURNAMENT_REGISTRATION_PAYMENT_REF_PREFIX)) {
+      await processTournamentRegistrationAsaasNotification(
+        db,
+        paymentId,
+        payment,
+        processedRef,
+      );
+    } else if (externalRef.startsWith(ARENA_BOOKING_PAYMENT_REF_PREFIX)) {
+      await processArenaBookingAsaasNotification(db, paymentId, payment, processedRef);
     }
-    await processArenaBookingAsaasNotification(db, paymentId, payment, processedRef);
   } catch (e) {
     logger.error(`asaasWebhook failed paymentId=${paymentId} event=${event}`, e);
   }

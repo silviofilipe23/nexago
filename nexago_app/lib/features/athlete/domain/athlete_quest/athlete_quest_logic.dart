@@ -38,6 +38,41 @@ String? nextLevelUnlockHint(int nextDisplayLevel) {
   };
 }
 
+DateTime? _parseActivityDayKey(String key) {
+  final trimmed = key.trim();
+  if (trimmed.length < 10) return null;
+  final parsed = DateTime.tryParse(trimmed.substring(0, 10));
+  if (parsed == null) return null;
+  return DateTime(parsed.year, parsed.month, parsed.day);
+}
+
+/// Dias com atividade registrada (jogo, reserva ou missão de jogo).
+Set<DateTime> _activityDatesFromSummary(GamificationSummary summary) {
+  final dates = <DateTime>{};
+  for (final key in summary.gameCompletionDays) {
+    final day = _parseActivityDayKey(key);
+    if (day != null) dates.add(day);
+  }
+
+  if (dates.isNotEmpty) return dates;
+
+  // Legado: usuários sem `gameCompletionDays` no Firestore.
+  final lastGame = summary.lastGameDate != null
+      ? _dateOnly(summary.lastGameDate!)
+      : null;
+  if (summary.streak > 0 && lastGame != null) {
+    for (var i = 0; i < summary.streak; i++) {
+      dates.add(lastGame.subtract(Duration(days: i)));
+    }
+  }
+  return dates;
+}
+
+DateTime? _latestActivityDate(Set<DateTime> activityDates) {
+  if (activityDates.isEmpty) return null;
+  return activityDates.reduce((a, b) => a.isAfter(b) ? a : b);
+}
+
 /// Dias da semana atual (seg–dom) com estado visual do streak.
 List<StreakWeekDay> buildStreakWeekDays(
   GamificationSummary summary,
@@ -45,39 +80,30 @@ List<StreakWeekDay> buildStreakWeekDays(
 ) {
   final today = _dateOnly(now);
   final monday = _mondayOfWeek(today);
-  final lastGame = summary.lastGameDate != null
-      ? _dateOnly(summary.lastGameDate!)
-      : null;
   final streak = summary.streak;
+  final activityDates = _activityDatesFromSummary(summary);
+  final lastActivity = _latestActivityDate(activityDates) ??
+      (summary.lastGameDate != null
+          ? _dateOnly(summary.lastGameDate!)
+          : null);
 
-  final completedDates = <DateTime>{};
-  if (streak > 0 && lastGame != null) {
-    for (var i = 0; i < streak; i++) {
-      completedDates.add(lastGame.subtract(Duration(days: i)));
-    }
-  }
-
-  final streakActiveToday = lastGame == today;
-  final streakNeedsPlayToday =
-      streak > 0 && lastGame != null && lastGame == today.subtract(const Duration(days: 1));
+  final streakNeedsPlayToday = streak > 0 &&
+      lastActivity != null &&
+      lastActivity == today.subtract(const Duration(days: 1));
 
   return List.generate(7, (index) {
     final day = monday.add(Duration(days: index));
     final StreakWeekDayState state;
     if (day.isAfter(today)) {
       state = StreakWeekDayState.upcoming;
-    } else if (day == today) {
-      if (streakActiveToday && completedDates.contains(today)) {
-        state = StreakWeekDayState.completed;
-      } else if (streakNeedsPlayToday || (streak == 0 && !completedDates.contains(today))) {
-        state = StreakWeekDayState.today;
-      } else if (completedDates.contains(today)) {
-        state = StreakWeekDayState.completed;
-      } else {
-        state = StreakWeekDayState.today;
-      }
-    } else if (completedDates.contains(day)) {
+    } else if (activityDates.contains(day)) {
       state = StreakWeekDayState.completed;
+    } else if (day == today) {
+      if (streakNeedsPlayToday || streak == 0) {
+        state = StreakWeekDayState.today;
+      } else {
+        state = StreakWeekDayState.missed;
+      }
     } else {
       state = StreakWeekDayState.missed;
     }

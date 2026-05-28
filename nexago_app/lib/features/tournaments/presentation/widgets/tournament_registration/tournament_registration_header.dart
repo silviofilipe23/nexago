@@ -8,10 +8,52 @@ class TournamentRegistrationHeader extends StatelessWidget {
     super.key,
     required this.onBack,
     this.title = 'Inscrição',
+    this.tournamentName,
+    this.tournamentDateLabel,
+    this.categoryLabel,
+    this.showTournamentInfo = false,
   });
 
   final VoidCallback onBack;
   final String title;
+  final String? tournamentName;
+  final String? tournamentDateLabel;
+  final String? categoryLabel;
+  final bool showTournamentInfo;
+
+  String _normalizeTournamentDateLabel(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return value;
+
+    // Ex.: "21/04 - 21/04" => "21/04"
+    final slashRange = RegExp(r'^(\d{1,2}/\d{1,2})\s*[–-]\s*(\d{1,2}/\d{1,2})$');
+    final slashMatch = slashRange.firstMatch(value);
+    if (slashMatch != null) {
+      final start = slashMatch.group(1)?.trim();
+      final end = slashMatch.group(2)?.trim();
+      if (start != null && end != null && start == end) {
+        return start;
+      }
+      return value;
+    }
+
+    // Ex.: "21–21 Abr" / "21-21 Abr" => "21 Abr"
+    final sameDayRange = RegExp(r'^(\d{1,2})\s*[–-]\s*(\d{1,2})(\s+\S.*)$');
+    final match = sameDayRange.firstMatch(value);
+    if (match != null) {
+      final startDay = match.group(1)?.trim();
+      final endDay = match.group(2)?.trim();
+      final suffix = (match.group(3) ?? '').trimLeft();
+      if (startDay != null &&
+          endDay != null &&
+          startDay == endDay &&
+          suffix.isNotEmpty) {
+        return '$startDay $suffix'.trim();
+      }
+    }
+
+    return value;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,12 +84,61 @@ class TournamentRegistrationHeader extends StatelessWidget {
                 ),
               ),
             ),
-            Text(
-              title,
-              style: AppTypography.soraRegular(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+            Padding(
+              padding: const EdgeInsets.only(left: 56),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                if (showTournamentInfo &&
+                    tournamentName != null &&
+                    tournamentName!.trim().isNotEmpty)
+                  Text(
+                    [
+                      tournamentName!.trim().toUpperCase(),
+                      if (tournamentDateLabel != null &&
+                          tournamentDateLabel!.trim().isNotEmpty)
+                        _normalizeTournamentDateLabel(
+                          tournamentDateLabel!,
+                        ).toUpperCase(),
+                    ].join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.mono(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.brand,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                if (showTournamentInfo &&
+                    categoryLabel != null &&
+                    categoryLabel!.trim().isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    categoryLabel!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.soraRegular(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.onSurface,
+                      height: 1.0,
+                    ),
+                  ),
+                ] else
+                  Text(
+                    title,
+                    style: AppTypography.soraRegular(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                  ],
+                ),
               ),
             ),
           ],

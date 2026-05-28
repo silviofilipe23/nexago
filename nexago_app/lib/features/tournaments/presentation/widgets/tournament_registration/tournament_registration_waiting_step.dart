@@ -11,23 +11,27 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
     required this.partner,
     required this.athleteDisplayName,
     required this.athleteInitials,
+    this.athleteAvatarUrl,
     this.onResendInvite,
     this.onCancelRegistration,
     this.onContinueBrowsing,
     this.inviteAccepted = false,
     this.partnerPendingSubtitle = 'Pendente',
     this.reservationHoursLabel = '24 horas',
+    this.isLoading = false,
   });
 
   final TournamentRegistrationPartnerCandidate partner;
   final String athleteDisplayName;
   final String athleteInitials;
+  final String? athleteAvatarUrl;
   final VoidCallback? onResendInvite;
   final VoidCallback? onCancelRegistration;
   final VoidCallback? onContinueBrowsing;
   final bool inviteAccepted;
   final String partnerPendingSubtitle;
   final String reservationHoursLabel;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -37,54 +41,7 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Center(
-          child: SizedBox(
-            width: 160,
-            height: 160,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 160,
-                  height: 160,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.pending.withValues(alpha: 0.08),
-                  ),
-                ),
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.pending.withValues(alpha: 0.14),
-                  ),
-                ),
-                Container(
-                  width: 100,
-                  height: 100,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.pending,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.pending.withValues(alpha: 0.4),
-                        blurRadius: 40,
-                        offset: const Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.schedule_rounded,
-                    size: 44,
-                    color: AppColors.black,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        Center(child: _WaitingStatusOrb(confirmed: inviteAccepted)),
         const SizedBox(height: 32),
         Center(
           child: Column(
@@ -112,9 +69,11 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                inviteAccepted
-                    ? '$firstName aceitou!\nSigam para o pagamento.'
-                    : '$firstName recebeu\nseu convite.',
+                isLoading
+                    ? 'Carregando dupla...'
+                    : inviteAccepted
+                        ? '$firstName aceitou!\nSigam para o pagamento.'
+                        : '$firstName recebeu\nseu convite.',
                 textAlign: TextAlign.center,
                 style: AppTypography.soraRegular(
                   fontSize: 26,
@@ -127,30 +86,32 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
               const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text.rich(
-                  TextSpan(
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.onSurfaceMuted,
-                      height: 1.5,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    children: [
-                      const TextSpan(
-                        text:
-                            'Avisamos pelo app e por celular. Sua vaga fica reservada por ',
-                      ),
-                      TextSpan(
-                        text: reservationHoursLabel,
-                        style: TextStyle(
-                          color: AppColors.pending,
-                          fontWeight: FontWeight.w700,
+                child: isLoading
+                    ? const _SkeletonLine(width: 260)
+                    : Text.rich(
+                        TextSpan(
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppColors.onSurfaceMuted,
+                            height: 1.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          children: [
+                            const TextSpan(
+                              text:
+                                  'Avisamos pelo app e por celular. Sua vaga fica reservada por ',
+                            ),
+                            TextSpan(
+                              text: reservationHoursLabel,
+                              style: TextStyle(
+                                color: AppColors.pending,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const TextSpan(text: '.'),
+                          ],
                         ),
+                        textAlign: TextAlign.center,
                       ),
-                      const TextSpan(text: '.'),
-                    ],
-                  ),
-                  textAlign: TextAlign.center,
-                ),
               ),
             ],
           ),
@@ -181,6 +142,8 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
                 name: athleteDisplayName,
                 subtitle: 'Você · confirmado',
                 confirmed: true,
+                avatarUrl: athleteAvatarUrl,
+                loading: isLoading,
               ),
               Divider(
                 height: 24,
@@ -192,13 +155,15 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
                 subtitle: partnerPendingSubtitle,
                 confirmed: inviteAccepted,
                 dashedAvatar: !inviteAccepted,
+                avatarUrl: partner.avatarUrl,
+                loading: isLoading,
               ),
             ],
           ),
         ),
         const SizedBox(height: 24),
         FilledButton(
-          onPressed: onContinueBrowsing,
+          onPressed: isLoading ? null : onContinueBrowsing,
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.brand,
             foregroundColor: AppColors.black,
@@ -212,26 +177,28 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
-        const SizedBox(height: 10),
-        OutlinedButton(
-          onPressed: onResendInvite,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.onSurface,
-            side: BorderSide(
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.25),
+        if (!inviteAccepted) ...[
+          const SizedBox(height: 10),
+          OutlinedButton(
+            onPressed: isLoading ? null : onResendInvite,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.onSurface,
+              side: BorderSide(
+                color: AppColors.onSurfaceMuted.withValues(alpha: 0.25),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+            child: const Text(
+              'Reenviar convite',
+              style: TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
-          child: const Text(
-            'Reenviar convite',
-            style: TextStyle(fontWeight: FontWeight.w700),
-          ),
-        ),
+        ],
         TextButton(
-          onPressed: onCancelRegistration,
+          onPressed: isLoading ? null : onCancelRegistration,
           child: Text(
             'Cancelar inscrição',
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -252,6 +219,8 @@ class _DuoRow extends StatelessWidget {
     required this.subtitle,
     required this.confirmed,
     this.dashedAvatar = false,
+    this.avatarUrl,
+    this.loading = false,
   });
 
   final String initials;
@@ -259,27 +228,46 @@ class _DuoRow extends StatelessWidget {
   final String subtitle;
   final bool confirmed;
   final bool dashedAvatar;
+  final String? avatarUrl;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final resolvedAvatarUrl = avatarUrl?.trim();
+    final hasAvatar = resolvedAvatarUrl != null && resolvedAvatarUrl.isNotEmpty;
     Widget avatar;
-    if (dashedAvatar) {
+    if (loading) {
+      avatar = _SkeletonCircle(size: 40, dashed: dashedAvatar);
+    } else if (dashedAvatar) {
       avatar = TournamentRegistrationDashedBorder(
         radius: 20,
         child: Container(
           width: 40,
           height: 40,
           alignment: Alignment.center,
-          child: Text(
-            initials,
-            style: AppTypography.mono(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppColors.onSurfaceMuted,
-            ),
-          ),
+          child: hasAvatar
+              ? ClipOval(
+                  child: Image.network(
+                    resolvedAvatarUrl,
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _AvatarInitials(
+                      initials: initials,
+                      color: AppColors.onSurfaceMuted,
+                    ),
+                  ),
+                )
+              : Text(
+                  initials,
+                  style: AppTypography.mono(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onSurfaceMuted,
+                  ),
+                ),
         ),
       );
     } else {
@@ -295,14 +283,27 @@ class _DuoRow extends StatelessWidget {
             colors: [AppColors.brand, Color(0xFFCC0000)],
           ),
         ),
-        child: Text(
-          initials,
-          style: AppTypography.mono(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: AppColors.white,
-          ),
-        ),
+        child: hasAvatar
+            ? ClipOval(
+                child: Image.network(
+                  resolvedAvatarUrl,
+                  width: 40,
+                  height: 40,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => _AvatarInitials(
+                    initials: initials,
+                    color: AppColors.white,
+                  ),
+                ),
+              )
+            : Text(
+                initials,
+                style: AppTypography.mono(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.white,
+                ),
+              ),
       );
     }
 
@@ -314,29 +315,35 @@ class _DuoRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                name,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: dashedAvatar
-                      ? AppColors.onSurfaceMuted
-                      : AppColors.onSurface,
+              if (loading) ...[
+                const _SkeletonLine(width: 132, height: 12),
+                const SizedBox(height: 6),
+                const _SkeletonLine(width: 94, height: 10),
+              ] else ...[
+                Text(
+                  name,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: dashedAvatar
+                        ? AppColors.onSurfaceMuted
+                        : AppColors.onSurface,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: dashedAvatar
-                      ? AppColors.pending
-                      : AppColors.onSurfaceMuted,
-                  fontWeight: FontWeight.w500,
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: dashedAvatar
+                        ? AppColors.pending
+                        : AppColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),
-        if (confirmed)
+        if (confirmed && !loading)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
@@ -351,5 +358,235 @@ class _DuoRow extends StatelessWidget {
           ),
       ],
     );
+  }
+}
+
+class _WaitingStatusOrb extends StatelessWidget {
+  const _WaitingStatusOrb({required this.confirmed});
+
+  final bool confirmed;
+
+  @override
+  Widget build(BuildContext context) {
+    if (confirmed) {
+      return const _ConfirmedOrb();
+    }
+    return const _WaitingPulseOrb();
+  }
+}
+
+class _ConfirmedOrb extends StatelessWidget {
+  const _ConfirmedOrb();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 160,
+      height: 160,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            width: 160,
+            height: 160,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.win.withValues(alpha: 0.08),
+            ),
+          ),
+          Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.win.withValues(alpha: 0.14),
+            ),
+          ),
+          Container(
+            width: 100,
+            height: 100,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.win,
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.win.withValues(alpha: 0.38),
+                  blurRadius: 40,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: const Icon(
+              Icons.check_rounded,
+              size: 48,
+              color: AppColors.black,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WaitingPulseOrb extends StatefulWidget {
+  const _WaitingPulseOrb();
+
+  @override
+  State<_WaitingPulseOrb> createState() => _WaitingPulseOrbState();
+}
+
+class _WaitingPulseOrbState extends State<_WaitingPulseOrb>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1800),
+  )..repeat(reverse: true);
+
+  late final Animation<double> _outerScale = Tween<double>(
+    begin: 0.96,
+    end: 1.05,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+  late final Animation<double> _middleScale = Tween<double>(
+    begin: 0.97,
+    end: 1.03,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+  late final Animation<double> _coreScale = Tween<double>(
+    begin: 0.985,
+    end: 1.02,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (_, __) {
+        return SizedBox(
+          width: 160,
+          height: 160,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Transform.scale(
+                scale: _outerScale.value,
+                child: Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.pending.withValues(alpha: 0.08),
+                  ),
+                ),
+              ),
+              Transform.scale(
+                scale: _middleScale.value,
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.pending.withValues(alpha: 0.14),
+                  ),
+                ),
+              ),
+              Transform.scale(
+                scale: _coreScale.value,
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.pending,
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.pending.withValues(alpha: 0.4),
+                        blurRadius: 40,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.schedule_rounded,
+                    size: 44,
+                    color: AppColors.black,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AvatarInitials extends StatelessWidget {
+  const _AvatarInitials({
+    required this.initials,
+    required this.color,
+  });
+
+  final String initials;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      initials,
+      style: AppTypography.mono(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: color,
+      ),
+    );
+  }
+}
+
+class _SkeletonLine extends StatelessWidget {
+  const _SkeletonLine({required this.width, this.height = 12});
+
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: AppColors.onSurfaceMuted.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(999),
+      ),
+    );
+  }
+}
+
+class _SkeletonCircle extends StatelessWidget {
+  const _SkeletonCircle({required this.size, this.dashed = false});
+
+  final double size;
+  final bool dashed;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.onSurfaceMuted.withValues(alpha: 0.16),
+      ),
+    );
+    if (!dashed) return child;
+    return TournamentRegistrationDashedBorder(radius: size / 2, child: child);
   }
 }

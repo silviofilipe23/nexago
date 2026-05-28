@@ -152,6 +152,12 @@ abstract final class TournamentDocumentMapper {
           registrationClosed: map['registrationClosed'] == true,
           isCompleted: map['isCompleted'] == true,
           prizes: _parseCategoryPrizes(map['prizes']),
+          uniformType: _str(map['uniformType']),
+          uniformNameOnShirt: map['uniformNameOnShirt'] == true,
+          uniformNumberOnShirt: map['uniformNumberOnShirt'] == true,
+          uniformSizeOptionsTop: _stringList(map['uniformSizeOptionsTop']),
+          uniformSizeOptionsShorts:
+              _stringList(map['uniformSizeOptionsShorts']),
         ),
       );
     }
@@ -272,6 +278,14 @@ abstract final class TournamentDocumentMapper {
       return _dateFmt.format(start);
     }
     return '${_dateFmt.format(start)} – ${_dateFmt.format(end)}';
+  }
+
+  static List<String> _stringList(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .map((e) => e?.toString().trim() ?? '')
+        .where((s) => s.isNotEmpty)
+        .toList();
   }
 
   static String? _str(dynamic v) {

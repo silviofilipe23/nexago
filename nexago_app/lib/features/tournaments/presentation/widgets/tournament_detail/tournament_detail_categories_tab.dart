@@ -11,10 +11,14 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
     super.key,
     required this.tournament,
     this.enrollmentByCategoryId = const {},
+    this.canAccessTournaments = true,
+    this.onRegisterBlocked,
   });
 
   final TournamentDetail tournament;
   final Map<String, int> enrollmentByCategoryId;
+  final bool canAccessTournaments;
+  final VoidCallback? onRegisterBlocked;
 
   @override
   Widget build(BuildContext context) {
@@ -42,6 +46,10 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
             offer.id,
           ),
           onRegister: () {
+            if (!canAccessTournaments) {
+              onRegisterBlocked?.call();
+              return;
+            }
             context.pushNamed(
               AppRouteNames.tournamentRegistration,
               pathParameters: {'tournamentId': tournament.id},

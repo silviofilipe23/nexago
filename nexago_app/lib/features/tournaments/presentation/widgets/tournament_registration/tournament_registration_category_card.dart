@@ -13,6 +13,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
     this.inscriptionCount,
     this.selected = false,
     this.showChangeAction = false,
+    this.alreadyRegistered = false,
     this.onTap,
     this.onChange,
   });
@@ -22,6 +23,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
   final int? inscriptionCount;
   final bool selected;
   final bool showChangeAction;
+  final bool alreadyRegistered;
   final VoidCallback? onTap;
   final VoidCallback? onChange;
 
@@ -34,13 +36,16 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
       format: format,
       inscriptionCount: inscriptionCount,
     );
-    final selectable = isCategorySelectable(
-      offer,
-      inscriptionCount: inscriptionCount,
-    );
-    final borderColor = selected
-        ? AppColors.brand
-        : AppColors.onSurfaceMuted.withValues(alpha: 0.15);
+    final selectable = !alreadyRegistered &&
+        isCategorySelectable(
+          offer,
+          inscriptionCount: inscriptionCount,
+        );
+    final borderColor = alreadyRegistered
+        ? AppColors.win.withValues(alpha: 0.45)
+        : selected
+            ? AppColors.brand
+            : AppColors.onSurfaceMuted.withValues(alpha: 0.15);
 
     return Material(
       color: AppColors.surfaceRaised,
@@ -54,7 +59,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: borderColor,
-              width: selected ? 1.5 : 1,
+              width: selected || alreadyRegistered ? 1.5 : 1,
             ),
           ),
           child: Row(
@@ -101,7 +106,18 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    if (!selectable) ...[
+                    if (alreadyRegistered) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'JÁ INSCRITO',
+                        style: AppTypography.mono(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.win,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ] else if (!selectable) ...[
                       const SizedBox(height: 4),
                       Text(
                         _closedLabel(offer),
@@ -134,6 +150,12 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
                       letterSpacing: 0.6,
                     ),
                   ),
+                )
+              else if (alreadyRegistered)
+                const Icon(
+                  Icons.verified_rounded,
+                  color: AppColors.win,
+                  size: 22,
                 )
               else if (selected)
                 const Icon(

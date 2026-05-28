@@ -313,7 +313,12 @@ String _titleCaseWords(String raw) {
       .join(' ');
 }
 
-enum TournamentCategoryCtaKind { register, waitlist, disabled }
+enum TournamentCategoryCtaKind {
+  register,
+  waitlist,
+  disabled,
+  viewRegistration,
+}
 
 class TournamentCategoryVacancyUi {
   const TournamentCategoryVacancyUi({
@@ -441,6 +446,7 @@ String tournamentCategoryCtaLabel(TournamentCategoryCtaKind kind) {
     TournamentCategoryCtaKind.register => 'Inscrever-se →',
     TournamentCategoryCtaKind.waitlist => 'Lista de espera',
     TournamentCategoryCtaKind.disabled => 'Inscrições fechadas',
+    TournamentCategoryCtaKind.viewRegistration => 'Ver inscrição',
   };
 }
 

@@ -1,26 +1,56 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
+import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
+import '../../../domain/tournament_registration_success_args.dart';
 
 class TournamentDetailCategoryCard extends StatelessWidget {
   const TournamentDetailCategoryCard({
     super.key,
     required this.offer,
+    required this.tournamentId,
+    required this.tournamentName,
     required this.tournamentStatus,
     required this.onRegister,
     this.inscriptionCount,
+    this.registrationId,
   });
 
   final TournamentCategoryOffer offer;
+  final String tournamentId;
+  final String tournamentName;
   final TournamentListingStatus tournamentStatus;
   final VoidCallback? onRegister;
   final int? inscriptionCount;
+  final String? registrationId;
+
+  void _openRegistrationSuccess(BuildContext context) {
+    final regId = registrationId?.trim() ?? '';
+    if (regId.isEmpty || tournamentId.isEmpty) return;
+    context.pushNamed(
+      AppRouteNames.tournamentRegistrationSuccess,
+      pathParameters: {'tournamentId': tournamentId},
+      extra: TournamentRegistrationSuccessArgs(
+        tournamentId: tournamentId,
+        registrationId: regId,
+        tournamentName: tournamentName,
+        categoryName: offer.name,
+      ),
+      queryParameters: {
+        'registrationId': regId,
+        'tournamentName': tournamentName,
+        'categoryName': offer.name,
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isEnrolled = registrationId != null && registrationId!.isNotEmpty;
     final status = tournamentCategoryRowStatus(
       offer,
       inscriptionCount: inscriptionCount,
@@ -29,11 +59,13 @@ class TournamentDetailCategoryCard extends StatelessWidget {
       offer,
       inscriptionCount: inscriptionCount,
     );
-    final ctaKind = tournamentCategoryCtaKind(
-      offer,
-      tournamentStatus,
-      inscriptionCount: inscriptionCount,
-    );
+    final ctaKind = isEnrolled
+        ? TournamentCategoryCtaKind.viewRegistration
+        : tournamentCategoryCtaKind(
+            offer,
+            tournamentStatus,
+            inscriptionCount: inscriptionCount,
+          );
     final prizes = categoryPrizeRows(offer);
     final formatTag = tournamentCategoryFormatTag(offer);
     final genderTag = tournamentCategoryGenderTag(offer);
@@ -64,7 +96,28 @@ class TournamentDetailCategoryCard extends StatelessWidget {
                   ),
                 ),
               ),
-              if (status.isClosed)
+              if (isEnrolled)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.win.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.win.withValues(alpha: 0.45),
+                    ),
+                  ),
+                  child: Text(
+                    'INSCRITO',
+                    style: AppTypography.mono(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.win,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                )
+              else if (status.isClosed)
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -215,9 +268,12 @@ class TournamentDetailCategoryCard extends StatelessWidget {
           const SizedBox(height: 16),
           _CategoryCtaButton(
             kind: ctaKind,
-            onPressed: ctaKind == TournamentCategoryCtaKind.register
-                ? onRegister
-                : null,
+            onPressed: switch (ctaKind) {
+              TournamentCategoryCtaKind.register => onRegister,
+              TournamentCategoryCtaKind.viewRegistration =>
+                () => _openRegistrationSuccess(context),
+              _ => null,
+            },
           ),
         ],
       ),
@@ -306,16 +362,19 @@ class _CategoryCtaButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = tournamentCategoryCtaLabel(kind);
-    final isRegister = kind == TournamentCategoryCtaKind.register;
+    final isPrimary = kind == TournamentCategoryCtaKind.register ||
+        kind == TournamentCategoryCtaKind.viewRegistration;
 
-    if (isRegister) {
+    if (isPrimary) {
+      final isEnrolled = kind == TournamentCategoryCtaKind.viewRegistration;
       return SizedBox(
         width: double.infinity,
         height: 48,
         child: FilledButton(
           onPressed: onPressed,
           style: FilledButton.styleFrom(
-            backgroundColor: AppColors.brand,
+            backgroundColor:
+                isEnrolled ? AppColors.win : AppColors.brand,
             foregroundColor: AppColors.black,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),

@@ -12,12 +12,14 @@ class TournamentDetailOverviewTab extends StatelessWidget {
     required this.organizerName,
     this.leagueContextLabel,
     this.enrollmentByCategoryId = const {},
+    this.registrationsByCategoryId = const {},
   });
 
   final TournamentDetail tournament;
   final String organizerName;
   final String? leagueContextLabel;
   final Map<String, int> enrollmentByCategoryId;
+  final Map<String, String> registrationsByCategoryId;
 
   @override
   Widget build(BuildContext context) {
@@ -44,8 +46,11 @@ class TournamentDetailOverviewTab extends StatelessWidget {
           organizerName: organizerName,
         ),
         TournamentDetailCategoriesCard(
+          tournamentId: tournament.id,
+          tournamentName: tournament.name,
           offers: tournament.categoryOffers,
           enrollmentByCategoryId: enrollmentByCategoryId,
+          registrationsByCategoryId: registrationsByCategoryId,
         ),
       ],
     );

@@ -16,7 +16,7 @@ String tournamentDiscoveryCardCtaLabel({
   required bool isEnrolled,
   required TournamentListingStatus status,
 }) {
-  if (isEnrolled) return 'Ver inscrição →';
+  if (isEnrolled) return 'Ver inscrição';
   if (canRegisterForTournament(status)) return 'Inscrever →';
   return 'Ver detalhes →';
 }
@@ -87,7 +87,8 @@ bool tournamentMatchesCategoryFilter(
 
 bool tournamentMatchesOpenFilter(DiscoveryTournament t, bool openOnly) {
   if (!openOnly) return true;
-  return canRegisterForTournament(t.status) || t.status == TournamentListingStatus.live;
+  return canRegisterForTournament(t.status) ||
+      t.status == TournamentListingStatus.live;
 }
 
 TournamentDiscoveryLiveStats computeDiscoveryLiveStats(

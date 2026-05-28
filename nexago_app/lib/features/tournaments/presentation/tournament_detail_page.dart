@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
@@ -108,10 +109,22 @@ class _TournamentDetailPageState extends ConsumerState<TournamentDetailPage>
             tournamentOrganizerDisplayProvider(tournament.managerId ?? ''),
           );
 
+          final authAsync = ref.watch(authProvider);
+          final registrationsAsync = ref.watch(
+            tournamentUserRegistrationsByCategoryProvider(widget.tournamentId),
+          );
+          final registrationsByCategory =
+              registrationsAsync.valueOrNull ?? const <String, String>{};
+          final registrationResolved =
+              authAsync.hasValue && registrationsAsync.hasValue;
+          final isAthleteRegistered = registrationsByCategory.isNotEmpty;
+
           final canRegister = canRegisterForTournament(tournament.status);
           final access = ref.watch(tournamentAccessStateProvider);
           final ctaLabel = canRegister ? 'Inscrever →' : 'Ver detalhes →';
-          final showBottomBar = _currentTab == TournamentDetailTab.overview;
+          final showBottomBar = _currentTab == TournamentDetailTab.overview &&
+              registrationResolved &&
+              !isAthleteRegistered;
 
           return Column(
             children: [
@@ -181,10 +194,12 @@ class _TournamentDetailPageState extends ConsumerState<TournamentDetailPage>
                             ? leagueContextLabel(leagueCtx)
                             : null,
                         enrollmentByCategoryId: enrollment,
+                        registrationsByCategoryId: registrationsByCategory,
                       ),
                       TournamentDetailCategoriesTab(
                         tournament: tournament,
                         enrollmentByCategoryId: enrollment,
+                        registrationsByCategoryId: registrationsByCategory,
                         canAccessTournaments: access.canAccess,
                         onRegisterBlocked: () => _onTournamentRegisterBlocked(
                           context,

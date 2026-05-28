@@ -136,6 +136,43 @@ class TournamentRegistrationService {
     });
   }
 
+  /// Inscrição + equipe para o comprovante de sucesso.
+  Future<({
+    String registrationId,
+    String categoryId,
+    String player1Id,
+    String player2Id,
+    bool isPaid,
+    DateTime? registeredAt,
+  })?> loadRegistrationTeam(String registrationId) async {
+    final id = registrationId.trim();
+    if (id.isEmpty) return null;
+
+    final regSnap = await _inscriptions.doc(id).get();
+    if (!regSnap.exists) return null;
+    final data = regSnap.data()!;
+    final teamId = (data['teamId'] as String?)?.trim() ?? '';
+    if (teamId.isEmpty) return null;
+
+    final teamSnap = await _teams.doc(teamId).get();
+    if (!teamSnap.exists) return null;
+    final team = teamSnap.data()!;
+    final p1 = (team['player1Id'] as String?)?.trim() ?? '';
+    final p2 = (team['player2Id'] as String?)?.trim() ?? '';
+    if (p1.isEmpty || p2.isEmpty) return null;
+
+    final createdAt = data['createdAt'];
+    final registeredAt = createdAt is Timestamp ? createdAt.toDate() : null;
+
+    return (
+      registrationId: id,
+      categoryId: (data['categoryId'] as String?)?.trim() ?? '',
+      player1Id: p1,
+      player2Id: p2,
+      isPaid: data['isPaid'] == true,
+      registeredAt: registeredAt,
+    );
+  }
 }
 
 final tournamentRegistrationServiceProvider =

@@ -31,6 +31,81 @@ void main() {
     });
   });
 
+  group('userRegistrationsByCategoryData', () {
+    final rows = <({
+      String registrationId,
+      Map<String, dynamic> inscription,
+      Map<String, dynamic>? team,
+    })>[
+      (
+        registrationId: 'reg-1',
+        inscription: {'categoryId': 'Masculino C', 'teamId': 't1'},
+        team: {'player1Id': 'uid-a', 'player2Id': 'uid-b'},
+      ),
+      (
+        registrationId: 'reg-2',
+        inscription: {'categoryId': 'Misto', 'teamId': 't2'},
+        team: {'player1Id': 'uid-c', 'player2Id': 'uid-a'},
+      ),
+    ];
+
+    test('maps categoryId to registrationId for athlete teams', () {
+      expect(
+        userRegistrationsByCategoryData(rows, 'uid-a'),
+        {
+          'Masculino C': 'reg-1',
+          'Misto': 'reg-2',
+        },
+      );
+    });
+  });
+
+  group('registeredCategoryIdsForUserData', () {
+    final rows = <({Map<String, dynamic> inscription, Map<String, dynamic>? team})>[
+      (
+        inscription: {'categoryId': 'Masculino C', 'teamId': 't1'},
+        team: {'player1Id': 'uid-a', 'player2Id': 'uid-b'},
+      ),
+      (
+        inscription: {'categoryId': 'Misto', 'teamId': 't2'},
+        team: {'player1Id': 'uid-c', 'player2Id': 'uid-a'},
+      ),
+      (
+        inscription: {'categoryId': 'Feminino C', 'teamId': 't3'},
+        team: {'player1Id': 'uid-c', 'player2Id': 'uid-d'},
+      ),
+      (
+        inscription: {'categoryId': 'Sem time', 'teamId': 't4'},
+        team: null,
+      ),
+      (
+        inscription: {'categoryId': '', 'teamId': 't5'},
+        team: {'player1Id': 'uid-a', 'player2Id': 'uid-x'},
+      ),
+    ];
+
+    test('collects categories where uid is player1 or player2', () {
+      expect(
+        registeredCategoryIdsForUserData(rows, 'uid-a'),
+        {'Masculino C', 'Misto'},
+      );
+    });
+
+    test('returns empty for unknown athlete', () {
+      expect(
+        registeredCategoryIdsForUserData(rows, 'uid-zzz'),
+        isEmpty,
+      );
+    });
+
+    test('returns empty for blank uid', () {
+      expect(
+        registeredCategoryIdsForUserData(rows, '   '),
+        isEmpty,
+      );
+    });
+  });
+
   group('categorySpotsLeft with inscriptions', () {
     test('computes remaining from maxTeams and inscription count', () {
       const offer = TournamentCategoryOffer(

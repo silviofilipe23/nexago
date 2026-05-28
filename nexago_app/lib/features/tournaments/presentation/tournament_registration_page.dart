@@ -89,7 +89,10 @@ class _TournamentRegistrationPageState
     }
   }
 
-  void _scheduleInitialCategory(List<TournamentCategoryOffer> categories) {
+  void _scheduleInitialCategory(
+    List<TournamentCategoryOffer> categories, {
+    required Set<String> registeredCategoryIds,
+  }) {
     if (_appliedInitialCategory) return;
     final id = widget.initialCategoryId?.trim();
     if (id == null || id.isEmpty) return;
@@ -104,6 +107,7 @@ class _TournamentRegistrationPageState
         }
       }
       if (match == null || !isCategorySelectable(match)) return;
+      if (registeredCategoryIds.contains(match.id)) return;
       setState(() {
         _appliedInitialCategory = true;
         _category = match;
@@ -606,7 +610,19 @@ class _TournamentRegistrationPageState
             );
           }
 
-          _scheduleInitialCategory(categories);
+          final registeredCategoryIds = ref
+                  .watch(
+                    tournamentUserRegisteredCategoryIdsProvider(
+                      widget.tournamentId,
+                    ),
+                  )
+                  .valueOrNull ??
+              const <String>{};
+
+          _scheduleInitialCategory(
+            categories,
+            registeredCategoryIds: registeredCategoryIds,
+          );
           _scheduleInitialRegistration(categories);
           _scheduleInitialInvite(categories);
 
@@ -702,6 +718,7 @@ class _TournamentRegistrationPageState
                             tournament: tournament,
                             categories: categories,
                             enrollmentByCategoryId: enrollment,
+                            registeredCategoryIds: registeredCategoryIds,
                             quote: quote,
                             athleteName: athlete.name,
                             athleteInitials: athlete.initials,
@@ -742,6 +759,7 @@ class _TournamentRegistrationPageState
     required TournamentDetail tournament,
     required List<TournamentCategoryOffer> categories,
     required Map<String, int> enrollmentByCategoryId,
+    required Set<String> registeredCategoryIds,
     required TournamentRegistrationQuote? quote,
     required String athleteName,
     required String athleteInitials,
@@ -771,6 +789,7 @@ class _TournamentRegistrationPageState
                 cat.id,
               ),
               selected: _category?.id == cat.id,
+              alreadyRegistered: registeredCategoryIds.contains(cat.id),
               onTap: () => _selectCategory(cat),
             ),
             const SizedBox(height: 10),

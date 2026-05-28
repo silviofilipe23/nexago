@@ -1,19 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
+import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
+import '../../../domain/tournament_registration_success_args.dart';
 
 class TournamentDetailCategoriesCard extends StatelessWidget {
   const TournamentDetailCategoriesCard({
     super.key,
+    required this.tournamentId,
+    required this.tournamentName,
     required this.offers,
     this.enrollmentByCategoryId = const {},
+    this.registrationsByCategoryId = const {},
   });
 
+  final String tournamentId;
+  final String tournamentName;
   final List<TournamentCategoryOffer> offers;
   final Map<String, int> enrollmentByCategoryId;
+  final Map<String, String> registrationsByCategoryId;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +69,9 @@ class TournamentDetailCategoriesCard extends StatelessWidget {
               _CategoryRow(
                 offer: offers[i],
                 inscriptionCount: enrollmentByCategoryId[offers[i].id],
+                registrationId: registrationsByCategoryId[offers[i].id],
+                tournamentId: tournamentId,
+                tournamentName: tournamentName,
               ),
             ],
           ],
@@ -72,76 +84,158 @@ class TournamentDetailCategoriesCard extends StatelessWidget {
 class _CategoryRow extends StatelessWidget {
   const _CategoryRow({
     required this.offer,
+    required this.tournamentId,
+    required this.tournamentName,
     this.inscriptionCount,
+    this.registrationId,
   });
 
   final TournamentCategoryOffer offer;
+  final String tournamentId;
+  final String tournamentName;
   final int? inscriptionCount;
+  final String? registrationId;
+
+  void _openRegistrationSuccess(BuildContext context) {
+    final regId = registrationId?.trim() ?? '';
+    if (regId.isEmpty || tournamentId.isEmpty) return;
+    context.pushNamed(
+      AppRouteNames.tournamentRegistrationSuccess,
+      pathParameters: {'tournamentId': tournamentId},
+      extra: TournamentRegistrationSuccessArgs(
+        tournamentId: tournamentId,
+        registrationId: regId,
+        tournamentName: tournamentName,
+        categoryName: offer.name,
+      ),
+      queryParameters: {
+        'registrationId': regId,
+        'tournamentName': tournamentName,
+        'categoryName': offer.name,
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isEnrolled = registrationId != null && registrationId!.isNotEmpty;
     final status = tournamentCategoryRowStatus(
       offer,
       inscriptionCount: inscriptionCount,
     );
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                offer.name,
-                style: AppTypography.soraRegular(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
-                ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    offer.name,
+                    style: AppTypography.soraRegular(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    tournamentCategorySubtitle(offer),
+                    style: AppTypography.soraRegular(
+                      fontSize: 13,
+                      color: AppColors.onSurfaceMuted,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 2),
+            ),
+            const SizedBox(width: 8),
+            if (isEnrolled)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.win.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.win.withValues(alpha: 0.45),
+                  ),
+                ),
+                child: Text(
+                  'INSCRITO',
+                  style: AppTypography.mono(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.win,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              )
+            else if (status.isClosed)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.live.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.live.withValues(alpha: 0.45),
+                  ),
+                ),
+                child: Text(
+                  status.label,
+                  style: AppTypography.mono(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: status.color,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              )
+            else
               Text(
-                tournamentCategorySubtitle(offer),
+                status.label,
                 style: AppTypography.soraRegular(
                   fontSize: 13,
-                  color: AppColors.onSurfaceMuted,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w800,
+                  color: status.color,
                 ),
               ),
-            ],
-          ),
+          ],
         ),
-        const SizedBox(width: 8),
-        if (status.isClosed)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.live.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: AppColors.live.withValues(alpha: 0.45),
+        if (isEnrolled) ...[
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => _openRegistrationSuccess(context),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.win,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-            ),
-            child: Text(
-              status.label,
-              style: AppTypography.mono(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: status.color,
-                letterSpacing: 0.4,
+              child: Text(
+                'Ver inscrição',
+                style: AppTypography.mono(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.brand,
+                  letterSpacing: 0.4,
+                ),
               ),
-            ),
-          )
-        else
-          Text(
-            status.label,
-            style: AppTypography.soraRegular(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: status.color,
             ),
           ),
+        ],
       ],
     );
   }

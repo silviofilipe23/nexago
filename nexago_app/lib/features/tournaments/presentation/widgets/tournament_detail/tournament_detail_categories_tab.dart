@@ -11,12 +11,14 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
     super.key,
     required this.tournament,
     this.enrollmentByCategoryId = const {},
+    this.registrationsByCategoryId = const {},
     this.canAccessTournaments = true,
     this.onRegisterBlocked,
   });
 
   final TournamentDetail tournament;
   final Map<String, int> enrollmentByCategoryId;
+  final Map<String, String> registrationsByCategoryId;
   final bool canAccessTournaments;
   final VoidCallback? onRegisterBlocked;
 
@@ -40,11 +42,14 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
         final offer = offers[index];
         return TournamentDetailCategoryCard(
           offer: offer,
+          tournamentId: tournament.id,
+          tournamentName: tournament.name,
           tournamentStatus: tournament.status,
           inscriptionCount: inscriptionCountForCategory(
             enrollmentByCategoryId,
             offer.id,
           ),
+          registrationId: registrationsByCategoryId[offer.id],
           onRegister: () {
             if (!canAccessTournaments) {
               onRegisterBlocked?.call();

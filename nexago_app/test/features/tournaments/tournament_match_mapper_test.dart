@@ -1,5 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_match_mapper.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match_display.dart';
 
 void main() {
   test('fromMap parses bracket match fields', () {
@@ -27,6 +29,7 @@ void main() {
     expect(match.isBracketMatch, isTrue);
     expect(match.isPoolMatch, isFalse);
     expect(match.scoreLabel, '2 × 1');
+    expect(match.isCompleted, isTrue);
   });
 
   test('fromMap parses group match with poolId', () {
@@ -45,5 +48,38 @@ void main() {
     expect(match.poolId, 'A');
     expect(match.isPoolMatch, isTrue);
     expect(match.isBracketMatch, isFalse);
+  });
+
+  test('fromMap parses sets timestamps and winnerId', () {
+    final ended = DateTime.utc(2025, 6, 15, 18, 30);
+    final match = TournamentMatchMapper.fromMap('live-1', {
+      'tournamentId': 'tour-1',
+      'categoryId': 'Feminino A',
+      'round': 2,
+      'matchType': 'WB',
+      'teamAId': 'team-a',
+      'teamBId': 'team-b',
+      'status': 'In Progress',
+      'sets': [
+        {'a': 21, 'b': 19},
+        {'a': 0, 'b': 0},
+      ],
+      'currentSetIndex': 1,
+      'winnerId': '',
+      'matchEndedAt': Timestamp.fromDate(ended),
+      'teamADescription': 'Seed 1',
+      'courtName': 'Quadra 2',
+    });
+
+    expect(match.sets, hasLength(2));
+    expect(match.sets.first.a, 21);
+    expect(match.sets.first.b, 19);
+    expect(match.currentSetIndex, 1);
+    expect(match.isInProgress, isTrue);
+    expect(match.matchEndedAt?.toUtc(), ended);
+    expect(match.teamADescription, 'Seed 1');
+    expect(match.courtName, 'Quadra 2');
+    expect(matchStatusPillLabelPt(match.status), 'AO VIVO');
+    expect(setsForMatch(match).first.a, 21);
   });
 }

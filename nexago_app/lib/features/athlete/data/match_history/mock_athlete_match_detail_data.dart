@@ -76,8 +76,16 @@ AthleteMatchDetail _campaignDetail({
     resultBadgeLabel: 'VITÓRIA • $score',
     ourTeam: const MatchTeamSide(
       players: [
-        MatchTeamPlayer(initials: 'MA', avatarColor: 0xFFFF6A1A),
-        MatchTeamPlayer(initials: 'EN', avatarColor: 0xFF2BD17E),
+        MatchTeamPlayer(
+          initials: 'MA',
+          avatarColor: 0xFFFF6A1A,
+          name: 'Marcelo',
+        ),
+        MatchTeamPlayer(
+          initials: 'EN',
+          avatarColor: 0xFF2BD17E,
+          name: 'Enzo',
+        ),
       ],
       label: 'Marcelo / Enzo',
       roleLabel: 'VOCÊ',
@@ -109,8 +117,16 @@ AthleteMatchDetail _detailM1(AthleteMatchHistoryItem summary) {
     resultBadgeLabel: 'VITÓRIA • 2 - 1',
     ourTeam: const MatchTeamSide(
       players: [
-        MatchTeamPlayer(initials: 'MA', avatarColor: 0xFFFF6A1A),
-        MatchTeamPlayer(initials: 'EN', avatarColor: 0xFF2BD17E),
+        MatchTeamPlayer(
+          initials: 'MA',
+          avatarColor: 0xFFFF6A1A,
+          name: 'Marcelo',
+        ),
+        MatchTeamPlayer(
+          initials: 'EN',
+          avatarColor: 0xFF2BD17E,
+          name: 'Enzo',
+        ),
       ],
       label: 'Marcelo / Enzo',
       roleLabel: 'VOCÊ',
@@ -151,8 +167,16 @@ AthleteMatchDetail _detailFromSummary(AthleteMatchHistoryItem summary) {
     resultBadgeLabel: '$resultWord • ${summary.scoreDisplay}',
     ourTeam: const MatchTeamSide(
       players: [
-        MatchTeamPlayer(initials: 'MA', avatarColor: 0xFFFF6A1A),
-        MatchTeamPlayer(initials: 'EN', avatarColor: 0xFF2BD17E),
+        MatchTeamPlayer(
+          initials: 'MA',
+          avatarColor: 0xFFFF6A1A,
+          name: 'Marcelo',
+        ),
+        MatchTeamPlayer(
+          initials: 'EN',
+          avatarColor: 0xFF2BD17E,
+          name: 'Enzo',
+        ),
       ],
       label: 'Marcelo / Enzo',
       roleLabel: 'VOCÊ',

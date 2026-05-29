@@ -4,10 +4,14 @@ class MatchTeamPlayer {
   const MatchTeamPlayer({
     required this.initials,
     required this.avatarColor,
+    this.avatarUrl,
+    this.name,
   });
 
   final String initials;
   final int avatarColor;
+  final String? avatarUrl;
+  final String? name;
 }
 
 class MatchTeamSide {

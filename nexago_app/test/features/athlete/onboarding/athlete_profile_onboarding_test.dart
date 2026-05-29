@@ -7,15 +7,15 @@ import 'package:nexago_app/features/athlete/onboarding/domain/athlete_onboarding
 void main() {
   group('AthleteProfileOptions', () {
     test('normalizeLevel maps legacy federado label', () {
-      expect(
-        AthleteProfileOptions.normalizeLevel('Competitivo / federado'),
-        'Competitivo',
-      );
+      expect(AthleteProfileOptions.normalizeLevel('Open / federado'), 'Open');
     });
 
     test('normalizeSport maps legacy labels', () {
       expect(AthleteProfileOptions.normalizeSport('Futevôlei'), 'Futebol');
-      expect(AthleteProfileOptions.normalizeSport('Beach tênis'), 'Beach tennis');
+      expect(
+        AthleteProfileOptions.normalizeSport('Beach tênis'),
+        'Beach tennis',
+      );
     });
   });
 

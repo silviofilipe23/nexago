@@ -60,7 +60,7 @@ abstract final class AthleteFirestoreCodes {
     'Básico': 'basico',
     'Intermediário': 'intermediario',
     'Avançado': 'avancado',
-    'Competitivo': 'competitivo',
+    'Open': 'Open',
   };
 
   static const Map<String, String> _levelFirestoreToLabel = {
@@ -68,7 +68,7 @@ abstract final class AthleteFirestoreCodes {
     'basico': 'Básico',
     'intermediario': 'Intermediário',
     'avancado': 'Avançado',
-    'competitivo': 'Competitivo',
+    'open': 'Open',
   };
 
   static String? sportAppToFirestore(String? appId) {
@@ -78,7 +78,8 @@ abstract final class AthleteFirestoreCodes {
 
   static String? sportFirestoreToLabel(String? code) {
     if (code == null || code.isEmpty) return null;
-    return _sportFirestoreToLabel[code] ?? _sportFirestoreToLabel[code.toUpperCase()];
+    return _sportFirestoreToLabel[code] ??
+        _sportFirestoreToLabel[code.toUpperCase()];
   }
 
   static String? sportFirestoreToApp(String? code) {
@@ -88,10 +89,7 @@ abstract final class AthleteFirestoreCodes {
   }
 
   static List<String> sportFirestoreIdsToLabels(Iterable<String> codes) {
-    return codes
-        .map(sportFirestoreToLabel)
-        .whereType<String>()
-        .toList();
+    return codes.map(sportFirestoreToLabel).whereType<String>().toList();
   }
 
   static String goalAppToFirestore(String appId) {

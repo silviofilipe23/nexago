@@ -15,6 +15,7 @@ import '../domain/achievements/achievement_providers.dart';
 import '../domain/gamification_models.dart';
 import '../domain/gamification_providers.dart';
 import '../domain/profile_completion_providers.dart';
+import 'public_profile/athlete_public_profile_page.dart';
 import 'widgets/athlete_profile_main_view.dart';
 
 /// Perfil do atleta.
@@ -52,71 +53,13 @@ class AthleteProfilePage extends ConsumerWidget {
     }
 
     if (viewed != null && viewed.isNotEmpty) {
-      final profileAsync = ref.watch(athleteProfileByIdProvider(viewed));
-      final emailAsync = ref.watch(athleteUserEmailProvider(viewed));
-
-      Widget bodyOther() {
-        if (user == null) return bodyNotSignedIn(context);
-        return profileAsync.when(
-          data: (doc) {
-            final profile = doc ??
-                AthleteProfile(
-                  id: viewed,
-                  name: 'Atleta',
-                  sport: '',
-                  level: '',
-                  city: '',
-                );
-            final email = emailAsync.maybeWhen(
-              data: (e) => e,
-              orElse: () => null,
-            );
-            if (profile.privacyPreferences.isProfilePrivate &&
-                user.uid != viewed) {
-              return _PrivateProfileBlockedView(embedded: embedded);
-            }
-            return _AthleteProfileBody(
-              embedded: embedded,
-              profile: profile,
-              email: email,
-              totalBookings: 0,
-              nextBooking: null,
-              gamificationSummary: GamificationSummary.initial(),
-              badges: const <UserBadgeProgress>[],
-              readOnly: true,
-              onEdit: () {},
-              onOpenAgenda: () {},
-              onOpenSettings: () {},
-            );
-          },
-          loading: () => const Center(
-            child: CircularProgressIndicator(color: AppColors.brand),
-          ),
-          error: (e, _) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                'Não foi possível carregar o perfil.\n$e',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppColors.live,
-                    ),
-              ),
-            ),
-          ),
-        );
-      }
-
+      final page = AthletePublicProfilePage(userId: viewed);
       if (embedded) {
-        return ColoredBox(
-          color: AppColors.canvas,
-          child: bodyOther(),
-        );
+        return ColoredBox(color: AppColors.canvas, child: page);
       }
-
       return Scaffold(
         backgroundColor: AppColors.canvas,
-        body: bodyOther(),
+        body: page,
       );
     }
 

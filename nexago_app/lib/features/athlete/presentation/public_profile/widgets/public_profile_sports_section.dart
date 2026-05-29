@@ -1,0 +1,189 @@
+import 'package:flutter/material.dart';
+
+import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/theme/app_typography.dart';
+import '../../../domain/athlete_public_profile_models.dart';
+
+class PublicProfileSportsSection extends StatelessWidget {
+  const PublicProfileSportsSection({super.key, required this.sports});
+
+  final List<AthletePublicSportEntry> sports;
+
+  @override
+  Widget build(BuildContext context) {
+    if (sports.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Esportes',
+                style: AppTypography.soraRegular(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.onSurface,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'COMPETIR',
+                style: AppTypography.mono(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.onSurfaceMuted,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (final sport in sports) ...[
+            _SportCard(entry: sport),
+            const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SportCard extends StatelessWidget {
+  const _SportCard({required this.entry});
+
+  static const _levelLabelWidth = 92.0;
+
+  final AthletePublicSportEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.surfaceRaised),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: entry.isPrimary
+                  ? AppColors.brand.withValues(alpha: 0.12)
+                  : AppColors.surfaceRaised,
+              border: Border.all(
+                color: entry.isPrimary
+                    ? AppColors.brand.withValues(alpha: 0.25)
+                    : AppColors.surfaceRaised,
+              ),
+            ),
+            child: Icon(
+              Icons.bolt_rounded,
+              size: 22,
+              color: entry.isPrimary ? AppColors.brand : AppColors.onSurfaceMuted,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        entry.label,
+                        style: AppTypography.soraRegular(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.onSurface,
+                        ),
+                      ),
+                    ),
+                    if (entry.isPrimary) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.brand,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          'PRINCIPAL',
+                          style: AppTypography.mono(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _LevelBar(segments: entry.levelSegments),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: _levelLabelWidth,
+                      child: Text(
+                        entry.levelLabel,
+                        textAlign: TextAlign.end,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.soraRegular(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.onSurfaceMuted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LevelBar extends StatelessWidget {
+  const _LevelBar({required this.segments});
+
+  final int segments;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var i = 0; i < 5; i++)
+          Expanded(
+            child: Container(
+              height: 5,
+              margin: EdgeInsets.only(right: i < 4 ? 4 : 0),
+              decoration: BoxDecoration(
+                color: i < segments
+                    ? AppColors.brand
+                    : AppColors.surfaceRaised,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}

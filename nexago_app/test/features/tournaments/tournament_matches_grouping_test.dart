@@ -30,8 +30,20 @@ TournamentMatch _match({
 
 void main() {
   final all = [
-    _match(id: 'b1', categoryId: 'cat-a', round: 2, matchNumber: 1),
-    _match(id: 'b2', categoryId: 'cat-a', round: 3, matchNumber: 1),
+    _match(
+      id: 'b1',
+      categoryId: 'cat-a',
+      round: 2,
+      matchType: 'Round of 16',
+      matchNumber: 1,
+    ),
+    _match(
+      id: 'b2',
+      categoryId: 'cat-a',
+      round: 3,
+      matchType: 'Quarter-Final',
+      matchNumber: 1,
+    ),
     _match(id: 'b3', categoryId: 'cat-b', round: 2),
     _match(
       id: 'g1',
@@ -65,9 +77,9 @@ void main() {
     final bracket = bracketMatchesForCategory(all, 'cat-a');
     final groups = groupBracketMatchesByRound(bracket);
     expect(groups, hasLength(2));
-    expect(groups[0].roundLabel, 'Oitavas');
+    expect(groups[0].roundLabel, 'Oitavas de final');
     expect(groups[0].matches.map((m) => m.id), ['b1']);
-    expect(groups[1].roundLabel, 'Quartas');
+    expect(groups[1].roundLabel, 'Quartas de final');
   });
 
   test('groupMatchesByPool sorts pool keys', () {

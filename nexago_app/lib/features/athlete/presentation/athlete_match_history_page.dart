@@ -21,7 +21,7 @@ class AthleteMatchHistoryPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bundleAsync = ref.watch(athleteMatchHistoryBundleProvider);
+    final bundleAsync = ref.watch(currentAthleteMatchHistoryBundleProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -168,14 +168,16 @@ class _ReadyBody extends ConsumerWidget {
 
   void _onTournamentTap(BuildContext context, AthleteTournamentHistoryItem t) {
     final id = (t.tournamentId ?? t.id).trim();
-    if (id.isNotEmpty) {
-      context.pushNamed(
-        AppRouteNames.athleteTournamentDetail,
-        pathParameters: {'tournamentId': id},
-      );
+    if (id.isEmpty) {
+      showAppSnackBar(context, 'Torneio indisponível.');
       return;
     }
-    showAppSnackBar(context, 'Em breve.');
+    context.push(
+      AppRoutes.athleteTournamentDetail.replaceFirst(
+        ':tournamentId',
+        Uri.encodeComponent(id),
+      ),
+    );
   }
 
   Widget _emptyState(String message) {

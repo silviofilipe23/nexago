@@ -68,12 +68,54 @@ class AppUserProfile {
   }
 }
 
+/// Evita exibir IDs técnicos (Firestore/Auth) como nome de atleta.
+bool looksLikeFirestoreUid(String value) {
+  final trimmed = value.trim();
+  if (trimmed.length < 20 || trimmed.length > 128) return false;
+  return RegExp(r'^[A-Za-z0-9]+$').hasMatch(trimmed);
+}
+
+String? readableNameCandidate(String? value) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) return null;
+  if (looksLikeFirestoreUid(trimmed)) return null;
+  return trimmed;
+}
+
+String resolveAppUserDisplayName(
+  AppUserProfile? profile, {
+  String? override,
+  String fallback = '',
+}) {
+  for (final candidate in [
+    readableNameCandidate(override),
+    if (profile != null) readableNameCandidate(profile.nickname),
+    if (profile != null) readableNameCandidate(profile.fullName),
+    if (profile != null) readableNameCandidate(profile.email),
+  ]) {
+    if (candidate != null) return candidate;
+  }
+  return fallback;
+}
+
+String? safeMatchTeamDescription(String? description) {
+  final raw = description?.trim();
+  if (raw == null || raw.isEmpty) return null;
+
+  final segments = raw
+      .split('/')
+      .map((segment) => segment.trim())
+      .where((segment) => segment.isNotEmpty)
+      .toList();
+  if (segments.isEmpty) return null;
+  if (segments.every(looksLikeFirestoreUid)) return null;
+  if (segments.length == 1 && looksLikeFirestoreUid(segments.first)) return null;
+
+  return raw;
+}
+
 String appUserDisplayName(AppUserProfile user) {
-  final nick = user.nickname?.trim();
-  if (nick != null && nick.isNotEmpty) return nick;
-  final name = user.fullName?.trim();
-  if (name != null && name.isNotEmpty) return name;
-  return user.email ?? '';
+  return resolveAppUserDisplayName(user);
 }
 
 String? appUserSecondaryLine(AppUserProfile user) {
@@ -93,6 +135,7 @@ String? appUserSecondaryLine(AppUserProfile user) {
 
 String appUserInitials(AppUserProfile user) {
   final name = appUserDisplayName(user);
+  if (name.isEmpty) return '?';
   final parts = name.split(' ').where((p) => p.isNotEmpty).toList();
   if (parts.isEmpty) return '?';
   if (parts.length == 1) {

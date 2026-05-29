@@ -4,9 +4,9 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../domain/tournament_detail_model.dart';
-import '../../../domain/tournament_match.dart';
 import '../../../domain/tournament_matches_logic.dart';
 import '../../../domain/tournament_discovery_providers.dart';
+import '../tournament_match_card.dart';
 import 'tournament_detail_category_chips.dart';
 import 'tournament_detail_message.dart';
 
@@ -38,10 +38,10 @@ class _TournamentDetailGroupsTabState
   @override
   Widget build(BuildContext context) {
     final offers = widget.tournament.categoryOffers;
-    final matchesAsync =
-        ref.watch(tournamentMatchesProvider(widget.tournament.id));
+    final cardsAsync =
+        ref.watch(tournamentMatchCardsProvider(widget.tournament.id));
 
-    return matchesAsync.when(
+    return cardsAsync.when(
       loading: () => const Center(
         child: CircularProgressIndicator(color: AppColors.brand),
       ),
@@ -49,7 +49,7 @@ class _TournamentDetailGroupsTabState
         title: 'Não foi possível carregar os grupos',
         message: '$e',
       ),
-      data: (matches) {
+      data: (cards) {
         if (offers.isEmpty) {
           return const TournamentDetailMessageList(
             title: 'Sem categorias',
@@ -57,6 +57,8 @@ class _TournamentDetailGroupsTabState
           );
         }
 
+        final matches = cards.map((c) => c.match).toList();
+        final cardsById = {for (final c in cards) c.match.id: c};
         final pool = poolMatchesForCategory(matches, _categoryId);
         final groups = groupMatchesByPool(pool);
 
@@ -118,67 +120,11 @@ class _TournamentDetailGroupsTabState
                   ),
                 ),
                 for (final match in group.matches)
-                  _GroupMatchTile(match: match),
+                  TournamentMatchCard(viewModel: cardsById[match.id]!),
               ],
           ],
         );
       },
-    );
-  }
-}
-
-class _GroupMatchTile extends StatelessWidget {
-  const _GroupMatchTile({required this.match});
-
-  final TournamentMatch match;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  match.teamsLabel,
-                  style: AppTypography.soraRegular(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  matchStatusLabel(match.status),
-                  style: AppTypography.soraRegular(
-                    fontSize: 12,
-                    color: AppColors.onSurfaceMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            match.scoreLabel,
-            style: AppTypography.soraRegular(
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              color: AppColors.brand,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
@@ -187,17 +188,43 @@ class _AvatarCircle extends StatelessWidget {
 
   final MatchTeamPlayer player;
 
+  static const _size = 44.0;
+
   @override
   Widget build(BuildContext context) {
+    final url = player.avatarUrl?.trim();
+    final hasPhoto = url != null && url.isNotEmpty;
+    final backgroundColor = Color(player.avatarColor);
+
     return Container(
-      width: 44,
-      height: 44,
-      alignment: Alignment.center,
+      width: _size,
+      height: _size,
       decoration: BoxDecoration(
-        color: Color(player.avatarColor),
+        color: hasPhoto ? null : backgroundColor,
         shape: BoxShape.circle,
         border: Border.all(color: AppColors.canvas, width: 2),
       ),
+      child: ClipOval(
+        child: hasPhoto
+            ? CachedNetworkImage(
+                imageUrl: url,
+                width: _size,
+                height: _size,
+                fit: BoxFit.cover,
+                placeholder: (_, __) => _initialsFallback(backgroundColor),
+                errorWidget: (_, __, ___) => _initialsFallback(backgroundColor),
+              )
+            : _initialsFallback(backgroundColor),
+      ),
+    );
+  }
+
+  Widget _initialsFallback(Color backgroundColor) {
+    return Container(
+      width: _size,
+      height: _size,
+      alignment: Alignment.center,
+      color: backgroundColor,
       child: Text(
         player.initials,
         style: const TextStyle(

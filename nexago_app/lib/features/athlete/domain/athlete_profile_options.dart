@@ -18,20 +18,16 @@ abstract final class AthleteProfileOptions {
     'Básico',
     'Intermediário',
     'Avançado',
-    'Competitivo',
+    'Open',
   ];
 
-  static const List<String> genders = [
-    'Masculino',
-    'Feminino',
-    'Outro',
-  ];
+  static const List<String> genders = ['Masculino', 'Feminino', 'Outro'];
 
   /// Normaliza níveis legados do Firestore.
   static String normalizeLevel(String? raw) {
     final v = raw?.trim() ?? '';
     if (v.isEmpty) return '';
-    if (v == 'Competitivo / federado') return 'Competitivo';
+    if (v == 'Open / federado') return 'Open';
     for (final level in levels) {
       if (level == v) return v;
     }

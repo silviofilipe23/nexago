@@ -4,9 +4,9 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../domain/tournament_detail_model.dart';
-import '../../../domain/tournament_match.dart';
 import '../../../domain/tournament_matches_logic.dart';
 import '../../../domain/tournament_discovery_providers.dart';
+import '../tournament_match_card.dart';
 import 'tournament_detail_category_chips.dart';
 import 'tournament_detail_message.dart';
 
@@ -38,10 +38,10 @@ class _TournamentDetailBracketTabState
   @override
   Widget build(BuildContext context) {
     final offers = widget.tournament.categoryOffers;
-    final matchesAsync =
-        ref.watch(tournamentMatchesProvider(widget.tournament.id));
+    final cardsAsync =
+        ref.watch(tournamentMatchCardsProvider(widget.tournament.id));
 
-    return matchesAsync.when(
+    return cardsAsync.when(
       loading: () => const Center(
         child: CircularProgressIndicator(color: AppColors.brand),
       ),
@@ -49,7 +49,7 @@ class _TournamentDetailBracketTabState
         title: 'Não foi possível carregar a chave',
         message: '$e',
       ),
-      data: (matches) {
+      data: (cards) {
         if (offers.isEmpty) {
           return const TournamentDetailMessageList(
             title: 'Sem categorias',
@@ -57,6 +57,8 @@ class _TournamentDetailBracketTabState
           );
         }
 
+        final matches = cards.map((c) => c.match).toList();
+        final cardsById = {for (final c in cards) c.match.id: c};
         final bracket = bracketMatchesForCategory(matches, _categoryId);
         final groups = groupBracketMatchesByRound(bracket);
 
@@ -90,68 +92,12 @@ class _TournamentDetailBracketTabState
                     ),
                   ),
                 ),
-                for (final match in group.matches) _MatchTile(match: match),
+                for (final match in group.matches)
+                  TournamentMatchCard(viewModel: cardsById[match.id]!),
               ],
           ],
         );
       },
-    );
-  }
-}
-
-class _MatchTile extends StatelessWidget {
-  const _MatchTile({required this.match});
-
-  final TournamentMatch match;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  match.teamsLabel,
-                  style: AppTypography.soraRegular(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-              ),
-              Text(
-                matchStatusLabel(match.status),
-                style: AppTypography.mono(
-                  fontSize: 10,
-                  color: AppColors.onSurfaceMuted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            match.scoreLabel,
-            style: AppTypography.soraRegular(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.brand,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

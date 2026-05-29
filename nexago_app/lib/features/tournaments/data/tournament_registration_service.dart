@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -133,6 +135,39 @@ class TournamentRegistrationService {
     return _inscriptions.doc(registrationId).snapshots().map((snap) {
       if (!snap.exists) return null;
       return TournamentRegistrationSnapshot.fromDoc(snap.id, snap.data()!);
+    });
+  }
+
+  /// Observa várias inscrições (ex.: filtrar convites na Home).
+  Stream<Map<String, TournamentRegistrationSnapshot?>> watchRegistrationSnapshots(
+    Set<String> registrationIds,
+  ) {
+    if (registrationIds.isEmpty) return Stream.value(const {});
+    return Stream.multi((controller) {
+      final snapshots = <String, TournamentRegistrationSnapshot?>{};
+      final subscriptions = <StreamSubscription<TournamentRegistrationSnapshot?>>[];
+
+      void emit() {
+        controller.add(Map<String, TournamentRegistrationSnapshot?>.from(snapshots));
+      }
+
+      for (final id in registrationIds) {
+        subscriptions.add(
+          watchRegistration(id).listen(
+            (snap) {
+              snapshots[id] = snap;
+              emit();
+            },
+            onError: controller.addError,
+          ),
+        );
+      }
+
+      controller.onCancel = () async {
+        for (final sub in subscriptions) {
+          await sub.cancel();
+        }
+      };
     });
   }
 

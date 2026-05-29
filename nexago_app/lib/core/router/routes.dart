@@ -164,6 +164,12 @@ abstract final class AppRoutes {
 
   /// Detalhe de liga: `/ligas/:leagueId`
   static const String leagueDetail = '/ligas/:leagueId';
+
+  /// Listagem completa de torneios/ligas no hub Competir.
+  static const String tournamentDiscoveryList = '/competir/torneios';
+
+  /// Ranking de atletas (temporada).
+  static const String athleteRanking = '/competir/ranking';
 }
 
 abstract final class AppRouteNames {
@@ -238,4 +244,6 @@ abstract final class AppRouteNames {
       'tournamentRegistrationSuccess';
   static const String tournamentPartnerInvite = 'tournamentPartnerInvite';
   static const String leagueDetail = 'leagueDetail';
+  static const String tournamentDiscoveryList = 'tournamentDiscoveryList';
+  static const String athleteRanking = 'athleteRanking';
 }

@@ -67,6 +67,8 @@ import '../../features/athlete/presentation/athlete_profile_update_success_page.
 import '../../features/athlete/presentation/arena_reviews_page.dart';
 import '../../features/athlete/presentation/athlete_shell_page.dart';
 import '../../features/tournaments/presentation/league_detail_page.dart';
+import '../../features/ranking/presentation/athlete_ranking_page.dart';
+import '../../features/tournaments/presentation/tournament_discovery_list_page.dart';
 import '../../features/tournaments/presentation/tournament_detail_page.dart';
 import '../../features/tournaments/presentation/tournament_partner_invite_page.dart';
 import '../../features/tournaments/domain/tournament_registration_logic.dart';
@@ -417,6 +419,24 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const AthleteOnboardingProfileStep(),
           ),
         ],
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentDiscoveryList,
+        name: AppRouteNames.tournamentDiscoveryList,
+        builder: (context, state) {
+          final searchOpen =
+              state.uri.queryParameters['search']?.trim() == '1';
+          final query = state.uri.queryParameters['q']?.trim() ?? '';
+          return TournamentDiscoveryListPage(
+            initialSearchOpen: searchOpen,
+            initialQuery: query,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.athleteRanking,
+        name: AppRouteNames.athleteRanking,
+        builder: (context, state) => const AthleteRankingPage(),
       ),
       GoRoute(
         path: AppRoutes.tournamentDetail,

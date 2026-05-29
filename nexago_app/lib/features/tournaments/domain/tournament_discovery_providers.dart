@@ -5,9 +5,13 @@ import '../data/firestore_tournament_discovery_data_source.dart';
 import '../data/leagues_repository.dart';
 import '../data/mock_tournament_discovery_data_source.dart';
 import '../data/tournament_discovery_data_source.dart';
+import '../data/tournament_match_enrichment_service.dart';
 import '../data/tournament_matches_repository.dart';
+import '../data/tournament_teams_repository.dart';
 import '../data/tournaments_repository.dart';
+import '../data/users_repository.dart';
 import 'tournament_match.dart';
+import 'tournament_match_card_view_model.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import 'tournament_detail_logic.dart';
 import 'tournament_detail_model.dart';
@@ -24,11 +28,33 @@ final tournamentMatchesRepositoryProvider =
   return TournamentMatchesRepository(ref.watch(firestoreProvider));
 });
 
+final tournamentTeamsRepositoryProvider =
+    Provider<TournamentTeamsRepository>((ref) {
+  return TournamentTeamsRepository(ref.watch(firestoreProvider));
+});
+
+final tournamentMatchEnrichmentServiceProvider =
+    Provider<TournamentMatchEnrichmentService>((ref) {
+  return TournamentMatchEnrichmentService(
+    teamsRepository: ref.watch(tournamentTeamsRepositoryProvider),
+    usersRepository: ref.watch(usersRepositoryProvider),
+  );
+});
+
 final tournamentMatchesProvider = StreamProvider.autoDispose
     .family<List<TournamentMatch>, String>((ref, tournamentId) {
   return ref
       .watch(tournamentMatchesRepositoryProvider)
       .watchByTournament(tournamentId);
+});
+
+final tournamentMatchCardsProvider = StreamProvider.autoDispose
+    .family<List<TournamentMatchCardViewModel>, String>((ref, tournamentId) {
+  final repo = ref.watch(tournamentMatchesRepositoryProvider);
+  final enrichment = ref.watch(tournamentMatchEnrichmentServiceProvider);
+  return repo
+      .watchByTournament(tournamentId)
+      .asyncMap(enrichment.enrichMatches);
 });
 
 final leaguesRepositoryProvider = Provider<LeaguesRepository>((ref) {

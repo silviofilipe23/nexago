@@ -192,9 +192,11 @@ class _DetailBody extends StatelessWidget {
   void _onTournament(BuildContext context) {
     final id = detail.tournamentId?.trim();
     if (id != null && id.isNotEmpty) {
-      context.pushNamed(
-        AppRouteNames.athleteTournamentDetail,
-        pathParameters: {'tournamentId': id},
+      context.push(
+        AppRoutes.athleteTournamentDetail.replaceFirst(
+          ':tournamentId',
+          Uri.encodeComponent(id),
+        ),
       );
       return;
     }

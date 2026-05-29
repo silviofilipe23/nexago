@@ -1,4 +1,5 @@
 import 'tournament_match.dart';
+import 'tournament_match_display.dart';
 
 class TournamentMatchRoundGroup {
   const TournamentMatchRoundGroup({
@@ -70,7 +71,7 @@ List<TournamentMatchRoundGroup> groupBracketMatchesByRound(
   return rounds
       .map(
         (r) => TournamentMatchRoundGroup(
-          roundLabel: bracketRoundLabel(r),
+          roundLabel: bracketRoundGroupLabel(byRound[r]!),
           matches: byRound[r]!,
         ),
       )
@@ -97,18 +98,6 @@ List<TournamentMatchPoolGroup> groupMatchesByPool(
         ),
       )
       .toList();
-}
-
-String bracketRoundLabel(int round) {
-  return switch (round) {
-    1 => 'Primeira fase',
-    2 => 'Oitavas',
-    3 => 'Quartas',
-    4 => 'Semifinais',
-    5 => 'Final',
-    6 => '3º lugar',
-    _ => round > 0 ? 'Rodada $round' : 'Eliminatórias',
-  };
 }
 
 String matchStatusLabel(String status) {

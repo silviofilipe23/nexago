@@ -32,10 +32,7 @@ class OnboardingGoalOption {
 
 /// Metadado de nível no onboarding.
 class OnboardingLevelOption {
-  const OnboardingLevelOption({
-    required this.label,
-    required this.description,
-  });
+  const OnboardingLevelOption({required this.label, required this.description});
 
   final String label;
   final String description;
@@ -108,7 +105,7 @@ abstract final class AthleteOnboardingOptions {
       description: 'Boa técnica e bastante experiência de quadra.',
     ),
     OnboardingLevelOption(
-      label: 'Competitivo',
+      label: 'Open',
       description: 'Participo de torneios e busco performance.',
     ),
   ];

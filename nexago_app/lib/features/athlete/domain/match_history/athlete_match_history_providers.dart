@@ -5,13 +5,22 @@ import '../../data/match_history/athlete_match_history_repository.dart';
 import 'athlete_match_history_logic.dart';
 import 'athlete_match_history_models.dart';
 
-final athleteMatchHistoryBundleProvider =
+final athleteMatchHistoryBundleProvider = FutureProvider.autoDispose
+    .family<AthleteMatchHistoryBundle, String>((ref, uid) async {
+  final id = uid.trim();
+  if (id.isEmpty) {
+    throw StateError('Usuário inválido.');
+  }
+  return ref.read(athleteMatchHistoryRepositoryProvider).fetchHistory(id);
+});
+
+final currentAthleteMatchHistoryBundleProvider =
     FutureProvider.autoDispose<AthleteMatchHistoryBundle>((ref) async {
   final uid = ref.watch(authProvider).valueOrNull?.uid;
   if (uid == null || uid.isEmpty) {
     throw StateError('Usuário não autenticado.');
   }
-  return ref.read(athleteMatchHistoryRepositoryProvider).fetchHistory(uid);
+  return ref.watch(athleteMatchHistoryBundleProvider(uid).future);
 });
 
 final matchHistoryTabProvider =
@@ -59,7 +68,9 @@ class MatchHistoryDerived {
 
 final matchHistoryDerivedProvider =
     Provider.autoDispose<MatchHistoryDerived?>((ref) {
-  final bundleAsync = ref.watch(athleteMatchHistoryBundleProvider);
+  final uid = ref.watch(authProvider).valueOrNull?.uid;
+  if (uid == null || uid.isEmpty) return null;
+  final bundleAsync = ref.watch(athleteMatchHistoryBundleProvider(uid));
   return bundleAsync.whenOrNull(
     data: (bundle) => MatchHistoryDerived(
       bundle: bundle,
@@ -73,13 +84,15 @@ final athleteMatchHistorySettingsSubtitleProvider =
     Provider.autoDispose<String>((ref) {
   final derived = ref.watch(matchHistoryDerivedProvider);
   if (derived != null) return derived.settingsSubtitle;
-  final bundleAsync = ref.watch(athleteMatchHistoryBundleProvider);
+  final uid = ref.watch(authProvider).valueOrNull?.uid;
+  if (uid == null || uid.isEmpty) return 'Histórico indisponível';
+  final bundleAsync = ref.watch(athleteMatchHistoryBundleProvider(uid));
   return bundleAsync.when(
     data: (b) => matchHistorySettingsSubtitle(
       matchCount: b.matches.length,
       tournamentCount: b.tournaments.length,
     ),
     loading: () => 'Carregando…',
-    error: (_, _) => 'Histórico indisponível',
+    error: (error, stackTrace) => 'Histórico indisponível',
   );
 });

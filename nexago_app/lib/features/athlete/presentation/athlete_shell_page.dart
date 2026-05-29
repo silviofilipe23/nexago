@@ -15,6 +15,7 @@ import 'athlete_community_page.dart';
 import 'athlete_home_page.dart';
 import '../../tournaments/presentation/tournament_discovery_page.dart'
     show TournamentDiscoveryPage;
+import '../../tournaments/presentation/widgets/compete_hub/compete_hub_shell_app_bar.dart';
 import '../../tournaments/presentation/widgets/tournament_invite_accept_coordinator.dart';
 
 /// Container principal do atleta com [BottomNavigationBar] e [IndexedStack].
@@ -53,6 +54,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
     final theme = Theme.of(context);
     final arenaPanelAsync = ref.watch(arenaPanelAccessProvider);
     final hideAppBarForImmersiveTabs = _index == 0 || _index == 2 || _index == 4;
+    final isCompeteTab = _index == 3;
 
     ref.listen<int>(athleteShellTabIndexProvider, (previous, next) {
       if (next != _index && next >= 0 && next < _titles.length) {
@@ -80,26 +82,44 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
       appBar: hideAppBarForImmersiveTabs
           ? null
-          : AppBar(
-              title: Text(_titles[_index]),
-              actions: [
-                ...arenaPanelAsync.maybeWhen(
-                  data: (allowed) => allowed
-                      ? [
-                          IconButton(
-                            tooltip: 'Painel da arena',
-                            onPressed: () =>
-                                context.push(AppRoutes.arenaDashboard),
-                            icon: const Icon(
-                              Icons.admin_panel_settings_outlined,
+          : isCompeteTab
+              ? CompeteHubShellAppBar(
+                  trailingActions: arenaPanelAsync.maybeWhen(
+                    data: (allowed) => allowed
+                        ? [
+                            IconButton(
+                              tooltip: 'Painel da arena',
+                              onPressed: () =>
+                                  context.push(AppRoutes.arenaDashboard),
+                              icon: const Icon(
+                                Icons.admin_panel_settings_outlined,
+                              ),
                             ),
-                          ),
-                        ]
-                      : <Widget>[],
-                  orElse: () => <Widget>[],
+                          ]
+                        : <Widget>[],
+                    orElse: () => <Widget>[],
+                  ),
+                )
+              : AppBar(
+                  title: Text(_titles[_index]),
+                  actions: [
+                    ...arenaPanelAsync.maybeWhen(
+                      data: (allowed) => allowed
+                          ? [
+                              IconButton(
+                                tooltip: 'Painel da arena',
+                                onPressed: () =>
+                                    context.push(AppRoutes.arenaDashboard),
+                                icon: const Icon(
+                                  Icons.admin_panel_settings_outlined,
+                                ),
+                              ),
+                            ]
+                          : <Widget>[],
+                      orElse: () => <Widget>[],
+                    ),
+                  ],
                 ),
-              ],
-            ),
       body: IndexedStack(
         index: _index,
         children: const [

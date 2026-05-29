@@ -17,7 +17,7 @@ class AthleteProfileHistorySection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bundleAsync = ref.watch(athleteMatchHistoryBundleProvider);
+    final bundleAsync = ref.watch(currentAthleteMatchHistoryBundleProvider);
 
     return bundleAsync.when(
       loading: () => const SizedBox.shrink(),

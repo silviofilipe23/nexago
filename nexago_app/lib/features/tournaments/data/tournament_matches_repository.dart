@@ -21,19 +21,80 @@ class TournamentMatchesRepository {
     return _matches
         .where('tournamentId', isEqualTo: tournamentId)
         .snapshots()
-        .map((snap) {
-      final items = snap.docs
-          .map(TournamentMatchMapper.fromSnapshot)
-          .whereType<TournamentMatch>()
-          .toList();
-      items.sort((a, b) {
-        final c = a.categoryId.compareTo(b.categoryId);
-        if (c != 0) return c;
-        final r = a.round.compareTo(b.round);
-        if (r != 0) return r;
-        return a.matchNumber.compareTo(b.matchNumber);
-      });
-      return items;
+        .map(_mapAndSort);
+  }
+
+  Stream<List<TournamentMatch>> watchByCategory(
+    String tournamentId,
+    String categoryName,
+  ) {
+    if (tournamentId.isEmpty || categoryName.isEmpty) {
+      return Stream.value(const []);
+    }
+
+    return _matches
+        .where('tournamentId', isEqualTo: tournamentId)
+        .where('categoryId', isEqualTo: categoryName)
+        .snapshots()
+        .map(_mapAndSort);
+  }
+
+  Future<TournamentMatch?> getById(String matchId) async {
+    if (matchId.trim().isEmpty) return null;
+    final snap = await _matches.doc(matchId).get();
+    return TournamentMatchMapper.fromSnapshot(snap);
+  }
+
+  Future<List<TournamentMatch>> getByTeamId(String teamId) async {
+    if (teamId.trim().isEmpty) return [];
+
+    final results = await Future.wait([
+      _matches.where('teamAId', isEqualTo: teamId).get(),
+      _matches.where('teamBId', isEqualTo: teamId).get(),
+    ]);
+
+    final byId = <String, TournamentMatch>{};
+    for (final snap in results) {
+      for (final doc in snap.docs) {
+        final match = TournamentMatchMapper.fromSnapshot(doc);
+        if (match != null) byId[match.id] = match;
+      }
+    }
+    return _sortMatches(byId.values.toList());
+  }
+
+  Future<List<TournamentMatch>> getByTeamIds(Iterable<String> teamIds) async {
+    final ids = teamIds.where((id) => id.trim().isNotEmpty).toSet();
+    if (ids.isEmpty) return [];
+
+    final byId = <String, TournamentMatch>{};
+    final batches = await Future.wait(ids.map(getByTeamId));
+    for (final list in batches) {
+      for (final match in list) {
+        byId[match.id] = match;
+      }
+    }
+    return _sortMatches(byId.values.toList());
+  }
+
+  List<TournamentMatch> _mapAndSort(
+    QuerySnapshot<Map<String, dynamic>> snap,
+  ) {
+    final items = snap.docs
+        .map(TournamentMatchMapper.fromSnapshot)
+        .whereType<TournamentMatch>()
+        .toList();
+    return _sortMatches(items);
+  }
+
+  List<TournamentMatch> _sortMatches(List<TournamentMatch> items) {
+    items.sort((a, b) {
+      final c = a.categoryId.compareTo(b.categoryId);
+      if (c != 0) return c;
+      final r = a.round.compareTo(b.round);
+      if (r != 0) return r;
+      return a.matchNumber.compareTo(b.matchNumber);
     });
+    return items;
   }
 }

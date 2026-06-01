@@ -11,6 +11,9 @@ typedef TournamentCategoryEnrollmentCounts = Map<String, int>;
 /// `categoryId` → `registrationId` das inscrições do atleta no torneio.
 typedef TournamentUserRegistrationsByCategory = Map<String, String>;
 
+/// `categoryId` → `teamId` das inscrições do atleta no torneio.
+typedef TournamentUserTeamIdsByCategory = Map<String, String>;
+
 /// Agrega linhas de inscrição (`categoryId` = nome da categoria no torneio).
 TournamentCategoryEnrollmentCounts countInscriptionsByCategoryData(
   Iterable<Map<String, dynamic>> rows,
@@ -54,6 +57,33 @@ TournamentUserRegistrationsByCategory userRegistrationsByCategoryData(
     final registrationId = row.registrationId.trim();
     if (categoryId.isEmpty || registrationId.isEmpty) continue;
     result[categoryId] = registrationId;
+  }
+  return result;
+}
+
+/// Mapeia times do atleta por `categoryId`. Pure helper para testes.
+TournamentUserTeamIdsByCategory userTeamIdsByCategoryData(
+  Iterable<({
+    String registrationId,
+    Map<String, dynamic> inscription,
+    Map<String, dynamic>? team,
+  })> rows,
+  String uid,
+) {
+  final id = uid.trim();
+  if (id.isEmpty) return const <String, String>{};
+  final result = <String, String>{};
+  for (final row in rows) {
+    final team = row.team;
+    if (team == null) continue;
+    final p1 = (team['player1Id'] as String?)?.trim();
+    final p2 = (team['player2Id'] as String?)?.trim();
+    if (p1 != id && p2 != id) continue;
+    final categoryId =
+        (row.inscription['categoryId'] as String?)?.trim() ?? '';
+    final teamId = (row.inscription['teamId'] as String?)?.trim() ?? '';
+    if (categoryId.isEmpty || teamId.isEmpty) continue;
+    result[categoryId] = teamId;
   }
   return result;
 }
@@ -151,6 +181,46 @@ class TournamentInscriptionsRepository {
       uid: uid,
     ).map((map) => map.keys.toSet());
   }
+
+  /// Times do atleta no torneio: `categoryId` → `teamId`.
+  Stream<TournamentUserTeamIdsByCategory> watchUserTeamIdsByCategory({
+    required String tournamentId,
+    required String uid,
+  }) {
+    final tid = tournamentId.trim();
+    final athleteUid = uid.trim();
+    if (tid.isEmpty || athleteUid.isEmpty) {
+      return Stream.value(const <String, String>{});
+    }
+
+    return _inscriptions
+        .where('tournamentId', isEqualTo: tid)
+        .snapshots()
+        .asyncMap((snap) async {
+      final rows = <
+          ({
+            String registrationId,
+            Map<String, dynamic> inscription,
+            Map<String, dynamic>? team,
+          })>[];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final teamIdFromInscription = (data['teamId'] as String?)?.trim() ?? '';
+        if (teamIdFromInscription.isEmpty) continue;
+        final teamSnap = await _teams.doc(teamIdFromInscription).get();
+        final inscription = Map<String, dynamic>.from(data);
+        if (teamSnap.exists) {
+          inscription['teamId'] = teamSnap.id;
+        }
+        rows.add((
+          registrationId: doc.id,
+          inscription: inscription,
+          team: teamSnap.exists ? teamSnap.data() : null,
+        ));
+      }
+      return userTeamIdsByCategoryData(rows, athleteUid);
+    });
+  }
 }
 
 final tournamentInscriptionsRepositoryProvider =
@@ -197,6 +267,30 @@ final tournamentUserRegisteredCategoryIdsProvider =
   return _userRegistrationsByCategoryStream(ref, tournamentId)
       .map((map) => map.keys.toSet());
 });
+
+Stream<TournamentUserTeamIdsByCategory> _userTeamIdsByCategoryStream(
+  Ref ref,
+  String tournamentId,
+) {
+  final auth = ref.watch(authProvider);
+  if (auth.isLoading) {
+    return const Stream<TournamentUserTeamIdsByCategory>.empty();
+  }
+  final uid = auth.valueOrNull?.uid.trim() ?? '';
+  if (uid.isEmpty) return Stream.value(const <String, String>{});
+  return ref
+      .watch(tournamentInscriptionsRepositoryProvider)
+      .watchUserTeamIdsByCategory(
+        tournamentId: tournamentId,
+        uid: uid,
+      );
+}
+
+/// Times do usuário autenticado no torneio (`categoryId` → `teamId`).
+final tournamentUserTeamIdsByCategoryProvider = StreamProvider.autoDispose
+    .family<TournamentUserTeamIdsByCategory, String>(
+  (ref, tournamentId) => _userTeamIdsByCategoryStream(ref, tournamentId),
+);
 
 /// Inscrições confirmadas na coleção para a categoria (`categoryId` / `categoryName`).
 int inscriptionCountForCategory(

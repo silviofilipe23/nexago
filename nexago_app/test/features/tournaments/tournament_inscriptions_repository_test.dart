@@ -60,6 +60,54 @@ void main() {
     });
   });
 
+  group('userTeamIdsByCategoryData', () {
+    final rows = <({
+      String registrationId,
+      Map<String, dynamic> inscription,
+      Map<String, dynamic>? team,
+    })>[
+      (
+        registrationId: 'reg-1',
+        inscription: {'categoryId': 'Masculino C', 'teamId': 'team-1'},
+        team: {'player1Id': 'uid-a', 'player2Id': 'uid-b'},
+      ),
+      (
+        registrationId: 'reg-2',
+        inscription: {'categoryId': 'Misto', 'teamId': 'team-2'},
+        team: {'player1Id': 'uid-c', 'player2Id': 'uid-a'},
+      ),
+      (
+        registrationId: 'reg-3',
+        inscription: {'categoryId': 'Feminino C', 'teamId': 'team-3'},
+        team: {'player1Id': 'uid-c', 'player2Id': 'uid-d'},
+      ),
+      (
+        registrationId: 'reg-4',
+        inscription: {'categoryId': 'Sem time', 'teamId': 'team-4'},
+        team: null,
+      ),
+      (
+        registrationId: 'reg-5',
+        inscription: {'categoryId': '', 'teamId': 'team-5'},
+        team: {'player1Id': 'uid-a', 'player2Id': 'uid-x'},
+      ),
+    ];
+
+    test('maps categoryId to teamId for athlete teams', () {
+      expect(
+        userTeamIdsByCategoryData(rows, 'uid-a'),
+        {
+          'Masculino C': 'team-1',
+          'Misto': 'team-2',
+        },
+      );
+    });
+
+    test('returns empty for unknown athlete', () {
+      expect(userTeamIdsByCategoryData(rows, 'uid-zzz'), isEmpty);
+    });
+  });
+
   group('registeredCategoryIdsForUserData', () {
     final rows = <({Map<String, dynamic> inscription, Map<String, dynamic>? team})>[
       (

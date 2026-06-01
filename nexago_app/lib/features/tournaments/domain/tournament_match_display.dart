@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 import 'tournament_match.dart';
 import 'tournament_match_set.dart';
 import 'tournament_match_status.dart';
@@ -11,6 +13,62 @@ String matchStatusPillLabelPt(String status) {
 
 DateTime? playedAtForMatch(TournamentMatch match) =>
     match.matchEndedAt ?? match.scheduleTime;
+
+DateTime? matchTimeForCard(TournamentMatch match) {
+  if (match.isInProgress) {
+    return match.matchStartedAt ?? match.scheduleTime;
+  }
+  if (match.isCompleted) {
+    return match.matchEndedAt ?? match.matchStartedAt ?? match.scheduleTime;
+  }
+  return match.scheduleTime;
+}
+
+String matchTimeLabelForCard(
+  TournamentMatch match, {
+  DateTime? reference,
+}) {
+  final time = matchTimeForCard(match);
+  if (time == null) return '';
+
+  final now = reference ?? DateTime.now();
+  final sameDay = time.year == now.year &&
+      time.month == now.month &&
+      time.day == now.day;
+  if (sameDay) {
+    return DateFormat('HH:mm', 'pt_BR').format(time);
+  }
+  return DateFormat('dd/MM · HH:mm', 'pt_BR').format(time);
+}
+
+String matchNumberLabelForCard(TournamentMatch match) {
+  if (match.matchNumber <= 0) return '';
+  return 'Jogo #${match.matchNumber}';
+}
+
+String matchCourtLabelForCard(TournamentMatch match) {
+  return formatCourtLabelForCard(match.courtName);
+}
+
+/// Normaliza o nome da quadra para exibição (`1` → `Quadra 1`).
+String formatCourtLabelForCard(String? courtName) {
+  final court = courtName?.trim() ?? '';
+  if (court.isEmpty) return '';
+  if (RegExp(r'quadra', caseSensitive: false).hasMatch(court)) {
+    return court;
+  }
+  return 'Quadra $court';
+}
+
+/// Metadados do topo do card (`Jogo #2 · Quadra 1`).
+String matchMetaLabelForCard(TournamentMatch match) {
+  final parts = <String>[];
+  final numberLabel = matchNumberLabelForCard(match);
+  if (numberLabel.isNotEmpty) parts.add(numberLabel);
+  final courtLabel = matchCourtLabelForCard(match);
+  if (courtLabel.isNotEmpty) parts.add(courtLabel);
+  return parts.join(' · ');
+}
 
 List<TournamentMatchSet> setsForMatch(TournamentMatch match) {
   if (match.sets.isNotEmpty) return match.sets;
@@ -68,6 +126,41 @@ String scoreDisplayForAthleteTeam({
       .join(', ');
 }
 
+/// Parciais de cada set só com os pontos da equipe (`21 · 12 · 16`).
+String setPartialsLabelForTeam({
+  required TournamentMatch match,
+  required bool isTeamA,
+}) {
+  final sets = setsForMatch(match);
+  if (sets.isNotEmpty) {
+    return sets
+        .map((s) => isTeamA ? '${s.a}' : '${s.b}')
+        .join(' · ');
+  }
+
+  final raw = (isTeamA ? match.resultA : match.resultB).trim();
+  if (raw.isEmpty) return '';
+  if (raw.contains(',')) {
+    return raw
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .map(teamOwnScoreFromSetPartial)
+        .join(' · ');
+  }
+  if (raw.contains('-')) {
+    return teamOwnScoreFromSetPartial(raw);
+  }
+  return '';
+}
+
+/// Extrai só os pontos da equipe de um parcial (`21-0` → `21`).
+String teamOwnScoreFromSetPartial(String partial) {
+  final dash = partial.indexOf('-');
+  if (dash <= 0) return partial.trim();
+  return partial.substring(0, dash).trim();
+}
+
 String setsSummaryForAthleteTeam({
   required TournamentMatch match,
   required String athleteTeamId,
@@ -96,6 +189,48 @@ String matchCardScoreLabel(TournamentMatch match) {
   if (match.resultA.isNotEmpty) return match.resultA;
   if (match.isInProgress) return '0-0';
   return 'A definir';
+}
+
+/// Sets vencidos por cada time (A, B).
+(int, int) setsWonCountForMatch(TournamentMatch match) {
+  var teamA = 0;
+  var teamB = 0;
+  for (final set in setsForMatch(match)) {
+    if (set.a > set.b) {
+      teamA++;
+    } else if (set.b > set.a) {
+      teamB++;
+    }
+  }
+  return (teamA, teamB);
+}
+
+bool matchHasScoreData(TournamentMatch match) =>
+    setsForMatch(match).isNotEmpty || match.isInProgress;
+
+/// `null` quando não há vencedor definido (empate, agendado ou sem sets).
+bool? matchTeamAWon(TournamentMatch match) {
+  final winner = match.winnerId?.trim() ?? '';
+  if (winner.isNotEmpty) {
+    final teamAId = match.teamAId.trim();
+    final teamBId = match.teamBId.trim();
+    if (teamAId.isNotEmpty && winner == teamAId) return true;
+    if (teamBId.isNotEmpty && winner == teamBId) return false;
+  }
+
+  final sets = setsForMatch(match);
+  if (sets.isEmpty) return null;
+
+  final counts = setsWonCountForMatch(match);
+  if (counts.$1 > counts.$2) return true;
+  if (counts.$2 > counts.$1) return false;
+  return null;
+}
+
+bool isMatchTeamWinner(TournamentMatch match, {required bool isTeamA}) {
+  final teamAWon = matchTeamAWon(match);
+  if (teamAWon == null) return false;
+  return isTeamA ? teamAWon : !teamAWon;
 }
 
 int compareMatchesChronologicallyDesc(TournamentMatch a, TournamentMatch b) {
@@ -133,10 +268,10 @@ String matchRoundLabel(TournamentMatch match) {
   final type = match.matchType.trim();
 
   if (type == 'WB') {
-    return match.round > 0 ? 'WR${match.round}' : matchTypeLabelPt(type);
+    return match.round > 0 ? 'WB${match.round}' : matchTypeLabelPt(type);
   }
   if (type == 'LB') {
-    return match.round > 0 ? 'LR${match.round}' : matchTypeLabelPt(type);
+    return match.round > 0 ? 'LB${match.round}' : matchTypeLabelPt(type);
   }
   if (type == 'Final') return 'Final';
   if (type == 'Third Place') return '3º lugar';

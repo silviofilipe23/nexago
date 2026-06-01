@@ -18,6 +18,14 @@ final gamificationSummaryProvider =
   return ref.watch(gamificationServiceProvider).watchSummary(userId);
 });
 
+final gamificationSummaryByUserIdProvider = StreamProvider.autoDispose
+    .family<GamificationSummary, String>((ref, userId) {
+  if (userId.trim().isEmpty) {
+    return Stream<GamificationSummary>.value(GamificationSummary.initial());
+  }
+  return ref.watch(gamificationServiceProvider).watchSummary(userId.trim());
+});
+
 final gamificationBadgesProvider =
     StreamProvider.autoDispose<List<UserBadgeProgress>>((ref) {
   final userId = ref.watch(authProvider).valueOrNull?.uid;

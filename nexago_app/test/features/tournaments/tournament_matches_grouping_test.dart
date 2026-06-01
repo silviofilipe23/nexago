@@ -10,6 +10,8 @@ TournamentMatch _match({
   String poolId = '',
   bool isGroupMatch = false,
   int matchNumber = 0,
+  String teamAId = '',
+  String teamBId = '',
 }) {
   return TournamentMatch(
     id: id,
@@ -18,8 +20,8 @@ TournamentMatch _match({
     round: round,
     matchType: matchType,
     poolId: poolId,
-    teamAId: 'a$id',
-    teamBId: 'b$id',
+    teamAId: teamAId.isEmpty ? 'a$id' : teamAId,
+    teamBId: teamBId.isEmpty ? 'b$id' : teamBId,
     status: 'Scheduled',
     resultA: '',
     resultB: '',
@@ -82,11 +84,114 @@ void main() {
     expect(groups[1].roundLabel, 'Quartas de final');
   });
 
+  test(
+    'groupBracketMatchesByRound interleaves WB and LB rounds in sequence',
+    () {
+      final matches = [
+        _match(id: 'wb1', matchType: 'WB', round: 1, matchNumber: 1),
+        _match(id: 'wb2', matchType: 'WB', round: 2, matchNumber: 4),
+        _match(id: 'lb1', matchType: 'LB', round: 1, matchNumber: 3),
+        _match(id: 'lb2', matchType: 'LB', round: 2, matchNumber: 5),
+        _match(id: 'final', matchType: 'Final', round: 0, matchNumber: 6),
+      ];
+
+      final groups = groupBracketMatchesByRound(matches);
+      expect(groups, hasLength(5));
+      expect(
+        groups.map((g) => g.roundLabel),
+        ['WB1', 'LB1', 'WB2', 'LB2', 'Final'],
+      );
+      expect(groups.expand((g) => g.matches).map((m) => m.id), [
+        'wb1',
+        'lb1',
+        'wb2',
+        'lb2',
+        'final',
+      ]);
+    },
+  );
+
+  test('bracketMatchesForCategory sorts double elimination in sequence', () {
+    final matches = [
+      _match(id: 'lb2', matchType: 'LB', round: 2, matchNumber: 5),
+      _match(id: 'wb2', matchType: 'WB', round: 2, matchNumber: 4),
+      _match(id: 'lb1', matchType: 'LB', round: 1, matchNumber: 3),
+      _match(id: 'wb1', matchType: 'WB', round: 1, matchNumber: 1),
+    ];
+
+    expect(
+      bracketMatchesForCategory(matches, 'cat-a').map((m) => m.id),
+      ['wb1', 'lb1', 'wb2', 'lb2'],
+    );
+  });
+
+  test('groupBracketMatchesByRound separates phases with round zero', () {
+    final matches = [
+      _match(id: 'qf1', matchType: 'Quarter-Final', round: 0, matchNumber: 1),
+      _match(id: 'sf1', matchType: 'Semi-Final', round: 0, matchNumber: 2),
+    ];
+
+    final groups = groupBracketMatchesByRound(matches);
+    expect(groups, hasLength(2));
+    expect(groups[0].roundLabel, 'Quartas de final');
+    expect(groups[1].roundLabel, 'Semifinais');
+  });
+
   test('groupMatchesByPool sorts pool keys', () {
     final pools = poolMatchesForCategory(all, 'cat-a');
     final groups = groupMatchesByPool(pools);
     expect(groups, hasLength(2));
     expect(groups[0].poolLabel, 'Grupo A');
     expect(groups[1].poolLabel, 'Grupo B');
+  });
+
+  group('athlete match filters', () {
+    final m1 = _match(id: '1', teamAId: 'my-team', teamBId: 'other-1');
+    final m2 = _match(id: '2', teamAId: 'other-2', teamBId: 'other-3');
+    final m3 = _match(id: '3', teamAId: 'other-4', teamBId: 'my-team');
+
+    test('matchInvolvesTeam detects team on either side', () {
+      expect(matchInvolvesTeam(m1, 'my-team'), isTrue);
+      expect(matchInvolvesTeam(m1, 'other-1'), isTrue);
+      expect(matchInvolvesTeam(m1, 'missing'), isFalse);
+      expect(matchInvolvesTeam(m1, ''), isFalse);
+    });
+
+    test('filterAthleteMatches keeps only athlete games', () {
+      expect(filterAthleteMatches([m1, m2, m3], {'my-team'}).map((m) => m.id), [
+        '1',
+        '3',
+      ]);
+    });
+
+    test('athleteTeamIdForCategory returns team for selected category', () {
+      expect(
+        athleteTeamIdForCategory({
+          'cat-a': 'team-a',
+          'cat-b': 'team-b',
+        }, 'cat-b'),
+        'team-b',
+      );
+      expect(athleteTeamIdForCategory({'cat-a': 'team-a'}, 'cat-x'), isNull);
+    });
+
+    test('athleteTeamIdForCategory matches category case-insensitively', () {
+      expect(
+        athleteTeamIdForCategory({'Masculino C': 'team-a'}, 'masculino c'),
+        'team-a',
+      );
+    });
+
+    test('athleteTeamIdsForHighlight collects all registered team ids', () {
+      expect(
+        athleteTeamIdsForHighlight({'cat-a': 'team-a', 'cat-b': 'team-b'}),
+        {'team-a', 'team-b'},
+      );
+    });
+
+    test('isAthleteMatchForHighlight uses any athlete team id', () {
+      expect(isAthleteMatchForHighlight(m1, {'my-team', 'other'}), isTrue);
+      expect(isAthleteMatchForHighlight(m2, {'my-team'}), isFalse);
+    });
   });
 }

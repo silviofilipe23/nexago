@@ -9,12 +9,12 @@ class TournamentDetailTabBar extends StatefulWidget {
     super.key,
     required this.selected,
     required this.onSelected,
+    required this.tabs,
   });
 
   final TournamentDetailTab selected;
   final ValueChanged<TournamentDetailTab> onSelected;
-
-  static const tabs = TournamentDetailTab.values;
+  final List<TournamentDetailTab> tabs;
 
   static const _horizontalPadding = 20.0;
   static const _verticalPadding = 12.0;
@@ -29,9 +29,7 @@ class TournamentDetailTabBar extends StatefulWidget {
 
 class _TournamentDetailTabBarState extends State<TournamentDetailTabBar> {
   final ScrollController _scrollController = ScrollController();
-  final Map<TournamentDetailTab, GlobalKey> _tabKeys = {
-    for (final tab in TournamentDetailTabBar.tabs) tab: GlobalKey(),
-  };
+  final Map<TournamentDetailTab, GlobalKey> _tabKeys = {};
 
   bool _showLeadingFade = false;
   bool _showTrailingFade = true;
@@ -39,6 +37,7 @@ class _TournamentDetailTabBarState extends State<TournamentDetailTabBar> {
   @override
   void initState() {
     super.initState();
+    _syncTabKeys();
     _scrollController.addListener(_updateFadeVisibility);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _updateFadeVisibility();
@@ -49,10 +48,19 @@ class _TournamentDetailTabBarState extends State<TournamentDetailTabBar> {
   @override
   void didUpdateWidget(covariant TournamentDetailTabBar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.tabs != widget.tabs) {
+      _syncTabKeys();
+    }
     if (oldWidget.selected != widget.selected) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollToSelected();
       });
+    }
+  }
+
+  void _syncTabKeys() {
+    for (final tab in widget.tabs) {
+      _tabKeys.putIfAbsent(tab, GlobalKey.new);
     }
   }
 
@@ -117,8 +125,8 @@ class _TournamentDetailTabBarState extends State<TournamentDetailTabBar> {
                   ),
                   child: Row(
                     children: [
-                      for (final tab in TournamentDetailTabBar.tabs) ...[
-                        if (tab != TournamentDetailTabBar.tabs.first)
+                      for (final tab in widget.tabs) ...[
+                        if (tab != widget.tabs.first)
                           const SizedBox(width: 4),
                         _TabSegment(
                           key: _tabKeys[tab],
@@ -240,10 +248,12 @@ class TournamentDetailTabBarHeader extends SliverPersistentHeaderDelegate {
   TournamentDetailTabBarHeader({
     required this.selected,
     required this.onSelected,
+    required this.tabs,
   });
 
   final TournamentDetailTab selected;
   final ValueChanged<TournamentDetailTab> onSelected;
+  final List<TournamentDetailTab> tabs;
 
   static const _extent = 72.0;
 
@@ -262,11 +272,13 @@ class TournamentDetailTabBarHeader extends SliverPersistentHeaderDelegate {
     return TournamentDetailTabBar(
       selected: selected,
       onSelected: onSelected,
+      tabs: tabs,
     );
   }
 
   @override
   bool shouldRebuild(covariant TournamentDetailTabBarHeader oldDelegate) {
-    return oldDelegate.selected != selected;
+    return oldDelegate.selected != selected ||
+        oldDelegate.tabs != tabs;
   }
 }

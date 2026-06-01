@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
@@ -12,6 +13,7 @@ class PublicProfileHeader extends StatelessWidget {
     super.key,
     required this.profile,
     required this.ranking,
+    required this.displayLevel,
     required this.onBack,
     required this.onBookmark,
     required this.onMore,
@@ -23,6 +25,7 @@ class PublicProfileHeader extends StatelessWidget {
 
   final AthleteProfile profile;
   final AthletePublicRankingSnapshot ranking;
+  final int displayLevel;
   final VoidCallback onBack;
   final VoidCallback onBookmark;
   final VoidCallback onMore;
@@ -37,6 +40,9 @@ class PublicProfileHeader extends StatelessWidget {
     final genderLabel = athleteGenderShortLabel(profile.gender);
     final location = athleteLocationLabel(profile);
     final sports = buildPublicSportEntries(profile);
+    final coverUrl = profile.coverPhotoUrl?.trim() ?? '';
+    final hasCoverPhoto = coverUrl.isNotEmpty;
+    final bio = profile.bio?.trim() ?? '';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -51,24 +57,30 @@ class PublicProfileHeader extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          AppColors.brand.withValues(alpha: 0.14),
-                          AppColors.canvas,
-                          AppColors.canvas,
-                        ],
+                  if (hasCoverPhoto)
+                    CachedNetworkImage(
+                      imageUrl: coverUrl,
+                      fit: BoxFit.cover,
+                      fadeInDuration: const Duration(milliseconds: 280),
+                      placeholder: (_, __) => const _CoverPhotoSkeleton(),
+                      errorWidget: (_, __, ___) =>
+                          const _DefaultCoverBackground(),
+                    )
+                  else
+                    const _DefaultCoverBackground(),
+                  if (hasCoverPhoto)
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.2),
+                            AppColors.canvas.withValues(alpha: 0.75),
+                          ],
+                        ),
                       ),
                     ),
-                    child: CustomPaint(
-                      painter: _CoverLinesPainter(
-                        color: AppColors.brand.withValues(alpha: 0.07),
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -98,10 +110,16 @@ class PublicProfileHeader extends StatelessWidget {
               ),
             Positioned(
               top: coverHeight - avatarOverlap,
-              child: AthleteProfileAvatar(
-                size: avatarSize,
-                initials: athleteInitialsFromName(name),
-                imageUrl: profile.avatarUrl,
+              left: 0,
+              right: 0,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: AthleteProfileAvatar(
+                  size: avatarSize,
+                  initials: athleteInitialsFromName(name),
+                  imageUrl: profile.avatarUrl,
+                  displayLevel: displayLevel,
+                ),
               ),
             ),
           ],
@@ -154,6 +172,19 @@ class PublicProfileHeader extends StatelessWidget {
                 genderLabel: genderLabel,
                 location: location,
               ),
+              if (bio.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text(
+                  bio,
+                  textAlign: TextAlign.center,
+                  style: AppTypography.soraRegular(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.onSurface.withValues(alpha: 0.88),
+                    height: 1.45,
+                  ),
+                ),
+              ],
               if (sports.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Wrap(
@@ -328,6 +359,76 @@ class _IconButton extends StatelessWidget {
           width: 40,
           height: 40,
           child: Icon(icon, color: AppColors.onSurface, size: 20),
+        ),
+      ),
+    );
+  }
+}
+
+class _CoverPhotoSkeleton extends StatefulWidget {
+  const _CoverPhotoSkeleton();
+
+  @override
+  State<_CoverPhotoSkeleton> createState() => _CoverPhotoSkeletonState();
+}
+
+class _CoverPhotoSkeletonState extends State<_CoverPhotoSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (context, _) {
+        final t = Curves.easeInOut.transform(_pulse.value);
+        return ColoredBox(
+          color: Color.lerp(
+            AppColors.surfaceCard,
+            AppColors.onSurfaceMuted.withValues(alpha: 0.22),
+            t,
+          )!,
+        );
+      },
+    );
+  }
+}
+
+class _DefaultCoverBackground extends StatelessWidget {
+  const _DefaultCoverBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.brand.withValues(alpha: 0.14),
+            AppColors.canvas,
+            AppColors.canvas,
+          ],
+        ),
+      ),
+      child: CustomPaint(
+        painter: _CoverLinesPainter(
+          color: AppColors.brand.withValues(alpha: 0.07),
         ),
       ),
     );

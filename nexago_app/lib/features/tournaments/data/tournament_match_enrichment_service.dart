@@ -1,6 +1,10 @@
+import 'package:flutter/material.dart';
+
+import '../../ranking/domain/ranking_display_helpers.dart';
 import '../domain/app_user_profile.dart';
 import '../domain/tournament_match.dart';
 import '../domain/tournament_match_card_view_model.dart';
+import '../domain/tournament_registration_receipt.dart';
 import '../domain/tournament_team.dart';
 import 'tournament_teams_repository.dart';
 import 'users_repository.dart';
@@ -45,14 +49,14 @@ class TournamentMatchEnrichmentService {
         .map(
           (match) => TournamentMatchCardViewModel(
             match: match,
-            teamADisplayName: _teamDisplayName(
+            teamA: _teamViewModel(
               teamId: match.teamAId,
               description: match.teamADescription,
               fallback: 'Equipe A',
               teams: teams,
               profiles: profiles,
             ),
-            teamBDisplayName: _teamDisplayName(
+            teamB: _teamViewModel(
               teamId: match.teamBId,
               description: match.teamBDescription,
               fallback: 'Equipe B',
@@ -92,10 +96,10 @@ class TournamentMatchEnrichmentService {
       if (desc != null && desc.isNotEmpty) return desc;
       return teamId.trim().isNotEmpty ? teamId : fallback;
     }
-    return cards.first.teamADisplayName;
+    return cards.first.teamA.displayName;
   }
 
-  String _teamDisplayName({
+  TournamentMatchCardTeamViewModel _teamViewModel({
     required String teamId,
     required String? description,
     required String fallback,
@@ -105,22 +109,85 @@ class TournamentMatchEnrichmentService {
     final id = teamId.trim();
     if (id.isEmpty) {
       final safeDescription = safeMatchTeamDescription(description);
-      if (safeDescription != null) return safeDescription;
-      return fallback;
+      return TournamentMatchCardTeamViewModel(
+        displayName: safeDescription ?? fallback,
+        players: _playersFromDisplayName(safeDescription ?? fallback),
+      );
     }
 
     final team = teams[id];
     if (team != null) {
       final label = _pairLabel(team, profiles);
-      if (label.isNotEmpty) return label;
+      if (label.isNotEmpty) {
+        return TournamentMatchCardTeamViewModel(
+          displayName: label,
+          players: _playersFromTeam(team, profiles),
+        );
+      }
     }
 
     final desc = description?.trim();
     if (desc != null && desc.isNotEmpty) {
       final safeDescription = safeMatchTeamDescription(desc);
-      if (safeDescription != null) return safeDescription;
+      if (safeDescription != null) {
+        return TournamentMatchCardTeamViewModel(
+          displayName: safeDescription,
+          players: _playersFromDisplayName(safeDescription),
+        );
+      }
     }
-    return id;
+
+    return TournamentMatchCardTeamViewModel(
+      displayName: id,
+      players: const [],
+    );
+  }
+
+  List<TournamentMatchCardPlayerViewModel> _playersFromTeam(
+    TournamentTeam team,
+    Map<String, AppUserProfile> profiles,
+  ) {
+    final players = <TournamentMatchCardPlayerViewModel>[];
+    for (final playerId in [team.player1Id, team.player2Id]) {
+      if (playerId.isEmpty) continue;
+      final profile = profiles[playerId];
+      players.add(
+        TournamentMatchCardPlayerViewModel(
+          initials: profile != null
+              ? appUserInitials(profile)
+              : rankingInitials(null, playerId),
+          avatarColor: rankingAvatarColor(playerId),
+          avatarUrl: profile?.profilePhotoUrl,
+        ),
+      );
+    }
+    return players;
+  }
+
+  List<TournamentMatchCardPlayerViewModel> _playersFromDisplayName(
+    String displayName,
+  ) {
+    final parts = displayName
+        .split('/')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) {
+      return const [
+        TournamentMatchCardPlayerViewModel(
+          initials: '?',
+          avatarColor: Color(0xFF5B8DEF),
+        ),
+      ];
+    }
+    return parts
+        .map(
+          (name) => TournamentMatchCardPlayerViewModel(
+            initials: initialsFromDisplayName(name),
+            avatarColor: rankingAvatarColor(name),
+          ),
+        )
+        .toList();
   }
 
   String _pairLabel(

@@ -212,7 +212,7 @@ class _CategoryRow extends StatelessWidget {
               ),
           ],
         ),
-        if (isEnrolled) ...[
+        if (isEnrolled && !offer.isCompleted) ...[
           const SizedBox(height: 10),
           Align(
             alignment: Alignment.centerRight,

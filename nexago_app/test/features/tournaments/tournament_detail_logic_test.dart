@@ -99,8 +99,69 @@ void main() {
   test('bracketFormatLabel translates pool play', () {
     expect(
       bracketFormatLabel('Pool Play + SE'),
-      'Fase de Grupos + SE',
+      'Fase de Grupos + Mata-mata',
     );
+  });
+
+  group('groups tab visibility', () {
+    test('isDoubleEliminationBracketFormat detects double elimination', () {
+      expect(isDoubleEliminationBracketFormat('Double Elimination'), isTrue);
+      expect(isDoubleEliminationBracketFormat('double elimination'), isTrue);
+      expect(isDoubleEliminationBracketFormat('Pool Play + SE'), isFalse);
+    });
+
+    test('categoryHasGroupsPhase is false for double elimination', () {
+      const offer = TournamentCategoryOffer(
+        id: 'de',
+        name: 'Misto',
+        entryFee: 90,
+        spotsLeft: 8,
+        spotsTotal: 16,
+        bracketFormat: 'Double Elimination',
+      );
+      expect(categoryHasGroupsPhase(offer), isFalse);
+    });
+
+    test('categoryHasGroupsPhase is true for pool play', () {
+      expect(categoryHasGroupsPhase(sample.categoryOffers.first), isTrue);
+    });
+
+    test('tournamentShouldShowGroupsTab hides when all categories are DE', () {
+      final deOnly = TournamentDetail(
+        id: sample.id,
+        name: sample.name,
+        location: sample.location,
+        city: sample.city,
+        dateLabel: sample.dateLabel,
+        startDate: sample.startDate,
+        endDate: sample.endDate,
+        categories: sample.categories,
+        format: sample.format,
+        priceLabel: sample.priceLabel,
+        priceValue: sample.priceValue,
+        spotsLeft: sample.spotsLeft,
+        spotsTotal: sample.spotsTotal,
+        status: sample.status,
+        featured: sample.featured,
+        enrolledCount: sample.enrolledCount,
+        liveMatchesNow: sample.liveMatchesNow,
+        categoryOffers: const [
+          TournamentCategoryOffer(
+            id: 'de',
+            name: 'Misto',
+            entryFee: 90,
+            spotsLeft: 8,
+            spotsTotal: 16,
+            bracketFormat: 'Double Elimination',
+          ),
+        ],
+      );
+      expect(tournamentShouldShowGroupsTab(deOnly), isFalse);
+    });
+
+    test('tournamentShouldShowGroupsTab shows when any category has groups', () {
+      expect(tournamentShouldShowGroupsTab(sample), isTrue);
+    });
   });
 
   test('tournamentPrizeTotalValue sums tournament prizes', () {
@@ -149,7 +210,7 @@ void main() {
   test('tournamentCategoryPrizeSubtitle joins gender and format', () {
     expect(
       tournamentCategoryPrizeSubtitle(sample.categoryOffers[0]),
-      'Masculino · Fase de Grupos + SE',
+      'Masculino · Fase de Grupos + Mata-mata',
     );
   });
 

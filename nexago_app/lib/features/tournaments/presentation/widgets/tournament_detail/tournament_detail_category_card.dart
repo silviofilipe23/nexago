@@ -59,7 +59,7 @@ class TournamentDetailCategoryCard extends StatelessWidget {
       offer,
       inscriptionCount: inscriptionCount,
     );
-    final ctaKind = isEnrolled
+    final ctaKind = isEnrolled && !offer.isCompleted
         ? TournamentCategoryCtaKind.viewRegistration
         : tournamentCategoryCtaKind(
             offer,
@@ -266,15 +266,16 @@ class TournamentDetailCategoryCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _CategoryCtaButton(
-            kind: ctaKind,
-            onPressed: switch (ctaKind) {
-              TournamentCategoryCtaKind.register => onRegister,
-              TournamentCategoryCtaKind.viewRegistration =>
-                () => _openRegistrationSuccess(context),
-              _ => null,
-            },
-          ),
+          if (!offer.isCompleted)
+            _CategoryCtaButton(
+              kind: ctaKind,
+              onPressed: switch (ctaKind) {
+                TournamentCategoryCtaKind.register => onRegister,
+                TournamentCategoryCtaKind.viewRegistration =>
+                  () => _openRegistrationSuccess(context),
+                _ => null,
+              },
+            ),
         ],
       ),
     );

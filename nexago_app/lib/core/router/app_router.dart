@@ -69,6 +69,7 @@ import '../../features/athlete/presentation/athlete_shell_page.dart';
 import '../../features/tournaments/presentation/league_detail_page.dart';
 import '../../features/ranking/presentation/athlete_ranking_page.dart';
 import '../../features/tournaments/presentation/tournament_discovery_list_page.dart';
+import '../../features/tournaments/presentation/double_elimination_bracket_page.dart';
 import '../../features/tournaments/presentation/tournament_detail_page.dart';
 import '../../features/tournaments/presentation/tournament_partner_invite_page.dart';
 import '../../features/tournaments/domain/tournament_registration_logic.dart';
@@ -444,6 +445,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final id = state.pathParameters['tournamentId']?.trim() ?? '';
           return TournamentDetailPage(tournamentId: id);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.tournamentDoubleEliminationBracket,
+        name: AppRouteNames.tournamentDoubleEliminationBracket,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final categoryId = state.pathParameters['categoryId']?.trim() ?? '';
+          return DoubleEliminationBracketPage(
+            tournamentId: tournamentId,
+            categoryId: categoryId,
+          );
         },
       ),
       GoRoute(

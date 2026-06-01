@@ -205,6 +205,32 @@ String bracketFormatLabel(String raw) {
   };
 }
 
+/// Formato de chave dupla eliminatória (sem fase de grupos).
+bool isDoubleEliminationBracketFormat(String raw) {
+  final n = raw.trim().toLowerCase();
+  if (n.isEmpty) return false;
+  return n == 'double elimination' ||
+      n.contains('double elim') ||
+      (n.contains('dupla') && n.contains('elim'));
+}
+
+/// Categorias com fase de grupos/pools (ex.: Pool Play + SE).
+bool categoryHasGroupsPhase(TournamentCategoryOffer offer) {
+  final n = offer.bracketFormat.trim().toLowerCase();
+  if (n.isEmpty) return false;
+  if (isDoubleEliminationBracketFormat(offer.bracketFormat)) return false;
+  if (n == 'single elimination') return false;
+  return n.contains('pool') ||
+      n.contains('grupo') ||
+      n.contains('group cross') ||
+      n.contains('play-in');
+}
+
+/// Exibe a aba Grupos quando ao menos uma categoria tem fase de grupos.
+bool tournamentShouldShowGroupsTab(TournamentDetail tournament) {
+  return tournament.categoryOffers.any(categoryHasGroupsPhase);
+}
+
 String tournamentCategorySubtitle(TournamentCategoryOffer offer) {
   final fee = offer.entryFee;
   final feeLabel = fee > 0

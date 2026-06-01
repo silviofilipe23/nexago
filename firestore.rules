@@ -78,6 +78,59 @@ service cloud.firestore {
         resource.data.role == 'athlete'
       );
     }
+    /** Atleta logado pré-cadastra parceiro sem conta (inscrição em torneio). */
+    function authUserHasAthleteProfile() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'athlete' ||
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles is list &&
+            'athlete' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles
+          )
+        );
+    }
+    function inviterCanPreRegisterPartner() {
+      return request.auth != null && (
+        hasRoleClaim('athlete') ||
+        authUserHasAthleteProfile()
+      );
+    }
+    function isPartnerPreRegistrationCreate(targetUserId) {
+      return request.auth != null &&
+        request.auth.uid != targetUserId &&
+        inviterCanPreRegisterPartner() &&
+        request.resource.data.role == 'athlete' &&
+        request.resource.data.partnerInviteStatus == 'pending' &&
+        request.resource.data.invitedByUid == request.auth.uid &&
+        request.resource.data.fullName is string &&
+        request.resource.data.fullName.size() > 0 &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() > 0 &&
+        (
+          !('roles' in request.resource.data) ||
+          (
+            request.resource.data.roles is list &&
+            request.resource.data.roles.hasOnly(['athlete'])
+          )
+        ) &&
+        (!('superAdmin' in request.resource.data) || request.resource.data.superAdmin == false);
+    }
+    function isPartnerPreRegistrationUpdateByInviter(targetUserId) {
+      return request.auth != null &&
+        request.auth.uid != targetUserId &&
+        resource.data.partnerInviteStatus == 'pending' &&
+        resource.data.invitedByUid == request.auth.uid &&
+        request.resource.data.partnerInviteStatus == 'pending' &&
+        request.resource.data.invitedByUid == request.auth.uid &&
+        request.resource.data.role == 'athlete' &&
+        (
+          !('roles' in request.resource.data) ||
+          (
+            request.resource.data.roles is list &&
+            request.resource.data.roles.hasOnly(['athlete'])
+          )
+        );
+    }
     function isArenaManagerByArenaId(arenaId) {
       return request.auth != null &&
         exists(/databases/$(database)/documents/arenas/$(arenaId)) &&
@@ -325,10 +378,14 @@ service cloud.firestore {
         (resource != null && userDocIsPublicAthlete(resource)) ||
         (request.auth != null && (
           request.auth.uid == userId ||
-          isAdmin()
+          isAdmin() ||
+          (
+            resource.data.partnerInviteStatus == 'pending' &&
+            resource.data.invitedByUid == request.auth.uid
+          )
         ));
       
-      // Criar: próprio usuário ou qualquer admin (organizadores podem criar usuários)
+      // Criar: próprio usuário, admin ou pré-cadastro de parceiro (inscrição)
       allow create: if request.auth != null && (
         (
           request.auth.uid == userId &&
@@ -342,11 +399,12 @@ service cloud.firestore {
           ) &&
           (!('superAdmin' in request.resource.data) || request.resource.data.superAdmin == false)
         ) ||
-        isAdmin()
+        isAdmin() ||
+        isPartnerPreRegistrationCreate(userId)
       );
       
       // Atualizar: próprio usuário pode atualizar a si mesmo sem alterar role/superAdmin;
-      // atualizar outros só super admin
+      // super admin ou convidador do parceiro pendente
       allow update: if request.auth != null && (
         (
           request.auth.uid == userId &&
@@ -371,7 +429,8 @@ service cloud.firestore {
             request.resource.data.superAdmin == resource.data.superAdmin
           )
         ) ||
-        isSuperAdmin()
+        isSuperAdmin() ||
+        isPartnerPreRegistrationUpdateByInviter(userId)
       );
       
       // Deletar: apenas super admin pode deletar usuários (e apenas outros, não a si mesmo)
@@ -674,16 +733,12 @@ service cloud.firestore {
         isAdmin()
       );
       
-      // Deletar inscrição: apenas o jogador que faz parte da equipe pode deletar
-      // OU um admin pode deletar qualquer inscrição
-      // OU o manager do torneio pode deletar
+      // Deletar inscrição: jogador da dupla, gestor do torneio ou quem pode administrá-lo
       allow delete: if request.auth != null && (
         (exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)) &&
          (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player1Id == request.auth.uid ||
           get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player2Id == request.auth.uid)) ||
-        isAdmin() ||
-        (exists(/databases/$(database)/documents/tournaments/$(resource.data.tournamentId)) &&
-         get(/databases/$(database)/documents/tournaments/$(resource.data.tournamentId)).data.managerId == request.auth.uid)
+        canManageTournament(resource.data.tournamentId)
       );
     }
 

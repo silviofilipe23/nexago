@@ -33,28 +33,45 @@ List<TournamentMatch> bracketMatchesForCategory(
   List<TournamentMatch> matches,
   String categoryId,
 ) {
-  return filterMatchesByCategory(matches, categoryId)
-      .where((m) => m.isBracketMatch)
-      .toList()
-    ..sort((a, b) {
-      final r = a.round.compareTo(b.round);
-      if (r != 0) return r;
-      return a.matchNumber.compareTo(b.matchNumber);
-    });
+  return filterMatchesByCategory(
+    matches,
+    categoryId,
+  ).where((m) => m.isBracketMatch).toList()..sort((a, b) {
+    final groupOrder = bracketGroupSortOrder(
+      a,
+    ).compareTo(bracketGroupSortOrder(b));
+    if (groupOrder != 0) return groupOrder;
+    return a.matchNumber.compareTo(b.matchNumber);
+  });
 }
 
-List<TournamentMatch> poolMatchesForCategory(
-  List<TournamentMatch> matches,
-  String categoryId,
-) {
-  return filterMatchesByCategory(matches, categoryId)
-      .where((m) => m.isPoolMatch)
-      .toList()
-    ..sort((a, b) {
-      final p = a.poolId.compareTo(b.poolId);
-      if (p != 0) return p;
-      return a.matchNumber.compareTo(b.matchNumber);
-    });
+/// Chave composta para agrupar fases sem colapsar WB/LB ou tipos distintos no mesmo `round`.
+String bracketGroupKey(TournamentMatch match) {
+  final type = match.matchType.trim();
+  if (type == 'WB' || type == 'LB') return '$type:${match.round}';
+  if (type.isNotEmpty) return type;
+  final desc = match.description?.trim();
+  if (desc != null && desc.isNotEmpty) return 'desc:$desc';
+  return 'round:${match.round}';
+}
+
+int bracketGroupSortOrder(TournamentMatch match) {
+  final type = match.matchType.trim().toLowerCase();
+  // Dupla eliminatória: WB1 → LB1 → WB2 → LB2 …
+  if (type == 'wb') return match.round * 10;
+  if (type == 'lb') return match.round * 10 + 5;
+  if (type == 'third place') return 8900;
+  if (type == 'final') return 9000;
+  const knownOrder = <String, int>{
+    'round of 32': 10,
+    'round of 16': 20,
+    'quarter-final': 30,
+    'semi-final': 40,
+    'elimination': 50,
+    'other': 55,
+  };
+  final base = knownOrder[type] ?? 60;
+  return base * 10 + match.round;
 }
 
 List<TournamentMatchRoundGroup> groupBracketMatchesByRound(
@@ -62,20 +79,42 @@ List<TournamentMatchRoundGroup> groupBracketMatchesByRound(
 ) {
   if (matches.isEmpty) return const [];
 
-  final byRound = <int, List<TournamentMatch>>{};
-  for (final m in matches) {
-    byRound.putIfAbsent(m.round, () => []).add(m);
+  final byGroup = <String, List<TournamentMatch>>{};
+  for (final match in matches) {
+    byGroup.putIfAbsent(bracketGroupKey(match), () => []).add(match);
   }
 
-  final rounds = byRound.keys.toList()..sort();
-  return rounds
-      .map(
-        (r) => TournamentMatchRoundGroup(
-          roundLabel: bracketRoundGroupLabel(byRound[r]!),
-          matches: byRound[r]!,
-        ),
-      )
-      .toList();
+  final keys = byGroup.keys.toList()
+    ..sort((a, b) {
+      final aOrder = bracketGroupSortOrder(byGroup[a]!.first);
+      final bOrder = bracketGroupSortOrder(byGroup[b]!.first);
+      final orderCmp = aOrder.compareTo(bOrder);
+      if (orderCmp != 0) return orderCmp;
+      return a.compareTo(b);
+    });
+
+  return keys.map((key) {
+    final groupMatches = [...byGroup[key]!]
+      ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
+    return TournamentMatchRoundGroup(
+      roundLabel: bracketRoundGroupLabel(groupMatches),
+      matches: groupMatches,
+    );
+  }).toList();
+}
+
+List<TournamentMatch> poolMatchesForCategory(
+  List<TournamentMatch> matches,
+  String categoryId,
+) {
+  return filterMatchesByCategory(
+    matches,
+    categoryId,
+  ).where((m) => m.isPoolMatch).toList()..sort((a, b) {
+    final p = a.poolId.compareTo(b.poolId);
+    if (p != 0) return p;
+    return a.matchNumber.compareTo(b.matchNumber);
+  });
 }
 
 List<TournamentMatchPoolGroup> groupMatchesByPool(
@@ -106,4 +145,57 @@ String matchStatusLabel(String status) {
   if (s.contains('completed')) return 'Finalizada';
   if (s.contains('cancel')) return 'Cancelada';
   return 'Agendada';
+}
+
+bool matchInvolvesTeam(TournamentMatch match, String teamId) {
+  final id = teamId.trim();
+  if (id.isEmpty) return false;
+  return match.teamAId.trim() == id || match.teamBId.trim() == id;
+}
+
+bool matchInvolvesAnyTeam(TournamentMatch match, Set<String> teamIds) {
+  if (teamIds.isEmpty) return false;
+  return teamIds.any((teamId) => matchInvolvesTeam(match, teamId));
+}
+
+List<TournamentMatch> filterAthleteMatches(
+  List<TournamentMatch> matches,
+  Set<String> teamIds,
+) {
+  if (teamIds.isEmpty) return const [];
+  return matches.where((m) => matchInvolvesAnyTeam(m, teamIds)).toList();
+}
+
+String? athleteTeamIdForCategory(
+  Map<String, String> teamIdsByCategory,
+  String categoryId,
+) {
+  final key = categoryId.trim();
+  if (key.isEmpty) return null;
+
+  final exact = teamIdsByCategory[key]?.trim();
+  if (exact != null && exact.isNotEmpty) return exact;
+
+  final normalized = key.toLowerCase();
+  for (final entry in teamIdsByCategory.entries) {
+    if (entry.key.trim().toLowerCase() == normalized) {
+      final teamId = entry.value.trim();
+      if (teamId.isNotEmpty) return teamId;
+    }
+  }
+  return null;
+}
+
+Set<String> athleteTeamIdsForHighlight(Map<String, String> teamIdsByCategory) {
+  return teamIdsByCategory.values
+      .map((id) => id.trim())
+      .where((id) => id.isNotEmpty)
+      .toSet();
+}
+
+bool isAthleteMatchForHighlight(
+  TournamentMatch match,
+  Set<String> athleteTeamIds,
+) {
+  return matchInvolvesAnyTeam(match, athleteTeamIds);
 }

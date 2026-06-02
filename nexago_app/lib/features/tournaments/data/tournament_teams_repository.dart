@@ -54,15 +54,6 @@ class TournamentTeamsRepository {
 
   TournamentTeam? _fromSnapshot(DocumentSnapshot<Map<String, dynamic>> doc) {
     if (!doc.exists) return null;
-    final data = doc.data();
-    if (data == null) return null;
-    final p1 = _str(data['player1Id']) ?? '';
-    final p2 = _str(data['player2Id']) ?? '';
-    return TournamentTeam(id: doc.id, player1Id: p1, player2Id: p2);
-  }
-
-  static String? _str(dynamic v) {
-    if (v is String && v.trim().isNotEmpty) return v.trim();
-    return null;
+    return TournamentTeam.fromFirestore(doc);
   }
 }

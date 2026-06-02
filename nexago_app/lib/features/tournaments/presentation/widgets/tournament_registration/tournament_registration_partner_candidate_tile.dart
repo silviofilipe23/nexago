@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
 import '../../../domain/tournament_registration_logic.dart';
 
 class TournamentRegistrationPartnerCandidateTile extends StatelessWidget {
@@ -40,26 +41,10 @@ class TournamentRegistrationPartnerCandidateTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                alignment: Alignment.center,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [AppColors.brand, Color(0xFFCC0000)],
-                  ),
-                ),
-                child: Text(
-                  candidate.initials,
-                  style: AppTypography.mono(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.white,
-                  ),
-                ),
+              AthleteProfileAvatar(
+                size: 44,
+                initials: candidate.initials,
+                imageUrl: candidate.avatarUrl,
               ),
               const SizedBox(width: 12),
               Expanded(

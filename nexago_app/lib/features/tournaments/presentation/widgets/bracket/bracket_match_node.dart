@@ -15,12 +15,14 @@ class BracketMatchNode extends StatelessWidget {
     required this.isAthleteMatch,
     required this.isFinal,
     required this.athleteTeamIds,
+    this.onTap,
   });
 
   final TournamentMatchCardViewModel viewModel;
   final bool isAthleteMatch;
   final bool isFinal;
   final Set<String> athleteTeamIds;
+  final VoidCallback? onTap;
 
   static const _finalBackground = Color(0xFF1C1206);
 
@@ -53,14 +55,12 @@ class BracketMatchNode extends StatelessWidget {
             ? _setPillsForTeam(match: match, isTeamA: false)
             : const <String>[];
 
-    return SizedBox(
-      width: BracketLayoutMetrics.cardWidth,
-      height: BracketLayoutMetrics.cardHeight,
-      child: Container(
+    const radius = BorderRadius.all(Radius.circular(18));
+    final content = Container(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: radius,
           border: Border.all(color: borderColor, width: borderWidth),
         ),
         child: Column(
@@ -120,7 +120,21 @@ class BracketMatchNode extends StatelessWidget {
             ],
           ],
         ),
-      ),
+      );
+
+    return SizedBox(
+      width: BracketLayoutMetrics.cardWidth,
+      height: BracketLayoutMetrics.cardHeight,
+      child: onTap == null
+          ? content
+          : Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: radius,
+                child: content,
+              ),
+            ),
     );
   }
 }

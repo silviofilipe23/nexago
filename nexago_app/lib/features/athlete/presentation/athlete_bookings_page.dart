@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/auth/auth_providers.dart';
-import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_status_views.dart';
 import 'booking_details_page.dart';
+import '../../arenas/presentation/arena_booking_navigation.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../arenas/domain/my_booking_item.dart';
@@ -101,7 +100,7 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
                   SizedBox(
                     height: MediaQuery.of(context).size.height * 0.75,
                     child: _EmptyAgendaState(
-                      onBookNow: () => context.go(AppRoutes.discover),
+                      onBookNow: () => openDiscoverReservarTab(context, ref: ref),
                     ),
                   ),
                 ],

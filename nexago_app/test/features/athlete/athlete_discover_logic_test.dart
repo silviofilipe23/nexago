@@ -1,0 +1,139 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_discover_logic.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_discover_models.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_privacy_preferences.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_public_profile_models.dart';
+
+AthleteProfile _profile({
+  String id = 'a1',
+  String name = 'Rafael Antunes',
+  String gender = 'masculino',
+  String city = 'Goiânia',
+  String? state = 'GO',
+  String sport = 'Vôlei de praia',
+  String level = 'Avançado',
+  String? category = 'Cat A',
+  String? primarySportId = 'VOLEI_PRAIA',
+  bool lookingForPartner = false,
+  bool onboardingCompleted = true,
+  bool privateProfile = false,
+}) {
+  return AthleteProfile(
+    id: id,
+    name: name,
+    gender: gender,
+    city: city,
+    state: state,
+    sport: sport,
+    level: level,
+    category: category,
+    primarySportFirestoreId: primarySportId,
+    lookingForPartner: lookingForPartner,
+    onboardingCompleted: onboardingCompleted,
+    privacyPreferences: privateProfile
+        ? const AthletePrivacyPreferences(
+            profileVisibility: AthleteProfileVisibility.private,
+          )
+        : AthletePrivacyPreferences.defaults,
+  );
+}
+
+AthleteDiscoverEntry _entry({
+  AthleteProfile? profile,
+  int? rank,
+  int points = 100,
+}) {
+  final p = profile ?? _profile();
+  return buildDiscoverEntry(
+    profile: p,
+    ranking: AthletePublicRankingSnapshot(
+      rank: rank,
+      points: points,
+    ),
+  );
+}
+
+void main() {
+  group('applyDiscoverFilters', () {
+    test('excludes private profiles', () {
+      final entries = [
+        _entry(profile: _profile(id: '1')),
+        _entry(profile: _profile(id: '2', privateProfile: true)),
+      ];
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: AthleteDiscoverFilters.defaults,
+      );
+      expect(result, hasLength(1));
+      expect(result.first.userId, '1');
+    });
+
+    test('filters by quick category Cat B', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', category: 'Cat A')),
+        _entry(profile: _profile(id: '2', category: 'Cat B')),
+      ];
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: const AthleteDiscoverFilters(
+          quickCategory: AthleteDiscoverQuickCategory.catB,
+        ),
+      );
+      expect(result.single.userId, '2');
+    });
+
+    test('filters by gender', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', gender: 'masculino')),
+        _entry(profile: _profile(id: '2', gender: 'feminino')),
+      ];
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: const AthleteDiscoverFilters(
+          gender: AthleteDiscoverGenderFilter.female,
+        ),
+      );
+      expect(result.single.userId, '2');
+    });
+
+    test('filters by search query', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', name: 'Rafael')),
+        _entry(profile: _profile(id: '2', name: 'Marina')),
+      ];
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: AthleteDiscoverFilters.defaults,
+        searchQuery: 'marina',
+      );
+      expect(result.single.userId, '2');
+    });
+  });
+
+  group('sortDiscoverEntries', () {
+    test('sorts by ranking position', () {
+      final entries = [
+        _entry(profile: _profile(id: '1'), rank: 5, points: 100),
+        _entry(profile: _profile(id: '2'), rank: 2, points: 200),
+      ];
+      final sorted = sortDiscoverEntries(
+        entries: entries,
+        sort: AthleteDiscoverSort.ranking,
+      );
+      expect(sorted.map((e) => e.userId).toList(), ['2', '1']);
+    });
+
+    test('sorts by level segments', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', level: 'Iniciante')),
+        _entry(profile: _profile(id: '2', level: 'Avançado')),
+      ];
+      final sorted = sortDiscoverEntries(
+        entries: entries,
+        sort: AthleteDiscoverSort.level,
+      );
+      expect(sorted.first.userId, '2');
+    });
+  });
+}

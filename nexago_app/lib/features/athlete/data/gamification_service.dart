@@ -9,6 +9,13 @@ import '../domain/gamification_models.dart';
 import '../domain/profile_completion_models.dart';
 import '../domain/profile_completion_sync_result.dart';
 
+/// Mapas com valor `null` podem causar crash nativo (EXC_BAD_ACCESS) em transações iOS.
+Map<String, dynamic> _firestoreSafeMap(Map<String, dynamic> data) {
+  return Map<String, dynamic>.fromEntries(
+    data.entries.where((entry) => entry.value != null),
+  );
+}
+
 class GamificationService {
   GamificationService(this._firestore);
 
@@ -104,17 +111,21 @@ class GamificationService {
           ? GamificationSummary.fromMap(snap.data() ?? <String, dynamic>{})
           : GamificationSummary.initial();
       final nextXp = current.xp + amount;
-      tx.set(ref, <String, dynamic>{
-        'xp': nextXp,
-        'level': nextXp ~/ 100,
-        'streak': current.streak,
-        'lastGameDate': current.lastGameDate != null
-            ? Timestamp.fromDate(current.lastGameDate!)
-            : null,
-        'totalGames': current.totalGames,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'lastXpReason': reason,
-      }, SetOptions(merge: true));
+      tx.set(
+        ref,
+        _firestoreSafeMap(<String, dynamic>{
+          'xp': nextXp,
+          'level': nextXp ~/ 100,
+          'streak': current.streak,
+          'lastGameDate': current.lastGameDate != null
+              ? Timestamp.fromDate(current.lastGameDate!)
+              : null,
+          'totalGames': current.totalGames,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'lastXpReason': reason,
+        }),
+        SetOptions(merge: true),
+      );
     });
   }
 
@@ -141,18 +152,26 @@ class GamificationService {
       final xp = (data['xp'] as num?)?.toInt() ?? 0;
       final nextXp = xp + xpFavoriteArena;
 
-      tx.set(summaryRef, <String, dynamic>{
-        'favoriteArenasCount': favorites + 1,
-        'xp': nextXp,
-        'level': nextXp ~/ 100,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'lastXpReason': 'FAVORITE_ARENA',
-      }, SetOptions(merge: true));
-      tx.set(_eventRef(uid, eventId), <String, dynamic>{
-        'type': 'FAVORITE_ARENA',
-        'arenaId': aid,
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      tx.set(
+        summaryRef,
+        _firestoreSafeMap(<String, dynamic>{
+          'favoriteArenasCount': favorites + 1,
+          'xp': nextXp,
+          'level': nextXp ~/ 100,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'lastXpReason': 'FAVORITE_ARENA',
+        }),
+        SetOptions(merge: true),
+      );
+      tx.set(
+        _eventRef(uid, eventId),
+        _firestoreSafeMap(<String, dynamic>{
+          'type': 'FAVORITE_ARENA',
+          'arenaId': aid,
+          'createdAt': FieldValue.serverTimestamp(),
+        }),
+        SetOptions(merge: true),
+      );
     });
 
     await completeDailyMission(
@@ -171,10 +190,14 @@ class GamificationService {
       final summarySnap = await tx.get(summaryRef);
       final data = summarySnap.data() ?? <String, dynamic>{};
       final shares = (data['profileSharesCount'] as num?)?.toInt() ?? 0;
-      tx.set(summaryRef, <String, dynamic>{
-        'profileSharesCount': shares + 1,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      tx.set(
+        summaryRef,
+        _firestoreSafeMap(<String, dynamic>{
+          'profileSharesCount': shares + 1,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }),
+        SetOptions(merge: true),
+      );
     });
 
     await completeDailyMission(
@@ -206,17 +229,25 @@ class GamificationService {
       final xp = (data['xp'] as num?)?.toInt() ?? 0;
       final nextXp = xp + xpInvitePlayer;
 
-      tx.set(summaryRef, <String, dynamic>{
-        'invitesCount': invites + 1,
-        'xp': nextXp,
-        'level': nextXp ~/ 100,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'lastXpReason': 'INVITE_PLAYER',
-      }, SetOptions(merge: true));
-      tx.set(_eventRef(uid, eventId), <String, dynamic>{
-        'type': 'INVITE_PLAYER',
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      tx.set(
+        summaryRef,
+        _firestoreSafeMap(<String, dynamic>{
+          'invitesCount': invites + 1,
+          'xp': nextXp,
+          'level': nextXp ~/ 100,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'lastXpReason': 'INVITE_PLAYER',
+        }),
+        SetOptions(merge: true),
+      );
+      tx.set(
+        _eventRef(uid, eventId),
+        _firestoreSafeMap(<String, dynamic>{
+          'type': 'INVITE_PLAYER',
+          'createdAt': FieldValue.serverTimestamp(),
+        }),
+        SetOptions(merge: true),
+      );
     });
 
     // await completeDailyMission(
@@ -279,11 +310,15 @@ class GamificationService {
 
       final eventSnap = await tx.get(eventRef);
       if (eventSnap.exists) {
-        tx.set(missionRef, <String, dynamic>{
-          'date': dayKey,
-          'updatedAt': FieldValue.serverTimestamp(),
-          'missions': <String, dynamic>{mission.id: true},
-        }, SetOptions(merge: true));
+        tx.set(
+          missionRef,
+          _firestoreSafeMap(<String, dynamic>{
+            'date': dayKey,
+            'updatedAt': FieldValue.serverTimestamp(),
+            'missions': <String, dynamic>{mission.id: true},
+          }),
+          SetOptions(merge: true),
+        );
         return null;
       }
 
@@ -303,34 +338,46 @@ class GamificationService {
           : current.streak;
       final streakIncreased = countsForStreak && nextStreak > current.streak;
 
-      tx.set(missionRef, <String, dynamic>{
-        'date': dayKey,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'missions': <String, dynamic>{mission.id: true},
-      }, SetOptions(merge: true));
+      tx.set(
+        missionRef,
+        _firestoreSafeMap(<String, dynamic>{
+          'date': dayKey,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'missions': <String, dynamic>{mission.id: true},
+        }),
+        SetOptions(merge: true),
+      );
 
-      tx.set(eventRef, <String, dynamic>{
-        'type': 'DAILY_MISSION',
-        'missionId': mission.id,
-        'xp': def.xpReward,
-        'dayKey': dayKey,
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      tx.set(
+        eventRef,
+        _firestoreSafeMap(<String, dynamic>{
+          'type': 'DAILY_MISSION',
+          'missionId': mission.id,
+          'xp': def.xpReward,
+          'dayKey': dayKey,
+          'createdAt': FieldValue.serverTimestamp(),
+        }),
+        SetOptions(merge: true),
+      );
 
-      tx.set(summaryRef, <String, dynamic>{
-        'xp': nextXp,
-        'level': nextXp ~/ 100,
-        'totalGames': current.totalGames,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'lastXpReason': 'DAILY_MISSION_${mission.id}',
-        if (!countsForStreak) ...<String, dynamic>{
-          'streak': current.streak,
-          'lastGameDate': current.lastGameDate != null
-              ? Timestamp.fromDate(current.lastGameDate!)
-              : null,
-        },
-        if (countsForStreak) ...streakFields,
-      }, SetOptions(merge: true));
+      tx.set(
+        summaryRef,
+        _firestoreSafeMap(<String, dynamic>{
+          'xp': nextXp,
+          'level': nextXp ~/ 100,
+          'totalGames': current.totalGames,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'lastXpReason': 'DAILY_MISSION_${mission.id}',
+          if (!countsForStreak) ...<String, dynamic>{
+            'streak': current.streak,
+            'lastGameDate': current.lastGameDate != null
+                ? Timestamp.fromDate(current.lastGameDate!)
+                : null,
+          },
+          if (countsForStreak) ...streakFields,
+        }),
+        SetOptions(merge: true),
+      );
 
       return GamificationFeedback(
         xpGained: def.xpReward,
@@ -401,20 +448,28 @@ class GamificationService {
       final nextXp = current.xp + xpGameCompleted;
       final nextLevel = nextXp ~/ 100;
 
-      tx.set(summaryRef, <String, dynamic>{
-        'xp': nextXp,
-        'level': nextLevel,
-        'totalGames': nextTotalGames,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'lastXpReason': 'GAME_COMPLETED',
-        ...streakFields,
-      }, SetOptions(merge: true));
+      tx.set(
+        summaryRef,
+        _firestoreSafeMap(<String, dynamic>{
+          'xp': nextXp,
+          'level': nextLevel,
+          'totalGames': nextTotalGames,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'lastXpReason': 'GAME_COMPLETED',
+          ...streakFields,
+        }),
+        SetOptions(merge: true),
+      );
 
-      tx.set(eventRef, <String, dynamic>{
-        'type': 'GAME_COMPLETED',
-        'bookingId': bid,
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      tx.set(
+        eventRef,
+        _firestoreSafeMap(<String, dynamic>{
+          'type': 'GAME_COMPLETED',
+          'bookingId': bid,
+          'createdAt': FieldValue.serverTimestamp(),
+        }),
+        SetOptions(merge: true),
+      );
 
       return GamificationFeedback(
         xpGained: xpGameCompleted,
@@ -491,30 +546,42 @@ class GamificationService {
         final evSnap = eventSnaps[def.id]!;
         if (!evSnap.exists && def.xpReward > 0) {
           xp += def.xpReward;
-          tx.set(evRef, <String, dynamic>{
-            'type': 'ACHIEVEMENT_UNLOCK',
-            'achievementId': def.id,
-            'xp': def.xpReward,
-            'createdAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
+          tx.set(
+            evRef,
+            _firestoreSafeMap(<String, dynamic>{
+              'type': 'ACHIEVEMENT_UNLOCK',
+              'achievementId': def.id,
+              'xp': def.xpReward,
+              'createdAt': FieldValue.serverTimestamp(),
+            }),
+            SetOptions(merge: true),
+          );
         }
 
-        tx.set(_badgesCol(uid).doc(def.id), <String, dynamic>{
-          'badgeId': def.id,
-          'title': def.title,
-          'description': def.description,
-          'xpReward': def.xpReward,
-          'unlockedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        tx.set(
+          _badgesCol(uid).doc(def.id),
+          _firestoreSafeMap(<String, dynamic>{
+            'badgeId': def.id,
+            'title': def.title,
+            'description': def.description,
+            'xpReward': def.xpReward,
+            'unlockedAt': FieldValue.serverTimestamp(),
+          }),
+          SetOptions(merge: true),
+        );
         unlockedNow.add(def.id);
       }
 
       if (xp != initialXp) {
-        tx.set(_summaryRef(uid), <String, dynamic>{
-          'xp': xp,
-          'level': xp ~/ 100,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        tx.set(
+          _summaryRef(uid),
+          _firestoreSafeMap(<String, dynamic>{
+            'xp': xp,
+            'level': xp ~/ 100,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }),
+          SetOptions(merge: true),
+        );
       }
 
       return unlockedNow;
@@ -666,24 +733,32 @@ class GamificationService {
           : GamificationSummary.initial();
 
       final nextXp = current.xp + amount;
-      tx.set(summaryRef, <String, dynamic>{
-        'xp': nextXp,
-        'level': nextXp ~/ 100,
-        'streak': current.streak,
-        'lastGameDate': current.lastGameDate != null
-            ? Timestamp.fromDate(current.lastGameDate!)
-            : null,
-        'totalGames': current.totalGames,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'lastXpReason': step.xpReason,
-      }, SetOptions(merge: true));
+      tx.set(
+        summaryRef,
+        _firestoreSafeMap(<String, dynamic>{
+          'xp': nextXp,
+          'level': nextXp ~/ 100,
+          'streak': current.streak,
+          'lastGameDate': current.lastGameDate != null
+              ? Timestamp.fromDate(current.lastGameDate!)
+              : null,
+          'totalGames': current.totalGames,
+          'updatedAt': FieldValue.serverTimestamp(),
+          'lastXpReason': step.xpReason,
+        }),
+        SetOptions(merge: true),
+      );
 
-      tx.set(eventRef, <String, dynamic>{
-        'type': step.xpReason,
-        'stepId': step.id,
-        'xp': amount,
-        'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      tx.set(
+        eventRef,
+        _firestoreSafeMap(<String, dynamic>{
+          'type': step.xpReason,
+          'stepId': step.id,
+          'xp': amount,
+          'createdAt': FieldValue.serverTimestamp(),
+        }),
+        SetOptions(merge: true),
+      );
     });
 
     return GamificationFeedback(

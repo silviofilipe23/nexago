@@ -120,16 +120,19 @@ class _HeroTopSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
+                    flex: 3,
                     child: _MetaItem(
                       icon: Icons.location_on_outlined,
                       label: locationText,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  _MetaItem(
-                    icon: Icons.calendar_today_outlined,
-                    label: dateLabel,
-                    shrinkWrap: true,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: _MetaItem(
+                      icon: Icons.calendar_today_outlined,
+                      label: dateLabel,
+                    ),
                   ),
                 ],
               ),
@@ -145,12 +148,10 @@ class _MetaItem extends StatelessWidget {
   const _MetaItem({
     required this.icon,
     required this.label,
-    this.shrinkWrap = false,
   });
 
   final IconData icon;
   final String label;
-  final bool shrinkWrap;
 
   @override
   Widget build(BuildContext context) {
@@ -161,8 +162,7 @@ class _MetaItem extends StatelessWidget {
       height: 1.35,
     );
 
-    final content = Row(
-      mainAxisSize: shrinkWrap ? MainAxisSize.min : MainAxisSize.max,
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(
@@ -171,19 +171,16 @@ class _MetaItem extends StatelessWidget {
           color: AppColors.onSurfaceMuted,
         ),
         const SizedBox(width: 6),
-        Flexible(
+        Expanded(
           child: Text(
             label,
             style: textStyle,
-            maxLines: shrinkWrap ? 2 : 3,
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
     );
-
-    if (shrinkWrap) return content;
-    return content;
   }
 }
 

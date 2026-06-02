@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
 import '../../../domain/app_user_profile.dart';
 
 class TournamentRegistrationRecentPartnersChips extends StatelessWidget {
@@ -34,7 +35,7 @@ class TournamentRegistrationRecentPartnersChips extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         SizedBox(
-          height: 40,
+          height: 44,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: partners.length,
@@ -47,6 +48,11 @@ class TournamentRegistrationRecentPartnersChips extends StatelessWidget {
               return FilterChip(
                 selected: selected,
                 showCheckmark: false,
+                avatar: AthleteProfileAvatar(
+                  size: 26,
+                  initials: appUserInitials(profile),
+                  imageUrl: profile.profilePhotoUrl,
+                ),
                 label: Text(label),
                 labelStyle: AppTypography.soraRegular(
                   fontSize: 13,

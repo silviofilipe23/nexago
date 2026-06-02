@@ -192,7 +192,7 @@ class _RegistrationRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final badgeColor =
-        registration.isPaid ? AppColors.pending : AppColors.pending;
+        registration.isPaid ? AppColors.brand : AppColors.pending;
 
     return Material(
       color: AppColors.surfaceCard,

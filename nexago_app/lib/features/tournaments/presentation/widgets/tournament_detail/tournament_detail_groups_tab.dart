@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
+import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/tournament_detail_model.dart';
@@ -36,6 +38,16 @@ class _TournamentDetailGroupsTabState
     _categoryId = widget.tournament.categoryOffers.isNotEmpty
         ? widget.tournament.categoryOffers.first.id
         : '';
+  }
+
+  void _openMatchDetail(BuildContext context, String matchId) {
+    final id = matchId.trim();
+    if (id.isEmpty) return;
+    context.pushNamed(
+      AppRouteNames.athleteMatchDetail,
+      pathParameters: {'matchId': id},
+      queryParameters: {AppRoutes.matchDetailFromTournamentQuery: '1'},
+    );
   }
 
   @override
@@ -162,6 +174,7 @@ class _TournamentDetailGroupsTabState
                       match,
                       athleteTeamIds,
                     ),
+                    onTap: () => _openMatchDetail(context, match.id),
                   ),
               ],
           ],

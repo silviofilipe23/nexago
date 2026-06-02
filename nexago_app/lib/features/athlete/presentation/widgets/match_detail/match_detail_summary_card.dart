@@ -1,8 +1,8 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
+import '../athlete_profile_avatar.dart';
 
 class MatchDetailSummaryCard extends StatelessWidget {
   const MatchDetailSummaryCard({super.key, required this.detail});
@@ -12,8 +12,8 @@ class MatchDetailSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isWin = detail.isWin;
-    final accent = isWin ? AppColors.win : AppColors.live;
+    final accent = _summaryAccent(detail);
+    final winnerId = detail.winnerTeamId?.trim() ?? '';
 
     return Container(
       decoration: BoxDecoration(
@@ -35,7 +35,13 @@ class MatchDetailSummaryCard extends StatelessWidget {
           const SizedBox(height: 20),
           Row(
             children: [
-              Expanded(child: _TeamColumn(side: detail.ourTeam, accent: accent)),
+              Expanded(
+                child: _TeamColumn(
+                  side: detail.ourTeam,
+                  accent: accent,
+                  isWinner: _isWinnerSide(detail.ourTeam, winnerId),
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Text(
@@ -47,7 +53,11 @@ class MatchDetailSummaryCard extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: _TeamColumn(side: detail.opponentTeam, accent: accent),
+                child: _TeamColumn(
+                  side: detail.opponentTeam,
+                  accent: accent,
+                  isWinner: _isWinnerSide(detail.opponentTeam, winnerId),
+                ),
               ),
             ],
           ),
@@ -59,7 +69,9 @@ class MatchDetailSummaryCard extends StatelessWidget {
                 Expanded(
                   child: _SetBox(
                     set: detail.sets[i],
-                    highlight: detail.sets[i].isWin,
+                    highlight: detail.isParticipantView
+                        ? detail.sets[i].isWin
+                        : detail.sets[i].ourScore > detail.sets[i].opponentScore,
                   ),
                 ),
               ],
@@ -68,6 +80,19 @@ class MatchDetailSummaryCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static Color _summaryAccent(AthleteMatchDetail detail) {
+    if (!detail.isParticipantView) {
+      return detail.isMatchLive ? AppColors.brand : AppColors.onSurfaceMuted;
+    }
+    return detail.isWin ? AppColors.win : AppColors.live;
+  }
+
+  static bool _isWinnerSide(MatchTeamSide side, String winnerId) {
+    if (winnerId.isEmpty) return false;
+    final id = side.teamId?.trim() ?? '';
+    return id.isNotEmpty && id == winnerId;
   }
 }
 
@@ -115,16 +140,24 @@ class _ResultBadge extends StatelessWidget {
 }
 
 class _TeamColumn extends StatelessWidget {
-  const _TeamColumn({required this.side, required this.accent});
+  const _TeamColumn({
+    required this.side,
+    required this.accent,
+    this.isWinner = false,
+  });
 
   final MatchTeamSide side;
   final Color accent;
+  final bool isWinner;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final roleColor =
-        side.isCurrentUser ? AppColors.brand : AppColors.onSurfaceMuted;
+    final roleColor = side.isCurrentUser
+        ? AppColors.brand
+        : isWinner
+            ? AppColors.win
+            : AppColors.onSurfaceMuted;
 
     return Column(
       children: [
@@ -135,7 +168,7 @@ class _TeamColumn extends StatelessWidget {
           textAlign: TextAlign.center,
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: isWinner ? AppColors.win : AppColors.onSurface,
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -170,68 +203,22 @@ class _AvatarStack extends StatelessWidget {
           if (players.isNotEmpty)
             Positioned(
               left: 0,
-              child: _AvatarCircle(player: players.first),
+              child: AthleteProfileAvatar(
+                size: 44,
+                initials: players.first.initials,
+                imageUrl: players.first.avatarUrl,
+              ),
             ),
           if (players.length > 1)
             Positioned(
               right: 0,
-              child: _AvatarCircle(player: players[1]),
+              child: AthleteProfileAvatar(
+                size: 44,
+                initials: players[1].initials,
+                imageUrl: players[1].avatarUrl,
+              ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _AvatarCircle extends StatelessWidget {
-  const _AvatarCircle({required this.player});
-
-  final MatchTeamPlayer player;
-
-  static const _size = 44.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final url = player.avatarUrl?.trim();
-    final hasPhoto = url != null && url.isNotEmpty;
-    final backgroundColor = Color(player.avatarColor);
-
-    return Container(
-      width: _size,
-      height: _size,
-      decoration: BoxDecoration(
-        color: hasPhoto ? null : backgroundColor,
-        shape: BoxShape.circle,
-        border: Border.all(color: AppColors.canvas, width: 2),
-      ),
-      child: ClipOval(
-        child: hasPhoto
-            ? CachedNetworkImage(
-                imageUrl: url,
-                width: _size,
-                height: _size,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => _initialsFallback(backgroundColor),
-                errorWidget: (_, __, ___) => _initialsFallback(backgroundColor),
-              )
-            : _initialsFallback(backgroundColor),
-      ),
-    );
-  }
-
-  Widget _initialsFallback(Color backgroundColor) {
-    return Container(
-      width: _size,
-      height: _size,
-      alignment: Alignment.center,
-      color: backgroundColor,
-      child: Text(
-        player.initials,
-        style: const TextStyle(
-          fontWeight: FontWeight.w900,
-          fontSize: 13,
-          color: AppColors.white,
-        ),
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
+import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../data/tournament_inscriptions_repository.dart';
 import '../domain/double_elimination_bracket_layout.dart';
@@ -20,6 +21,16 @@ class DoubleEliminationBracketPage extends ConsumerWidget {
 
   final String tournamentId;
   final String categoryId;
+
+  void _openMatchDetail(BuildContext context, String matchId) {
+    final id = matchId.trim();
+    if (id.isEmpty) return;
+    context.pushNamed(
+      AppRouteNames.athleteMatchDetail,
+      pathParameters: {'matchId': id},
+      queryParameters: {AppRoutes.matchDetailFromTournamentQuery: '1'},
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -120,6 +131,7 @@ class DoubleEliminationBracketPage extends ConsumerWidget {
                   layout: layout,
                   cardsById: cardsById,
                   athleteTeamIds: athleteTeamIds,
+                  onMatchTap: (matchId) => _openMatchDetail(context, matchId),
                 ),
               ),
             ],

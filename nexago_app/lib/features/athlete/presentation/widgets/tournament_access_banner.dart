@@ -3,25 +3,20 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../domain/profile_access.dart';
-
 /// Banner quando torneios oficiais estão bloqueados por perfil/onboarding.
 class TournamentAccessBanner extends StatelessWidget {
   const TournamentAccessBanner({
     super.key,
     required this.onboardingCompleted,
-    required this.profileStepsComplete,
+    required this.blockMessage,
   });
 
   final bool onboardingCompleted;
-  final bool profileStepsComplete;
+  final String? blockMessage;
 
   @override
   Widget build(BuildContext context) {
-    final message = tournamentAccessBlockMessage(
-      onboardingCompleted: onboardingCompleted,
-      profileStepsComplete: profileStepsComplete,
-    );
+    final message = blockMessage;
     if (message == null) return const SizedBox.shrink();
 
     final theme = Theme.of(context);

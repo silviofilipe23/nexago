@@ -6,7 +6,6 @@ import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../athlete/domain/athlete_shell_providers.dart';
-import '../../../athlete/domain/profile_access.dart';
 import '../../../athlete/domain/tournament_access_providers.dart';
 import '../../domain/tournament_partner_invite.dart';
 import '../../domain/tournament_partner_invite_providers.dart';
@@ -80,10 +79,7 @@ class _TournamentInviteAcceptCoordinatorState
     final access = ref.read(tournamentAccessStateProvider);
     if (!access.canAccess) {
       if (!context.mounted) return;
-      final message = tournamentAccessBlockMessage(
-        onboardingCompleted: access.onboardingCompleted,
-        profileStepsComplete: access.profileStepsComplete,
-      );
+      final message = access.blockMessage;
       if (message != null) {
         showAppSnackBar(context, message, isError: true);
       }
@@ -131,10 +127,7 @@ class _TournamentInviteAcceptCoordinatorState
             if (!context.mounted) return;
             final snackAccess = ref.read(tournamentAccessStateProvider);
             if (!snackAccess.canAccess) {
-              final message = tournamentAccessBlockMessage(
-                onboardingCompleted: snackAccess.onboardingCompleted,
-                profileStepsComplete: snackAccess.profileStepsComplete,
-              );
+              final message = snackAccess.blockMessage;
               if (message != null) {
                 showAppSnackBar(context, message, isError: true);
               }

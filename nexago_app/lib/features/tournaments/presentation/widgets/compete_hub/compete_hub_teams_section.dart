@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
-import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/compete_hub_models.dart';
 import '../../../domain/compete_hub_providers.dart';
 import 'compete_hub_section_header.dart';
@@ -20,8 +21,9 @@ class CompeteHubTeamsSection extends ConsumerWidget {
       children: [
         CompeteHubSectionHeader(
           title: 'Equipes',
-          actionLabel: 'VER DUPLA',
-          onActionTap: () => showAppSnackBar(context, 'Em breve.'),
+          actionLabel: 'VER DUPLAS',
+          onActionTap: () =>
+              context.pushNamed(AppRouteNames.teamDiscover),
         ),
         const SizedBox(height: 10),
         _TeamCard(team: team),
@@ -41,7 +43,7 @@ class _TeamCard extends StatelessWidget {
       color: AppColors.surfaceCard,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        onTap: () => showAppSnackBar(context, 'Em breve.'),
+        onTap: () => context.pushNamed(AppRouteNames.teamDiscover),
         borderRadius: BorderRadius.circular(14),
         child: Container(
           padding: const EdgeInsets.all(14),

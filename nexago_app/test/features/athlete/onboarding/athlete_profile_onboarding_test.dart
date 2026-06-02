@@ -35,6 +35,7 @@ void main() {
         primarySportFirestoreId: 'VOLEI_PRAIA',
         secondarySportFirestoreIds: ['BEACH_TENNIS'],
         onboardingCompleted: true,
+        isProfileComplete: true,
       );
 
       final data = profile.toFirestore();

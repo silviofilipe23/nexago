@@ -30,11 +30,16 @@ class AthleteProfile {
     this.secondarySportFirestoreIds = const [],
     this.otherSportNote,
     this.onboardingCompleted = false,
+    this.isProfileComplete = false,
     this.useBiometric = false,
     this.levelsBySportFirestore = const {},
     this.notificationPreferences = AthleteNotificationPreferences.defaults,
     this.privacyPreferences = AthletePrivacyPreferences.defaults,
     this.publicProfileEnabled = true,
+    this.category,
+    this.lookingForPartner = false,
+    this.gameObjective,
+    this.lastActiveAt,
   });
 
   final String id;
@@ -60,6 +65,8 @@ class AthleteProfile {
   final List<String> secondarySportFirestoreIds;
   final String? otherSportNote;
   final bool onboardingCompleted;
+  /// Flag persistida em `users.isProfileComplete` (5 passos + sync de gamificação).
+  final bool isProfileComplete;
   final bool useBiometric;
   /// Nível por esporte em `sportOnboarding.levelsBySport` (código FS → código nível).
   final Map<String, String> levelsBySportFirestore;
@@ -67,6 +74,15 @@ class AthleteProfile {
   final AthletePrivacyPreferences privacyPreferences;
   /// Alinhado com web (`athlete_profiles`); derivado de [privacyPreferences].
   final bool publicProfileEnabled;
+  final String? category;
+  final bool lookingForPartner;
+  final String? gameObjective;
+  final DateTime? lastActiveAt;
+
+  bool get isDiscoverable =>
+      publicProfileEnabled &&
+      privacyPreferences.profileVisibility !=
+          AthleteProfileVisibility.private;
 
   factory AthleteProfile.draft(User user) {
     final email = user.email;
@@ -185,7 +201,6 @@ class AthleteProfile {
     final onboardingCompleted = isProfileComplete ||
         (onboardingRaw is bool && onboardingRaw) ||
         (sportOnboarding is Map && sportOnboarding['completedAt'] != null);
-
     final birthRaw = (data['birthDate'] as String?)?.trim();
     final birthDate = birthRaw != null && birthRaw.isNotEmpty
         ? AthleteFirestoreCodes.birthDateIsoToBr(birthRaw) ?? birthRaw
@@ -223,6 +238,7 @@ class AthleteProfile {
       secondarySportFirestoreIds: secondarySportFirestoreIds,
       otherSportNote: otherSportNote,
       onboardingCompleted: onboardingCompleted,
+      isProfileComplete: isProfileComplete,
       useBiometric: data['useBiometric'] == true,
       levelsBySportFirestore: levelsBySportFirestore,
       notificationPreferences: AthleteNotificationPreferences.fromFirestore(
@@ -232,7 +248,32 @@ class AthleteProfile {
         data['privacyPreferences'],
       ),
       publicProfileEnabled: _resolvePublicProfileEnabled(data),
+      category: _readOptionalString(data['category']),
+      lookingForPartner: data['lookingForPartner'] == true,
+      gameObjective: _resolveGameObjective(data),
+      lastActiveAt: _readTimestamp(data['lastActiveAt']),
     );
+  }
+
+  static String? _readOptionalString(dynamic raw) {
+    if (raw is! String) return null;
+    final t = raw.trim();
+    return t.isEmpty ? null : t;
+  }
+
+  static DateTime? _readTimestamp(dynamic raw) {
+    if (raw is Timestamp) return raw.toDate();
+    return null;
+  }
+
+  static String? _resolveGameObjective(Map<String, dynamic> data) {
+    final direct = _readOptionalString(data['gameObjective']);
+    if (direct != null) return direct;
+    final onboarding = data['sportOnboarding'];
+    if (onboarding is Map) {
+      return _readOptionalString(onboarding['gameObjective']);
+    }
+    return null;
   }
 
   static bool _resolvePublicProfileEnabled(Map<String, dynamic> data) {
@@ -334,7 +375,7 @@ class AthleteProfile {
       if (nickname != null && nickname!.isNotEmpty) 'nickname': nickname,
       if (avatarUrl != null && avatarUrl!.isNotEmpty)
         'profilePhotoUrl': avatarUrl!.trim(),
-      'isProfileComplete': onboardingCompleted,
+      'isProfileComplete': isProfileComplete,
       'sportOnboarding': sportOnboarding,
       if (sport.trim().isNotEmpty) 'sport': sport.trim(),
       if (level.trim().isNotEmpty) 'level': level.trim(),
@@ -400,11 +441,16 @@ class AthleteProfile {
     List<String>? secondarySportFirestoreIds,
     String? otherSportNote,
     bool? onboardingCompleted,
+    bool? isProfileComplete,
     bool? useBiometric,
     Map<String, String>? levelsBySportFirestore,
     AthleteNotificationPreferences? notificationPreferences,
     AthletePrivacyPreferences? privacyPreferences,
     bool? publicProfileEnabled,
+    Object? category = _copyWithUnset,
+    bool? lookingForPartner,
+    Object? gameObjective = _copyWithUnset,
+    Object? lastActiveAt = _copyWithUnset,
     bool clearAvatar = false,
     bool clearCoverPhoto = false,
     bool clearPhone = false,
@@ -437,6 +483,7 @@ class AthleteProfile {
           secondarySportFirestoreIds ?? this.secondarySportFirestoreIds,
       otherSportNote: otherSportNote ?? this.otherSportNote,
       onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
+      isProfileComplete: isProfileComplete ?? this.isProfileComplete,
       useBiometric: useBiometric ?? this.useBiometric,
       levelsBySportFirestore:
           levelsBySportFirestore ?? this.levelsBySportFirestore,
@@ -445,6 +492,16 @@ class AthleteProfile {
       privacyPreferences: privacyPreferences ?? this.privacyPreferences,
       publicProfileEnabled:
           publicProfileEnabled ?? this.publicProfileEnabled,
+      category: identical(category, _copyWithUnset)
+          ? this.category
+          : category as String?,
+      lookingForPartner: lookingForPartner ?? this.lookingForPartner,
+      gameObjective: identical(gameObjective, _copyWithUnset)
+          ? this.gameObjective
+          : gameObjective as String?,
+      lastActiveAt: identical(lastActiveAt, _copyWithUnset)
+          ? this.lastActiveAt
+          : lastActiveAt as DateTime?,
     );
   }
 }

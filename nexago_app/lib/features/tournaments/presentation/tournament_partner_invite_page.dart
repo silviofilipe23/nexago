@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
-import '../../athlete/domain/profile_access.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
 import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../../../core/theme/app_colors.dart';
@@ -69,10 +68,7 @@ class _TournamentPartnerInvitePageState
 
   void _showProfileAccessBlocked() {
     final access = ref.read(tournamentAccessStateProvider);
-    final message = tournamentAccessBlockMessage(
-      onboardingCompleted: access.onboardingCompleted,
-      profileStepsComplete: access.profileStepsComplete,
-    );
+    final message = access.blockMessage;
     if (message != null && mounted) {
       showAppSnackBar(context, message, isError: true);
     }
@@ -297,7 +293,7 @@ class _TournamentPartnerInvitePageState
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
             child: TournamentAccessBanner(
               onboardingCompleted: access.onboardingCompleted,
-              profileStepsComplete: access.profileStepsComplete,
+              blockMessage: access.blockMessage,
             ),
           )
         : null;

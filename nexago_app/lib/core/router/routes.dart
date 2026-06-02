@@ -60,6 +60,9 @@ abstract final class AppRoutes {
   /// Detalhe de partida: `/athlete/history/match/:matchId`
   static const String athleteMatchDetail = '/athlete/history/match/:matchId';
 
+  /// Query em [athleteMatchDetail]: `1` oculta «Ir ao torneio» (já está no torneio).
+  static const String matchDetailFromTournamentQuery = 'fromTournament';
+
   /// Detalhe do torneio (campanha): `/athlete/history/tournament/:tournamentId`
   static const String athleteTournamentDetail =
       '/athlete/history/tournament/:tournamentId';
@@ -174,6 +177,12 @@ abstract final class AppRoutes {
 
   /// Ranking de atletas (temporada).
   static const String athleteRanking = '/competir/ranking';
+
+  /// Descobrir atletas (catálogo público).
+  static const String athleteDiscover = '/competir/descobrir';
+
+  /// Listagem de duplas (catálogo público).
+  static const String teamDiscover = '/competir/duplas';
 }
 
 abstract final class AppRouteNames {
@@ -252,4 +261,6 @@ abstract final class AppRouteNames {
   static const String leagueDetail = 'leagueDetail';
   static const String tournamentDiscoveryList = 'tournamentDiscoveryList';
   static const String athleteRanking = 'athleteRanking';
+  static const String athleteDiscover = 'athleteDiscover';
+  static const String teamDiscover = 'teamDiscover';
 }

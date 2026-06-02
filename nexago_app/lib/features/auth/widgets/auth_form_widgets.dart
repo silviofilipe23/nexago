@@ -56,10 +56,10 @@ class AuthFieldLabel extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: highlighted ? AppColors.brand : AppColors.onSurfaceMuted,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-            ),
+          color: highlighted ? AppColors.brand : AppColors.onSurfaceMuted,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.8,
+        ),
       ),
     );
   }
@@ -103,9 +103,7 @@ class AuthTextField extends StatelessWidget {
   Widget build(BuildContext context) {
     final borderSide = borderless
         ? BorderSide.none
-        : BorderSide(
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.22),
-          );
+        : BorderSide(color: AppColors.onSurfaceMuted.withValues(alpha: 0.22));
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: borderSide,
@@ -133,7 +131,9 @@ class AuthTextField extends StatelessWidget {
           fontWeight: FontWeight.w400,
         ),
         filled: true,
-        fillColor: borderless ? AppColors.surfaceRaised : AppColors.surfaceSheet,
+        fillColor: borderless
+            ? AppColors.surfaceRaised
+            : AppColors.surfaceSheet,
         errorText: errorText,
         suffixIcon: suffixIcon,
         prefixIcon: prefixIcon,
@@ -146,7 +146,10 @@ class AuthTextField extends StatelessWidget {
         focusedBorder: borderless
             ? border
             : border.copyWith(
-                borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
+                borderSide: const BorderSide(
+                  color: AppColors.brand,
+                  width: 1.5,
+                ),
               ),
         errorBorder: border.copyWith(
           borderSide: const BorderSide(color: AppColors.live),
@@ -161,11 +164,7 @@ class AuthTextField extends StatelessWidget {
 
 /// Indicador de passo do wizard (ex.: PASSO 1 / 5).
 class AuthStepBadge extends StatelessWidget {
-  const AuthStepBadge({
-    super.key,
-    required this.current,
-    required this.total,
-  });
+  const AuthStepBadge({super.key, required this.current, required this.total});
 
   final int current;
   final int total;
@@ -184,11 +183,11 @@ class AuthStepBadge extends StatelessWidget {
       child: Text(
         'PASSO $current / $total',
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: AppColors.onSurfaceMuted,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.6,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
+          color: AppColors.onSurfaceMuted,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.6,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
       ),
     );
   }
@@ -237,10 +236,10 @@ class AuthKicker extends StatelessWidget {
       label,
       textAlign: TextAlign.center,
       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: AppColors.brand,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.4,
-          ),
+        color: AppColors.brand,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.4,
+      ),
     );
   }
 }
@@ -263,30 +262,25 @@ class AuthInfoBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.brand.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.brand.withValues(alpha: 0.28),
-        ),
+        border: Border.all(color: AppColors.brand.withValues(alpha: 0.28)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              icon,
-              size: 18,
-              color: AppColors.brand,
-            ),
+            Icon(icon, size: 18, color: AppColors.brand),
             const SizedBox(width: 10),
             Expanded(
-              child: child ??
+              child:
+                  child ??
                   Text(
                     message,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurface,
-                          fontWeight: FontWeight.w500,
-                          height: 1.4,
-                        ),
+                      color: AppColors.onSurface,
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
+                    ),
                   ),
             ),
           ],
@@ -303,10 +297,10 @@ class AuthResetInfoBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: AppColors.onSurface,
-          fontWeight: FontWeight.w500,
-          height: 1.4,
-        );
+      color: AppColors.onSurface,
+      fontWeight: FontWeight.w500,
+      height: 1.4,
+    );
     final highlight = base?.copyWith(
       color: AppColors.brand,
       fontWeight: FontWeight.w800,
@@ -318,13 +312,9 @@ class AuthResetInfoBanner extends StatelessWidget {
         TextSpan(
           style: base,
           children: [
-            const TextSpan(
-              text: 'Vamos mandar um link válido por ',
-            ),
+            const TextSpan(text: 'Vamos mandar um link válido por '),
             TextSpan(text: '15 minutos', style: highlight),
-            const TextSpan(
-              text: '. Olha o spam se não aparecer.',
-            ),
+            const TextSpan(text: '. Olha o spam se não aparecer.'),
           ],
         ),
       ),
@@ -362,10 +352,10 @@ class AuthTermsConsent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: AppColors.onSurface,
-          fontWeight: FontWeight.w500,
-          height: 1.4,
-        );
+      color: AppColors.onSurface,
+      fontWeight: FontWeight.w500,
+      height: 1.4,
+    );
     final link = base?.copyWith(
       color: AppColors.brand,
       fontWeight: FontWeight.w800,
@@ -532,10 +522,10 @@ class _RequirementChip extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: met ? AppColors.win : AppColors.onSurfaceMuted,
-              fontWeight: FontWeight.w800,
-              fontSize: 10,
-            ),
+          color: met ? AppColors.win : AppColors.onSurfaceMuted,
+          fontWeight: FontWeight.w800,
+          fontSize: 10,
+        ),
       ),
     );
   }
@@ -724,11 +714,14 @@ class AuthSocialButton extends StatelessWidget {
       child: OutlinedButton(
         onPressed: loading ? null : onPressed,
         style: OutlinedButton.styleFrom(
-          foregroundColor:
-              muted ? AppColors.onSurfaceMuted : AppColors.onSurface,
+          foregroundColor: muted
+              ? AppColors.onSurfaceMuted
+              : AppColors.onSurface,
           backgroundColor: AppColors.surfaceRaised,
           side: BorderSide(
-            color: AppColors.onSurfaceMuted.withValues(alpha: muted ? 0.2 : 0.3),
+            color: AppColors.onSurfaceMuted.withValues(
+              alpha: muted ? 0.2 : 0.3,
+            ),
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -794,11 +787,7 @@ class AuthGoogleGlyph extends StatelessWidget {
 }
 
 class AuthLogo extends StatelessWidget {
-  const AuthLogo({
-    super.key,
-    this.size = 88,
-    this.showTagline = false,
-  });
+  const AuthLogo({super.key, this.size = 88, this.showTagline = false});
 
   final double size;
   final bool showTagline;
@@ -838,7 +827,7 @@ class AuthLogo extends StatelessWidget {
         if (showTagline) ...[
           const SizedBox(height: 10),
           Text(
-            'BEACH VOLLEY • BR',
+            'NEXAGO • BR',
             style: theme.textTheme.labelSmall?.copyWith(
               color: AppColors.brand,
               fontWeight: FontWeight.w800,
@@ -868,28 +857,21 @@ class AuthOrDivider extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Divider(
-            color: color.withValues(alpha: 0.35),
-            height: 1,
-          ),
+          child: Divider(color: color.withValues(alpha: 0.35), height: 1),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
-                  fontWeight:
-                      uppercaseLabel ? FontWeight.w800 : FontWeight.w500,
-                  letterSpacing: uppercaseLabel ? 0.6 : 0,
-                ),
+              color: AppColors.onSurfaceMuted,
+              fontWeight: uppercaseLabel ? FontWeight.w800 : FontWeight.w500,
+              letterSpacing: uppercaseLabel ? 0.6 : 0,
+            ),
           ),
         ),
         Expanded(
-          child: Divider(
-            color: color.withValues(alpha: 0.35),
-            height: 1,
-          ),
+          child: Divider(color: color.withValues(alpha: 0.35), height: 1),
         ),
       ],
     );
@@ -920,9 +902,9 @@ class AuthLinkButton extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.brand,
-              fontWeight: FontWeight.w700,
-            ),
+          color: AppColors.brand,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }

@@ -11,10 +11,12 @@ class TournamentMatchCard extends StatelessWidget {
     super.key,
     required this.viewModel,
     this.isAthleteMatch = false,
+    this.onTap,
   });
 
   final TournamentMatchCardViewModel viewModel;
   final bool isAthleteMatch;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -36,14 +38,8 @@ class TournamentMatchCard extends StatelessWidget {
         ? AppColors.brand.withValues(alpha: 0.06)
         : AppColors.surfaceRaised;
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+    final content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor, width: borderWidth),
-      ),
       child: Column(
         children: [
           if (metaLabel.isNotEmpty || timeLabel.isNotEmpty) ...[
@@ -103,6 +99,27 @@ class TournamentMatchCard extends StatelessWidget {
         ],
       ),
     );
+
+    final card = Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor, width: borderWidth),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: onTap == null
+          ? content
+          : Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                child: content,
+              ),
+            ),
+    );
+
+    return card;
   }
 }
 

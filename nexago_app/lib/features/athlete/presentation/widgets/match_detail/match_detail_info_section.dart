@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 
 class MatchDetailInfoSection extends StatelessWidget {
-  const MatchDetailInfoSection({
-    super.key,
-    required this.rows,
-  });
+  const MatchDetailInfoSection({super.key, required this.rows});
 
   final List<MatchDetailInfoRow> rows;
 
@@ -65,8 +63,8 @@ class MatchDetailInfoRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+                  style: AppTypography.mono(
+                    fontWeight: FontWeight.w600,
                     color: AppColors.onSurfaceMuted,
                     letterSpacing: 0.4,
                   ),
@@ -74,8 +72,8 @@ class MatchDetailInfoRow extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   value,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+                  style: AppTypography.soraRegular(
+                    fontWeight: FontWeight.w500,
                     color: AppColors.onSurface,
                   ),
                 ),

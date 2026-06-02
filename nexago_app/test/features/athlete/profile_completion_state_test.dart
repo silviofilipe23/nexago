@@ -6,6 +6,7 @@ import 'package:nexago_app/features/athlete/domain/profile_completion_models.dar
 void main() {
   AthleteProfile baseProfile({
     bool onboarding = true,
+    bool isProfileComplete = false,
     String? avatar,
     String sport = 'Vôlei de praia',
     String level = 'Iniciante',
@@ -25,6 +26,7 @@ void main() {
       phoneNumber: phone,
       goals: goals,
       onboardingCompleted: onboarding,
+      isProfileComplete: isProfileComplete,
     );
   }
 
@@ -81,5 +83,50 @@ void main() {
   test('whatsapp validation accepts 10-11 digits', () {
     expect(ProfileCompletionValidators.isValidWhatsApp('(62) 99999-9999'), isTrue);
     expect(ProfileCompletionValidators.isValidWhatsApp('123'), isFalse);
+  });
+
+  test('whatsapp validation accepts country code 55', () {
+    expect(
+      ProfileCompletionValidators.isValidWhatsApp('+55 62 99999-9999'),
+      isTrue,
+    );
+  });
+
+  test('isProfileComplete flag unlocks tournaments without all local steps', () {
+    final profile = baseProfile(
+      onboarding: true,
+      goals: [],
+      isProfileComplete: true,
+    );
+    final completion = ProfileCompletionState.fromProfile(profile);
+    expect(completion.allComplete, isFalse);
+    expect(
+      canAccessOfficialTournaments(
+        onboardingCompleted: profile.onboardingCompleted,
+        profileStepsComplete: completion.allComplete,
+        isProfileComplete: profile.isProfileComplete,
+      ),
+      isTrue,
+    );
+  });
+
+  test('sport level step counts levelsBySportFirestore', () {
+    final profile = AthleteProfile(
+      id: 'u1',
+      name: 'Test',
+      sport: '',
+      level: '',
+      city: 'Goiânia',
+      state: 'GO',
+      primarySportFirestoreId: 'VOLEI_PRAIA',
+      levelsBySportFirestore: const {'VOLEI_PRAIA': 'INTERMEDIARIO'},
+    );
+    final state = ProfileCompletionState.fromProfile(profile);
+    expect(
+      state.steps
+          .firstWhere((s) => s.step == ProfileCompletionStep.sportLevel)
+          .isDone,
+      isTrue,
+    );
   });
 }

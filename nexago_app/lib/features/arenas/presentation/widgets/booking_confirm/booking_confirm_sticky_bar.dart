@@ -58,6 +58,7 @@ class BookingConfirmStickyBar extends StatelessWidget {
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w900,
                           color: AppColors.brand,
+                          fontSize: 20,
                           height: 1,
                         ),
                       ),

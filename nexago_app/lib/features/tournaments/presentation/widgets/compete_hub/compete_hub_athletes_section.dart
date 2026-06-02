@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
-import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/compete_hub_models.dart';
 import '../../../domain/compete_hub_providers.dart';
 import 'compete_hub_section_header.dart';
@@ -21,7 +22,8 @@ class CompeteHubAthletesSection extends ConsumerWidget {
         CompeteHubSectionHeader(
           title: 'Atletas',
           actionLabel: 'DESCOBRIR',
-          onActionTap: () => showAppSnackBar(context, 'Em breve.'),
+          onActionTap: () =>
+              context.pushNamed(AppRouteNames.athleteDiscover),
         ),
         const SizedBox(height: 10),
         SizedBox(

@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../domain/athlete_notification_preferences.dart';
 import '../domain/athlete_privacy_preferences.dart';
 import '../domain/athlete_profile.dart';
+import '../domain/profile_completion_models.dart';
 
 class AthleteProfileRepository {
   AthleteProfileRepository(this._firestore);
@@ -28,9 +29,11 @@ class AthleteProfileRepository {
     final snap = await docRef.get();
     final exists = snap.exists;
 
+    final stepsComplete = ProfileCompletionState.fromProfile(profile).allComplete;
     final data = <String, dynamic>{
       ...profile.toFirestore(),
       'city': profile.city.trim(),
+      if (stepsComplete || profile.isProfileComplete) 'isProfileComplete': true,
       'updatedAt': FieldValue.serverTimestamp(),
     };
 

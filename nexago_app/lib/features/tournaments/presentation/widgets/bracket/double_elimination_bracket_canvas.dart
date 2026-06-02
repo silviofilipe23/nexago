@@ -14,11 +14,13 @@ class DoubleEliminationBracketCanvas extends StatelessWidget {
     required this.layout,
     required this.cardsById,
     required this.athleteTeamIds,
+    this.onMatchTap,
   });
 
   final DoubleEliminationBracketLayout layout;
   final Map<String, TournamentMatchCardViewModel> cardsById;
   final Set<String> athleteTeamIds;
+  final ValueChanged<String>? onMatchTap;
 
   @override
   Widget build(BuildContext context) {
@@ -74,6 +76,9 @@ class DoubleEliminationBracketCanvas extends StatelessWidget {
                     ),
                     isFinal: node.isFinal,
                     athleteTeamIds: athleteTeamIds,
+                    onTap: onMatchTap != null
+                        ? () => onMatchTap!(node.matchId)
+                        : null,
                   ),
                 ),
             ],

@@ -2,7 +2,14 @@ import 'package:intl/intl.dart';
 
 import '../../domain/match_history/athlete_match_detail_models.dart';
 import '../../domain/match_history/athlete_match_history_models.dart';
+import '../../domain/match_history/match_detail_prototype_content.dart';
 import 'mock_athlete_match_history_data.dart';
+
+int _setsWon(List<MatchSetScore> sets) =>
+    sets.where((s) => s.isWin).length;
+
+int _setsLost(List<MatchSetScore> sets) =>
+    sets.where((s) => !s.isWin).length;
 
 /// Detalhe mockado da partida (protótipo 09).
 AthleteMatchDetail? mockAthleteMatchDetail(String matchId) {
@@ -69,11 +76,17 @@ AthleteMatchDetail _campaignDetail({
   final p1 = names.isNotEmpty ? names[0] : 'Adv';
   final p2 = names.length > 1 ? names[1] : '—';
 
-  return AthleteMatchDetail(
+  final setsList = sets;
+  return enrichMatchDetailWithPrototypeDemo(
+    AthleteMatchDetail(
     id: id,
+    phase: MatchDetailPhase.completed,
     tournamentId: 'tour-copa-goias-2026',
     result: AthleteMatchResult.win,
-    resultBadgeLabel: 'VITÓRIA • $score',
+    resultBadgeLabel: 'VOCÊ VENCEU',
+    stageLabel: stage,
+    ourSetsWon: _setsWon(setsList),
+    opponentSetsWon: _setsLost(setsList),
     ourTeam: const MatchTeamSide(
       players: [
         MatchTeamPlayer(
@@ -99,22 +112,34 @@ AthleteMatchDetail _campaignDetail({
       label: '$p1 / $p2',
       roleLabel: 'ADVERSÁRIOS',
     ),
-    sets: sets,
+    sets: setsList,
     tournamentName: 'Copa Goiás Beach Open',
     dateTimeLabel: _formatDateTimeLabel(playedAt),
     venueLabel: 'Arena ErreJota · Quadra 2',
     categoryLabel: 'Sub 19 · Masculino · $stage',
     durationLabel: '58min',
     mvpSummary: stage == 'FINAL' ? 'Você • 16 ataques • 4 aces · 5 blocks' : null,
+    isParticipantView: true,
+  ),
   );
 }
 
 AthleteMatchDetail _detailM1(AthleteMatchHistoryItem summary) {
-  return AthleteMatchDetail(
+  const sets = [
+      MatchSetScore(label: 'SET 1', ourScore: 21, opponentScore: 17),
+      MatchSetScore(label: 'SET 2', ourScore: 18, opponentScore: 21),
+      MatchSetScore(label: 'TIE', ourScore: 15, opponentScore: 12),
+    ];
+  return enrichMatchDetailWithPrototypeDemo(
+    AthleteMatchDetail(
     id: summary.id,
+    phase: MatchDetailPhase.completed,
     tournamentId: 'tour-copa-goias-2026',
     result: summary.result,
-    resultBadgeLabel: 'VITÓRIA • 2 - 1',
+    resultBadgeLabel: 'VOCÊ VENCEU',
+    stageLabel: 'OITAVAS DE FINAL',
+    ourSetsWon: _setsWon(sets),
+    opponentSetsWon: _setsLost(sets),
     ourTeam: const MatchTeamSide(
       players: [
         MatchTeamPlayer(
@@ -140,17 +165,15 @@ AthleteMatchDetail _detailM1(AthleteMatchHistoryItem summary) {
       label: 'Costa / Vieira',
       roleLabel: 'ADVERSÁRIOS',
     ),
-    sets: const [
-      MatchSetScore(label: 'SET 1', ourScore: 21, opponentScore: 17),
-      MatchSetScore(label: 'SET 2', ourScore: 18, opponentScore: 21),
-      MatchSetScore(label: 'TIE', ourScore: 15, opponentScore: 12),
-    ],
+    sets: sets,
     tournamentName: 'Copa Goiás Beach Open',
     dateTimeLabel: _formatDateTimeLabel(summary.playedAt),
     venueLabel: 'Arena ErreJota · Quadra 2',
     categoryLabel: 'Sub 19 · Masculino · Oitavas',
     durationLabel: '1h 12min',
     mvpSummary: 'Você • 18 ataques • 3 aces • 6 blocks',
+    isParticipantView: true,
+  ),
   );
 }
 
@@ -158,13 +181,17 @@ AthleteMatchDetail _detailFromSummary(AthleteMatchHistoryItem summary) {
   final opponentNames = _parseOpponentNames(summary.opponentLabel);
   final sets = _parseSets(summary.setsDisplay);
   final isWin = summary.isWin;
-  final resultWord = isWin ? 'VITÓRIA' : 'DERROTA';
 
-  return AthleteMatchDetail(
+  return enrichMatchDetailWithPrototypeDemo(
+    AthleteMatchDetail(
     id: summary.id,
+    phase: MatchDetailPhase.completed,
     tournamentId: _guessTournamentId(summary.competitionLabel),
     result: summary.result,
-    resultBadgeLabel: '$resultWord • ${summary.scoreDisplay}',
+    resultBadgeLabel: isWin ? 'VOCÊ VENCEU' : 'VOCÊ PERDEU',
+    stageLabel: 'ELIMINATÓRIAS',
+    ourSetsWon: _setsWon(sets),
+    opponentSetsWon: _setsLost(sets),
     ourTeam: const MatchTeamSide(
       players: [
         MatchTeamPlayer(
@@ -205,6 +232,8 @@ AthleteMatchDetail _detailFromSummary(AthleteMatchHistoryItem summary) {
     mvpSummary: summary.isMvp
         ? 'Você • 14 ataques • 2 aces • 4 blocks'
         : null,
+    isParticipantView: true,
+  ),
   );
 }
 

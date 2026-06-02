@@ -61,8 +61,17 @@ dependencies:
 
 dev_dependencies:
   firebase_auth_mocks: ^0.14.1
+  flutter_launcher_icons: ^0.14.3
   flutter_test:
     sdk: flutter
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/app_icon/icon.png
+  # opcional Android adaptativo:
+  # adaptive_icon_background: "#0A120E"
+  # adaptive_icon_foreground: assets/app_icon/icon_foreground.png
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

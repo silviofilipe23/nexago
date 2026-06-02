@@ -77,11 +77,53 @@ function hasCityAndState(data: UserAccessData): boolean {
 
 export function isValidWhatsApp(raw: unknown): boolean {
   const digits = trimString(raw).replace(/\D/g, "");
-  return digits.length >= 10 && digits.length <= 11;
+  if (digits.length >= 10 && digits.length <= 11) return true;
+  if (digits.length >= 12 && digits.length <= 13 && digits.startsWith("55")) {
+    return true;
+  }
+  return false;
 }
 
 function hasGoals(data: UserAccessData): boolean {
-  return stringList(data.goals).length > 0;
+  if (stringList(data.goals).length > 0) return true;
+  return trimString(data.gameObjective).length > 0;
+}
+
+/** IDs espelham [ProfileCompletionStep] no app. */
+export type ProfileCompletionStepId =
+  | "photo"
+  | "sportLevel"
+  | "city"
+  | "whatsapp"
+  | "goals";
+
+const PROFILE_STEP_LABELS: Record<ProfileCompletionStepId, string> = {
+  photo: "foto de perfil",
+  sportLevel: "esporte e nível",
+  city: "cidade e UF",
+  whatsapp: "WhatsApp",
+  goals: "objetivos",
+};
+
+/** Passos de “Completar perfil” ainda pendentes (mesma ordem do app). */
+export function missingProfileStepIds(
+  data: UserAccessData,
+): ProfileCompletionStepId[] {
+  const missing: ProfileCompletionStepId[] = [];
+  if (!hasProfilePhoto(data)) missing.push("photo");
+  if (!hasSportLevel(data)) missing.push("sportLevel");
+  if (!hasCityAndState(data)) missing.push("city");
+  if (!isValidWhatsApp(data.phoneNumber)) missing.push("whatsapp");
+  if (!hasGoals(data)) missing.push("goals");
+  return missing;
+}
+
+function formatMissingStepsList(labels: string[]): string {
+  if (labels.length === 0) return "";
+  if (labels.length === 1) return labels[0];
+  if (labels.length === 2) return `${labels[0]} e ${labels[1]}`;
+  const head = labels.slice(0, -1).join(", ");
+  return `${head} e ${labels[labels.length - 1]}`;
 }
 
 /** Espelha [ProfileCompletionState.allComplete] no app. */
@@ -106,7 +148,14 @@ export function tournamentAccessBlockMessage(data: UserAccessData): string {
   if (!isOnboardingCompleted(data)) {
     return "Conclua o cadastro inicial para competir em torneios oficiais.";
   }
-  return "Complete os 5 passos do perfil para desbloquear torneios oficiais.";
+  const missing = missingProfileStepIds(data);
+  if (missing.length === 0) {
+    return "Complete seu perfil para desbloquear torneios oficiais.";
+  }
+  const list = formatMissingStepsList(
+    missing.map((id) => PROFILE_STEP_LABELS[id]),
+  );
+  return `Complete no perfil: ${list} para desbloquear torneios oficiais.`;
 }
 
 export async function loadUserAccessData(

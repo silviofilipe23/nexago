@@ -51,7 +51,7 @@ class MyTournamentRegistrationsRepository {
             tournamentName: tournament?.name ?? 'Torneio',
             dateLabel: tournament?.dateLabel ?? '',
             statusLabel: isPaid
-                ? 'Pago'
+                ? 'Inscrito'
                 : tournament != null
                     ? tournamentStatusLabel(tournament.status)
                     : 'Inscrição',

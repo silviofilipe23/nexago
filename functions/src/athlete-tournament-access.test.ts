@@ -5,6 +5,7 @@ import {
   isOnboardingCompleted,
   isProfileStepsComplete,
   isValidWhatsApp,
+  missingProfileStepIds,
   tournamentAccessBlockMessage,
 } from "./athlete-tournament-access";
 
@@ -22,6 +23,7 @@ const completeProfile = {
 describe("athlete-tournament-access", () => {
   it("validates whatsapp digits", () => {
     assert.equal(isValidWhatsApp("(62) 99999-9999"), true);
+    assert.equal(isValidWhatsApp("+55 62 99999-9999"), true);
     assert.equal(isValidWhatsApp("123"), false);
   });
 
@@ -71,6 +73,17 @@ describe("athlete-tournament-access", () => {
     );
   });
 
+  it("lists missing profile steps", () => {
+    assert.deepEqual(
+      missingProfileStepIds({
+        onboardingCompleted: true,
+        profilePhotoUrl: "https://example.com/a.jpg",
+      }),
+      ["sportLevel", "city", "whatsapp", "goals"],
+    );
+    assert.deepEqual(missingProfileStepIds(completeProfile), []);
+  });
+
   it("returns block messages", () => {
     assert.equal(tournamentAccessBlockMessage(completeProfile), "");
     assert.match(
@@ -79,7 +92,14 @@ describe("athlete-tournament-access", () => {
     );
     assert.match(
       tournamentAccessBlockMessage({onboardingCompleted: true}),
-      /5 passos/i,
+      /Complete no perfil:/i,
+    );
+    assert.match(
+      tournamentAccessBlockMessage({
+        onboardingCompleted: true,
+        profilePhotoUrl: "https://example.com/a.jpg",
+      }),
+      /esporte e nível.*WhatsApp/i,
     );
   });
 });

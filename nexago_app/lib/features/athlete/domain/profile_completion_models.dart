@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/location/br_locations_data.dart';
 import 'athlete_firestore_codes.dart';
 import 'athlete_profile.dart';
 import 'profile_access.dart';
@@ -34,6 +35,15 @@ enum ProfileCompletionStep {
         ProfileCompletionStep.city => 'Cidade',
         ProfileCompletionStep.whatsapp => 'WhatsApp',
         ProfileCompletionStep.goals => 'Objetivos',
+      };
+
+  /// Rótulo na mensagem de bloqueio de torneios (paridade com backend).
+  String get tournamentAccessLabel => switch (this) {
+        ProfileCompletionStep.photo => 'foto de perfil',
+        ProfileCompletionStep.sportLevel => 'esporte e nível',
+        ProfileCompletionStep.city => 'cidade e UF',
+        ProfileCompletionStep.whatsapp => 'WhatsApp',
+        ProfileCompletionStep.goals => 'objetivos',
       };
 
   String get pendingSubtitle => switch (this) {
@@ -101,7 +111,13 @@ class ProfileCompletionState {
   bool get canUnlockTournaments => canAccessOfficialTournaments(
         onboardingCompleted: profile.onboardingCompleted,
         profileStepsComplete: allComplete,
+        isProfileComplete: profile.isProfileComplete,
       );
+
+  List<String> get pendingTournamentAccessLabels => steps
+      .where((s) => !s.isDone)
+      .map((s) => s.step.tournamentAccessLabel)
+      .toList();
 
   static ProfileCompletionState fromProfile(
     AthleteProfile profile, {
@@ -127,14 +143,21 @@ class ProfileCompletionState {
       ProfileCompletionStep.sportLevel =>
         (profile.primarySportFirestoreId != null &&
                 profile.primarySportFirestoreId!.isNotEmpty) ||
+            profile.levelsBySportFirestore.isNotEmpty ||
             (profile.sport.trim().isNotEmpty && profile.level.trim().isNotEmpty),
-      ProfileCompletionStep.city =>
-        profile.city.trim().isNotEmpty &&
-            (profile.state?.trim().isNotEmpty ?? false),
+      ProfileCompletionStep.city => _isCityStepDone(profile),
       ProfileCompletionStep.whatsapp =>
         ProfileCompletionValidators.isValidWhatsApp(profile.phoneNumber),
-      ProfileCompletionStep.goals => profile.goals.isNotEmpty,
+      ProfileCompletionStep.goals =>
+        profile.goals.isNotEmpty ||
+        (profile.gameObjective?.trim().isNotEmpty ?? false),
     };
+  }
+
+  static bool _isCityStepDone(AthleteProfile profile) {
+    if (profile.city.trim().isEmpty) return false;
+    if (profile.state?.trim().isNotEmpty == true) return true;
+    return BrLocationsData.parseLegacyLocation(profile.city).state.isNotEmpty;
   }
 
   static String _doneSubtitle(AthleteProfile profile, ProfileCompletionStep step) {
@@ -204,6 +227,11 @@ abstract final class ProfileCompletionValidators {
 
   static bool isValidWhatsApp(String? raw) {
     final digits = (raw ?? '').replaceAll(RegExp(r'\D'), '');
-    return digits.length >= 10 && digits.length <= 11;
+    if (digits.length >= 10 && digits.length <= 11) return true;
+    // +55 + DDD + número (9 dígitos)
+    if (digits.length >= 12 && digits.length <= 13 && digits.startsWith('55')) {
+      return true;
+    }
+    return false;
   }
 }

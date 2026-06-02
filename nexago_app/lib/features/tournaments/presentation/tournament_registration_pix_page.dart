@@ -241,7 +241,7 @@ class _TournamentRegistrationPixPageState
           children: [
             TournamentAccessBanner(
               onboardingCompleted: access.onboardingCompleted,
-              profileStepsComplete: access.profileStepsComplete,
+              blockMessage: access.blockMessage,
             ),
           ],
         ),

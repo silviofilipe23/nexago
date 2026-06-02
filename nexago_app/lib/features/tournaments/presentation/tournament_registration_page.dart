@@ -7,7 +7,6 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
-import '../../athlete/domain/profile_access.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
 import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../data/tournament_inscriptions_repository.dart';
@@ -262,10 +261,7 @@ class _TournamentRegistrationPageState
 
   void _showProfileAccessBlocked() {
     final access = ref.read(tournamentAccessStateProvider);
-    final message = tournamentAccessBlockMessage(
-      onboardingCompleted: access.onboardingCompleted,
-      profileStepsComplete: access.profileStepsComplete,
-    );
+    final message = access.blockMessage;
     if (message != null && mounted) {
       showAppSnackBar(context, message, isError: true);
     }
@@ -699,7 +695,7 @@ class _TournamentRegistrationPageState
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
                         child: TournamentAccessBanner(
                           onboardingCompleted: access.onboardingCompleted,
-                          profileStepsComplete: access.profileStepsComplete,
+                          blockMessage: access.blockMessage,
                         ),
                       ),
                     if (access.canAccess && showHero) ...[

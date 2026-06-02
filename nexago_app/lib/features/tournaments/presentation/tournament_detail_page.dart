@@ -8,7 +8,6 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
-import '../../athlete/domain/profile_access.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
 import '../domain/tournament_detail_logic.dart';
 import '../domain/tournament_detail_model.dart';
@@ -109,10 +108,7 @@ class TournamentDetailPage extends ConsumerWidget {
     BuildContext context,
     TournamentAccessState access,
   ) {
-    final message = tournamentAccessBlockMessage(
-      onboardingCompleted: access.onboardingCompleted,
-      profileStepsComplete: access.profileStepsComplete,
-    );
+    final message = access.blockMessage;
     if (message != null) {
       showAppSnackBar(context, message, isError: true);
     }

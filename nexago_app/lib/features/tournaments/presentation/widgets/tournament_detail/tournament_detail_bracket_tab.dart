@@ -39,6 +39,16 @@ class _TournamentDetailBracketTabState
         : '';
   }
 
+  void _openMatchDetail(BuildContext context, String matchId) {
+    final id = matchId.trim();
+    if (id.isEmpty) return;
+    context.pushNamed(
+      AppRouteNames.athleteMatchDetail,
+      pathParameters: {'matchId': id},
+      queryParameters: {AppRoutes.matchDetailFromTournamentQuery: '1'},
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final offers = widget.tournament.categoryOffers;
@@ -193,6 +203,7 @@ class _TournamentDetailBracketTabState
                       match,
                       athleteTeamIds,
                     ),
+                    onTap: () => _openMatchDetail(context, match.id),
                   ),
               ],
           ],

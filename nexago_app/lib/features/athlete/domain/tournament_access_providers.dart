@@ -10,16 +10,23 @@ class TournamentAccessState {
     required this.canAccess,
     required this.onboardingCompleted,
     required this.profileStepsComplete,
+    required this.isProfileComplete,
+    this.blockMessage,
   });
 
   final bool canAccess;
   final bool onboardingCompleted;
   final bool profileStepsComplete;
+  final bool isProfileComplete;
+  final String? blockMessage;
 
   static const locked = TournamentAccessState(
     canAccess: false,
     onboardingCompleted: false,
     profileStepsComplete: false,
+    isProfileComplete: false,
+    blockMessage:
+        'Conclua o cadastro inicial para competir em torneios oficiais.',
   );
 }
 
@@ -31,12 +38,22 @@ final tournamentAccessStateProvider =
   final completion = ProfileCompletionState.fromProfile(profile);
   final stepsComplete = completion.allComplete;
 
-  return TournamentAccessState(
-    canAccess: canAccessOfficialTournaments(
-      onboardingCompleted: profile.onboardingCompleted,
-      profileStepsComplete: stepsComplete,
-    ),
+  final canAccess = canAccessOfficialTournaments(
     onboardingCompleted: profile.onboardingCompleted,
     profileStepsComplete: stepsComplete,
+    isProfileComplete: profile.isProfileComplete,
+  );
+
+  return TournamentAccessState(
+    canAccess: canAccess,
+    onboardingCompleted: profile.onboardingCompleted,
+    profileStepsComplete: stepsComplete,
+    isProfileComplete: profile.isProfileComplete,
+    blockMessage: tournamentAccessBlockMessage(
+      onboardingCompleted: profile.onboardingCompleted,
+      profileStepsComplete: stepsComplete,
+      isProfileComplete: profile.isProfileComplete,
+      missingStepLabels: completion.pendingTournamentAccessLabels,
+    ),
   );
 });

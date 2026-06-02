@@ -38,7 +38,7 @@ class TournamentDiscoveryPage extends ConsumerWidget {
           if (!access.canAccess)
             TournamentAccessBanner(
               onboardingCompleted: access.onboardingCompleted,
-              profileStepsComplete: access.profileStepsComplete,
+              blockMessage: access.blockMessage,
             ),
           const PendingTournamentInviterInvitesSection(),
           const SizedBox(height: 16),

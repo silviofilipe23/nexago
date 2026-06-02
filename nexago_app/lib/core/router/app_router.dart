@@ -67,6 +67,8 @@ import '../../features/athlete/presentation/athlete_profile_update_success_page.
 import '../../features/athlete/presentation/arena_reviews_page.dart';
 import '../../features/athlete/presentation/athlete_shell_page.dart';
 import '../../features/tournaments/presentation/league_detail_page.dart';
+import '../../features/athlete/presentation/athlete_discover_page.dart';
+import '../../features/tournaments/presentation/team_discover_page.dart';
 import '../../features/ranking/presentation/athlete_ranking_page.dart';
 import '../../features/tournaments/presentation/tournament_discovery_list_page.dart';
 import '../../features/tournaments/presentation/double_elimination_bracket_page.dart';
@@ -358,7 +360,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             name: AppRouteNames.athleteMatchDetail,
             builder: (context, state) {
               final matchId = state.pathParameters['matchId'] ?? '';
-              return AthleteMatchDetailPage(matchId: matchId);
+              final fromTournament = state.uri.queryParameters[
+                      AppRoutes.matchDetailFromTournamentQuery] ==
+                  '1';
+              return AthleteMatchDetailPage(
+                matchId: matchId,
+                hideTournamentAction: fromTournament,
+              );
             },
           ),
           GoRoute(
@@ -438,6 +446,16 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.athleteRanking,
         name: AppRouteNames.athleteRanking,
         builder: (context, state) => const AthleteRankingPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteDiscover,
+        name: AppRouteNames.athleteDiscover,
+        builder: (context, state) => const AthleteDiscoverPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.teamDiscover,
+        name: AppRouteNames.teamDiscover,
+        builder: (context, state) => const TeamDiscoverPage(),
       ),
       GoRoute(
         path: AppRoutes.tournamentDetail,

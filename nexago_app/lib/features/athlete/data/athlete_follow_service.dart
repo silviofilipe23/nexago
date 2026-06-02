@@ -83,4 +83,11 @@ class AthleteFollowService {
     }
     await batch.commit();
   }
+
+  Future<Set<String>> fetchFollowingIds(String followerId) async {
+    final id = followerId.trim();
+    if (id.isEmpty) return {};
+    final snap = await _followingRef(id).get();
+    return snap.docs.map((d) => d.id).toSet();
+  }
 }

@@ -156,6 +156,7 @@ class _DetailBody extends StatelessWidget {
     context.pushNamed(
       AppRouteNames.athleteMatchDetail,
       pathParameters: {'matchId': matchId},
+      queryParameters: {AppRoutes.matchDetailFromTournamentQuery: '1'},
     );
   }
 }

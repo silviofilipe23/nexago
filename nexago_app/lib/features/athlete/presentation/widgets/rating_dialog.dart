@@ -355,47 +355,55 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
                       : () => Navigator.of(context).pop(),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.onSurfaceMuted,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                   ),
                   child: const Text('Agora não'),
                 ),
-                const Spacer(),
-                FilledButton(
-                  onPressed: (_rating > 0 && !_sending) ? _submit : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.black,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: (_rating > 0 && !_sending) ? _submit : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.brand,
+                      foregroundColor: AppColors.black,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
                     ),
-                  ),
-                  child: _sending
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.black,
-                          ),
-                        )
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Enviar e ganhar +$_xpReward XP',
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                color: AppColors.black,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Icon(
-                              Icons.bolt_rounded,
-                              size: 18,
+                    child: _sending
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
                               color: AppColors.black,
                             ),
-                          ],
-                        ),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  'Enviar e ganhar +$_xpReward XP',
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.black,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              const Icon(
+                                Icons.bolt_rounded,
+                                size: 18,
+                                color: AppColors.black,
+                              ),
+                            ],
+                          ),
+                  ),
                 ),
               ],
             ),

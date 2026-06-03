@@ -11,6 +11,7 @@ import '../../domain/achievements/achievement_status.dart';
 import '../../domain/gamification_models.dart';
 import '../../domain/profile_completion_models.dart';
 import 'athlete_profile_avatar.dart';
+import 'athlete_profile_ranking_section.dart';
 import 'match_history/athlete_profile_history_section.dart';
 
 /// Dados mockados até integração com backend (parceiros, ranking, etc.).
@@ -226,6 +227,10 @@ class AthleteProfileMainView extends StatelessWidget {
                         xpGoal: xpPerLevel,
                         progress: xpProgress,
                       ),
+                      if (!readOnly) ...[
+                        const SizedBox(height: 14),
+                        const AthleteProfileRankingSection(),
+                      ],
                       const SizedBox(height: 14),
                       _StatsGrid(
                         games: games,

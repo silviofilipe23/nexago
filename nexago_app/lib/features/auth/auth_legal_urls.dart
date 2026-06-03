@@ -4,4 +4,5 @@ abstract final class AuthLegalUrls {
 
   static const String termsUrl = 'https://nexago.app/termos';
   static const String privacyUrl = 'https://nexago.app/privacidade';
+  static const String accountDeletionUrl = 'https://nexago.app/excluir-conta';
 }

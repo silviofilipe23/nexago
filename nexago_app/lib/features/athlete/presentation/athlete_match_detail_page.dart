@@ -257,11 +257,7 @@ class _DetailBody extends StatelessWidget {
       const SizedBox(height: 20),
     ]);
 
-    if (detail.shareInfo != null && detail.isParticipantView) {
-      sections.add(
-        MatchDetailShareSection(share: detail.shareInfo!),
-      );
-    }
+    sections.addAll(_shareSectionWidgets());
 
     return sections;
   }
@@ -277,8 +273,11 @@ class _DetailBody extends StatelessWidget {
         ),
         const SizedBox(height: 20),
       ],
-      if (detail.playByPlay.isNotEmpty)
+      if (detail.playByPlay.isNotEmpty) ...[
         MatchDetailPlayByPlaySection(items: detail.playByPlay),
+        const SizedBox(height: 20),
+      ],
+      ..._shareSectionWidgets(),
     ];
   }
 
@@ -309,7 +308,18 @@ class _DetailBody extends StatelessWidget {
       ),
     );
 
+    sections.addAll(_shareSectionWidgets());
+
     return sections;
+  }
+
+  List<Widget> _shareSectionWidgets() {
+    final share = detail.shareInfo;
+    if (share == null) return const [];
+    return [
+      const SizedBox(height: 20),
+      MatchDetailShareSection(share: share),
+    ];
   }
 
   void _onTournament(BuildContext context) {

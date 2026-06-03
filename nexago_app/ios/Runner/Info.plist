@@ -49,10 +49,8 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>remote-notification</string>
-	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -92,6 +90,8 @@
 	<string>O Nexago usa Face ID para proteger o acesso à sua conta neste aparelho.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>O NexaGO usa sua localização para sugerir arenas perto de você.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>O NexaGO usa sua localização para sugerir arenas próximas e melhorar recomendações esportivas conforme sua região.</string>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

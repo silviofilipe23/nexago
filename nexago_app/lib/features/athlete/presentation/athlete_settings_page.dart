@@ -285,9 +285,9 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                 AthleteSettingsTile(
                   icon: Icons.delete_outline_rounded,
                   title: 'Excluir conta',
-                  subtitle: 'Apaga seus dados em 30 dias',
+                  subtitle: 'Solicitar exclusão dos seus dados',
                   variant: AthleteSettingsIconVariant.neutral,
-                  onTap: () => showAthleteSettingsComingSoon(context),
+                  onTap: () => _launchUrl(AuthLegalUrls.accountDeletionUrl),
                   showDivider: false,
                 ),
               ],

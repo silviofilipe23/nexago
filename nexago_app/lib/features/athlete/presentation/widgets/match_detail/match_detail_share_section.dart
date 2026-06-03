@@ -47,7 +47,10 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
         showAppSnackBar(context, 'Não foi possível gerar a imagem.');
         return;
       }
-      await shareMatchDetailShareCardPng(file);
+      await shareMatchDetailShareCardPng(
+        file,
+        variant: widget.share.variant,
+      );
     } catch (_) {
       if (mounted) {
         showAppSnackBar(context, 'Não foi possível compartilhar.');
@@ -109,9 +112,9 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const MatchDetailSectionHeader(
+          MatchDetailSectionHeader(
             eyebrow: 'COMPARTILHAR',
-            title: 'Mostre a vitória',
+            title: shareSectionTitle(widget.share.variant),
           ),
           const SizedBox(height: 20),
           Center(child: preview),
@@ -274,6 +277,16 @@ class _ShareActionButton extends StatelessWidget {
       ),
     );
   }
+}
+
+String shareSectionTitle(MatchDetailShareVariant variant) {
+  return switch (variant) {
+    MatchDetailShareVariant.victory => 'Mostre a vitória',
+    MatchDetailShareVariant.defeat => 'Compartilhe o resultado',
+    MatchDetailShareVariant.live => 'Está rolando',
+    MatchDetailShareVariant.scheduled => 'Convide pro jogo',
+    MatchDetailShareVariant.spectator => 'Compartilhe a partida',
+  };
 }
 
 void showMatchDetailShareSheet(

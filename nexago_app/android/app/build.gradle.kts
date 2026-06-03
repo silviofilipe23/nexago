@@ -8,6 +8,22 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+import java.util.Properties
+import org.gradle.api.GradleException
+
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
+}
+fun requiredSigningProperty(name: String): String {
+    val value = keystoreProperties.getProperty(name)?.trim()
+    if (value.isNullOrEmpty()) {
+        throw GradleException("Missing '$name' in android/key.properties.")
+    }
+    return value
+}
+
 android {
     namespace = "br.com.nexago.nexago_app"
     compileSdk = flutter.compileSdkVersion
@@ -33,11 +49,21 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (!keystorePropertiesFile.exists()) {
+            throw GradleException("Missing android/key.properties for release signing.")
+        }
+        create("release") {
+            keyAlias = requiredSigningProperty("keyAlias")
+            keyPassword = requiredSigningProperty("keyPassword")
+            storeFile = rootProject.file(requiredSigningProperty("storeFile"))
+            storePassword = requiredSigningProperty("storePassword")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

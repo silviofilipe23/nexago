@@ -205,9 +205,9 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
   @override
   Widget build(BuildContext context) {
     final canRegister = canRegisterForTournament(widget.tournament.status);
-    final ctaLabel = canRegister ? 'Inscrever →' : 'Ver detalhes →';
     final isAthleteRegistered = widget.registrationsByCategoryId.isNotEmpty;
-    final showBottomBar = _currentTab == TournamentDetailTab.overview &&
+    final showBottomBar = canRegister &&
+        _currentTab == TournamentDetailTab.overview &&
         widget.registrationResolved &&
         !isAthleteRegistered;
 
@@ -278,12 +278,8 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
         if (showBottomBar)
           TournamentDetailBottomBar(
             enabled: true,
-            label: ctaLabel,
+            label: 'Inscrever →',
             onPressed: () {
-              if (!canRegister) {
-                context.pop();
-                return;
-              }
               if (!widget.canAccessTournaments) {
                 widget.onRegisterBlocked();
                 return;

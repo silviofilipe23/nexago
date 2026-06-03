@@ -146,44 +146,84 @@ class MatchDetailPlayByPlayItem {
   final String description;
 }
 
+enum MatchDetailShareVariant {
+  victory,
+  defeat,
+  live,
+  scheduled,
+  spectator,
+}
+
 class MatchDetailShareSetPoint {
   const MatchDetailShareSetPoint({
     required this.label,
     required this.winnersScore,
     required this.opponentsScore,
+    this.isCurrentSet = false,
+    this.displayLabel,
   });
 
   final String label;
   final int winnersScore;
   final int opponentsScore;
+  final bool isCurrentSet;
+  /// Rótulo exibido (ex.: "SET 2", "AGORA"); usa [label] se nulo.
+  final String? displayLabel;
 
-  String get scoreLabel => '$winnersScore-$opponentsScore';
+  String get scoreLabel => '$winnersScore — $opponentsScore';
+
+  String get headerLabel => displayLabel ?? label;
 }
 
 class MatchDetailShareInfo {
   const MatchDetailShareInfo({
-    required this.statusLabel,
-    required this.scoreLabel,
+    required this.variant,
+    required this.heroTitle,
+    required this.heroScoreLabel,
     required this.winnersLabel,
     required this.opponentsLabel,
     required this.stageLabel,
     required this.tournamentName,
     required this.dateLabel,
+    required this.categoryBadge,
+    required this.topRowSetsWon,
+    required this.bottomRowSetsWon,
+    this.heroScheduleLabel = '',
     this.setPoints = const [],
     this.winnersPlayers = const [],
     this.opponentsPlayers = const [],
+    this.emphasizeTopRow = true,
+    this.emphasizeBottomRow = false,
+    this.showLiveBadge = false,
+    this.showDiagonalStripes = false,
+    this.showSetGrid = true,
   });
 
-  final String statusLabel;
-  final String scoreLabel;
+  final MatchDetailShareVariant variant;
+  final String heroTitle;
+  final String heroScoreLabel;
+  final String heroScheduleLabel;
   final String winnersLabel;
   final String opponentsLabel;
   final String stageLabel;
   final String tournamentName;
   final String dateLabel;
+  final String categoryBadge;
+  final int topRowSetsWon;
+  final int bottomRowSetsWon;
   final List<MatchDetailShareSetPoint> setPoints;
   final List<MatchTeamPlayer> winnersPlayers;
   final List<MatchTeamPlayer> opponentsPlayers;
+  final bool emphasizeTopRow;
+  final bool emphasizeBottomRow;
+  final bool showLiveBadge;
+  final bool showDiagonalStripes;
+  final bool showSetGrid;
+
+  /// Compatibilidade com código legado.
+  String get statusLabel => heroTitle;
+
+  String get scoreLabel => heroScoreLabel;
 }
 
 class AthleteMatchDetail {

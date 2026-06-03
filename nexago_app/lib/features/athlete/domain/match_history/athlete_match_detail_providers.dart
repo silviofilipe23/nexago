@@ -10,6 +10,7 @@ import '../athlete_profile_providers.dart';
 import 'athlete_match_detail_mapper.dart';
 import 'athlete_match_detail_models.dart';
 import 'match_detail_prototype_content.dart';
+import 'match_detail_share_builder.dart';
 
 final athleteMatchDetailProvider = FutureProvider.autoDispose
     .family<AthleteMatchDetail?, String>((ref, matchId) async {
@@ -106,7 +107,9 @@ final athleteMatchDetailProvider = FutureProvider.autoDispose
   );
 
   if (mapped == null) return null;
-  return enrichMatchDetailWithPrototypeDemo(mapped);
+  final enriched = enrichMatchDetailWithPrototypeDemo(mapped);
+  final share = buildMatchDetailShareInfo(enriched) ?? enriched.shareInfo;
+  return enriched.copyWith(shareInfo: share);
 });
 
 Future<String?> _categoryLabelForMatch({

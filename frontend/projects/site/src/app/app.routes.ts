@@ -57,5 +57,10 @@ export const routes: Routes = [
     loadComponent: () => import('./arena-detail/arena-detail.component').then((m) => m.ArenaDetailComponent),
     data: { animation: 'arena' },
   },
+  {
+    path: 'excluir-conta',
+    loadComponent: () =>
+      import('./legal/account-deletion.component').then((m) => m.AccountDeletionComponent),
+  },
   { path: '**', redirectTo: '', pathMatch: 'full' },
 ];

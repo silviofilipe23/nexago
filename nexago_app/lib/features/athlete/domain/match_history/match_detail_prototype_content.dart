@@ -1,4 +1,5 @@
 import 'athlete_match_detail_models.dart';
+import 'match_detail_share_builder.dart';
 
 /// Conteúdo demo alinhado ao protótipo B até existir API dedicada.
 /// TODO: remover ou condicionar quando Firestore expuser XP, H2H, momentum, etc.
@@ -126,10 +127,7 @@ AthleteMatchDetail enrichMatchDetailWithPrototypeDemo(AthleteMatchDetail detail)
     ];
   }
 
-  MatchDetailShareInfo? share;
-  if (detail.phase == MatchDetailPhase.completed) {
-    share = _buildShareInfo(detail);
-  }
+  final share = buildMatchDetailShareInfo(detail);
 
   return detail.copyWith(
     ourTeam: updatedOurTeam,
@@ -141,59 +139,6 @@ AthleteMatchDetail enrichMatchDetailWithPrototypeDemo(AthleteMatchDetail detail)
     playByPlay: playByPlay,
     shareInfo: share,
   );
-}
-
-MatchDetailShareInfo _buildShareInfo(AthleteMatchDetail detail) {
-  final winnerIsOur = _winnerIsOurTeam(detail);
-  final winnersSide = winnerIsOur ? detail.ourTeam : detail.opponentTeam;
-  final opponentsSide = winnerIsOur ? detail.opponentTeam : detail.ourTeam;
-  final sets = winnerIsOur ? detail.sets : _flipSetScores(detail.sets);
-
-  final ourSets = winnerIsOur ? detail.ourSetsWon : detail.opponentSetsWon;
-  final oppSets = winnerIsOur ? detail.opponentSetsWon : detail.ourSetsWon;
-
-  return MatchDetailShareInfo(
-    statusLabel: detail.isParticipantView && detail.isWin
-        ? 'VITÓRIA'
-        : 'PARTIDA',
-    scoreLabel: '$ourSets - $oppSets',
-    winnersLabel: winnersSide.label,
-    opponentsLabel: opponentsSide.label,
-    stageLabel: detail.stageLabel,
-    tournamentName: detail.tournamentName,
-    dateLabel: detail.dateTimeLabel,
-    setPoints: [
-      for (final set in sets)
-        MatchDetailShareSetPoint(
-          label: set.label.toUpperCase(),
-          winnersScore: set.ourScore,
-          opponentsScore: set.opponentScore,
-        ),
-    ],
-    winnersPlayers: winnersSide.players,
-    opponentsPlayers: opponentsSide.players,
-  );
-}
-
-bool _winnerIsOurTeam(AthleteMatchDetail detail) {
-  if (detail.isParticipantView) return detail.isWin;
-  final winnerId = detail.winnerTeamId?.trim() ?? '';
-  final ourId = detail.ourTeam.teamId?.trim() ?? '';
-  if (winnerId.isNotEmpty && ourId.isNotEmpty) return winnerId == ourId;
-  return true;
-}
-
-List<MatchSetScore> _flipSetScores(List<MatchSetScore> sets) {
-  return sets
-      .map(
-        (s) => MatchSetScore(
-          label: s.label,
-          ourScore: s.opponentScore,
-          opponentScore: s.ourScore,
-          isCurrentSet: s.isCurrentSet,
-        ),
-      )
-      .toList();
 }
 
 List<MatchSetTimelineItem> _enrichTimeline(List<MatchSetTimelineItem> items) {

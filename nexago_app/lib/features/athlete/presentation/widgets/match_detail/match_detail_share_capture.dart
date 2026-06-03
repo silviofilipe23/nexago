@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../domain/match_history/athlete_match_detail_models.dart';
 import 'match_detail_share_card.dart';
 
 /// Gera PNG do [MatchDetailShareCard] a partir de um [GlobalKey] em [RepaintBoundary].
@@ -27,11 +28,24 @@ Future<File?> captureMatchDetailShareCardPng(
   return file;
 }
 
-Future<void> shareMatchDetailShareCardPng(File file) {
+Future<void> shareMatchDetailShareCardPng(
+  File file, {
+  MatchDetailShareVariant variant = MatchDetailShareVariant.victory,
+}) {
   return Share.shareXFiles(
     [XFile(file.path, mimeType: 'image/png')],
-    subject: 'Minha vitória · nexaGO',
+    subject: shareSubjectForVariant(variant),
   );
+}
+
+String shareSubjectForVariant(MatchDetailShareVariant variant) {
+  return switch (variant) {
+    MatchDetailShareVariant.victory => 'Minha vitória · nexaGO',
+    MatchDetailShareVariant.defeat => 'Resultado da partida · nexaGO',
+    MatchDetailShareVariant.live => 'Jogo ao vivo · nexaGO',
+    MatchDetailShareVariant.scheduled => 'Próximo jogo · nexaGO',
+    MatchDetailShareVariant.spectator => 'Partida · nexaGO',
+  };
 }
 
 /// Largura máxima do preview na UI (o artboard exportável permanece [MatchDetailShareCard.designWidth]).

@@ -70,6 +70,7 @@ import '../../features/tournaments/presentation/league_detail_page.dart';
 import '../../features/athlete/presentation/athlete_discover_page.dart';
 import '../../features/tournaments/presentation/team_discover_page.dart';
 import '../../features/ranking/presentation/athlete_ranking_page.dart';
+import '../../features/tournaments/presentation/my_tournaments_page.dart';
 import '../../features/tournaments/presentation/tournament_discovery_list_page.dart';
 import '../../features/tournaments/presentation/double_elimination_bracket_page.dart';
 import '../../features/tournaments/presentation/tournament_detail_page.dart';
@@ -428,6 +429,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const AthleteOnboardingProfileStep(),
           ),
         ],
+      ),
+      GoRoute(
+        path: AppRoutes.myTournaments,
+        name: AppRouteNames.myTournaments,
+        builder: (context, state) => const MyTournamentsPage(),
       ),
       GoRoute(
         path: AppRoutes.tournamentDiscoveryList,

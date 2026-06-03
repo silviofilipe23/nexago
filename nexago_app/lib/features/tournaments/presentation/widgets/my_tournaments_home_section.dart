@@ -6,7 +6,6 @@ import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../data/my_tournament_registrations_repository.dart';
-import '../../../athlete/domain/athlete_shell_providers.dart';
 import '../../../athlete/presentation/widgets/athlete_home/athlete_home_section_header.dart';
 import '../../domain/tournament_discovery_models.dart';
 
@@ -28,8 +27,7 @@ class MyTournamentsHomeSection extends ConsumerWidget {
               title: 'Meus torneios',
               trailingLabel: 'VER TODOS',
               onTrailingTap: () {
-                ref.read(athleteShellTabIndexProvider.notifier).state =
-                    athleteShellCompeteTabIndex;
+                context.pushNamed(AppRouteNames.myTournaments);
               },
             ),
             SizedBox(height: 10),

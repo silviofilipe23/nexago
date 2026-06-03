@@ -21,9 +21,7 @@ class TournamentDetailInfoCards extends StatelessWidget {
           ),
         ),
         SizedBox(width: 10),
-        Expanded(
-          child: _PartnerCard(partner: detail.partner),
-        ),
+        Expanded(child: _PartnerCard(partner: detail.partner)),
       ],
     );
   }

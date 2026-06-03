@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 Future<String?> showSlotsSearchTimeSheet(BuildContext context) {
   return showModalBottomSheet<String>(
     context: context,
-    backgroundColor: AppColors.surfaceSheet,
+    backgroundColor: context.themeColors.surfaceSheet,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -50,35 +51,35 @@ class _SlotsSearchTimeSheetState extends State<_SlotsSearchTimeSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.surfaceRaised,
+                color: context.themeColors.surfaceRaised,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Text(
             'Ir para horário',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w900,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           TextField(
             controller: _controller,
             keyboardType: TextInputType.datetime,
-            style: const TextStyle(color: AppColors.onSurface),
+            style: TextStyle(color: context.themeColors.onSurface),
             decoration: InputDecoration(
               hintText: 'HH:mm',
               filled: true,
-              fillColor: AppColors.surfaceCard,
+              fillColor: context.themeColors.surfaceCard,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.surfaceRaised),
+                borderSide: BorderSide(color: context.themeColors.surfaceRaised),
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           FilledButton(
             onPressed: () {
               final v = _controller.text.trim();
@@ -90,7 +91,7 @@ class _SlotsSearchTimeSheetState extends State<_SlotsSearchTimeSheet> {
               backgroundColor: AppColors.brand,
               foregroundColor: AppColors.black,
             ),
-            child: const Text(
+            child: Text(
               'Buscar',
               style: TextStyle(fontWeight: FontWeight.w900),
             ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/compete_hub_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
@@ -21,10 +22,10 @@ class TournamentDiscoveryHubTile extends StatelessWidget {
   final DiscoveryTournament tournament;
   final VoidCallback onTap;
 
-  static TextStyle get _titleStyle => AppTypography.soraRegular(
+  static TextStyle _titleStyle(BuildContext context) => AppTypography.soraRegular(
         fontSize: 16,
         fontWeight: FontWeight.w800,
-        color: AppColors.onSurface,
+        color: context.themeColors.onSurface,
         height: 1.15,
         letterSpacing: -0.3,
       );
@@ -54,7 +55,7 @@ class TournamentDiscoveryHubTile extends StatelessWidget {
     final innerMax = tileMaxWidth - _horizontalPadding;
 
     final titlePainter = TextPainter(
-      text: TextSpan(text: title, style: _titleStyle),
+      text: TextSpan(text: title, style: _titleStyle(context)),
       maxLines: 1,
       textDirection: textDirection,
     )..layout();
@@ -83,7 +84,7 @@ class TournamentDiscoveryHubTile extends StatelessWidget {
         style: _monoStyle(
           fontSize: 11,
           fontWeight: FontWeight.w500,
-          color: isOpenStatus ? AppColors.win : AppColors.onSurfaceMuted,
+          color: isOpenStatus ? AppColors.win : context.themeColors.onSurfaceMuted,
           letterSpacing: 0.5,
         ),
       ),
@@ -117,7 +118,7 @@ class TournamentDiscoveryHubTile extends StatelessWidget {
       width: tileWidth,
       height: tileHeight,
       child: Material(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -136,19 +137,19 @@ class TournamentDiscoveryHubTile extends StatelessWidget {
                         tournament.name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: _titleStyle,
+                        style: _titleStyle(context),
                       ),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       Text(
                         hubTournamentCategoryCountLabel(tournament),
                         style: AppTypography.soraRegular(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           height: 1.2,
                         ),
                       ),
-                      const Spacer(),
+                      Spacer(),
                       Row(
                         children: [
                           Text(
@@ -160,7 +161,7 @@ class TournamentDiscoveryHubTile extends StatelessWidget {
                               letterSpacing: 0.2,
                             ),
                           ),
-                          const Spacer(),
+                          Spacer(),
                           Text(
                             statusBadge,
                             style: _monoStyle(
@@ -168,7 +169,7 @@ class TournamentDiscoveryHubTile extends StatelessWidget {
                               fontWeight: FontWeight.w500,
                               color: isOpenStatus
                                   ? AppColors.win
-                                  : AppColors.onSurfaceMuted,
+                                  : context.themeColors.onSurfaceMuted,
                               letterSpacing: 0.5,
                             ),
                           ),

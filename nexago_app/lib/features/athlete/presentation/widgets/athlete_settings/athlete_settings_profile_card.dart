@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import 'athlete_settings_helpers.dart';
 
@@ -35,10 +36,10 @@ class AthleteSettingsProfileCard extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
         ),
       ),
       child: Padding(
@@ -51,7 +52,7 @@ class AthleteSettingsProfileCard extends StatelessWidget {
               initials: initials,
               isLoading: isLoading,
             ),
-            const SizedBox(width: 14),
+            SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,17 +63,17 @@ class AthleteSettingsProfileCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                       letterSpacing: -0.2,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     emailLine,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -137,8 +138,8 @@ class _SettingsProfileAvatar extends StatelessWidget {
           width: size,
           height: size,
           child: isLoading
-              ? const ColoredBox(
-                  color: AppColors.surfaceRaised,
+              ? ColoredBox(
+                  color: context.themeColors.surfaceRaised,
                   child: Center(
                     child: SizedBox(
                       width: 20,
@@ -156,11 +157,11 @@ class _SettingsProfileAvatar extends StatelessWidget {
                       width: size,
                       height: size,
                       fit: BoxFit.cover,
-                      placeholder: (_, _) => _InitialsBadge(
+                      placeholder: (_, __) => _InitialsBadge(
                         initials: initials,
                         theme: theme,
                       ),
-                      errorWidget: (_, _, _) => _InitialsBadge(
+                      errorWidget: (_, __, ___) => _InitialsBadge(
                         initials: initials,
                         theme: theme,
                       ),
@@ -184,7 +185,7 @@ class _InitialsBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,

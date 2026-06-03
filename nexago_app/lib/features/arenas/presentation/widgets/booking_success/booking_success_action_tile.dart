@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class BookingSuccessActionTile extends StatelessWidget {
   const BookingSuccessActionTile({
@@ -19,7 +20,7 @@ class BookingSuccessActionTile extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: AppColors.surfaceRaised,
+      color: context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -42,12 +43,12 @@ class BookingSuccessActionTile extends StatelessWidget {
                 ),
                 child: Icon(icon, color: AppColors.brand, size: 20),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 label,
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
                 textAlign: TextAlign.center,
               ),

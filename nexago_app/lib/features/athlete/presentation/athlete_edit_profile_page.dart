@@ -11,6 +11,7 @@ import '../../../core/media/profile_image_crop_config.dart';
 import '../../../core/media/profile_image_picker.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_options.dart';
 import '../domain/athlete_profile_providers.dart';
@@ -274,17 +275,17 @@ class _AthleteEditProfilePageState
 
     if (user == null) {
       return Scaffold(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         appBar: AppBar(
-          backgroundColor: AppColors.canvas,
-          title: const Text('Editar perfil'),
+          backgroundColor: context.themeColors.canvas,
+          title: Text('Editar perfil'),
         ),
-        body: const Center(child: Text('Faça login para editar o perfil.')),
+        body: Center(child: Text('Faça login para editar o perfil.')),
       );
     }
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: _editProfileAppBar(theme),
       body: profileAsync.when(
         data: (doc) {
@@ -302,7 +303,7 @@ class _AthleteEditProfilePageState
           }
 
           if (!_initialized) {
-            return const Center(
+            return Center(
               child: CircularProgressIndicator(color: AppColors.brand),
             );
           }
@@ -337,7 +338,7 @@ class _AthleteEditProfilePageState
                             onEditAvatar: _pickAvatar,
                           ),
                         ),
-                        const SizedBox(height: 52),
+                        SizedBox(height: 52),
                         const EditProfileSectionHeader(
                           icon: Icons.badge_outlined,
                           title: 'IDENTIDADE',
@@ -355,14 +356,14 @@ class _AthleteEditProfilePageState
                           },
                           onChanged: (_) => setState(() {}),
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         EditProfileTextField(
                           controller: _nicknameCtrl,
                           label: 'APELIDO',
                           helperText: 'Como prefere ser chamado',
                           textCapitalization: TextCapitalization.words,
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         KeyedSubtree(
                           key: _sportSectionKey,
                           child: Row(
@@ -387,7 +388,7 @@ class _AthleteEditProfilePageState
                                   },
                                 ),
                               ),
-                              const SizedBox(width: 10),
+                              SizedBox(width: 10),
                               Expanded(
                                 child: EditProfileDropdownField<String>(
                                   value: _level,
@@ -410,7 +411,7 @@ class _AthleteEditProfilePageState
                             ],
                           ),
                         ),
-                        const SizedBox(height: 28),
+                        SizedBox(height: 28),
                         const EditProfileSectionHeader(
                           icon: Icons.forum_outlined,
                           title: 'CONTATO',
@@ -426,11 +427,11 @@ class _AthleteEditProfilePageState
                             prefixIcon: Icon(
                               Icons.chat_bubble_outline_rounded,
                               size: 20,
-                              color: AppColors.onSurfaceMuted,
+                              color: context.themeColors.onSurfaceMuted,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         KeyedSubtree(
                           key: _citySectionKey,
                           child: BrStateCityFields(
@@ -443,7 +444,7 @@ class _AthleteEditProfilePageState
                                 setState(() => _selectedCity = v),
                           ),
                         ),
-                        const SizedBox(height: 28),
+                        SizedBox(height: 28),
                         const EditProfileSectionHeader(
                           icon: Icons.person_outline_rounded,
                           title: 'SOBRE VOCÊ',
@@ -456,7 +457,7 @@ class _AthleteEditProfilePageState
                           showCounter: true,
                           helperText: 'Aparece no seu perfil público.',
                         ),
-                        const SizedBox(height: 28),
+                        SizedBox(height: 28),
                         const EditProfileSectionHeader(
                           icon: Icons.settings_outlined,
                           title: 'E-MAIL E CONTA',
@@ -466,12 +467,12 @@ class _AthleteEditProfilePageState
                               ? user.email
                               : _emailCtrl.text.trim(),
                         ),
-                        const SizedBox(height: 28),
+                        SizedBox(height: 28),
                         FilledButton(
                           onPressed: _saving ? null : _save,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.brand,
-                            foregroundColor: AppColors.canvas,
+                            foregroundColor: context.themeColors.canvas,
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
@@ -481,20 +482,20 @@ class _AthleteEditProfilePageState
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               if (_saving)
-                                const SizedBox(
+                                SizedBox(
                                   width: 22,
                                   height: 22,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: AppColors.canvas,
+                                    color: context.themeColors.canvas,
                                   ),
                                 )
                               else
-                                const Icon(Icons.check_rounded),
-                              const SizedBox(width: 10),
+                                Icon(Icons.check_rounded),
+                              SizedBox(width: 10),
                               Text(
                                 _saving ? 'Salvando…' : 'Salvar alterações',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 16,
                                 ),
@@ -510,7 +511,7 @@ class _AthleteEditProfilePageState
             ),
           );
         },
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (e, _) => Center(
@@ -520,7 +521,7 @@ class _AthleteEditProfilePageState
               'Não foi possível carregar.\n$e',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
           ),
@@ -531,7 +532,7 @@ class _AthleteEditProfilePageState
 
   PreferredSizeWidget _editProfileAppBar(ThemeData theme) {
     return AppBar(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
@@ -539,17 +540,17 @@ class _AthleteEditProfilePageState
         padding: const EdgeInsets.only(left: 12),
         child: Center(
           child: Material(
-            color: AppColors.surfaceRaised,
+            color: context.themeColors.surfaceRaised,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: _popOrBack,
               borderRadius: BorderRadius.circular(12),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 40,
                 height: 40,
                 child: Icon(
                   Icons.chevron_left_rounded,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
             ),
@@ -560,7 +561,7 @@ class _AthleteEditProfilePageState
         'Editar perfil',
         style: theme.textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w800,
-          color: AppColors.onSurface,
+          color: context.themeColors.onSurface,
           letterSpacing: -0.3,
         ),
       ),

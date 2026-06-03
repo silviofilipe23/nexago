@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
 import 'match_detail_info_section.dart';
@@ -60,10 +61,10 @@ class MatchDetailWhereWhenSection extends StatelessWidget {
           eyebrow: 'ONDE & QUANDO',
           title: 'Detalhes',
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         MatchDetailInfoSection(rows: rows),
         if (showActions) ...[
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Row(
             children: [
               Expanded(
@@ -73,7 +74,7 @@ class MatchDetailWhereWhenSection extends StatelessWidget {
                   onTap: () => showAppSnackBar(context, 'Em breve.'),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: _SecondaryActionButton(
                   icon: Icons.account_tree_outlined,
@@ -117,7 +118,7 @@ class _PrimaryActionButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 18, color: AppColors.black),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 label,
                 style: theme.textTheme.labelLarge?.copyWith(
@@ -149,7 +150,7 @@ class _SecondaryActionButton extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -158,18 +159,18 @@ class _SecondaryActionButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.surfaceRaised),
+            border: Border.all(color: context.themeColors.surfaceRaised),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 18, color: AppColors.onSurface),
-              const SizedBox(width: 8),
+              Icon(icon, size: 18, color: context.themeColors.onSurface),
+              SizedBox(width: 8),
               Text(
                 label,
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
             ],

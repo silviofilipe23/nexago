@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class MyBookingsStreakBanner extends StatelessWidget {
   const MyBookingsStreakBanner({super.key, required this.consecutiveWeeks});
@@ -24,16 +25,16 @@ class MyBookingsStreakBanner extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: AppColors.surfaceRaised,
+              color: context.themeColors.surfaceRaised,
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.local_fire_department_rounded,
               color: AppColors.brand,
               size: 22,
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -42,15 +43,15 @@ class MyBookingsStreakBanner extends StatelessWidget {
                   'Você está em uma sequência de $consecutiveWeeks semanas!',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                     height: 1.25,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   'Mantém a próxima reserva pra não perder o badge \'Em chamas\'.',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     height: 1.4,
                   ),
                 ),

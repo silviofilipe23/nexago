@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../arenas/domain/arena_booking_cancel_reason.dart';
 import '../../../arenas/domain/booking_providers.dart';
 import '../../domain/arena_booking_labels.dart';
@@ -31,7 +32,7 @@ class ArenaBookingCancelSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet<ArenaBookingCancelReason>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surfaceSheet,
+      backgroundColor: context.themeColors.surfaceSheet,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -80,12 +81,12 @@ class _ArenaBookingCancelSheetState
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -93,19 +94,19 @@ class _ArenaBookingCancelSheetState
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceRaised,
+                    color: context.themeColors.surfaceRaised,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: AppColors.live.withValues(alpha: 0.55),
                     ),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.warning_amber_rounded,
                     color: AppColors.live,
                     size: 24,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -114,15 +115,15 @@ class _ArenaBookingCancelSheetState
                         'Cancelar reserva?',
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                           height: 1.2,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         'Notifica ${widget.athleteName} · libera o slot na agenda.',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w500,
                           height: 1.35,
                         ),
@@ -132,13 +133,13 @@ class _ArenaBookingCancelSheetState
                 ),
               ],
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             DecoratedBox(
               decoration: BoxDecoration(
-                color: AppColors.surfaceRaised,
+                color: context.themeColors.surfaceRaised,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
                 ),
               ),
               child: Padding(
@@ -154,7 +155,7 @@ class _ArenaBookingCancelSheetState
                             widget.athleteName,
                             style: theme.textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.w800,
-                              color: AppColors.onSurface,
+                              color: context.themeColors.onSurface,
                             ),
                           ),
                         ),
@@ -167,11 +168,11 @@ class _ArenaBookingCancelSheetState
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Text(
                       summaryMeta,
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.4,
                         height: 1.3,
@@ -181,25 +182,25 @@ class _ArenaBookingCancelSheetState
                 ),
               ),
             ),
-            const SizedBox(height: 22),
+            SizedBox(height: 22),
             Text(
               'MOTIVO',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.8,
                 fontSize: 10,
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Column(
               children: [
                 for (var row = 0; row < (reasons.length / 2).ceil(); row++) ...[
-                  if (row > 0) const SizedBox(height: 8),
+                  if (row > 0) SizedBox(height: 8),
                   Row(
                     children: [
                       for (var col = 0; col < 2; col++) ...[
-                        if (col > 0) const SizedBox(width: 8),
+                        if (col > 0) SizedBox(width: 8),
                         Expanded(
                           child: row * 2 + col < reasons.length
                               ? _ReasonOption(
@@ -219,10 +220,10 @@ class _ArenaBookingCancelSheetState
               ],
             ),
             if (isDirect) ...[
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               _DirectPaymentNotice(),
             ],
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             Row(
               children: [
                 Expanded(
@@ -230,21 +231,21 @@ class _ArenaBookingCancelSheetState
                     onPressed: _busy ? null : () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      foregroundColor: AppColors.onSurface,
+                      foregroundColor: context.themeColors.onSurface,
                       side: BorderSide(
-                        color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                        color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                       ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Voltar',
                       style: TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
                     onPressed: _busy ? null : _confirm,
@@ -257,7 +258,7 @@ class _ArenaBookingCancelSheetState
                       ),
                     ),
                     child: _busy
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
@@ -265,7 +266,7 @@ class _ArenaBookingCancelSheetState
                               color: AppColors.white,
                             ),
                           )
-                        : const Text(
+                        : Text(
                             'Cancelar reserva',
                             style: TextStyle(fontWeight: FontWeight.w800),
                           ),
@@ -351,7 +352,7 @@ class _ReasonOption extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: AppColors.surfaceRaised,
+      color: context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -367,7 +368,7 @@ class _ReasonOption extends StatelessWidget {
           child: Row(
             children: [
               _ReasonRadio(selected: selected),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   label,
@@ -375,7 +376,7 @@ class _ReasonOption extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                     fontSize: 11,
                     height: 1.25,
-                    color: selected ? AppColors.brand : AppColors.onSurface,
+                    color: selected ? AppColors.brand : context.themeColors.onSurface,
                   ),
                 ),
               ),
@@ -403,7 +404,7 @@ class _ReasonRadio extends StatelessWidget {
           border: Border.all(
             color: selected
                 ? AppColors.brand
-                : AppColors.onSurfaceMuted.withValues(alpha: 0.55),
+                : context.themeColors.onSurfaceMuted.withValues(alpha: 0.55),
             width: 1.5,
           ),
         ),
@@ -412,7 +413,7 @@ class _ReasonRadio extends StatelessWidget {
                 child: Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.brand,
                     shape: BoxShape.circle,
                   ),
@@ -447,12 +448,12 @@ class _DirectPaymentNotice extends StatelessWidget {
             size: 20,
             color: AppColors.pending.withValues(alpha: 0.95),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: RichText(
               text: TextSpan(
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w500,
                   height: 1.45,
                 ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/ranking_list_models.dart';
 
 Future<RankingGenderFilter?> showRankingGenderFilterSheet(
@@ -9,7 +10,7 @@ Future<RankingGenderFilter?> showRankingGenderFilterSheet(
 }) {
   return showModalBottomSheet<RankingGenderFilter>(
     context: context,
-    backgroundColor: AppColors.surfaceCard,
+    backgroundColor: context.themeColors.surfaceCard,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -26,20 +27,20 @@ Future<RankingGenderFilter?> showRankingGenderFilterSheet(
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceRaised,
+                    color: context.themeColors.surfaceRaised,
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Text(
                 'Filtrar por gênero',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               for (final option in const [
                 (RankingGenderFilter.all, 'Todos'),
                 (RankingGenderFilter.male, 'Masculino'),
@@ -51,7 +52,7 @@ Future<RankingGenderFilter?> showRankingGenderFilterSheet(
                   title: Text(
                     option.$2,
                     style: TextStyle(
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                       fontWeight: current == option.$1
                           ? FontWeight.w700
                           : FontWeight.w500,

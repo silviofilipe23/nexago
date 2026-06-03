@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
 enum MyBookingsTab { upcoming, history }
@@ -99,11 +100,11 @@ class _TabSegment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final labelColor = selected ? AppColors.black : AppColors.onSurfaceMuted;
+    final labelColor = selected ? AppColors.black : context.themeColors.onSurfaceMuted;
     final badgeBg = selected
         ? AppColors.black.withValues(alpha: 0.2)
         : const Color(0xFF2C2C2C);
-    final badgeFg = selected ? AppColors.black : AppColors.onSurfaceMuted;
+    final badgeFg = selected ? AppColors.black : context.themeColors.onSurfaceMuted;
 
     return Material(
       color: Colors.transparent,
@@ -123,7 +124,7 @@ class _TabSegment extends StatelessWidget {
                   color: labelColor,
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(

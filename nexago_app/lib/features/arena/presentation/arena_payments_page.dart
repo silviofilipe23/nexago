@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../data/arena_wallet_repository.dart';
 import '../domain/arena_providers.dart';
@@ -193,20 +194,20 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
     });
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
+          icon: Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: const Text('Pagamentos'),
+        title: Text('Pagamentos'),
       ),
       body: arenaId == null || arenaId.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
                 'Nenhuma arena vinculada.',
-                style: TextStyle(color: AppColors.onSurfaceMuted),
+                style: TextStyle(color: context.themeColors.onSurfaceMuted),
               ),
             )
           : SingleChildScrollView(
@@ -222,9 +223,9 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                   ArenaPlatformPixCard(
                     payoutPixKey: arena?.payoutPixKey ?? '',
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
                   walletAsync.when(
-                    loading: () => const Center(
+                    loading: () => Center(
                       child: Padding(
                         padding: EdgeInsets.all(24),
                         child: CircularProgressIndicator(color: AppColors.brand),
@@ -233,19 +234,19 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                     error: (e, _) => Text('Erro: $e'),
                     data: (wallet) => _BalanceCard(wallet: wallet),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
                   Text(
                     'SOLICITAR SAQUE',
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.8,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   DecoratedBox(
-                    decoration: ArenaDashboardTokens.cardDecoration(
-                      color: AppColors.surfaceRaised,
+                    decoration: ArenaDashboardTokens.cardDecoration(context,
+                      color: context.themeColors.surfaceRaised,
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
@@ -261,11 +262,11 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                                 RegExp(r'[0-9.,]'),
                               ),
                             ],
-                            style: const TextStyle(color: AppColors.onSurface),
+                            style: TextStyle(color: context.themeColors.onSurface),
                             decoration: InputDecoration(
                               labelText: 'Valor (reais)',
                               filled: true,
-                              fillColor: AppColors.surfaceSheet,
+                              fillColor: context.themeColors.surfaceSheet,
                               errorText: amountError,
                               helperText: amountError == null && availableReais > 0
                                   ? 'Disponível: ${_currency.format(availableReais)}'
@@ -273,15 +274,15 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                               helperMaxLines: 2,
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: 12),
                           DropdownButtonFormField<PayoutPixKeyType>(
                             value: _pixKeyType,
-                            dropdownColor: AppColors.surfaceSheet,
-                            style: const TextStyle(color: AppColors.onSurface),
-                            decoration: const InputDecoration(
+                            dropdownColor: context.themeColors.surfaceSheet,
+                            style: TextStyle(color: context.themeColors.onSurface),
+                            decoration: InputDecoration(
                               labelText: 'Tipo da chave PIX',
                               filled: true,
-                              fillColor: AppColors.surfaceSheet,
+                              fillColor: context.themeColors.surfaceSheet,
                             ),
                             items: [
                               for (final t in PayoutPixKeyType.values)
@@ -294,19 +295,19 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                               if (v != null) setState(() => _pixKeyType = v);
                             },
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: 12),
                           TextField(
                             controller: _pixKeyController,
-                            style: const TextStyle(color: AppColors.onSurface),
+                            style: TextStyle(color: context.themeColors.onSurface),
                             decoration: InputDecoration(
                               labelText: 'Chave PIX para receber',
                               hintText: _pixKeyType.hintForField(),
                               filled: true,
-                              fillColor: AppColors.surfaceSheet,
+                              fillColor: context.themeColors.surfaceSheet,
                               errorText: pixKeyError,
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16),
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton(
@@ -322,7 +323,7 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                                 padding: const EdgeInsets.symmetric(vertical: 14),
                               ),
                               child: _submitting
-                                  ? const SizedBox(
+                                  ? SizedBox(
                                       width: 22,
                                       height: 22,
                                       child: CircularProgressIndicator(
@@ -330,16 +331,16 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                                         color: AppColors.black,
                                       ),
                                     )
-                                  : const Text('Solicitar saque'),
+                                  : Text('Solicitar saque'),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
                   _WithdrawalsSection(arenaId: arenaId),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
                   _LedgerSection(arenaId: arenaId),
                 ],
               ),
@@ -363,8 +364,8 @@ class _BalanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(
-        color: AppColors.surfaceRaised,
+      decoration: ArenaDashboardTokens.cardDecoration(context,
+        color: context.themeColors.surfaceRaised,
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -374,10 +375,10 @@ class _BalanceCard extends StatelessWidget {
             Text(
               'Saldo disponível',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               _fmt.format(wallet.availableReais),
               style: theme.textTheme.headlineMedium?.copyWith(
@@ -386,7 +387,7 @@ class _BalanceCard extends StatelessWidget {
               ),
             ),
             if (wallet.pendingReais > 0) ...[
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 'Em análise: ${_fmt.format(wallet.pendingReais)}',
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -417,12 +418,12 @@ class _WithdrawalsSection extends ConsumerWidget {
         Text(
           'SAQUES',
           style: theme.textTheme.labelSmall?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.8,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         async.when(
           loading: () => const LinearProgressIndicator(),
           error: (e, _) => Text('$e'),
@@ -431,7 +432,7 @@ class _WithdrawalsSection extends ConsumerWidget {
               return Text(
                 'Nenhum saque solicitado ainda.',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               );
             }
@@ -485,12 +486,12 @@ class _LedgerSection extends ConsumerWidget {
         Text(
           'ÚLTIMOS RECEBIMENTOS',
           style: theme.textTheme.labelSmall?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.8,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         async.when(
           loading: () => const LinearProgressIndicator(),
           error: (e, _) => Text('$e'),
@@ -499,7 +500,7 @@ class _LedgerSection extends ConsumerWidget {
               return Text(
                 'Recebimentos PIX aparecerão aqui.',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               );
             }
@@ -510,7 +511,7 @@ class _LedgerSection extends ConsumerWidget {
                       contentPadding: EdgeInsets.zero,
                       title: Text(
                         '+ ${_WithdrawalsSection._currency.format(e.netReais)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.win,
                           fontWeight: FontWeight.w700,
                         ),

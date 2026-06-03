@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../data/my_tournament_registrations_repository.dart';
 import '../../../athlete/domain/athlete_shell_providers.dart';
 import '../../../athlete/presentation/widgets/athlete_home/athlete_home_section_header.dart';
@@ -31,7 +32,7 @@ class MyTournamentsHomeSection extends ConsumerWidget {
                     athleteShellCompeteTabIndex;
               },
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             for (final r in preview) ...[
               _RegistrationRow(
                 registration: r,
@@ -44,7 +45,7 @@ class MyTournamentsHomeSection extends ConsumerWidget {
                   );
                 },
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
             ],
           ],
         );
@@ -93,10 +94,10 @@ class _MyTournamentsHomeSectionSkeletonState
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const AthleteHomeSectionHeader(title: 'Meus torneios'),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             for (var i = 0; i < 3; i++) ...[
               _RegistrationRowSkeleton(pulse: t),
-              if (i < 2) const SizedBox(height: 8),
+              if (i < 2) SizedBox(height: 8),
             ],
           ],
         );
@@ -114,16 +115,16 @@ class _RegistrationRowSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         child: Row(
           children: [
             _ShimmerBox(width: 44, height: 44, borderRadius: 10, pulse: pulse),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,12 +138,12 @@ class _RegistrationRowSkeleton extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   _ShimmerBox(width: 120, height: 11, pulse: pulse),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             _ShimmerBox(width: 52, height: 22, borderRadius: 8, pulse: pulse),
           ],
         ),
@@ -166,8 +167,8 @@ class _ShimmerBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = AppColors.onSurfaceMuted.withValues(alpha: 0.12);
-    final highlight = AppColors.onSurfaceMuted.withValues(alpha: 0.22);
+    final base = context.themeColors.onSurfaceMuted.withValues(alpha: 0.12);
+    final highlight = context.themeColors.onSurfaceMuted.withValues(alpha: 0.22);
     return Container(
       width: width,
       height: height,
@@ -195,7 +196,7 @@ class _RegistrationRow extends StatelessWidget {
         registration.isPaid ? AppColors.brand : AppColors.pending;
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -204,7 +205,7 @@ class _RegistrationRow extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.surfaceRaised),
+            border: Border.all(color: context.themeColors.surfaceRaised),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -214,16 +215,16 @@ class _RegistrationRow extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceRaised,
+                    color: context.themeColors.surfaceRaised,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.emoji_events_outlined,
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     size: 22,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,7 +233,7 @@ class _RegistrationRow extends StatelessWidget {
                         registration.tournamentName,
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -241,7 +242,7 @@ class _RegistrationRow extends StatelessWidget {
                         Text(
                           registration.dateLabel,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -249,7 +250,7 @@ class _RegistrationRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,

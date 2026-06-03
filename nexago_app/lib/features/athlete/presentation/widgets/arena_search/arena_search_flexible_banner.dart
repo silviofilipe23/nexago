@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class ArenaSearchFlexibleBanner extends StatelessWidget {
   const ArenaSearchFlexibleBanner({
@@ -21,7 +22,7 @@ class ArenaSearchFlexibleBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: AppColors.pending.withValues(alpha: 0.35),
@@ -35,12 +36,12 @@ class ArenaSearchFlexibleBanner extends StatelessWidget {
             color: AppColors.pending,
             size: 22,
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: RichText(
               text: TextSpan(
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   height: 1.35,
                 ),
                 children: [
@@ -49,7 +50,7 @@ class ArenaSearchFlexibleBanner extends StatelessWidget {
                   ),
                   TextSpan(
                     text: '+$boostPercent% opções',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w800,
                       color: AppColors.pending,
                     ),
@@ -59,7 +60,7 @@ class ArenaSearchFlexibleBanner extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           OutlinedButton(
             onPressed: onToggle,
             style: OutlinedButton.styleFrom(
@@ -67,7 +68,7 @@ class ArenaSearchFlexibleBanner extends StatelessWidget {
                   flexibleTime ? AppColors.black : AppColors.pending,
               backgroundColor:
                   flexibleTime ? AppColors.pending : Colors.transparent,
-              side: const BorderSide(color: AppColors.pending),
+              side: BorderSide(color: AppColors.pending),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),

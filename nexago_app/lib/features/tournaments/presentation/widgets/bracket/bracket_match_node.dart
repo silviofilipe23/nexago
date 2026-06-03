@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/double_elimination_bracket_layout.dart';
 import '../../../domain/tournament_match.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
@@ -47,7 +48,7 @@ class BracketMatchNode extends StatelessWidget {
         ? _finalBackground
         : isAthleteMatch && !isLive
             ? AppColors.brand.withValues(alpha: 0.06)
-            : AppColors.surfaceRaised;
+            : context.themeColors.surfaceRaised;
 
     final winnerSetPills = teamAWon
         ? _setPillsForTeam(match: match, isTeamA: true)
@@ -74,7 +75,7 @@ class BracketMatchNode extends StatelessWidget {
                     style: AppTypography.mono(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       letterSpacing: 0.3,
                     ),
                     maxLines: 1,
@@ -84,7 +85,7 @@ class BracketMatchNode extends StatelessWidget {
                 _StatusPill(label: statusLabel, isLive: isLive),
               ],
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -96,7 +97,7 @@ class BracketMatchNode extends StatelessWidget {
                     isWinner: teamAWon,
                     isYou: athleteTeamIds.contains(match.teamAId.trim()),
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                   _TeamRow(
                     team: viewModel.teamB,
                     setsWon: counts.$2,
@@ -108,11 +109,11 @@ class BracketMatchNode extends StatelessWidget {
               ),
             ),
             if (winnerSetPills.isNotEmpty) ...[
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Row(
                 children: [
                   for (var i = 0; i < winnerSetPills.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 6),
+                    if (i > 0) SizedBox(width: 6),
                     _SetPill(label: winnerSetPills[i]),
                   ],
                 ],
@@ -174,7 +175,7 @@ class _StatusPill extends StatelessWidget {
         ? AppColors.brand
         : label == 'FINALIZADO'
             ? AppColors.win
-            : AppColors.onSurfaceMuted;
+            : context.themeColors.onSurfaceMuted;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -205,7 +206,7 @@ class _SetPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: AppColors.canvas.withValues(alpha: 0.65),
+        color: context.themeColors.canvas.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -213,7 +214,7 @@ class _SetPill extends StatelessWidget {
         style: AppTypography.mono(
           fontSize: 9,
           fontWeight: FontWeight.w600,
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
           letterSpacing: 0.2,
         ),
       ),
@@ -239,7 +240,7 @@ class _TeamRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textColor =
-        isWinner ? AppColors.onSurface : AppColors.onSurfaceMuted;
+        isWinner ? context.themeColors.onSurface : context.themeColors.onSurfaceMuted;
     final fontWeight = isWinner ? FontWeight.w700 : FontWeight.w500;
     final scoreColor = isWinner ? AppColors.brand : textColor;
     final scoreLabel = hasScore ? '$setsWon' : '—';
@@ -247,7 +248,7 @@ class _TeamRow extends StatelessWidget {
     return Row(
       children: [
         _AvatarStack(players: team.players, isWinner: isWinner),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
           child: Row(
             children: [
@@ -264,7 +265,7 @@ class _TeamRow extends StatelessWidget {
                 ),
               ),
               if (isYou) ...[
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -298,7 +299,7 @@ class _TeamRow extends StatelessWidget {
           ),
         ),
         if (isWinner) ...[
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Container(
             width: 3,
             height: 22,
@@ -370,7 +371,7 @@ class _AvatarCircle extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
-          color: isWinner ? AppColors.win : AppColors.canvas,
+          color: isWinner ? AppColors.win : context.themeColors.canvas,
           width: isWinner ? 2 : 1.5,
         ),
       ),

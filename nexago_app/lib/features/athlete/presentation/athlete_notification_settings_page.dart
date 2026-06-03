@@ -8,6 +8,7 @@ import '../../../core/formatting/br_phone_format.dart';
 import '../../../core/notifications/notification_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/athlete_notification_preferences_providers.dart';
 import '../domain/athlete_profile_providers.dart';
@@ -35,10 +36,10 @@ class AthleteNotificationSettingsPage extends ConsumerWidget {
     });
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: _appBar(context, theme),
       body: switch (ui.status) {
-        AthleteNotificationPreferencesStatus.loading => const Center(
+        AthleteNotificationPreferencesStatus.loading => Center(
             child: CircularProgressIndicator(color: AppColors.brand),
           ),
         AthleteNotificationPreferencesStatus.error => Center(
@@ -48,7 +49,7 @@ class AthleteNotificationSettingsPage extends ConsumerWidget {
                 ui.errorMessage ?? 'Erro ao carregar preferências.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyLarge?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
             ),
@@ -68,7 +69,7 @@ class AthleteNotificationSettingsPage extends ConsumerWidget {
 
   PreferredSizeWidget _appBar(BuildContext context, ThemeData theme) {
     return AppBar(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
@@ -76,7 +77,7 @@ class AthleteNotificationSettingsPage extends ConsumerWidget {
         padding: const EdgeInsets.only(left: 12),
         child: Center(
           child: Material(
-            color: AppColors.surfaceRaised,
+            color: context.themeColors.surfaceRaised,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: () {
@@ -87,12 +88,12 @@ class AthleteNotificationSettingsPage extends ConsumerWidget {
                 }
               },
               borderRadius: BorderRadius.circular(12),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 40,
                 height: 40,
                 child: Icon(
                   Icons.chevron_left_rounded,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
             ),
@@ -103,7 +104,7 @@ class AthleteNotificationSettingsPage extends ConsumerWidget {
         'Notificações',
         style: theme.textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w800,
-          color: AppColors.onSurface,
+          color: context.themeColors.onSurface,
           letterSpacing: -0.3,
         ),
       ),
@@ -116,7 +117,7 @@ class AthleteNotificationSettingsPage extends ConsumerWidget {
             child: Text(
               'Escolhe como e quando o nexaGO te encontra.',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 height: 1.35,
                 fontSize: 13,
               ),
@@ -255,7 +256,7 @@ class _ReadyBody extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: AthleteSettingsTokens.sectionGap),
+        SizedBox(height: AthleteSettingsTokens.sectionGap),
         AthleteSettingsGroup(
           sectionLabel: 'O QUE VOCÊ RECEBE',
           children: [
@@ -302,7 +303,7 @@ class _ReadyBody extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: AthleteSettingsTokens.sectionGap),
+        SizedBox(height: AthleteSettingsTokens.sectionGap),
         AthleteSettingsGroup(
           sectionLabel: 'JANELA DE SILÊNCIO',
           children: [
@@ -325,7 +326,7 @@ class _ReadyBody extends ConsumerWidget {
           ],
         ),
         if (ui.isSaving)
-          const Positioned(
+          Positioned(
             top: 0,
             left: 0,
             right: 0,

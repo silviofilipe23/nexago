@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../data/tournament_inscriptions_repository.dart';
 import '../domain/double_elimination_bracket_layout.dart';
 import '../domain/tournament_discovery_providers.dart';
@@ -49,13 +50,13 @@ class DoubleEliminationBracketPage extends ConsumerWidget {
         categoryId;
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.onSurface),
+          icon: Icon(Icons.arrow_back_rounded, color: context.themeColors.onSurface),
           onPressed: () => context.pop(),
         ),
         title: Column(
@@ -66,7 +67,7 @@ class DoubleEliminationBracketPage extends ConsumerWidget {
               style: AppTypography.soraRegular(
                 fontSize: 17,
                 fontWeight: FontWeight.w700,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
             Text(
@@ -74,14 +75,14 @@ class DoubleEliminationBracketPage extends ConsumerWidget {
               style: AppTypography.soraRegular(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
           ],
         ),
       ),
       body: cardsAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (e, _) => TournamentDetailMessageList(
@@ -111,16 +112,16 @@ class DoubleEliminationBracketPage extends ConsumerWidget {
                 child: Row(
                   children: [
                     _LegendChip(label: 'WB', color: AppColors.brand),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     _LegendChip(label: 'LB', color: AppColors.brand),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     _LegendChip(label: 'Final', color: AppColors.pending),
-                    const Spacer(),
+                    Spacer(),
                     Text(
                       'Pinça para zoom',
                       style: AppTypography.mono(
                         fontSize: 10,
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                       ),
                     ),
                   ],
@@ -156,7 +157,7 @@ class _LegendChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
@@ -165,7 +166,7 @@ class _LegendChip extends StatelessWidget {
         style: AppTypography.mono(
           fontSize: 10,
           fontWeight: FontWeight.w600,
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
         ),
       ),
     );

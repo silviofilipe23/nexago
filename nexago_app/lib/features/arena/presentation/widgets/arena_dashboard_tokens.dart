@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 /// Constantes visuais compartilhadas do painel arena.
 abstract final class ArenaDashboardTokens {
@@ -11,11 +12,15 @@ abstract final class ArenaDashboardTokens {
   static const double cardRadius = 16;
   static const double chipRadius = 999;
 
-  static BoxDecoration cardDecoration({Color? color}) => BoxDecoration(
-        color: color ?? AppColors.surfaceCard,
+  static BoxDecoration cardDecoration(
+    BuildContext context, {
+    Color? color,
+  }) =>
+      BoxDecoration(
+        color: color ?? context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(cardRadius),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
         ),
       );
 }

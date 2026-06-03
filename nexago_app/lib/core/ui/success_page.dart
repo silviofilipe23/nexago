@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 /// Tela reutilizável de sucesso (estilo clean): check, título, mensagem e ações.
 ///
@@ -103,7 +104,7 @@ class _SuccessPageState extends State<SuccessPage>
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     ScaleTransition(
                       scale: _iconScale,
                       child: Center(
@@ -121,7 +122,7 @@ class _SuccessPageState extends State<SuccessPage>
                               ),
                             ],
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.check_rounded,
                             size: 56,
                             color: _successGreen,
@@ -129,7 +130,7 @@ class _SuccessPageState extends State<SuccessPage>
                         ),
                       ),
                     ),
-                    const SizedBox(height: 40),
+                    SizedBox(height: 40),
                     AnimatedBuilder(
                       animation: _controller,
                       builder: (context, child) {
@@ -158,18 +159,18 @@ class _SuccessPageState extends State<SuccessPage>
                           ),
                           if (widget.message != null &&
                               widget.message!.trim().isNotEmpty) ...[
-                            const SizedBox(height: 16),
+                            SizedBox(height: 16),
                             Text(
                               widget.message!.trim(),
                               textAlign: TextAlign.center,
                               style: theme.textTheme.bodyLarge?.copyWith(
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                                 height: 1.5,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
-                          const SizedBox(height: 48),
+                          SizedBox(height: 48),
                           SizedBox(
                             width: double.infinity,
                             height: 54,
@@ -185,7 +186,7 @@ class _SuccessPageState extends State<SuccessPage>
                               ),
                               child: Text(
                                 widget.primaryActionLabel,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: -0.2,
@@ -194,7 +195,7 @@ class _SuccessPageState extends State<SuccessPage>
                             ),
                           ),
                           if (widget.secondaryActionLabel != null) ...[
-                            const SizedBox(height: 12),
+                            SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,
                               height: 52,
@@ -209,7 +210,7 @@ class _SuccessPageState extends State<SuccessPage>
                                 ),
                                 child: Text(
                                   widget.secondaryActionLabel!,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -217,7 +218,7 @@ class _SuccessPageState extends State<SuccessPage>
                               ),
                             ),
                           ],
-                          const SizedBox(height: 8),
+                          SizedBox(height: 8),
                         ],
                       ),
                     ),

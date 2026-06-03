@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/athlete_quest/athlete_quest_logic.dart';
 import '../../../domain/gamification_models.dart';
 import 'athlete_home_section_header.dart';
@@ -35,13 +36,13 @@ class AthleteHomeDailyMissionsSection extends StatelessWidget {
           trailingLabel: 'VER TUDO',
           onTrailingTap: onViewAll,
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
+            color: context.themeColors.surfaceCard,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.surfaceRaised),
+            border: Border.all(color: context.themeColors.surfaceRaised),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -54,12 +55,12 @@ class AthleteHomeDailyMissionsSection extends StatelessWidget {
                       child: LinearProgressIndicator(
                         minHeight: 6,
                         value: progress,
-                        backgroundColor: AppColors.surfaceRaised,
+                        backgroundColor: context.themeColors.surfaceRaised,
                         color: AppColors.brand,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Text(
                     '+$totalXp XP',
                     style: theme.textTheme.labelSmall?.copyWith(
@@ -70,15 +71,15 @@ class AthleteHomeDailyMissionsSection extends StatelessWidget {
                 ],
               ),
               if (list.isEmpty) ...[
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Text(
                   'Carregando missões de hoje…',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
               ] else ...[
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 ...list.map(
                   (m) => _MissionRow(
                     status: m,
@@ -114,16 +115,16 @@ class _MissionRow extends StatelessWidget {
               ? Icons.check_circle_rounded
               : Icons.radio_button_unchecked_rounded,
           size: 20,
-          color: status.completed ? AppColors.win : AppColors.onSurfaceMuted,
+          color: status.completed ? AppColors.win : context.themeColors.onSurfaceMuted,
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: Text(
             missionTitle(status.mission),
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w700,
               color:
-                  status.completed ? AppColors.win : AppColors.onSurface,
+                  status.completed ? AppColors.win : context.themeColors.onSurface,
             ),
           ),
         ),
@@ -131,7 +132,7 @@ class _MissionRow extends StatelessWidget {
           '+$xp XP',
           style: theme.textTheme.labelSmall?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
           ),
         ),
       ],

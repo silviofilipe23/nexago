@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'edit_profile_field_decorations.dart';
 
 /// Dropdown estilo Editar perfil (protótipo 11).
@@ -55,14 +56,15 @@ class _EditProfileDropdownFieldState<T>
       isExpanded: true,
       icon: Icon(
         Icons.keyboard_arrow_down_rounded,
-        color: AppColors.onSurfaceMuted.withValues(alpha: 0.8),
+        color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.8),
       ),
       style: theme.textTheme.bodyLarge?.copyWith(
-        color: AppColors.onSurface,
+        color: context.themeColors.onSurface,
         fontWeight: FontWeight.w600,
       ),
-      dropdownColor: AppColors.surfaceSheet,
+      dropdownColor: context.themeColors.surfaceSheet,
       decoration: editProfileInputDecoration(
+        context: context,
         label: widget.label,
         required: widget.required,
         focused: _focused,

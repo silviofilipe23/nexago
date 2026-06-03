@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class BookingPixAppBar extends StatelessWidget implements PreferredSizeWidget {
   const BookingPixAppBar({super.key, required this.onBack});
@@ -15,7 +16,7 @@ class BookingPixAppBar extends StatelessWidget implements PreferredSizeWidget {
     final theme = Theme.of(context);
 
     return AppBar(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
@@ -23,18 +24,18 @@ class BookingPixAppBar extends StatelessWidget implements PreferredSizeWidget {
         padding: const EdgeInsets.only(left: 12),
         child: Center(
           child: Material(
-            color: AppColors.surfaceRaised,
+            color: context.themeColors.surfaceRaised,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: onBack,
               borderRadius: BorderRadius.circular(12),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 40,
                 height: 40,
                 child: Icon(
                   Icons.arrow_back_ios_new_rounded,
                   size: 18,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
             ),
@@ -45,7 +46,7 @@ class BookingPixAppBar extends StatelessWidget implements PreferredSizeWidget {
         'Pagamento via PIX',
         style: theme.textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.w800,
-          color: AppColors.onSurface,
+          color: context.themeColors.onSurface,
         ),
       ),
     );

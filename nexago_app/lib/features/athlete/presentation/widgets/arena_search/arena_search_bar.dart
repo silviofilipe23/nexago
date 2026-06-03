@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class ArenaSearchBar extends StatefulWidget {
   const ArenaSearchBar({
@@ -47,28 +48,28 @@ class _ArenaSearchBarState extends State<ArenaSearchBar> {
       controller: _controller,
       onChanged: widget.onChanged,
       style: theme.textTheme.bodyMedium?.copyWith(
-        color: AppColors.onSurface,
+        color: context.themeColors.onSurface,
         fontWeight: FontWeight.w600,
       ),
       decoration: InputDecoration(
         hintText: 'Buscar arena, bairro ou cidade',
         hintStyle: theme.textTheme.bodyMedium?.copyWith(
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
         ),
-        prefixIcon: const Icon(
+        prefixIcon: Icon(
           Icons.search_rounded,
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
         ),
         filled: true,
-        fillColor: AppColors.surfaceCard,
+        fillColor: context.themeColors.surfaceCard,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.surfaceRaised),
+          borderSide: BorderSide(color: context.themeColors.surfaceRaised),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: AppColors.surfaceRaised),
+          borderSide: BorderSide(color: context.themeColors.surfaceRaised),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),

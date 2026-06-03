@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_booking_labels.dart';
 import '../../domain/arena_manager_booking.dart';
 import '../../domain/arena_slot_detail_providers.dart';
@@ -30,15 +31,15 @@ class ArenaBookingDetailHistoryFullPage extends ConsumerWidget {
       ),
     );
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.canvas,
-        title: const Text('Histórico completo'),
+        backgroundColor: context.themeColors.canvas,
+        title: Text('Histórico completo'),
       ),
       body: historyAsync.when(
         data: (bookings) {
           if (bookings.isEmpty) {
-            return const Center(
+            return Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text('Sem histórico para este atleta nesta arena.'),
@@ -50,12 +51,12 @@ class ArenaBookingDetailHistoryFullPage extends ConsumerWidget {
             itemCount: bookings.length,
             separatorBuilder: (_, __) => Divider(
               height: 18,
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
             ),
             itemBuilder: (_, i) => _HistoryBookingRow(booking: bookings[i]),
           );
         },
-        loading: () => const Center(
+        loading: () => Center(
           child: ArenaLoadingState(label: 'Carregando histórico...'),
         ),
         error: (e, _) => Center(
@@ -100,14 +101,14 @@ class _HistoryBookingRow extends StatelessWidget {
                 dateLabel,
                 style: theme.textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2),
               Text(
                 '${booking.startTime} – ${booking.endTime}',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
             ],

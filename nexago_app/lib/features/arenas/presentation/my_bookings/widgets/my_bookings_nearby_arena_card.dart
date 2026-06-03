@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/arena_search_providers.dart';
 import '../my_bookings_logic.dart';
@@ -33,7 +34,7 @@ class MyBookingsNearbyArenaCard extends StatelessWidget {
         : '';
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -68,7 +69,7 @@ class MyBookingsNearbyArenaCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -77,22 +78,22 @@ class MyBookingsNearbyArenaCard extends StatelessWidget {
                       arena.name,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       '• ${arena.locationLabel}$distanceLabel',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         fontWeight: FontWeight.w500,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     if (result.hasAvailability) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -113,14 +114,14 @@ class MyBookingsNearbyArenaCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceRaised,
+                          color: context.themeColors.surfaceRaised,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
@@ -128,7 +129,7 @@ class MyBookingsNearbyArenaCard extends StatelessWidget {
                           style: AppTypography.mono(
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             letterSpacing: 0.4,
                           ),
                         ),
@@ -156,7 +157,7 @@ class MyBookingsNearbyArenaCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _PriceChevron(price: formatPriceReais(result.displayPricePerHourReais)),
             ],
           ),
@@ -182,7 +183,7 @@ class _PriceChevron extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -190,14 +191,14 @@ class _PriceChevron extends StatelessWidget {
         children: [
           Text(
             price,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 13,
               color: AppColors.brand,
             ),
           ),
-          const SizedBox(width: 2),
-          const Icon(
+          SizedBox(width: 2),
+          Icon(
             Icons.chevron_right_rounded,
             size: 18,
             color: AppColors.brand,

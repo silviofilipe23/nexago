@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../data/arena_dashboard_insights.dart';
 import '../../domain/arena_dashboard_summary.dart';
 
@@ -34,27 +35,27 @@ class ArenaDashboardInsightsSection extends StatelessWidget {
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.3,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const Spacer(),
+            Spacer(),
             Text(
               'IA • ATUALIZADO $updatedAt',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.4,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         SizedBox(
           height: 132,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: lines.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            separatorBuilder: (_, __) => SizedBox(width: 12),
             itemBuilder: (context, index) {
               return _InsightCard(line: lines[index]);
             },
@@ -85,7 +86,7 @@ class _InsightCard extends StatelessWidget {
           Icons.check_circle_outline_rounded,
         ),
       ArenaDashboardInsightTone.highlight => (
-          AppColors.surfaceRaised,
+          context.themeColors.surfaceRaised,
           AppColors.brand,
           Icons.emoji_events_outlined,
         ),
@@ -103,14 +104,14 @@ class _InsightCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: accent, size: 22),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Text(
               line.message,
               style: theme.textTheme.bodyMedium?.copyWith(
                 height: 1.4,
                 fontWeight: FontWeight.w500,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
           ),

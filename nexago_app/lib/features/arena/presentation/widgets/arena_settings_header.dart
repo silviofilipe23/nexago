@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_schedule_providers.dart';
 
 class ArenaSettingsHeader extends ConsumerWidget {
@@ -28,20 +29,20 @@ class ArenaSettingsHeader extends ConsumerWidget {
             fontSize: 10,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         Text(
           'Ajustes',
           style: theme.textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.w800,
             letterSpacing: -0.5,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Text(
           'Perfil da arena, disponibilidade e quadras — tudo num só lugar.',
           style: theme.textTheme.bodyLarge?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w500,
             height: 1.45,
           ),

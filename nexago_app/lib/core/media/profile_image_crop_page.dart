@@ -4,6 +4,7 @@ import 'package:crop_your_image/crop_your_image.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'profile_image_crop_config.dart';
 import 'profile_image_post_process.dart';
 
@@ -63,9 +64,9 @@ class _ProfileImageCropPageState extends State<ProfileImageCropPage> {
     return PopScope(
       canPop: !_cropping,
       child: Scaffold(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         appBar: AppBar(
-          backgroundColor: AppColors.canvas,
+          backgroundColor: context.themeColors.canvas,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           centerTitle: true,
@@ -74,7 +75,7 @@ class _ProfileImageCropPageState extends State<ProfileImageCropPage> {
             child: Text(
               'Cancelar',
               style: theme.textTheme.labelLarge?.copyWith(
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -84,7 +85,7 @@ class _ProfileImageCropPageState extends State<ProfileImageCropPage> {
             target.title,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
         ),
@@ -98,11 +99,11 @@ class _ProfileImageCropPageState extends State<ProfileImageCropPage> {
                   'Pinça para zoom · arraste para posicionar',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -114,7 +115,7 @@ class _ProfileImageCropPageState extends State<ProfileImageCropPage> {
                     withCircleUi: target.withCircleUi,
                     interactive: true,
                     fixCropRect: true,
-                    baseColor: AppColors.canvas,
+                    baseColor: context.themeColors.canvas,
                     maskColor: Colors.black.withValues(alpha: 0.65),
                     radius: target.withCircleUi ? 0 : 4,
                     onStatusChanged: (status) {
@@ -122,7 +123,7 @@ class _ProfileImageCropPageState extends State<ProfileImageCropPage> {
                         setState(() => _ready = true);
                       }
                     },
-                    progressIndicator: const Center(
+                    progressIndicator: Center(
                       child: CircularProgressIndicator(
                         color: AppColors.brand,
                       ),
@@ -136,7 +137,7 @@ class _ProfileImageCropPageState extends State<ProfileImageCropPage> {
                   onPressed: _ready && !_cropping ? _onConfirm : null,
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.canvas,
+                    foregroundColor: context.themeColors.canvas,
                     disabledBackgroundColor:
                         AppColors.brand.withValues(alpha: 0.4),
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -145,15 +146,15 @@ class _ProfileImageCropPageState extends State<ProfileImageCropPage> {
                     ),
                   ),
                   child: _cropping
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 22,
                           width: 22,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: AppColors.canvas,
+                            color: context.themeColors.canvas,
                           ),
                         )
-                      : const Text(
+                      : Text(
                           'Concluir',
                           style: TextStyle(
                             fontWeight: FontWeight.w800,

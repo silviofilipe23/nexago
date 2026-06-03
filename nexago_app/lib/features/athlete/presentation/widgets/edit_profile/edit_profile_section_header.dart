@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 /// Cabeçalho de seção do formulário Editar perfil (protótipo 11).
 class EditProfileSectionHeader extends StatelessWidget {
@@ -22,7 +23,7 @@ class EditProfileSectionHeader extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, size: 18, color: AppColors.brand),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Text(
             title,
             style: theme.textTheme.labelSmall?.copyWith(
@@ -32,11 +33,11 @@ class EditProfileSectionHeader extends StatelessWidget {
               fontSize: 10,
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Container(
               height: 1,
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
             ),
           ),
         ],

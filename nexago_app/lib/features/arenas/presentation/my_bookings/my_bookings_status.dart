@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
-
 class MyBookingStatusUi {
   const MyBookingStatusUi({
     required this.label,

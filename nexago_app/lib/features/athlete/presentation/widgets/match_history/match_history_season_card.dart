@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_history_models.dart';
 
 class MatchHistorySeasonCard extends StatelessWidget {
@@ -19,9 +20,9 @@ class MatchHistorySeasonCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -30,11 +31,11 @@ class MatchHistorySeasonCard extends StatelessWidget {
             'Sua temporada • ${summary.year}',
             style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               letterSpacing: 0.4,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -42,21 +43,21 @@ class MatchHistorySeasonCard extends StatelessWidget {
                 '$rate%',
                 style: theme.textTheme.displaySmall?.copyWith(
                   fontWeight: FontWeight.w900,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   height: 1,
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Text(
                   'aproveitamento',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
               ),
-              const Spacer(),
+              Spacer(),
               if (summary.trendPercent != null)
                 Container(
                   padding:
@@ -75,16 +76,16 @@ class MatchHistorySeasonCard extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             '${summary.wins}V · ${summary.losses}D',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
           if (summary.monthlyBars.isNotEmpty) ...[
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             SizedBox(
               height: 48,
               child: Row(
@@ -130,12 +131,12 @@ class MatchHistorySeasonCard extends StatelessWidget {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          SizedBox(height: 4),
                           Text(
                             bar.label,
                             style: theme.textTheme.labelSmall?.copyWith(
                               fontSize: 8,
-                              color: AppColors.onSurfaceMuted,
+                              color: context.themeColors.onSurfaceMuted,
                               fontWeight: FontWeight.w700,
                             ),
                           ),

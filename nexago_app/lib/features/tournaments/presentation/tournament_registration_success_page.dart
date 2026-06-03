@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../data/tournament_inscriptions_repository.dart';
@@ -145,7 +146,7 @@ class _TournamentRegistrationSuccessViewState
     final args = widget.args;
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: Stack(
         children: [
           Positioned(
@@ -181,7 +182,7 @@ class _TournamentRegistrationSuccessViewState
                           style: AppTypography.mono(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             letterSpacing: 0.3,
                           ),
                         ),
@@ -193,7 +194,7 @@ class _TournamentRegistrationSuccessViewState
                           style: AppTypography.soraRegular(
                             fontSize: 17,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                           ),
                         ),
                       ),
@@ -203,18 +204,18 @@ class _TournamentRegistrationSuccessViewState
                           width: 36,
                           height: 36,
                           decoration: BoxDecoration(
-                            color: AppColors.surfaceRaised,
+                            color: context.themeColors.surfaceRaised,
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: AppColors.onSurfaceMuted.withValues(
+                              color: context.themeColors.onSurfaceMuted.withValues(
                                 alpha: 0.2,
                               ),
                             ),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.close_rounded,
                             size: 20,
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                           ),
                         ),
                       ),
@@ -248,7 +249,7 @@ class _TournamentRegistrationSuccessViewState
                   child: Row(
                     children: [
                       _CalendarIconButton(onTap: () => _openCalendar(context)),
-                      const SizedBox(width: 10),
+                      SizedBox(width: 10),
                       Expanded(
                         child: SizedBox(
                           height: 54,
@@ -264,7 +265,7 @@ class _TournamentRegistrationSuccessViewState
                               ),
                             ),
                             icon: _sharing
-                                ? const SizedBox(
+                                ? SizedBox(
                                     width: 22,
                                     height: 22,
                                     child: CircularProgressIndicator(
@@ -272,7 +273,7 @@ class _TournamentRegistrationSuccessViewState
                                       color: AppColors.black,
                                     ),
                                   )
-                                : const Icon(
+                                : Icon(
                                     Icons.ios_share_rounded,
                                     size: 22,
                                     color: AppColors.black,
@@ -399,7 +400,7 @@ class _CalendarIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceRaised,
+      color: context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -410,12 +411,12 @@ class _CalendarIconButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
             ),
           ),
-          child: const Icon(
+          child: Icon(
             Icons.calendar_month_outlined,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             size: 22,
           ),
         ),

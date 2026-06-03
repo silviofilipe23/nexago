@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../domain/ranking_list_mapper.dart';
 import '../domain/ranking_list_models.dart';
@@ -161,10 +162,10 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
       ),
       body: entriesAsync.when(
         loading: () => const _RankingLoadingSection(),
-        error: (_, __) => const Center(
+        error: (_, __) => Center(
           child: Text(
             'Não foi possível carregar o ranking.',
-            style: TextStyle(color: AppColors.onSurfaceMuted),
+            style: TextStyle(color: context.themeColors.onSurfaceMuted),
           ),
         ),
         data: (entries) {
@@ -213,7 +214,7 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                             filter.copyWith(mode: mode);
                       },
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     RankingYearFilterRow(
                       yearOptions: [null, ...yearOptions],
                       selectedYear: filter.year,
@@ -227,7 +228,7 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                         );
                       },
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     if (visible.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),
@@ -237,8 +238,8 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                               : filter.mode == RankingListMode.teams
                                   ? 'Nenhuma dupla no ranking para este filtro.'
                                   : 'Nenhum atleta no ranking para este filtro.',
-                          style: const TextStyle(
-                            color: AppColors.onSurfaceMuted,
+                          style: TextStyle(
+                            color: context.themeColors.onSurfaceMuted,
                           ),
                         ),
                       )
@@ -302,7 +303,7 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
           mode: filter.mode,
           count: visible.length,
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         for (final entry in sorted)
           if (entry.isCurrentUser)
             RankingUserHighlightTile(
@@ -337,13 +338,13 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                 ? (entry) => _openAthleteProfile(entry, filter.mode)
                 : null,
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
         ],
         RankingClassificationHeader(
           mode: filter.mode,
           count: visible.length,
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         for (final entry in rest)
           if (userInRest && entry.entityId == userEntry!.entityId)
             _buildUserListSlot(
@@ -375,11 +376,11 @@ class _RankingLoadingSection extends StatelessWidget {
           ),
         ),
         for (var i = 0; i < 4; i++) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Container(
             height: 64,
             decoration: BoxDecoration(
-              color: AppColors.surfaceCard,
+              color: context.themeColors.surfaceCard,
               borderRadius: BorderRadius.circular(14),
             ),
           ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../athlete/domain/favorites_providers.dart';
 import 'arena_dashboard_tokens.dart';
@@ -22,7 +23,7 @@ class ArenaDashboardFollowersCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(),
+      decoration: ArenaDashboardTokens.cardDecoration(context),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -32,12 +33,12 @@ class ArenaDashboardFollowersCard extends StatelessWidget {
               'Seguidores',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             insightsAsync.when(
-              loading: () => const SizedBox(
+              loading: () => SizedBox(
                 height: 42,
                 child: Align(
                   alignment: Alignment.centerLeft,
@@ -93,7 +94,7 @@ class _FollowersBody extends StatelessWidget {
                 height: 1,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             if (insights.qualityBookedPercent > 0)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -103,7 +104,7 @@ class _FollowersBody extends StatelessWidget {
                 ),
                 child: Text(
                   '${insights.qualityBookedPercent.toStringAsFixed(0)}% já reservaram',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.win,
                     fontWeight: FontWeight.w700,
                     fontSize: 12,
@@ -112,16 +113,16 @@ class _FollowersBody extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         Text(
           '+${insights.growthLastWeek} essa semana • '
           '${insights.activeRecentlyPercent.toStringAsFixed(0)}% ativos recentemente',
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w500,
           ),
         ),
-        const SizedBox(height: 18),
+        SizedBox(height: 18),
         Row(
           children: [
             Expanded(
@@ -142,21 +143,21 @@ class _FollowersBody extends StatelessWidget {
                   foregroundColor: AppColors.black,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                child: const Text('Criar promoção'),
+                child: Text('Criar promoção'),
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: OutlinedButton(
                 onPressed: () => _comingSoon(context, 'Criar torneio'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.onSurface,
+                  foregroundColor: context.themeColors.onSurface,
                   side: BorderSide(
-                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.4),
+                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.4),
                   ),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                child: const Text('Criar torneio'),
+                child: Text('Criar torneio'),
               ),
             ),
           ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_logic.dart';
 
@@ -45,10 +46,10 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
         ? AppColors.win.withValues(alpha: 0.45)
         : selected
             ? AppColors.brand
-            : AppColors.onSurfaceMuted.withValues(alpha: 0.15);
+            : context.themeColors.onSurfaceMuted.withValues(alpha: 0.15);
 
     return Material(
-      color: AppColors.surfaceRaised,
+      color: context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: selectable ? onTap : null,
@@ -84,7 +85,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,20 +95,20 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                         color: selectable
-                            ? AppColors.onSurface
-                            : AppColors.onSurfaceMuted,
+                            ? context.themeColors.onSurface
+                            : context.themeColors.onSurfaceMuted,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       subtitle,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     if (alreadyRegistered) ...[
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         'JÁ INSCRITO',
                         style: AppTypography.mono(
@@ -118,7 +119,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
                         ),
                       ),
                     ] else if (!selectable) ...[
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         _closedLabel(offer),
                         style: AppTypography.mono(
@@ -152,13 +153,13 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
                   ),
                 )
               else if (alreadyRegistered)
-                const Icon(
+                Icon(
                   Icons.verified_rounded,
                   color: AppColors.win,
                   size: 22,
                 )
               else if (selected)
-                const Icon(
+                Icon(
                   Icons.check_circle_rounded,
                   color: AppColors.brand,
                   size: 22,
@@ -196,13 +197,13 @@ class TournamentRegistrationCategorySection extends StatelessWidget {
         Text(
           label,
           style: AppTypography.mono(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w600,
             fontSize: 11,
             letterSpacing: 0.8,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         child,
       ],
     );

@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/success_page.dart';
 import '../../../athlete/domain/arena_review.dart';
 import '../../data/review_reply_service.dart';
@@ -37,7 +38,7 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
     );
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(),
+      decoration: ArenaDashboardTokens.cardDecoration(context),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -47,10 +48,10 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
               'Reputação',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             metricsAsync.when(
               loading: () => const LinearProgressIndicator(minHeight: 2),
               error: (e, _) => Text(
@@ -68,11 +69,11 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
                         : '—',
                     style: theme.textTheme.displayMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                       height: 1,
                     ),
                   ),
-                  const SizedBox(width: 20),
+                  SizedBox(width: 20),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,24 +82,24 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
                           '${m.repliedPercent.toStringAsFixed(0)}% respondidas',
                           style: theme.textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w700,
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
                             value: (m.repliedPercent / 100).clamp(0.0, 1.0),
                             minHeight: 6,
-                            backgroundColor: AppColors.surfaceRaised,
+                            backgroundColor: context.themeColors.surfaceRaised,
                             color: AppColors.brand,
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         Text(
                           'Tempo médio: ${m.averageReplyHours.toStringAsFixed(1)}h • meta 6h',
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -108,27 +109,27 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             Row(
               children: [
                 Text(
                   'Pendentes de resposta',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
-                const Spacer(),
+                Spacer(),
                 TextButton(
                   onPressed: () =>
                       context.pushNamed(AppRouteNames.arenaManagerReviews),
-                  child: const Text('Ver todas'),
+                  child: Text('Ver todas'),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             pendingReviewsAsync.when(
-              loading: () => const Center(
+              loading: () => Center(
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
               error: (e, _) => Text(
@@ -142,7 +143,7 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
                   return Text(
                     'Nenhuma avaliação pendente de resposta.',
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                     ),
                   );
                 }
@@ -187,10 +188,10 @@ class _PendingReviewTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
         ),
       ),
       child: Column(
@@ -208,30 +209,30 @@ class _PendingReviewTile extends StatelessWidget {
                   color: AppColors.brand,
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   review.athleteName ?? 'Atleta',
                   style: theme.textTheme.labelLarge?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
               ),
             ],
           ),
           if ((review.comment ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               review.comment!,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
           ],
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -243,19 +244,19 @@ class _PendingReviewTile extends StatelessWidget {
                     backgroundColor: AppColors.brand,
                     foregroundColor: AppColors.black,
                   ),
-                  child: const Text('Responder'),
+                  child: Text('Responder'),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               IconButton.filled(
                 onPressed: !canReply
                     ? null
                     : () => _reply(context, quick: true),
                 style: IconButton.styleFrom(
-                  backgroundColor: AppColors.surfaceSheet,
+                  backgroundColor: context.themeColors.surfaceSheet,
                   foregroundColor: AppColors.brand,
                 ),
-                icon: const Icon(Icons.bolt_rounded),
+                icon: Icon(Icons.bolt_rounded),
                 tooltip: 'Resposta rápida',
               ),
             ],

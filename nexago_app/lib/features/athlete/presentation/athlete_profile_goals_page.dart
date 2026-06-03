@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/athlete_firestore_codes.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/gamification_providers.dart';
@@ -97,14 +98,14 @@ class _AthleteProfileGoalsPageState extends ConsumerState<AthleteProfileGoalsPag
     _initFromProfile();
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
           onPressed: () => context.pop(),
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          icon: Icon(Icons.arrow_back_ios_new_rounded),
         ),
         title: Text(
           'Objetivos',
@@ -114,7 +115,7 @@ class _AthleteProfileGoalsPageState extends ConsumerState<AthleteProfileGoalsPag
         ),
       ),
       body: profileAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (e, _) => Center(child: Text('Erro: $e')),
@@ -127,11 +128,11 @@ class _AthleteProfileGoalsPageState extends ConsumerState<AthleteProfileGoalsPag
                 child: Text(
                   'Conta o que você busca na quadra. Ganhe +40 XP ao salvar.',
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -172,7 +173,7 @@ class _AthleteProfileGoalsPageState extends ConsumerState<AthleteProfileGoalsPag
                       ),
                     ),
                     child: _saving
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
@@ -180,7 +181,7 @@ class _AthleteProfileGoalsPageState extends ConsumerState<AthleteProfileGoalsPag
                               color: AppColors.black,
                             ),
                           )
-                        : const Text(
+                        : Text(
                             'Salvar objetivos',
                             style: TextStyle(fontWeight: FontWeight.w800),
                           ),

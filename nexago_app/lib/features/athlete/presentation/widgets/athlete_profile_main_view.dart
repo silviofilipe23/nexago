@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../../../arenas/domain/my_booking_item.dart';
@@ -172,7 +173,7 @@ class AthleteProfileMainView extends StatelessWidget {
         !readOnly && completion != null && !completion.allComplete;
 
     return ColoredBox(
-      color: AppColors.canvas,
+      color: context.themeColors.canvas,
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(
           parent: AlwaysScrollableScrollPhysics(),
@@ -211,7 +212,7 @@ class AthleteProfileMainView extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       if (showCompleteCard) ...[
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
                         _CompleteProfileCard(
                           percent: completion.percent,
                           stepsDone: completion.completedCount,
@@ -220,7 +221,7 @@ class AthleteProfileMainView extends StatelessWidget {
                           onTap: onCompleteProfile,
                         ),
                       ],
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _XpLevelSection(
                         level: displayLevel,
                         xpCurrent: xpInLevel,
@@ -228,17 +229,17 @@ class AthleteProfileMainView extends StatelessWidget {
                         progress: xpProgress,
                       ),
                       if (!readOnly) ...[
-                        const SizedBox(height: 14),
+                        SizedBox(height: 14),
                         const AthleteProfileRankingSection(),
                       ],
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                       _StatsGrid(
                         games: games,
                         wins: AthleteProfileMock.wins,
                         streak: streak,
                         ranking: AthleteProfileMock.ranking,
                       ),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                       if (nextBooking != null)
                         _NextBookingCard(
                           booking: nextBooking!,
@@ -249,14 +250,14 @@ class AthleteProfileMainView extends StatelessWidget {
                           readOnly: readOnly,
                           onTap: onOpenAgenda,
                         ),
-                      const SizedBox(height: 20),
+                      SizedBox(height: 20),
                       _SectionHeader(
                         title: 'Conquistas',
                         trailing:
                             '${achievementsState?.unlockedCount ?? badges.length} DE ${achievementsState?.totalCount ?? AchievementCatalog.totalCount}',
                         onTrailingTap: onOpenAchievements,
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _AchievementsStrip(
                         items: _achievementStripItems(
                           achievementsState,
@@ -265,23 +266,23 @@ class AthleteProfileMainView extends StatelessWidget {
                         onTap: onOpenAchievements,
                       ),
                       if (!readOnly && onOpenMatchHistory != null) ...[
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
                         AthleteProfileHistorySection(
                           onViewAll: onOpenMatchHistory!,
                         ),
                       ],
-                      const SizedBox(height: 20),
+                      SizedBox(height: 20),
                       _SectionHeader(
                         title: 'Joga com',
                         trailing: 'VER TODOS',
                         onTrailingTap: onOpenPlaysWith,
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _PlaysWithStrip(
                         partners: AthleteProfileMock.playsWith,
                         onInvite: onOpenPlaysWith,
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                     ],
                   ),
                 ),
@@ -395,7 +396,7 @@ class _ProfileHeaderSection extends StatelessWidget {
                   colors: [
                     _headerOrangeTop,
                     _headerOrangeMid,
-                    AppColors.canvas.withValues(alpha: 0),
+                    context.themeColors.canvas.withValues(alpha: 0),
                   ],
                   stops: const [0.0, 0.55, 1.0],
                 ),
@@ -418,14 +419,14 @@ class _ProfileHeaderSection extends StatelessWidget {
                         onPressed: onBack,
                       )
                     else
-                      const SizedBox(width: 40),
-                    const Spacer(),
+                      SizedBox(width: 40),
+                    Spacer(),
                     _HeaderActionButton(
                       icon: Icons.share_outlined,
                       onPressed: onShare,
                     ),
                     if (!readOnly && onOpenSettings != null) ...[
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       _HeaderActionButton(
                         icon: Icons.settings_outlined,
                         onPressed: onOpenSettings,
@@ -433,7 +434,7 @@ class _ProfileHeaderSection extends StatelessWidget {
                       ),
                     ],
                     if (!readOnly) ...[
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       _HeaderActionButton(
                         icon: Icons.edit_outlined,
                         onPressed: onEdit,
@@ -484,7 +485,7 @@ class _HeaderActionButton extends StatelessWidget {
       width: 40,
       height: 40,
       child: Material(
-        color: AppColors.surfaceRaised.withValues(alpha: 0.72),
+        color: context.themeColors.surfaceRaised.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(12),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -494,7 +495,7 @@ class _HeaderActionButton extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: AppColors.onSurface.withValues(alpha: 0.1),
+                color: context.themeColors.onSurface.withValues(alpha: 0.1),
               ),
             ),
             child: Stack(
@@ -503,7 +504,7 @@ class _HeaderActionButton extends StatelessWidget {
                 Icon(
                   icon,
                   size: 20,
-                  color: AppColors.onSurface.withValues(alpha: 0.92),
+                  color: context.themeColors.onSurface.withValues(alpha: 0.92),
                 ),
                 if (showBadge)
                   Positioned(
@@ -512,7 +513,7 @@ class _HeaderActionButton extends StatelessWidget {
                     child: Container(
                       width: 7,
                       height: 7,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: AppColors.brand,
                         shape: BoxShape.circle,
                       ),
@@ -629,7 +630,7 @@ class _ProfileIdentityRow extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 14),
+            SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -640,27 +641,27 @@ class _ProfileIdentityRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                       letterSpacing: -0.4,
                       height: 1.15,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Row(
                     children: [
                       Icon(
                         Icons.location_on_outlined,
                         size: 14,
-                        color: AppColors.onSurfaceMuted.withValues(alpha: 0.9),
+                        color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.9),
                       ),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           location,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -672,15 +673,15 @@ class _ProfileIdentityRow extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
               _SportTag(label: sport),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _MutedTag(label: levelLabel),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               const _OnlineTag(),
             ],
           ),
@@ -707,7 +708,7 @@ class _SportTag extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.hexagon, size: 10, color: AppColors.brand),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -731,17 +732,17 @@ class _MutedTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.28),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.28),
         ),
       ),
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
           fontWeight: FontWeight.w700,
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
           letterSpacing: 0.6,
           fontFamily: 'monospace',
         ),
@@ -758,10 +759,10 @@ class _OnlineTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.28),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.28),
         ),
       ),
       child: Row(
@@ -770,12 +771,12 @@ class _OnlineTag extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.win,
               shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           Text(
             'ONLINE',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -817,7 +818,7 @@ class _CompleteProfileCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         child: Ink(
           decoration: BoxDecoration(
-            color: AppColors.surfaceRaised.withValues(alpha: 0.85),
+            color: context.themeColors.surfaceRaised.withValues(alpha: 0.85),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: AppColors.brand.withValues(alpha: 0.55),
@@ -837,7 +838,7 @@ class _CompleteProfileCard extends StatelessWidget {
                       CircularProgressIndicator(
                         value: percent / 100,
                         strokeWidth: 4,
-                        backgroundColor: AppColors.onSurfaceMuted.withValues(
+                        backgroundColor: context.themeColors.onSurfaceMuted.withValues(
                           alpha: 0.15,
                         ),
                         color: AppColors.brand,
@@ -846,13 +847,13 @@ class _CompleteProfileCard extends StatelessWidget {
                         '$percent%',
                         style: theme.textTheme.labelMedium?.copyWith(
                           fontWeight: FontWeight.w900,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -861,14 +862,14 @@ class _CompleteProfileCard extends StatelessWidget {
                         'Complete seu perfil',
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text.rich(
                         TextSpan(
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             height: 1.35,
                           ),
                           children: [
@@ -877,7 +878,7 @@ class _CompleteProfileCard extends StatelessWidget {
                             ),
                             TextSpan(
                               text: '+$xpBonus XP',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.brand,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -896,7 +897,7 @@ class _CompleteProfileCard extends StatelessWidget {
                     color: AppColors.brand,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.arrow_forward_rounded,
                     color: AppColors.black,
                     size: 20,
@@ -921,7 +922,7 @@ class _RoundedXpProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(height / 2);
-    final trackColor = AppColors.onSurfaceMuted.withValues(alpha: 0.15);
+    final trackColor = context.themeColors.onSurfaceMuted.withValues(alpha: 0.15);
     final clamped = progress.clamp(0.0, 1.0);
 
     return SizedBox(
@@ -982,8 +983,8 @@ class _XpLevelSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.bolt_rounded, size: 16, color: AppColors.brand),
-            const SizedBox(width: 4),
+            Icon(Icons.bolt_rounded, size: 16, color: AppColors.brand),
+            SizedBox(width: 4),
             Text(
               'NÍVEL $level',
               style: theme.textTheme.labelSmall?.copyWith(
@@ -992,17 +993,17 @@ class _XpLevelSection extends StatelessWidget {
                 letterSpacing: 0.6,
               ),
             ),
-            const Spacer(),
+            Spacer(),
             Text(
               '$xpCurrent / $xpGoal XP',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         _RoundedXpProgressBar(progress: progress, height: 6),
       ],
     );
@@ -1031,19 +1032,19 @@ class _StatsGrid extends StatelessWidget {
             value: '$games',
             label: 'JOGOS',
             icon: Icons.sports_volleyball_outlined,
-            iconColor: AppColors.onSurfaceMuted,
+            iconColor: context.themeColors.onSurfaceMuted,
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
           child: _StatCard(
             value: '$wins',
             label: 'VITÓRIAS',
             icon: Icons.emoji_events_outlined,
-            iconColor: AppColors.onSurfaceMuted,
+            iconColor: context.themeColors.onSurfaceMuted,
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
           child: _StatCard(
             value: '$streak',
@@ -1052,13 +1053,13 @@ class _StatsGrid extends StatelessWidget {
             iconColor: AppColors.brand,
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
           child: _StatCard(
             value: '#$ranking',
             label: 'RANKING',
             icon: Icons.star_outline_rounded,
-            iconColor: AppColors.onSurfaceMuted,
+            iconColor: context.themeColors.onSurfaceMuted,
           ),
         ),
       ],
@@ -1084,29 +1085,29 @@ class _StatCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(
-        color: AppColors.surfaceRaised.withValues(alpha: 0.75),
+      decoration: ArenaDashboardTokens.cardDecoration(context,
+        color: context.themeColors.surfaceRaised.withValues(alpha: 0.75),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
         child: Column(
           children: [
             Icon(icon, size: 18, color: iconColor),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               value,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w900,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
                 letterSpacing: -0.3,
               ),
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             Text(
               label,
               style: theme.textTheme.labelSmall?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontSize: 9,
                 letterSpacing: 0.4,
               ),
@@ -1131,7 +1132,7 @@ class _NextBookingEmptyCard extends StatelessWidget {
     final theme = Theme.of(context);
     final card = Ink(
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised.withValues(alpha: 0.75),
+        color: context.themeColors.surfaceRaised.withValues(alpha: 0.75),
         borderRadius: BorderRadius.circular(_cardRadius),
       ),
       child: Padding(
@@ -1144,16 +1145,16 @@ class _NextBookingEmptyCard extends StatelessWidget {
               alignment: Alignment.center,
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
-                color: AppColors.surfaceCard,
+                color: context.themeColors.surfaceCard,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.calendar_today_outlined,
                 size: 22,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1166,25 +1167,25 @@ class _NextBookingEmptyCard extends StatelessWidget {
                       letterSpacing: 0.6,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'Nenhuma reserva próxima',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'Reserve uma quadra e ela aparece aqui.',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w500,
                       height: 1.35,
                     ),
                   ),
                   if (!readOnly) ...[
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     Text(
                       'Reserve uma quadra agora',
                       style: theme.textTheme.labelLarge?.copyWith(
@@ -1242,8 +1243,8 @@ class _NextBookingCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Ink(
-          decoration: ArenaDashboardTokens.cardDecoration(
-            color: AppColors.surfaceRaised.withValues(alpha: 0.75),
+          decoration: ArenaDashboardTokens.cardDecoration(context,
+            color: context.themeColors.surfaceRaised.withValues(alpha: 0.75),
           ),
           child: Padding(
             padding: const EdgeInsets.all(12),
@@ -1254,7 +1255,7 @@ class _NextBookingCard extends StatelessWidget {
                   width: 52,
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceCard,
+                    color: context.themeColors.surfaceCard,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Column(
@@ -1263,7 +1264,7 @@ class _NextBookingCard extends StatelessWidget {
                         dateBlock.weekday,
                         style: theme.textTheme.labelSmall?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontSize: 10,
                         ),
                       ),
@@ -1271,7 +1272,7 @@ class _NextBookingCard extends StatelessWidget {
                         dateBlock.day,
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w900,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                           height: 1,
                         ),
                       ),
@@ -1279,14 +1280,14 @@ class _NextBookingCard extends StatelessWidget {
                         dateBlock.month,
                         style: theme.textTheme.labelSmall?.copyWith(
                           fontWeight: FontWeight.w700,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontSize: 10,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1300,23 +1301,23 @@ class _NextBookingCard extends StatelessWidget {
                           fontSize: 10,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         arena,
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         timeLine,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       Wrap(
                         spacing: 6,
                         runSpacing: 6,
@@ -1329,7 +1330,7 @@ class _NextBookingCard extends StatelessWidget {
                           if (amount.isNotEmpty)
                             _StatusPill(
                               label: amount,
-                              color: AppColors.onSurfaceMuted,
+                              color: context.themeColors.onSurfaceMuted,
                             ),
                         ],
                       ),
@@ -1415,13 +1416,13 @@ class _StatusPill extends StatelessWidget {
               height: 5,
               decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
-            const SizedBox(width: 4),
+            SizedBox(width: 4),
           ],
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: dot ? color : AppColors.onSurface,
+              color: dot ? color : context.themeColors.onSurface,
               fontSize: 10,
             ),
           ),
@@ -1452,16 +1453,16 @@ class _SectionHeader extends StatelessWidget {
           title,
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
-        const Spacer(),
+        Spacer(),
         TextButton(
           onPressed: onTrailingTap,
           style: TextButton.styleFrom(
             foregroundColor: title == 'Conquistas'
                 ? AppColors.brand
-                : AppColors.onSurfaceMuted,
+                : context.themeColors.onSurfaceMuted,
             padding: EdgeInsets.zero,
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1480,7 +1481,7 @@ class _SectionHeader extends StatelessWidget {
                 size: 18,
                 color: title == 'Conquistas'
                     ? AppColors.brand
-                    : AppColors.onSurfaceMuted,
+                    : context.themeColors.onSurfaceMuted,
               ),
             ],
           ),
@@ -1503,7 +1504,7 @@ class _AchievementsStrip extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, __) => SizedBox(width: 10),
         itemBuilder: (context, index) {
           final item = items[index];
           return _AchievementTile(item: item, onTap: onTap);
@@ -1532,12 +1533,12 @@ class _AchievementTile extends StatelessWidget {
         child: Ink(
           width: 100,
           decoration: BoxDecoration(
-            color: AppColors.surfaceRaised.withValues(alpha: 0.75),
+            color: context.themeColors.surfaceRaised.withValues(alpha: 0.75),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: unlocked
                   ? AppColors.brand.withValues(alpha: 0.35)
-                  : AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+                  : context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
             ),
           ),
           child: Padding(
@@ -1553,17 +1554,17 @@ class _AchievementTile extends StatelessWidget {
                       size: 28,
                       color: unlocked
                           ? AppColors.brand
-                          : AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                          : context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                     ),
                     if (!unlocked)
                       Icon(
                         Icons.lock_outline_rounded,
                         size: 14,
-                        color: AppColors.onSurfaceMuted.withValues(alpha: 0.5),
+                        color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.5),
                       ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text(
                   item.title,
                   textAlign: TextAlign.center,
@@ -1572,8 +1573,8 @@ class _AchievementTile extends StatelessWidget {
                   style: theme.textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: unlocked
-                        ? AppColors.onSurface
-                        : AppColors.onSurfaceMuted,
+                        ? context.themeColors.onSurface
+                        : context.themeColors.onSurfaceMuted,
                     height: 1.15,
                   ),
                 ),
@@ -1599,7 +1600,7 @@ class _PlaysWithStrip extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: partners.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        separatorBuilder: (_, __) => SizedBox(width: 14),
         itemBuilder: (context, index) {
           if (index == partners.length) {
             return _InvitePartnerTile(onTap: onInvite);
@@ -1636,21 +1637,21 @@ class _PartnerTile extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             partner.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w700,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
           Text(
             partner.games,
             style: theme.textTheme.labelSmall?.copyWith(
               fontSize: 9,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -1683,23 +1684,23 @@ class _InvitePartnerTile extends StatelessWidget {
                 height: 56,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppColors.surfaceRaised,
+                  color: context.themeColors.surfaceRaised,
                   border: Border.all(
-                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.25),
+                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.25),
                   ),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.person_add_alt_1_rounded,
                   color: AppColors.brand,
                   size: 24,
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 'Convidar',
                 style: theme.textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
             ],

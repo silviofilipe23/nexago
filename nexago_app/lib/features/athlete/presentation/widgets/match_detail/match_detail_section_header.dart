@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class MatchDetailSectionHeader extends StatelessWidget {
   const MatchDetailSectionHeader({
@@ -28,12 +29,12 @@ class MatchDetailSectionHeader extends StatelessWidget {
             fontSize: 10,
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         Text(
           title,
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             letterSpacing: -0.3,
           ),
         ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/tournament_discovery_labels.dart';
 import '../../domain/tournament_discovery_models.dart';
 import '../../domain/tournament_listing_status.dart';
@@ -58,7 +59,7 @@ class TournamentDiscoveryCard extends StatelessWidget {
         : '';
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -69,7 +70,7 @@ class TournamentDiscoveryCard extends StatelessWidget {
             border: Border.all(
               color: tournament.featured
                   ? AppColors.brand.withValues(alpha: 0.45)
-                  : AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+                  : context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
             ),
           ),
           child: Column(
@@ -133,12 +134,12 @@ class TournamentDiscoveryCard extends StatelessWidget {
                       (topLabel ?? 'TORNEIO · 1 ETAPA').toUpperCase(),
                       style: AppTypography.mono(
                         fontSize: 11,
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 0.8,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Text(
                       tournament.name,
                       maxLines: 2,
@@ -146,12 +147,12 @@ class TournamentDiscoveryCard extends StatelessWidget {
                       style: AppTypography.soraRegular(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                         letterSpacing: -0.35,
                         height: 1.15,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     _TournamentMetaRow(
                       location: tournament.location,
                       city: tournament.city,
@@ -160,9 +161,9 @@ class TournamentDiscoveryCard extends StatelessWidget {
                           : tournament.dateLabel,
                     ),
                     if (showSpotsSection) ...[
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                       _CardDivider(),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                       TournamentCategorySpotsSection(
                         tournamentId: tournament.id,
                         offers: offers,
@@ -170,7 +171,7 @@ class TournamentDiscoveryCard extends StatelessWidget {
                       ),
                     ] else ...[
                       if (tournament.categories.isNotEmpty) ...[
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         Wrap(
                           spacing: 6,
                           runSpacing: 6,
@@ -186,19 +187,19 @@ class TournamentDiscoveryCard extends StatelessWidget {
                           ],
                         ),
                       ],
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(6),
                         child: LinearProgressIndicator(
                           value: fillRatio.clamp(0.0, 1.0),
                           minHeight: 8,
-                          backgroundColor: AppColors.onSurfaceMuted.withValues(
+                          backgroundColor: context.themeColors.onSurfaceMuted.withValues(
                             alpha: 0.18,
                           ),
                           color: statusColor,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       Row(
                         children: [
                           Text(
@@ -209,11 +210,11 @@ class TournamentDiscoveryCard extends StatelessWidget {
                               letterSpacing: 0.6,
                             ),
                           ),
-                          const Spacer(),
+                          Spacer(),
                           Text(
                             capacityLeftLabel,
                             style: AppTypography.mono(
-                              color: AppColors.onSurfaceMuted,
+                              color: context.themeColors.onSurfaceMuted,
                               fontWeight: FontWeight.w500,
                               letterSpacing: 0.6,
                             ),
@@ -222,9 +223,9 @@ class TournamentDiscoveryCard extends StatelessWidget {
                       ),
                     ],
                     if (showFooter) ...[
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                       _CardDivider(),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
                       _TournamentCardFooter(
                         priceLabel: tournament.priceLabel,
                         ctaLabel: tournamentDiscoveryCardCtaLabel(
@@ -236,7 +237,7 @@ class TournamentDiscoveryCard extends StatelessWidget {
                       ),
                     ],
                     if (tournament.liveMatchesNow > 0) ...[
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       Text(
                         '${tournament.liveMatchesNow} jogos ao vivo agora',
                         style: theme.textTheme.labelSmall?.copyWith(
@@ -269,7 +270,7 @@ class _TournamentMetaRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final muted = AppColors.onSurfaceMuted;
+    final muted = context.themeColors.onSurfaceMuted;
     final iconStyle = IconThemeData(
       size: 14,
       color: muted.withValues(alpha: 0.85),
@@ -281,7 +282,7 @@ class _TournamentMetaRow extends StatelessWidget {
         Row(
           children: [
             Icon(Icons.location_on_outlined, color: iconStyle.color, size: 14),
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
             Expanded(
               child: Text(
                 '$location · $city',
@@ -296,12 +297,12 @@ class _TournamentMetaRow extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Row(
           children: [
             Icon(Icons.calendar_today_outlined,
                 color: iconStyle.color, size: 14),
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
             Text(
               dateLabel,
               style: AppTypography.soraRegular(
@@ -323,7 +324,7 @@ class _CardDivider extends StatelessWidget {
     return Divider(
       height: 1,
       thickness: 1,
-      color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+      color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
     );
   }
 }
@@ -354,10 +355,10 @@ class _TournamentCardFooter extends StatelessWidget {
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.8,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2),
               Text(
                 priceLabel,
                 style: AppTypography.soraRegular(
@@ -371,13 +372,13 @@ class _TournamentCardFooter extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
           decoration: BoxDecoration(
             color: emphasizeCta
                 ? AppColors.brand
-                : AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+                : context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
@@ -385,7 +386,7 @@ class _TournamentCardFooter extends StatelessWidget {
             style: AppTypography.soraRegular(
               fontSize: 14,
               fontWeight: FontWeight.w800,
-              color: emphasizeCta ? AppColors.black : AppColors.onSurfaceMuted,
+              color: emphasizeCta ? AppColors.black : context.themeColors.onSurfaceMuted,
             ),
           ),
         ),
@@ -430,9 +431,9 @@ class _CoverPlaceholder extends StatelessWidget {
           colors: featured
               ? [
                   AppColors.win.withValues(alpha: 0.22),
-                  AppColors.surfaceCard,
+                  context.themeColors.surfaceCard,
                 ]
-              : [AppColors.surfaceCard, AppColors.surfaceRaised],
+              : [context.themeColors.surfaceCard, context.themeColors.surfaceRaised],
         ),
       ),
       child: Center(
@@ -441,7 +442,7 @@ class _CoverPlaceholder extends StatelessWidget {
           size: 48,
           color: featured
               ? AppColors.win.withValues(alpha: 0.7)
-              : AppColors.onSurfaceMuted.withValues(alpha: 0.45),
+              : context.themeColors.onSurfaceMuted.withValues(alpha: 0.45),
         ),
       ),
     );
@@ -502,7 +503,7 @@ class _StatusChip extends StatelessWidget {
               height: 6,
               decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
           ],
           Text(
             label,
@@ -529,17 +530,17 @@ class _MetaChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
         ),
       ),
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w700,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
       ),
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_logic.dart';
 
@@ -39,32 +40,32 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
         Text(
           'PAGAMENTO',
           style: AppTypography.mono(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w600,
             fontSize: 11,
             letterSpacing: 0.8,
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Text(
           category.name,
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           dualPaymentOnly
               ? 'Cada atleta paga sua parcela. A inscrição da dupla é confirmada quando os dois pagarem.'
               : 'Escolha como deseja pagar a inscrição.',
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w500,
           ),
         ),
         if (progressLabel != null && progressLabel!.isNotEmpty) ...[
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -80,14 +81,14 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             child: Text(
               progressLabel!,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: isFullyPaid ? AppColors.win : AppColors.onSurface,
+                color: isFullyPaid ? AppColors.win : context.themeColors.onSurface,
                 fontWeight: FontWeight.w600,
               ),
             ),
           ),
         ],
         if (!dualPaymentOnly) ...[
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           SegmentedButton<String>(
             segments: const [
               ButtonSegment(
@@ -106,14 +107,14 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             },
           ),
         ],
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surfaceRaised,
+            color: context.themeColors.surfaceRaised,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
             ),
           ),
           child: Row(
@@ -121,11 +122,11 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
               Text(
                 paymentType == 'full' ? 'Total da dupla' : 'Sua parcela',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const Spacer(),
+              Spacer(),
               Text(
                 amountLabel,
                 style: AppTypography.mono(

@@ -21,7 +21,7 @@ class AthleteProfileHistorySection extends ConsumerWidget {
 
     return bundleAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (_, _) => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
       data: (bundle) {
         final preview = [...bundle.matches]
           ..sort((a, b) => b.playedAt.compareTo(a.playedAt));

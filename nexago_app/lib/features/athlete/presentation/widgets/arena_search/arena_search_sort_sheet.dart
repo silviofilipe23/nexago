@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../arenas/domain/arena_search_filters.dart';
 
 Future<ArenaSearchSortBy?> showArenaSearchSortSheet({
@@ -9,7 +10,7 @@ Future<ArenaSearchSortBy?> showArenaSearchSortSheet({
 }) {
   return showModalBottomSheet<ArenaSearchSortBy>(
     context: context,
-    backgroundColor: AppColors.surfaceSheet,
+    backgroundColor: context.themeColors.surfaceSheet,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -26,31 +27,31 @@ Future<ArenaSearchSortBy?> showArenaSearchSortSheet({
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Text(
                 'Ordenar',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               ...ArenaSearchSortBy.values.map(
                 (sort) => ListTile(
                   title: Text(
                     _sortLabel(sort),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                   trailing: current == sort
-                      ? const Icon(Icons.check_rounded, color: AppColors.brand)
+                      ? Icon(Icons.check_rounded, color: AppColors.brand)
                       : null,
                   onTap: () => Navigator.pop(context, sort),
                 ),

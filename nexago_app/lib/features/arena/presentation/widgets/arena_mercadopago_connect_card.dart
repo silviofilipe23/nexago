@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../data/arena_mercadopago_service.dart';
 import '../../domain/mercado_pago_providers.dart';
@@ -55,14 +56,14 @@ class _ArenaMercadoPagoConnectCardState extends ConsumerState<ArenaMercadoPagoCo
     return linkedAsync.when(
       loading: () => const SizedBox.shrink(),
       error: (e, _) => DecoratedBox(
-        decoration: ArenaDashboardTokens.cardDecoration(
-          color: AppColors.surfaceRaised,
+        decoration: ArenaDashboardTokens.cardDecoration(context,
+          color: context.themeColors.surfaceRaised,
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Text(
             'Não foi possível verificar Mercado Pago: $e',
-            style: theme.textTheme.bodySmall?.copyWith(color: AppColors.onSurfaceMuted),
+            style: theme.textTheme.bodySmall?.copyWith(color: context.themeColors.onSurfaceMuted),
           ),
         ),
       ),
@@ -70,7 +71,7 @@ class _ArenaMercadoPagoConnectCardState extends ConsumerState<ArenaMercadoPagoCo
         final connected = linked;
         return DecoratedBox(
           decoration: BoxDecoration(
-            color: AppColors.surfaceRaised,
+            color: context.themeColors.surfaceRaised,
             borderRadius: BorderRadius.circular(ArenaDashboardTokens.cardRadius),
             border: Border.all(
               color: connected
@@ -90,36 +91,36 @@ class _ArenaMercadoPagoConnectCardState extends ConsumerState<ArenaMercadoPagoCo
                       color: connected ? AppColors.win : AppColors.brand,
                       size: 22,
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         connected ? 'Mercado Pago conectado' : 'Receber PIX das reservas',
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text(
                   connected
                       ? 'Sua conta está autorizada. Os pagamentos PIX das reservas serão creditados na sua carteira NexaGO.'
                       : 'Conecte sua conta Mercado Pago para habilitar cobrança PIX (50% ou 100%) aos atletas.',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     height: 1.45,
                   ),
                 ),
                 if (!connected) ...[
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
                       onPressed: _opening ? null : _connect,
                       icon: _opening
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
@@ -127,7 +128,7 @@ class _ArenaMercadoPagoConnectCardState extends ConsumerState<ArenaMercadoPagoCo
                                 color: AppColors.black,
                               ),
                             )
-                          : const Icon(Icons.open_in_new_rounded, size: 18),
+                          : Icon(Icons.open_in_new_rounded, size: 18),
                       label: Text(_opening ? 'Abrindo...' : 'Conectar Mercado Pago'),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.brand,
@@ -137,12 +138,12 @@ class _ArenaMercadoPagoConnectCardState extends ConsumerState<ArenaMercadoPagoCo
                     ),
                   ),
                 ] else ...[
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   TextButton(
                     onPressed: _opening ? null : _connect,
                     child: Text(
                       _opening ? 'Abrindo...' : 'Reconectar conta',
-                      style: const TextStyle(color: AppColors.onSurfaceMuted),
+                      style: TextStyle(color: context.themeColors.onSurfaceMuted),
                     ),
                   ),
                 ],

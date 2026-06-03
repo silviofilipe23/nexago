@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
 
@@ -59,7 +60,7 @@ class TournamentDetailHero extends StatelessWidget {
               Divider(
                 height: 1,
                 thickness: 1,
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
               ),
               _HeroStatsRow(theme: theme, stats: stats),
             ],
@@ -100,22 +101,22 @@ class _HeroTopSection extends StatelessWidget {
               Text(
                 eyebrow,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.1,
                 ),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Text(
                 tournament.name,
                 style: theme.textTheme.headlineSmall?.copyWith(
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   fontWeight: FontWeight.w800,
                   height: 1.15,
                   letterSpacing: -0.4,
                 ),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -126,7 +127,7 @@ class _HeroTopSection extends StatelessWidget {
                       label: locationText,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     flex: 2,
                     child: _MetaItem(
@@ -157,7 +158,7 @@ class _MetaItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textStyle = theme.textTheme.bodySmall?.copyWith(
-      color: AppColors.onSurface.withValues(alpha: 0.88),
+      color: context.themeColors.onSurface.withValues(alpha: 0.88),
       fontWeight: FontWeight.w500,
       height: 1.35,
     );
@@ -168,9 +169,9 @@ class _MetaItem extends StatelessWidget {
         Icon(
           icon,
           size: 15,
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
         ),
-        const SizedBox(width: 6),
+        SizedBox(width: 6),
         Expanded(
           child: Text(
             label,
@@ -204,7 +205,7 @@ class _HeroCardBackground extends StatelessWidget {
               colors: [
                 AppColors.win.withValues(alpha: 0.28),
                 const Color(0xFF0A120E),
-                AppColors.surfaceCard,
+                context.themeColors.surfaceCard,
               ],
               stops: const [0.0, 0.45, 1.0],
             ),
@@ -327,7 +328,7 @@ class _StatVerticalDivider extends StatelessWidget {
       child: VerticalDivider(
         width: 1,
         thickness: 1,
-        color: AppColors.onSurfaceMuted.withValues(alpha: 0.22),
+        color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.22),
       ),
     );
   }
@@ -361,7 +362,7 @@ class _StatColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final valueStyle = theme.textTheme.titleLarge?.copyWith(
-      color: AppColors.onSurface,
+      color: context.themeColors.onSurface,
       fontWeight: FontWeight.w800,
       letterSpacing: compactValue ? -0.3 : -0.5,
       height: 1.1,
@@ -377,23 +378,23 @@ class _StatColumn extends StatelessWidget {
           Text(
             label,
             style: theme.textTheme.labelSmall?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.8,
               fontSize: 10,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(value, style: valueStyle),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             subtext,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w500,
               fontSize: 11,
             ),

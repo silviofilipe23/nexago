@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../../core/ui/app_status_views.dart';
 import '../../../../core/ui/fade_slide_in.dart';
@@ -49,7 +50,7 @@ class _MyBookingsPageState extends ConsumerState<MyBookingsPage> {
         AchievementCatalog.byId('FIRST_BOOKING')?.xpReward ?? 30;
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: MyBookingsAppBar(
         onBack: () {
           if (context.canPop()) {
@@ -121,7 +122,7 @@ class _EmptyBookingsBody extends ConsumerWidget {
             proximityPhrase: proximityPhrase,
           ),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: 28),
         staggeredFadeSlide(
           index: 1,
           child: MyBookingsNearbySection(sportLabel: sportLabel),
@@ -208,7 +209,7 @@ class _BookingsListBody extends ConsumerWidget {
             ),
           );
         }
-        children.add(const SizedBox(height: 4));
+        children.add(SizedBox(height: 4));
       }
     } else {
       var animationIndex = 0;
@@ -230,7 +231,7 @@ class _BookingsListBody extends ConsumerWidget {
     }
 
     if (showStreak) {
-      children.add(const SizedBox(height: 8));
+      children.add(SizedBox(height: 8));
       children.add(
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),

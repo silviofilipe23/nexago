@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_bookings_grouping.dart';
 import '../../domain/arena_manager_booking.dart';
 class ArenaBookingDetailHeader extends StatelessWidget {
@@ -40,11 +41,11 @@ class ArenaBookingDetailHeader extends StatelessWidget {
         Text(
           'Reserva · ${ArenaBookingsGrouping.displayCode(bookingId)}',
           style: theme.textTheme.labelSmall?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         ClipRRect(
           borderRadius: BorderRadius.circular(22),
           child: Stack(
@@ -53,9 +54,9 @@ class ArenaBookingDetailHeader extends StatelessWidget {
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceCard,
+                    color: context.themeColors.surfaceCard,
                     border: Border.all(
-                      color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+                      color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
                     ),
                   ),
                 ),
@@ -89,35 +90,35 @@ class ArenaBookingDetailHeader extends StatelessWidget {
                           child: Text(
                             '$weekday · ${courtName.toUpperCase()}',
                             style: theme.textTheme.labelSmall?.copyWith(
-                              color: AppColors.onSurfaceMuted,
+                              color: context.themeColors.onSurfaceMuted,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.5,
                               height: 1.3,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        SizedBox(width: 12),
                         _StatusPill(label: statusBadge),
                       ],
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     _LargeTimeRange(
                       start: booking.startTime,
                       end: booking.endTime,
                     ),
                     if (relative != null) ...[
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       Text(
                         relative,
                         style: theme.textTheme.bodyLarge?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w600,
                           height: 1.3,
                         ),
                       ),
                     ],
                     if (participants >= 2) ...[
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       Text(
                         'Dupla · $participants atletas',
                         style: theme.textTheme.labelMedium?.copyWith(
@@ -175,13 +176,13 @@ class _LargeTimeRange extends StatelessWidget {
     TextStyle hourStyle() => theme.textTheme.displaySmall!.copyWith(
           fontWeight: FontWeight.w800,
           height: 1,
-          color: AppColors.onSurface,
+          color: context.themeColors.onSurface,
           letterSpacing: -0.5,
         );
 
     TextStyle minuteStyle() => theme.textTheme.headlineMedium!.copyWith(
           fontWeight: FontWeight.w800,
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
           height: 1,
         );
 
@@ -196,7 +197,7 @@ class _LargeTimeRange extends StatelessWidget {
             '-',
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w700,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
             ),
           ),
         ),
@@ -227,15 +228,15 @@ class _StatusPill extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.win,
               shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.win,
               fontWeight: FontWeight.w800,
               fontSize: 11,

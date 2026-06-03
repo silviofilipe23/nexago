@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
 class AthleteSportsInviteBanner extends StatelessWidget {
@@ -28,12 +29,12 @@ class AthleteSportsInviteBanner extends StatelessWidget {
               color: AppColors.brand,
               size: 22,
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: RichText(
                 text: TextSpan(
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     height: 1.4,
                   ),
                   children: [

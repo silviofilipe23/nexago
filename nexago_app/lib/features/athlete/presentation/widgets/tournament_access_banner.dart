@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 /// Banner quando torneios oficiais estão bloqueados por perfil/onboarding.
 class TournamentAccessBanner extends StatelessWidget {
   const TournamentAccessBanner({
@@ -28,7 +29,7 @@ class TournamentAccessBanner extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: AppColors.brand.withValues(alpha: 0.45),
@@ -40,11 +41,11 @@ class TournamentAccessBanner extends StatelessWidget {
           Text(
             message,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
               height: 1.35,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           FilledButton(
             onPressed: () {
               if (!onboardingCompleted) {
@@ -62,7 +63,7 @@ class TournamentAccessBanner extends StatelessWidget {
             ),
             child: Text(
               ctaLabel,
-              style: const TextStyle(fontWeight: FontWeight.w800),
+              style: TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
         ],

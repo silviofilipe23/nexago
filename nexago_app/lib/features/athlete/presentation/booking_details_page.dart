@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../arena/domain/arena_booking_labels.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
@@ -105,22 +106,22 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
-      appBar: AppBar(title: const Text('Detalhes da reserva')),
+      appBar: AppBar(title: Text('Detalhes da reserva')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
           assistantCard,
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           _SectionCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(widget.arenaName, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(widget.courtName, style: theme.textTheme.titleMedium?.copyWith(color: AppColors.onSurfaceMuted)),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 Text(_capitalize(dateLabel), style: theme.textTheme.bodyLarge),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   hourLabel,
                   style: theme.textTheme.titleLarge?.copyWith(
@@ -128,7 +129,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Text(
                   countdown,
                   style: theme.textTheme.titleSmall?.copyWith(
@@ -139,47 +140,47 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           _SectionCard(
             title: 'Localização',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(address, style: theme.textTheme.bodyLarge),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 OutlinedButton.icon(
                   onPressed: () => _openMaps(address),
-                  icon: const Icon(Icons.map_outlined),
-                  label: const Text('Ver no mapa'),
+                  icon: Icon(Icons.map_outlined),
+                  label: Text('Ver no mapa'),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           _SectionCard(
             title: 'Participantes',
             child: Column(
               children: _buildParticipants(theme),
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           _SectionCard(
             title: 'Pagamento',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Valor: $paymentLabel', style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text('Tipo: $paymentType', style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.onSurfaceMuted)),
                 if (ps == 'partial' && paidOnline != null && paidOnline > 0) ...[
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     'Sinal PIX pago: ${currency.format(paidOnline)}',
                     style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.brand),
                   ),
                 ],
                 if (ps == 'partial' && dueOnsite != null && dueOnsite > 0.02) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'Restante no local: ${currency.format(dueOnsite)}',
                     style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -188,18 +189,18 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           _SectionCard(
             title: 'Confirmação de presença',
             child: _buildAttendanceSection(theme, attendance, status),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           _SectionCard(
             title: 'Ações',
             child: Column(
               children: [
                 _ActionBtn(label: 'Como chegar', icon: Icons.directions_outlined, onTap: () => _openMaps(address)),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _ActionBtn(
                   label: _inviting ? 'Gerando link...' : 'Convidar jogador',
                   icon: Icons.person_add_alt_1_outlined,
@@ -207,7 +208,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
                       ? null
                       : _invitePlayer,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _ActionBtn(
                   label: 'Cancelar reserva',
                   icon: Icons.cancel_outlined,
@@ -244,8 +245,8 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     if (isCheckedIn) {
       return Row(
         children: [
-          const Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF2E7D32)),
-          const SizedBox(width: 8),
+          Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF2E7D32)),
+          SizedBox(width: 8),
           Expanded(
             child: Text(
               'Check-in realizado com sucesso${attendance?.locationVerified == true ? ' (local validado)' : ''}.',
@@ -262,8 +263,8 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     if (confirmed) {
       return Row(
         children: [
-          const Icon(Icons.verified_rounded, color: Color(0xFF2E7D32)),
-          const SizedBox(width: 8),
+          Icon(Icons.verified_rounded, color: Color(0xFF2E7D32)),
+          SizedBox(width: 8),
           Expanded(
             child: Text(
               'Presença confirmada. 🔥 Boa! Jogadores comprometidos fazem o jogo acontecer.',
@@ -311,14 +312,14 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             fontWeight: FontWeight.w800,
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         Text(
           '$confirmedPlayers jogadores já confirmaram.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: AppColors.onSurfaceMuted,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         AnimatedScale(
           scale: scale,
           duration: const Duration(milliseconds: 220),
@@ -326,12 +327,12 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
           child: FilledButton.icon(
             onPressed: canConfirm ? _confirmAttendance : null,
             icon: _confirmingAttendance
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.how_to_reg_rounded),
+                : Icon(Icons.how_to_reg_rounded),
             label: Text(_confirmingAttendance
                 ? 'Confirmando...'
                 : 'Confirmar presença'),
@@ -342,24 +343,24 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
           ),
         ),
         if (canCheckIn) ...[
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Estou próximo da arena'),
-            subtitle: const Text('Opcional: use para validar localização'),
+            title: Text('Estou próximo da arena'),
+            subtitle: Text('Opcional: use para validar localização'),
             value: _locationVerified,
             onChanged: _checkingIn ? null : (v) => setState(() => _locationVerified = v),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           FilledButton.icon(
             onPressed: _checkingIn ? null : _checkInNow,
             icon: _checkingIn
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.login_rounded),
+                : Icon(Icons.login_rounded),
             label: Text(_checkingIn ? 'Validando check-in...' : 'Fazer check-in'),
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFF2E7D32),
@@ -491,9 +492,9 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             CircleAvatar(
               radius: 18,
               backgroundColor: AppColors.brand.withValues(alpha: 0.12),
-              child: Text(name.substring(0, 1), style: const TextStyle(color: AppColors.brand, fontWeight: FontWeight.w700)),
+              child: Text(name.substring(0, 1), style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.w700)),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(child: Text(name, style: theme.textTheme.bodyLarge)),
           ],
         ),
@@ -599,7 +600,7 @@ class _SectionCard extends StatelessWidget {
         children: [
           if (title != null) ...[
             Text(title!, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
           ],
           child,
         ],
@@ -656,14 +657,14 @@ class AssistantCard extends StatelessWidget {
                 color: color,
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               message,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             FilledButton(
               onPressed: onPressed,
               style: FilledButton.styleFrom(

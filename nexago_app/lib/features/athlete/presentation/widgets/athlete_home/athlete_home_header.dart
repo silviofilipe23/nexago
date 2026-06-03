@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/athlete_quest/athlete_quest_logic.dart';
 import '../../../domain/gamification_models.dart';
 import '../athlete_profile_avatar.dart';
@@ -93,7 +94,7 @@ class AthleteHomeHeader extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -102,17 +103,17 @@ class AthleteHomeHeader extends StatelessWidget {
                 dateLine,
                 style: AppTypography.mono(
                   fontSize: 12,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.2,
                 ),
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2),
               Text(
                 'Olá, $firstName',
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w900,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   letterSpacing: -0.3,
                 ),
               ),
@@ -122,7 +123,7 @@ class AthleteHomeHeader extends StatelessWidget {
         Tooltip(
           message: 'Ver seus Desafios',
           child: Material(
-            color: AppColors.surfaceRaised,
+            color: context.themeColors.surfaceRaised,
             borderRadius: BorderRadius.circular(20),
             child: InkWell(
               onTap: onXpTap,
@@ -142,7 +143,7 @@ class AthleteHomeHeader extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.bolt_rounded, size: 14, color: AppColors.brand),
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
                     Text(
                       '$xpCurrent/$xpGoal',
                       style: theme.textTheme.labelSmall?.copyWith(
@@ -156,9 +157,9 @@ class AthleteHomeHeader extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Material(
-          color: AppColors.surfaceRaised,
+          color: context.themeColors.surfaceRaised,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
             onTap: onNotificationsTap,
@@ -169,9 +170,9 @@ class AthleteHomeHeader extends StatelessWidget {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.notifications_outlined,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                     size: 22,
                   ),
                   if (unreadNotificationCount > 0)
@@ -221,7 +222,7 @@ class _NotificationCountBadge extends StatelessWidget {
       alignment: Alignment.center,
       child: Text(
         _label,
-        style: const TextStyle(
+        style: TextStyle(
           color: AppColors.black,
           fontSize: 10,
           fontWeight: FontWeight.w900,

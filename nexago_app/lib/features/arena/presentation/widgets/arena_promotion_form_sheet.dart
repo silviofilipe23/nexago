@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../arenas/domain/arena_promotion.dart';
 import '../../../arenas/domain/slots_providers.dart';
@@ -21,7 +22,7 @@ class ArenaPromotionFormSheet extends ConsumerStatefulWidget {
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surfaceSheet,
+      backgroundColor: context.themeColors.surfaceSheet,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -144,59 +145,59 @@ class _ArenaPromotionFormSheetState
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'Nova promoção',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               'Desconto em horários ociosos na agenda e nas reservas.',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             TextField(
               controller: _labelController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Nome',
                 hintText: 'Ex.: Tarde ociosa',
               ),
               textCapitalization: TextCapitalization.sentences,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _startController,
-                    decoration: const InputDecoration(labelText: 'Início'),
+                    decoration: InputDecoration(labelText: 'Início'),
                     keyboardType: TextInputType.datetime,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: TextField(
                     controller: _endController,
-                    decoration: const InputDecoration(labelText: 'Fim'),
+                    decoration: InputDecoration(labelText: 'Fim'),
                     keyboardType: TextInputType.datetime,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             TextField(
               controller: _discountController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Desconto (%)',
                 suffixText: '%',
               ),
@@ -207,14 +208,14 @@ class _ArenaPromotionFormSheetState
                 FilteringTextInputFormatter.allow(RegExp('[0-9.,]')),
               ],
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'Dias da semana',
               style: theme.textTheme.labelLarge?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -235,10 +236,10 @@ class _ArenaPromotionFormSheetState
                 );
               }).toList(),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Todas as quadras'),
+              title: Text('Todas as quadras'),
               value: _allCourts,
               onChanged: (v) => setState(() {
                 _allCourts = v;
@@ -247,15 +248,15 @@ class _ArenaPromotionFormSheetState
             ),
             if (!_allCourts)
               courtsAsync.when(
-                loading: () => const Padding(
+                loading: () => Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
                   child: LinearProgressIndicator(),
                 ),
-                error: (_, _) =>
-                    const Text('Não foi possível carregar quadras.'),
+                error: (_, __) =>
+                    Text('Não foi possível carregar quadras.'),
                 data: (courts) {
                   if (courts.isEmpty) {
-                    return const Text(
+                    return Text(
                       'Cadastre quadras antes de limitar a promoção.',
                     );
                   }
@@ -281,7 +282,7 @@ class _ArenaPromotionFormSheetState
                   );
                 },
               ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             FilledButton(
               onPressed: _busy ? null : _save,
               style: FilledButton.styleFrom(
@@ -290,7 +291,7 @@ class _ArenaPromotionFormSheetState
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               child: _busy
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 22,
                       width: 22,
                       child: CircularProgressIndicator(
@@ -298,7 +299,7 @@ class _ArenaPromotionFormSheetState
                         color: Colors.white,
                       ),
                     )
-                  : const Text('Ativar promoção'),
+                  : Text('Ativar promoção'),
             ),
           ],
         ),

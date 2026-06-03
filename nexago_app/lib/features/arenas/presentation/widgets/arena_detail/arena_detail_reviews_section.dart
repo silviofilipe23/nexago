@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../athlete/domain/arena_review.dart';
 import 'arena_detail_review_card.dart';
 
@@ -30,11 +31,11 @@ class ArenaDetailReviewsSection extends StatelessWidget {
               'Avaliações',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
                 letterSpacing: -0.3,
               ),
             ),
-            const Spacer(),
+            Spacer(),
             if (onViewAll != null && reviews.isNotEmpty)
               TextButton(
                 onPressed: onViewAll,
@@ -44,25 +45,25 @@ class ArenaDetailReviewsSection extends StatelessWidget {
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                child: const Text(
+                child: Text(
                   'ver todas',
                   style: TextStyle(fontWeight: FontWeight.w800),
                 ),
               ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         if (top.isEmpty)
           Text(
             'Ainda não há avaliações para esta arena.',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
             ),
           )
         else
           ...[
             for (var i = 0; i < top.length; i++) ...[
-              if (i > 0) const SizedBox(height: 10),
+              if (i > 0) SizedBox(height: 10),
               ArenaDetailReviewCard(review: top[i], now: now),
             ],
           ],

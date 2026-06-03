@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/slots_page_providers.dart';
 
 class SlotsDayStrip extends StatelessWidget {
@@ -36,7 +37,7 @@ class SlotsDayStrip extends StatelessWidget {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: daysCount,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => SizedBox(width: 8),
         itemBuilder: (context, index) {
           final day = today.add(Duration(days: index));
           final d = dateOnly(day);
@@ -66,12 +67,12 @@ class SlotsDayStrip extends StatelessWidget {
                   border: Border.all(
                     color: isSelected
                         ? AppColors.brand
-                        : AppColors.surfaceRaised,
+                        : context.themeColors.surfaceRaised,
                     width: isSelected ? 2 : 1,
                   ),
                   color: isSelected
                       ? AppColors.brand.withValues(alpha: 0.12)
-                      : AppColors.surfaceCard,
+                      : context.themeColors.surfaceCard,
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -80,26 +81,26 @@ class SlotsDayStrip extends StatelessWidget {
                       weekLabel,
                       style: theme.textTheme.labelSmall?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         fontSize: 10,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       dayNum,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Container(
                       width: 6,
                       height: 6,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: status == null
-                            ? AppColors.surfaceRaised
+                            ? context.themeColors.surfaceRaised
                             : dotColor,
                       ),
                     ),

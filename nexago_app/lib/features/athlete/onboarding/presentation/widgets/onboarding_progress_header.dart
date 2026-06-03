@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../auth/widgets/auth_form_widgets.dart';
 
 /// Barra superior: voltar + progresso segmentado + contador.
@@ -21,7 +22,7 @@ class OnboardingProgressHeader extends StatelessWidget {
     return Row(
       children: [
         AuthBackButton(onPressed: onBack),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Expanded(
           child: Row(
             children: List.generate(totalSteps, (i) {
@@ -35,7 +36,7 @@ class OnboardingProgressHeader extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: filled
                           ? AppColors.brand
-                          : AppColors.onSurfaceMuted.withValues(alpha: 0.25),
+                          : context.themeColors.onSurfaceMuted.withValues(alpha: 0.25),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -44,11 +45,11 @@ class OnboardingProgressHeader extends StatelessWidget {
             }),
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Text(
           '$currentStep/$totalSteps',
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w700,
               ),
         ),

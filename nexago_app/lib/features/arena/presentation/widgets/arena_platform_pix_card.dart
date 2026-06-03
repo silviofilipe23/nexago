@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'arena_dashboard_tokens.dart';
 
 /// Resumo do recebimento NexaGO (Asaas): repasses via chave PIX no perfil.
@@ -21,7 +22,7 @@ class ArenaPlatformPixCard extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(ArenaDashboardTokens.cardRadius),
         border: Border.all(
           color: hasKey
@@ -41,39 +42,39 @@ class ArenaPlatformPixCard extends StatelessWidget {
                   color: hasKey ? AppColors.win : AppColors.pending,
                   size: 22,
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'PIX via NexaGO (Asaas)',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               hasKey
                   ? 'Atletas pagam PIX para a NexaGO. Repasses automáticos saem para:'
                   : 'Cadastre a chave PIX da arena no perfil para receber repasses.',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 height: 1.45,
               ),
             ),
             if (hasKey) ...[
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               SelectableText(
                 payoutPixKey.trim(),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
             ],
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             TextButton(
               onPressed: () => context.pushNamed(AppRouteNames.arenaProfileEdit),
               child: Text(hasKey ? 'Editar chave no perfil' : 'Cadastrar chave PIX'),

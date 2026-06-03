@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/tournament_discovery_models.dart';
 
 class LeagueDiscoveryCard extends StatelessWidget {
@@ -30,7 +31,7 @@ class LeagueDiscoveryCard extends StatelessWidget {
     final stagesLabel = totalStagesLabel ?? '$completedStages/$stageCount ETAPAS';
 
     return Material(
-      color: AppColors.surfaceRaised,
+      color: context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -46,7 +47,7 @@ class LeagueDiscoveryCard extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: [
                 AppColors.brand.withValues(alpha: 0.12),
-                AppColors.surfaceRaised,
+                context.themeColors.surfaceRaised,
               ],
             ),
           ),
@@ -61,7 +62,7 @@ class LeagueDiscoveryCard extends StatelessWidget {
                       child: Text(
                         'Ligas',
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.6,
                         ),
@@ -82,27 +83,27 @@ class LeagueDiscoveryCard extends StatelessWidget {
                       ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Text(
                   league.name,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                     letterSpacing: -0.3,
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Text(
                   [
                     if (league.city != null) league.city!,
                     '$stageCount etapas',
                   ].join(' · '),
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -117,7 +118,7 @@ class LeagueDiscoveryCard extends StatelessWidget {
                     ),
                     Icon(
                       Icons.chevron_right_rounded,
-                      color: AppColors.onSurfaceMuted.withValues(alpha: 0.8),
+                      color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.8),
                     ),
                   ],
                 ),

@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/ranking_display_helpers.dart';
 import '../../domain/ranking_list_models.dart';
@@ -43,9 +44,9 @@ class RankingPodium extends StatelessWidget {
                       ? null
                       : () => onEntryTap!(second),
                 )
-              : const SizedBox(height: 88),
+              : SizedBox(height: 88),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
           child: first != null
               ? _PodiumSlot(
@@ -53,9 +54,9 @@ class RankingPodium extends StatelessWidget {
                   height: 120,
                   onTap: onEntryTap == null ? null : () => onEntryTap!(first),
                 )
-              : const SizedBox(height: 120),
+              : SizedBox(height: 120),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
           child: third != null
               ? _PodiumSlot(
@@ -63,7 +64,7 @@ class RankingPodium extends StatelessWidget {
                   height: 72,
                   onTap: onEntryTap == null ? null : () => onEntryTap!(third),
                 )
-              : const SizedBox(height: 72),
+              : SizedBox(height: 72),
         ),
       ],
     );
@@ -94,7 +95,7 @@ class _PodiumSlot extends StatelessWidget {
               ? RankingAvatarSizes.podiumFirst
               : RankingAvatarSizes.podiumOther,
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         Text(
           entry.displayName,
           maxLines: 2,
@@ -103,20 +104,20 @@ class _PodiumSlot extends StatelessWidget {
           style: AppTypography.soraRegular(
             fontSize: isFirst ? 14 : 12,
             fontWeight: FontWeight.w700,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             height: 1.15,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           formatRankingPoints(entry.points),
           style: AppTypography.soraRegular(
             fontSize: isFirst ? 22 : 16,
             fontWeight: FontWeight.w800,
-            color: isFirst ? AppColors.brand : AppColors.onSurfaceMuted,
+            color: isFirst ? AppColors.brand : context.themeColors.onSurfaceMuted,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Container(
           height: height,
           alignment: Alignment.bottomCenter,
@@ -128,17 +129,17 @@ class _PodiumSlot extends StatelessWidget {
               colors: isFirst
                   ? [
                       AppColors.brand.withValues(alpha: 0.35),
-                      AppColors.surfaceCard,
+                      context.themeColors.surfaceCard,
                     ]
                   : [
-                      AppColors.surfaceRaised.withValues(alpha: 0.5),
-                      AppColors.surfaceCard,
+                      context.themeColors.surfaceRaised.withValues(alpha: 0.5),
+                      context.themeColors.surfaceCard,
                     ],
             ),
             border: Border.all(
               color: isFirst
                   ? AppColors.brand.withValues(alpha: 0.25)
-                  : AppColors.surfaceRaised,
+                  : context.themeColors.surfaceRaised,
             ),
           ),
           child: Padding(
@@ -150,7 +151,7 @@ class _PodiumSlot extends StatelessWidget {
                 fontWeight: FontWeight.w800,
                 color: isFirst
                     ? AppColors.brand.withValues(alpha: 0.55)
-                    : AppColors.onSurfaceMuted.withValues(alpha: 0.45),
+                    : context.themeColors.onSurfaceMuted.withValues(alpha: 0.45),
               ),
             ),
           ),
@@ -206,7 +207,7 @@ class RankingAvatarGroup extends StatelessWidget {
                 color: entry.player2Color ?? AppColors.win,
                 imageUrl: entry.player2AvatarUrl,
                 size: size,
-                borderColor: AppColors.surfaceCard,
+                borderColor: context.themeColors.surfaceCard,
               ),
             ),
           ],

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/domain/favorites_providers.dart';
@@ -24,7 +25,7 @@ class ArenaSettingsPage extends ConsumerWidget {
     final managed = ref.watch(managedArenaIdProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: FadeSlideIn(
           child: managed.when(
@@ -104,7 +105,7 @@ class _SettingsBody extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const ArenaSettingsHeader(),
-                  const SizedBox(height: 28),
+                  SizedBox(height: 28),
                   ArenaSettingsGroup(
                     sectionLabel: 'ARENA',
                     children: [
@@ -140,7 +141,7 @@ class _SettingsBody extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
                   ArenaSettingsGroup(
                     sectionLabel: 'PREFERÊNCIAS',
                     children: [
@@ -174,7 +175,7 @@ class _SettingsBody extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 28),
+                  SizedBox(height: 28),
                   const _ArenaSettingsLogoutSection(),
                 ],
               ),
@@ -192,7 +193,7 @@ class _ArenaSettingsLogoutSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Material(
-      color: AppColors.surfaceRaised,
+      color: context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -206,7 +207,7 @@ class _ArenaSettingsLogoutSection extends ConsumerWidget {
               color: AppColors.live.withValues(alpha: 0.4),
             ),
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.logout_rounded, color: AppColors.live, size: 20),
@@ -232,11 +233,11 @@ class _ArenaSettingsLogoutSection extends ConsumerWidget {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          content: const Text('Tem certeza que deseja sair?'),
+          content: Text('Tem certeza que deseja sair?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
+              child: Text('Cancelar'),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
@@ -244,7 +245,7 @@ class _ArenaSettingsLogoutSection extends ConsumerWidget {
                 foregroundColor: theme.colorScheme.onError,
               ),
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Sair'),
+              child: Text('Sair'),
             ),
           ],
         );

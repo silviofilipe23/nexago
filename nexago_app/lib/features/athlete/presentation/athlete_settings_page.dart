@@ -6,6 +6,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme_mode_preference.dart';
+import '../../../core/theme/theme_mode_provider.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../auth/auth_legal_urls.dart';
@@ -16,6 +19,7 @@ import '../domain/athlete_profile_providers.dart';
 import '../domain/gamification_models.dart';
 import '../domain/gamification_providers.dart';
 import '../domain/match_history/athlete_match_history_providers.dart';
+import 'widgets/athlete_settings/athlete_appearance_sheet.dart';
 import 'widgets/athlete_settings/athlete_settings_group.dart';
 import 'widgets/athlete_settings/athlete_settings_helpers.dart';
 import 'widgets/athlete_settings/athlete_settings_profile_card.dart';
@@ -45,7 +49,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
   Future<void> _openLegalSheet() async {
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: AppColors.surfaceSheet,
+      backgroundColor: context.themeColors.surfaceSheet,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -55,20 +59,20 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                title: const Text('Termos de uso'),
+                title: Text('Termos de uso'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _launchUrl(AuthLegalUrls.termsUrl);
                 },
               ),
               ListTile(
-                title: const Text('Política de privacidade'),
+                title: Text('Política de privacidade'),
                 onTap: () {
                   Navigator.pop(ctx);
                   _launchUrl(AuthLegalUrls.privacyUrl);
                 },
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
             ],
           ),
         );
@@ -98,12 +102,12 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
 
     if (user == null) {
       return Scaffold(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         appBar: _settingsAppBar(theme, onBack: _popOrDiscover),
-        body: const Center(
+        body: Center(
           child: Text(
             'Faça login para ver as configurações.',
-            style: TextStyle(color: AppColors.onSurfaceMuted),
+            style: TextStyle(color: context.themeColors.onSurfaceMuted),
           ),
         ),
       );
@@ -112,6 +116,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
     final profile = profileAsync.valueOrNull ?? AthleteProfile.draft(user);
     final matchHistorySubtitle =
         ref.watch(athleteMatchHistorySettingsSubtitleProvider);
+    final themePreference = ref.watch(appThemeModePreferenceProvider);
     final viewData = buildAthleteSettingsViewData(
       profile: profile,
       email: user.email,
@@ -121,7 +126,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
     );
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: _settingsAppBar(theme, onBack: _popOrDiscover),
       body: SafeArea(
         child: ListView(
@@ -140,7 +145,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
               isLoading: profileAsync.isLoading && profileAsync.value == null,
               onEdit: () => context.pushNamed(AppRouteNames.athleteProfileEdit),
             ),
-            const SizedBox(height: AthleteSettingsTokens.sectionGap),
+            SizedBox(height: AthleteSettingsTokens.sectionGap),
             AthleteSettingsGroup(
               sectionLabel: 'CONTA',
               children: [
@@ -190,7 +195,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                 ),
               ],
             ),
-            const SizedBox(height: AthleteSettingsTokens.sectionGap),
+            SizedBox(height: AthleteSettingsTokens.sectionGap),
             AthleteSettingsGroup(
               sectionLabel: 'PREFERÊNCIAS',
               children: [
@@ -215,11 +220,19 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   showDivider: true,
                 ),
                 AthleteSettingsTile(
+                  icon: Icons.brightness_6_outlined,
+                  title: 'Aparência',
+                  subtitle: themePreference.label,
+                  variant: AthleteSettingsIconVariant.neutral,
+                  onTap: () => showAthleteAppearanceSheet(context),
+                  showDivider: true,
+                ),
+                AthleteSettingsTile(
                   icon: Icons.language_rounded,
                   title: 'Idioma',
                   subtitle: 'Idioma do app',
                   variant: AthleteSettingsIconVariant.neutral,
-                  trailing: const AthleteSettingsMutedTrailing(
+                  trailing: AthleteSettingsMutedTrailing(
                     label: 'Português',
                   ),
                   showChevron: false,
@@ -236,7 +249,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                 ),
               ],
             ),
-            const SizedBox(height: AthleteSettingsTokens.sectionGap),
+            SizedBox(height: AthleteSettingsTokens.sectionGap),
             AthleteSettingsGroup(
               sectionLabel: 'SOBRE',
               children: [
@@ -269,7 +282,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                 ),
               ],
             ),
-            const SizedBox(height: AthleteSettingsTokens.sectionGap),
+            SizedBox(height: AthleteSettingsTokens.sectionGap),
             AthleteSettingsDangerGroup(
               children: [
                 AthleteSettingsTile(
@@ -292,14 +305,14 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 28),
+            SizedBox(height: 28),
             Center(
               child: Text(
                 AthleteSettingsAppInfo.footerLabel,
                 style: AppTypography.mono(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.75),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.75),
                   letterSpacing: 0.3,
                 ),
               ),
@@ -315,7 +328,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
     required VoidCallback onBack,
   }) {
     return AppBar(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
@@ -323,17 +336,17 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
         padding: const EdgeInsets.only(left: 12),
         child: Center(
           child: Material(
-            color: AppColors.surfaceRaised,
+            color: context.themeColors.surfaceRaised,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: onBack,
               borderRadius: BorderRadius.circular(12),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 40,
                 height: 40,
                 child: Icon(
                   Icons.chevron_left_rounded,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
             ),
@@ -344,7 +357,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
         'Configurações',
         style: theme.textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w800,
-          color: AppColors.onSurface,
+          color: context.themeColors.onSurface,
           letterSpacing: -0.3,
         ),
       ),

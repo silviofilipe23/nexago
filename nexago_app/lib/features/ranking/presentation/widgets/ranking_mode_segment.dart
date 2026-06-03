@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/ranking_list_models.dart';
 
@@ -19,9 +20,9 @@ class RankingModeSegment extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Row(
         children: [
@@ -72,7 +73,7 @@ class _SegmentButton extends StatelessWidget {
               style: AppTypography.soraRegular(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color: selected ? Colors.black : AppColors.onSurfaceMuted,
+                color: selected ? Colors.black : context.themeColors.onSurfaceMuted,
               ),
             ),
           ),

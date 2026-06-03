@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/achievements/achievement_definition.dart';
 import '../../../domain/achievements/achievement_status.dart';
@@ -35,13 +36,13 @@ class AchievementCard extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: unlocked
-              ? AppColors.surfaceCard
-              : AppColors.surfaceRaised.withValues(alpha: 0.75),
+              ? context.themeColors.surfaceCard
+              : context.themeColors.surfaceRaised.withValues(alpha: 0.75),
           borderRadius: BorderRadius.circular(_cardRadius),
           border: Border.all(
             color: unlocked
                 ? AppColors.brand.withValues(alpha: 0.85)
-                : AppColors.onSurfaceMuted.withValues(alpha: 0.14),
+                : context.themeColors.onSurfaceMuted.withValues(alpha: 0.14),
             width: unlocked ? 1.2 : 1,
           ),
           boxShadow: unlocked ? _unlockedGlow : null,
@@ -74,7 +75,7 @@ class _UnlockedContent extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _GradientIconBadge(icon: def.icon),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Text(
           def.title,
           textAlign: TextAlign.center,
@@ -82,33 +83,33 @@ class _UnlockedContent extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             height: 1.1,
             letterSpacing: -0.2,
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         Text(
           def.description,
           textAlign: TextAlign.center,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodySmall?.copyWith(
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.95),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.95),
             height: 1.3,
           ),
         ),
-        const Spacer(),
+        Spacer(),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.check_circle_rounded,
               size: 16,
               color: AppColors.win,
             ),
-            const SizedBox(width: 5),
+            SizedBox(width: 5),
             Text(
               '+${def.xpReward} XP',
               style: AppTypography.xpReward(
@@ -141,37 +142,37 @@ class _LockedOrProgressContent extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _IconBox(icon: def.icon, locked: !inProgress),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Text(
           def.title,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurfaceMuted.withValues(
+            color: context.themeColors.onSurfaceMuted.withValues(
               alpha: inProgress ? 0.85 : 0.55,
             ),
             height: 1.15,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           def.description,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.5),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.5),
             height: 1.25,
           ),
         ),
-        const Spacer(),
+        Spacer(),
         if (inProgress)
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: (status as AchievementInProgress).progress,
               minHeight: 5,
-              backgroundColor: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+              backgroundColor: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
               color: AppColors.brand,
             ),
           ),
@@ -232,12 +233,12 @@ class _IconBox extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: AppColors.surfaceCard.withValues(alpha: 0.9),
+            color: context.themeColors.surfaceCard.withValues(alpha: 0.9),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(
             icon,
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.45),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.45),
             size: 24,
           ),
         ),
@@ -248,16 +249,16 @@ class _IconBox extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(2),
               decoration: BoxDecoration(
-                color: AppColors.surfaceRaised,
+                color: context.themeColors.surfaceRaised,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
                 ),
               ),
               child: Icon(
                 Icons.lock_rounded,
                 size: 12,
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.7),
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.7),
               ),
             ),
           ),

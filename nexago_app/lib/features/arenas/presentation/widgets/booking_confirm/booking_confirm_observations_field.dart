@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class BookingConfirmObservationsField extends StatelessWidget {
   const BookingConfirmObservationsField({
@@ -23,29 +24,29 @@ class BookingConfirmObservationsField extends StatelessWidget {
         Text(
           'OBSERVAÇÕES (OPCIONAL)',
           style: AppTypography.mono(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w600,
             fontSize: 14,
             letterSpacing: 0.8,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         TextField(
           controller: controller,
           enabled: enabled,
           maxLines: 3,
           minLines: 2,
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
           decoration: InputDecoration(
             hintText:
                 'Ex: vamos chegar 5 min adiantados, precisamos de rede nova...',
             hintStyle: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.7),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.7),
             ),
             filled: true,
-            fillColor: AppColors.surfaceRaised,
+            fillColor: context.themeColors.surfaceRaised,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(

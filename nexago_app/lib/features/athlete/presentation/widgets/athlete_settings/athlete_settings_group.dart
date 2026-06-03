@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
 enum AthleteSettingsIconVariant { orange, neutral, green, yellow }
@@ -13,16 +14,21 @@ abstract final class AthleteSettingsTokens {
   static const double sectionGap = 24;
   static const double tileDividerIndent = 68;
 
-  static BoxDecoration cardDecoration({Color? color}) => BoxDecoration(
-        color: color ?? AppColors.surfaceRaised,
+  static BoxDecoration cardDecoration(
+    BuildContext context, {
+    Color? color,
+  }) =>
+      BoxDecoration(
+        color: color ?? context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(cardRadius),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
         ),
       );
 
-  static BoxDecoration dangerDecoration() => BoxDecoration(
-        color: AppColors.surfaceRaised,
+  static BoxDecoration dangerDecoration(BuildContext context) =>
+      BoxDecoration(
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(cardRadius),
         border: Border.all(
           color: AppColors.live.withValues(alpha: 0.35),
@@ -50,15 +56,15 @@ class AthleteSettingsGroup extends StatelessWidget {
         Text(
           sectionLabel,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.8,
             fontSize: 10,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         DecoratedBox(
-          decoration: AthleteSettingsTokens.cardDecoration(),
+          decoration: AthleteSettingsTokens.cardDecoration(context),
           child: ClipRRect(
             borderRadius:
                 BorderRadius.circular(AthleteSettingsTokens.cardRadius),
@@ -84,7 +90,7 @@ class AthleteSettingsDangerGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: AthleteSettingsTokens.dangerDecoration(),
+      decoration: AthleteSettingsTokens.dangerDecoration(context),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AthleteSettingsTokens.cardRadius),
         child: Column(
@@ -124,18 +130,19 @@ class AthleteSettingsTile extends StatelessWidget {
   final bool showDivider;
   final bool showChevron;
 
-  Color _iconColor() =>
+  Color _iconColor(BuildContext context) =>
       iconColor ??
       switch (variant) {
         AthleteSettingsIconVariant.orange => AppColors.brand,
         AthleteSettingsIconVariant.green => AppColors.win,
         AthleteSettingsIconVariant.yellow => AppColors.pending,
-        AthleteSettingsIconVariant.neutral => AppColors.onSurface,
+        AthleteSettingsIconVariant.neutral => context.themeColors.onSurface,
       };
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final resolvedIconColor = _iconColor(context);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -153,12 +160,12 @@ class AthleteSettingsTile extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSheet,
+                      color: context.themeColors.surfaceSheet,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(icon, color: _iconColor(), size: 22),
+                    child: Icon(icon, color: resolvedIconColor, size: 22),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -172,21 +179,21 @@ class AthleteSettingsTile extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   fontWeight: FontWeight.w800,
-                                  color: titleColor ?? AppColors.onSurface,
+                                  color: titleColor ?? context.themeColors.onSurface,
                                 ),
                               ),
                             ),
                             if (trailingBadge != null) ...[
-                              const SizedBox(width: 8),
+                              SizedBox(width: 8),
                               trailingBadge!,
                             ],
                           ],
                         ),
-                        const SizedBox(height: 3),
+                        SizedBox(height: 3),
                         Text(
                           subtitle,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             fontWeight: FontWeight.w500,
                             height: 1.35,
                           ),
@@ -195,14 +202,14 @@ class AthleteSettingsTile extends StatelessWidget {
                     ),
                   ),
                   if (trailing != null) ...[
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     trailing!,
                   ],
                   if (showChevron)
                     Icon(
                       Icons.chevron_right_rounded,
                       size: 22,
-                      color: AppColors.onSurfaceMuted.withValues(alpha: 0.85),
+                      color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.85),
                     ),
                 ],
               ),
@@ -214,7 +221,7 @@ class AthleteSettingsTile extends StatelessWidget {
             height: 1,
             indent: AthleteSettingsTokens.tileDividerIndent,
             endIndent: 14,
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
           ),
       ],
     );
@@ -255,16 +262,16 @@ class AthleteSettingsToggleTile extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceSheet,
+                  color: context.themeColors.surfaceSheet,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.face_rounded,
                   color: AppColors.win,
                   size: 22,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,14 +280,14 @@ class AthleteSettingsToggleTile extends StatelessWidget {
                       title,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: 3),
                     Text(
                       subtitle,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         fontWeight: FontWeight.w500,
                         height: 1.35,
                       ),
@@ -302,7 +309,7 @@ class AthleteSettingsToggleTile extends StatelessWidget {
             height: 1,
             indent: AthleteSettingsTokens.tileDividerIndent,
             endIndent: 14,
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
           ),
       ],
     );
@@ -346,7 +353,7 @@ class AthleteSettingsMutedTrailing extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w600,
             ),
       ),

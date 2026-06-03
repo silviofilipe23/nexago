@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../data/my_tournament_registrations_repository.dart';
 import '../domain/tournament_discovery_helpers.dart';
@@ -101,7 +102,7 @@ class _TournamentDiscoveryListPageState
                         color: AppColors.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     Text(
                       'Categoria',
                       style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -110,21 +111,21 @@ class _TournamentDiscoveryListPageState
                         letterSpacing: 0.6,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     for (final f in TournamentDiscoveryCategoryFilter.values)
                       DiscoveryListRadioRow(
                         label: tournamentDiscoveryCategoryFilterLabel(f),
                         selected: tempCategory == f,
                         onTap: () => setSheetState(() => tempCategory = f),
                       ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     SwitchListTile(
                       value: tempOpenOnly,
                       onChanged: (v) => setSheetState(() {
                         tempOpenOnly = v;
                       }),
                       contentPadding: EdgeInsets.zero,
-                      title: const Text(
+                      title: Text(
                         'Só com inscrição aberta',
                         style: TextStyle(
                           color: AppColors.onSurface,
@@ -132,7 +133,7 @@ class _TournamentDiscoveryListPageState
                         ),
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     Row(
                       children: [
                         Expanded(
@@ -157,10 +158,10 @@ class _TournamentDiscoveryListPageState
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: const Text('Limpar'),
+                            child: Text('Limpar'),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         Expanded(
                           child: FilledButton(
                             onPressed: () {
@@ -178,7 +179,7 @@ class _TournamentDiscoveryListPageState
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            child: const Text('Aplicar'),
+                            child: Text('Aplicar'),
                           ),
                         ),
                       ],
@@ -206,7 +207,7 @@ class _TournamentDiscoveryListPageState
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
       body: SafeArea(
         child: tournamentsAsync.when(
-          loading: () => const Center(
+          loading: () => Center(
             child: CircularProgressIndicator(color: AppColors.brand),
           ),
           error: (e, _) => Center(
@@ -223,7 +224,7 @@ class _TournamentDiscoveryListPageState
           ),
           data: (allTournaments) {
             return leaguesAsync.when(
-              loading: () => const Center(
+              loading: () => Center(
                 child: CircularProgressIndicator(color: AppColors.brand),
               ),
               error: (e, _) => Center(
@@ -280,26 +281,26 @@ class _TournamentDiscoveryListPageState
                       },
                       onOpenFilters: _openFilterSheet,
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     DiscoveryListStatsRow(stats: stats),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     DiscoveryListSegmented(
                       value: _segment,
                       onChanged: (s) => setState(() => _segment = s),
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     DiscoveryListFilterChips(
                       category: _category,
                       openOnly: _openOnly,
                       onCategoryChanged: (v) => setState(() => _category = v),
                       onOpenOnlyChanged: (v) => setState(() => _openOnly = v),
                     ),
-                    const SizedBox(height: 18),
+                    SizedBox(height: 18),
                     if (_segment == DiscoveryListSegment.all ||
                         _segment == DiscoveryListSegment.leagues) ...[
                       if (leaguesByQuery.isNotEmpty) ...[
                         const DiscoveryListSectionTitle(title: 'Ligas'),
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         for (final league in leaguesByQuery) ...[
                           LeagueDiscoveryCard(
                             league: league,
@@ -320,15 +321,15 @@ class _TournamentDiscoveryListPageState
                               pathParameters: {'leagueId': league.id},
                             ),
                           ),
-                          const SizedBox(height: 10),
+                          SizedBox(height: 10),
                         ],
-                        const SizedBox(height: 14),
+                        SizedBox(height: 14),
                       ],
                     ],
                     if (_segment == DiscoveryListSegment.all ||
                         _segment == DiscoveryListSegment.tournaments) ...[
                       const DiscoveryListSectionTitle(title: 'Torneios'),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       if ((_segment == DiscoveryListSegment.all
                               ? standalone
                               : filteredByQuery)
@@ -356,7 +357,7 @@ class _TournamentDiscoveryListPageState
                               pathParameters: {'tournamentId': t.id},
                             ),
                           ),
-                          const SizedBox(height: 10),
+                          SizedBox(height: 10),
                         ],
                     ],
                   ],
@@ -446,7 +447,7 @@ class DiscoveryListHeader extends StatelessWidget {
           children: [
             IconButton(
               onPressed: onBack,
-              icon: const Icon(Icons.arrow_back_rounded),
+              icon: Icon(Icons.arrow_back_rounded),
               color: AppColors.onSurface,
             ),
             Expanded(
@@ -463,7 +464,7 @@ class DiscoveryListHeader extends StatelessWidget {
               icon: Icons.search_rounded,
               onTap: onToggleSearch,
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             DiscoveryListIconSquare(
               icon: Icons.tune_rounded,
               onTap: onOpenFilters,
@@ -471,7 +472,7 @@ class DiscoveryListHeader extends StatelessWidget {
           ],
         ),
         if (searching) ...[
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           TextField(
             controller: controller,
             focusNode: focusNode,
@@ -486,13 +487,13 @@ class DiscoveryListHeader extends StatelessWidget {
               ),
               filled: true,
               fillColor: AppColors.surfaceRaised,
-              prefixIcon: const Icon(
+              prefixIcon: Icon(
                 Icons.search_rounded,
                 color: AppColors.onSurfaceMuted,
               ),
               suffixIcon: IconButton(
                 onPressed: () => controller.clear(),
-                icon: const Icon(
+                icon: Icon(
                   Icons.close_rounded,
                   color: AppColors.onSurfaceMuted,
                 ),
@@ -579,7 +580,7 @@ class DiscoveryListRadioRow extends StatelessWidget {
                           child: Container(
                             width: 8,
                             height: 8,
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: AppColors.brand,
                             ),
@@ -587,11 +588,11 @@ class DiscoveryListRadioRow extends StatelessWidget {
                         )
                       : null,
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.onSurface,
                       fontWeight: FontWeight.w700,
                     ),
@@ -624,7 +625,7 @@ class DiscoveryListStatsRow extends StatelessWidget {
               icon: Icons.emoji_events_outlined,
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: DiscoveryListStatTile(
               label: 'Ao vivo',
@@ -633,7 +634,7 @@ class DiscoveryListStatsRow extends StatelessWidget {
               accent: AppColors.live,
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: DiscoveryListStatTile(
               label: 'Abertos p/ inscrição',
@@ -736,7 +737,7 @@ class DiscoveryListStatTile extends StatelessWidget {
     final color = accent ?? AppColors.brand;
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(
+      decoration: ArenaDashboardTokens.cardDecoration(context,
         color: AppColors.surfaceCard,
       ),
       child: Padding(
@@ -745,7 +746,7 @@ class DiscoveryListStatTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, size: 18, color: color),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               value,
               style: AppTypography.soraRegular(
@@ -755,7 +756,7 @@ class DiscoveryListStatTile extends StatelessWidget {
                 height: 1.1,
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             SizedBox(
               height: _labelAreaHeight,
               child: Align(
@@ -845,7 +846,7 @@ class DiscoveryListFilterChips extends StatelessWidget {
             }).toList(),
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Material(
           color: Colors.transparent,
           child: InkWell(
@@ -874,7 +875,7 @@ class DiscoveryListFilterChips extends StatelessWidget {
                         ),
                       ),
                       child: openOnly
-                          ? const Icon(
+                          ? Icon(
                               Icons.check_rounded,
                               size: 16,
                               color: AppColors.black,
@@ -882,7 +883,7 @@ class DiscoveryListFilterChips extends StatelessWidget {
                           : null,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Só com inscrição aberta',

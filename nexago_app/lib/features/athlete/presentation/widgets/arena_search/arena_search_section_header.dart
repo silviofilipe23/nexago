@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
 class ArenaSearchSectionHeader extends StatelessWidget {
@@ -27,21 +28,21 @@ class ArenaSearchSectionHeader extends StatelessWidget {
           title,
           style: AppTypography.mono(
             fontWeight: FontWeight.w500,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
         if (trailingAccent != null) ...[
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           Text(
             trailingAccent!,
             style: AppTypography.mono(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
             ),
           ),
         ],
-        const Spacer(),
+        Spacer(),
         if (trailingLabel != null && onTrailingTap != null)
           TextButton(
             onPressed: onTrailingTap,

@@ -37,11 +37,11 @@ class TournamentDiscoveryPage extends ConsumerWidget {
               blockMessage: access.blockMessage,
             ),
           const PendingTournamentInviterInvitesSection(),
-          const SizedBox(height: 16),
-          CompeteHubPlayMatchBanner(
-            onTap: () => showAppSnackBar(context, 'Em breve.'),
-          ),
-          const SizedBox(height: 24),
+          // const SizedBox(height: 16),
+          // CompeteHubPlayMatchBanner(
+          //   onTap: () => showAppSnackBar(context, 'Em breve.'),
+          // ),
+          // const SizedBox(height: 24),
           const CompeteHubTournamentsSection(),
           const SizedBox(height: 24),
           const CompeteHubRankingSection(),

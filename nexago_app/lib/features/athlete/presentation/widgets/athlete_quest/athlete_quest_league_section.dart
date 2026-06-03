@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/athlete_quest/athlete_quest_models.dart';
 import '../athlete_home/athlete_home_section_header.dart';
@@ -24,13 +25,13 @@ class AthleteQuestLeagueSection extends StatelessWidget {
           trailingLabel: 'VER RANKING',
           onTrailingTap: () => showAppSnackBar(context, 'Em breve.'),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
           decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
+            color: context.themeColors.surfaceCard,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.surfaceRaised),
+            border: Border.all(color: context.themeColors.surfaceRaised),
           ),
           child: Column(
             children: entries.map((entry) {
@@ -73,7 +74,7 @@ class _LeagueRow extends StatelessWidget {
               '${entry.rank}',
               style: theme.textTheme.labelSmall?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
           ),
@@ -93,7 +94,7 @@ class _LeagueRow extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Row(
               children: [
@@ -101,12 +102,12 @@ class _LeagueRow extends StatelessWidget {
                   entry.name,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: isUser ? AppColors.brand : AppColors.onSurface,
+                    color: isUser ? AppColors.brand : context.themeColors.onSurface,
                   ),
                 ),
                 if (entry.rank == 1) ...[
-                  const SizedBox(width: 6),
-                  const Icon(
+                  SizedBox(width: 6),
+                  Icon(
                     Icons.emoji_events_rounded,
                     size: 14,
                     color: AppColors.pending,
@@ -119,7 +120,7 @@ class _LeagueRow extends StatelessWidget {
             '${entry.xp} XP',
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: isUser ? AppColors.brand : AppColors.onSurfaceMuted,
+              color: isUser ? AppColors.brand : context.themeColors.onSurfaceMuted,
             ),
           ),
         ],

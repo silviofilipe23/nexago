@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../my_bookings_logic.dart';
 
@@ -28,13 +29,13 @@ class MyBookingsDateHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Text(
               formatBookingDateHeader(dateRaw),
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
                 letterSpacing: -0.2,
               ),
             ),
@@ -45,7 +46,7 @@ class MyBookingsDateHeader extends StatelessWidget {
               style: AppTypography.mono(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 letterSpacing: 0.8,
               ),
             ),

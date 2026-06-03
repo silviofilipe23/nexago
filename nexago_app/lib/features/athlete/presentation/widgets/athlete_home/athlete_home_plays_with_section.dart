@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/athlete_home_models.dart';
 import 'athlete_home_section_header.dart';
 
@@ -27,7 +28,7 @@ class AthleteHomePlaysWithSection extends StatelessWidget {
           trailingLabel: 'CONVIDAR',
           onTrailingTap: onInvite,
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         ...partners.map(
           (p) => Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -55,9 +56,9 @@ class _PartnerRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Row(
         children: [
@@ -77,7 +78,7 @@ class _PartnerRow extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -86,13 +87,13 @@ class _PartnerRow extends StatelessWidget {
                   partner.name,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
                 Text(
                   partner.statusLabel,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
               ],
@@ -107,21 +108,21 @@ class _PartnerRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 minimumSize: Size.zero,
               ),
-              child: const Text('Chamar'),
+              child: Text('Chamar'),
             )
           else
             Material(
-              color: AppColors.surfaceRaised,
+              color: context.themeColors.surfaceRaised,
               borderRadius: BorderRadius.circular(10),
               child: InkWell(
                 onTap: onAction,
                 borderRadius: BorderRadius.circular(10),
-                child: const SizedBox(
+                child: SizedBox(
                   width: 36,
                   height: 36,
                   child: Icon(
                     Icons.add_rounded,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                     size: 20,
                   ),
                 ),

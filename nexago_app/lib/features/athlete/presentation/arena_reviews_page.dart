@@ -7,6 +7,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../arena/domain/review_reply_providers.dart';
 import '../../arenas/domain/arena_list_item.dart';
 import '../../arenas/domain/arenas_providers.dart';
@@ -83,14 +84,14 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
     final reason = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Denunciar avaliação'),
+        title: Text('Denunciar avaliação'),
         content: TextField(
           controller: controller,
           autofocus: true,
           maxLength: 280,
           minLines: 2,
           maxLines: 4,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             border: OutlineInputBorder(),
             hintText: 'Descreva o motivo da denúncia',
           ),
@@ -98,11 +99,11 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancelar'),
+            child: Text('Cancelar'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-            child: const Text('Denunciar'),
+            child: Text('Denunciar'),
           ),
         ],
       ),
@@ -395,14 +396,14 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                   children: [
                     Text(
                       avg.toStringAsFixed(1),
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
                         fontSize: 48,
                         height: 0.95,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Row(
                       children: List.generate(5, (i) {
                         final filled = i < avg.round().clamp(0, 5);
@@ -417,11 +418,11 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                         );
                       }),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Text(
                       '$total avaliações',
-                      style: const TextStyle(
-                        color: AppColors.onSurfaceMuted,
+                      style: TextStyle(
+                        color: context.themeColors.onSurfaceMuted,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -429,7 +430,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   children: List.generate(5, (index) {
@@ -444,13 +445,13 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                             width: 14,
                             child: Text(
                               '$stars',
-                              style: const TextStyle(
-                                color: AppColors.onSurfaceMuted,
+                              style: TextStyle(
+                                color: context.themeColors.onSurfaceMuted,
                                 fontSize: 11,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 6),
+                          SizedBox(width: 6),
                           Expanded(
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(99),
@@ -464,11 +465,11 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           Text(
                             '$count',
-                            style: const TextStyle(
-                              color: AppColors.onSurfaceMuted,
+                            style: TextStyle(
+                              color: context.themeColors.onSurfaceMuted,
                               fontSize: 11,
                             ),
                           ),
@@ -480,15 +481,15 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Row(
             children: [
               _MetricChip(label: 'Quadra', value: metricQuadra),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _MetricChip(label: 'Atendimento', value: metricAtendimento),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _MetricChip(label: 'Estrutura', value: metricEstrutura),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _MetricChip(label: 'Localização', value: metricLocalizacao),
             ],
           ),
@@ -516,7 +517,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
               color: const Color(0xFF6C7CFF),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Text(
+            child: Text(
               'VP',
               style: TextStyle(
                 color: Colors.black,
@@ -524,23 +525,23 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Você jogou aqui dia $dayLabel',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 2),
-                const Text(
+                SizedBox(height: 2),
+                Text(
                   'Avalie sua experiência',
                   style: TextStyle(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     fontSize: 13,
                   ),
                 ),
@@ -550,7 +551,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
           Row(
             children: List.generate(
               5,
-              (_) => const Padding(
+              (_) => Padding(
                 padding: EdgeInsets.only(left: 1.5),
                 child: Icon(
                   Icons.star_outline_rounded,
@@ -587,7 +588,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
               });
             },
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           _FilterChip(
             label: 'Recentes',
             selected:
@@ -595,13 +596,13 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                 _ratingFilter != _ReviewRatingFilter.all,
             onTap: () => setState(() => _sortMode = _ReviewSortMode.recent),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           _FilterChip(
             label: 'Mais úteis',
             selected: _sortMode == _ReviewSortMode.useful,
             onTap: () => setState(() => _sortMode = _ReviewSortMode.useful),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           _FilterChip(
             label: '5★',
             count: fiveCount,
@@ -609,7 +610,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
             onTap: () =>
                 setState(() => _ratingFilter = _ReviewRatingFilter.five),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           _FilterChip(
             label: '4★',
             count: fourCount,
@@ -617,7 +618,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
             onTap: () =>
                 setState(() => _ratingFilter = _ReviewRatingFilter.four),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           _FilterChip(
             label: '3★ ou menos',
             count: lowCount,
@@ -666,7 +667,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                     ? const Color(0xFF7E78FF)
                     : const Color(0xFF3DB7FF),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -677,7 +678,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                           child: Text(
                             athleteName,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w800,
                               fontSize: 18,
@@ -685,7 +686,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                           ),
                         ),
                         if (isMine) ...[
-                          const SizedBox(width: 6),
+                          SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 6,
@@ -695,7 +696,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                               color: const Color(0xFF3A2100),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text(
+                            child: Text(
                               'VOCÊ',
                               style: TextStyle(
                                 color: Color(0xFFFF7A1B),
@@ -707,13 +708,13 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                         ],
                       ],
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       date != null
                           ? DateFormat('dd/MM/yyyy', 'pt_BR').format(date)
                           : 'data indisponível',
                       style: AppTypography.mono(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         fontSize: 12,
                         letterSpacing: 0.25,
                       ),
@@ -738,7 +739,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                       );
                     }),
                   ),
-                  const SizedBox(height: 3),
+                  SizedBox(height: 3),
                   Text(
                     review.rating.toStringAsFixed(1),
                     style: AppTypography.mono(
@@ -752,7 +753,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
             ],
           ),
           if (review.comment != null) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text(
               review.comment!,
               style: AppTypography.soraRegular(
@@ -762,7 +763,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
               ),
             ),
           ],
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 6,
@@ -776,7 +777,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
             ],
           ),
           if (review.reply != null) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -789,11 +790,11 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
-                    children: const [
+                    children: [
                       Text(
                         'ARENA',
                         style: TextStyle(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontSize: 10,
                           letterSpacing: 0.6,
                           fontWeight: FontWeight.w700,
@@ -803,10 +804,10 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                       _VerifiedBadge(),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     review.reply!.message,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: Color(0xFFD0D3D8),
                       height: 1.35,
                     ),
@@ -815,9 +816,9 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
               ),
             ),
           ],
-          const SizedBox(height: 12),
-          const Divider(height: 1, color: Color(0x22FFFFFF)),
-          const SizedBox(height: 10),
+          SizedBox(height: 12),
+          Divider(height: 1, color: Color(0x22FFFFFF)),
+          SizedBox(height: 10),
           Row(
             children: [
               _ReviewHelpfulButton(
@@ -826,7 +827,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                 enabled: !_busyLikes.contains(review.id),
                 onTap: () => _toggleLike(review, likedByMe),
               ),
-              const Spacer(),
+              Spacer(),
               // if (isMine)
               //   TextButton.icon(
               //     onPressed: () {
@@ -834,16 +835,16 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
               //         const SnackBar(content: Text('Edição em breve.')),
               //       );
               //     },
-              //     icon: const Icon(Icons.edit_outlined, size: 17),
-              //     label: const Text('Editar'),
+              //     icon: Icon(Icons.edit_outlined, size: 17),
+              //     label: Text('Editar'),
               //   )
               // else
               //   TextButton.icon(
               //     onPressed: _busyReports.contains(review.id)
               //         ? null
               //         : () => _reportReview(review),
-              //     icon: const Icon(Icons.flag_outlined, size: 17),
-              //     label: const Text('Reportar'),
+              //     icon: Icon(Icons.flag_outlined, size: 17),
+              //     label: Text('Reportar'),
               //   ),
             ],
           ),
@@ -854,18 +855,18 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
 
   Widget _buildPaginationFooter() {
     if (_loadingMore) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.symmetric(vertical: 8),
         child: Center(child: CircularProgressIndicator()),
       );
     }
     if (!_hasMore) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.symmetric(vertical: 8),
         child: Center(
           child: Text(
             'Você chegou ao fim das avaliações.',
-            style: TextStyle(color: AppColors.onSurfaceMuted),
+            style: TextStyle(color: context.themeColors.onSurfaceMuted),
           ),
         ),
       );
@@ -873,7 +874,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
     return Center(
       child: OutlinedButton(
         onPressed: () => _loadPage(reset: false),
-        child: const Text('Carregar mais'),
+        child: Text('Carregar mais'),
       ),
     );
   }
@@ -915,7 +916,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                 height: 1.05,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               headerSubtitle,
               maxLines: 1,
@@ -923,7 +924,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
               style: AppTypography.mono(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 letterSpacing: 0.7,
                 height: 1.2,
               ),
@@ -933,19 +934,19 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
         actions: [
           // IconButton(
           //   onPressed: () {},
-          //   icon: const Icon(Icons.ios_share_outlined),
+          //   icon: Icon(Icons.ios_share_outlined),
           //   tooltip: 'Em breve',
           // ),
           // IconButton(
           //   onPressed: () {},
-          //   icon: const Icon(Icons.tune_rounded),
+          //   icon: Icon(Icons.tune_rounded),
           //   tooltip: 'Em breve',
           // ),
-          // const SizedBox(width: 4),
+          // SizedBox(width: 4),
         ],
       ),
       body: _loadingInitial
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator())
           : _errorMessage != null && _reviews.isEmpty
           ? Center(
               child: Padding(
@@ -954,25 +955,25 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(_errorMessage!, textAlign: TextAlign.center),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     FilledButton(
                       onPressed: () => _loadPage(reset: true),
-                      child: const Text('Tentar novamente'),
+                      child: Text('Tentar novamente'),
                     ),
                   ],
                 ),
               ),
             )
           : _reviews.isEmpty
-          ? const Center(child: Text('Ainda não há avaliações.'))
+          ? Center(child: Text('Ainda não há avaliações.'))
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
               children: [
                 _buildTopSummaryCard(arena, reputation),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 // _buildReviewPromptCard(pendingReview),
                 if (socialProof != null) ...[
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -994,16 +995,16 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 _buildFiltersBar(),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 if (filtered.isEmpty)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),
                     child: Center(
                       child: Text(
                         'Nenhuma avaliação encontrada para este filtro.',
-                        style: TextStyle(color: AppColors.onSurfaceMuted),
+                        style: TextStyle(color: context.themeColors.onSurfaceMuted),
                       ),
                     ),
                   ),
@@ -1062,13 +1063,13 @@ class _FilterChip extends StatelessWidget {
                 ),
               ),
               if (count != null) ...[
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Text(
                   '$count',
                   style: TextStyle(
                     color: selected
                         ? Colors.black.withValues(alpha: 0.6)
-                        : AppColors.onSurfaceMuted,
+                        : context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w600,
                     fontSize: 12,
                   ),
@@ -1095,18 +1096,18 @@ class _MetricChip extends StatelessWidget {
         children: [
           Text(
             value.toStringAsFixed(1),
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w800,
               fontSize: 21,
             ),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Text(
             label,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.onSurfaceMuted,
+            style: TextStyle(
+              color: context.themeColors.onSurfaceMuted,
               fontSize: 11,
             ),
           ),
@@ -1162,7 +1163,7 @@ class _ReviewHelpfulButton extends StatelessWidget {
                   size: 17,
                   color: accent,
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Text(
                   'Útil',
                   style: TextStyle(
@@ -1171,7 +1172,7 @@ class _ReviewHelpfulButton extends StatelessWidget {
                     fontSize: 13,
                   ),
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Text(
                   '$likes',
                   style: TextStyle(
@@ -1216,8 +1217,8 @@ class _ReviewAuthorAvatar extends StatelessWidget {
                 width: size,
                 height: size,
                 fit: BoxFit.cover,
-                errorWidget: (_, _, _) => _initialsFallback(),
-                placeholder: (_, _) => _initialsFallback(),
+                errorWidget: (_, __, ___) => _initialsFallback(),
+                placeholder: (_, __) => _initialsFallback(),
               )
             : _initialsFallback(),
       ),
@@ -1230,7 +1231,7 @@ class _ReviewAuthorAvatar extends StatelessWidget {
       child: Center(
         child: Text(
           initials,
-          style: const TextStyle(
+          style: TextStyle(
             color: Colors.black,
             fontWeight: FontWeight.w900,
             fontSize: 14,
@@ -1257,7 +1258,7 @@ class _TagPill extends StatelessWidget {
       ),
       child: Text(
         '+ $label',
-        style: const TextStyle(
+        style: TextStyle(
           color: Color(0xFFFF7A1B),
           fontWeight: FontWeight.w700,
           fontSize: 12,
@@ -1278,7 +1279,7 @@ class _VerifiedBadge extends StatelessWidget {
         color: const Color(0xFF0B3A22),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: const Text(
+      child: Text(
         'VERIFICADO',
         style: TextStyle(
           color: Color(0xFF59D98A),

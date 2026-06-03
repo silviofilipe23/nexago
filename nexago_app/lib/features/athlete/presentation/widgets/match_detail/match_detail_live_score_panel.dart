@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
 import 'match_detail_section_header.dart';
@@ -24,13 +25,13 @@ class MatchDetailLiveScorePanel extends StatelessWidget {
           eyebrow: 'PLACAR AO VIVO',
           title: 'Set $setNum',
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
+            color: context.themeColors.surfaceCard,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.surfaceRaised),
+            border: Border.all(color: context.themeColors.surfaceRaised),
           ),
           child: Column(
             children: [
@@ -42,18 +43,18 @@ class MatchDetailLiveScorePanel extends StatelessWidget {
                         Container(
                           width: 6,
                           height: 6,
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             color: AppColors.brand,
                             shape: BoxShape.circle,
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             detail.ourTeam.label,
                             style: theme.textTheme.labelMedium?.copyWith(
                               fontWeight: FontWeight.w800,
-                              color: AppColors.onSurface,
+                              color: context.themeColors.onSurface,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -68,7 +69,7 @@ class MatchDetailLiveScorePanel extends StatelessWidget {
                       textAlign: TextAlign.end,
                       style: theme.textTheme.labelMedium?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -76,7 +77,7 @@ class MatchDetailLiveScorePanel extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -93,7 +94,7 @@ class MatchDetailLiveScorePanel extends StatelessWidget {
                     child: Text(
                       ':',
                       style: theme.textTheme.headlineMedium?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         fontWeight: FontWeight.w300,
                       ),
                     ),
@@ -102,13 +103,13 @@ class MatchDetailLiveScorePanel extends StatelessWidget {
                     '$opp',
                     style: theme.textTheme.displayMedium?.copyWith(
                       fontWeight: FontWeight.w900,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                       height: 1,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               Row(
                 children: [
                   Expanded(
@@ -121,11 +122,11 @@ class MatchDetailLiveScorePanel extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: _PointButton(
                       label: '+ ${detail.opponentTeam.label}',
-                      accent: AppColors.onSurfaceMuted,
+                      accent: context.themeColors.onSurfaceMuted,
                       onTap: () => showAppSnackBar(
                         context,
                         'DEMO • placar atualizado pela organização.',
@@ -134,12 +135,12 @@ class MatchDetailLiveScorePanel extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Text(
                 'DEMO • ATUALIZA PELO PLACAR DA ORGANIZAÇÃO',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.3,
@@ -181,7 +182,7 @@ class _PointButton extends StatelessWidget {
             border: Border.all(
               color: isBrand
                   ? AppColors.brand.withValues(alpha: 0.7)
-                  : AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  : context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
             ),
           ),
           child: Text(
@@ -191,7 +192,7 @@ class _PointButton extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: isBrand ? AppColors.brand : AppColors.onSurface,
+              color: isBrand ? AppColors.brand : context.themeColors.onSurface,
               height: 1.2,
             ),
           ),

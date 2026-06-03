@@ -8,6 +8,7 @@ import '../../core/auth/auth_providers.dart';
 import '../../core/auth/firebase_auth_error_mapper.dart';
 import '../../core/router/routes.dart';
 import '../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../core/ui/app_snackbar.dart';
 import '../../core/ui/fade_slide_in.dart';
 import 'widgets/auth_form_widgets.dart';
@@ -114,7 +115,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final busy = _submitting || _googleSubmitting;
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: Stack(
           children: [
@@ -130,27 +131,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         const AuthLogo(showTagline: true),
-                        const SizedBox(height: 28),
+                        SizedBox(height: 28),
                         Text(
                           'Bem-vindo de volta.',
                           textAlign: TextAlign.center,
                           style: theme.textTheme.headlineMedium?.copyWith(
                             fontWeight: FontWeight.w800,
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                             letterSpacing: -0.5,
                             height: 1.15,
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         Text(
                           'Entra pra continuar de onde parou na quadra.',
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             height: 1.45,
                           ),
                         ),
-                        const SizedBox(height: 32),
+                        SizedBox(height: 32),
                         const AuthFieldLabel(label: 'E-MAIL'),
                         AuthTextField(
                           controller: _emailController,
@@ -166,7 +167,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             }
                           },
                         ),
-                        const SizedBox(height: 14),
+                        SizedBox(height: 14),
                         const AuthFieldLabel(label: 'SENHA'),
                         AuthTextField(
                           controller: _passwordController,
@@ -192,7 +193,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             },
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         Align(
                           alignment: Alignment.centerRight,
                           child: AuthLinkButton(
@@ -202,7 +203,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                 : () => context.push(AppRoutes.forgotPassword),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
                         SizedBox(
                           width: double.infinity,
                           height: 52,
@@ -218,7 +219,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               ),
                             ),
                             child: _submitting
-                                ? const SizedBox(
+                                ? SizedBox(
                                     width: 22,
                                     height: 22,
                                     child: CircularProgressIndicator(
@@ -236,33 +237,33 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                   ),
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        SizedBox(height: 24),
                         AuthOrDivider(color: scheme.outline),
-                        const SizedBox(height: 24),
+                        SizedBox(height: 24),
                         AuthSocialButton(
                           onPressed: busy ? null : _signInWithGoogle,
                           loading: _googleSubmitting,
                           icon: const AuthGoogleGlyph(),
                           label: 'Continuar com Google',
                         ),
-                        const SizedBox(height: 10),
+                        SizedBox(height: 10),
                         AuthSocialButton(
                           onPressed: null,
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.apple,
                             size: 22,
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                           ),
                           label: 'Continuar com Apple',
                         ),
-                        const SizedBox(height: 28),
+                        SizedBox(height: 28),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
                               'Novo por aqui? ',
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                               ),
                             ),
                             AuthLinkButton(

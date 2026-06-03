@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class BookingPixGenerateBar extends StatelessWidget {
   const BookingPixGenerateBar({
@@ -18,7 +19,7 @@ class BookingPixGenerateBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.canvas.withValues(alpha: 0.98),
+        color: context.themeColors.canvas.withValues(alpha: 0.98),
         border: Border(
           top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
@@ -35,13 +36,13 @@ class BookingPixGenerateBar extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.brand,
                 foregroundColor: AppColors.black,
-                disabledBackgroundColor: AppColors.surfaceRaised,
+                disabledBackgroundColor: context.themeColors.surfaceRaised,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
               child: loading
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 24,
                       height: 24,
                       child: CircularProgressIndicator(
@@ -49,7 +50,7 @@ class BookingPixGenerateBar extends StatelessWidget {
                         color: AppColors.black,
                       ),
                     )
-                  : const Row(
+                  : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(

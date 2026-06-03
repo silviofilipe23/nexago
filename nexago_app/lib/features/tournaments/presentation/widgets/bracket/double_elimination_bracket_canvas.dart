@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/double_elimination_bracket_layout.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
 import '../../../domain/tournament_matches_logic.dart';
@@ -59,7 +60,7 @@ class DoubleEliminationBracketCanvas extends StatelessWidget {
                     style: AppTypography.mono(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       letterSpacing: 0.8,
                     ),
                   ),

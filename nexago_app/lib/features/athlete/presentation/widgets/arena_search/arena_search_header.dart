@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class ArenaSearchHeader extends StatelessWidget {
   const ArenaSearchHeader({
@@ -35,12 +36,12 @@ class ArenaSearchHeader extends StatelessWidget {
                   letterSpacing: 1,
                 ),
               ),
-              const SizedBox(height: 0),
+              SizedBox(height: 0),
               Text(
                 'Buscar horários',
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w900,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   letterSpacing: -0.5,
                 ),
               ),
@@ -52,7 +53,7 @@ class ArenaSearchHeader extends StatelessWidget {
           onTap: onFiltersTap,
           badgeCount: activeFilterCount,
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         _IconActionButton(icon: Icons.place_outlined, onTap: onLocationTap),
       ],
     );
@@ -73,7 +74,7 @@ class _IconActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceRaised,
+      color: context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -84,7 +85,7 @@ class _IconActionButton extends StatelessWidget {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Icon(icon, color: AppColors.onSurface, size: 22),
+              Icon(icon, color: context.themeColors.onSurface, size: 22),
               if (badgeCount > 0)
                 Positioned(
                   right: 8,
@@ -92,7 +93,7 @@ class _IconActionButton extends StatelessWidget {
                   child: Container(
                     width: 8,
                     height: 8,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: AppColors.brand,
                       shape: BoxShape.circle,
                     ),

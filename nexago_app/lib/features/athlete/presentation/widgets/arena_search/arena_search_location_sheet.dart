@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/location/user_location_providers.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 
 Future<void> showArenaSearchLocationSheet({
@@ -13,7 +14,7 @@ Future<void> showArenaSearchLocationSheet({
 }) {
   return showModalBottomSheet<void>(
     context: context,
-    backgroundColor: AppColors.surfaceSheet,
+    backgroundColor: context.themeColors.surfaceSheet,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -30,28 +31,28 @@ Future<void> showArenaSearchLocationSheet({
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Text(
                 'Localização',
                 style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               if (profileCity.isNotEmpty || profileState.isNotEmpty)
                 Text(
                   'Perfil: $profileCity${profileState.isNotEmpty ? ' · $profileState' : ''}',
                   style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                       ),
                 ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: () {
                   ref.invalidate(userLocationProvider);
@@ -61,8 +62,8 @@ Future<void> showArenaSearchLocationSheet({
                     'Atualizando localização…',
                   );
                 },
-                icon: const Icon(Icons.my_location_rounded),
-                label: const Text('Usar minha localização'),
+                icon: Icon(Icons.my_location_rounded),
+                label: Text('Usar minha localização'),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.brand,
                   foregroundColor: AppColors.black,

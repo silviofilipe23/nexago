@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/domain/arena_court.dart';
@@ -23,7 +24,7 @@ class ArenaCourtsPage extends ConsumerWidget {
     final courtsAsync = ref.watch(arenaManagedCourtsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: FadeSlideIn(
           child: managed.when(
@@ -61,17 +62,17 @@ class _CourtsHeader extends StatelessWidget {
       child: Row(
         children: [
           Material(
-            color: AppColors.surfaceRaised,
+            color: context.themeColors.surfaceRaised,
             borderRadius: BorderRadius.circular(12),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: onBack,
-              child: const SizedBox(
+              child: SizedBox(
                 width: 44,
                 height: 44,
                 child: Icon(
                   Icons.arrow_back_rounded,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
             ),
@@ -82,11 +83,11 @@ class _CourtsHeader extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
           ),
-          const SizedBox(width: 44),
+          SizedBox(width: 44),
         ],
       ),
     );
@@ -129,9 +130,9 @@ class _CourtsBody extends ConsumerWidget {
                       active: activeCount,
                       maintenance: maintenanceCount,
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     for (var i = 0; i < courts.length; i++) ...[
-                      if (i > 0) const SizedBox(height: 10),
+                      if (i > 0) SizedBox(height: 10),
                       staggeredFadeSlide(
                         index: i,
                         child: _CourtCard(
@@ -151,7 +152,7 @@ class _CourtsBody extends ConsumerWidget {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     _AddCourtButton(
                       onTap: () => _openCourtSheet(context, arenaId: arenaId),
                     ),
@@ -182,14 +183,14 @@ class _CourtsSummaryHeader extends StatelessWidget {
     return RichText(
       text: TextSpan(
         style: theme.textTheme.bodyMedium?.copyWith(
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
           fontWeight: FontWeight.w500,
         ),
         children: [
           TextSpan(
             text: '$total $quadraLabel',
-            style: const TextStyle(
-              color: AppColors.onSurface,
+            style: TextStyle(
+              color: context.themeColors.onSurface,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -230,8 +231,8 @@ class _CourtCard extends StatelessWidget {
         : null;
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(
-        color: AppColors.surfaceRaised,
+      decoration: ArenaDashboardTokens.cardDecoration(context,
+        color: context.themeColors.surfaceRaised,
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(10, 12, 10, 12),
@@ -239,7 +240,7 @@ class _CourtCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _CourtIconBadge(),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,23 +254,23 @@ class _CourtCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w800,
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       _CourtStatusBadge(isMaintenance: court.isMaintenance),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     subtitle,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                   if (priceLabel != null)
                     Text(
                       priceLabel,
@@ -279,17 +280,17 @@ class _CourtCard extends StatelessWidget {
                         color: AppColors.brand,
                       ),
                     ),
-                  if (priceLabel != null) const SizedBox(height: 4),
+                  if (priceLabel != null) SizedBox(height: 4),
                   RichText(
                     text: TextSpan(
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         fontWeight: FontWeight.w500,
                       ),
                       children: [
                         TextSpan(
                           text: '$monthlyBookings',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.brand,
                             fontWeight: FontWeight.w800,
                           ),
@@ -301,13 +302,13 @@ class _CourtCard extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             _CourtActionButton(
               icon: Icons.edit_outlined,
-              iconColor: AppColors.onSurface,
+              iconColor: context.themeColors.onSurface,
               onTap: onEdit,
             ),
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
             _CourtActionButton(
               icon: Icons.delete_outline_rounded,
               iconColor: AppColors.live,
@@ -328,13 +329,13 @@ class _CourtIconBadge extends StatelessWidget {
       height: 48,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [Color(0xFFFF8A4A), AppColors.brand, Color(0xFFE5560E)],
         ),
       ),
-      child: const Icon(
+      child: Icon(
         Icons.grid_view_rounded,
         color: AppColors.white,
         size: 22,
@@ -388,7 +389,7 @@ class _CourtActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceSheet,
+      color: context.themeColors.surfaceSheet,
       borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -399,7 +400,7 @@ class _CourtActionButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.25),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.25),
             ),
           ),
           child: Icon(icon, size: 20, color: iconColor),
@@ -440,13 +441,13 @@ class _AddCourtButton extends StatelessWidget {
                     color: AppColors.brand.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.add_rounded,
                     color: AppColors.brand,
                     size: 24,
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -458,11 +459,11 @@ class _AddCourtButton extends StatelessWidget {
                           color: AppColors.brand,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         '$sportsPreview…',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -543,14 +544,14 @@ class _EmptyCourts extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          const Spacer(),
+          Spacer(),
           const ArenaEmptyState(
             title: 'Nenhuma quadra cadastrada',
             message:
                 'Adicione a primeira quadra para liberar horários na agenda.',
             icon: Icons.sports_tennis_outlined,
           ),
-          const Spacer(),
+          Spacer(),
           _AddCourtButton(onTap: onAdd),
         ],
       ),
@@ -584,21 +585,21 @@ Future<void> _confirmDelete(
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      backgroundColor: AppColors.surfaceSheet,
+      backgroundColor: context.themeColors.surfaceSheet,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Remover quadra?'),
+      title: Text('Remover quadra?'),
       content: Text(
         '“${court.name}” será removida. Horários já vinculados a esta quadra podem ficar inconsistentes.',
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('Cancelar'),
+          child: Text('Cancelar'),
         ),
         FilledButton(
           onPressed: () => Navigator.pop(ctx, true),
           style: FilledButton.styleFrom(backgroundColor: AppColors.live),
-          child: const Text('Remover'),
+          child: Text('Remover'),
         ),
       ],
     ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'edit_profile_field_decorations.dart';
 
 /// Campo de texto estilo protótipo 11 (label interno, borda laranja no foco).
@@ -95,13 +96,14 @@ class _EditProfileTextFieldState extends State<EditProfileTextField> {
           textCapitalization: widget.textCapitalization,
           style: theme.textTheme.bodyLarge?.copyWith(
             color: widget.enabled
-                ? AppColors.onSurface
-                : AppColors.onSurfaceMuted,
+                ? context.themeColors.onSurface
+                : context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w600,
           ),
           validator: widget.validator,
           onChanged: widget.onChanged,
           decoration: editProfileInputDecoration(
+            context: context,
             label: widget.label,
             required: widget.required,
             hintText: widget.hintText,
@@ -111,7 +113,7 @@ class _EditProfileTextFieldState extends State<EditProfileTextField> {
           ),
         ),
         if (widget.showCounter && widget.maxLength != null) ...[
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Row(
             children: [
               if (widget.helperText != null)
@@ -119,17 +121,17 @@ class _EditProfileTextFieldState extends State<EditProfileTextField> {
                   child: Text(
                     widget.helperText!,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontSize: 12,
                     ),
                   ),
                 )
               else
-                const Spacer(),
+                Spacer(),
               Text(
                 counterText ?? '',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontSize: 12,
                 ),
               ),

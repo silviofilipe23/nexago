@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/slots_page_logic.dart';
 
 class SlotsDurationPicker extends StatelessWidget {
@@ -36,7 +37,7 @@ class SlotsDurationPicker extends StatelessWidget {
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w800,
               letterSpacing: 0.8,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
             ),
           ),
         ),
@@ -46,7 +47,7 @@ class SlotsDurationPicker extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: options.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            separatorBuilder: (_, __) => SizedBox(width: 8),
             itemBuilder: (context, index) {
               final opt = options[index];
               final isSelected = selectedMinutes == opt.minutes;
@@ -55,7 +56,7 @@ class SlotsDurationPicker extends StatelessWidget {
                   : '—';
 
               return Material(
-                color: AppColors.surfaceCard,
+                color: context.themeColors.surfaceCard,
                 borderRadius: BorderRadius.circular(12),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
@@ -71,7 +72,7 @@ class SlotsDurationPicker extends StatelessWidget {
                       border: Border.all(
                         color: isSelected
                             ? AppColors.brand
-                            : AppColors.surfaceRaised,
+                            : context.themeColors.surfaceRaised,
                         width: isSelected ? 2 : 1,
                       ),
                     ),
@@ -84,16 +85,16 @@ class SlotsDurationPicker extends StatelessWidget {
                             fontWeight: FontWeight.w900,
                             color: isSelected
                                 ? AppColors.brand
-                                : AppColors.onSurface,
+                                : context.themeColors.onSurface,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         Text(
                           price,
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: isSelected
                                 ? AppColors.brand
-                                : AppColors.onSurfaceMuted,
+                                : context.themeColors.onSurfaceMuted,
                             fontWeight: FontWeight.w700,
                           ),
                         ),

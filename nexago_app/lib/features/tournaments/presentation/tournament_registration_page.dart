@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
@@ -579,9 +580,9 @@ class _TournamentRegistrationPageState
     final isFullyPaid = registrationSnap?.isPaid == true;
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: tournamentAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (e, _) => Center(
@@ -590,18 +591,18 @@ class _TournamentRegistrationPageState
             child: Text(
               'Não foi possível carregar o torneio.\n$e',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.live),
+              style: TextStyle(color: AppColors.live),
             ),
           ),
         ),
         data: (tournament) {
           if (tournament == null) {
-            return const Center(child: Text('Torneio não encontrado.'));
+            return Center(child: Text('Torneio não encontrado.'));
           }
 
           final categories = tournament.categoryOffers;
           if (categories.isEmpty) {
-            return const Center(
+            return Center(
               child: Text('Nenhuma categoria disponível para inscrição.'),
             );
           }
@@ -703,7 +704,7 @@ class _TournamentRegistrationPageState
                         tournament: tournament,
                         stats: stats,
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                     ],
                     if (access.canAccess)
                       Padding(
@@ -772,10 +773,10 @@ class _TournamentRegistrationPageState
             'Escolha a categoria',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           for (final cat in categories) ...[
             TournamentRegistrationCategoryCard(
               offer: cat,
@@ -788,7 +789,7 @@ class _TournamentRegistrationPageState
               alreadyRegistered: registeredCategoryIds.contains(cat.id),
               onTap: () => _selectCategory(cat),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
           ],
         ];
       case TournamentRegistrationStep.summary:
@@ -811,7 +812,7 @@ class _TournamentRegistrationPageState
               onChange: () => _goToStep(TournamentRegistrationStep.category),
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           TournamentRegistrationPriceSummary(quote: quote),
         ];
       case TournamentRegistrationStep.uniform:

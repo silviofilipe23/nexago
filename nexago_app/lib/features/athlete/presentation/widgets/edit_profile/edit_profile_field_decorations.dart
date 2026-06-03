@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 /// Decoração compartilhada dos campos em Editar perfil.
 InputDecoration editProfileInputDecoration({
+  required BuildContext context,
   required String label,
   bool required = false,
   String? hintText,
@@ -12,39 +14,40 @@ InputDecoration editProfileInputDecoration({
   Widget? suffixIcon,
   bool focused = false,
 }) {
+  final colors = context.themeColors;
   final labelText = required ? '$label *' : label;
   final borderColor = focused
       ? AppColors.brand
-      : AppColors.onSurfaceMuted.withValues(alpha: 0.25);
+      : colors.onSurfaceMuted.withValues(alpha: 0.25);
 
   return InputDecoration(
     labelText: labelText,
     labelStyle: TextStyle(
-      color: focused ? AppColors.brand : AppColors.onSurfaceMuted,
+      color: focused ? AppColors.brand : colors.onSurfaceMuted,
       fontSize: 10,
       fontWeight: FontWeight.w800,
       letterSpacing: 0.5,
     ),
     floatingLabelStyle: TextStyle(
-      color: focused ? AppColors.brand : AppColors.onSurfaceMuted,
+      color: focused ? AppColors.brand : colors.onSurfaceMuted,
       fontSize: 10,
       fontWeight: FontWeight.w800,
       letterSpacing: 0.5,
     ),
     hintText: hintText,
     hintStyle: TextStyle(
-      color: AppColors.onSurfaceMuted.withValues(alpha: 0.6),
+      color: colors.onSurfaceMuted.withValues(alpha: 0.6),
       fontWeight: FontWeight.w500,
     ),
     helperText: helperText,
     helperStyle: TextStyle(
-      color: AppColors.onSurfaceMuted.withValues(alpha: 0.85),
+      color: colors.onSurfaceMuted.withValues(alpha: 0.85),
       fontSize: 12,
     ),
     prefixIcon: prefixIcon,
     suffixIcon: suffixIcon,
     filled: true,
-    fillColor: AppColors.surfaceRaised,
+    fillColor: colors.surfaceRaised,
     contentPadding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
@@ -56,20 +59,20 @@ InputDecoration editProfileInputDecoration({
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
+      borderSide: BorderSide(color: AppColors.brand, width: 1.5),
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: AppColors.live),
+      borderSide: BorderSide(color: AppColors.live),
     ),
     focusedErrorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: AppColors.live, width: 1.5),
+      borderSide: BorderSide(color: AppColors.live, width: 1.5),
     ),
     disabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(14),
       borderSide: BorderSide(
-        color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+        color: colors.onSurfaceMuted.withValues(alpha: 0.15),
       ),
     ),
   );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class ArenaDetailBottomCta extends StatelessWidget {
   const ArenaDetailBottomCta({
@@ -13,7 +14,7 @@ class ArenaDetailBottomCta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.canvas,
+      color: context.themeColors.canvas,
       elevation: 0,
       child: SafeArea(
         top: false,
@@ -32,7 +33,7 @@ class ArenaDetailBottomCta extends StatelessWidget {
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(

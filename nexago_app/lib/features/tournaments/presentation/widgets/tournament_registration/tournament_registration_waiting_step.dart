@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_registration_logic.dart';
 import 'tournament_registration_dashed_border.dart';
 
@@ -42,7 +43,7 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Center(child: _WaitingStatusOrb(confirmed: inviteAccepted)),
-        const SizedBox(height: 32),
+        SizedBox(height: 32),
         Center(
           child: Column(
             children: [
@@ -67,7 +68,7 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
               Text(
                 isLoading
                     ? 'Carregando dupla...'
@@ -78,12 +79,12 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
                 style: AppTypography.soraRegular(
                   fontSize: 26,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   height: 1.1,
                   letterSpacing: -0.4,
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: isLoading
@@ -91,7 +92,7 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
                     : Text.rich(
                         TextSpan(
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             height: 1.5,
                             fontWeight: FontWeight.w500,
                           ),
@@ -116,11 +117,11 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 32),
+        SizedBox(height: 32),
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
+            color: context.themeColors.surfaceCard,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
@@ -132,11 +133,11 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
                 style: AppTypography.mono(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.5),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.5),
                   letterSpacing: 1.4,
                 ),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
               _DuoRow(
                 initials: athleteInitials,
                 name: athleteDisplayName,
@@ -161,7 +162,7 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: 24),
         FilledButton(
           onPressed: isLoading ? null : onContinueBrowsing,
           style: FilledButton.styleFrom(
@@ -172,26 +173,26 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          child: const Text(
+          child: Text(
             'Continuar no app',
             style: TextStyle(fontWeight: FontWeight.w800),
           ),
         ),
         if (!inviteAccepted) ...[
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           OutlinedButton(
             onPressed: isLoading ? null : onResendInvite,
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.onSurface,
+              foregroundColor: context.themeColors.onSurface,
               side: BorderSide(
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.25),
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.25),
               ),
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text(
+            child: Text(
               'Reenviar convite',
               style: TextStyle(fontWeight: FontWeight.w700),
             ),
@@ -202,7 +203,7 @@ class TournamentRegistrationWaitingStep extends StatelessWidget {
           child: Text(
             'Cancelar inscrição',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -256,7 +257,7 @@ class _DuoRow extends StatelessWidget {
                     fit: BoxFit.cover,
                     errorBuilder: (context, error, stackTrace) => _AvatarInitials(
                       initials: initials,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                     ),
                   ),
                 )
@@ -265,7 +266,7 @@ class _DuoRow extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
         ),
@@ -275,7 +276,7 @@ class _DuoRow extends StatelessWidget {
         width: 40,
         height: 40,
         alignment: Alignment.center,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -310,14 +311,14 @@ class _DuoRow extends StatelessWidget {
     return Row(
       children: [
         avatar,
-        const SizedBox(width: 14),
+        SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (loading) ...[
                 const _SkeletonLine(width: 132, height: 12),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 const _SkeletonLine(width: 94, height: 10),
               ] else ...[
                 Text(
@@ -325,17 +326,17 @@ class _DuoRow extends StatelessWidget {
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
                     color: dashedAvatar
-                        ? AppColors.onSurfaceMuted
-                        : AppColors.onSurface,
+                        ? context.themeColors.onSurfaceMuted
+                        : context.themeColors.onSurface,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: dashedAvatar
                         ? AppColors.pending
-                        : AppColors.onSurfaceMuted,
+                        : context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -350,7 +351,7 @@ class _DuoRow extends StatelessWidget {
               color: AppColors.win.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.check_rounded,
               size: 16,
               color: AppColors.win,
@@ -417,7 +418,7 @@ class _ConfirmedOrb extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Icon(
+            child: Icon(
               Icons.check_rounded,
               size: 48,
               color: AppColors.black,
@@ -514,7 +515,7 @@ class _WaitingPulseOrbState extends State<_WaitingPulseOrb>
                       ),
                     ],
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.schedule_rounded,
                     size: 44,
                     color: AppColors.black,
@@ -563,7 +564,7 @@ class _SkeletonLine extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: AppColors.onSurfaceMuted.withValues(alpha: 0.18),
+        color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(999),
       ),
     );
@@ -583,7 +584,7 @@ class _SkeletonCircle extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppColors.onSurfaceMuted.withValues(alpha: 0.16),
+        color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.16),
       ),
     );
     if (!dashed) return child;

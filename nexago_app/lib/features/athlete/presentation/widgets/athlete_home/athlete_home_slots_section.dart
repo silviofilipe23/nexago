@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/athlete_home_models.dart';
 import 'athlete_home_section_header.dart';
 
@@ -25,13 +26,13 @@ class AthleteHomeSlotsSection extends StatelessWidget {
           trailingLabel: 'VER TODAS',
           onTrailingTap: onViewAll,
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         SizedBox(
           height: 148,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: slots.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            separatorBuilder: (_, __) => SizedBox(width: 10),
             itemBuilder: (context, index) {
               return SizedBox(
                 width: 168,
@@ -62,7 +63,7 @@ class _SlotCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: slot.tintColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,18 +86,18 @@ class _SlotCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              const Spacer(),
+              Spacer(),
               Row(
                 children: [
                   Container(
                     width: 6,
                     height: 6,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: AppColors.win,
                       shape: BoxShape.circle,
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4),
                   Text(
                     'LIVRE',
                     style: theme.textTheme.labelSmall?.copyWith(
@@ -109,45 +110,45 @@ class _SlotCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Container(
             height: 36,
             decoration: BoxDecoration(
-              color: AppColors.surfaceRaised.withValues(alpha: 0.5),
+              color: context.themeColors.surfaceRaised.withValues(alpha: 0.5),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
               child: Icon(
                 Icons.sports_tennis_rounded,
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.4),
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.4),
                 size: 20,
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             '${slot.arenaName} (${slot.courtLabel})',
             style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Row(
             children: [
               Expanded(
                 child: Text(
                   slot.timeLabel,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 slot.priceLabel,
                 style: theme.textTheme.labelMedium?.copyWith(

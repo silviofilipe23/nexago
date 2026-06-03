@@ -8,6 +8,7 @@ import '../../../core/location/br_locations_data.dart';
 import '../../../core/location/user_location_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/presentation/widgets/br_state_city_fields.dart';
@@ -30,7 +31,7 @@ class ArenaEditProfilePage extends ConsumerWidget {
     final arenaAsync = ref.watch(managedArenaDetailProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: arenaAsync.when(
         skipLoadingOnReload: true,
         data: (arena) {
@@ -157,7 +158,7 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          backgroundColor: AppColors.surfaceSheet,
+          backgroundColor: context.themeColors.surfaceSheet,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(
               ArenaDashboardTokens.cardRadius,
@@ -167,14 +168,14 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
             title,
             style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
           content: TextField(
             controller: ctrl,
             keyboardType: TextInputType.url,
-            style: const TextStyle(color: AppColors.onSurface),
-            decoration: _fieldDecoration(label: 'URL', hint: 'https://…'),
+            style: TextStyle(color: context.themeColors.onSurface),
+            decoration: _fieldDecoration(context,label: 'URL', hint: 'https://…'),
             autofocus: true,
           ),
           actions: [
@@ -182,7 +183,7 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
               onPressed: () => Navigator.pop(ctx, false),
               child: Text(
                 'Cancelar',
-                style: TextStyle(color: AppColors.onSurfaceMuted),
+                style: TextStyle(color: context.themeColors.onSurfaceMuted),
               ),
             ),
             FilledButton(
@@ -191,7 +192,7 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                 backgroundColor: AppColors.brand,
                 foregroundColor: AppColors.black,
               ),
-              child: const Text('OK'),
+              child: Text('OK'),
             ),
           ],
         );
@@ -389,7 +390,7 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                       current: _logoUrl,
                                       onSet: (v) => _logoUrl = v,
                                     ),
-                                    child: const Padding(
+                                    child: Padding(
                                       padding: EdgeInsets.all(7),
                                       child: Icon(
                                         Icons.edit_rounded,
@@ -421,33 +422,33 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.4,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       Text(
                         arenaName.isNotEmpty
                             ? '$arenaName • visível para atletas na busca'
                             : 'Atualize como sua arena aparece no app.',
                         style: theme.textTheme.bodyLarge?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w500,
                           height: 1.45,
                         ),
                       ),
-                      const SizedBox(height: ArenaDashboardTokens.sectionGap),
+                      SizedBox(height: ArenaDashboardTokens.sectionGap),
                       const _EditSectionLabel(label: 'DADOS DA ARENA'),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _EditProfileCard(
                         child: Column(
                           children: [
                             TextFormField(
                               controller: _name,
                               textCapitalization: TextCapitalization.words,
-                              style: const TextStyle(
-                                color: AppColors.onSurface,
+                              style: TextStyle(
+                                color: context.themeColors.onSurface,
                               ),
-                              decoration: _fieldDecoration(
+                              decoration: _fieldDecoration(context,
                                 label: 'Nome da arena',
                               ),
                               validator: (v) {
@@ -458,27 +459,27 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                               },
                               onChanged: (_) => setState(() {}),
                             ),
-                            const SizedBox(height: 14),
+                            SizedBox(height: 14),
                             TextFormField(
                               controller: _description,
                               minLines: 3,
                               maxLines: 6,
-                              style: const TextStyle(
-                                color: AppColors.onSurface,
+                              style: TextStyle(
+                                color: context.themeColors.onSurface,
                               ),
-                              decoration: _fieldDecoration(
+                              decoration: _fieldDecoration(context,
                                 label: 'Descrição',
                                 alignLabel: true,
                               ),
                             ),
-                            const SizedBox(height: 14),
+                            SizedBox(height: 14),
                             TextFormField(
                               controller: _phone,
                               keyboardType: TextInputType.phone,
-                              style: const TextStyle(
-                                color: AppColors.onSurface,
+                              style: TextStyle(
+                                color: context.themeColors.onSurface,
                               ),
-                              decoration: _fieldDecoration(
+                              decoration: _fieldDecoration(context,
                                 label: 'Telefone',
                                 hint: '(DDD) número',
                               ),
@@ -492,14 +493,14 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: 14),
+                            SizedBox(height: 14),
                             TextFormField(
                               controller: _whatsapp,
                               keyboardType: TextInputType.phone,
-                              style: const TextStyle(
-                                color: AppColors.onSurface,
+                              style: TextStyle(
+                                color: context.themeColors.onSurface,
                               ),
-                              decoration: _fieldDecoration(
+                              decoration: _fieldDecoration(context,
                                 label: 'WhatsApp',
                                 hint: 'Opcional',
                               ),
@@ -511,16 +512,16 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                 return null;
                               },
                             ),
-                            const SizedBox(height: 14),
+                            SizedBox(height: 14),
                             TextFormField(
                               controller: _address,
                               textCapitalization: TextCapitalization.sentences,
-                              style: const TextStyle(
-                                color: AppColors.onSurface,
+                              style: TextStyle(
+                                color: context.themeColors.onSurface,
                               ),
-                              decoration: _fieldDecoration(label: 'Endereço'),
+                              decoration: _fieldDecoration(context,label: 'Endereço'),
                             ),
-                            const SizedBox(height: 14),
+                            SizedBox(height: 14),
                             BrStateCityFields(
                               selectedState: _selectedState,
                               selectedCity: _selectedCity,
@@ -529,24 +530,24 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                               onCityChanged: (v) =>
                                   setState(() => _selectedCity = v),
                             ),
-                            const SizedBox(height: 14),
+                            SizedBox(height: 14),
                             Text(
                               'Coordenadas (opcional)',
                               style: theme.textTheme.labelMedium?.copyWith(
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            SizedBox(height: 6),
                             Text(
                               'Usadas para sugerir sua arena a atletas perto. '
                               'Você pode usar o GPS no local ou informar manualmente.',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                                 height: 1.35,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            SizedBox(height: 10),
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -558,17 +559,17 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                           decimal: true,
                                           signed: true,
                                         ),
-                                    style: const TextStyle(
-                                      color: AppColors.onSurface,
+                                    style: TextStyle(
+                                      color: context.themeColors.onSurface,
                                     ),
-                                    decoration: _fieldDecoration(
+                                    decoration: _fieldDecoration(context,
                                       label: 'Latitude',
                                       hint: '-16.686891',
                                     ),
                                     validator: _validateOptionalLatitude,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                SizedBox(width: 12),
                                 Expanded(
                                   child: TextFormField(
                                     controller: _longitude,
@@ -577,10 +578,10 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                           decimal: true,
                                           signed: true,
                                         ),
-                                    style: const TextStyle(
-                                      color: AppColors.onSurface,
+                                    style: TextStyle(
+                                      color: context.themeColors.onSurface,
                                     ),
-                                    decoration: _fieldDecoration(
+                                    decoration: _fieldDecoration(context,
                                       label: 'Longitude',
                                       hint: '-49.264794',
                                     ),
@@ -589,14 +590,14 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 10),
+                            SizedBox(height: 10),
                             OutlinedButton.icon(
                               onPressed: _saving ? null : _useCurrentLocation,
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.my_location_rounded,
                                 size: 20,
                               ),
-                              label: const Text('Usar localização atual'),
+                              label: Text('Usar localização atual'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.brand,
                                 side: BorderSide(
@@ -616,9 +617,9 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: ArenaDashboardTokens.sectionGap),
+                      SizedBox(height: ArenaDashboardTokens.sectionGap),
                       const _EditSectionLabel(label: 'BUSCA DO ATLETA'),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _EditProfileCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -627,36 +628,36 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                               'Esportes e superfícies usados nos filtros da aba Reservar. '
                               'Os tipos das quadras cadastradas são incluídos automaticamente.',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                                 height: 1.35,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            SizedBox(height: 16),
                             Text(
                               'Esportes oferecidos',
                               style: theme.textTheme.labelSmall?.copyWith(
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                                 letterSpacing: 0.6,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            SizedBox(height: 10),
                             _SearchMetadataChips(
                               options: ArenaSearchMetadata.sportLabels,
                               selected: _sports,
                               onToggle: (l) => _toggleMetadataLabel(_sports, l),
                             ),
-                            const SizedBox(height: 16),
+                            SizedBox(height: 16),
                             Text(
                               'Superfícies',
                               style: theme.textTheme.labelSmall?.copyWith(
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                                 letterSpacing: 0.6,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            SizedBox(height: 10),
                             _SearchMetadataChips(
                               options: kArenaSurfaceOptions,
                               selected: _surfaces,
@@ -666,9 +667,9 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: ArenaDashboardTokens.sectionGap),
+                      SizedBox(height: ArenaDashboardTokens.sectionGap),
                       const _EditSectionLabel(label: 'COMODIDADES'),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _EditProfileCard(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Column(
@@ -719,9 +720,9 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: ArenaDashboardTokens.sectionGap),
+                      SizedBox(height: ArenaDashboardTokens.sectionGap),
                       const _EditSectionLabel(label: 'PAGAMENTOS'),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _EditProfileCard(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Column(
@@ -734,13 +735,13 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                 'Pagamento online',
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   fontWeight: FontWeight.w700,
-                                  color: AppColors.onSurface,
+                                  color: context.themeColors.onSurface,
                                 ),
                               ),
                               subtitle: Text(
                                 'Reservas com pagamento antecipado',
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
+                                  color: context.themeColors.onSurfaceMuted,
                                   height: 1.35,
                                 ),
                               ),
@@ -760,7 +761,7 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                             ),
                             Divider(
                               height: 1,
-                              color: AppColors.onSurfaceMuted.withValues(
+                              color: context.themeColors.onSurfaceMuted.withValues(
                                 alpha: 0.15,
                               ),
                             ),
@@ -772,13 +773,13 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                 'Pagamento no local',
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   fontWeight: FontWeight.w700,
-                                  color: AppColors.onSurface,
+                                  color: context.themeColors.onSurface,
                                 ),
                               ),
                               subtitle: Text(
                                 'Aceitar pagamento na arena',
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
+                                  color: context.themeColors.onSurfaceMuted,
                                   height: 1.35,
                                 ),
                               ),
@@ -799,7 +800,7 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                             if (_onlinePayment) ...[
                               Divider(
                                 height: 1,
-                                color: AppColors.onSurfaceMuted.withValues(
+                                color: context.themeColors.onSurfaceMuted.withValues(
                                   alpha: 0.15,
                                 ),
                               ),
@@ -814,26 +815,26 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                       style: theme.textTheme.bodyMedium
                                           ?.copyWith(
                                             fontWeight: FontWeight.w700,
-                                            color: AppColors.onSurface,
+                                            color: context.themeColors.onSurface,
                                           ),
                                     ),
-                                    const SizedBox(height: 8),
+                                    SizedBox(height: 8),
                                     Text(
                                       'Atletas pagam PIX via NexaGO (Asaas). Repasses automáticos usam a chave abaixo.',
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(
-                                            color: AppColors.onSurfaceMuted,
+                                            color: context.themeColors.onSurfaceMuted,
                                             height: 1.4,
                                           ),
                                     ),
-                                    const SizedBox(height: 10),
+                                    SizedBox(height: 10),
                                     DropdownButtonFormField<PayoutPixKeyType>(
                                       value: _payoutPixKeyType,
-                                      dropdownColor: AppColors.surfaceSheet,
-                                      style: const TextStyle(
-                                        color: AppColors.onSurface,
+                                      dropdownColor: context.themeColors.surfaceSheet,
+                                      style: TextStyle(
+                                        color: context.themeColors.onSurface,
                                       ),
-                                      decoration: _fieldDecoration(
+                                      decoration: _fieldDecoration(context,
                                         label: 'Tipo da chave PIX',
                                       ),
                                       items: [
@@ -860,13 +861,13 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                         return null;
                                       },
                                     ),
-                                    const SizedBox(height: 10),
+                                    SizedBox(height: 10),
                                     TextFormField(
                                       controller: _payoutPixKey,
-                                      style: const TextStyle(
-                                        color: AppColors.onSurface,
+                                      style: TextStyle(
+                                        color: context.themeColors.onSurface,
                                       ),
-                                      decoration: _fieldDecoration(
+                                      decoration: _fieldDecoration(context,
                                         label: 'Chave PIX da arena',
                                         hint: _payoutPixKeyType.hintForField(),
                                       ),
@@ -887,7 +888,7 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 120),
+                      SizedBox(height: 120),
                     ]),
                   ),
                 ),
@@ -900,40 +901,42 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
     );
   }
 
-  static InputDecoration _fieldDecoration({
+  InputDecoration _fieldDecoration(
+    BuildContext context, {
     required String label,
     String? hint,
     bool alignLabel = false,
   }) {
+    final colors = context.themeColors;
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
       borderSide: BorderSide(
-        color: AppColors.onSurfaceMuted.withValues(alpha: 0.22),
+        color: colors.onSurfaceMuted.withValues(alpha: 0.22),
       ),
     );
     return InputDecoration(
       labelText: label,
       hintText: hint,
       alignLabelWithHint: alignLabel,
-      labelStyle: const TextStyle(
-        color: AppColors.onSurfaceMuted,
+      labelStyle: TextStyle(
+        color: colors.onSurfaceMuted,
         fontWeight: FontWeight.w500,
       ),
       hintStyle: TextStyle(
-        color: AppColors.onSurfaceMuted.withValues(alpha: 0.75),
+        color: colors.onSurfaceMuted.withValues(alpha: 0.75),
       ),
       filled: true,
-      fillColor: AppColors.surfaceSheet,
+      fillColor: colors.surfaceSheet,
       border: border,
       enabledBorder: border,
       focusedBorder: border.copyWith(
-        borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
+        borderSide: BorderSide(color: AppColors.brand, width: 1.5),
       ),
       errorBorder: border.copyWith(
-        borderSide: const BorderSide(color: AppColors.live),
+        borderSide: BorderSide(color: AppColors.live),
       ),
       focusedErrorBorder: border.copyWith(
-        borderSide: const BorderSide(color: AppColors.live, width: 1.5),
+        borderSide: BorderSide(color: AppColors.live, width: 1.5),
       ),
     );
   }
@@ -969,8 +972,8 @@ class _EditProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(
-        color: AppColors.surfaceRaised,
+      decoration: ArenaDashboardTokens.cardDecoration(context,
+        color: context.themeColors.surfaceRaised,
       ),
       child: Padding(padding: padding, child: child),
     );
@@ -987,10 +990,10 @@ class _StickySaveBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         border: Border(
           top: BorderSide(
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
           ),
         ),
       ),
@@ -1021,7 +1024,7 @@ class _StickySaveBar extends StatelessWidget {
                 ),
               ),
               child: saving
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(
@@ -1029,7 +1032,7 @@ class _StickySaveBar extends StatelessWidget {
                         color: AppColors.black,
                       ),
                     )
-                  : const Text(
+                  : Text(
                       'Salvar alterações',
                       style: TextStyle(
                         fontSize: 16,
@@ -1081,14 +1084,14 @@ class _EditCoverHeader extends StatelessWidget {
               children: [
                 IconButton(
                   onPressed: onBack,
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_back_rounded,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
-                const Spacer(),
+                Spacer(),
                 Material(
-                  color: AppColors.surfaceRaised.withValues(alpha: 0.9),
+                  color: context.themeColors.surfaceRaised.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(10),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
@@ -1104,14 +1107,14 @@ class _EditCoverHeader extends StatelessWidget {
                           Icon(
                             Icons.image_outlined,
                             size: 16,
-                            color: AppColors.onSurface.withValues(alpha: 0.9),
+                            color: context.themeColors.onSurface.withValues(alpha: 0.9),
                           ),
-                          const SizedBox(width: 6),
+                          SizedBox(width: 6),
                           Text(
                             'ALTERAR CAPA',
                             style: Theme.of(context).textTheme.labelSmall
                                 ?.copyWith(
-                                  color: AppColors.onSurface,
+                                  color: context.themeColors.onSurface,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 0.5,
                                   fontSize: 10,
@@ -1159,12 +1162,12 @@ class _CoverSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: AppColors.surfaceRaised,
+      color: context.themeColors.surfaceRaised,
       child: Center(
         child: Icon(
           Icons.panorama_wide_angle_outlined,
           size: 48,
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
         ),
       ),
     );
@@ -1191,7 +1194,7 @@ class _EditLogoBadge extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.surfaceRaised, width: 3),
+        border: Border.all(color: context.themeColors.surfaceRaised, width: 3),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.35),
@@ -1237,7 +1240,7 @@ class _LogoGradient extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -1247,7 +1250,7 @@ class _LogoGradient extends StatelessWidget {
       child: Center(
         child: Text(
           monogram,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w900,
             color: AppColors.black,
@@ -1285,10 +1288,10 @@ class _SearchMetadataChips extends StatelessWidget {
           selectedColor: AppColors.brand.withValues(alpha: 0.12),
           labelStyle: TextStyle(
             fontWeight: FontWeight.w700,
-            color: isSelected ? AppColors.brand : AppColors.onSurface,
+            color: isSelected ? AppColors.brand : context.themeColors.onSurface,
           ),
           side: BorderSide(
-            color: isSelected ? AppColors.brand : AppColors.surfaceRaised,
+            color: isSelected ? AppColors.brand : context.themeColors.surfaceRaised,
           ),
           onSelected: (_) => onToggle(label),
         );
@@ -1316,8 +1319,8 @@ class _AmenitySwitch extends StatelessWidget {
       activeThumbColor: AppColors.brand,
       title: Text(
         label,
-        style: const TextStyle(
-          color: AppColors.onSurface,
+        style: TextStyle(
+          color: context.themeColors.onSurface,
           fontWeight: FontWeight.w600,
         ),
       ),

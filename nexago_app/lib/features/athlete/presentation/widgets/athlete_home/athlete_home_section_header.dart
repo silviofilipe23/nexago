@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
 class AthleteHomeSectionHeader extends StatelessWidget {
@@ -28,11 +29,11 @@ class AthleteHomeSectionHeader extends StatelessWidget {
           title,
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
         if (trailingAccent != null) ...[
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Text(
             trailingAccent!,
             style: AppTypography.mono(
@@ -43,12 +44,12 @@ class AthleteHomeSectionHeader extends StatelessWidget {
             ),
           ),
         ],
-        const Spacer(),
+        Spacer(),
         if (trailingLabel != null && onTrailingTap != null)
           TextButton(
             onPressed: onTrailingTap,
             style: TextButton.styleFrom(
-              foregroundColor: AppColors.onSurfaceMuted,
+              foregroundColor: context.themeColors.onSurfaceMuted,
               padding: EdgeInsets.zero,
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,

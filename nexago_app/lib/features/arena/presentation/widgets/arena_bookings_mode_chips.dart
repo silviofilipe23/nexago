@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_booking_view_mode.dart';
 import '../../domain/arena_bookings_providers.dart';
 
@@ -17,7 +18,7 @@ class ArenaBookingsModeChips extends ConsumerWidget {
       scrollDirection: Axis.horizontal,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: AppColors.surfaceRaised,
+          color: context.themeColors.surfaceRaised,
           borderRadius: BorderRadius.circular(999),
         ),
         child: Padding(
@@ -56,11 +57,11 @@ class _ModeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final labelColor = selected ? AppColors.black : AppColors.onSurfaceMuted;
+    final labelColor = selected ? AppColors.black : context.themeColors.onSurfaceMuted;
     final badgeBg = selected
         ? AppColors.black.withValues(alpha: 0.14)
-        : AppColors.canvas.withValues(alpha: 0.85);
-    final badgeFg = selected ? AppColors.black : AppColors.onSurfaceMuted;
+        : context.themeColors.canvas.withValues(alpha: 0.85);
+    final badgeFg = selected ? AppColors.black : context.themeColors.onSurfaceMuted;
 
     return Material(
       color: selected ? AppColors.brand : Colors.transparent,
@@ -81,7 +82,7 @@ class _ModeChip extends StatelessWidget {
                   color: labelColor,
                 ),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Container(
                 constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
                 padding: const EdgeInsets.symmetric(horizontal: 6),

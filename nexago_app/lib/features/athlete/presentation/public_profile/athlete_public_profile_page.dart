@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/athlete_follow_providers.dart';
 import '../../domain/athlete_profile_providers.dart';
 import '../../domain/athlete_public_profile_models.dart';
@@ -88,9 +89,9 @@ class _AthletePublicProfilePageState
     final isSelf = currentUid == widget.userId;
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: profileAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (e, _) => Center(
@@ -99,16 +100,16 @@ class _AthletePublicProfilePageState
             child: Text(
               'Não foi possível carregar o perfil.\n$e',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.live),
+              style: TextStyle(color: AppColors.live),
             ),
           ),
         ),
         data: (profile) {
           if (profile == null) {
-            return const Center(
+            return Center(
               child: Text(
                 'Perfil não encontrado.',
-                style: TextStyle(color: AppColors.onSurfaceMuted),
+                style: TextStyle(color: context.themeColors.onSurfaceMuted),
               ),
             );
           }
@@ -284,17 +285,17 @@ class _PrivateBlocked extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: IconButton(
               onPressed: onBack,
-              icon: const Icon(Icons.arrow_back_rounded),
+              icon: Icon(Icons.arrow_back_rounded),
             ),
           ),
-          const Expanded(
+          Expanded(
             child: Center(
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
                   'Este perfil é privado.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.onSurfaceMuted),
+                  style: TextStyle(color: context.themeColors.onSurfaceMuted),
                 ),
               ),
             ),

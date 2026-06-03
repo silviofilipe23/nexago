@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 /// Bottom sheet para editar início e fim da janela de silêncio.
 Future<({String start, String end})?> showQuietHoursTimeSheet({
@@ -10,7 +11,7 @@ Future<({String start, String end})?> showQuietHoursTimeSheet({
 }) {
   return showModalBottomSheet<({String start, String end})>(
     context: context,
-    backgroundColor: AppColors.surfaceSheet,
+    backgroundColor: context.themeColors.surfaceSheet,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -118,30 +119,30 @@ class _QuietHoursTimeSheetBodyState extends State<_QuietHoursTimeSheetBody> {
               'Janela de silêncio',
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'Neste período o nexaGO não envia notificações push.',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             _TimeRow(
               label: 'Início',
               timeLabel: _formatTime(_start),
               onTap: _pickStart,
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             _TimeRow(
               label: 'Fim',
               timeLabel: _formatTime(_end),
               onTap: _pickEnd,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             FilledButton(
               onPressed: () {
                 Navigator.of(context).pop((
@@ -157,7 +158,7 @@ class _QuietHoursTimeSheetBodyState extends State<_QuietHoursTimeSheetBody> {
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              child: const Text(
+              child: Text(
                 'Salvar horários',
                 style: TextStyle(fontWeight: FontWeight.w800),
               ),
@@ -185,7 +186,7 @@ class _TimeRow extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: AppColors.surfaceRaised,
+      color: context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -198,22 +199,22 @@ class _TimeRow extends StatelessWidget {
                 label,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
-              const Spacer(),
+              Spacer(),
               Text(
                 timeLabel,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Icon(
                 Icons.schedule_rounded,
                 size: 20,
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.85),
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.85),
               ),
             ],
           ),

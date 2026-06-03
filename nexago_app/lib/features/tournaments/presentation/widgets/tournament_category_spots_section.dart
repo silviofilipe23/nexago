@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../data/tournament_inscriptions_repository.dart';
 import '../../domain/tournament_category_spots.dart';
 import '../../domain/tournament_discovery_labels.dart';
@@ -43,19 +44,19 @@ class TournamentCategorySpotsSection extends ConsumerWidget {
             'VAGAS POR CATEGORIA',
             style: AppTypography.mono(
               fontSize: 11,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.8,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
         ],
         for (var i = 0; i < offers.length; i++) ...[
           if (i > 0)
             Divider(
               height: 20,
               thickness: 1,
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
             ),
           _CategorySpotsRow(
             offer: offers[i],
@@ -117,7 +118,7 @@ class _CategorySpotsRow extends StatelessWidget {
                 style: AppTypography.soraRegular(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   height: 1.2,
                 ),
               ),
@@ -125,14 +126,14 @@ class _CategorySpotsRow extends StatelessWidget {
                 formatLabel,
                 style: AppTypography.soraRegular(
                   fontSize: 13,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -143,24 +144,24 @@ class _CategorySpotsRow extends StatelessWidget {
                   value: fill,
                   minHeight: 5,
                   backgroundColor:
-                      AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+                      context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
                   color: color,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 total > 0 ? '$enrolled/$total inscritas' : '— inscritas',
                 textAlign: TextAlign.center,
                 style: AppTypography.mono(
                   fontSize: 11,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         SizedBox(
           width: 64,
           child: Align(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'fade_slide_in.dart';
 
 /// Loading central com indicador da marca.
@@ -23,7 +24,7 @@ class AppLoadingView extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(
+              SizedBox(
                 width: 40,
                 height: 40,
                 child: CircularProgressIndicator(
@@ -32,12 +33,12 @@ class AppLoadingView extends StatelessWidget {
                 ),
               ),
               if (message != null) ...[
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
                 Text(
                   message!,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     height: 1.4,
                   ),
                 ),
@@ -90,7 +91,7 @@ class AppEmptyView extends StatelessWidget {
                   color: AppColors.brand.withValues(alpha: 0.85),
                 ),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
               Text(
                 title,
                 style: theme.textTheme.titleLarge?.copyWith(
@@ -99,17 +100,17 @@ class AppEmptyView extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Text(
                 subtitle,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   height: 1.45,
                 ),
                 textAlign: TextAlign.center,
               ),
               if (actionLabel != null && onAction != null) ...[
-                const SizedBox(height: 28),
+                SizedBox(height: 28),
                 FilledButton(
                   onPressed: onAction,
                   style: FilledButton.styleFrom(
@@ -161,7 +162,7 @@ class AppErrorView extends StatelessWidget {
                 size: 56,
                 color: theme.colorScheme.error.withValues(alpha: 0.85),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               Text(
                 title,
                 style: theme.textTheme.titleMedium?.copyWith(
@@ -169,19 +170,19 @@ class AppErrorView extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Text(
                 message,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   height: 1.45,
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
               FilledButton.icon(
                 onPressed: onRetry,
-                icon: const Icon(Icons.refresh_rounded, size: 22),
+                icon: Icon(Icons.refresh_rounded, size: 22),
                 label: Text(retryLabel),
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),

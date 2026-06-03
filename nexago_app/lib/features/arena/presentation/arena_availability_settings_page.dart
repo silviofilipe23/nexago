@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_providers.dart';
@@ -21,7 +22,7 @@ class ArenaAvailabilitySettingsPage extends ConsumerWidget {
     final template = ref.watch(arenaSettingsTemplateProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: FadeSlideIn(
           child: managed.when(
@@ -74,17 +75,17 @@ class _ArenaAvailabilityHeader extends StatelessWidget {
           Row(
             children: [
               Material(
-                color: AppColors.surfaceRaised,
+                color: context.themeColors.surfaceRaised,
                 borderRadius: BorderRadius.circular(12),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: onBack,
-                  child: const SizedBox(
+                  child: SizedBox(
                     width: 44,
                     height: 44,
                     child: Icon(
                       Icons.arrow_back_rounded,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                 ),
@@ -95,19 +96,19 @@ class _ArenaAvailabilityHeader extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
               ),
-              const SizedBox(width: 44),
+              SizedBox(width: 44),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Text(
             'Defina quando a arena aparece na agenda. Vale pra todas as quadras.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w500,
               height: 1.45,
             ),
@@ -264,7 +265,7 @@ class _ArenaAvailabilityFormState extends ConsumerState<_ArenaAvailabilityForm> 
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 10),
+                                  SizedBox(width: 10),
                                   Expanded(
                                     child: _AvailabilityTimeField(
                                       label: 'FECHAMENTO',
@@ -281,20 +282,20 @@ class _ArenaAvailabilityFormState extends ConsumerState<_ArenaAvailabilityForm> 
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 20),
+                              SizedBox(height: 20),
                               Text(
                                 'DURAÇÃO DO SLOT',
                                 style: Theme.of(context)
                                     .textTheme
                                     .labelSmall
                                     ?.copyWith(
-                                      color: AppColors.onSurfaceMuted,
+                                      color: context.themeColors.onSurfaceMuted,
                                       fontWeight: FontWeight.w800,
                                       letterSpacing: 0.6,
                                       fontSize: 10,
                                     ),
                               ),
-                              const SizedBox(height: 10),
+                              SizedBox(height: 10),
                               Row(
                                 children: [
                                   for (final m
@@ -318,14 +319,14 @@ class _ArenaAvailabilityFormState extends ConsumerState<_ArenaAvailabilityForm> 
                                     if (m !=
                                         CourtService
                                             .allowedSlotDurations.last)
-                                      const SizedBox(width: 8),
+                                      SizedBox(width: 8),
                                   ],
                                 ],
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
                         _AvailabilitySettingsSection(
                           sectionLabel: 'DIAS DA SEMANA',
                           subtitle:
@@ -333,7 +334,7 @@ class _ArenaAvailabilityFormState extends ConsumerState<_ArenaAvailabilityForm> 
                           child: Column(
                             children: [
                               for (var i = 0; i < 7; i++) ...[
-                                if (i > 0) const SizedBox(height: 10),
+                                if (i > 0) SizedBox(height: 10),
                                 _AvailabilityWeekdayRow(
                                   label: kArenaSettingsWeekdayLabels[i],
                                   config: _state.perWeekday[i + 1]!,
@@ -404,7 +405,7 @@ class _ArenaAvailabilityFormState extends ConsumerState<_ArenaAvailabilityForm> 
                             ],
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        SizedBox(height: 24),
                         SizedBox(
                           height: 52,
                           child: FilledButton(
@@ -418,7 +419,7 @@ class _ArenaAvailabilityFormState extends ConsumerState<_ArenaAvailabilityForm> 
                               ),
                             ),
                             child: _busy
-                                ? const SizedBox(
+                                ? SizedBox(
                                     width: 24,
                                     height: 24,
                                     child: CircularProgressIndicator(
@@ -426,7 +427,7 @@ class _ArenaAvailabilityFormState extends ConsumerState<_ArenaAvailabilityForm> 
                                       color: AppColors.black,
                                     ),
                                   )
-                                : const Text(
+                                : Text(
                                     'Salvar alterações',
                                     style: TextStyle(
                                       fontSize: 16,
@@ -464,8 +465,8 @@ class _AvailabilitySettingsSection extends StatelessWidget {
     final theme = Theme.of(context);
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(
-        color: AppColors.surfaceRaised,
+      decoration: ArenaDashboardTokens.cardDecoration(context,
+        color: context.themeColors.surfaceRaised,
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -481,16 +482,16 @@ class _AvailabilitySettingsSection extends StatelessWidget {
                 fontSize: 10,
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               subtitle,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w500,
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             child,
           ],
         ),
@@ -515,7 +516,7 @@ class _AvailabilityTimeField extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: AppColors.surfaceSheet,
+      color: context.themeColors.surfaceSheet,
       borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -524,7 +525,7 @@ class _AvailabilityTimeField extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
           decoration: BoxDecoration(
             border: Border.all(
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
             ),
             borderRadius: BorderRadius.circular(12),
           ),
@@ -539,10 +540,10 @@ class _AvailabilityTimeField extends StatelessWidget {
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.5,
                       fontSize: 9,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                     ),
                   ),
-                  const Spacer(),
+                  Spacer(),
                   Icon(
                     Icons.schedule_rounded,
                     size: 16,
@@ -550,12 +551,12 @@ class _AvailabilityTimeField extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Text(
                 value,
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   letterSpacing: 1,
                   height: 1,
                 ),
@@ -582,7 +583,7 @@ class _SlotDurationOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.brand : AppColors.surfaceSheet,
+      color: selected ? AppColors.brand : context.themeColors.surfaceSheet,
       borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -594,19 +595,19 @@ class _SlotDurationOption extends StatelessWidget {
             border: selected
                 ? null
                 : Border.all(
-                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.3),
+                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.3),
                   ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (selected) ...[
-                const Icon(
+                Icon(
                   Icons.check_rounded,
                   size: 16,
                   color: AppColors.black,
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: 4),
               ],
               Flexible(
                 child: Text(
@@ -615,7 +616,7 @@ class _SlotDurationOption extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 12,
-                    color: selected ? AppColors.black : AppColors.onSurface,
+                    color: selected ? AppColors.black : context.themeColors.onSurface,
                   ),
                 ),
               ),
@@ -657,14 +658,14 @@ class _AvailabilityWeekdayRow extends StatelessWidget {
     final effectiveClose = config.close ?? defaultClose;
     final statusLabel = config.closed ? 'FECHADO' : 'ABERTO';
     final statusColor =
-        config.closed ? AppColors.brand : AppColors.onSurfaceMuted;
+        config.closed ? AppColors.brand : context.themeColors.onSurfaceMuted;
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceSheet.withValues(alpha: 0.5),
+        color: context.themeColors.surfaceSheet.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
         ),
       ),
       child: Padding(
@@ -679,7 +680,7 @@ class _AvailabilityWeekdayRow extends StatelessWidget {
                     label,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                 ),
@@ -692,20 +693,20 @@ class _AvailabilityWeekdayRow extends StatelessWidget {
                     fontSize: 10,
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Switch.adaptive(
                   value: config.closed,
                   activeTrackColor: AppColors.brand.withValues(alpha: 0.45),
                   activeThumbColor: AppColors.brand,
                   inactiveTrackColor:
-                      AppColors.onSurfaceMuted.withValues(alpha: 0.25),
-                  inactiveThumbColor: AppColors.onSurface,
+                      context.themeColors.onSurfaceMuted.withValues(alpha: 0.25),
+                  inactiveThumbColor: context.themeColors.onSurface,
                   onChanged: onClosedChanged,
                 ),
               ],
             ),
             if (!config.closed) ...[
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -716,7 +717,7 @@ class _AvailabilityWeekdayRow extends StatelessWidget {
                       onTap: onPickOpen,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: _WeekdayTimeField(
                       label: 'Fecha',
@@ -724,7 +725,7 @@ class _AvailabilityWeekdayRow extends StatelessWidget {
                       onTap: onPickClose,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   _UseDefaultButton(onTap: onUseDefault),
                 ],
               ),
@@ -750,7 +751,7 @@ class _WeekdayTimeField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceSheet,
+      color: context.themeColors.surfaceSheet,
       borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -763,12 +764,12 @@ class _WeekdayTimeField extends StatelessWidget {
               Text(
                 label,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w600,
                       fontSize: 11,
                     ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 value,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(

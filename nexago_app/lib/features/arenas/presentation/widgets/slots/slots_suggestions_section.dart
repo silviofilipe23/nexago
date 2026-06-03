@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/slots_suggestion_models.dart';
 import 'slots_suggestion_tile.dart';
 
@@ -24,7 +25,7 @@ class SlotsSuggestionsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     if (loading) {
-      return const Padding(
+      return Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
         child: Center(
           child: CircularProgressIndicator(
@@ -54,7 +55,7 @@ class SlotsSuggestionsSection extends StatelessWidget {
                   style: theme.textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
               ),
@@ -67,14 +68,14 @@ class SlotsSuggestionsSection extends StatelessWidget {
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  child: const Text(
+                  child: Text(
                     'ver todas',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                 ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           for (final s in preview)
             SlotsSuggestionTile(
               suggestion: s,

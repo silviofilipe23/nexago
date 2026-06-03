@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../arenas/domain/arena_slot.dart';
 import '../../../arenas/domain/arena_slot_block_reason.dart';
@@ -27,7 +28,7 @@ class ArenaScheduleBlockSheet extends ConsumerStatefulWidget {
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surfaceSheet,
+      backgroundColor: context.themeColors.surfaceSheet,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -81,54 +82,54 @@ class _ArenaScheduleBlockSheetState extends ConsumerState<ArenaScheduleBlockShee
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               '$dateLabel · ${widget.courtName.toUpperCase()}',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.4,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               timeRange,
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             Text(
               'Bloquear horário',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               'Esse slot some da agenda pública. Ninguém consegue reservar.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             Text(
               'MOTIVO',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.6,
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -141,20 +142,20 @@ class _ArenaScheduleBlockSheetState extends ConsumerState<ArenaScheduleBlockShee
                   ),
               ],
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(
                 'Repetir todo ${_weekdayLabel(widget.slot.date)}',
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
               subtitle: Text(
                 'bloqueio recorrente até desligar',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
               value: false,
@@ -162,34 +163,34 @@ class _ArenaScheduleBlockSheetState extends ConsumerState<ArenaScheduleBlockShee
                 showAppSnackBar(context, 'Bloqueio recorrente em breve.');
               },
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'NOTA (OPCIONAL)',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.6,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             TextField(
               controller: _noteController,
               maxLines: 2,
-              style: const TextStyle(color: AppColors.onSurface),
+              style: TextStyle(color: context.themeColors.onSurface),
               decoration: InputDecoration(
                 hintText: 'Ex: troca da rede + limpeza geral',
                 hintStyle: TextStyle(
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.7),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.7),
                 ),
                 filled: true,
-                fillColor: AppColors.surfaceRaised,
+                fillColor: context.themeColors.surfaceRaised,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             FilledButton(
               onPressed: _busy ? null : _confirm,
               style: FilledButton.styleFrom(
@@ -198,12 +199,12 @@ class _ArenaScheduleBlockSheetState extends ConsumerState<ArenaScheduleBlockShee
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               child: _busy
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('Bloquear horário'),
+                  : Text('Bloquear horário'),
             ),
           ],
         ),
@@ -258,7 +259,7 @@ class _ReasonChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.brand : AppColors.surfaceRaised,
+      color: selected ? AppColors.brand : context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
@@ -270,7 +271,7 @@ class _ReasonChip extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 13,
-              color: selected ? AppColors.black : AppColors.onSurface,
+              color: selected ? AppColors.black : context.themeColors.onSurface,
             ),
           ),
         ),

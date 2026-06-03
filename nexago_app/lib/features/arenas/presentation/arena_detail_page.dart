@@ -7,6 +7,7 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/location/user_location_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
@@ -52,7 +53,7 @@ class ArenaDetailPage extends ConsumerWidget {
         final arena = remote ?? initialArena;
         if (arena == null) {
           return Scaffold(
-            backgroundColor: AppColors.canvas,
+            backgroundColor: context.themeColors.canvas,
             body: AppEmptyView(
               icon: Icons.search_off_rounded,
               title: 'Arena não encontrada',
@@ -89,13 +90,13 @@ class ArenaDetailPage extends ConsumerWidget {
             ),
           );
         }
-        return const Scaffold(
-          backgroundColor: AppColors.canvas,
+        return Scaffold(
+          backgroundColor: context.themeColors.canvas,
           body: AppLoadingView(message: 'Carregando detalhes…'),
         );
       },
       error: (e, _) => Scaffold(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         body: AppErrorView(
           title: 'Não foi possível carregar',
           message: e.toString().replaceFirst('Exception: ', ''),
@@ -234,7 +235,7 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
     final freeCourts = today?.freeCourtsToday ?? 0;
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: Column(
         children: [
           Expanded(
@@ -260,26 +261,26 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                         arena.name,
                         style: theme.textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.w900,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                           letterSpacing: -0.5,
                           height: 1.15,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Icon(
                             Icons.place_outlined,
                             size: 18,
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                           ),
-                          const SizedBox(width: 6),
+                          SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               _locationLine(),
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                                 fontWeight: FontWeight.w600,
                                 height: 1.35,
                               ),
@@ -287,7 +288,7 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       ArenaDetailMetricsBar(
                         score: score,
                         rating: rating,
@@ -296,21 +297,21 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                         freeCourtsToday: freeCourts,
                       ),
                       if (arena.amenities.hasAny) ...[
-                        const SizedBox(height: 20),
+                        SizedBox(height: 20),
                         ArenaDetailAmenityChips(amenities: arena.amenities),
                       ],
-                      const SizedBox(height: 24),
+                      SizedBox(height: 24),
                       Text(
                         'Quadras',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                           letterSpacing: -0.3,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       if (widget.todayLoading && today == null)
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.symmetric(vertical: 24),
                           child: Center(
                             child: CircularProgressIndicator(
@@ -322,13 +323,13 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                         Text(
                           'Nenhuma quadra cadastrada ainda.',
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                           ),
                         )
                       else
                         ...[
                           for (var i = 0; i < today.courts.length; i++) ...[
-                            if (i > 0) const SizedBox(height: 10),
+                            if (i > 0) SizedBox(height: 10),
                             ArenaDetailCourtCard(
                               arena: arena,
                               summary: today.courts[i],
@@ -339,9 +340,9 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                             ),
                           ],
                         ],
-                      const SizedBox(height: 28),
+                      SizedBox(height: 28),
                       if (widget.reviewsLoading && reviews.isEmpty)
-                        const Center(
+                        Center(
                           child: Padding(
                             padding: EdgeInsets.all(16),
                             child: CircularProgressIndicator(

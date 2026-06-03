@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class SlotsPageHeader extends StatelessWidget {
   const SlotsPageHeader({
@@ -30,7 +31,7 @@ class SlotsPageHeader extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w900,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
           ),
@@ -50,7 +51,7 @@ class _IconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -58,7 +59,7 @@ class _IconButton extends StatelessWidget {
         child: SizedBox(
           width: 40,
           height: 40,
-          child: Icon(icon, color: AppColors.onSurface, size: 22),
+          child: Icon(icon, color: context.themeColors.onSurface, size: 22),
         ),
       ),
     );

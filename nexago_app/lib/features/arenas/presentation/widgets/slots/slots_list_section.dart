@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/fade_slide_in.dart';
 import '../../../domain/arena_slot.dart';
 import '../../../domain/slots_page_logic.dart';
@@ -49,7 +50,7 @@ class SlotsListSection extends StatelessWidget {
     final now = DateTime.now();
 
     if (slotsLoading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(color: AppColors.brand, strokeWidth: 2),
       );
     }
@@ -65,7 +66,7 @@ class SlotsListSection extends StatelessWidget {
         child: Text(
           'Nenhum horário neste período.',
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
           ),
         ),
       );
@@ -86,7 +87,7 @@ class SlotsListSection extends StatelessWidget {
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w800,
               letterSpacing: 0.6,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
             ),
           ),
         ),
@@ -97,10 +98,10 @@ class SlotsListSection extends StatelessWidget {
         if (index < 0) continue;
         children.add(_tileForIndex(index, slot, now));
         if (i < group.slots.length - 1) {
-          children.add(const SizedBox(height: 10));
+          children.add(SizedBox(height: 10));
         }
       }
-      children.add(const SizedBox(height: 8));
+      children.add(SizedBox(height: 8));
     }
 
     return ListView(
@@ -117,7 +118,7 @@ class SlotsListSection extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       itemCount: displaySlots.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      separatorBuilder: (_, __) => SizedBox(height: 10),
       itemBuilder: (context, i) {
         final slot = displaySlots[i];
         final index = slots.indexOf(slot);

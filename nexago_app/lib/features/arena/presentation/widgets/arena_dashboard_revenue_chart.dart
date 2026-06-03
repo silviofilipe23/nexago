@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../arena_dashboard_formatters.dart';
 
 /// Gráfico de linha — faturamento dos últimos 7 dias.
@@ -130,7 +131,7 @@ class ArenaDashboardRevenueChart extends StatelessWidget {
                       radius: 4,
                       color: AppColors.brand,
                       strokeWidth: 2,
-                      strokeColor: AppColors.surfaceCard,
+                      strokeColor: context.themeColors.surfaceCard,
                     );
                   },
                 ),

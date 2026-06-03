@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/profile_completion_models.dart';
 
 class ProfileCompletionHeroCard extends StatelessWidget {
@@ -38,7 +39,7 @@ class ProfileCompletionHeroCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _ProfileCompletionProgressRing(percent: percent),
-          const SizedBox(width: 16),
+          SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -53,13 +54,13 @@ class ProfileCompletionHeroCard extends StatelessWidget {
                     height: 1.2,
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 if (remainingSteps == 0)
                   Text(
                     'Parabéns!',
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                       height: 1.1,
                     ),
                   )
@@ -71,9 +72,9 @@ class ProfileCompletionHeroCard extends StatelessWidget {
                         height: 1.1,
                       ),
                       children: [
-                        const TextSpan(
+                        TextSpan(
                           text: 'Ganhe ',
-                          style: TextStyle(color: AppColors.onSurface),
+                          style: TextStyle(color: context.themeColors.onSurface),
                         ),
                         TextSpan(
                           text: '+$remainingXp XP',
@@ -82,13 +83,13 @@ class ProfileCompletionHeroCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Text(
                   remainingSteps == 0
                       ? 'Torneios oficiais desbloqueados.'
                       : 'E destrave a categoria torneios.',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.95),
+                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.95),
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                     height: 1.35,
@@ -128,10 +129,10 @@ class _ProfileCompletionProgressRing extends StatelessWidget {
         child: Center(
           child: Text(
             '$percent%',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
               height: 1,
               letterSpacing: -0.5,
             ),
@@ -221,7 +222,7 @@ class ProfileCompletionStepTile extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: AppColors.surfaceRaised.withValues(alpha: done ? 0.5 : 0.85),
+            color: context.themeColors.surfaceRaised.withValues(alpha: done ? 0.5 : 0.85),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: done
@@ -246,7 +247,7 @@ class ProfileCompletionStepTile extends StatelessWidget {
                   size: 22,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,33 +257,33 @@ class ProfileCompletionStepTile extends StatelessWidget {
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w800,
                         color: done
-                            ? AppColors.onSurfaceMuted
-                            : AppColors.onSurface,
+                            ? context.themeColors.onSurfaceMuted
+                            : context.themeColors.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       status.subtitle,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         height: 1.3,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 '+${step.xpReward} XP',
                 style: theme.textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: done
-                      ? AppColors.onSurfaceMuted
+                      ? context.themeColors.onSurfaceMuted
                       : AppColors.brand,
                 ),
               ),
               if (!done) ...[
-                const SizedBox(width: 4),
+                SizedBox(width: 4),
                 Icon(
                   Icons.chevron_right_rounded,
                   color: AppColors.brand.withValues(alpha: 0.9),
@@ -317,15 +318,15 @@ class ProfileCompletionRewardCard extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: AppColors.surfaceCard,
+                color: context.themeColors.surfaceCard,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.emoji_events_outlined,
                 color: AppColors.brand,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -338,12 +339,12 @@ class ProfileCompletionRewardCard extends StatelessWidget {
                       letterSpacing: 0.6,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'Badge "Perfil completo" + acesso a torneios oficiais',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                       height: 1.3,
                     ),
                   ),

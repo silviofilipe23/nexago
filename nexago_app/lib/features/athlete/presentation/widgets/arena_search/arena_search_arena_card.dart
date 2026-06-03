@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../arenas/domain/arena_list_item.dart';
 import '../../../../arenas/domain/arena_search_filter_logic.dart';
 import '../../../../arenas/domain/arena_search_filters.dart';
@@ -70,7 +71,7 @@ class ArenaSearchArenaCard extends StatelessWidget {
         : 'Sem horário no dia';
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -107,57 +108,57 @@ class ArenaSearchArenaCard extends StatelessWidget {
                                 baseStyle: theme.textTheme.titleMedium
                                     ?.copyWith(
                                       fontWeight: FontWeight.w900,
-                                      color: AppColors.onSurface,
+                                      color: context.themeColors.onSurface,
                                     ),
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: 4),
                             Text(
                               location,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             Row(
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.star_rounded,
                                   size: 16,
                                   color: AppColors.pending,
                                 ),
-                                const SizedBox(width: 4),
+                                SizedBox(width: 4),
                                 Text(
                                   rating,
                                   style: theme.textTheme.labelSmall?.copyWith(
                                     fontWeight: FontWeight.w800,
-                                    color: AppColors.onSurface,
+                                    color: context.themeColors.onSurface,
                                   ),
                                 ),
-                                const SizedBox(width: 4),
+                                SizedBox(width: 4),
                                 Text(
                                   reviews > 0 ? '($reviews av.)' : '(sem av.)',
                                   style: theme.textTheme.labelSmall?.copyWith(
                                     fontWeight: FontWeight.w600,
-                                    color: AppColors.onSurfaceMuted,
+                                    color: context.themeColors.onSurfaceMuted,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                const Icon(
+                                SizedBox(width: 12),
+                                Icon(
                                   Icons.emoji_events_outlined,
                                   size: 16,
                                   color: AppColors.brand,
                                 ),
-                                const SizedBox(width: 4),
+                                SizedBox(width: 4),
                                 Text(
                                   'Score',
                                   style: theme.textTheme.labelSmall?.copyWith(
                                     fontWeight: FontWeight.w700,
-                                    color: AppColors.onSurface,
+                                    color: context.themeColors.onSurface,
                                   ),
                                 ),
-                                const SizedBox(width: 4),
+                                SizedBox(width: 4),
                                 Text(
                                   '$score',
                                   style: theme.textTheme.labelSmall?.copyWith(
@@ -170,7 +171,7 @@ class ArenaSearchArenaCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
@@ -180,10 +181,10 @@ class ArenaSearchArenaCard extends StatelessWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.6,
-                              color: AppColors.onSurfaceMuted,
+                              color: context.themeColors.onSurfaceMuted,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          SizedBox(height: 2),
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -194,7 +195,7 @@ class ArenaSearchArenaCard extends StatelessWidget {
                                 style: AppTypography.mono(
                                   fontWeight: FontWeight.w800,
                                   fontSize: 22,
-                                  color: AppColors.onSurface,
+                                  color: context.themeColors.onSurface,
                                   height: 1,
                                 ),
                               ),
@@ -202,7 +203,7 @@ class ArenaSearchArenaCard extends StatelessWidget {
                                 '/h',
                                 style: theme.textTheme.bodySmall?.copyWith(
                                   fontWeight: FontWeight.w600,
-                                  color: AppColors.onSurfaceMuted,
+                                  color: context.themeColors.onSurfaceMuted,
                                 ),
                               ),
                             ],
@@ -211,11 +212,11 @@ class ArenaSearchArenaCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceRaised,
+                      color: context.themeColors.surfaceRaised,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -234,7 +235,7 @@ class ArenaSearchArenaCard extends StatelessWidget {
                             size: 20,
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -247,19 +248,19 @@ class ArenaSearchArenaCard extends StatelessWidget {
                                   fontWeight: FontWeight.w800,
                                   color: result.hasAvailability
                                       ? AppColors.brand
-                                      : AppColors.onSurfaceMuted,
+                                      : context.themeColors.onSurfaceMuted,
                                 ),
                               ),
                               Text(
                                 courtLine,
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
+                                  color: context.themeColors.onSurfaceMuted,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         FilledButton(
                           onPressed: onReserve,
                           style: FilledButton.styleFrom(
@@ -270,7 +271,7 @@ class ArenaSearchArenaCard extends StatelessWidget {
                               vertical: 10,
                             ),
                           ),
-                          child: const Text(
+                          child: Text(
                             'Reservar',
                             style: TextStyle(fontWeight: FontWeight.w800),
                           ),
@@ -340,7 +341,7 @@ class _HeroImage extends StatelessWidget {
             child: Row(
               children: [
                 _Pill(label: kmLabel),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 _FavoriteIcon(
                   isFavorite: isFavorite,
                   isPending: isFavoritePending,
@@ -359,7 +360,7 @@ class _HeroImage extends StatelessWidget {
                   color: AppColors.brand,
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.bolt_rounded, size: 14, color: AppColors.black),
@@ -429,7 +430,7 @@ class _FavoriteIcon extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(6),
           child: isPending
-              ? const SizedBox(
+              ? SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(

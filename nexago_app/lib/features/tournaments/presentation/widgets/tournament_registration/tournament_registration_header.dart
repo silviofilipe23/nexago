@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
 class TournamentRegistrationHeader extends StatelessWidget {
@@ -67,17 +68,17 @@ class TournamentRegistrationHeader extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: Material(
-                color: AppColors.surfaceRaised,
+                color: context.themeColors.surfaceRaised,
                 borderRadius: BorderRadius.circular(12),
                 child: InkWell(
                   onTap: onBack,
                   borderRadius: BorderRadius.circular(12),
-                  child: const SizedBox(
+                  child: SizedBox(
                     width: 44,
                     height: 44,
                     child: Icon(
                       Icons.arrow_back_rounded,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                       size: 22,
                     ),
                   ),
@@ -116,7 +117,7 @@ class TournamentRegistrationHeader extends StatelessWidget {
                 if (showTournamentInfo &&
                     categoryLabel != null &&
                     categoryLabel!.trim().isNotEmpty) ...[
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     categoryLabel!,
                     maxLines: 1,
@@ -124,7 +125,7 @@ class TournamentRegistrationHeader extends StatelessWidget {
                     style: AppTypography.soraRegular(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                       height: 1.0,
                     ),
                   ),
@@ -134,7 +135,7 @@ class TournamentRegistrationHeader extends StatelessWidget {
                     style: AppTypography.soraRegular(
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                   ],

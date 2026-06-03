@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../../arenas/domain/my_booking_item.dart';
 import '../../../domain/athlete_booking_helpers.dart';
@@ -40,7 +41,7 @@ class AthleteHomeReserveCtaCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         onTap: onTap,
@@ -61,22 +62,22 @@ class AthleteHomeReserveCtaCard extends StatelessWidget {
                 'Nenhuma reserva confirmada',
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               Text(
                 'Reserve uma quadra e apareça aqui com countdown e detalhes.',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   height: 1.35,
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: onTap,
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: const Text('Reservar quadra'),
+                icon: Icon(Icons.add_rounded, size: 20),
+                label: Text('Reservar quadra'),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.brand,
                   foregroundColor: AppColors.white,
@@ -125,7 +126,7 @@ class _FeaturedBookingCard extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
@@ -147,12 +148,12 @@ class _FeaturedBookingCard extends StatelessWidget {
                         Container(
                           width: 6,
                           height: 6,
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
                             color: AppColors.black,
                             shape: BoxShape.circle,
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        SizedBox(width: 6),
                         Text(
                           countdown,
                           style: theme.textTheme.labelSmall?.copyWith(
@@ -162,7 +163,7 @@ class _FeaturedBookingCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const Spacer(),
+                    Spacer(),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -184,7 +185,7 @@ class _FeaturedBookingCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 Text(
                   arenaLine,
                   style: theme.textTheme.titleLarge?.copyWith(
@@ -193,7 +194,7 @@ class _FeaturedBookingCard extends StatelessWidget {
                     height: 1.1,
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Text(
                   subtitle,
                   style: theme.textTheme.bodySmall?.copyWith(
@@ -201,15 +202,15 @@ class _FeaturedBookingCard extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: () =>
                             showAppSnackBar(context, 'Em breve.'),
-                        icon: const Icon(Icons.location_on_outlined, size: 18),
-                        label: const Text('Como chegar'),
+                        icon: Icon(Icons.location_on_outlined, size: 18),
+                        label: Text('Como chegar'),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.black,
                           foregroundColor: AppColors.brand,
@@ -217,12 +218,12 @@ class _FeaturedBookingCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     _IconAction(
                       icon: Icons.ios_share_rounded,
                       onTap: () => showAppSnackBar(context, 'Em breve.'),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     _IconAction(
                       icon: Icons.more_horiz_rounded,
                       onTap: () => showAppSnackBar(context, 'Em breve.'),

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/layout/app_scaffold.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
@@ -526,20 +527,20 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
         final enable = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            backgroundColor: AppColors.surfaceSheet,
-            title: const Text('Ativar notificações de vagas?'),
-            content: const Text(
+            backgroundColor: context.themeColors.surfaceSheet,
+            title: Text('Ativar notificações de vagas?'),
+            content: Text(
               'Para avisar quando liberar, ative o tópico '
               '"Horários disponíveis" nas suas preferências.',
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Agora não'),
+                child: Text('Agora não'),
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Ativar'),
+                child: Text('Ativar'),
               ),
             ],
           ),
@@ -774,8 +775,8 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
           ),
         );
       },
-      loading: () => const Scaffold(
-        backgroundColor: AppColors.canvas,
+      loading: () => Scaffold(
+        backgroundColor: context.themeColors.canvas,
         body: AppLoadingView(message: 'Carregando quadras…'),
       ),
       error: (e, _) => AppScaffold(
@@ -913,7 +914,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -947,7 +948,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                       sameDay: _sameDay,
                       dateOnly: _dateOnly,
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     SlotsCourtCarousel(
                       arena: widget.arena,
                       summaries: summariesAsync.valueOrNull ?? const [],
@@ -963,13 +964,13 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                       },
                     ),
                     if (!showFullyBookedBody) ...[
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       SlotsPeriodChips(
                         selected: _periodFilter,
                         counts: periodCountsMap,
                         onSelected: (p) => setState(() => _periodFilter = p),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                     ],
                     Expanded(
                       child: showFullyBookedBody

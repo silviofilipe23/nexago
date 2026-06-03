@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_discovery_models.dart';
 
 class TournamentDetailCategoryChips extends StatelessWidget {
@@ -26,7 +27,7 @@ class TournamentDetailCategoryChips extends StatelessWidget {
       child: Row(
         children: [
           for (final offer in offers) ...[
-            if (offer != offers.first) const SizedBox(width: 8),
+            if (offer != offers.first) SizedBox(width: 8),
             _Chip(
               label: offer.name,
               selected: offer.id == selectedId,
@@ -55,7 +56,7 @@ class _Chip extends StatelessWidget {
     return Material(
       color: selected
           ? AppColors.brand.withValues(alpha: 0.2)
-          : AppColors.surfaceRaised,
+          : context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(99),
       child: InkWell(
         onTap: onTap,
@@ -66,7 +67,7 @@ class _Chip extends StatelessWidget {
             border: Border.all(
               color: selected
                   ? AppColors.brand.withValues(alpha: 0.65)
-                  : AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+                  : context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
             ),
           ),
           child: Padding(
@@ -76,7 +77,7 @@ class _Chip extends StatelessWidget {
               style: AppTypography.soraRegular(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: selected ? AppColors.brand : AppColors.onSurfaceMuted,
+                color: selected ? AppColors.brand : context.themeColors.onSurfaceMuted,
               ),
             ),
           ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class TournamentDetailMessageList extends StatelessWidget {
   const TournamentDetailMessageList({
@@ -44,15 +45,15 @@ class TournamentDetailMessageBody extends StatelessWidget {
           style: AppTypography.soraRegular(
             fontSize: 16,
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         Text(
           message,
           style: AppTypography.soraRegular(
             fontSize: 14,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w500,
             height: 1.5,
           ),

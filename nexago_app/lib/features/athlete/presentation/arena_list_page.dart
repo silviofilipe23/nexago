@@ -7,6 +7,7 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/location/user_location_providers.dart';
 import '../../../core/location/user_location_snapshot.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
@@ -283,7 +284,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
     return SafeArea(
       bottom: false,
       child: ColoredBox(
-        color: AppColors.canvas,
+        color: context.themeColors.canvas,
         child: resultsAsync.when(
           loading: () => const AppLoadingView(message: 'Carregando arenas...'),
           error: (e, _) => AppErrorView(
@@ -316,7 +317,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                         children: [
                           _buildHeaderControls(),
                           if (rawCount > 0) ...[
-                            const SizedBox(height: 16),
+                            SizedBox(height: 16),
                             _FiltersHiddenBanner(
                               hiddenCount: rawCount,
                               onShowAll: _showAllArenas,
@@ -398,7 +399,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                   padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
                   sliver: SliverList.separated(
                     itemCount: items.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 16),
+                    separatorBuilder: (_, __) => SizedBox(height: 16),
                     itemBuilder: (context, index) {
                       final item = items[index];
                       final result = item.result;
@@ -460,12 +461,12 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
           onFiltersTap: _openFilters,
           onLocationTap: _openLocation,
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         ArenaSearchBar(
           initialValue: _filters.query,
           onChanged: _onSearchChanged,
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         ArenaSearchSportChips(
           selected: _filters.sportChip,
           onSelected: (chip) {
@@ -473,7 +474,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
             _updateFilters(_filters.copyWith(sportChip: chip));
           },
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         ArenaSearchDateTimeRow(
           date: _filters.slot.dateOnly,
           timeLabel: _filters.slot.requestedTimeLabel,
@@ -481,20 +482,20 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
           onDateTap: _pickDate,
           onTimeTap: _pickTime,
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         ArenaSearchFlexibleBanner(
           boostPercent: _flexBoostPercent,
           flexibleTime: _filters.slot.flexibleTime,
           onToggle: _toggleFlexibleTime,
         ),
         if (_filters.showOnlyFavorites) ...[
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton(
               onPressed: () =>
                   _updateFilters(_filters.copyWith(showOnlyFavorites: false)),
-              child: const Text(
+              child: Text(
                 'Ver todas as arenas',
                 style: TextStyle(fontWeight: FontWeight.w800),
               ),
@@ -531,21 +532,21 @@ class _FiltersHiddenBanner extends StatelessWidget {
         children: [
           Text(
             '$hiddenCount arena${hiddenCount == 1 ? '' : 's'} oculta${hiddenCount == 1 ? '' : 's'} pelos filtros',
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
                   onPressed: onOpenFilters,
-                  child: const Text('Ajustar filtros'),
+                  child: Text('Ajustar filtros'),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: FilledButton(
                   onPressed: onShowAll,
@@ -553,7 +554,7 @@ class _FiltersHiddenBanner extends StatelessWidget {
                     backgroundColor: AppColors.brand,
                     foregroundColor: AppColors.black,
                   ),
-                  child: const Text('Ver todas'),
+                  child: Text('Ver todas'),
                 ),
               ),
             ],

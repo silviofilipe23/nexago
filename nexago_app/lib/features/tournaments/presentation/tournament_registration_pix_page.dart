@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/validation/cpf_cnpj.dart';
 import '../../arenas/data/payment_service.dart';
@@ -234,7 +235,7 @@ class _TournamentRegistrationPixPageState
 
     if (!access.canAccess) {
       return Scaffold(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         appBar: BookingPixAppBar(onBack: _onBack),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
@@ -252,7 +253,7 @@ class _TournamentRegistrationPixPageState
     final showQr = _pix != null && !_loadingPix;
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: BookingPixAppBar(onBack: _onBack),
       body: _paymentFailed
           ? _buildFailedBody(context)
@@ -270,29 +271,29 @@ class _TournamentRegistrationPixPageState
                               _shareReais,
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: 12),
                           Text(
                             '${widget.args.tournamentName} · ${widget.args.categoryName}',
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
+                                  color: context.themeColors.onSurfaceMuted,
                                   fontWeight: FontWeight.w500,
                                 ),
                           ),
-                          const SizedBox(height: 20),
+                          SizedBox(height: 20),
                           BookingPixCpfField(
                             controller: _cpfController,
                             errorText: _cpfHint,
                             onSubmitted: _hasValidCpf ? _loadPix : null,
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: 12),
                           BookingPixSaveCpfTile(
                             value: _saveCpf,
                             onChanged: (v) => setState(() => _saveCpf = v),
                           ),
                           if (_pixError != null) ...[
-                            const SizedBox(height: 16),
+                            SizedBox(height: 16),
                             _PixErrorCard(
                               message: _pixError!,
                               onRetry: _loadPix,
@@ -305,13 +306,13 @@ class _TournamentRegistrationPixPageState
                               amountReais:
                                   _pix?.amountToPayNowReais ?? _shareReais,
                             ),
-                            const SizedBox(height: 20),
+                            SizedBox(height: 20),
                           ],
                           BookingPixQrCard(
                             base64: _pix!.qrCodeBase64,
                             payload: _pix!.qrCode,
                           ),
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16),
                           BookingPixCopyButton(
                             onPressed: () async {
                               await Clipboard.setData(
@@ -321,9 +322,9 @@ class _TournamentRegistrationPixPageState
                               showAppSnackBar(context, 'Código PIX copiado.');
                             },
                           ),
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16),
                           const BookingPixWaitingCard(),
-                          const SizedBox(height: 12),
+                          SizedBox(height: 12),
                           TextButton(
                             onPressed: _cancelling
                                 ? null
@@ -332,7 +333,7 @@ class _TournamentRegistrationPixPageState
                                     if (!context.mounted) return;
                                     context.pop();
                                   },
-                            child: const Text('Voltar sem pagar'),
+                            child: Text('Voltar sem pagar'),
                           ),
                         ],
                       ],
@@ -363,7 +364,7 @@ class _TournamentRegistrationPixPageState
               size: 56,
               color: AppColors.live.withValues(alpha: 0.9),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'PIX expirado',
               textAlign: TextAlign.center,
@@ -371,16 +372,16 @@ class _TournamentRegistrationPixPageState
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'Gere um novo código na tela de inscrição.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             FilledButton(
               onPressed: _onBack,
               style: FilledButton.styleFrom(
@@ -388,7 +389,7 @@ class _TournamentRegistrationPixPageState
                 foregroundColor: AppColors.black,
                 minimumSize: const Size.fromHeight(48),
               ),
-              child: const Text('Voltar à inscrição'),
+              child: Text('Voltar à inscrição'),
             ),
           ],
         ),
@@ -407,7 +408,7 @@ class _PixErrorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.live.withValues(alpha: 0.35)),
       ),
@@ -418,16 +419,16 @@ class _PixErrorCard extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.onSurface),
+              style: TextStyle(color: context.themeColors.onSurface),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             FilledButton(
               onPressed: onRetry,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.brand,
                 foregroundColor: AppColors.black,
               ),
-              child: const Text('Tentar novamente'),
+              child: Text('Tentar novamente'),
             ),
           ],
         ),

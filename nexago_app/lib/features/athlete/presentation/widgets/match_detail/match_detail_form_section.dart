@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
 import 'match_detail_section_header.dart';
 
@@ -20,7 +21,7 @@ class MatchDetailFormSection extends StatelessWidget {
           eyebrow: 'MOMENTO',
           title: 'Como chegaram',
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         ...rows.map(
           (row) => Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -32,7 +33,7 @@ class MatchDetailFormSection extends StatelessWidget {
                     row.label,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                 ),

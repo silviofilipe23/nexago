@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/auth/auth_providers.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../../athlete/domain/athlete_follow_providers.dart';
@@ -25,7 +26,7 @@ class TeamDiscoverCard extends ConsumerWidget {
     final together = entry.monthsTogetherShort;
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -45,7 +46,7 @@ class TeamDiscoverCard extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _DualAvatars(entry: entry),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,29 +61,29 @@ class TeamDiscoverCard extends ConsumerWidget {
                                     style: AppTypography.soraRegular(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w800,
-                                      color: AppColors.onSurface,
+                                      color: context.themeColors.onSurface,
                                     ),
                                   ),
                                 ),
                                 if (entry.displayCategory.isNotEmpty) ...[
-                                  const SizedBox(width: 6),
+                                  SizedBox(width: 6),
                                   _CategoryBadge(label: entry.displayCategory),
                                 ],
                               ],
                             ),
                             if (entry.membersLabel.isNotEmpty) ...[
-                              const SizedBox(height: 2),
+                              SizedBox(height: 2),
                               Text(
                                 entry.membersLabel,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTypography.mono(
                                   fontSize: 11,
-                                  color: AppColors.onSurfaceMuted,
+                                  color: context.themeColors.onSurfaceMuted,
                                 ),
                               ),
                             ],
-                            const SizedBox(height: 4),
+                            SizedBox(height: 4),
                             Text(
                               entry.primarySportLabel,
                               maxLines: 2,
@@ -90,44 +91,44 @@ class TeamDiscoverCard extends ConsumerWidget {
                               style: AppTypography.soraRegular(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.onSurface,
+                                color: context.themeColors.onSurface,
                                 height: 1.25,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       _RankColumn(entry: entry),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
                         child: _LevelDots(segments: entry.levelSegments),
                       ),
                       if (distance != null) ...[
-                        const SizedBox(width: 12),
+                        SizedBox(width: 12),
                         Icon(
                           Icons.location_on_outlined,
                           size: 14,
-                          color: AppColors.onSurfaceMuted.withValues(alpha: 0.8),
+                          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.8),
                         ),
-                        const SizedBox(width: 2),
+                        SizedBox(width: 2),
                         Text(
                           distance,
                           style: AppTypography.mono(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                           ),
                         ),
                       ],
                     ],
                   ),
                   if (entry.isLookingForPartner) ...[
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Container(
@@ -157,7 +158,7 @@ class TeamDiscoverCard extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -170,15 +171,15 @@ class TeamDiscoverCard extends ConsumerWidget {
                         Icon(
                           Icons.bolt_rounded,
                           size: 16,
-                          color: AppColors.onSurfaceMuted.withValues(alpha: 0.7),
+                          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.7),
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Flexible(
                           child: Text.rich(
                             TextSpan(
                               style: AppTypography.soraRegular(
                                 fontSize: 12,
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                               ),
                               children: [
                                 const TextSpan(text: 'juntos há '),
@@ -187,7 +188,7 @@ class TeamDiscoverCard extends ConsumerWidget {
                                   style: AppTypography.soraRegular(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,
-                                    color: AppColors.onSurface,
+                                    color: context.themeColors.onSurface,
                                   ),
                                 ),
                               ],
@@ -200,13 +201,13 @@ class TeamDiscoverCard extends ConsumerWidget {
                     ),
                   )
                 else
-                  const Spacer(flex: 2),
-                const SizedBox(width: 8),
+                  Spacer(flex: 2),
+                SizedBox(width: 8),
                 Expanded(
                   flex: 3,
                   child: _FollowButton(entry: entry),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 _InviteIconButton(
                   onPressed: () => showAppSnackBar(
                     context,
@@ -297,7 +298,7 @@ class _TeamDiscoverAvatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(borderRadius),
-        border: Border.all(color: AppColors.onSurface, width: 2),
+        border: Border.all(color: context.themeColors.onSurface, width: 2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.35),
@@ -441,27 +442,27 @@ class _RankColumn extends StatelessWidget {
           style: AppTypography.mono(
             fontSize: 9,
             fontWeight: FontWeight.w700,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             letterSpacing: 0.6,
           ),
         ),
-        const SizedBox(height: 2),
+        SizedBox(height: 2),
         Text(
           rank != null ? '#$rank' : '—',
           style: AppTypography.soraRegular(
             fontSize: 20,
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             height: 1,
           ),
         ),
-        const SizedBox(height: 2),
+        SizedBox(height: 2),
         Text(
           '${entry.formattedRankPoints} pts',
           style: AppTypography.mono(
             fontSize: 10,
             fontWeight: FontWeight.w600,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
           ),
         ),
       ],
@@ -480,7 +481,7 @@ class _LevelDots extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         for (var i = 0; i < 5; i++) ...[
-          if (i > 0) const SizedBox(width: 5),
+          if (i > 0) SizedBox(width: 5),
           Container(
             width: 7,
             height: 7,
@@ -488,7 +489,7 @@ class _LevelDots extends StatelessWidget {
               shape: BoxShape.circle,
               color: i < segments
                   ? AppColors.brand
-                  : AppColors.surfaceRaised,
+                  : context.themeColors.surfaceRaised,
             ),
           ),
         ],
@@ -516,13 +517,13 @@ class _InviteIconButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
             ),
           ),
           child: Icon(
             Icons.bolt_rounded,
             size: 20,
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.75),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.75),
           ),
         ),
       ),
@@ -586,9 +587,9 @@ class _FollowButtonState extends ConsumerState<_FollowButton> {
         onPressed: _loading ? null : _toggle,
         style: FilledButton.styleFrom(
           backgroundColor:
-              following ? AppColors.surfaceRaised : AppColors.brand,
-          foregroundColor: following ? AppColors.onSurfaceMuted : AppColors.black,
-          disabledBackgroundColor: AppColors.surfaceRaised,
+              following ? context.themeColors.surfaceRaised : AppColors.brand,
+          foregroundColor: following ? context.themeColors.onSurfaceMuted : AppColors.black,
+          disabledBackgroundColor: context.themeColors.surfaceRaised,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -596,7 +597,7 @@ class _FollowButtonState extends ConsumerState<_FollowButton> {
           elevation: 0,
         ),
         child: _loading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 18,
                 height: 18,
                 child: CircularProgressIndicator(

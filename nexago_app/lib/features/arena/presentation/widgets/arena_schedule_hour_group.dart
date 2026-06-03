@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_schedule_models.dart';
 import 'arena_schedule_court_row.dart';
 
@@ -36,16 +37,16 @@ class ArenaScheduleHourGroupSection extends StatelessWidget {
               '${group.hour}h',
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
                 height: 1,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Text(
                 '$courtLabel · $reservedLabel',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -53,13 +54,13 @@ class ArenaScheduleHourGroupSection extends StatelessWidget {
             Text(
               group.timeRange,
               style: theme.textTheme.labelLarge?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         ...group.rows.map(
           (row) => Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -70,7 +71,7 @@ class ArenaScheduleHourGroupSection extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
       ],
     );
   }

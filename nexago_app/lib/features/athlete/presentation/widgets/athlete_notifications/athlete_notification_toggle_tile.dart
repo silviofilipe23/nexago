@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../athlete_settings/athlete_settings_group.dart';
 
 class AthleteNotificationToggleTile extends StatelessWidget {
@@ -27,18 +28,19 @@ class AthleteNotificationToggleTile extends StatelessWidget {
   final bool showDivider;
   final VoidCallback? onSubtitleTap;
 
-  Color _iconColor() {
+  Color _iconColor(BuildContext context) {
     return switch (variant) {
       AthleteSettingsIconVariant.orange => AppColors.brand,
       AthleteSettingsIconVariant.green => AppColors.win,
       AthleteSettingsIconVariant.yellow => AppColors.pending,
-      AthleteSettingsIconVariant.neutral => AppColors.onSurface,
+      AthleteSettingsIconVariant.neutral => context.themeColors.onSurface,
     };
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final iconColor = _iconColor(context);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -52,12 +54,12 @@ class AthleteNotificationToggleTile extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceSheet,
+                  color: context.themeColors.surfaceSheet,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: _iconColor(), size: 22),
+                child: Icon(icon, color: iconColor, size: 22),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,24 +68,24 @@ class AthleteNotificationToggleTile extends StatelessWidget {
                       title,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: 3),
                     GestureDetector(
                       onTap: onSubtitleTap,
                       behavior: HitTestBehavior.opaque,
                       child: Text(
                         subtitle,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w500,
                           height: 1.35,
                           decoration: onSubtitleTap != null
                               ? TextDecoration.underline
                               : null,
                           decorationColor:
-                              AppColors.onSurfaceMuted.withValues(alpha: 0.5),
+                              context.themeColors.onSurfaceMuted.withValues(alpha: 0.5),
                         ),
                       ),
                     ),
@@ -105,7 +107,7 @@ class AthleteNotificationToggleTile extends StatelessWidget {
             height: 1,
             indent: AthleteSettingsTokens.tileDividerIndent,
             endIndent: 14,
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
           ),
       ],
     );

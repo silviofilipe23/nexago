@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../auth/widgets/auth_form_widgets.dart';
 
@@ -90,7 +91,7 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                             fit: BoxFit.contain,
                             errorBuilder: (_, __, ___) => _LogoFallback(),
                           ),
-                          const Spacer(),
+                          Spacer(),
                           Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
@@ -112,7 +113,7 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 28),
+                      SizedBox(height: 28),
                       SizedBox(
                         height: 108,
                         width: double.infinity,
@@ -146,7 +147,7 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      SizedBox(height: 20),
                       Text(
                         'DUPLA CONFIRMADA',
                         style: AppTypography.mono(
@@ -156,12 +157,12 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                           letterSpacing: 1.2,
                         ),
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _ShareCardHeadline(
                         line1: headlineLine1,
                         line2: headlineLine2,
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       Text(
                         playerLine,
                         textAlign: TextAlign.center,
@@ -191,7 +192,7 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                       letterSpacing: 0.8,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                   Text(
                     tournamentName,
                     style: AppTypography.soraRegular(
@@ -201,7 +202,7 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                       height: 1.15,
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  SizedBox(height: 18),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -218,7 +219,7 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                                 letterSpacing: 0.8,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            SizedBox(height: 6),
                             Text(
                               dateLabel.isNotEmpty ? dateLabel : '—',
                               style: AppTypography.soraRegular(
@@ -243,7 +244,7 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                                 letterSpacing: 0.8,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            SizedBox(height: 6),
                             Text(
                               categoryName,
                               style: AppTypography.soraRegular(
@@ -258,7 +259,7 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                     ],
                   ),
                   if (locationLine.isNotEmpty) ...[
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     Row(
                       children: [
                         Icon(
@@ -268,7 +269,7 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                             alpha: 0.9,
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             locationLine,
@@ -282,7 +283,7 @@ class TournamentRegistrationShareCard extends StatelessWidget {
                       ],
                     ),
                   ],
-                  const SizedBox(height: 18),
+                  SizedBox(height: 18),
                   Center(
                     child: Text(
                       footerLabel,
@@ -372,7 +373,7 @@ class _LogoFallback extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 6),
+        SizedBox(width: 6),
         Text(
           'nexago',
           style: AppTypography.soraRegular(
@@ -512,8 +513,8 @@ class _TicketDivider extends StatelessWidget {
               ),
             ),
           ),
-          const Positioned(left: -10, child: _TicketNotch()),
-          const Positioned(right: -10, child: _TicketNotch()),
+          Positioned(left: -10, child: _TicketNotch()),
+          Positioned(right: -10, child: _TicketNotch()),
         ],
       ),
     );
@@ -528,7 +529,7 @@ class _TicketNotch extends StatelessWidget {
     return Container(
       width: 20,
       height: 20,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.canvas,
         shape: BoxShape.circle,
       ),

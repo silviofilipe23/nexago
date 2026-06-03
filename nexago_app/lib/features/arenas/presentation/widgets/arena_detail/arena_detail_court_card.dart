@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/arena_detail_logic.dart';
 import '../../../domain/arena_list_item.dart';
 import '../../../domain/court_pricing.dart';
@@ -45,7 +46,7 @@ class ArenaDetailCourtCard extends StatelessWidget {
     final Color statusColor;
     if (court.isMaintenance) {
       statusText = 'Em manutenção';
-      statusColor = AppColors.onSurfaceMuted;
+      statusColor = context.themeColors.onSurfaceMuted;
     } else if (summary.hasFreeSlotsToday) {
       final n = summary.freeSlotsToday;
       statusText =
@@ -53,11 +54,11 @@ class ArenaDetailCourtCard extends StatelessWidget {
       statusColor = AppColors.win;
     } else {
       statusText = 'Lotada hoje';
-      statusColor = AppColors.onSurfaceMuted;
+      statusColor = context.themeColors.onSurfaceMuted;
     }
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -70,16 +71,16 @@ class ArenaDetailCourtCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceRaised,
+                  color: context.themeColors.surfaceRaised,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.grid_view_rounded,
                   color: AppColors.brand,
                   size: 22,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,26 +89,26 @@ class ArenaDetailCourtCard extends StatelessWidget {
                       court.name,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Row(
                       children: [
                         if (surfaceBadge != null) ...[
                           _MiniBadge(label: surfaceBadge),
-                          const SizedBox(width: 6),
+                          SizedBox(width: 6),
                         ],
                         Text(
                           '· $coveredLabel',
                           style: AppTypography.mono(
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Row(
                       children: [
                         Container(
@@ -118,7 +119,7 @@ class ArenaDetailCourtCard extends StatelessWidget {
                             shape: BoxShape.circle,
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             statusText,
@@ -133,12 +134,12 @@ class ArenaDetailCourtCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 priceLabel,
                 style: AppTypography.mono(
                   fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   fontSize: 14,
                 ),
               ),
@@ -160,14 +161,14 @@ class _MiniBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         label,
         style: AppTypography.mono(
           fontWeight: FontWeight.w500,
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
           fontSize: 12,
           letterSpacing: 0.5,
         ),

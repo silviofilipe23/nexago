@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
 import '../athlete_profile_avatar.dart';
 
@@ -32,7 +33,7 @@ class MatchDetailSummaryCard extends StatelessWidget {
       child: Column(
         children: [
           _ResultBadge(label: detail.resultBadgeLabel, accent: accent),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           Row(
             children: [
               Expanded(
@@ -61,11 +62,11 @@ class MatchDetailSummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           Row(
             children: [
               for (var i = 0; i < detail.sets.length; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
+                if (i > 0) SizedBox(width: 8),
                 Expanded(
                   child: _SetBox(
                     set: detail.sets[i],
@@ -124,7 +125,7 @@ class _ResultBadge extends StatelessWidget {
               shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Text(
             label,
             style: theme.textTheme.labelMedium?.copyWith(
@@ -162,7 +163,7 @@ class _TeamColumn extends StatelessWidget {
     return Column(
       children: [
         _AvatarStack(players: side.players),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Text(
           side.label,
           textAlign: TextAlign.center,
@@ -173,7 +174,7 @@ class _TeamColumn extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           side.roleLabel,
           style: theme.textTheme.labelSmall?.copyWith(
@@ -257,7 +258,7 @@ class _SetBox extends StatelessWidget {
               letterSpacing: 0.3,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             '${set.ourScore} - ${set.opponentScore}',
             style: theme.textTheme.titleSmall?.copyWith(

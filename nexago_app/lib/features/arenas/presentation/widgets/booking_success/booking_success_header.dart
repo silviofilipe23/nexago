@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
 class BookingSuccessHeader extends StatelessWidget {
@@ -8,17 +9,17 @@ class BookingSuccessHeader extends StatelessWidget {
 
   final String paymentSubtitle;
 
-  static const _headlineStyle = TextStyle(
-    fontFamily: AppTypography.fontFamily,
-    fontSize: 28,
-    fontWeight: FontWeight.w900,
-    color: AppColors.onSurface,
-    letterSpacing: -0.6,
-    height: 1.12,
-  );
-
   @override
   Widget build(BuildContext context) {
+    final headlineStyle = TextStyle(
+      fontFamily: AppTypography.fontFamily,
+      fontSize: 28,
+      fontWeight: FontWeight.w900,
+      color: context.themeColors.onSurface,
+      letterSpacing: -0.6,
+      height: 1.12,
+    );
+
     return Column(
       children: [
         SizedBox(
@@ -64,11 +65,11 @@ class BookingSuccessHeader extends StatelessWidget {
               Container(
                 width: 80,
                 height: 80,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: AppColors.win,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.check_rounded,
                   color: AppColors.black,
                   size: 48,
@@ -78,7 +79,7 @@ class BookingSuccessHeader extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: 24),
         Text(
           'RESERVA CONFIRMADA',
           style: AppTypography.mono(
@@ -88,23 +89,23 @@ class BookingSuccessHeader extends StatelessWidget {
             letterSpacing: 2.4,
           ),
         ),
-        const SizedBox(height: 14),
-        const Text(
+        SizedBox(height: 14),
+        Text(
           'Quadra garantida.',
-          style: _headlineStyle,
+          style: headlineStyle,
           textAlign: TextAlign.center,
         ),
-        const Text(
+        Text(
           'Bora jogar! 🏐',
-          style: _headlineStyle,
+          style: headlineStyle,
           textAlign: TextAlign.center,
         ),
         if (paymentSubtitle.trim().isNotEmpty) ...[
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Text(
             paymentSubtitle,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w500,
               height: 1.4,
             ),

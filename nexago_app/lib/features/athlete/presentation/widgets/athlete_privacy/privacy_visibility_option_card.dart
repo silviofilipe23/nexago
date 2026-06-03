@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/athlete_privacy_preferences.dart';
 
 class PrivacyVisibilityOptionCard extends StatelessWidget {
@@ -19,15 +20,15 @@ class PrivacyVisibilityOptionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final meta = _metaFor(visibility);
-    final accent = selected ? AppColors.brand : AppColors.onSurface;
+    final accent = selected ? AppColors.brand : context.themeColors.onSurface;
     final borderColor = selected
         ? AppColors.brand.withValues(alpha: 0.85)
-        : AppColors.onSurfaceMuted.withValues(alpha: 0.12);
+        : context.themeColors.onSurfaceMuted.withValues(alpha: 0.12);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: onTap,
@@ -45,12 +46,12 @@ class PrivacyVisibilityOptionCard extends StatelessWidget {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceSheet,
+                      color: context.themeColors.surfaceSheet,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(meta.icon, color: accent, size: 22),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,11 +63,11 @@ class PrivacyVisibilityOptionCard extends StatelessWidget {
                             color: accent,
                           ),
                         ),
-                        const SizedBox(height: 3),
+                        SizedBox(height: 3),
                         Text(
                           meta.subtitle,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             fontWeight: FontWeight.w500,
                             height: 1.35,
                           ),
@@ -132,7 +133,7 @@ class _RadioDot extends StatelessWidget {
         border: Border.all(
           color: selected
               ? AppColors.brand
-              : AppColors.onSurfaceMuted.withValues(alpha: 0.5),
+              : context.themeColors.onSurfaceMuted.withValues(alpha: 0.5),
           width: 2,
         ),
       ),
@@ -141,7 +142,7 @@ class _RadioDot extends StatelessWidget {
               child: Container(
                 width: 10,
                 height: 10,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: AppColors.brand,
                 ),

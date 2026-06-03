@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/athlete_onboarding_options.dart';
 
 class OnboardingLevelTile extends StatelessWidget {
@@ -27,12 +28,12 @@ class OnboardingLevelTile extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
-            color: AppColors.surfaceRaised.withValues(alpha: 0.65),
+            color: context.themeColors.surfaceRaised.withValues(alpha: 0.65),
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: selected
                   ? AppColors.brand
-                  : AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+                  : context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
               width: selected ? 1.5 : 1,
             ),
           ),
@@ -43,10 +44,10 @@ class OnboardingLevelTile extends StatelessWidget {
                 selected
                     ? Icons.radio_button_checked_rounded
                     : Icons.radio_button_off_rounded,
-                color: selected ? AppColors.brand : AppColors.onSurfaceMuted,
+                color: selected ? AppColors.brand : context.themeColors.onSurfaceMuted,
                 size: 22,
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -56,15 +57,15 @@ class OnboardingLevelTile extends StatelessWidget {
                       style: theme.textTheme.titleSmall?.copyWith(
                         color: selected
                             ? AppColors.brand
-                            : AppColors.onSurface,
+                            : context.themeColors.onSurface,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       option.description,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         height: 1.4,
                       ),
                     ),

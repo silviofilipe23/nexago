@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class OnboardingStepHeader extends StatelessWidget {
   const OnboardingStepHeader({
@@ -33,13 +34,13 @@ class OnboardingStepHeader extends StatelessWidget {
             letterSpacing: 1.1,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         if (titleHighlight != null && title.contains(titleHighlight!))
           Text.rich(
             TextSpan(
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
                 letterSpacing: -0.4,
                 height: 1.15,
               ),
@@ -51,17 +52,17 @@ class OnboardingStepHeader extends StatelessWidget {
             title,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
               letterSpacing: -0.4,
               height: 1.15,
             ),
           ),
         if (subtitle != null) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             subtitle!,
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               height: 1.45,
             ),
           ),
@@ -77,7 +78,7 @@ class OnboardingStepHeader extends StatelessWidget {
       if (i > 0) TextSpan(text: full.substring(0, i)),
       TextSpan(
         text: highlight,
-        style: const TextStyle(color: AppColors.brand),
+        style: TextStyle(color: AppColors.brand),
       ),
       if (i + highlight.length < full.length)
         TextSpan(text: full.substring(i + highlight.length)),

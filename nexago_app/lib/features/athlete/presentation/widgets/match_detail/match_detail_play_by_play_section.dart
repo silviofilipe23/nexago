@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
 import 'match_detail_section_header.dart';
 
@@ -22,13 +23,13 @@ class MatchDetailPlayByPlaySection extends StatelessWidget {
           eyebrow: 'LANCE A LANCE',
           title: 'Últimos pontos',
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
           decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
+            color: context.themeColors.surfaceCard,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.surfaceRaised),
+            border: Border.all(color: context.themeColors.surfaceRaised),
           ),
           child: Column(
             children: [
@@ -36,7 +37,7 @@ class MatchDetailPlayByPlaySection extends StatelessWidget {
                 if (i > 0)
                   Divider(
                     height: 1,
-                    color: AppColors.surfaceRaised.withValues(alpha: 0.8),
+                    color: context.themeColors.surfaceRaised.withValues(alpha: 0.8),
                   ),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 10),
@@ -45,29 +46,29 @@ class MatchDetailPlayByPlaySection extends StatelessWidget {
                       Text(
                         items[i].time,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w700,
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      SizedBox(width: 10),
                       Container(
                         width: 6,
                         height: 6,
                         decoration: BoxDecoration(
                           color: items[i].isOurTeam
                               ? AppColors.brand
-                              : AppColors.onSurfaceMuted,
+                              : context.themeColors.onSurfaceMuted,
                           shape: BoxShape.circle,
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           items[i].description,
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.w600,
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                           ),
                         ),
                       ),

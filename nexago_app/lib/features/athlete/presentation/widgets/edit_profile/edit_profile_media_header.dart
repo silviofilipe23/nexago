@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../athlete_settings/athlete_settings_helpers.dart';
 
@@ -90,7 +91,7 @@ class _CoverArea extends StatelessWidget {
       preview = CachedNetworkImage(
         imageUrl: existingUrl!,
         fit: BoxFit.cover,
-        placeholder: (_, _) => _defaultGradient(),
+        placeholder: (_, __) => _defaultGradient(),
       );
     } else {
       preview = _defaultGradient();
@@ -127,7 +128,7 @@ class _CoverArea extends StatelessWidget {
                           size: 14,
                           color: AppColors.onSurface.withValues(alpha: 0.95),
                         ),
-                        const SizedBox(width: 6),
+                        SizedBox(width: 6),
                         Text(
                           'EDITAR CAPA',
                           style: AppTypography.mono(
@@ -157,7 +158,7 @@ class _CoverArea extends StatelessWidget {
 
   Widget _defaultGradient() {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -208,7 +209,7 @@ class _AvatarBadge extends StatelessWidget {
       child = CachedNetworkImage(
         imageUrl: existingUrl!,
         fit: BoxFit.cover,
-        placeholder: (_, _) => _initialsBox(initials),
+        placeholder: (_, __) => _initialsBox(initials),
       );
     } else {
       child = _initialsBox(initials);
@@ -241,7 +242,7 @@ class _AvatarBadge extends StatelessWidget {
 
   Widget _initialsBox(String initials) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -251,7 +252,7 @@ class _AvatarBadge extends StatelessWidget {
       child: Center(
         child: Text(
           initials,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w900,
             color: AppColors.canvas,

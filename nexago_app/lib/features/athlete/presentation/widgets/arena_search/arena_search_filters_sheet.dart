@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../arenas/domain/arena_amenities.dart';
 import '../../../../arenas/domain/arena_search_filters.dart';
 import '../../../../arenas/domain/arena_search_metadata.dart';
@@ -118,7 +119,7 @@ class _ArenaSearchFiltersSheetState extends State<_ArenaSearchFiltersSheet> {
         builder: (context, scrollController) {
           return Column(
             children: [
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               const _SheetHandle(),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 12, 0),
@@ -131,14 +132,14 @@ class _ArenaSearchFiltersSheetState extends State<_ArenaSearchFiltersSheet> {
                         color: AppColors.onSurface,
                       ),
                     ),
-                    const Spacer(),
+                    Spacer(),
                     TextButton(
                       onPressed: _clear,
                       style: TextButton.styleFrom(
                         foregroundColor: AppColors.brand,
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Limpar',
                         style: TextStyle(fontWeight: FontWeight.w800),
                       ),
@@ -162,13 +163,13 @@ class _ArenaSearchFiltersSheetState extends State<_ArenaSearchFiltersSheet> {
                         _radiusKm = v;
                       }),
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     const _SectionLabel(label: 'FAIXA DE PREÇO · POR HORA'),
                     _PriceBandRow(
                       selected: _priceBand,
                       onSelected: (b) => setState(() => _priceBand = b),
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     const _SectionLabel(label: 'SUPERFÍCIE'),
                     _ChipWrap(
                       options: _surfaceOptions,
@@ -184,13 +185,13 @@ class _ArenaSearchFiltersSheetState extends State<_ArenaSearchFiltersSheet> {
                         });
                       },
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     const _SectionLabel(label: 'COMODIDADES'),
                     _AmenityChips(
                       amenities: _amenities,
                       onChanged: (a) => setState(() => _amenities = a),
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     const _SectionLabel(label: 'PAGAMENTO'),
                     _PaymentChips(
                       selected: _paymentMethods,
@@ -204,7 +205,7 @@ class _ArenaSearchFiltersSheetState extends State<_ArenaSearchFiltersSheet> {
                         });
                       },
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     const _SectionLabel(label: 'SCORE NEXAGO MÍNIMO'),
                     _ScoreSlider(
                       value: _minScore,
@@ -215,7 +216,7 @@ class _ArenaSearchFiltersSheetState extends State<_ArenaSearchFiltersSheet> {
               ),
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   border: Border(
                     top: BorderSide(color: AppColors.surfaceRaised),
                   ),
@@ -232,7 +233,7 @@ class _ArenaSearchFiltersSheetState extends State<_ArenaSearchFiltersSheet> {
                   ),
                   child: Text(
                     'Mostrar $resultCount arenas',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 16,
                     ),
@@ -341,7 +342,7 @@ class _RadiusSlider extends StatelessWidget {
         Row(
           children: [
             Text('1 km', style: muted),
-            const Spacer(),
+            Spacer(),
             Text(
               '${ArenaSearchFilters.maxRadiusKm.toInt()} km',
               style: muted,
@@ -391,7 +392,7 @@ class _ScoreSlider extends StatelessWidget {
         Row(
           children: [
             Text('0', style: muted),
-            const Spacer(),
+            Spacer(),
             Text(
               valueLabel,
               style: theme.textTheme.labelMedium?.copyWith(
@@ -455,12 +456,12 @@ class _ArenaFilterChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (showCheckmark && selected) ...[
-                const Icon(
+                Icon(
                   Icons.check_rounded,
                   size: 16,
                   color: AppColors.brand,
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: 4),
               ],
               Text(label, style: textStyle),
             ],

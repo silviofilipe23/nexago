@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
 import 'match_detail_section_header.dart';
 
@@ -20,7 +21,7 @@ class MatchDetailSetTimelineSection extends StatelessWidget {
           eyebrow: 'COMO FOI',
           title: 'Set a set',
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         ...items.asMap().entries.map(
           (entry) => _TimelineRow(
             item: entry.value,
@@ -64,22 +65,22 @@ class _TimelineRow extends StatelessWidget {
                     child: Container(
                       width: 2,
                       margin: const EdgeInsets.symmetric(vertical: 4),
-                      color: AppColors.surfaceRaised,
+                      color: context.themeColors.surfaceRaised,
                     ),
                   ),
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Padding(
               padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceCard,
+                  color: context.themeColors.surfaceCard,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.surfaceRaised),
+                  border: Border.all(color: context.themeColors.surfaceRaised),
                 ),
                 child: Row(
                   children: [
@@ -96,11 +97,11 @@ class _TimelineRow extends StatelessWidget {
                             ),
                           ),
                           if (item.description.isNotEmpty) ...[
-                            const SizedBox(height: 4),
+                            SizedBox(height: 4),
                             Text(
                               item.description,
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                                 fontWeight: FontWeight.w600,
                                 height: 1.35,
                               ),
@@ -109,12 +110,12 @@ class _TimelineRow extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Text(
                       item.scoreLabel,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
                   ],

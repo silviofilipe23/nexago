@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../athlete/domain/arena_review.dart';
 import '../../../domain/arena_detail_logic.dart';
 
@@ -26,9 +27,9 @@ class ArenaDetailReviewCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -46,7 +47,7 @@ class ArenaDetailReviewCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -55,14 +56,14 @@ class ArenaDetailReviewCard extends StatelessWidget {
                       name,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
                     if (age.isNotEmpty)
                       Text(
                         age,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -71,25 +72,25 @@ class ArenaDetailReviewCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Row(
             children: List.generate(5, (i) {
               final filled = i < review.rating;
               return Icon(
                 filled ? Icons.star_rounded : Icons.star_outline_rounded,
                 size: 16,
-                color: filled ? AppColors.pending : AppColors.surfaceRaised,
+                color: filled ? AppColors.pending : context.themeColors.surfaceRaised,
               );
             }),
           ),
           if (comment.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               comment,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
                 height: 1.45,
               ),
             ),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../data/mock_athlete_home_data.dart';
@@ -36,12 +37,12 @@ class AthleteHomePage extends ConsumerWidget {
     return SafeArea(
       bottom: false,
       child: ColoredBox(
-        color: AppColors.canvas,
+        color: context.themeColors.canvas,
         child: summaryAsync.when(
-          loading: () => const Center(
+          loading: () => Center(
             child: CircularProgressIndicator(color: AppColors.brand),
           ),
-          error: (_, _) => _ErrorState(),
+          error: (_, __) => _ErrorState(),
           data: (summary) {
             final bookings = bookingsAsync.valueOrNull ?? [];
             final nextBooking = findNextAthleteBooking(bookings);
@@ -66,7 +67,7 @@ class AthleteHomePage extends ConsumerWidget {
                   onNotificationsTap: () =>
                       context.pushNamed(AppRouteNames.athleteNotifications),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 AthleteHomeNextBookingCard(
                   booking: nextBooking,
                   onReserveTap: () =>
@@ -75,7 +76,7 @@ class AthleteHomePage extends ConsumerWidget {
                       ? () => context.pushNamed(AppRouteNames.myBookings)
                       : null,
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 AthleteHomeQuickActions(
                   actions: [
                     AthleteHomeQuickAction(
@@ -101,11 +102,11 @@ class AthleteHomePage extends ConsumerWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
                 const PendingTournamentInviterInvitesSection(),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
                 const MyTournamentsHomeSection(),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
                 AthleteHomeDailyMissionsSection(
                   missions: missionsAsync.valueOrNull,
                   onViewAll: () =>
@@ -113,12 +114,12 @@ class AthleteHomePage extends ConsumerWidget {
                   onMissionTap: (mission) =>
                       navigateForDailyMission(context, ref, mission),
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
                 AthleteHomeSlotsSection(
                   slots: mockAthleteHomeSlots(),
                   onViewAll: () => _goToTab(ref, athleteShellReservarTabIndex),
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
                 AthleteHomePlaysWithSection(
                   partners: mockAthleteHomePlayPartners(),
                   onInvite: () => showAppSnackBar(context, 'Em breve.'),
@@ -148,7 +149,7 @@ class _ErrorState extends StatelessWidget {
           'Não foi possível carregar sua evolução.',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyLarge?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
           ),
         ),
       ),

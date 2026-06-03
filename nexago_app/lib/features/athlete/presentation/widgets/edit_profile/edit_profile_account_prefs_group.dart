@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../athlete_settings/athlete_settings_group.dart';
 import '../athlete_settings/athlete_settings_helpers.dart';
 
@@ -18,7 +19,7 @@ class EditProfileAccountPrefsGroup extends StatelessWidget {
         : 'Não informado';
 
     return DecoratedBox(
-      decoration: AthleteSettingsTokens.cardDecoration(),
+      decoration: AthleteSettingsTokens.cardDecoration(context),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AthleteSettingsTokens.cardRadius),
         child: Column(
@@ -32,25 +33,25 @@ class EditProfileAccountPrefsGroup extends StatelessWidget {
                   Text(
                     'E-MAIL DA CONTA',
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.6,
                       fontSize: 10,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                   Text(
                     emailValue,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'Vinculado à sua conta. Não pode ser alterado aqui.',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceMuted.withValues(alpha: 0.75),
+                      color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.75),
                       fontSize: 11,
                     ),
                   ),
@@ -59,7 +60,7 @@ class EditProfileAccountPrefsGroup extends StatelessWidget {
             ),
             Divider(
               height: 1,
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
             ),
             // AthleteSettingsTile(
             //   icon: Icons.settings_outlined,

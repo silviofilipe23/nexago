@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class SlotsBottomBar extends StatelessWidget {
   const SlotsBottomBar({
@@ -21,7 +22,7 @@ class SlotsBottomBar extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: AppColors.canvas,
+      color: context.themeColors.canvas,
       child: SafeArea(
         top: false,
         child: Padding(
@@ -38,12 +39,12 @@ class SlotsBottomBar extends StatelessWidget {
                       Text(
                         metaLabel!,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     if (totalLabel != null && totalLabel!.isNotEmpty) ...[
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
                         totalLabel!,
                         style: theme.textTheme.headlineSmall?.copyWith(
@@ -56,7 +57,7 @@ class SlotsBottomBar extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               SizedBox(
                 height: 48,
                 child: FilledButton(
@@ -64,13 +65,13 @@ class SlotsBottomBar extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.brand,
                     foregroundColor: AppColors.black,
-                    disabledBackgroundColor: AppColors.surfaceRaised,
+                    disabledBackgroundColor: context.themeColors.surfaceRaised,
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(

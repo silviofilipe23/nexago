@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/arena_tab.dart';
 
 /// Shell com navegação inferior escura (gestor da arena).
@@ -26,14 +27,14 @@ class ArenaShellPage extends StatelessWidget {
         navigationShell.currentIndex.clamp(0, _tabs.length - 1);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: navigationShell,
       bottomNavigationBar: DecoratedBox(
         decoration: BoxDecoration(
-          color: AppColors.surfaceSheet,
+          color: context.themeColors.surfaceSheet,
           border: Border(
             top: BorderSide(
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
             ),
           ),
         ),
@@ -86,9 +87,9 @@ class _NavItem extends StatelessWidget {
             Icon(
               _iconFor(tab, selected: selected),
               size: 22,
-              color: selected ? AppColors.onSurface : AppColors.onSurfaceMuted,
+              color: selected ? context.themeColors.onSurface : context.themeColors.onSurfaceMuted,
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               tab.label.toUpperCase(),
               style: TextStyle(
@@ -96,10 +97,10 @@ class _NavItem extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.3,
                 color:
-                    selected ? AppColors.onSurface : AppColors.onSurfaceMuted,
+                    selected ? context.themeColors.onSurface : context.themeColors.onSurfaceMuted,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             AnimatedContainer(
               duration: const Duration(milliseconds: 200),
               width: 5,

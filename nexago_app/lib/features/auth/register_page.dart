@@ -10,6 +10,7 @@ import '../../features/athlete/onboarding/domain/athlete_onboarding_providers.da
 import '../../core/auth/firebase_auth_error_mapper.dart';
 import '../../core/router/routes.dart';
 import '../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../core/ui/app_snackbar.dart';
 import '../../core/ui/fade_slide_in.dart';
 import 'auth_legal_urls.dart';
@@ -263,7 +264,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final confirmMismatch = _confirmPasswordError != null;
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: Stack(
           children: [
@@ -284,7 +285,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                   AuthBackButton(
                                     onPressed: _busy ? null : _goBack,
                                   ),
-                                  const Spacer(),
+                                  Spacer(),
                                   const AuthStepBadge(
                                     current: 1,
                                     total: 5,
@@ -344,7 +345,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                   AuthBackButton(
                                     onPressed: _busy ? null : _goBack,
                                   ),
-                                  const Spacer(),
+                                  Spacer(),
                                   const AuthStepBadge(current: 1, total: 5),
                                 ],
                               ),
@@ -355,7 +356,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                                 showStrength,
                                 confirmMismatch,
                               ),
-                              const SizedBox(height: 24),
+                              SizedBox(height: 24),
                               _buildBottomActions(theme, scheme),
                             ],
                           ),
@@ -380,29 +381,29 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const AuthLogo(),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         const AuthKicker(label: 'NOVA CONTA • ATLETA'),
-        const SizedBox(height: 24),
+        SizedBox(height: 24),
         Text(
           'Criar conta.',
           textAlign: TextAlign.center,
           style: theme.textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             letterSpacing: -0.5,
             height: 1.12,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Text(
           'Faça parte da maior comunidade de beach volley do Brasil.',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             height: 1.45,
           ),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: 28),
         const AuthFieldLabel(label: 'E-MAIL'),
         AuthTextField(
           controller: _emailController,
@@ -416,7 +417,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             if (_emailError != null) setState(() => _emailError = null);
           },
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         AuthFieldLabel(
           label: 'SENHA',
           highlighted: _passwordFocused,
@@ -441,12 +442,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             if (_passwordError != null) setState(() => _passwordError = null);
           },
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         AuthPasswordStrength(
           result: strength,
           visible: showStrength,
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         AuthFieldLabel(
           label: 'CONFIRMAR SENHA',
           highlighted: confirmMismatch,
@@ -472,7 +473,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             setState(() {});
           },
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         AuthTermsConsent(
           value: _termsAccepted,
           onChanged: _busy
@@ -504,7 +505,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
               ),
             ),
             child: _submitting
-                ? const SizedBox(
+                ? SizedBox(
                     width: 22,
                     height: 22,
                     child: CircularProgressIndicator(
@@ -521,17 +522,17 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   ),
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
           height: 50,
           child: OutlinedButton(
             onPressed: _busy ? null : () => context.go(AppRoutes.login),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.onSurface,
+              foregroundColor: context.themeColors.onSurface,
               backgroundColor: Colors.transparent,
               side: BorderSide(
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
               ),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -545,37 +546,37 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             ),
           ),
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         AuthOrDivider(
           color: scheme.outline,
           label: 'OU CADASTRA-SE COM',
           uppercaseLabel: true,
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         AuthSocialButton(
           onPressed: _busy ? null : _signInWithGoogle,
           loading: _googleSubmitting,
           icon: const AuthGoogleGlyph(),
           label: 'Continuar com Google',
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         AuthSocialButton(
           onPressed: null,
-          icon: const Icon(
+          icon: Icon(
             Icons.apple,
             size: 22,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
           label: 'Continuar com Apple',
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               'Já tem conta? ',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
             AuthLinkButton(
@@ -584,7 +585,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
       ],
     );
   }

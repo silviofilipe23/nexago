@@ -6,6 +6,7 @@ import '../../core/auth/auth_providers.dart';
 import '../../core/layout/app_scaffold.dart';
 import '../../core/router/routes.dart';
 import '../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../core/ui/app_status_views.dart';
 import '../../core/ui/fade_slide_in.dart';
 import '../arena/domain/arena_access_provider.dart';
@@ -32,7 +33,7 @@ class HomePage extends ConsumerWidget {
                   IconButton(
                     tooltip: 'Painel da arena',
                     onPressed: () => context.push(AppRoutes.arenaDashboard),
-                    icon: const Icon(Icons.admin_panel_settings_outlined),
+                    icon: Icon(Icons.admin_panel_settings_outlined),
                   ),
                 ]
               : <Widget>[],
@@ -41,19 +42,19 @@ class HomePage extends ConsumerWidget {
         IconButton(
           tooltip: 'Meu perfil',
           onPressed: () => context.pushNamed(AppRouteNames.athleteProfile),
-          icon: const Icon(Icons.person_outline_rounded),
+          icon: Icon(Icons.person_outline_rounded),
         ),
         IconButton(
           tooltip: 'Minhas reservas',
           onPressed: () => context.pushNamed(AppRouteNames.myBookings),
-          icon: const Icon(Icons.event_note_rounded),
+          icon: Icon(Icons.event_note_rounded),
         ),
         IconButton(
           tooltip: 'Sair',
           onPressed: () async {
             await ref.read(authServiceProvider).signOut();
           },
-          icon: const Icon(Icons.logout_rounded),
+          icon: Icon(Icons.logout_rounded),
         ),
       ],
       body: SafeArea(
@@ -138,11 +139,11 @@ class _FadeInArenaListState extends State<_FadeInArenaList>
                     ),
                   ),
                   if (widget.userEmail != null) ...[
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Text(
                       widget.userEmail!,
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                       ),
                     ),
                   ],
@@ -165,7 +166,7 @@ class _FadeInArenaListState extends State<_FadeInArenaList>
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
               sliver: SliverList.separated(
                 itemCount: widget.arenas.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 20),
+                separatorBuilder: (context, index) => SizedBox(height: 20),
                 itemBuilder: (context, index) {
                   final arena = widget.arenas[index];
                   return staggeredFadeSlide(

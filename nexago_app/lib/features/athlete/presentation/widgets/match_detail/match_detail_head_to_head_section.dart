@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
 import 'match_detail_section_header.dart';
 
@@ -22,13 +23,13 @@ class MatchDetailHeadToHeadSection extends StatelessWidget {
           eyebrow: 'HISTÓRICO',
           title: info.title,
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
+            color: context.themeColors.surfaceCard,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.surfaceRaised),
+            border: Border.all(color: context.themeColors.surfaceRaised),
           ),
           child: Column(
             children: [
@@ -55,23 +56,23 @@ class MatchDetailHeadToHeadSection extends StatelessWidget {
                                 if (winRatio > 0)
                                   Expanded(
                                     flex: (winRatio * 100).round().clamp(1, 100),
-                                    child: const ColoredBox(color: AppColors.win),
+                                    child: ColoredBox(color: AppColors.win),
                                   ),
                                 if (winRatio < 1)
                                   Expanded(
                                     flex: ((1 - winRatio) * 100).round().clamp(1, 100),
-                                    child: const ColoredBox(color: AppColors.live),
+                                    child: ColoredBox(color: AppColors.live),
                                   ),
                               ],
                             ),
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        SizedBox(height: 6),
                         Text(
                           '$total CONFRONTOS',
                           style: theme.textTheme.labelSmall?.copyWith(
                             fontWeight: FontWeight.w800,
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             letterSpacing: 0.4,
                             fontSize: 9,
                           ),
@@ -91,7 +92,7 @@ class MatchDetailHeadToHeadSection extends StatelessWidget {
                 ],
               ),
               if (info.pastMatches.isNotEmpty) ...[
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 ...info.pastMatches.map(
                   (m) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
@@ -136,12 +137,12 @@ class _StatColumn extends StatelessWidget {
             height: 1,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           label,
           style: theme.textTheme.labelSmall?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontSize: 8,
             letterSpacing: 0.3,
           ),
@@ -165,7 +166,7 @@ class _PastMatchRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised.withValues(alpha: 0.5),
+        color: context.themeColors.surfaceRaised.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -186,13 +187,13 @@ class _PastMatchRow extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Text(
               match.label,
               style: theme.textTheme.bodySmall?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
           ),
@@ -200,7 +201,7 @@ class _PastMatchRow extends StatelessWidget {
             match.score,
             style: theme.textTheme.labelLarge?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
         ],

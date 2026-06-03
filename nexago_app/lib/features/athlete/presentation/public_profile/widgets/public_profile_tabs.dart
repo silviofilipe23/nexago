@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/athlete_public_profile_models.dart';
 import '../../../domain/athlete_public_profile_providers.dart';
@@ -32,13 +33,13 @@ class PublicProfileTabBar extends StatelessWidget {
             selected: selected == PublicProfileTab.overview,
             onTap: () => onChanged(PublicProfileTab.overview),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           _TabChip(
             label: 'Partidas',
             selected: selected == PublicProfileTab.matches,
             onTap: () => onChanged(PublicProfileTab.matches),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           _TabChip(
             label: 'Conquistas',
             selected: selected == PublicProfileTab.achievements,
@@ -64,7 +65,7 @@ class _TabChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.onSurface : AppColors.surfaceCard,
+      color: selected ? context.themeColors.onSurface : context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
@@ -76,7 +77,7 @@ class _TabChip extends StatelessWidget {
             style: AppTypography.soraRegular(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: selected ? AppColors.canvas : AppColors.onSurfaceMuted,
+              color: selected ? context.themeColors.canvas : context.themeColors.onSurfaceMuted,
             ),
           ),
         ),
@@ -109,22 +110,22 @@ class PublicProfileOverviewTab extends StatelessWidget {
             style: AppTypography.soraRegular(
               fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _RankingSeasonCard(ranking: ranking),
           if (partners.isNotEmpty) ...[
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             Text(
               'Dupla',
               style: AppTypography.soraRegular(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             for (final partner in partners.take(3))
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
@@ -152,9 +153,9 @@ class _RankingSeasonCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -170,10 +171,10 @@ class _RankingSeasonCard extends StatelessWidget {
                       style: AppTypography.mono(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Text.rich(
                       TextSpan(
                         children: [
@@ -192,7 +193,7 @@ class _RankingSeasonCard extends StatelessWidget {
                               style: AppTypography.soraRegular(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                               ),
                             ),
                         ],
@@ -209,27 +210,27 @@ class _RankingSeasonCard extends StatelessWidget {
                     style: AppTypography.mono(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                   Text(
                     '${ranking.points}',
                     style: AppTypography.soraRegular(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Row(
             children: [
               _MiniStat(value: '${ranking.tournamentsCount}', label: 'TORNEIOS'),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               if (ranking.hasRank)
                 _MiniStat(value: '#${ranking.rank}', label: 'POSIÇÃO'),
             ],
@@ -252,7 +253,7 @@ class _MiniStat extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
         decoration: BoxDecoration(
-          color: AppColors.surfaceRaised.withValues(alpha: 0.35),
+          color: context.themeColors.surfaceRaised.withValues(alpha: 0.35),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
@@ -263,7 +264,7 @@ class _MiniStat extends StatelessWidget {
               style: AppTypography.soraRegular(
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
             Text(
@@ -271,7 +272,7 @@ class _MiniStat extends StatelessWidget {
               style: AppTypography.mono(
                 fontSize: 9,
                 fontWeight: FontWeight.w600,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
           ],
@@ -290,7 +291,7 @@ class _PartnerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -299,7 +300,7 @@ class _PartnerCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.surfaceRaised),
+            border: Border.all(color: context.themeColors.surfaceRaised),
           ),
           child: Row(
             children: [
@@ -308,7 +309,7 @@ class _PartnerCard extends StatelessWidget {
                 initials: partner.initials,
                 imageUrl: partner.avatarUrl,
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,7 +319,7 @@ class _PartnerCard extends StatelessWidget {
                       style: AppTypography.soraRegular(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
                     if (partner.subtitle.isNotEmpty)
@@ -327,7 +328,7 @@ class _PartnerCard extends StatelessWidget {
                         style: AppTypography.soraRegular(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                         ),
                       ),
                   ],
@@ -356,7 +357,7 @@ class PublicProfilePlaceholderTab extends StatelessWidget {
         style: AppTypography.soraRegular(
           fontSize: 14,
           fontWeight: FontWeight.w500,
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
         ),
       ),
     );
@@ -378,7 +379,7 @@ class PublicProfileMatchesTab extends ConsumerWidget {
     final historyAsync = ref.watch(athletePublicMatchHistoryProvider(userId));
 
     return historyAsync.when(
-      loading: () => const Padding(
+      loading: () => Padding(
         padding: EdgeInsets.symmetric(vertical: 32),
         child: Center(
           child: CircularProgressIndicator(color: AppColors.brand),
@@ -408,7 +409,7 @@ class PublicProfileMatchesTab extends ConsumerWidget {
                     style: AppTypography.soraRegular(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                 ),

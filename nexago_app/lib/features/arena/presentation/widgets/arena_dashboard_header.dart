@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../domain/arena_providers.dart';
 
@@ -36,13 +37,13 @@ class ArenaDashboardHeader extends ConsumerWidget {
                       letterSpacing: 0.8,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     'Visão geral',
                     style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.5,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                 ],
@@ -58,11 +59,11 @@ class ArenaDashboardHeader extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Text(
           'Acompanhe faturamento, ocupação e tendência da semana num só lugar.',
           style: theme.textTheme.bodyLarge?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             height: 1.45,
             fontWeight: FontWeight.w500,
           ),
@@ -80,7 +81,7 @@ class _NotificationButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceRaised,
+      color: context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onPressed,
@@ -91,9 +92,9 @@ class _NotificationButton extends StatelessWidget {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              const Icon(
+              Icon(
                 Icons.notifications_none_rounded,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
                 size: 22,
               ),
               Positioned(
@@ -102,7 +103,7 @@ class _NotificationButton extends StatelessWidget {
                 child: Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.brand,
                     shape: BoxShape.circle,
                   ),

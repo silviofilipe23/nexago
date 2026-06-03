@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class TournamentDetailBottomBar extends StatelessWidget {
   const TournamentDetailBottomBar({
@@ -19,10 +20,10 @@ class TournamentDetailBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.canvas,
+        color: context.themeColors.canvas,
         border: Border(
           top: BorderSide(
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
           ),
         ),
       ),
@@ -38,9 +39,9 @@ class TournamentDetailBottomBar extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.brand,
                 disabledBackgroundColor:
-                    AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+                    context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
                 foregroundColor: AppColors.black,
-                disabledForegroundColor: AppColors.onSurfaceMuted,
+                disabledForegroundColor: context.themeColors.onSurfaceMuted,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
@@ -50,7 +51,7 @@ class TournamentDetailBottomBar extends StatelessWidget {
                 style: AppTypography.soraRegular(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
-                  color: enabled ? AppColors.black : AppColors.onSurfaceMuted,
+                  color: enabled ? AppColors.black : context.themeColors.onSurfaceMuted,
                 ),
               ),
             ),

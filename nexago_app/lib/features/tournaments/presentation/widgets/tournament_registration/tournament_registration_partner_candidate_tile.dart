@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
 import '../../../domain/tournament_registration_logic.dart';
 
@@ -24,7 +25,7 @@ class TournamentRegistrationPartnerCandidateTile extends StatelessWidget {
     return Material(
       color: selected
           ? AppColors.brand.withValues(alpha: 0.08)
-          : AppColors.surfaceCard,
+          : context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -46,7 +47,7 @@ class TournamentRegistrationPartnerCandidateTile extends StatelessWidget {
                 initials: candidate.initials,
                 imageUrl: candidate.avatarUrl,
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -55,20 +56,20 @@ class TournamentRegistrationPartnerCandidateTile extends StatelessWidget {
                       candidate.name,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       candidate.rankLabel,
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     if (candidate.tagLabel != null &&
                         candidate.tagLabel!.isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         candidate.tagLabel!,
                         style: AppTypography.mono(
@@ -87,11 +88,11 @@ class TournamentRegistrationPartnerCandidateTile extends StatelessWidget {
                   width: 28,
                   height: 28,
                   alignment: Alignment.center,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.brand,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.check_rounded,
                     size: 18,
                     color: AppColors.black,
@@ -103,7 +104,7 @@ class TournamentRegistrationPartnerCandidateTile extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     letterSpacing: 0.8,
                   ),
                 ),

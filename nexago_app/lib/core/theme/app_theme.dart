@@ -108,15 +108,15 @@ abstract final class AppTheme {
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: AppColors.surfaceRaised,
+        backgroundColor: colorScheme.surfaceContainerHigh,
         contentTextStyle: textTheme.bodyMedium?.copyWith(
-          color: AppColors.onSurface,
+          color: colorScheme.onSurface,
         ),
         behavior: SnackBarBehavior.floating,
       ),
       inputDecorationTheme: InputDecorationTheme(
         hintStyle: textTheme.bodyLarge?.copyWith(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.75),
+          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
           fontWeight: FontWeight.w400,
         ),
         labelStyle: textTheme.labelSmall?.copyWith(

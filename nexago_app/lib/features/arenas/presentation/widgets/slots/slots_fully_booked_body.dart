@@ -69,7 +69,7 @@ class SlotsFullyBookedBody extends ConsumerWidget {
           ),
         ],
       ),
-      error: (_, _) => _content(
+      error: (_, __) => _content(
         context,
         suggestions: const [],
         alertActive: alertActive,

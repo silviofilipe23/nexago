@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class SlotsNotifyWhenAvailableCard extends StatelessWidget {
   const SlotsNotifyWhenAvailableCard({
@@ -25,9 +26,9 @@ class SlotsNotifyWhenAvailableCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Row(
         children: [
@@ -38,12 +39,12 @@ class SlotsNotifyWhenAvailableCard extends StatelessWidget {
               color: AppColors.brand.withValues(alpha: 0.18),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.notifications_outlined,
               color: AppColors.brand,
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -52,23 +53,23 @@ class SlotsNotifyWhenAvailableCard extends StatelessWidget {
                   'Avisar quando liberar',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   'Te notificamos se alguém cancelar $courtName no $weekdayLabel',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     height: 1.25,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           if (isLoading)
-            const SizedBox(
+            SizedBox(
               width: 24,
               height: 24,
               child: CircularProgressIndicator(strokeWidth: 2),
@@ -80,7 +81,7 @@ class SlotsNotifyWhenAvailableCard extends StatelessWidget {
                 foregroundColor: AppColors.win,
                 side: BorderSide(color: AppColors.win.withValues(alpha: 0.5)),
               ),
-              child: const Text('Ativo'),
+              child: Text('Ativo'),
             )
           else
             OutlinedButton(
@@ -89,7 +90,7 @@ class SlotsNotifyWhenAvailableCard extends StatelessWidget {
                 foregroundColor: AppColors.brand,
                 side: BorderSide(color: AppColors.brand.withValues(alpha: 0.6)),
               ),
-              child: const Text('Ativar'),
+              child: Text('Ativar'),
             ),
         ],
       ),

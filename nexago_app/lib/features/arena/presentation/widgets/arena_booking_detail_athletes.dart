@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../athlete/domain/athlete_profile.dart';
 import '../../../athlete/domain/athlete_profile_providers.dart';
 import '../../domain/arena_bookings_grouping.dart';
@@ -49,7 +50,7 @@ class ArenaBookingDetailAthletes extends ConsumerWidget {
           historyAsync: historyAsync,
         ),
         if (participants >= 2) ...[
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           const _GuestAthleteCard(),
         ],
       ],
@@ -73,7 +74,7 @@ class _AthleteDetailCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(),
+      decoration: ArenaDashboardTokens.cardDecoration(context),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -93,7 +94,7 @@ class _AthleteDetailCard extends StatelessWidget {
                 name: nameAsync.valueOrNull ?? '',
               ),
             ),
-            const SizedBox(width: 14),
+            SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,16 +107,16 @@ class _AthleteDetailCard extends StatelessWidget {
                             name,
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w800,
-                              color: AppColors.onSurface,
+                              color: context.themeColors.onSurface,
                             ),
                           ),
                           loading: () => Text(
                             'Carregando…',
                             style: theme.textTheme.bodyMedium?.copyWith(
-                              color: AppColors.onSurfaceMuted,
+                              color: context.themeColors.onSurfaceMuted,
                             ),
                           ),
-                          error: (_, __) => const Text('Atleta'),
+                          error: (_, __) => Text('Atleta'),
                         ),
                       ),
                       historyAsync.maybeWhen(
@@ -126,7 +127,7 @@ class _AthleteDetailCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                   historyAsync.when(
                     data: (history) {
                       final since =
@@ -139,7 +140,7 @@ class _AthleteDetailCard extends StatelessWidget {
                       return Text(
                         subtitle,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w600,
                         ),
                       );
@@ -147,7 +148,7 @@ class _AthleteDetailCard extends StatelessWidget {
                     loading: () => Text(
                       'Carregando histórico…',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                       ),
                     ),
                     error: (_, __) => const SizedBox.shrink(),
@@ -170,7 +171,7 @@ class _GuestAthleteCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(),
+      decoration: ArenaDashboardTokens.cardDecoration(context),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -178,7 +179,7 @@ class _GuestAthleteCard extends StatelessWidget {
             CircleAvatar(
               radius: 24,
               backgroundColor: AppColors.win.withValues(alpha: 0.22),
-              child: const Text(
+              child: Text(
                 '+1',
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
@@ -186,7 +187,7 @@ class _GuestAthleteCard extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 14),
+            SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,14 +196,14 @@ class _GuestAthleteCard extends StatelessWidget {
                     'Atleta convidado',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'Dados do parceiro em breve',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -229,7 +230,7 @@ class _VipBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: AppColors.brand.withValues(alpha: 0.45)),
       ),
-      child: const Text(
+      child: Text(
         'VIP',
         style: TextStyle(
           color: AppColors.brand,
@@ -283,7 +284,7 @@ class _DetailAvatar extends StatelessWidget {
       backgroundColor: AppColors.brand.withValues(alpha: 0.22),
       child: Text(
         initials.length > 2 ? initials.substring(0, 2) : initials,
-        style: const TextStyle(
+        style: TextStyle(
           fontWeight: FontWeight.w800,
           color: AppColors.brand,
         ),

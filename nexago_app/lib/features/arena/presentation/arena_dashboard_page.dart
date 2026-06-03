@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/domain/favorites_providers.dart';
 import '../domain/arena_dashboard_providers.dart';
@@ -37,7 +38,7 @@ class ArenaDashboardPage extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -62,13 +63,13 @@ class ArenaDashboardPage extends ConsumerWidget {
                         offsetY: 14,
                         child: ArenaDashboardHeader(),
                       ),
-                      const SizedBox(height: ArenaDashboardTokens.sectionGap),
+                      SizedBox(height: ArenaDashboardTokens.sectionGap),
                       const FadeSlideIn(
                         duration: Duration(milliseconds: 460),
                         offsetY: 14,
                         child: ArenaDashboardPeriodChips(),
                       ),
-                      const SizedBox(height: ArenaDashboardTokens.sectionGap),
+                      SizedBox(height: ArenaDashboardTokens.sectionGap),
                       summaryAsync.when(
                         data: (summary) => metricsAsync.when(
                           data: (metrics) => Column(
@@ -112,7 +113,7 @@ class ArenaDashboardPage extends ConsumerWidget {
                                   ],
                                 ),
                               ),
-                              const SizedBox(
+                              SizedBox(
                                 height: ArenaDashboardTokens.sectionGap,
                               ),
                               FadeSlideIn(
@@ -124,7 +125,7 @@ class ArenaDashboardPage extends ConsumerWidget {
                                   metrics: metrics,
                                 ),
                               ),
-                              const SizedBox(
+                              SizedBox(
                                 height: ArenaDashboardTokens.sectionGap,
                               ),
                               FadeSlideIn(
@@ -134,7 +135,7 @@ class ArenaDashboardPage extends ConsumerWidget {
                                   summary: summary,
                                 ),
                               ),
-                              const SizedBox(
+                              SizedBox(
                                 height: ArenaDashboardTokens.sectionGap,
                               ),
                               FadeSlideIn(
@@ -145,7 +146,7 @@ class ArenaDashboardPage extends ConsumerWidget {
                                   arenaId: arenaId,
                                 ),
                               ),
-                              const SizedBox(
+                              SizedBox(
                                 height: ArenaDashboardTokens.sectionGap,
                               ),
                               const FadeSlideIn(
@@ -173,7 +174,7 @@ class ArenaDashboardPage extends ConsumerWidget {
   }
 
   Widget _loadingBlock() {
-    return const Padding(
+    return Padding(
       padding: EdgeInsets.symmetric(vertical: 56),
       child: Center(
         child: SizedBox(

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../arenas/domain/arena_court.dart';
 import '../../domain/arena_providers.dart';
@@ -26,7 +27,7 @@ class ArenaCourtFormSheet extends ConsumerStatefulWidget {
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surfaceSheet,
+      backgroundColor: context.themeColors.surfaceSheet,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -147,12 +148,12 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -169,7 +170,7 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
                     size: 26,
                   ),
                 ),
-                const SizedBox(width: 14),
+                SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -178,14 +179,14 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
                         title,
                         style: theme.textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         subtitle,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           height: 1.35,
                         ),
                       ),
@@ -194,25 +195,25 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             const _SectionLabel('NOME', accent: true),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             TextField(
               controller: _nameController,
               focusNode: _nameFocus,
               textCapitalization: TextCapitalization.words,
-              style: const TextStyle(
-                color: AppColors.onSurface,
+              style: TextStyle(
+                color: context.themeColors.onSurface,
                 fontWeight: FontWeight.w600,
               ),
               decoration: InputDecoration(
                 hintText: 'Ex.: Quadra 4 · Areia',
                 hintStyle: TextStyle(
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.7),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.7),
                   fontWeight: FontWeight.w500,
                 ),
                 filled: true,
-                fillColor: AppColors.surfaceRaised,
+                fillColor: context.themeColors.surfaceRaised,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 14,
@@ -225,24 +226,24 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(
+                  borderSide: BorderSide(
                     color: AppColors.brand,
                     width: 1.5,
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 22),
+            SizedBox(height: 22),
             const _SectionLabel('ESPORTES NA QUADRA'),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               'Selecione todos que se aplicam (ex.: areia com vôlei de praia e beach tennis).',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 height: 1.35,
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -256,18 +257,18 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
                   selectedColor: AppColors.brand.withValues(alpha: 0.12),
                   labelStyle: TextStyle(
                     fontWeight: FontWeight.w700,
-                    color: selected ? AppColors.brand : AppColors.onSurface,
+                    color: selected ? AppColors.brand : context.themeColors.onSurface,
                   ),
                   side: BorderSide(
-                    color: selected ? AppColors.brand : AppColors.surfaceRaised,
+                    color: selected ? AppColors.brand : context.themeColors.surfaceRaised,
                   ),
                   onSelected: (_) => _toggleSport(label),
                 );
               }).toList(),
             ),
-            const SizedBox(height: 22),
+            SizedBox(height: 22),
             const _SectionLabel('PREÇO BASE / HORA'),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Row(
               children: [
                 for (final p in kCourtBasePricePresets) ...[
@@ -281,7 +282,7 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
                       }),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                 ],
                 Expanded(
                   child: _PricePill(
@@ -296,22 +297,22 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
               ],
             ),
             if (_customPrice) ...[
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               TextField(
                 controller: _customPriceController,
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                style: const TextStyle(color: AppColors.onSurface),
+                style: TextStyle(color: context.themeColors.onSurface),
                 decoration: InputDecoration(
                   hintText: 'Valor em R\$',
                   hintStyle: TextStyle(
-                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.7),
+                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.7),
                   ),
                   filled: true,
-                  fillColor: AppColors.surfaceRaised,
+                  fillColor: context.themeColors.surfaceRaised,
                   prefixText: 'R\$ ',
-                  prefixStyle: const TextStyle(
-                    color: AppColors.onSurface,
+                  prefixStyle: TextStyle(
+                    color: context.themeColors.onSurface,
                     fontWeight: FontWeight.w700,
                   ),
                   border: OutlineInputBorder(
@@ -321,7 +322,7 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
                 ),
               ),
             ],
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             FilledButton(
               onPressed: _busy ? null : _confirm,
               style: FilledButton.styleFrom(
@@ -330,7 +331,7 @@ class _ArenaCourtFormSheetState extends ConsumerState<ArenaCourtFormSheet> {
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               child: _busy
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(strokeWidth: 2),
@@ -405,7 +406,7 @@ class _SectionLabel extends StatelessWidget {
     return Text(
       text,
       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: accent ? AppColors.brand : AppColors.onSurfaceMuted,
+            color: accent ? AppColors.brand : context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.6,
           ),
@@ -427,7 +428,7 @@ class _PricePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.brand : AppColors.surfaceRaised,
+      color: selected ? AppColors.brand : context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(999),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -441,7 +442,7 @@ class _PricePill extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 13,
-              color: selected ? AppColors.black : AppColors.onSurface,
+              color: selected ? AppColors.black : context.themeColors.onSurface,
             ),
           ),
         ),

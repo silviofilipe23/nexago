@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class AthleteNotificationsSectionHeader extends StatelessWidget {
   const AthleteNotificationsSectionHeader({super.key, required this.label});
@@ -17,7 +18,7 @@ class AthleteNotificationsSectionHeader extends StatelessWidget {
         style: AppTypography.mono(
           fontSize: 11,
           fontWeight: FontWeight.w700,
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
           letterSpacing: 0.8,
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_tournament_detail_models.dart';
 
 class TournamentDetailCampaignSection extends StatelessWidget {
@@ -23,8 +24,8 @@ class TournamentDetailCampaignSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.bolt_rounded, color: AppColors.brand, size: 18),
-            const SizedBox(width: 6),
+            Icon(Icons.bolt_rounded, color: AppColors.brand, size: 18),
+            SizedBox(width: 6),
             Text(
               'SUA CAMPANHA • ${detail.campaignTag}',
               style: theme.textTheme.labelMedium?.copyWith(
@@ -35,7 +36,7 @@ class TournamentDetailCampaignSection extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         ...List.generate(detail.matches.length, (index) {
           final match = detail.matches[index];
           final isLast = index == detail.matches.length - 1;
@@ -90,12 +91,12 @@ class _CampaignRow extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Padding(
               padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
               child: Material(
-                color: AppColors.surfaceCard,
+                color: context.themeColors.surfaceCard,
                 borderRadius: BorderRadius.circular(12),
                 child: InkWell(
                   onTap: onTap,
@@ -104,7 +105,7 @@ class _CampaignRow extends StatelessWidget {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.surfaceRaised),
+                      border: Border.all(color: context.themeColors.surfaceRaised),
                     ),
                     child: Row(
                       children: [
@@ -124,7 +125,7 @@ class _CampaignRow extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,19 +138,19 @@ class _CampaignRow extends StatelessWidget {
                                   letterSpacing: 0.4,
                                 ),
                               ),
-                              const SizedBox(height: 2),
+                              SizedBox(height: 2),
                               Text(
                                 dateStr,
                                 style: theme.textTheme.labelSmall?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
+                                  color: context.themeColors.onSurfaceMuted,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              SizedBox(height: 4),
                               Text(
                                 match.opponentLabel,
                                 style: theme.textTheme.titleSmall?.copyWith(
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.onSurface,
+                                  color: context.themeColors.onSurface,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -161,7 +162,7 @@ class _CampaignRow extends StatelessWidget {
                           match.scoreDisplay,
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w900,
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                           ),
                         ),
                       ],
@@ -194,7 +195,7 @@ class _TimelineDot extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(color: AppColors.pending),
         ),
-        child: const Icon(
+        child: Icon(
           Icons.emoji_events_rounded,
           size: 12,
           color: AppColors.pending,

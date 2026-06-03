@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
 class AchievementsSummaryRow extends StatelessWidget {
@@ -28,21 +29,21 @@ class AchievementsSummaryRow extends StatelessWidget {
             theme: theme,
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: _SummaryCard(
             value: '$inProgress',
             label: 'EM PROGRESSO',
-            valueColor: AppColors.onSurface,
+            valueColor: context.themeColors.onSurface,
             theme: theme,
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: _SummaryCard(
             value: '$total',
             label: 'NO TOTAL',
-            valueColor: AppColors.onSurface,
+            valueColor: context.themeColors.onSurface,
             theme: theme,
           ),
         ),
@@ -69,10 +70,10 @@ class _SummaryCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised.withValues(alpha: 0.85),
+        color: context.themeColors.surfaceRaised.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
         ),
       ),
       child: Column(
@@ -86,12 +87,12 @@ class _SummaryCard extends StatelessWidget {
               height: 1,
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             label,
             textAlign: TextAlign.center,
             style: AppTypography.mono(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.8,
               fontSize: 9,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../arenas/domain/arena_list_item.dart';
 import '../../../../arenas/domain/arena_search_filter_logic.dart';
 import 'arena_search_highlight.dart';
@@ -39,13 +40,13 @@ class ArenaSearchFavoritesStrip extends StatelessWidget {
           trailingLabel: 'ver todas',
           onTrailingTap: onViewAll,
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         SizedBox(
           height: 120,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: items.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
+            separatorBuilder: (_, __) => SizedBox(width: 10),
             itemBuilder: (context, index) {
               final item = items[index];
               final arena = item.result.arena;
@@ -97,7 +98,7 @@ class _FavoriteMiniCard extends StatelessWidget {
     return SizedBox(
       width: 160,
       child: Material(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(14),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -152,15 +153,15 @@ class _FavoriteMiniCard extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.star_rounded,
                           size: 14,
                           color: AppColors.pending,
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(
                           ratingLabel,
                           style: theme.textTheme.labelSmall?.copyWith(
@@ -201,7 +202,7 @@ class _FavoriteButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(6),
           child: isPending
-              ? const SizedBox(
+              ? SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(
@@ -209,7 +210,7 @@ class _FavoriteButton extends StatelessWidget {
                     color: AppColors.white,
                   ),
                 )
-              : const Icon(
+              : Icon(
                   Icons.favorite,
                   color: Color(0xFFE53935),
                   size: 18,

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/athlete_active_sessions_providers.dart';
 import '../domain/athlete_privacy_preferences.dart';
@@ -47,14 +48,14 @@ class _AthletePrivacySecurityPageState
     final sessionsSubtitle = sessionsAsync.when(
       data: (s) => s.sessionsSubtitle,
       loading: () => 'Carregando...',
-      error: (_, _) => 'Sessões ativas',
+      error: (_, __) => 'Sessões ativas',
     );
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: _appBar(context, theme),
       body: switch (ui.status) {
-        AthletePrivacyPreferencesStatus.loading => const Center(
+        AthletePrivacyPreferencesStatus.loading => Center(
             child: CircularProgressIndicator(color: AppColors.brand),
           ),
         AthletePrivacyPreferencesStatus.error => Center(
@@ -64,7 +65,7 @@ class _AthletePrivacySecurityPageState
                 ui.errorMessage ?? 'Erro ao carregar preferências.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyLarge?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
             ),
@@ -77,13 +78,13 @@ class _AthletePrivacySecurityPageState
                   Text(
                     'VISIBILIDADE DO PERFIL',
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.8,
                       fontSize: 10,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   ...AthleteProfileVisibility.values.map(
                     (v) => PrivacyVisibilityOptionCard(
                       visibility: v,
@@ -93,7 +94,7 @@ class _AthletePrivacySecurityPageState
                           : () {},
                     ),
                   ),
-                  const SizedBox(height: AthleteSettingsTokens.sectionGap),
+                  SizedBox(height: AthleteSettingsTokens.sectionGap),
                   AthleteSettingsGroup(
                     sectionLabel: 'O QUE OUTROS VEEM',
                     children: [
@@ -127,7 +128,7 @@ class _AthletePrivacySecurityPageState
                       ),
                     ],
                   ),
-                  const SizedBox(height: AthleteSettingsTokens.sectionGap),
+                  SizedBox(height: AthleteSettingsTokens.sectionGap),
                   AthleteSettingsGroup(
                     sectionLabel: 'SEGURANÇA',
                     children: [
@@ -165,7 +166,7 @@ class _AthletePrivacySecurityPageState
                 ],
               ),
               if (ui.isSaving)
-                const Positioned(
+                Positioned(
                   top: 0,
                   left: 0,
                   right: 0,
@@ -202,7 +203,7 @@ class _AthletePrivacySecurityPageState
 
   PreferredSizeWidget _appBar(BuildContext context, ThemeData theme) {
     return AppBar(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
@@ -210,7 +211,7 @@ class _AthletePrivacySecurityPageState
         padding: const EdgeInsets.only(left: 12),
         child: Center(
           child: Material(
-            color: AppColors.surfaceRaised,
+            color: context.themeColors.surfaceRaised,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: () {
@@ -221,12 +222,12 @@ class _AthletePrivacySecurityPageState
                 }
               },
               borderRadius: BorderRadius.circular(12),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 40,
                 height: 40,
                 child: Icon(
                   Icons.chevron_left_rounded,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
             ),
@@ -237,7 +238,7 @@ class _AthletePrivacySecurityPageState
         'Privacidade e segurança',
         style: theme.textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w800,
-          color: AppColors.onSurface,
+          color: context.themeColors.onSurface,
           letterSpacing: -0.3,
         ),
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/arena_slot.dart';
 import '../../../domain/slots_page_logic.dart';
 
@@ -35,7 +36,7 @@ class SlotsSlotTile extends StatelessWidget {
       if (slot.isVirtual) 'grade fixa',
     ].whereType<String>().join(' · ');
 
-    Color borderColor = AppColors.surfaceRaised;
+    Color borderColor = context.themeColors.surfaceRaised;
     var borderWidth = 1.0;
     if (selected && !unavailable) {
       borderColor = AppColors.brand;
@@ -47,13 +48,13 @@ class SlotsSlotTile extends StatelessWidget {
     }
 
     final iconColor = unavailable
-        ? AppColors.onSurfaceMuted
+        ? context.themeColors.onSurfaceMuted
         : occupied
-            ? AppColors.onSurfaceMuted
+            ? context.themeColors.onSurfaceMuted
             : AppColors.win;
 
     Widget card = Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -71,7 +72,7 @@ class SlotsSlotTile extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceRaised,
+                  color: context.themeColors.surfaceRaised,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -80,7 +81,7 @@ class SlotsSlotTile extends StatelessWidget {
                   size: 22,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,17 +95,17 @@ class SlotsSlotTile extends StatelessWidget {
                           letterSpacing: 0.4,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                     ],
                     if (isMostPopular && !selected && !unavailable) ...[
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.local_fire_department_rounded,
                             size: 14,
                             color: AppColors.brand,
                           ),
-                          const SizedBox(width: 4),
+                          SizedBox(width: 4),
                           Text(
                             'MAIS POPULAR',
                             style: theme.textTheme.labelSmall?.copyWith(
@@ -115,7 +116,7 @@ class SlotsSlotTile extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                     ],
                     if (selected && !unavailable) ...[
                       Text(
@@ -126,35 +127,35 @@ class SlotsSlotTile extends StatelessWidget {
                           letterSpacing: 0.3,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                     ],
                     Text(
                       '${slot.startTime} - ${slot.endTime}',
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w900,
                         color: unavailable
-                            ? AppColors.onSurfaceMuted
-                            : AppColors.onSurface,
+                            ? context.themeColors.onSurfaceMuted
+                            : context.themeColors.onSurface,
                       ),
                     ),
                     if (detailLine.isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         detailLine,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                     if (subtitle != null && occupied) ...[
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                         ),
                       ),
                     ],
@@ -162,7 +163,7 @@ class SlotsSlotTile extends StatelessWidget {
                 ),
               ),
               if (selected && !unavailable)
-                const Icon(
+                Icon(
                   Icons.check_circle_rounded,
                   color: AppColors.brand,
                   size: 24,
@@ -172,7 +173,7 @@ class SlotsSlotTile extends StatelessWidget {
                   'OCUPADO',
                   style: theme.textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w900,
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     letterSpacing: 0.4,
                   ),
                 ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_schedule_models.dart';
 import '../../domain/arena_schedule_providers.dart';
 
@@ -20,12 +21,12 @@ class ArenaScheduleFilters extends ConsumerWidget {
         Text(
           'FILTRAR',
           style: theme.textTheme.labelSmall?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.8,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(
@@ -38,7 +39,7 @@ class ArenaScheduleFilters extends ConsumerWidget {
                     .read(arenaScheduleStatusFilterProvider.notifier)
                     .state = ArenaScheduleStatusFilter.all,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _FilterChip(
                 label: 'Disponível',
                 count: stats.available,
@@ -49,7 +50,7 @@ class ArenaScheduleFilters extends ConsumerWidget {
                     .read(arenaScheduleStatusFilterProvider.notifier)
                     .state = ArenaScheduleStatusFilter.available,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _FilterChip(
                 label: 'Reservado',
                 count: stats.booked,
@@ -60,12 +61,12 @@ class ArenaScheduleFilters extends ConsumerWidget {
                     .state = ArenaScheduleStatusFilter.booked,
               ),
               if (stats.blocked > 0) ...[
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 _FilterChip(
                   label: 'Bloqueado',
                   count: stats.blocked,
                   selected: statusFilter == ArenaScheduleStatusFilter.blocked,
-                  accent: AppColors.onSurfaceMuted,
+                  accent: context.themeColors.onSurfaceMuted,
                   onTap: () => ref
                       .read(arenaScheduleStatusFilterProvider.notifier)
                       .state = ArenaScheduleStatusFilter.blocked,
@@ -96,9 +97,9 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = selected ? AppColors.black : AppColors.onSurface;
+    final fg = selected ? AppColors.black : context.themeColors.onSurface;
     return Material(
-      color: selected ? AppColors.brand : AppColors.surfaceRaised,
+      color: selected ? AppColors.brand : context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,

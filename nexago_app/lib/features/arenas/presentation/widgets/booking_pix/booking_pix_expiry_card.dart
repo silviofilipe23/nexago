@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 /// Card de expiração com countdown MM:SS (protótipo pós-QR).
 class BookingPixExpiryCard extends StatefulWidget {
@@ -60,7 +61,7 @@ class _BookingPixExpiryCardState extends State<BookingPixExpiryCard> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: AppColors.brand.withValues(alpha: 0.45),
@@ -76,13 +77,13 @@ class _BookingPixExpiryCardState extends State<BookingPixExpiryCard> {
               color: AppColors.brand.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.schedule_rounded,
               color: AppColors.brand,
               size: 22,
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -90,11 +91,11 @@ class _BookingPixExpiryCardState extends State<BookingPixExpiryCard> {
                 Text(
                   'Pagamento expira em',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   countdown,
                   style: theme.textTheme.headlineSmall?.copyWith(
@@ -112,11 +113,11 @@ class _BookingPixExpiryCardState extends State<BookingPixExpiryCard> {
               Text(
                 amount,
                 style: theme.textTheme.labelMedium?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2),
               Text(
                 widget.statusLabel,
                 style: theme.textTheme.labelSmall?.copyWith(

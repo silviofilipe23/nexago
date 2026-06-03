@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/athlete_public_profile_models.dart';
 
@@ -24,10 +25,10 @@ class PublicProfileStatsRow extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           border: Border(
-            top: BorderSide(color: AppColors.surfaceRaised),
-            bottom: BorderSide(color: AppColors.surfaceRaised),
+            top: BorderSide(color: context.themeColors.surfaceRaised),
+            bottom: BorderSide(color: context.themeColors.surfaceRaised),
           ),
         ),
         child: Row(
@@ -53,7 +54,7 @@ class PublicProfileStatsRow extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     _PartnerAvatarStack(partners: mutualPartners.take(3).toList()),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Flexible(
                       child: Text(
                         '+${mutualPartners.length} jogam com você',
@@ -63,7 +64,7 @@ class PublicProfileStatsRow extends StatelessWidget {
                         style: AppTypography.soraRegular(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           height: 1.25,
                         ),
                       ),
@@ -86,7 +87,7 @@ class _Divider extends StatelessWidget {
       width: 1,
       height: 40,
       margin: const EdgeInsets.symmetric(horizontal: 8),
-      color: AppColors.surfaceRaised,
+      color: context.themeColors.surfaceRaised,
     );
   }
 }
@@ -106,17 +107,17 @@ class _StatColumn extends StatelessWidget {
           style: AppTypography.soraRegular(
             fontSize: 20,
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             height: 1,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           label,
           style: AppTypography.mono(
             fontSize: 10,
             fontWeight: FontWeight.w600,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             letterSpacing: 0.5,
           ),
         ),
@@ -151,15 +152,15 @@ class _PartnerAvatarStack extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppColors.surfaceRaised,
-                  border: Border.all(color: AppColors.canvas, width: 2),
+                  color: context.themeColors.surfaceRaised,
+                  border: Border.all(color: context.themeColors.canvas, width: 2),
                 ),
                 child: Text(
                   partners[i].initials,
                   style: AppTypography.soraRegular(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
               ),

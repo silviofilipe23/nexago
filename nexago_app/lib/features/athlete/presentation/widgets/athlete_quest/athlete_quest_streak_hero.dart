@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/athlete_quest/athlete_quest_logic.dart';
 import '../../../domain/athlete_quest/athlete_quest_models.dart';
 import '../../../domain/gamification_models.dart';
@@ -35,14 +36,14 @@ class AthleteQuestStreakHero extends StatelessWidget {
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: AppColors.surfaceCard,
+                color: context.themeColors.surfaceCard,
                 gradient: RadialGradient(
-                  center: const Alignment(0, -0.85),
+                  center: Alignment(0, -0.85),
                   radius: 1.15,
                   colors: [
                     AppColors.brand.withValues(alpha: 0.22),
                     AppColors.brand.withValues(alpha: 0.06),
-                    AppColors.surfaceCard,
+                    context.themeColors.surfaceCard,
                   ],
                   stops: const [0.0, 0.35, 0.7],
                 ),
@@ -64,7 +65,7 @@ class AthleteQuestStreakHero extends StatelessWidget {
                     fontSize: 11,
                   ),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.end,
@@ -73,13 +74,13 @@ class AthleteQuestStreakHero extends StatelessWidget {
                       '$streak',
                       style: theme.textTheme.displayLarge?.copyWith(
                         fontWeight: FontWeight.w900,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                         fontSize: 64,
                         height: 0.85,
                         letterSpacing: -3,
                       ),
                     ),
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.only(left: 2, bottom: 10),
                       child: Icon(
                         Icons.local_fire_department_rounded,
@@ -89,21 +90,21 @@ class AthleteQuestStreakHero extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   'dias seguidos',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 RichText(
                   textAlign: TextAlign.center,
                   text: TextSpan(
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       height: 1.45,
                       fontSize: 13,
                     ),
@@ -111,7 +112,7 @@ class AthleteQuestStreakHero extends StatelessWidget {
                       TextSpan(text: copy.lead),
                       TextSpan(
                         text: copy.highlightDays,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.brand,
                           fontWeight: FontWeight.w800,
                         ),
@@ -120,19 +121,19 @@ class AthleteQuestStreakHero extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 22),
+                SizedBox(height: 22),
                 AthleteQuestWeekDots(weekDays: weekDays),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(
                     onPressed: onReserveTap,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.bolt_rounded,
                       color: AppColors.black,
                       size: 20,
                     ),
-                    label: const Text(
+                    label: Text(
                       'Reservar agora · manter chama',
                       style: TextStyle(
                         fontWeight: FontWeight.w800,

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/profile_completion_providers.dart';
 
 /// Card de progresso do perfil no topo de Editar perfil.
@@ -43,20 +44,20 @@ class EditProfileCompletionBanner extends ConsumerWidget {
             child: Row(
               children: [
                 _ProgressRing(percent: percent),
-                const SizedBox(width: 14),
+                SizedBox(width: 14),
                 Expanded(
                   child: Text.rich(
                     TextSpan(
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                         height: 1.25,
                       ),
                       children: [
                         const TextSpan(text: 'Preencha tudo e ganhe '),
                         TextSpan(
                           text: '+$remainingXp XP',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.brand,
                             fontWeight: FontWeight.w800,
                           ),
@@ -67,7 +68,7 @@ class EditProfileCompletionBanner extends ConsumerWidget {
                 ),
                 Icon(
                   Icons.chevron_right_rounded,
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.7),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.7),
                 ),
               ],
             ),
@@ -102,10 +103,10 @@ class _ProgressRing extends StatelessWidget {
         child: Center(
           child: Text(
             '$percent%',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
         ),

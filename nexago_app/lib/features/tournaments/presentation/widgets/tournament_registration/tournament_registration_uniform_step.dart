@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/tournament_detail_model.dart';
@@ -41,7 +42,7 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
           categoryName: category.name,
           categoryBadge: categoryBadgeLabel(category),
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -51,12 +52,12 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
                 style: AppTypography.soraRegular(
                   fontSize: 32,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   height: 1.05,
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
@@ -78,23 +79,23 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Text(
           'Camisa oficial do torneio. Você troca tamanho/número até '
           '${kUniformChangeDeadlineDays} dias antes.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w500,
                 height: 1.4,
               ),
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         _JerseyPreviewCard(
           tournamentName: tournament.name,
           jerseyNumber: category.uniformNumberOnShirt ? number : null,
           sizeTop: sizeTop,
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: 24),
         Row(
           children: [
             Text(
@@ -102,11 +103,11 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
               style: AppTypography.mono(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 letterSpacing: 0.8,
               ),
             ),
-            const Spacer(),
+            Spacer(),
             TextButton(
               onPressed: () {
                 showAppSnackBar(
@@ -131,24 +132,24 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         _SizeChipRow(
           sizes: topSizes,
           selected: sizeTop,
           onSelected: (v) => onChanged(selection.copyWith(sizeTop: v)),
         ),
         if (categoryRequiresShorts(category)) ...[
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           Text(
             'SHORTS',
             style: AppTypography.mono(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               letterSpacing: 0.8,
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           _SizeChipRow(
             sizes: shortsSizes,
             selected: selection.sizeShorts ?? shortsSizes.first,
@@ -156,7 +157,7 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
           ),
         ],
         if (category.uniformNumberOnShirt) ...[
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           Row(
             children: [
               Text(
@@ -164,44 +165,44 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
                 style: AppTypography.mono(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   letterSpacing: 0.8,
                 ),
               ),
-              const Spacer(),
+              Spacer(),
               Text(
                 '1–99',
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           _JerseyNumberStepper(
             value: number,
             onChanged: (v) => onChanged(selection.copyWith(jerseyNumber: v)),
           ),
         ],
         if (category.uniformNameOnShirt) ...[
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           Text(
             'NOME NA CAMISA',
             style: AppTypography.mono(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               letterSpacing: 0.8,
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           TextFormField(
             initialValue: selection.jerseyName,
             onChanged: (v) => onChanged(selection.copyWith(jerseyName: v)),
             decoration: InputDecoration(
               hintText: 'Como aparece na camisa',
               filled: true,
-              fillColor: AppColors.surfaceCard,
+              fillColor: context.themeColors.surfaceCard,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
@@ -215,7 +216,7 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
                 ),
               ),
             ),
-            style: const TextStyle(color: AppColors.onSurface),
+            style: TextStyle(color: context.themeColors.onSurface),
           ),
         ],
       ],
@@ -252,12 +253,12 @@ class _TournamentUniformContextRow extends StatelessWidget {
                   letterSpacing: 0.5,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 categoryName,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
               ),
             ],
@@ -301,7 +302,7 @@ class _JerseyPreviewCard extends StatelessWidget {
     return Container(
       height: 200,
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -327,7 +328,7 @@ class _JerseyPreviewCard extends StatelessWidget {
                         style: AppTypography.mono(
                           fontSize: 9,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           letterSpacing: 0.3,
                         ),
                       ),
@@ -337,12 +338,12 @@ class _JerseyPreviewCard extends StatelessWidget {
                       style: AppTypography.mono(
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                       ),
                     ),
                   ],
                 ),
-                const Spacer(),
+                Spacer(),
                 if (jerseyNumber != null)
                   Center(
                     child: Text(
@@ -350,12 +351,12 @@ class _JerseyPreviewCard extends StatelessWidget {
                       style: AppTypography.soraRegular(
                         fontSize: 72,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurface.withValues(alpha: 0.95),
+                        color: context.themeColors.onSurface.withValues(alpha: 0.95),
                         height: 1,
                       ),
                     ),
                   ),
-                const Spacer(),
+                Spacer(),
                 Align(
                   alignment: Alignment.centerRight,
                   child: Row(
@@ -366,15 +367,15 @@ class _JerseyPreviewCard extends StatelessWidget {
                         style: AppTypography.mono(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                         ),
                       ),
-                      const SizedBox(width: 6),
+                      SizedBox(width: 6),
                       Container(
                         width: 36,
                         height: 36,
                         alignment: Alignment.center,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: AppColors.brand,
                           shape: BoxShape.circle,
                         ),
@@ -441,7 +442,7 @@ class _SizeChipRow extends StatelessWidget {
           Material(
             color: selected == size
                 ? AppColors.brand
-                : AppColors.surfaceCard,
+                : context.themeColors.surfaceCard,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: () => onSelected(size),
@@ -465,7 +466,7 @@ class _SizeChipRow extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                     color: selected == size
                         ? AppColors.black
-                        : AppColors.onSurface,
+                        : context.themeColors.onSurface,
                   ),
                 ),
               ),
@@ -490,7 +491,7 @@ class _JerseyNumberStepper extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
@@ -508,7 +509,7 @@ class _JerseyNumberStepper extends StatelessWidget {
               style: AppTypography.soraRegular(
                 fontSize: 40,
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
           ),
@@ -537,7 +538,7 @@ class _StepperButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: filled ? AppColors.brand : AppColors.surfaceRaised,
+      color: filled ? AppColors.brand : context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onPressed,
@@ -547,7 +548,7 @@ class _StepperButton extends StatelessWidget {
           height: 48,
           child: Icon(
             icon,
-            color: filled ? AppColors.black : AppColors.onSurfaceMuted,
+            color: filled ? AppColors.black : context.themeColors.onSurfaceMuted,
           ),
         ),
       ),

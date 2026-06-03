@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_booking_labels.dart';
@@ -44,7 +45,7 @@ class BookingSuccessPage extends ConsumerWidget {
         body: Center(
           child: TextButton(
             onPressed: () => context.go(AppRoutes.discover),
-            child: const Text('Voltar ao início'),
+            child: Text('Voltar ao início'),
           ),
         ),
       );
@@ -105,14 +106,14 @@ class BookingSuccessPage extends ConsumerWidget {
                 child: Column(
                   children: [
                     BookingSuccessHeader(paymentSubtitle: paymentSubtitle),
-                    const SizedBox(height: 24),
+                    SizedBox(height: 24),
                     BookingSuccessTicketCard(
                       dateCompact: ticketDate,
                       timeRange: ticketTime,
                       locationLabel: locationLabel,
                       qrPayload: bookingId,
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     BookingSuccessActionGrid(
                       onCalendar: () =>
                           _openCalendar(context, resolved, locationLabel),
@@ -126,7 +127,7 @@ class BookingSuccessPage extends ConsumerWidget {
                         addressLine: arena?.addressLine,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
                       height: 52,
@@ -139,7 +140,7 @@ class BookingSuccessPage extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(999),
                           ),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
@@ -155,7 +156,7 @@ class BookingSuccessPage extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     TextButton(
                       onPressed: () => context.go(AppRoutes.discover),
                       child: Text(

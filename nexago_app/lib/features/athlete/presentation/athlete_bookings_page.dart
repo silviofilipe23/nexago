@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_status_views.dart';
 import 'booking_details_page.dart';
 import '../../arenas/presentation/arena_booking_navigation.dart';
@@ -283,14 +284,14 @@ class _AgendaHeader extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Text(
             todaySummary,
             style: theme.textTheme.bodyLarge?.copyWith(
               color: AppColors.onSurfaceMuted,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             nextSummary,
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -465,7 +466,7 @@ class _TimelineBookingRow extends ConsumerWidget {
                           ),
                       ],
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       booking.court.trim().isNotEmpty
                           ? booking.court
@@ -474,11 +475,11 @@ class _TimelineBookingRow extends ConsumerWidget {
                         color: AppColors.onSurfaceMuted,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Row(
                       children: [
-                        const Icon(Icons.schedule_rounded, size: 16),
-                        const SizedBox(width: 6),
+                        Icon(Icons.schedule_rounded, size: 16),
+                        SizedBox(width: 6),
                         Expanded(
                           child: Text(
                             '$timeLabel - $endHour',
@@ -494,7 +495,7 @@ class _TimelineBookingRow extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Text(
                       '👥 ${booking.confirmedParticipants} confirmados',
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -503,7 +504,7 @@ class _TimelineBookingRow extends ConsumerWidget {
                       ),
                     ),
                     if (canCancel) ...[
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _ActionButton(
                         label: 'Cancelar',
                         icon: Icons.cancel_outlined,
@@ -622,7 +623,7 @@ class _EmptyAgendaState extends StatelessWidget {
                 size: 56,
                 color: AppColors.onSurfaceMuted.withValues(alpha: 0.55),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
               Text(
                 'Sua agenda ainda está vazia',
                 style: theme.textTheme.titleLarge?.copyWith(
@@ -630,7 +631,7 @@ class _EmptyAgendaState extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 'Que tal marcar seu próximo jogo?\nReserve agora e convide sua dupla.',
                 textAlign: TextAlign.center,
@@ -638,11 +639,11 @@ class _EmptyAgendaState extends StatelessWidget {
                   color: AppColors.onSurfaceMuted,
                 ),
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
               FilledButton.icon(
                 onPressed: onBookNow,
-                icon: const Icon(Icons.add_circle_outline),
-                label: const Text('Reservar agora'),
+                icon: Icon(Icons.add_circle_outline),
+                label: Text('Reservar agora'),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.brand,
                   foregroundColor: Colors.white,

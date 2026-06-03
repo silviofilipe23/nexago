@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
 class CompeteHubSectionHeader extends StatelessWidget {
@@ -25,10 +26,10 @@ class CompeteHubSectionHeader extends StatelessWidget {
           title,
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
-        const Spacer(),
+        Spacer(),
         if (onActionTap != null)
           TextButton(
             onPressed: onActionTap,
@@ -50,8 +51,8 @@ class CompeteHubSectionHeader extends StatelessWidget {
                     letterSpacing: 0.4,
                   ),
                 ),
-                const SizedBox(width: 2),
-                const Icon(
+                SizedBox(width: 2),
+                Icon(
                   Icons.chevron_right_rounded,
                   size: 16,
                   color: AppColors.brand,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_dashboard_period_metrics.dart';
 import 'arena_dashboard_tokens.dart';
 
@@ -55,7 +56,7 @@ class _KpiTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(),
+      decoration: ArenaDashboardTokens.cardDecoration(context),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
         child: Stack(
@@ -78,17 +79,17 @@ class _KpiTile extends StatelessWidget {
                   ),
                   child: Icon(item.icon, color: AppColors.brand, size: 20),
                 ),
-                const Spacer(),
+                Spacer(),
                 Text(
                   item.label.toUpperCase(),
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
                     height: 1.2,
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Text(
                   item.value,
                   maxLines: 2,
@@ -97,7 +98,7 @@ class _KpiTile extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.6,
                     height: 1.05,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
               ],
@@ -126,8 +127,8 @@ class _KpiBadgeChip extends StatelessWidget {
           AppColors.live,
         ),
       ArenaDashboardKpiBadgeTone.neutral => (
-          AppColors.surfaceRaised,
-          AppColors.onSurfaceMuted,
+          context.themeColors.surfaceRaised,
+          context.themeColors.onSurfaceMuted,
         ),
     };
 

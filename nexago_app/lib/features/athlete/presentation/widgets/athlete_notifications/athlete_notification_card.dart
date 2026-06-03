@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/athlete_inbox_notification.dart';
 import '../../../domain/athlete_notifications_logic.dart';
 
@@ -38,7 +39,7 @@ class AthleteNotificationCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(_cardRadius),
         child: InkWell(
           onTap: onTap,
@@ -47,7 +48,7 @@ class AthleteNotificationCard extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(_cardRadius),
               border: Border.all(
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.14),
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.14),
               ),
             ),
             child: IntrinsicHeight(
@@ -92,7 +93,7 @@ class AthleteNotificationCard extends StatelessWidget {
                                   size: 22,
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -107,29 +108,29 @@ class AthleteNotificationCard extends StatelessWidget {
                                             style: theme.textTheme.titleSmall
                                                 ?.copyWith(
                                               fontWeight: FontWeight.w800,
-                                              color: AppColors.onSurface,
+                                              color: context.themeColors.onSurface,
                                               height: 1.25,
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
+                                        SizedBox(width: 8),
                                         Text(
                                           timeLabel,
                                           style: AppTypography.mono(
                                             fontSize: 11,
-                                            color: AppColors.onSurfaceMuted,
+                                            color: context.themeColors.onSurfaceMuted,
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),
                                       ],
                                     ),
                                     if (notification.body.trim().isNotEmpty) ...[
-                                      const SizedBox(height: 4),
+                                      SizedBox(height: 4),
                                       Text(
                                         notification.body,
                                         style:
                                             theme.textTheme.bodySmall?.copyWith(
-                                          color: AppColors.onSurfaceMuted,
+                                          color: context.themeColors.onSurfaceMuted,
                                           fontWeight: FontWeight.w500,
                                           height: 1.35,
                                         ),
@@ -140,13 +141,13 @@ class AthleteNotificationCard extends StatelessWidget {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: 12),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               if (actions.isNotEmpty) ...[
                                 for (var i = 0; i < actions.length; i++) ...[
-                                  if (i > 0) const SizedBox(width: 8),
+                                  if (i > 0) SizedBox(width: 8),
                                   if (actions.length == 1)
                                     _ActionButton(
                                       action: actions[i],
@@ -169,7 +170,7 @@ class AthleteNotificationCard extends StatelessWidget {
                                     ),
                                 ],
                               ],
-                              const Spacer(),
+                              Spacer(),
                               _DismissButton(onPressed: onDismiss),
                             ],
                           ),
@@ -207,10 +208,10 @@ class _DismissButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       onPressed: onPressed,
-      icon: const Icon(
+      icon: Icon(
         Icons.close_rounded,
         size: 20,
-        color: AppColors.onSurfaceMuted,
+        color: context.themeColors.onSurfaceMuted,
       ),
       visualDensity: VisualDensity.compact,
       padding: EdgeInsets.zero,
@@ -248,7 +249,7 @@ class _ActionButton extends StatelessWidget {
         ),
         child: Text(
           action.label,
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
         ),
       );
     }
@@ -258,9 +259,9 @@ class _ActionButton extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         foregroundColor: action.isDestructive
             ? AppColors.live
-            : AppColors.onSurface,
+            : context.themeColors.onSurface,
         side: BorderSide(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         minimumSize: Size.zero,
@@ -269,7 +270,7 @@ class _ActionButton extends StatelessWidget {
       ),
       child: Text(
         action.label,
-        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
       ),
     );
   }

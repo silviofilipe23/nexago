@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/auth/auth_providers.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/athlete_discover_models.dart';
@@ -25,7 +26,7 @@ class AthleteDiscoverCard extends ConsumerWidget {
     final displayLevel = gamification.valueOrNull?.level;
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -47,7 +48,7 @@ class AthleteDiscoverCard extends ConsumerWidget {
                     imageUrl: entry.profile.avatarUrl,
                     displayLevel: displayLevel,
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -62,12 +63,12 @@ class AthleteDiscoverCard extends ConsumerWidget {
                                 style: AppTypography.soraRegular(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.onSurface,
+                                  color: context.themeColors.onSurface,
                                 ),
                               ),
                             ),
                             if (entry.displayCategory.isNotEmpty) ...[
-                              const SizedBox(width: 6),
+                              SizedBox(width: 6),
                               _CategoryBadge(label: entry.displayCategory),
                             ],
                           ],
@@ -77,28 +78,28 @@ class AthleteDiscoverCard extends ConsumerWidget {
                             entry.handle!,
                             style: AppTypography.mono(
                               fontSize: 11,
-                              color: AppColors.onSurfaceMuted,
+                              color: context.themeColors.onSurfaceMuted,
                             ),
                           ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         _RankRow(entry: entry),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   _FollowButton(entry: entry),
                 ],
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Text(
                 _metaLine(entry),
                 style: AppTypography.soraRegular(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
@@ -107,7 +108,7 @@ class AthleteDiscoverCard extends ConsumerWidget {
                       style: AppTypography.soraRegular(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
                   ),
@@ -116,15 +117,15 @@ class AthleteDiscoverCard extends ConsumerWidget {
                     style: AppTypography.mono(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               _DiscoverLevelBar(segments: entry.levelSegments),
               if (entry.profile.lookingForPartner) ...[
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -173,7 +174,7 @@ class _CategoryBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -203,7 +204,7 @@ class _RankRow extends StatelessWidget {
       style: AppTypography.mono(
         fontSize: 11,
         fontWeight: FontWeight.w600,
-        color: AppColors.onSurfaceMuted,
+        color: context.themeColors.onSurfaceMuted,
       ),
     );
   }
@@ -226,7 +227,7 @@ class _DiscoverLevelBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: i < segments
                     ? AppColors.brand
-                    : AppColors.surfaceRaised,
+                    : context.themeColors.surfaceRaised,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
@@ -290,17 +291,17 @@ class _FollowButtonState extends ConsumerState<_FollowButton> {
       child: OutlinedButton(
         onPressed: _loading ? null : _toggle,
         style: OutlinedButton.styleFrom(
-          foregroundColor: following ? AppColors.onSurfaceMuted : AppColors.brand,
+          foregroundColor: following ? context.themeColors.onSurfaceMuted : AppColors.brand,
           side: BorderSide(
             color: following
-                ? AppColors.onSurfaceMuted.withValues(alpha: 0.4)
+                ? context.themeColors.onSurfaceMuted.withValues(alpha: 0.4)
                 : AppColors.brand,
           ),
           padding: const EdgeInsets.symmetric(horizontal: 12),
           minimumSize: const Size(0, 36),
         ),
         child: _loading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 16,
                 height: 16,
                 child: CircularProgressIndicator(strokeWidth: 2),

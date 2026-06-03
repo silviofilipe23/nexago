@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../arenas/domain/arena_slot_block_reason.dart';
 import '../../domain/arena_schedule_models.dart';
 import '../../domain/arena_slot_detail_providers.dart';
@@ -40,7 +41,7 @@ class ArenaScheduleCourtTile extends ConsumerWidget {
         onLongPress: slot.isAvailable ? onLongPress : null,
         borderRadius: BorderRadius.circular(12),
         child: Ink(
-          decoration: ArenaDashboardTokens.cardDecoration(),
+          decoration: ArenaDashboardTokens.cardDecoration(context),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             child: Row(
@@ -56,7 +57,7 @@ class ArenaScheduleCourtTile extends ConsumerWidget {
                           color: AppColors.onSurface,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       subtitle.build(theme),
                     ],
                   ),
@@ -75,7 +76,7 @@ class ArenaScheduleCourtTile extends ConsumerWidget {
                           color: AppColors.brand.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: const Text(
+                        child: Text(
                           'PROMO',
                           style: TextStyle(
                             color: AppColors.brand,

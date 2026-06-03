@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/achievements/achievement_category.dart';
 import '../../domain/achievements/achievement_providers.dart';
 import '../../domain/gamification_providers.dart';
@@ -44,24 +45,24 @@ class _AthleteAchievementsPageState extends ConsumerState<AthleteAchievementsPag
     final state = ref.watch(achievementsScreenStateProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         elevation: 0,
         leading: IconButton(
           onPressed: () => context.pop(),
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.surfaceRaised.withValues(alpha: 0.9),
+              color: context.themeColors.surfaceRaised.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
               ),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.chevron_left_rounded,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
         ),
@@ -70,7 +71,7 @@ class _AthleteAchievementsPageState extends ConsumerState<AthleteAchievementsPag
           'Conquistas',
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
       ),
@@ -79,7 +80,7 @@ class _AthleteAchievementsPageState extends ConsumerState<AthleteAchievementsPag
               child: Text(
                 'Faça login para ver suas conquistas.',
                 style: theme.textTheme.bodyLarge?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
             )
@@ -91,13 +92,13 @@ class _AthleteAchievementsPageState extends ConsumerState<AthleteAchievementsPag
                   inProgress: state.inProgressCount,
                   total: state.totalCount,
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
                 for (final category in AchievementCategory.displayOrder) ...[
                   AchievementCategorySection(
                     category: category,
                     items: state.forCategory(category),
                   ),
-                  const SizedBox(height: 22),
+                  SizedBox(height: 22),
                 ],
               ],
             ),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_providers.dart';
@@ -27,7 +28,7 @@ class ArenaSchedulePage extends ConsumerWidget {
     final groupsAsync = ref.watch(arenaScheduleGroupedSlotsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: managedArena.when(
           data: (arenaId) {
@@ -54,21 +55,21 @@ class ArenaSchedulePage extends ConsumerWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Padding(
+                SizedBox(height: 16),
+                Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: ArenaDashboardTokens.horizontalPadding,
                   ),
                   child: ArenaScheduleDayStrip(),
                 ),
-                const SizedBox(height: 16),
-                const Padding(
+                SizedBox(height: 16),
+                Padding(
                   padding: EdgeInsets.symmetric(
                     horizontal: ArenaDashboardTokens.horizontalPadding,
                   ),
                   child: ArenaScheduleFilters(),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Expanded(
                   child: groupsAsync.when(
                     data: (groups) {

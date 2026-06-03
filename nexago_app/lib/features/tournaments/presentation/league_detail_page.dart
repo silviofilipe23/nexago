@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/tournament_discovery_providers.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
 import 'widgets/tournament_discovery_card.dart';
@@ -25,16 +26,16 @@ class _LeagueDetailPageState extends ConsumerState<LeagueDetailPage> {
     final tournamentsAsync = ref.watch(discoveryTournamentsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         title: leagueAsync.maybeWhen(
           data: (l) => Text(l?.name ?? 'Liga'),
-          orElse: () => const Text('Liga'),
+          orElse: () => Text('Liga'),
         ),
       ),
       body: leagueAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (e, _) => Center(
@@ -45,7 +46,7 @@ class _LeagueDetailPageState extends ConsumerState<LeagueDetailPage> {
         ),
         data: (league) {
           if (league == null) {
-            return const Center(child: Text('Liga não encontrada.'));
+            return Center(child: Text('Liga não encontrada.'));
           }
 
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -69,34 +70,34 @@ class _LeagueDetailPageState extends ConsumerState<LeagueDetailPage> {
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
               ],
               if (league.city != null)
                 Text(
                   league.city!,
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               for (final stage in league.stages) ...[
                 Text(
                   stage.name,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
                 if (stage.dateLabel != null) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     stage.dateLabel!,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                     ),
                   ),
                 ],
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 for (final tid in stage.tournamentIds) ...[
                   if (byId.containsKey(tid)) ...[
                     TournamentDiscoveryCard(
@@ -106,10 +107,10 @@ class _LeagueDetailPageState extends ConsumerState<LeagueDetailPage> {
                         pathParameters: {'tournamentId': tid},
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                   ],
                 ],
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
               ],
             ],
           );

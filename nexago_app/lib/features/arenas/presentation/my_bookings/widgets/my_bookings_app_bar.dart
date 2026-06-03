@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../arena_booking_navigation.dart';
 
 class MyBookingsAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -20,7 +21,7 @@ class MyBookingsAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AppBar(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
@@ -28,15 +29,15 @@ class MyBookingsAppBar extends StatelessWidget implements PreferredSizeWidget {
         padding: const EdgeInsets.only(left: 12),
         child: Center(
           child: Material(
-            color: AppColors.surfaceRaised,
+            color: context.themeColors.surfaceRaised,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: onBack,
               borderRadius: BorderRadius.circular(12),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 40,
                 height: 40,
-                child: Icon(Icons.chevron_left_rounded, color: AppColors.onSurface),
+                child: Icon(Icons.chevron_left_rounded, color: context.themeColors.onSurface),
               ),
             ),
           ),
@@ -46,7 +47,7 @@ class MyBookingsAppBar extends StatelessWidget implements PreferredSizeWidget {
         'Minhas reservas',
         style: theme.textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w800,
-          color: AppColors.onSurface,
+          color: context.themeColors.onSurface,
           letterSpacing: -0.3,
         ),
       ),
@@ -61,7 +62,7 @@ class MyBookingsAppBar extends StatelessWidget implements PreferredSizeWidget {
                 child: InkWell(
                   onTap: () => openDiscoverReservarTab(context),
                   customBorder: const CircleBorder(),
-                  child: const SizedBox(
+                  child: SizedBox(
                     width: 36,
                     height: 36,
                     child: Icon(

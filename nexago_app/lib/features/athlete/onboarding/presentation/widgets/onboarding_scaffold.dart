@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../auth/widgets/auth_form_widgets.dart';
 
 /// Layout comum do onboarding (glow, scroll, CTA fixo).
@@ -29,7 +30,7 @@ class OnboardingScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: Stack(
           children: [
@@ -74,7 +75,7 @@ class OnboardingScaffold extends StatelessWidget {
                                 : null,
                           ),
                           if (secondaryLabel != null && onSecondary != null) ...[
-                            const SizedBox(height: 12),
+                            SizedBox(height: 12),
                             TextButton(
                               onPressed: primaryLoading ? null : onSecondary,
                               child: Text(
@@ -83,7 +84,7 @@ class OnboardingScaffold extends StatelessWidget {
                                     .textTheme
                                     .titleSmall
                                     ?.copyWith(
-                                      color: AppColors.onSurfaceMuted,
+                                      color: context.themeColors.onSurfaceMuted,
                                       fontWeight: FontWeight.w600,
                                     ),
                               ),

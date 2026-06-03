@@ -8,6 +8,7 @@ import '../../core/auth/auth_providers.dart';
 import '../../core/auth/firebase_auth_error_mapper.dart';
 import '../../core/router/routes.dart';
 import '../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../core/ui/app_snackbar.dart';
 import '../../core/ui/fade_slide_in.dart';
 import 'widgets/auth_form_widgets.dart';
@@ -95,7 +96,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: Stack(
           children: [
@@ -123,30 +124,30 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               const AuthLogo(),
-                              const SizedBox(height: 12),
+                              SizedBox(height: 12),
                               const AuthKicker(label: 'RESET · ACESSO'),
-                              const SizedBox(height: 24),
+                              SizedBox(height: 24),
                               Text(
                                 'Recuperar\nsenha.',
                                 textAlign: TextAlign.center,
                                 style: theme.textTheme.headlineMedium?.copyWith(
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.onSurface,
+                                  color: context.themeColors.onSurface,
                                   letterSpacing: -0.5,
                                   height: 1.12,
                                 ),
                               ),
-                              const SizedBox(height: 10),
+                              SizedBox(height: 10),
                               Text(
                                 'Insere o e-mail da sua conta pra receber um '
                                 'link de recuperação.',
                                 textAlign: TextAlign.center,
                                 style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
+                                  color: context.themeColors.onSurfaceMuted,
                                   height: 1.45,
                                 ),
                               ),
-                              const SizedBox(height: 32),
+                              SizedBox(height: 32),
                               const AuthFieldLabel(
                                 label: 'E-MAIL DE RECUPERAÇÃO',
                               ),
@@ -165,10 +166,10 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                                   }
                                 },
                               ),
-                              const SizedBox(height: 14),
+                              SizedBox(height: 14),
                               const AuthResetInfoBanner(),
                               if (_sent) ...[
-                                const SizedBox(height: 14),
+                                SizedBox(height: 14),
                                 DecoratedBox(
                                   decoration: BoxDecoration(
                                     color: AppColors.win.withValues(alpha: 0.1),
@@ -184,12 +185,12 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                                     ),
                                     child: Row(
                                       children: [
-                                        const Icon(
+                                        Icon(
                                           Icons.check_circle_outline_rounded,
                                           size: 20,
                                           color: AppColors.win,
                                         ),
-                                        const SizedBox(width: 10),
+                                        SizedBox(width: 10),
                                         Expanded(
                                           child: Text(
                                             'E-mail enviado! Verifique sua caixa de entrada.',
@@ -235,7 +236,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                                   ),
                                 ),
                                 child: _submitting
-                                    ? const SizedBox(
+                                    ? SizedBox(
                                         width: 22,
                                         height: 22,
                                         child: CircularProgressIndicator(
@@ -254,17 +255,17 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                                       ),
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            SizedBox(height: 12),
                             SizedBox(
                               width: double.infinity,
                               height: 50,
                               child: OutlinedButton(
                                 onPressed: _submitting ? null : _goBack,
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.onSurface,
+                                  foregroundColor: context.themeColors.onSurface,
                                   backgroundColor: Colors.transparent,
                                   side: BorderSide(
-                                    color: AppColors.onSurfaceMuted
+                                    color: context.themeColors.onSurfaceMuted
                                         .withValues(alpha: 0.35),
                                   ),
                                   shape: RoundedRectangleBorder(
@@ -275,7 +276,7 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
                                   'Voltar para login',
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     fontWeight: FontWeight.w700,
-                                    color: AppColors.onSurface,
+                                    color: context.themeColors.onSurface,
                                   ),
                                 ),
                               ),

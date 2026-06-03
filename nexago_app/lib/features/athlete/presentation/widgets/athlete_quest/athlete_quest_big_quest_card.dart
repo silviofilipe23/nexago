@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/athlete_quest/athlete_quest_models.dart';
 import '../athlete_home/athlete_home_section_header.dart';
@@ -28,11 +29,11 @@ class AthleteQuestBigQuestCard extends StatelessWidget {
           trailingLabel: 'VER REGRAS',
           onTrailingTap: () => showAppSnackBar(context, 'Em breve.'),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.surfaceCard,
+            color: context.themeColors.surfaceCard,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.brand.withValues(alpha: 0.4)),
             boxShadow: [
@@ -66,7 +67,7 @@ class AthleteQuestBigQuestCard extends StatelessWidget {
                       size: 24,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,14 +76,14 @@ class AthleteQuestBigQuestCard extends StatelessWidget {
                           quest.title,
                           style: theme.textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w900,
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        SizedBox(height: 6),
                         RichText(
                           text: TextSpan(
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.onSurfaceMuted,
+                              color: context.themeColors.onSurfaceMuted,
                             ),
                             children: [
                               TextSpan(
@@ -92,7 +93,7 @@ class AthleteQuestBigQuestCard extends StatelessWidget {
                               TextSpan(
                                 text:
                                     '${quest.completedCount}/${quest.goalCount}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.brand,
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -106,12 +107,12 @@ class AthleteQuestBigQuestCard extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
               _SegmentedBar(
                 goalCount: quest.goalCount,
                 completedCount: quest.completedCount,
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Row(
                 children: List.generate(quest.goalCount, (index) {
                   final label = index < quest.segmentLabels.length
@@ -128,14 +129,14 @@ class AthleteQuestBigQuestCard extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: done
                             ? AppColors.brand
-                            : AppColors.onSurfaceMuted,
+                            : context.themeColors.onSurfaceMuted,
                         fontSize: 9,
                       ),
                     ),
                   );
                 }),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Row(
                 children: [
                   Icon(
@@ -143,12 +144,12 @@ class AthleteQuestBigQuestCard extends StatelessWidget {
                     size: 14,
                     color: AppColors.brand.withValues(alpha: 0.8),
                   ),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   Text(
                     quest.rewardBadgeTitle,
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                     ),
                   ),
                 ],
@@ -182,7 +183,7 @@ class _SegmentedBar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
                 border: done
                     ? null
-                    : Border.all(color: AppColors.surfaceRaised, width: 2),
+                    : Border.all(color: context.themeColors.surfaceRaised, width: 2),
               ),
             ),
           ),

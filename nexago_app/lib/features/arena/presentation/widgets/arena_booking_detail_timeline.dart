@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_bookings_grouping.dart';
 import '../../domain/arena_manager_booking.dart';
 import 'arena_dashboard_tokens.dart';
@@ -102,7 +103,7 @@ class ArenaBookingDetailTimeline extends StatelessWidget {
     final pendingIndex = events.indexWhere((e) => e.isPending);
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(),
+      decoration: ArenaDashboardTokens.cardDecoration(context),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -116,27 +117,27 @@ class ArenaBookingDetailTimeline extends StatelessWidget {
                     'Linha do tempo',
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                 ),
                 Text(
                   'STATUS',
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             _TimelineProgressStrip(
               eventCount: events.length,
               pendingIndex: pendingIndex,
               events: events,
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             for (var i = 0; i < events.length; i++)
               _TimelineRow(
                 event: events[i],
@@ -166,7 +167,7 @@ class _TimelineProgressStrip extends StatelessWidget {
     return Row(
       children: [
         for (var i = 0; i < eventCount; i++) ...[
-          if (i > 0) const SizedBox(width: 6),
+          if (i > 0) SizedBox(width: 6),
           Expanded(
             child: _ProgressSegment(
               state: _stateFor(i),
@@ -209,7 +210,7 @@ class _ProgressSegment extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         border: switch (state) {
           _SegmentState.upcoming => Border.all(
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
               width: 1.5,
             ),
           _SegmentState.pending => Border.all(
@@ -241,7 +242,7 @@ class _TimelineRow extends StatelessWidget {
         ? AppColors.pending
         : isDone
             ? AppColors.win
-            : AppColors.onSurfaceMuted;
+            : context.themeColors.onSurfaceMuted;
 
     return IntrinsicHeight(
       child: Row(
@@ -273,13 +274,13 @@ class _TimelineRow extends StatelessWidget {
                     child: Container(
                       width: 2,
                       margin: const EdgeInsets.symmetric(vertical: 4),
-                      color: AppColors.surfaceRaised,
+                      color: context.themeColors.surfaceRaised,
                     ),
                   ),
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Padding(
               padding: EdgeInsets.only(bottom: isLast ? 0 : 14),
@@ -292,15 +293,15 @@ class _TimelineRow extends StatelessWidget {
                           event.title,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w700,
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                           ),
                         ),
                         if (event.subtitle != '—') ...[
-                          const SizedBox(height: 2),
+                          SizedBox(height: 2),
                           Text(
                             event.subtitle,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.onSurfaceMuted,
+                              color: context.themeColors.onSurfaceMuted,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -344,13 +345,13 @@ class _PendingEventBody extends StatelessWidget {
                 color: AppColors.brand.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.schedule_rounded,
                 size: 20,
                 color: AppColors.brand,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -359,10 +360,10 @@ class _PendingEventBody extends StatelessWidget {
                     event.title,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     event.subtitle,
                     style: theme.textTheme.bodySmall?.copyWith(

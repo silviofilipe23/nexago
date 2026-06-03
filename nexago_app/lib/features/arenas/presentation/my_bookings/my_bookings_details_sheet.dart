@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/my_booking_item.dart';
 import 'my_bookings_status.dart';
@@ -36,8 +37,8 @@ class BookingDetailsSheet extends StatelessWidget {
       curve: Curves.easeOut,
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.surfaceSheet,
+        decoration: BoxDecoration(
+          color: context.themeColors.surfaceSheet,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: SafeArea(
@@ -52,37 +53,37 @@ class BookingDetailsSheet extends StatelessWidget {
                   item.arenaName,
                   style: theme.textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                     letterSpacing: -0.2,
                   ),
                 ),
                 if (item.courtName != null && item.courtName!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     item.courtName!,
                     style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                     ),
                   ),
                 ],
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 _MetaRow(icon: Icons.calendar_today_outlined, text: dateLabel),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _MetaRow(
                   icon: Icons.schedule_rounded,
                   text: '${item.startTime} – ${item.endTime}',
                   mono: true,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _MetaRow(
                   icon: Icons.account_balance_wallet_outlined,
                   text: item.paymentDisplay.label,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Row(
                   children: [
                     MyBookingStatusBadge(ui: status),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: BookingLiveStatus(
                         dateRaw: item.dateRaw,
@@ -92,33 +93,33 @@ class BookingDetailsSheet extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 18),
+                SizedBox(height: 18),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: onOpenMaps,
-                        icon: const Icon(Icons.navigation_rounded),
-                        label: const Text('Como chegar'),
+                        icon: Icon(Icons.navigation_rounded),
+                        label: Text('Como chegar'),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: FilledButton.icon(
                         onPressed: canPayNow ? onPayNow : null,
-                        icon: const Icon(Icons.payment_rounded),
-                        label: const Text('Pagar agora'),
+                        icon: Icon(Icons.payment_rounded),
+                        label: Text('Pagar agora'),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
                   child: TextButton.icon(
                     onPressed: canCancelBooking ? onCancelBooking : null,
-                    icon: const Icon(Icons.cancel_outlined),
-                    label: const Text('Cancelar reserva'),
+                    icon: Icon(Icons.cancel_outlined),
+                    label: Text('Cancelar reserva'),
                   ),
                 ),
               ],
@@ -148,18 +149,18 @@ class _MetaRow extends StatelessWidget {
         ? AppTypography.mono(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: AppColors.onSurface.withValues(alpha: 0.9),
+            color: context.themeColors.onSurface.withValues(alpha: 0.9),
           )
         : theme.textTheme.bodyMedium?.copyWith(
-            color: AppColors.onSurface.withValues(alpha: 0.88),
+            color: context.themeColors.onSurface.withValues(alpha: 0.88),
             height: 1.35,
             fontWeight: FontWeight.w500,
           );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: AppColors.onSurfaceMuted),
-        const SizedBox(width: 8),
+        Icon(icon, size: 18, color: context.themeColors.onSurfaceMuted),
+        SizedBox(width: 8),
         Expanded(child: Text(text, style: style)),
       ],
     );
@@ -230,8 +231,8 @@ class _BookingLiveStatusState extends State<BookingLiveStatus> {
       case _LiveBookingState.finished:
         return _LiveChip(
           text: 'Finalizado',
-          fg: AppColors.onSurfaceMuted,
-          bg: AppColors.surfaceRaised,
+          fg: context.themeColors.onSurfaceMuted,
+          bg: context.themeColors.surfaceRaised,
         );
       case _LiveBookingState.unknown:
         return const SizedBox.shrink();

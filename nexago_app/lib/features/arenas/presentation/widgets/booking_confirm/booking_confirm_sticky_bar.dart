@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class BookingConfirmStickyBar extends StatelessWidget {
   const BookingConfirmStickyBar({
@@ -26,7 +27,7 @@ class BookingConfirmStickyBar extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.canvas.withValues(alpha: 0.98),
+        color: context.themeColors.canvas.withValues(alpha: 0.98),
         border: Border(
           top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
@@ -47,12 +48,12 @@ class BookingConfirmStickyBar extends StatelessWidget {
                       Text(
                         metaLabel!,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     if (totalLabel != null && totalLabel!.isNotEmpty) ...[
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
                         totalLabel!,
                         style: theme.textTheme.headlineSmall?.copyWith(
@@ -66,7 +67,7 @@ class BookingConfirmStickyBar extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               SizedBox(
                 height: 48,
                 child: FilledButton(
@@ -74,14 +75,14 @@ class BookingConfirmStickyBar extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.brand,
                     foregroundColor: AppColors.black,
-                    disabledBackgroundColor: AppColors.surfaceRaised,
+                    disabledBackgroundColor: context.themeColors.surfaceRaised,
                     padding: const EdgeInsets.symmetric(horizontal: 18),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999),
                     ),
                   ),
                   child: submitting
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
@@ -94,13 +95,13 @@ class BookingConfirmStickyBar extends StatelessWidget {
                           children: [
                             Text(
                               ctaLabel,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w900,
                                 fontSize: 14,
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            const Icon(Icons.arrow_forward_rounded, size: 20),
+                            SizedBox(width: 6),
+                            Icon(Icons.arrow_forward_rounded, size: 20),
                           ],
                         ),
                 ),

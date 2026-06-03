@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
 import 'match_detail_share_capture.dart';
@@ -116,9 +117,9 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
             eyebrow: 'COMPARTILHAR',
             title: shareSectionTitle(widget.share.variant),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           Center(child: preview),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           Row(
             children: [
               Expanded(
@@ -130,7 +131,7 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
                   onTap: _exportAndShare,
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: _ShareActionButton(
                   label: 'Stories',
@@ -139,7 +140,7 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
                   onTap: _exportAndShare,
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: _ShareActionButton(
                   label: 'Salvar',
@@ -151,7 +152,7 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
             ],
           ),
           if (widget.presentation == MatchDetailSharePresentation.sheet)
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
         ],
       ),
     );
@@ -228,7 +229,7 @@ class _ShareActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: filled ? AppColors.brand : AppColors.surfaceCard,
+      color: filled ? AppColors.brand : context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: loading ? null : onTap,
@@ -239,7 +240,7 @@ class _ShareActionButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: filled
                 ? null
-                : Border.all(color: AppColors.surfaceRaised),
+                : Border.all(color: context.themeColors.surfaceRaised),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -250,22 +251,22 @@ class _ShareActionButton extends StatelessWidget {
                   height: 22,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: filled ? AppColors.black : AppColors.onSurface,
+                    color: filled ? AppColors.black : context.themeColors.onSurface,
                   ),
                 )
               else
                 Icon(
                   icon,
                   size: 22,
-                  color: filled ? AppColors.black : AppColors.onSurface,
+                  color: filled ? AppColors.black : context.themeColors.onSurface,
                 ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               Text(
                 label,
                 style: AppTypography.soraRegular(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
-                  color: filled ? AppColors.black : AppColors.onSurface,
+                  color: filled ? AppColors.black : context.themeColors.onSurface,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -295,7 +296,7 @@ void showMatchDetailShareSheet(
 ) {
   showModalBottomSheet<void>(
     context: context,
-    backgroundColor: AppColors.surfaceSheet,
+    backgroundColor: context.themeColors.surfaceSheet,
     isScrollControlled: true,
     useSafeArea: true,
     shape: const RoundedRectangleBorder(
@@ -312,7 +313,7 @@ void showMatchDetailShareSheet(
               height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),

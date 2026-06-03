@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../../core/router/app_router.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../../auth/widgets/auth_form_widgets.dart';
 import '../../../domain/athlete_profile_options.dart';
@@ -173,12 +174,12 @@ class _AthleteOnboardingProfileStepState
             title: 'Perfil básico',
             subtitle: 'Preenche o essencial pra liberar sua conta.',
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           _PhotoPickerCard(
             hasPhoto: draft.avatarBytes != null,
             onPick: _pickPhoto,
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           const AuthFieldLabel(label: 'NOME *'),
           AuthTextField(
             controller: _nameCtrl,
@@ -186,7 +187,7 @@ class _AthleteOnboardingProfileStepState
             textInputAction: TextInputAction.next,
             onChanged: notifier.setName,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           const AuthFieldLabel(label: 'APELIDO (OPCIONAL)'),
           AuthTextField(
             controller: _nicknameCtrl,
@@ -194,37 +195,37 @@ class _AthleteOnboardingProfileStepState
             textInputAction: TextInputAction.next,
             onChanged: notifier.setNickname,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           const AuthFieldLabel(label: 'WHATSAPP *'),
           AuthTextField(
             controller: _phoneCtrl,
             hintText: '(00) 00000-0000',
             keyboardType: TextInputType.phone,
             inputFormatters: [BrPhoneInputFormatter()],
-            prefixIcon: const Icon(
+            prefixIcon: Icon(
               Icons.chat_bubble_outline_rounded,
               size: 20,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
             ),
             onChanged: notifier.setPhoneDigits,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           const AuthFieldLabel(label: 'DATA DE NASCIMENTO *'),
           AuthTextField(
             controller: _birthCtrl,
             hintText: 'dd/mm/aaaa',
             keyboardType: TextInputType.number,
             inputFormatters: [BrDateInputFormatter()],
-            prefixIcon: const Icon(
+            prefixIcon: Icon(
               Icons.calendar_today_outlined,
               size: 20,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
             ),
             onChanged: notifier.setBirthDate,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           const AuthFieldLabel(label: 'GÊNERO *'),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Row(
             children: AthleteProfileOptions.genders.map((g) {
               final selected = draft.gender == g;
@@ -237,12 +238,12 @@ class _AthleteOnboardingProfileStepState
                     onPressed: () => notifier.setGender(g),
                     style: OutlinedButton.styleFrom(
                       foregroundColor:
-                          selected ? AppColors.brand : AppColors.onSurface,
+                          selected ? AppColors.brand : context.themeColors.onSurface,
                       backgroundColor: Colors.transparent,
                       side: BorderSide(
                         color: selected
                             ? AppColors.brand
-                            : AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                            : context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                       ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -285,10 +286,10 @@ class _PhotoPickerCard extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised.withValues(alpha: 0.65),
+        color: context.themeColors.surfaceRaised.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.25),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.25),
         ),
       ),
       child: Padding(
@@ -297,13 +298,13 @@ class _PhotoPickerCard extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 28,
-              backgroundColor: AppColors.surfaceRaised,
+              backgroundColor: context.themeColors.surfaceRaised,
               child: Icon(
                 hasPhoto ? Icons.check_rounded : Icons.person_outline_rounded,
-                color: hasPhoto ? AppColors.win : AppColors.onSurfaceMuted,
+                color: hasPhoto ? AppColors.win : context.themeColors.onSurfaceMuted,
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,7 +318,7 @@ class _PhotoPickerCard extends StatelessWidget {
                   Text(
                     'JPG ou PNG · até 2 MB',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                     ),
                   ),
                 ],
@@ -325,12 +326,12 @@ class _PhotoPickerCard extends StatelessWidget {
             ),
             OutlinedButton.icon(
               onPressed: onPick,
-              icon: const Icon(Icons.photo_camera_outlined, size: 18),
-              label: const Text('Escolher'),
+              icon: Icon(Icons.photo_camera_outlined, size: 18),
+              label: Text('Escolher'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.onSurface,
+                foregroundColor: context.themeColors.onSurface,
                 side: BorderSide(
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                 ),
               ),
             ),

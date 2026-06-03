@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 
 class AthleteHomeQuickAction {
@@ -27,7 +28,7 @@ class AthleteHomeQuickActions extends StatelessWidget {
     return Row(
       children: [
         for (var i = 0; i < actions.length; i++) ...[
-          if (i > 0) const SizedBox(width: 8),
+          if (i > 0) SizedBox(width: 8),
           Expanded(child: _ActionTile(action: actions[i])),
         ],
       ],
@@ -73,10 +74,10 @@ class _ActionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final highlight = action.highlighted;
-    final color = highlight ? AppColors.brand : AppColors.onSurface;
+    final color = highlight ? AppColors.brand : context.themeColors.onSurface;
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: action.onTap,
@@ -88,13 +89,13 @@ class _ActionTile extends StatelessWidget {
             border: Border.all(
               color: highlight
                   ? AppColors.brand.withValues(alpha: 0.55)
-                  : AppColors.surfaceRaised,
+                  : context.themeColors.surfaceRaised,
             ),
           ),
           child: Column(
             children: [
               Icon(action.icon, color: color, size: 22),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               Text(
                 action.label,
                 style: theme.textTheme.labelSmall?.copyWith(

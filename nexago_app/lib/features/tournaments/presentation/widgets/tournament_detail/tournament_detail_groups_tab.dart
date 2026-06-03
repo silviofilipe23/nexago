@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/tournament_detail_model.dart';
 import '../../../domain/tournament_matches_logic.dart';
@@ -70,7 +71,7 @@ class _TournamentDetailGroupsTabState
         athleteTeamIds.isNotEmpty || registrations.isNotEmpty;
 
     return cardsAsync.when(
-      loading: () => const Center(
+      loading: () => Center(
         child: CircularProgressIndicator(color: AppColors.brand),
       ),
       error: (e, _) => TournamentDetailMessageList(
@@ -110,7 +111,7 @@ class _TournamentDetailGroupsTabState
                 onChanged: (filter) => setState(() => _filter = filter),
               ),
             if (pool.isEmpty && _filter == TournamentMatchesFilter.mine)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
                 child: TournamentDetailMessageBody(
                   title: 'Nenhum jogo seu',
@@ -119,7 +120,7 @@ class _TournamentDetailGroupsTabState
                 ),
               )
             else if (pool.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
                 child: TournamentDetailMessageBody(
                   title: 'Grupos ainda não publicados',
@@ -139,7 +140,7 @@ class _TournamentDetailGroupsTabState
                           style: AppTypography.soraRegular(
                             fontSize: 17,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                           ),
                         ),
                       ),
@@ -149,10 +150,10 @@ class _TournamentDetailGroupsTabState
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceCard,
+                          color: context.themeColors.surfaceCard,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: AppColors.onSurfaceMuted
+                            color: context.themeColors.onSurfaceMuted
                                 .withValues(alpha: 0.15),
                           ),
                         ),
@@ -160,7 +161,7 @@ class _TournamentDetailGroupsTabState
                           '${group.matches.length} jogos',
                           style: AppTypography.mono(
                             fontSize: 10,
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                           ),
                         ),
                       ),

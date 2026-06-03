@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_slot_detail_providers.dart';
 import 'arena_dashboard_tokens.dart';
 
@@ -30,7 +31,7 @@ class ArenaBookingDetailActions extends StatelessWidget {
     final isBlocked = blockInfo?.isBlocked == true;
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(),
+      decoration: ArenaDashboardTokens.cardDecoration(context),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -40,20 +41,20 @@ class ArenaBookingDetailActions extends StatelessWidget {
               'Ações',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             _ActionRowTile(
               label: 'Falar com atleta',
               icon: Icons.chat_bubble_outline_rounded,
               iconColor: AppColors.win,
               onTap: onContact,
             ),
-            const SizedBox(height: _itemGap),
+            SizedBox(height: _itemGap),
             if (isBlocked) ...[
               _BlockedBanner(blockInfo: blockInfo!),
-              const SizedBox(height: _itemGap),
+              SizedBox(height: _itemGap),
               _ActionRowTile(
                 label: 'Desbloquear atleta',
                 icon: Icons.lock_open_rounded,
@@ -67,7 +68,7 @@ class ArenaBookingDetailActions extends StatelessWidget {
                 iconColor: AppColors.pending,
                 onTap: onBlock,
               ),
-            const SizedBox(height: _itemGap),
+            SizedBox(height: _itemGap),
             _CancelReservationButton(onTap: onCancel),
           ],
         ),
@@ -95,7 +96,7 @@ class _ActionRowTile extends StatelessWidget {
     final enabled = onTap != null;
 
     return Material(
-      color: AppColors.surfaceRaised,
+      color: context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -110,25 +111,25 @@ class _ActionRowTile extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceSheet,
+                    color: context.themeColors.surfaceSheet,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, color: iconColor, size: 22),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     label,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                 ),
                 Icon(
                   Icons.chevron_right_rounded,
                   size: 22,
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.85),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.85),
                 ),
               ],
             ),
@@ -164,12 +165,12 @@ class _BlockedBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
+          Icon(
             Icons.block_rounded,
             size: 20,
             color: ArenaBookingDetailActions._destructive,
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
@@ -197,7 +198,7 @@ class _CancelReservationButton extends StatelessWidget {
     final enabled = onTap != null;
     final color = enabled
         ? ArenaBookingDetailActions._destructive
-        : AppColors.onSurfaceMuted.withValues(alpha: 0.45);
+        : context.themeColors.onSurfaceMuted.withValues(alpha: 0.45);
 
     return Material(
       color: Colors.transparent,
@@ -219,7 +220,7 @@ class _CancelReservationButton extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.cancel_rounded, size: 20, color: color),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Text(
                   'Cancelar reserva',
                   style: theme.textTheme.bodyMedium?.copyWith(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_history_models.dart';
 
 class MatchHistoryTournamentStatsRow extends StatelessWidget {
@@ -19,10 +20,10 @@ class MatchHistoryTournamentStatsRow extends StatelessWidget {
           child: _StatMiniCard(
             label: 'TORNEIOS',
             value: '${counts.total}',
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
           child: _StatMiniCard(
             label: 'OUROS',
@@ -30,15 +31,15 @@ class MatchHistoryTournamentStatsRow extends StatelessWidget {
             color: AppColors.pending,
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
           child: _StatMiniCard(
             label: 'PRATA',
             value: '${counts.silver}',
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
           child: _StatMiniCard(
             label: 'BRONZE',
@@ -69,9 +70,9 @@ class _StatMiniCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Column(
         children: [
@@ -79,12 +80,12 @@ class _StatMiniCard extends StatelessWidget {
             label,
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               letterSpacing: 0.3,
               fontSize: 9,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             value,
             style: theme.textTheme.titleLarge?.copyWith(

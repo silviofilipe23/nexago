@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/location/br_locations_data.dart';
 import '../../../../core/location/br_locations_provider.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'edit_profile/edit_profile_field_decorations.dart';
 
 /// UF (dropdown) + cidade (campo com busca em lista IBGE).
@@ -70,7 +71,7 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
     final picked = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surfaceSheet,
+      backgroundColor: context.themeColors.surfaceSheet,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -124,6 +125,7 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
               initialValue: stateItem?.sigla,
               decoration: widget.useEditProfileStyle
                   ? editProfileInputDecoration(
+                      context: context,
                       label: 'ESTADO',
                       required: true,
                     )
@@ -158,6 +160,7 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
               onTap: () => _openCitySearch(data),
               decoration: widget.useEditProfileStyle
                   ? editProfileInputDecoration(
+                      context: context,
                       label: 'CIDADE',
                       required: true,
                       hintText:
@@ -166,13 +169,13 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
                         Icons.location_on_outlined,
                         size: 20,
                         color: uf == null
-                            ? AppColors.onSurfaceMuted.withValues(alpha: 0.4)
-                            : AppColors.onSurfaceMuted,
+                            ? context.themeColors.onSurfaceMuted.withValues(alpha: 0.4)
+                            : context.themeColors.onSurfaceMuted,
                       ),
                       suffixIcon: Icon(
                         Icons.search_rounded,
                         color: uf == null
-                            ? AppColors.onSurfaceMuted.withValues(alpha: 0.4)
+                            ? context.themeColors.onSurfaceMuted.withValues(alpha: 0.4)
                             : AppColors.brand,
                       ),
                     )
@@ -184,7 +187,7 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
                       suffixIcon: Icon(
                         Icons.search_rounded,
                         color: uf == null
-                            ? AppColors.onSurfaceMuted.withValues(alpha: 0.4)
+                            ? context.themeColors.onSurfaceMuted.withValues(alpha: 0.4)
                             : AppColors.brand,
                       ),
                     ),
@@ -265,7 +268,7 @@ class _CitySearchSheetState extends State<_CitySearchSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -297,7 +300,7 @@ class _CitySearchSheetState extends State<_CitySearchSheet> {
                     child: Text(
                       'Nenhuma cidade encontrada.',
                       style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                       ),
                     ),
                   )

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/athlete_active_sessions_providers.dart';
 
@@ -17,14 +18,14 @@ class AthleteActiveSessionsPage extends ConsumerWidget {
     final sessionsAsync = ref.watch(athleteActiveSessionsProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left_rounded),
+          icon: Icon(Icons.chevron_left_rounded),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -37,12 +38,12 @@ class AthleteActiveSessionsPage extends ConsumerWidget {
           'Sessões ativas',
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
       ),
       body: sessionsAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (e, _) => Center(
@@ -52,7 +53,7 @@ class AthleteActiveSessionsPage extends ConsumerWidget {
               'Erro ao carregar dispositivos.\n$e',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
           ),
@@ -66,7 +67,7 @@ class AthleteActiveSessionsPage extends ConsumerWidget {
                   'Nenhum dispositivo com notificações push registrado.',
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodyLarge?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
               ),
@@ -76,7 +77,7 @@ class AthleteActiveSessionsPage extends ConsumerWidget {
           return ListView.separated(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
             itemCount: state.tokens.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 10),
+            separatorBuilder: (_, __) => SizedBox(height: 10),
             itemBuilder: (context, index) {
               final token = state.tokens[index];
               final updated = token.updatedAt != null
@@ -84,7 +85,7 @@ class AthleteActiveSessionsPage extends ConsumerWidget {
                   : null;
 
               return Material(
-                color: AppColors.surfaceRaised,
+                color: context.themeColors.surfaceRaised,
                 borderRadius: BorderRadius.circular(14),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
@@ -97,16 +98,16 @@ class AthleteActiveSessionsPage extends ConsumerWidget {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceSheet,
+                          color: context.themeColors.surfaceSheet,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
                           _iconForPlatform(token.platform),
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                           size: 22,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,15 +118,15 @@ class AthleteActiveSessionsPage extends ConsumerWidget {
                                   : token.platformLabel,
                               style: theme.textTheme.bodyMedium?.copyWith(
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.onSurface,
+                                color: context.themeColors.onSurface,
                               ),
                             ),
                             if (updated != null) ...[
-                              const SizedBox(height: 3),
+                              SizedBox(height: 3),
                               Text(
                                 'Ativo em $updated',
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
+                                  color: context.themeColors.onSurfaceMuted,
                                 ),
                               ),
                             ],

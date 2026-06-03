@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../ranking/domain/ranking_display_helpers.dart';
 import '../../../domain/compete_hub_models.dart';
@@ -12,17 +13,26 @@ class CompeteHubRankingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
+    final isDark = context.themeColors.isDark;
+    final gradientColors = isDark
+        ? const [
             Color(0xFF2A1810),
             Color(0xFF120A08),
             Color(0xFF050505),
-          ],
+          ]
+        : const [
+            Color(0xFFFFF5ED),
+            Color(0xFFFAF8F4),
+            Color(0xFFF0EDE8),
+          ];
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: gradientColors,
         ),
         border: Border.all(
           color: AppColors.brand.withValues(alpha: 0.18),
@@ -54,11 +64,11 @@ class CompeteHubRankingCard extends StatelessWidget {
                     style: AppTypography.mono(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       letterSpacing: 0.6,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -67,18 +77,18 @@ class CompeteHubRankingCard extends StatelessWidget {
                         style: AppTypography.soraRegular(
                           fontSize: 44,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                           height: 1,
                           letterSpacing: -1.5,
                         ),
                       ),
-                      const Spacer(),
+                      Spacer(),
                       _MetricColumn(
                         value: formatRankingPoints(ranking.points),
                         label: 'PONTOS',
                         valueColor: AppColors.brand,
                       ),
-                      const SizedBox(width: 18),
+                      SizedBox(width: 18),
                       _MetricColumn(
                         value: '${ranking.tournamentsCount}',
                         label: 'TORNEIOS',
@@ -86,17 +96,17 @@ class CompeteHubRankingCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     ranking.subtitle,
                     style: AppTypography.soraRegular(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                     ),
                   ),
                   if (ranking.canPromote) ...[
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     Row(
                       children: [
                         Text(
@@ -104,11 +114,11 @@ class CompeteHubRankingCard extends StatelessWidget {
                           style: AppTypography.mono(
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             letterSpacing: 0.5,
                           ),
                         ),
-                        const Spacer(),
+                        Spacer(),
                         Text(
                           '${ranking.promotionPointsRemaining} pts',
                           style: AppTypography.mono(
@@ -119,13 +129,13 @@ class CompeteHubRankingCard extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(999),
                       child: LinearProgressIndicator(
                         value: ranking.promotionProgress.clamp(0, 1),
                         minHeight: 6,
-                        backgroundColor: AppColors.surfaceRaised,
+                        backgroundColor: context.themeColors.surfaceRaised,
                         color: AppColors.brand,
                       ),
                     ),
@@ -170,7 +180,7 @@ class _MetricColumn extends StatelessWidget {
           style: AppTypography.mono(
             fontSize: 9,
             fontWeight: FontWeight.w600,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             letterSpacing: 0.4,
           ),
         ),

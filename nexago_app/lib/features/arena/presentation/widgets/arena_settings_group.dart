@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'arena_dashboard_tokens.dart';
 
 enum ArenaSettingsIconVariant { orange, neutral }
@@ -26,16 +27,16 @@ class ArenaSettingsGroup extends StatelessWidget {
         Text(
           sectionLabel,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.8,
             fontSize: 10,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         DecoratedBox(
-          decoration: ArenaDashboardTokens.cardDecoration(
-            color: AppColors.surfaceRaised,
+          decoration: ArenaDashboardTokens.cardDecoration(context,
+            color: context.themeColors.surfaceRaised,
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(ArenaDashboardTokens.cardRadius),
@@ -79,7 +80,7 @@ class ArenaSettingsTile extends StatelessWidget {
     final theme = Theme.of(context);
     final iconColor = variant == ArenaSettingsIconVariant.orange
         ? AppColors.brand
-        : AppColors.onSurface;
+        : context.themeColors.onSurface;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -98,12 +99,12 @@ class ArenaSettingsTile extends StatelessWidget {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: AppColors.surfaceSheet,
+                          color: context.themeColors.surfaceSheet,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(icon, color: iconColor, size: 22),
                       ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -117,21 +118,21 @@ class ArenaSettingsTile extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.onSurface,
+                                  color: context.themeColors.onSurface,
                                 ),
                               ),
                             ),
                             if (trailingBadge != null) ...[
-                              const SizedBox(width: 8),
+                              SizedBox(width: 8),
                               trailingBadge!,
                             ],
                           ],
                         ),
-                        const SizedBox(height: 3),
+                        SizedBox(height: 3),
                         Text(
                           subtitle,
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             fontWeight: FontWeight.w500,
                             height: 1.35,
                           ),
@@ -142,7 +143,7 @@ class ArenaSettingsTile extends StatelessWidget {
                   Icon(
                     Icons.chevron_right_rounded,
                     size: 22,
-                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.85),
+                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.85),
                   ),
                 ],
               ),
@@ -154,7 +155,7 @@ class ArenaSettingsTile extends StatelessWidget {
             height: 1,
             indent: _dividerIndent,
             endIndent: 14,
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
           ),
       ],
     );
@@ -214,7 +215,7 @@ class ArenaSettingsArenaLogo extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
               ),
             ),
             clipBehavior: Clip.antiAlias,
@@ -240,7 +241,7 @@ class ArenaSettingsArenaLogo extends StatelessWidget {
                 color: AppColors.win,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: AppColors.surfaceRaised,
+                  color: context.themeColors.surfaceRaised,
                   width: 2,
                 ),
               ),
@@ -254,7 +255,7 @@ class ArenaSettingsArenaLogo extends StatelessWidget {
   Widget _fallback() {
     return ColoredBox(
       color: AppColors.brand.withValues(alpha: 0.18),
-      child: const Icon(
+      child: Icon(
         Icons.stadium_rounded,
         color: AppColors.brand,
         size: 22,
@@ -297,8 +298,8 @@ class _ArenaLogoSkeletonState extends State<_ArenaLogoSkeleton>
         final t = Curves.easeInOut.transform(_pulse.value);
         return ColoredBox(
           color: Color.lerp(
-            AppColors.surfaceSheet,
-            AppColors.onSurfaceMuted.withValues(alpha: 0.28),
+            context.themeColors.surfaceSheet,
+            context.themeColors.onSurfaceMuted.withValues(alpha: 0.28),
             t,
           )!,
         );

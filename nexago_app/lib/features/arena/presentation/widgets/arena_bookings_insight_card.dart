@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../domain/arena_bookings_grouping.dart';
 import 'arena_dashboard_tokens.dart';
@@ -30,13 +31,13 @@ class ArenaBookingsInsightCard extends StatelessWidget {
             Text(
               insight.message,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
                 height: 1.45,
                 fontWeight: FontWeight.w500,
               ),
             ),
             if (insight.showPromoCta) ...[
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               InkWell(
                 onTap: () {
                   showAppSnackBar(context, 'Criar promoção flash em breve.');

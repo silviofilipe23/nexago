@@ -4,6 +4,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_success_args.dart';
@@ -30,10 +31,10 @@ class TournamentDetailCategoriesCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
         ),
       ),
       child: Column(
@@ -43,28 +44,28 @@ class TournamentDetailCategoriesCard extends StatelessWidget {
             'CATEGORIAS',
             style: AppTypography.mono(
               fontSize: 11,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.8,
             ),
           ),
           if (offers.isEmpty) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text(
               'Categorias serão publicadas em breve pelo organizador.',
               style: AppTypography.soraRegular(
                 fontSize: 14,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ] else ...[
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             for (var i = 0; i < offers.length; i++) ...[
               if (i > 0)
                 Divider(
                   height: 20,
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
                 ),
               _CategoryRow(
                 offer: offers[i],
@@ -139,22 +140,22 @@ class _CategoryRow extends StatelessWidget {
                     style: AppTypography.soraRegular(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     tournamentCategorySubtitle(offer),
                     style: AppTypography.soraRegular(
                       fontSize: 13,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             if (isEnrolled)
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -213,7 +214,7 @@ class _CategoryRow extends StatelessWidget {
           ],
         ),
         if (isEnrolled && !offer.isCompleted) ...[
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(

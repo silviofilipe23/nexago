@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/slots_suggestion_models.dart';
 
 class SlotsSuggestionTile extends StatelessWidget {
@@ -23,9 +24,9 @@ class SlotsSuggestionTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Row(
         children: [
@@ -38,11 +39,11 @@ class SlotsSuggestionTile extends StatelessWidget {
             ),
             child: Icon(
               suggestion.icon,
-              color: isPrimary ? AppColors.white : AppColors.onSurface,
+              color: isPrimary ? AppColors.white : context.themeColors.onSurface,
               size: 22,
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -53,23 +54,23 @@ class SlotsSuggestionTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   suggestion.subtitle,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     height: 1.25,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           if (isPrimary)
             FilledButton(
               onPressed: onAction,
@@ -85,7 +86,7 @@ class SlotsSuggestionTile extends StatelessWidget {
               style: OutlinedButton.styleFrom(
                 minimumSize: const Size(56, 36),
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                side: BorderSide(color: AppColors.surfaceRaised),
+                side: BorderSide(color: context.themeColors.surfaceRaised),
               ),
               child: Text(suggestion.actionLabel),
             ),

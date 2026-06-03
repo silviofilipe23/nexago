@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_history_models.dart';
 
 class MatchHistoryMatchCard extends StatelessWidget {
@@ -28,7 +29,7 @@ class MatchHistoryMatchCard extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: compact ? 8 : 10),
       child: Material(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(radius),
         child: InkWell(
           onTap: onTap,
@@ -36,7 +37,7 @@ class MatchHistoryMatchCard extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(radius),
-              border: Border.all(color: AppColors.surfaceRaised),
+              border: Border.all(color: context.themeColors.surfaceRaised),
             ),
             child: IntrinsicHeight(
               child: Row(
@@ -75,7 +76,7 @@ class MatchHistoryMatchCard extends StatelessWidget {
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 10),
+                              SizedBox(width: 10),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,7 +86,7 @@ class MatchHistoryMatchCard extends StatelessWidget {
                                       style:
                                           theme.textTheme.titleSmall?.copyWith(
                                         fontWeight: FontWeight.w800,
-                                        color: AppColors.onSurface,
+                                        color: context.themeColors.onSurface,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -93,7 +94,7 @@ class MatchHistoryMatchCard extends StatelessWidget {
                                     Text(
                                       match.competitionLabel,
                                       style: theme.textTheme.bodySmall?.copyWith(
-                                        color: AppColors.onSurfaceMuted,
+                                        color: context.themeColors.onSurfaceMuted,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -108,13 +109,13 @@ class MatchHistoryMatchCard extends StatelessWidget {
                                     match.scoreDisplay,
                                     style: theme.textTheme.titleSmall?.copyWith(
                                       fontWeight: FontWeight.w900,
-                                      color: AppColors.onSurface,
+                                      color: context.themeColors.onSurface,
                                     ),
                                   ),
                                   Text(
                                     dateStr,
                                     style: theme.textTheme.labelSmall?.copyWith(
-                                      color: AppColors.onSurfaceMuted,
+                                      color: context.themeColors.onSurfaceMuted,
                                     ),
                                   ),
                                 ],
@@ -122,16 +123,16 @@ class MatchHistoryMatchCard extends StatelessWidget {
                             ],
                           ),
                           if (!compact && match.setsDisplay != null) ...[
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             Text(
                               match.setsDisplay!,
                               style: theme.textTheme.labelSmall?.copyWith(
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                               ),
                             ),
                           ],
                           if (match.isMvp) ...[
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             Row(
                               children: [
                                 Icon(
@@ -139,7 +140,7 @@ class MatchHistoryMatchCard extends StatelessWidget {
                                   size: compact ? 14 : 16,
                                   color: AppColors.pending,
                                 ),
-                                const SizedBox(width: 4),
+                                SizedBox(width: 4),
                                 Text(
                                   'MVP',
                                   style: theme.textTheme.labelSmall?.copyWith(

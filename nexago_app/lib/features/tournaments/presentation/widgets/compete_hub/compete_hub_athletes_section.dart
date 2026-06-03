@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/compete_hub_models.dart';
 import '../../../domain/compete_hub_providers.dart';
@@ -25,13 +26,13 @@ class CompeteHubAthletesSection extends ConsumerWidget {
           onActionTap: () =>
               context.pushNamed(AppRouteNames.athleteDiscover),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         SizedBox(
           height: 112,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: athletes.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            separatorBuilder: (_, __) => SizedBox(width: 14),
             itemBuilder: (context, index) {
               return _AthleteChip(athlete: athletes[index]);
             },
@@ -64,7 +65,7 @@ class _AthleteChip extends StatelessWidget {
                   color: athlete.avatarColor.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
                   ),
                 ),
                 child: Text(
@@ -87,7 +88,7 @@ class _AthleteChip extends StatelessWidget {
                       color: AppColors.win,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: AppColors.canvas,
+                        color: context.themeColors.canvas,
                         width: 2,
                       ),
                     ),
@@ -95,7 +96,7 @@ class _AthleteChip extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             athlete.name,
             maxLines: 1,
@@ -103,7 +104,7 @@ class _AthleteChip extends StatelessWidget {
             style: AppTypography.soraRegular(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
           Text(
@@ -111,7 +112,7 @@ class _AthleteChip extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 10,
               fontWeight: FontWeight.w500,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
             ),
           ),
         ],

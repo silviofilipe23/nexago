@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/layout/app_scaffold.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/success_page.dart';
 import '../domain/arena_schedule_providers.dart';
 import '../domain/review_reply_providers.dart';
@@ -34,7 +35,7 @@ class _ArenaReviewsManagementPageState
     return AppScaffold(
       title: 'Reputação',
       body: reviewsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -48,7 +49,7 @@ class _ArenaReviewsManagementPageState
         ),
         data: (reviews) {
           if (reviews.isEmpty) {
-            return const Center(
+            return Center(
               child: Text('Ainda não há avaliações registradas.'),
             );
           }
@@ -60,16 +61,16 @@ class _ArenaReviewsManagementPageState
             key: const PageStorageKey<String>('arena-reviews-management-scroll'),
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
             itemCount: visible.length + 1,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            separatorBuilder: (context, index) => SizedBox(height: 12),
             itemBuilder: (context, index) {
               if (index == visible.length) {
                 if (!hasMore) {
-                  return const Padding(
+                  return Padding(
                     padding: EdgeInsets.only(top: 6),
                     child: Center(
                       child: Text(
                         'Você chegou ao fim do histórico.',
-                        style: TextStyle(color: AppColors.onSurfaceMuted),
+                        style: TextStyle(color: context.themeColors.onSurfaceMuted),
                       ),
                     ),
                   );
@@ -81,7 +82,7 @@ class _ArenaReviewsManagementPageState
                         _visibleCount += _pageSize;
                       });
                     },
-                    child: const Text('Ver mais'),
+                    child: Text('Ver mais'),
                   ),
                 );
               }
@@ -114,7 +115,7 @@ class _ArenaReviewsManagementPageState
                             fontWeight: FontWeight.w800,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             review.athleteName ?? 'Atleta',
@@ -124,7 +125,7 @@ class _ArenaReviewsManagementPageState
                           ),
                         ),
                         if (isNegative)
-                          const Text(
+                          Text(
                             'Prioridade alta',
                             style: TextStyle(
                               color: Color(0xFFC62828),
@@ -134,11 +135,11 @@ class _ArenaReviewsManagementPageState
                       ],
                     ),
                     if ((review.comment ?? '').trim().isNotEmpty) ...[
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       Text(review.comment!),
                     ],
                     if (hasReply) ...[
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
@@ -149,7 +150,7 @@ class _ArenaReviewsManagementPageState
                         child: Text('🏟️ Resposta da arena\n${review.reply!.message}'),
                       ),
                     ],
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     Align(
                       alignment: Alignment.centerRight,
                       child: OutlinedButton(

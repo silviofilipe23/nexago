@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/match_history/athlete_tournament_detail_models.dart';
 import '../domain/match_history/athlete_tournament_detail_providers.dart';
@@ -26,10 +27,10 @@ class AthleteTournamentDetailPage extends ConsumerWidget {
       backgroundColor: AppColors.canvas,
       appBar: _appBar(context, theme, detailAsync.valueOrNull?.name),
       body: detailAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
-        error: (_, _) => _messageBody(
+        error: (_, __) => _messageBody(
           theme,
           'Não foi possível carregar o torneio.',
         ),
@@ -62,7 +63,7 @@ class AthleteTournamentDetailPage extends ConsumerWidget {
             child: InkWell(
               onTap: () => context.pop(),
               borderRadius: BorderRadius.circular(12),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 40,
                 height: 40,
                 child: Icon(
@@ -93,7 +94,7 @@ class AthleteTournamentDetailPage extends ConsumerWidget {
             child: InkWell(
               onTap: () => showAppSnackBar(context, 'Em breve.'),
               borderRadius: BorderRadius.circular(12),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 40,
                 height: 40,
                 child: Icon(
@@ -136,9 +137,9 @@ class _DetailBody extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
       children: [
         TournamentDetailSummaryCard(detail: detail),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         TournamentDetailInfoCards(detail: detail),
-        const SizedBox(height: 24),
+        SizedBox(height: 24),
         TournamentDetailCampaignSection(
           detail: detail,
           onMatchTap: (match) => _onMatchTap(context, match),

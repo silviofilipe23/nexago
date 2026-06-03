@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/athlete_public_profile_models.dart';
 
@@ -25,25 +26,25 @@ class PublicProfileSportsSection extends StatelessWidget {
                 style: AppTypography.soraRegular(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
-              const Spacer(),
+              Spacer(),
               Text(
                 'COMPETIR',
                 style: AppTypography.mono(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   letterSpacing: 0.5,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           for (final sport in sports) ...[
             _SportCard(entry: sport),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
           ],
         ],
       ),
@@ -63,9 +64,9 @@ class _SportCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Row(
         children: [
@@ -76,20 +77,20 @@ class _SportCard extends StatelessWidget {
               shape: BoxShape.circle,
               color: entry.isPrimary
                   ? AppColors.brand.withValues(alpha: 0.12)
-                  : AppColors.surfaceRaised,
+                  : context.themeColors.surfaceRaised,
               border: Border.all(
                 color: entry.isPrimary
                     ? AppColors.brand.withValues(alpha: 0.25)
-                    : AppColors.surfaceRaised,
+                    : context.themeColors.surfaceRaised,
               ),
             ),
             child: Icon(
               Icons.bolt_rounded,
               size: 22,
-              color: entry.isPrimary ? AppColors.brand : AppColors.onSurfaceMuted,
+              color: entry.isPrimary ? AppColors.brand : context.themeColors.onSurfaceMuted,
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -102,12 +103,12 @@ class _SportCard extends StatelessWidget {
                         style: AppTypography.soraRegular(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                         ),
                       ),
                     ),
                     if (entry.isPrimary) ...[
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -129,13 +130,13 @@ class _SportCard extends StatelessWidget {
                     ],
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
                       child: _LevelBar(segments: entry.levelSegments),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     SizedBox(
                       width: _levelLabelWidth,
                       child: Text(
@@ -146,7 +147,7 @@ class _SportCard extends StatelessWidget {
                         style: AppTypography.soraRegular(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                         ),
                       ),
                     ),
@@ -178,7 +179,7 @@ class _LevelBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: i < segments
                     ? AppColors.brand
-                    : AppColors.surfaceRaised,
+                    : context.themeColors.surfaceRaised,
                 borderRadius: BorderRadius.circular(999),
               ),
             ),

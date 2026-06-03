@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class ArenaDetailMetricsBar extends StatelessWidget {
   const ArenaDetailMetricsBar({
@@ -93,7 +94,7 @@ class _MetricColumn extends StatelessWidget {
             height: 1,
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         Text(
           label,
           textAlign: TextAlign.center,

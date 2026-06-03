@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../athlete/domain/athlete_profile.dart';
 import '../../../athlete/domain/athlete_profile_providers.dart';
 import '../../domain/arena_booking_labels.dart';
@@ -54,7 +55,7 @@ class ArenaBookingCard extends ConsumerWidget {
         },
         borderRadius: BorderRadius.circular(ArenaDashboardTokens.cardRadius),
         child: Ink(
-          decoration: ArenaDashboardTokens.cardDecoration(),
+          decoration: ArenaDashboardTokens.cardDecoration(context),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 14, 16, 14),
             child: IntrinsicHeight(
@@ -71,7 +72,7 @@ class ArenaBookingCard extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,7 +93,7 @@ class ArenaBookingCard extends ConsumerWidget {
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
+                                  SizedBox(width: 8),
                                   _StatusBadge(
                                     label: statusBadge,
                                     color: statusColor,
@@ -101,7 +102,7 @@ class ArenaBookingCard extends ConsumerWidget {
                               ),
                             ),
                             if (amountStr != null) ...[
-                              const SizedBox(width: 8),
+                              SizedBox(width: 8),
                               Text(
                                 amountStr,
                                 style: _monoStyle(
@@ -113,7 +114,7 @@ class ArenaBookingCard extends ConsumerWidget {
                             ],
                           ],
                         ),
-                        const SizedBox(height: 14),
+                        SizedBox(height: 14),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
@@ -122,14 +123,14 @@ class ArenaBookingCard extends ConsumerWidget {
                               profileAsync: profileAsync,
                               showSecond: participants >= 2,
                             ),
-                            const SizedBox(width: 12),
+                            SizedBox(width: 12),
                             Expanded(
                               child: nameAsync.when(
                                 data: (name) => Text(
                                   name,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 15,
                                     height: 1.25,
@@ -144,7 +145,7 @@ class ArenaBookingCard extends ConsumerWidget {
                                     fontSize: 14,
                                   ),
                                 ),
-                                error: (_, __) => const Text(
+                                error: (_, __) => Text(
                                   'Atleta',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w800,
@@ -156,7 +157,7 @@ class ArenaBookingCard extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
@@ -171,7 +172,7 @@ class ArenaBookingCard extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         _MetaChip(
                           icon: Icons.schedule_rounded,
                           label: attendanceLabel,
@@ -269,7 +270,7 @@ class _StatusBadge extends StatelessWidget {
               shape: BoxShape.circle,
             ),
           ),
-          const SizedBox(width: 5),
+          SizedBox(width: 5),
           Text(
             label,
             style: TextStyle(
@@ -458,7 +459,7 @@ class _MetaChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: fg),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(

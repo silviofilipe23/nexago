@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
@@ -75,7 +76,7 @@ class _TournamentDetailBracketTabState
     final isRegistered = athleteTeamIds.isNotEmpty || registrations.isNotEmpty;
 
     return cardsAsync.when(
-      loading: () => const Center(
+      loading: () => Center(
         child: CircularProgressIndicator(color: AppColors.brand),
       ),
       error: (e, _) => TournamentDetailMessageList(
@@ -117,7 +118,7 @@ class _TournamentDetailBracketTabState
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
                 child: Material(
-                  color: AppColors.surfaceCard,
+                  color: context.themeColors.surfaceCard,
                   borderRadius: BorderRadius.circular(12),
                   child: InkWell(
                     onTap: () => context.pushNamed(
@@ -140,20 +141,20 @@ class _TournamentDetailBracketTabState
                             color: AppColors.brand,
                             size: 20,
                           ),
-                          const SizedBox(width: 10),
+                          SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               'Ver chave interativa',
                               style: AppTypography.soraRegular(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.onSurface,
+                                color: context.themeColors.onSurface,
                               ),
                             ),
                           ),
                           Icon(
                             Icons.chevron_right_rounded,
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                           ),
                         ],
                       ),
@@ -167,7 +168,7 @@ class _TournamentDetailBracketTabState
                 onChanged: (filter) => setState(() => _filter = filter),
               ),
             if (bracket.isEmpty && _filter == TournamentMatchesFilter.mine)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
                 child: TournamentDetailMessageBody(
                   title: 'Nenhum jogo seu',
@@ -175,7 +176,7 @@ class _TournamentDetailBracketTabState
                 ),
               )
             else if (bracket.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
                 child: TournamentDetailMessageBody(
                   title: 'Chave ainda não publicada',
@@ -191,7 +192,7 @@ class _TournamentDetailBracketTabState
                     group.roundLabel.toUpperCase(),
                     style: AppTypography.mono(
                       fontSize: 11,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       letterSpacing: 0.8,
                     ),
                   ),

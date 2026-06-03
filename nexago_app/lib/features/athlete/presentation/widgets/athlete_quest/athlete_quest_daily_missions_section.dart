@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/athlete_quest/athlete_quest_logic.dart';
 import '../../../domain/daily_mission_catalog.dart';
 import '../../../domain/gamification_models.dart';
@@ -37,7 +38,7 @@ class AthleteQuestDailyMissionsSection extends StatelessWidget {
             trailingLabel: onViewAll != null ? 'VER TUDO' : null,
             onTrailingTap: onViewAll,
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
         ],
         if (list.isEmpty)
           ...DailyMissionCatalog.all.map(
@@ -104,9 +105,9 @@ class _MissionCard extends StatelessWidget {
     final child = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,7 +128,7 @@ class _MissionCard extends StatelessWidget {
               size: 22,
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,14 +137,14 @@ class _MissionCard extends StatelessWidget {
                   title,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: completed ? AppColors.win : AppColors.onSurface,
+                    color: completed ? AppColors.win : context.themeColors.onSurface,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
               ],

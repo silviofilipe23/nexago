@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/athlete_discover_logic.dart';
 import '../../../domain/athlete_discover_models.dart';
@@ -14,7 +15,7 @@ Future<AthleteDiscoverFilters?> showAthleteDiscoverFiltersSheet({
   return showModalBottomSheet<AthleteDiscoverFilters>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppColors.canvas,
+    backgroundColor: context.themeColors.canvas,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -117,12 +118,12 @@ class _AthleteDiscoverFiltersSheetState
         builder: (context, scrollController) {
           return Column(
             children: [
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Container(
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -134,13 +135,13 @@ class _AthleteDiscoverFiltersSheetState
                       'Filtros',
                       style: theme.textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
-                    const Spacer(),
+                    Spacer(),
                     TextButton(
                       onPressed: _clear,
-                      child: const Text(
+                      child: Text(
                         'Limpar',
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
@@ -171,7 +172,7 @@ class _AthleteDiscoverFiltersSheetState
                         });
                       },
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     const _SectionLabel(label: 'CATEGORIA'),
                     _ChipWrap(
                       options: _categoryOptions,
@@ -186,7 +187,7 @@ class _AthleteDiscoverFiltersSheetState
                         });
                       },
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     const _SectionLabel(label: 'GÊNERO'),
                     _ChipWrap(
                       options: const ['Todos', 'Masculino', 'Feminino'],
@@ -206,7 +207,7 @@ class _AthleteDiscoverFiltersSheetState
                         });
                       },
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     const _SectionLabel(label: 'OBJETIVO DO JOGO'),
                     _ChipWrap(
                       options: const [
@@ -237,11 +238,11 @@ class _AthleteDiscoverFiltersSheetState
                         });
                       },
                     ),
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     const _SectionLabel(label: 'DISTÂNCIA'),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Sem limite de distância'),
+                      title: Text('Sem limite de distância'),
                       value: _unlimitedDistance,
                       activeThumbColor: AppColors.brand,
                       onChanged: (v) => setState(() => _unlimitedDistance = v),
@@ -251,7 +252,7 @@ class _AthleteDiscoverFiltersSheetState
                         'Até ${_distanceKm.round()} km (v1: mesma cidade)',
                         style: AppTypography.mono(
                           fontSize: 11,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                         ),
                       ),
                       Slider(
@@ -263,11 +264,11 @@ class _AthleteDiscoverFiltersSheetState
                         onChanged: (v) => setState(() => _distanceKm = v),
                       ),
                     ],
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Disponíveis agora'),
-                      subtitle: const Text(
+                      title: Text('Disponíveis agora'),
+                      subtitle: Text(
                         'Requer lastActiveAt no perfil',
                         style: TextStyle(fontSize: 11),
                       ),
@@ -277,14 +278,14 @@ class _AthleteDiscoverFiltersSheetState
                     ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Procurando dupla'),
+                      title: Text('Procurando dupla'),
                       value: _lookingForPartner,
                       activeThumbColor: AppColors.brand,
                       onChanged: (v) => setState(() => _lookingForPartner = v),
                     ),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Perfil completo'),
+                      title: Text('Perfil completo'),
                       value: _completeProfile,
                       activeThumbColor: AppColors.brand,
                       onChanged: (v) => setState(() => _completeProfile = v),
@@ -294,9 +295,9 @@ class _AthleteDiscoverFiltersSheetState
               ),
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   border: Border(
-                    top: BorderSide(color: AppColors.surfaceRaised),
+                    top: BorderSide(color: context.themeColors.surfaceRaised),
                   ),
                 ),
                 child: FilledButton(
@@ -311,7 +312,7 @@ class _AthleteDiscoverFiltersSheetState
                   ),
                   child: Text(
                     'Ver $count atletas',
-                    style: const TextStyle(fontWeight: FontWeight.w900),
+                    style: TextStyle(fontWeight: FontWeight.w900),
                   ),
                 ),
               ),
@@ -337,7 +338,7 @@ class _SectionLabel extends StatelessWidget {
         style: AppTypography.mono(
           fontSize: 11,
           fontWeight: FontWeight.w700,
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
           letterSpacing: 0.8,
         ),
       ),
@@ -391,7 +392,7 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? Colors.transparent : AppColors.surfaceRaised,
+      color: selected ? Colors.transparent : context.themeColors.surfaceRaised,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
         side: BorderSide(
@@ -409,7 +410,7 @@ class _FilterChip extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 13,
-              color: selected ? AppColors.brand : AppColors.onSurface,
+              color: selected ? AppColors.brand : context.themeColors.onSurface,
             ),
           ),
         ),

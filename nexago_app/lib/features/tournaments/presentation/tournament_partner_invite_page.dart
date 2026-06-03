@@ -9,6 +9,7 @@ import '../../../core/router/routes.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
 import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../data/tournament_partner_invite_service.dart';
 import '../domain/tournament_detail_model.dart';
@@ -197,11 +198,11 @@ class _TournamentPartnerInvitePageState
     final inviteAsync = ref.watch(tournamentPartnerInviteProvider(widget.inviteId));
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
+          icon: Icon(Icons.arrow_back_rounded),
           onPressed: () {
             if (_wizardStep == _PartnerInviteWizardStep.uniform) {
               setState(() => _wizardStep = _PartnerInviteWizardStep.confirm);
@@ -217,7 +218,7 @@ class _TournamentPartnerInvitePageState
         ),
       ),
       body: inviteAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (_, __) => const _MessageBody(
@@ -260,7 +261,7 @@ class _TournamentPartnerInvitePageState
               ref.watch(tournamentDetailProvider(invite.tournamentId));
 
           return tournamentAsync.when(
-            loading: () => const Center(
+            loading: () => Center(
               child: CircularProgressIndicator(color: AppColors.brand),
             ),
             error: (_, __) => _buildWizard(
@@ -335,12 +336,12 @@ class _TournamentPartnerInvitePageState
                   minimumSize: const Size.fromHeight(52),
                 ),
                 child: _accepting
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 22,
                         width: 22,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text(
+                    : Text(
                         'Confirmar e formar dupla',
                         style: TextStyle(fontWeight: FontWeight.w800),
                       ),
@@ -398,10 +399,10 @@ class _MessageBody extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.onSurfaceMuted),
+              style: TextStyle(color: context.themeColors.onSurfaceMuted),
             ),
             if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
               FilledButton(onPressed: onAction, child: Text(actionLabel!)),
             ],
           ],
@@ -446,53 +447,53 @@ class _InviteContent extends StatelessWidget {
             tournamentName,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             'Categoria: ${invite.categoryId}',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           Text(
             '$inviterFirst convidou você para formar dupla neste torneio.',
             style: theme.textTheme.titleMedium?.copyWith(
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Text(
             'Confirme a dupla e escolha seu uniforme. Depois vocês poderão pagar cada um sua parcela.',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               height: 1.45,
             ),
           ),
-          const Spacer(),
+          Spacer(),
           FilledButton(
             onPressed: !canAccept || accepting || declining ? null : onContinue,
             child: accepting
-                ? const SizedBox(
+                ? SizedBox(
                     height: 22,
                     width: 22,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : Text(continueLabel),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           OutlinedButton(
             onPressed: accepting || declining ? null : onDecline,
             child: declining
-                ? const SizedBox(
+                ? SizedBox(
                     height: 22,
                     width: 22,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Recusar'),
+                : Text('Recusar'),
           ),
         ],
       ),

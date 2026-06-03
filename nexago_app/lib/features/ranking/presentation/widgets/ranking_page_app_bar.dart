@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../../../tournaments/presentation/widgets/compete_hub/compete_hub_shell_app_bar.dart';
 
@@ -34,11 +35,11 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
               controller: searchController,
               autofocus: true,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
               decoration: InputDecoration(
                 hintText: 'Buscar no ranking…',
-                hintStyle: TextStyle(color: AppColors.onSurfaceMuted),
+                hintStyle: TextStyle(color: context.themeColors.onSurfaceMuted),
                 border: InputBorder.none,
                 isDense: true,
               ),
@@ -49,7 +50,7 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
                 'Ranking',
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w900,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   letterSpacing: -0.5,
                 ),
               ),
@@ -59,12 +60,12 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
           icon: searchOpen ? Icons.close_rounded : Icons.search_rounded,
           onTap: onSearchToggle,
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         CompeteHubAppBarIconButton(
           icon: Icons.tune_rounded,
           onTap: onFilterTap,
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
       ],
       bottom: searchOpen
           ? null

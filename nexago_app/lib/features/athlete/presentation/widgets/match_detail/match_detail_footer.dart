@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 
 enum MatchDetailFooterKind { completed, live, scheduled, spectator }
@@ -78,7 +79,7 @@ class _CompletedFooter extends StatelessWidget {
           ],
         ),
         if (!hideTournament) ...[
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: _OutlineButton(
@@ -113,9 +114,9 @@ class _LiveFooter extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.notifications_none_rounded,
+                  Icon(Icons.notifications_none_rounded,
                       size: 18, color: AppColors.black),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
                     'Avisar no fim',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
@@ -185,7 +186,7 @@ class _FooterActionsRow extends StatelessWidget {
     return Row(
       children: [
         for (var i = 0; i < children.length; i++) ...[
-          if (i > 0) const SizedBox(width: 12),
+          if (i > 0) SizedBox(width: 12),
           Expanded(child: children[i]),
         ],
       ],
@@ -209,10 +210,10 @@ class _OutlineButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color = accent ?? AppColors.onSurface;
+    final color = accent ?? context.themeColors.onSurface;
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -223,7 +224,7 @@ class _OutlineButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: (accent ?? AppColors.onSurfaceMuted)
+              color: (accent ?? context.themeColors.onSurfaceMuted)
                   .withValues(alpha: accent != null ? 0.6 : 0.25),
             ),
           ),
@@ -231,7 +232,7 @@ class _OutlineButton extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(icon, size: 18, color: color),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Flexible(
                 child: Text(
                   label,

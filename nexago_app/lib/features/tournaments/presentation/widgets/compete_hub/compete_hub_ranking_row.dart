@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../../ranking/domain/ranking_display_helpers.dart';
 import '../../../domain/compete_hub_models.dart';
@@ -38,7 +39,7 @@ class CompeteHubRankingRow extends StatelessWidget {
                 fontWeight: FontWeight.w800,
                 color: entry.rank <= 3
                     ? AppColors.brand
-                    : AppColors.onSurfaceMuted,
+                    : context.themeColors.onSurfaceMuted,
               ),
             ),
           ),
@@ -58,13 +59,13 @@ class CompeteHubRankingRow extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Text(
               entry.name,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
           ),
@@ -77,14 +78,14 @@ class CompeteHubRankingRow extends StatelessWidget {
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
                   color:
-                      entry.rank == 1 ? AppColors.brand : AppColors.onSurface,
+                      entry.rank == 1 ? AppColors.brand : context.themeColors.onSurface,
                 ),
               ),
               if (entry.tournamentsCount > 0)
                 Text(
                   '${entry.tournamentsCount} etapas',
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w500,
                   ),
                 ),

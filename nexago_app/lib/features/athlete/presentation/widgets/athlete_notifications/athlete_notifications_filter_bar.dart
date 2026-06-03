@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class AthleteNotificationsFilterBar extends StatelessWidget {
   const AthleteNotificationsFilterBar({
@@ -24,7 +25,7 @@ class AthleteNotificationsFilterBar extends StatelessWidget {
           selected: !showUnreadOnly,
           onTap: () => onChanged(false),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         _FilterChip(
           label: 'Não lidas',
           selected: showUnreadOnly,
@@ -54,7 +55,7 @@ class _FilterChip extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: selected ? AppColors.brand : AppColors.surfaceRaised,
+      color: selected ? AppColors.brand : context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
@@ -68,11 +69,11 @@ class _FilterChip extends StatelessWidget {
                 label,
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: selected ? AppColors.black : AppColors.onSurface,
+                  color: selected ? AppColors.black : context.themeColors.onSurface,
                 ),
               ),
               if (badgeCount != null && badgeCount! > 0) ...[
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(

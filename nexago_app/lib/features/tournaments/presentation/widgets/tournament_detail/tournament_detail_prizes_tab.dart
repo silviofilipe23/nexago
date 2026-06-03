@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
@@ -85,7 +86,7 @@ class _PrizeTotalCard extends StatelessWidget {
                     letterSpacing: 0.8,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text(
                   eventTotalLabel,
                   style: AppTypography.soraRegular(
@@ -99,7 +100,7 @@ class _PrizeTotalCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -108,7 +109,7 @@ class _PrizeTotalCard extends StatelessWidget {
                 style: AppTypography.soraRegular(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
             ],
@@ -134,10 +135,10 @@ class _CategoryPrizesCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
         ),
       ),
       child: Column(
@@ -155,24 +156,24 @@ class _CategoryPrizesCard extends StatelessWidget {
                       style: AppTypography.soraRegular(
                         fontSize: 17,
                         fontWeight: FontWeight.w900,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
                     if (subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         subtitle,
                         style: AppTypography.soraRegular(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                         ),
                       ),
                     ],
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -180,12 +181,12 @@ class _CategoryPrizesCard extends StatelessWidget {
                     'TOTAL',
                     style: AppTypography.mono(
                       fontSize: 10,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.8,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     prizeRows.isEmpty ? '—' : formatMoney(totalValue),
                     style: AppTypography.soraRegular(
@@ -200,29 +201,29 @@ class _CategoryPrizesCard extends StatelessWidget {
             ],
           ),
           if (prizeRows.isEmpty) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text(
               'Premiação desta categoria será publicada em breve.',
               style: AppTypography.soraRegular(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
           ] else ...[
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Divider(
               height: 1,
               thickness: 1,
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             for (var i = 0; i < prizeRows.length; i++) ...[
               if (i > 0)
                 Divider(
                   height: 24,
                   thickness: 1,
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
                 ),
               _PrizeRow(
                 row: prizeRows[i],
@@ -244,13 +245,13 @@ class _PrizeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = _placeVisualStyle(placeOrder, row.highlight);
+    final style = _placeVisualStyle(context, placeOrder, row.highlight);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _PositionBadge(placeOrder: placeOrder, style: style),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Expanded(
           child: Text(
             row.positionLabel,
@@ -290,7 +291,12 @@ class _PlaceVisualStyle {
   final Color badgeTextColor;
 }
 
-_PlaceVisualStyle _placeVisualStyle(int placeOrder, bool highlight) {
+_PlaceVisualStyle _placeVisualStyle(
+  BuildContext context,
+  int placeOrder,
+  bool highlight,
+) {
+  final colors = context.themeColors;
   if (highlight || placeOrder == 1) {
     return _PlaceVisualStyle(
       labelColor: AppColors.brand,
@@ -302,19 +308,19 @@ _PlaceVisualStyle _placeVisualStyle(int placeOrder, bool highlight) {
   }
   if (placeOrder == 2) {
     return _PlaceVisualStyle(
-      labelColor: AppColors.onSurface,
-      amountColor: AppColors.onSurface,
-      badgeBackground: AppColors.surfaceCard,
-      badgeBorder: AppColors.onSurfaceMuted.withValues(alpha: 0.28),
-      badgeTextColor: AppColors.onSurfaceMuted,
+      labelColor: colors.onSurface,
+      amountColor: colors.onSurface,
+      badgeBackground: colors.surfaceCard,
+      badgeBorder: colors.onSurfaceMuted.withValues(alpha: 0.28),
+      badgeTextColor: colors.onSurfaceMuted,
     );
   }
   return _PlaceVisualStyle(
-    labelColor: AppColors.onSurfaceMuted.withValues(alpha: 0.75),
-    amountColor: AppColors.onSurfaceMuted.withValues(alpha: 0.65),
-    badgeBackground: AppColors.surfaceCard,
-    badgeBorder: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
-    badgeTextColor: AppColors.onSurfaceMuted.withValues(alpha: 0.55),
+    labelColor: colors.onSurfaceMuted.withValues(alpha: 0.75),
+    amountColor: colors.onSurfaceMuted.withValues(alpha: 0.65),
+    badgeBackground: colors.surfaceCard,
+    badgeBorder: colors.onSurfaceMuted.withValues(alpha: 0.15),
+    badgeTextColor: colors.onSurfaceMuted.withValues(alpha: 0.55),
   );
 }
 
@@ -362,7 +368,7 @@ class _EmptyCategoriesMessage extends StatelessWidget {
         style: AppTypography.soraRegular(
           fontSize: 14,
           fontWeight: FontWeight.w500,
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
         ),
       ),
     );

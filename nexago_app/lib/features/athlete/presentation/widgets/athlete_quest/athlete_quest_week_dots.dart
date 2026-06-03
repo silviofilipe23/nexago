@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/athlete_quest/athlete_quest_models.dart';
 
 class AthleteQuestWeekDots extends StatelessWidget {
@@ -28,7 +29,7 @@ class AthleteQuestWeekDots extends StatelessWidget {
           child: Column(
             children: [
               Center(child: _Dot(state: day.state, size: _dotSize)),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 day.weekdayLabel,
                 textAlign: TextAlign.center,
@@ -37,8 +38,8 @@ class AthleteQuestWeekDots extends StatelessWidget {
                   color: isToday
                       ? AppColors.brand
                       : isFuture
-                          ? AppColors.onSurfaceMuted.withValues(alpha: 0.45)
-                          : AppColors.onSurfaceMuted,
+                          ? context.themeColors.onSurfaceMuted.withValues(alpha: 0.45)
+                          : context.themeColors.onSurfaceMuted,
                   fontSize: 10,
                   letterSpacing: 0.2,
                 ),
@@ -64,11 +65,11 @@ class _Dot extends StatelessWidget {
         return Container(
           width: size,
           height: size,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.brand,
             shape: BoxShape.circle,
           ),
-          child: const Icon(
+          child: Icon(
             Icons.check_rounded,
             size: 18,
             color: AppColors.black,
@@ -99,7 +100,7 @@ class _Dot extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
               width: 2,
             ),
           ),
@@ -111,7 +112,7 @@ class _Dot extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(
-              color: AppColors.surfaceRaised,
+              color: context.themeColors.surfaceRaised,
               width: 2,
             ),
           ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/tournament_match_card_view_model.dart';
 import '../../domain/tournament_match_display.dart';
 
@@ -32,11 +33,11 @@ class TournamentMatchCard extends StatelessWidget {
         ? AppColors.brand.withValues(alpha: 0.55)
         : isAthleteMatch
             ? AppColors.brand.withValues(alpha: 0.85)
-            : AppColors.onSurfaceMuted.withValues(alpha: 0.12);
+            : context.themeColors.onSurfaceMuted.withValues(alpha: 0.12);
     final borderWidth = isAthleteMatch && !isLive ? 2.0 : 1.0;
     final backgroundColor = isAthleteMatch && !isLive
         ? AppColors.brand.withValues(alpha: 0.06)
-        : AppColors.surfaceRaised;
+        : context.themeColors.surfaceRaised;
 
     final content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -52,7 +53,7 @@ class TournamentMatchCard extends StatelessWidget {
                       style: AppTypography.mono(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                         letterSpacing: 0.3,
                       ),
                       maxLines: 1,
@@ -60,7 +61,7 @@ class TournamentMatchCard extends StatelessWidget {
                     ),
                   )
                 else
-                  const Spacer(),
+                  Spacer(),
                 if (timeLabel.isNotEmpty)
                   Text(
                     timeLabel,
@@ -69,13 +70,13 @@ class TournamentMatchCard extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       color: isLive
                           ? AppColors.brand
-                          : AppColors.onSurfaceMuted,
+                          : context.themeColors.onSurfaceMuted,
                       letterSpacing: 0.3,
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
           ],
           _TeamRow(
             team: viewModel.teamA,
@@ -87,7 +88,7 @@ class TournamentMatchCard extends StatelessWidget {
           Divider(
             height: 17,
             thickness: 1,
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
           ),
           _TeamRow(
             team: viewModel.teamB,
@@ -141,18 +142,18 @@ class _TeamRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textColor =
-        isWinner ? AppColors.onSurface : AppColors.onSurfaceMuted;
+        isWinner ? context.themeColors.onSurface : context.themeColors.onSurfaceMuted;
     final fontWeight = isWinner ? FontWeight.w700 : FontWeight.w400;
     final scoreLabel = hasScore ? '$setsWon' : '—';
     final partialsColor = isWinner
-        ? AppColors.onSurface.withValues(alpha: 0.72)
-        : AppColors.onSurfaceMuted.withValues(alpha: 0.85);
+        ? context.themeColors.onSurface.withValues(alpha: 0.72)
+        : context.themeColors.onSurfaceMuted.withValues(alpha: 0.85);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _AvatarStack(players: team.players),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,7 +170,7 @@ class _TeamRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               if (partialsLabel.isNotEmpty) ...[
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   partialsLabel,
                   style: AppTypography.mono(
@@ -185,7 +186,7 @@ class _TeamRow extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Text(
           scoreLabel,
           style: AppTypography.soraRegular(
@@ -225,7 +226,7 @@ class _AvatarStack extends StatelessWidget {
               child: _AvatarCircle(player: players[1]),
             ),
           if (players.isEmpty)
-            const Positioned(
+            Positioned(
               left: 0,
               child: _AvatarCircle(
                 player: TournamentMatchCardPlayerViewModel(
@@ -258,7 +259,7 @@ class _AvatarCircle extends StatelessWidget {
       decoration: BoxDecoration(
         color: hasPhoto ? null : player.avatarColor,
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.canvas, width: 2),
+        border: Border.all(color: context.themeColors.canvas, width: 2),
       ),
       child: ClipOval(
         child: hasPhoto

@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
@@ -36,9 +37,9 @@ class TournamentDetailPage extends ConsumerWidget {
     final leaguesAsync = ref.watch(discoveryLeaguesProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: tournamentAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (e, _) => _ErrorBody(
@@ -219,30 +220,30 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
               return [
                 SliverAppBar(
                   pinned: true,
-                  backgroundColor: AppColors.canvas,
+                  backgroundColor: context.themeColors.canvas,
                   elevation: 0,
                   scrolledUnderElevation: 0,
                   leading: IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.arrow_back_rounded,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                     onPressed: () => context.pop(),
                   ),
                   actions: [
                     IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.bookmark_border_rounded,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                       onPressed: () {
                         showAppSnackBar(context, 'Favoritos em breve.');
                       },
                     ),
                     IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.ios_share_rounded,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                       onPressed: () =>
                           _shareTournament(widget.tournament.name),
@@ -311,7 +312,7 @@ class _ErrorBody extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: IconButton(
               onPressed: onBack,
-              icon: const Icon(Icons.arrow_back_rounded),
+              icon: Icon(Icons.arrow_back_rounded),
             ),
           ),
           Expanded(

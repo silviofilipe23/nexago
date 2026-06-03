@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_dashboard_period.dart';
 import '../../domain/arena_dashboard_providers.dart';
 import 'arena_dashboard_tokens.dart';
@@ -15,7 +16,7 @@ class ArenaDashboardPeriodChips extends ConsumerWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(ArenaDashboardTokens.chipRadius),
       ),
       child: Padding(
@@ -67,7 +68,7 @@ class _PeriodChip extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 14,
-                color: selected ? AppColors.black : AppColors.onSurfaceMuted,
+                color: selected ? AppColors.black : context.themeColors.onSurfaceMuted,
               ),
             ),
           ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
 
@@ -26,17 +27,17 @@ class TournamentDetailAboutCard extends StatelessWidget {
             tournamentDetailAboutText(tournament),
             style: AppTypography.soraRegular(
               fontSize: 14,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
               fontWeight: FontWeight.w500,
               height: 1.55,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Divider(
             height: 1,
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Row(
             children: [
               Expanded(
@@ -45,7 +46,7 @@ class TournamentDetailAboutCard extends StatelessWidget {
                   value: organizerName,
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: 16),
               Expanded(
                 child: _DetailCell(
                   label: 'FORMATO',
@@ -54,7 +55,7 @@ class TournamentDetailAboutCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Row(
             children: [
               Expanded(
@@ -63,7 +64,7 @@ class TournamentDetailAboutCard extends StatelessWidget {
                   value: tournamentDetailLocationSummary(tournament),
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: 16),
               Expanded(
                 child: _DetailCell(
                   label: 'INSCRIÇÃO',
@@ -93,18 +94,18 @@ class _DetailCell extends StatelessWidget {
           label,
           style: AppTypography.mono(
             fontSize: 10,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w500,
             letterSpacing: 0.6,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           value,
           style: AppTypography.soraRegular(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             height: 1.25,
           ),
         ),
@@ -125,10 +126,10 @@ class _SectionCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
         ),
       ),
       child: Column(
@@ -138,12 +139,12 @@ class _SectionCard extends StatelessWidget {
             title,
             style: AppTypography.mono(
               fontSize: 11,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.8,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           child,
         ],
       ),

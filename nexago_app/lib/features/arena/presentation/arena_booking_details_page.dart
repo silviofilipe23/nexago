@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/arena_booking_canceled_args.dart';
@@ -42,7 +43,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
     final id = bookingId.trim();
     if (id.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Reserva')),
+        appBar: AppBar(title: Text('Reserva')),
         body: const ArenaErrorState(message: 'ID da reserva inválido.'),
       );
     }
@@ -52,7 +53,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
 
     if (liveAsync.hasError && initialBooking == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Reserva')),
+        appBar: AppBar(title: Text('Reserva')),
         body: ArenaErrorState(
             message: 'Erro ao carregar reserva.\n${liveAsync.error}'),
       );
@@ -64,12 +65,12 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
     if (merged == null && initialBooking == null) {
       if (liveAsync.isLoading) {
         return Scaffold(
-          appBar: AppBar(title: const Text('Reserva')),
+          appBar: AppBar(title: Text('Reserva')),
           body: const ArenaLoadingState(label: 'Carregando reserva...'),
         );
       }
       return Scaffold(
-        appBar: AppBar(title: const Text('Reserva')),
+        appBar: AppBar(title: Text('Reserva')),
         body: const ArenaEmptyState(
           title: 'Reserva não encontrada',
           message: 'Não foi possível carregar os dados desta reserva.',
@@ -82,7 +83,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
         (merged != null ? _bookingFromMerged(id, merged) : null);
     if (booking == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Reserva')),
+        appBar: AppBar(title: Text('Reserva')),
         body: const ArenaLoadingState(label: 'Carregando reserva...'),
       );
     }
@@ -137,12 +138,12 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
     final athleteName = nameAsync.valueOrNull ?? 'Atleta';
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.canvas,
-        title: const Text('Reserva'),
+        backgroundColor: context.themeColors.canvas,
+        title: Text('Reserva'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
+          icon: Icon(Icons.arrow_back_rounded),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -160,13 +161,13 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
             statusLabel: statusLabel,
             athleteName: athleteName,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           ArenaBookingDetailAthletes(
             arenaId: historyArenaId,
             primaryAthleteId: athleteId,
             participants: participants,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           ArenaBookingDetailPayment(
             bookingData: data,
             amountStr: amountStr,
@@ -174,15 +175,15 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
             endTime: resolvedBooking.endTime,
             amountReais: amount,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           ArenaBookingDetailTimeline(events: timelineEvents),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           ArenaBookingDetailCheckin(
             bookingId: id,
             athleteId: athleteId,
             bookingData: data,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           ArenaBookingDetailHistory(
             historyAsync: historyAsync,
             athleteId: athleteId,
@@ -193,7 +194,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
                 ? null
                 : () => _contactAthlete(context, ref, athleteId),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           ArenaBookingDetailActions(
             onContact: athleteId.isEmpty
                 ? null
@@ -405,18 +406,18 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
     final go = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Desbloquear atleta'),
-        content: const Text(
+        title: Text('Desbloquear atleta'),
+        content: Text(
           'Tem certeza que deseja desbloquear este atleta para novas reservas nesta arena?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Voltar'),
+            child: Text('Voltar'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Desbloquear'),
+            child: Text('Desbloquear'),
           ),
         ],
       ),
@@ -492,20 +493,20 @@ class _BlockAthleteReasonDialogState extends State<_BlockAthleteReasonDialog> {
   Widget build(BuildContext context) {
     final canConfirm = _controller.text.trim().isNotEmpty;
     return AlertDialog(
-      title: const Text('Bloquear atleta'),
+      title: Text('Bloquear atleta'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Este atleta não poderá criar novas reservas nesta arena.',
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           TextField(
             controller: _controller,
             minLines: 2,
             maxLines: 4,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Motivo do bloqueio',
               hintText: 'Ex.: cancelamentos recorrentes sem aviso.',
               border: OutlineInputBorder(),
@@ -517,13 +518,13 @@ class _BlockAthleteReasonDialogState extends State<_BlockAthleteReasonDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Voltar'),
+          child: Text('Voltar'),
         ),
         FilledButton(
           onPressed: canConfirm
               ? () => Navigator.pop(context, _controller.text.trim())
               : null,
-          child: const Text('Confirmar bloqueio'),
+          child: Text('Confirmar bloqueio'),
         ),
       ],
     );
@@ -546,7 +547,7 @@ class _AthleteUnblockResultPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
-      appBar: AppBar(title: const Text('Desbloqueio de atleta')),
+      appBar: AppBar(title: Text('Desbloqueio de atleta')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -564,7 +565,7 @@ class _AthleteUnblockResultPage extends StatelessWidget {
                     size: 64,
                     color: accent,
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Text(
                     success ? 'Atleta desbloqueado' : 'Falha ao desbloquear',
                     textAlign: TextAlign.center,
@@ -573,7 +574,7 @@ class _AthleteUnblockResultPage extends StatelessWidget {
                       letterSpacing: -0.2,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
@@ -587,7 +588,7 @@ class _AthleteUnblockResultPage extends StatelessWidget {
                       style: theme.textTheme.bodyLarge?.copyWith(height: 1.35),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
                   FilledButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: FilledButton.styleFrom(
@@ -597,7 +598,7 @@ class _AthleteUnblockResultPage extends StatelessWidget {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    child: const Text('Voltar para a reserva'),
+                    child: Text('Voltar para a reserva'),
                   ),
                 ],
               ),

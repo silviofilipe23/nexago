@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class MatchDetailInfoSection extends StatelessWidget {
   const MatchDetailInfoSection({super.key, required this.rows});
@@ -12,9 +13,9 @@ class MatchDetailInfoSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Column(
         children: [
@@ -24,7 +25,7 @@ class MatchDetailInfoSection extends StatelessWidget {
               Divider(
                 height: 1,
                 thickness: 1,
-                color: AppColors.surfaceRaised.withValues(alpha: 0.8),
+                color: context.themeColors.surfaceRaised.withValues(alpha: 0.8),
                 indent: 52,
               ),
           ],
@@ -55,8 +56,8 @@ class MatchDetailInfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: AppColors.onSurfaceMuted),
-          const SizedBox(width: 14),
+          Icon(icon, size: 20, color: context.themeColors.onSurfaceMuted),
+          SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -65,16 +66,16 @@ class MatchDetailInfoRow extends StatelessWidget {
                   label,
                   style: AppTypography.mono(
                     fontWeight: FontWeight.w600,
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     letterSpacing: 0.4,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   value,
                   style: AppTypography.soraRegular(
                     fontWeight: FontWeight.w500,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
               ],

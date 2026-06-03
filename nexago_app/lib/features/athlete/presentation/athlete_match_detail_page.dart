@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/match_history/athlete_match_detail_models.dart';
 import '../domain/match_history/athlete_match_detail_providers.dart';
@@ -40,7 +41,7 @@ class AthleteMatchDetailPage extends ConsumerWidget {
       backgroundColor: AppColors.canvas,
       appBar: _appBar(context, theme, detailAsync.valueOrNull),
       body: detailAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (error, stackTrace) => _messageBody(
@@ -79,7 +80,7 @@ class AthleteMatchDetailPage extends ConsumerWidget {
             child: InkWell(
               onTap: () => context.pop(),
               borderRadius: BorderRadius.circular(12),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 40,
                 height: 40,
                 child: Icon(
@@ -115,7 +116,7 @@ class AthleteMatchDetailPage extends ConsumerWidget {
                 }
               },
               borderRadius: BorderRadius.circular(12),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 40,
                 height: 40,
                 child: Icon(
@@ -163,7 +164,7 @@ class _DetailBody extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
           MatchDetailHeroCard(detail: detail),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           Text(
             'Esta partida foi cancelada.',
             textAlign: TextAlign.center,
@@ -179,9 +180,9 @@ class _DetailBody extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
       children: [
         MatchDetailHeroCard(detail: detail),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         ..._phaseSections(context),
-        const SizedBox(height: 24),
+        SizedBox(height: 24),
         MatchDetailFooter(
           kind: _footerKind,
           hideTournamentAction: hideTournamentAction,
@@ -223,28 +224,28 @@ class _DetailBody extends StatelessWidget {
     if (detail.isParticipantView && detail.xpInfo != null) {
       sections.addAll([
         MatchDetailXpCard(xp: detail.xpInfo!),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
       ]);
     }
 
     if (detail.momentumInfo != null) {
       sections.addAll([
         MatchDetailMomentumSection(momentum: detail.momentumInfo!),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
       ]);
     }
 
     if (detail.setTimelineItems.isNotEmpty) {
       sections.addAll([
         MatchDetailSetTimelineSection(items: detail.setTimelineItems),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
       ]);
     }
 
     if (detail.isParticipantView && detail.headToHead != null) {
       sections.addAll([
         MatchDetailHeadToHeadSection(info: detail.headToHead!),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
       ]);
     }
 
@@ -254,7 +255,7 @@ class _DetailBody extends StatelessWidget {
         showActions: false,
         onViewBracket: () => _onTournament(context),
       ),
-      const SizedBox(height: 20),
+      SizedBox(height: 20),
     ]);
 
     sections.addAll(_shareSectionWidgets());
@@ -265,17 +266,17 @@ class _DetailBody extends StatelessWidget {
   List<Widget> _liveSections(BuildContext context) {
     return [
       MatchDetailLiveScorePanel(detail: detail),
-      const SizedBox(height: 20),
+      SizedBox(height: 20),
       if (detail.momentumInfo != null) ...[
         MatchDetailMomentumSection(
           momentum: detail.momentumInfo!,
           isLive: true,
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
       ],
       if (detail.playByPlay.isNotEmpty) ...[
         MatchDetailPlayByPlaySection(items: detail.playByPlay),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
       ],
       ..._shareSectionWidgets(),
     ];
@@ -284,20 +285,20 @@ class _DetailBody extends StatelessWidget {
   List<Widget> _scheduledSections(BuildContext context) {
     final sections = <Widget>[
       MatchDetailCountdownCard(detail: detail),
-      const SizedBox(height: 16),
+      SizedBox(height: 16),
     ];
 
     if (detail.isParticipantView && detail.formRows.isNotEmpty) {
       sections.addAll([
         MatchDetailFormSection(rows: detail.formRows),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
       ]);
     }
 
     if (detail.isParticipantView && detail.headToHead != null) {
       sections.addAll([
         MatchDetailHeadToHeadSection(info: detail.headToHead!),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
       ]);
     }
 
@@ -317,7 +318,7 @@ class _DetailBody extends StatelessWidget {
     final share = detail.shareInfo;
     if (share == null) return const [];
     return [
-      const SizedBox(height: 20),
+      SizedBox(height: 20),
       MatchDetailShareSection(share: share),
     ];
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_registration_logic.dart';
 
 class TournamentRegistrationPriceSummary extends StatelessWidget {
@@ -24,18 +25,18 @@ class TournamentRegistrationPriceSummary extends StatelessWidget {
         Text(
           'RESUMO',
           style: AppTypography.mono(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w600,
             fontSize: 11,
             letterSpacing: 0.8,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            color: AppColors.surfaceRaised,
+            color: context.themeColors.surfaceRaised,
             border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
           ),
           child: Column(
@@ -45,17 +46,17 @@ class TournamentRegistrationPriceSummary extends StatelessWidget {
                 value: formatRegistrationMoney(quote.entryFee),
                 valueStyle: theme.textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               _PriceRow(
                 label: 'Taxa NexaGO',
                 value: formatRegistrationMoney(quote.platformFee),
                 hint: 'retida no pagamento',
                 valueStyle: theme.textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
               if (showTotal) ...[
@@ -63,7 +64,7 @@ class TournamentRegistrationPriceSummary extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Divider(
                     height: 1,
-                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
                   ),
                 ),
                 Row(
@@ -72,10 +73,10 @@ class TournamentRegistrationPriceSummary extends StatelessWidget {
                       'Total',
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
-                    const Spacer(),
+                    Spacer(),
                     Text(
                       formatRegistrationMoney(quote.displayTotal),
                       style: AppTypography.mono(
@@ -122,16 +123,16 @@ class _PriceRow extends StatelessWidget {
               Text(
                 label,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w500,
                 ),
               ),
               if (hint != null && hint!.isNotEmpty) ...[
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   hint!,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.75),
+                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.75),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -139,7 +140,7 @@ class _PriceRow extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Text(value, style: valueStyle),
       ],
     );

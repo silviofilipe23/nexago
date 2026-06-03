@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../auth/widgets/auth_form_widgets.dart';
 
 /// Tela 00 — Boas-vindas pós-cadastro.
@@ -14,7 +15,7 @@ class AthleteOnboardingWelcomePage extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: Stack(
           children: [
@@ -47,13 +48,13 @@ class AthleteOnboardingWelcomePage extends StatelessWidget {
                                         ),
                                       ],
                                     ),
-                                    child: const SizedBox(width: 1, height: 1),
+                                    child: SizedBox(width: 1, height: 1),
                                   ),
                                   const AuthLogo(size: 112, showTagline: false),
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 28),
+                            SizedBox(height: 28),
                             Text(
                               'CONTA CRIADA · VAMOS LÁ',
                               textAlign: TextAlign.center,
@@ -63,13 +64,13 @@ class AthleteOnboardingWelcomePage extends StatelessWidget {
                                 letterSpacing: 1.2,
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            SizedBox(height: 16),
                             Text.rich(
                               textAlign: TextAlign.center,
                               TextSpan(
                                 style: theme.textTheme.headlineMedium?.copyWith(
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.onSurface,
+                                  color: context.themeColors.onSurface,
                                   letterSpacing: -0.5,
                                   height: 1.12,
                                 ),
@@ -82,12 +83,12 @@ class AthleteOnboardingWelcomePage extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            SizedBox(height: 12),
                             Text(
                               'Personalize sua experiência esportiva em menos de 1 minuto.',
                               textAlign: TextAlign.center,
                               style: theme.textTheme.bodyMedium?.copyWith(
-                                color: AppColors.onSurfaceMuted,
+                                color: context.themeColors.onSurfaceMuted,
                                 height: 1.45,
                               ),
                             ),

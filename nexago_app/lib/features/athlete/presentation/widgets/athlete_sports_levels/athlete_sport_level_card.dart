@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/athlete_profile_options.dart';
 import '../../../domain/athlete_sports_levels_labels.dart';
@@ -31,10 +32,10 @@ class AthleteSportLevelCard extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
         ),
       ),
       child: Padding(
@@ -48,7 +49,7 @@ class AthleteSportLevelCard extends StatelessWidget {
                   icon: enrollment.icon,
                   isPrimary: enrollment.isPrimary,
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,12 +61,12 @@ class AthleteSportLevelCard extends StatelessWidget {
                               enrollment.label,
                               style: theme.textTheme.titleSmall?.copyWith(
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.onSurface,
+                                color: context.themeColors.onSurface,
                               ),
                             ),
                           ),
                           if (enrollment.isPrimary) ...[
-                            const SizedBox(width: 8),
+                            SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
@@ -80,7 +81,7 @@ class AthleteSportLevelCard extends StatelessWidget {
                                 style: AppTypography.mono(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.canvas,
+                                  color: context.themeColors.canvas,
                                   letterSpacing: 0.4,
                                 ),
                               ),
@@ -88,12 +89,12 @@ class AthleteSportLevelCard extends StatelessWidget {
                           ],
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         subtitle,
                         style: AppTypography.soraRegular(
                           fontWeight: FontWeight.w500,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontSize: 12,
                         ),
                       ),
@@ -103,39 +104,39 @@ class AthleteSportLevelCard extends StatelessWidget {
                 if (!enrollment.isPrimary)
                   IconButton(
                     onPressed: enabled ? onMakePrimary : null,
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.chevron_right_rounded,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                     ),
                     tooltip: 'Tornar principal',
                   ),
               ],
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Row(
               children: [
                 Text(
                   'NÍVEL',
                   style: AppTypography.mono(
                     fontWeight: FontWeight.w600,
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     letterSpacing: 0.6,
                     fontSize: 10,
                   ),
                 ),
-                const Spacer(),
+                Spacer(),
                 Text(
                   '5 níveis',
                   style: AppTypography.mono(
                     fontWeight: FontWeight.w600,
-                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.7),
+                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.7),
                     letterSpacing: 0.6,
                     fontSize: 10,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Row(
               children: [
                 for (
@@ -205,17 +206,17 @@ class _SportIcon extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         gradient: isPrimary
-            ? const LinearGradient(
+            ? LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [AppColors.brand, Color(0xFFE85D04)],
               )
             : null,
-        color: isPrimary ? null : AppColors.surfaceCard,
+        color: isPrimary ? null : context.themeColors.surfaceCard,
       ),
       child: Icon(
         icon,
-        color: isPrimary ? AppColors.canvas : AppColors.onSurfaceMuted,
+        color: isPrimary ? context.themeColors.canvas : context.themeColors.onSurfaceMuted,
         size: 24,
       ),
     );
@@ -238,7 +239,7 @@ class _LevelChip extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: selected ? AppColors.brand : AppColors.surfaceCard,
+      color: selected ? AppColors.brand : context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         onTap: onTap,
@@ -250,7 +251,7 @@ class _LevelChip extends StatelessWidget {
               label,
               style: AppTypography.mono(
                 fontWeight: FontWeight.w700,
-                color: selected ? AppColors.canvas : AppColors.onSurfaceMuted,
+                color: selected ? context.themeColors.canvas : context.themeColors.onSurfaceMuted,
                 fontSize: 11,
               ),
             ),

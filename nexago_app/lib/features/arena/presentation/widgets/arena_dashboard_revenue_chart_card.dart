@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_dashboard_period_metrics.dart';
 import '../arena_dashboard_formatters.dart';
 import 'arena_dashboard_revenue_chart.dart';
@@ -25,7 +26,7 @@ class ArenaDashboardRevenueChartCard extends StatelessWidget {
     final trend = metrics.chartTrendPercent;
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(),
+      decoration: ArenaDashboardTokens.cardDecoration(context),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
         child: Column(
@@ -42,14 +43,14 @@ class ArenaDashboardRevenueChartCard extends StatelessWidget {
                         'Faturamento',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         'ÚLTIMOS 7 DIAS',
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.6,
                         ),
@@ -61,24 +62,24 @@ class ArenaDashboardRevenueChartCard extends StatelessWidget {
                   _TrendBadge(percent: trend),
               ],
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               formatDashboardCurrency(metrics.chartTotal7Days),
               style: theme.textTheme.headlineLarge?.copyWith(
                 fontWeight: FontWeight.w800,
                 letterSpacing: -1,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               'soma 7d',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             ArenaDashboardRevenueChart(values: values, labels: labels),
           ],
         ),

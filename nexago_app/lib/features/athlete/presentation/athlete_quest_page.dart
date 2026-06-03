@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/athlete_quest/athlete_quest_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/gamification_providers.dart';
@@ -25,16 +26,16 @@ class AthleteQuestPage extends ConsumerWidget {
     final questUi = ref.watch(athleteQuestUiProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: _appBar(context, theme),
       body: summaryAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
-        error: (_, _) => const _ErrorState(),
+        error: (_, __) => const _ErrorState(),
         data: (summary) {
           if (questUi == null) {
-            return const Center(
+            return Center(
               child: CircularProgressIndicator(color: AppColors.brand),
             );
           }
@@ -51,17 +52,17 @@ class AthleteQuestPage extends ConsumerWidget {
                   context.pop();
                 },
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               AthleteQuestLevelCard(summary: summary),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
               AthleteQuestDailyMissionsSection(
                 missions: questUi.missions,
                 onMissionTap: (mission) =>
                     navigateForDailyMission(context, ref, mission),
               ),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
               // AthleteQuestBigQuestCard(quest: questUi.bigQuest),
-              // const SizedBox(height: 24),
+              // SizedBox(height: 24),
               // AthleteQuestLeagueSection(entries: questUi.leagueEntries),
             ],
           );
@@ -72,7 +73,7 @@ class AthleteQuestPage extends ConsumerWidget {
 
   PreferredSizeWidget _appBar(BuildContext context, ThemeData theme) {
     return AppBar(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
@@ -80,7 +81,7 @@ class AthleteQuestPage extends ConsumerWidget {
         padding: const EdgeInsets.only(left: 12),
         child: Center(
           child: Material(
-            color: AppColors.surfaceRaised,
+            color: context.themeColors.surfaceRaised,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: () {
@@ -91,12 +92,12 @@ class AthleteQuestPage extends ConsumerWidget {
                 }
               },
               borderRadius: BorderRadius.circular(12),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 40,
                 height: 40,
                 child: Icon(
                   Icons.chevron_left_rounded,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
             ),
@@ -107,7 +108,7 @@ class AthleteQuestPage extends ConsumerWidget {
         'Desafios',
         style: theme.textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w800,
-          color: AppColors.onSurface,
+          color: context.themeColors.onSurface,
           letterSpacing: -0.3,
         ),
       ),
@@ -128,7 +129,7 @@ class _ErrorState extends StatelessWidget {
           'Não foi possível carregar sua evolução.',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyLarge?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
           ),
         ),
       ),

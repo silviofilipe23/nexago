@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/ranking_list_models.dart';
 
@@ -25,17 +26,17 @@ class RankingClassificationHeader extends StatelessWidget {
           style: AppTypography.soraRegular(
             fontSize: 18,
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             letterSpacing: -0.3,
           ),
         ),
-        const Spacer(),
+        Spacer(),
         Text(
           '$count $unit',
           style: AppTypography.mono(
             fontSize: 10,
             fontWeight: FontWeight.w600,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             letterSpacing: 0.5,
           ),
         ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/athlete_onboarding_options.dart';
 
 class OnboardingSportTile extends StatefulWidget {
@@ -38,7 +39,7 @@ class _OnboardingSportTileState extends State<OnboardingSportTile> {
     final theme = Theme.of(context);
     final opacity = widget.option.dimmed ? 0.55 : 1.0;
     final unselectedBorder =
-        AppColors.onSurfaceMuted.withValues(alpha: 0.2);
+        context.themeColors.onSurfaceMuted.withValues(alpha: 0.2);
 
     return Opacity(
       opacity: opacity,
@@ -58,7 +59,7 @@ class _OnboardingSportTileState extends State<OnboardingSportTile> {
               duration: _selectionDuration,
               curve: Curves.easeOutCubic,
               decoration: BoxDecoration(
-                color: AppColors.surfaceRaised.withValues(
+                color: context.themeColors.surfaceRaised.withValues(
                   alpha: widget.selected ? 0.95 : 0.85,
                 ),
                 borderRadius: BorderRadius.circular(14),
@@ -104,12 +105,12 @@ class _OnboardingSportTileState extends State<OnboardingSportTile> {
                                   size: 26,
                                   color: widget.selected
                                       ? AppColors.brand
-                                      : AppColors.onSurface,
+                                      : context.themeColors.onSurface,
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 5),
+                          SizedBox(height: 5),
                           AnimatedDefaultTextStyle(
                             duration: _selectionDuration,
                             curve: Curves.easeOut,
@@ -117,11 +118,11 @@ class _OnboardingSportTileState extends State<OnboardingSportTile> {
                                 theme.textTheme.labelSmall?.copyWith(
                                       color: widget.selected
                                           ? AppColors.brand
-                                          : AppColors.onSurface,
+                                          : context.themeColors.onSurface,
                                       fontWeight: FontWeight.w700,
                                       height: 1.15,
                                     ) ??
-                                    const TextStyle(),
+                                    TextStyle(),
                             child: Text(
                               widget.option.label,
                               textAlign: TextAlign.center,
@@ -147,11 +148,11 @@ class _OnboardingSportTileState extends State<OnboardingSportTile> {
                           child: Container(
                             width: 20,
                             height: 20,
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               color: AppColors.brand,
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.check_rounded,
                               size: 14,
                               color: AppColors.black,

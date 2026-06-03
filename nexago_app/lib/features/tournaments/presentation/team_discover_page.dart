@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/team_discover_models.dart';
@@ -81,7 +82,7 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
     final now = DateTime.now();
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -98,20 +99,20 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
                 controller: _searchController,
                 style: AppTypography.soraRegular(
                   fontSize: 14,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
                 decoration: InputDecoration(
                   hintText: 'Nome da dupla, atletas ou cidade…',
                   hintStyle: AppTypography.soraRegular(
                     fontSize: 14,
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
-                  prefixIcon: const Icon(
+                  prefixIcon: Icon(
                     Icons.search_rounded,
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                   filled: true,
-                  fillColor: AppColors.surfaceRaised,
+                  fillColor: context.themeColors.surfaceRaised,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none,
@@ -140,11 +141,11 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
                         labelStyle: TextStyle(
                           fontWeight: FontWeight.w700,
                           color: selected
-                              ? AppColors.onSurface
-                              : AppColors.onSurfaceMuted,
+                              ? context.themeColors.onSurface
+                              : context.themeColors.onSurfaceMuted,
                         ),
-                        backgroundColor: AppColors.surfaceRaised,
-                        selectedColor: AppColors.surfaceCard,
+                        backgroundColor: context.themeColors.surfaceRaised,
+                        selectedColor: context.themeColors.surfaceCard,
                         side: BorderSide(
                           color: selected
                               ? AppColors.brand.withValues(alpha: 0.5)
@@ -159,7 +160,7 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: _MetaRow(
@@ -172,7 +173,7 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
                     ref.read(teamDiscoverProvider.notifier).setSort(s),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Expanded(
               child: _DiscoverBody(
                 state: state,
@@ -209,8 +210,8 @@ class _DiscoverAppBar extends StatelessWidget {
         children: [
           IconButton(
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_back_rounded),
-            color: AppColors.onSurface,
+            icon: Icon(Icons.arrow_back_rounded),
+            color: context.themeColors.onSurface,
           ),
           Expanded(
             child: Column(
@@ -221,7 +222,7 @@ class _DiscoverAppBar extends StatelessWidget {
                   style: AppTypography.soraRegular(
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -230,7 +231,7 @@ class _DiscoverAppBar extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.soraRegular(
                     fontSize: 13,
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
               ],
@@ -241,8 +242,8 @@ class _DiscoverAppBar extends StatelessWidget {
             children: [
               IconButton(
                 onPressed: onFilters,
-                icon: const Icon(Icons.tune_rounded),
-                color: AppColors.onSurface,
+                icon: Icon(Icons.tune_rounded),
+                color: context.themeColors.onSurface,
               ),
               if (filtersActive)
                 Positioned(
@@ -251,7 +252,7 @@ class _DiscoverAppBar extends StatelessWidget {
                   child: Container(
                     width: 8,
                     height: 8,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       color: AppColors.brand,
                       shape: BoxShape.circle,
                     ),
@@ -295,7 +296,7 @@ class _MetaRow extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               letterSpacing: 0.5,
             ),
           ),
@@ -303,7 +304,7 @@ class _MetaRow extends StatelessWidget {
         PopupMenuButton<TeamDiscoverSort>(
           initialValue: sort,
           onSelected: onSortChanged,
-          color: AppColors.surfaceCard,
+          color: context.themeColors.surfaceCard,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -315,16 +316,16 @@ class _MetaRow extends StatelessWidget {
                   color: AppColors.brand,
                 ),
               ),
-              const SizedBox(width: 4),
+              SizedBox(width: 4),
               Text(
                 _sortLabels[sort]!,
                 style: AppTypography.mono(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.expand_more_rounded,
                 size: 18,
                 color: AppColors.brand,
@@ -359,7 +360,7 @@ class _DiscoverBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.isLoading && state.displayEntries.isEmpty) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(color: AppColors.brand),
       );
     }
@@ -371,7 +372,7 @@ class _DiscoverBody extends StatelessWidget {
           child: Text(
             'Não foi possível carregar duplas.\n${state.errorMessage}',
             textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.live),
+            style: TextStyle(color: AppColors.live),
           ),
         ),
       );
@@ -383,12 +384,12 @@ class _DiscoverBody extends StatelessWidget {
         onRefresh: onRefresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: const [
+          children: [
             SizedBox(height: 80),
             Center(
               child: Text(
                 'Nenhuma dupla encontrada.',
-                style: TextStyle(color: AppColors.onSurfaceMuted),
+                style: TextStyle(color: context.themeColors.onSurfaceMuted),
               ),
             ),
           ],
@@ -404,11 +405,11 @@ class _DiscoverBody extends StatelessWidget {
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
         itemCount: state.displayEntries.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        separatorBuilder: (_, __) => SizedBox(height: 12),
         itemBuilder: (context, index) {
           if (index == state.displayEntries.length) {
             if (state.isLoadingMore) {
-              return const Padding(
+              return Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
                 child: Center(
                   child: CircularProgressIndicator(
@@ -418,7 +419,7 @@ class _DiscoverBody extends StatelessWidget {
                 ),
               );
             }
-            return const SizedBox(height: 8);
+            return SizedBox(height: 8);
           }
 
           final entry = state.displayEntries[index];

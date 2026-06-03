@@ -8,6 +8,7 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/firebase_auth_error_mapper.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../auth/domain/auth_password_strength.dart';
 import '../../auth/widgets/auth_form_widgets.dart' show AuthFieldLabel, AuthPasswordStrength, AuthTextField, authPasswordVisibilityIcon;
@@ -117,14 +118,14 @@ class _AthleteChangePasswordPageState
     final newStrength = evaluatePasswordStrength(_newCtrl.text);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left_rounded),
+          icon: Icon(Icons.chevron_left_rounded),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -137,7 +138,7 @@ class _AthleteChangePasswordPageState
           'Alterar senha',
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
       ),
@@ -148,11 +149,11 @@ class _AthleteChangePasswordPageState
             Text(
               'Sua conta usa login social (Google). Para definir uma senha, envie um link de redefinição ao seu e-mail.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 height: 1.45,
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             FilledButton(
               onPressed: _sendingReset ? null : _sendResetLink,
               style: FilledButton.styleFrom(
@@ -161,12 +162,12 @@ class _AthleteChangePasswordPageState
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               child: _sendingReset
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text(
+                  : Text(
                       'Enviar link de redefinição',
                       style: TextStyle(fontWeight: FontWeight.w800),
                     ),
@@ -185,7 +186,7 @@ class _AthleteChangePasswordPageState
                     setState(() => _obscureCurrent = !_obscureCurrent),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             const AuthFieldLabel(label: 'NOVA SENHA'),
             AuthTextField(
               controller: _newCtrl,
@@ -199,12 +200,12 @@ class _AthleteChangePasswordPageState
                 onToggle: () => setState(() => _obscureNew = !_obscureNew),
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             AuthPasswordStrength(
               result: newStrength,
               visible: _newCtrl.text.isNotEmpty,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             const AuthFieldLabel(label: 'CONFIRMAR NOVA SENHA'),
             AuthTextField(
               controller: _confirmCtrl,
@@ -219,7 +220,7 @@ class _AthleteChangePasswordPageState
                     setState(() => _obscureConfirm = !_obscureConfirm),
               ),
             ),
-            const SizedBox(height: 28),
+            SizedBox(height: 28),
             FilledButton(
               onPressed: _submitting ? null : _submitPassword,
               style: FilledButton.styleFrom(
@@ -228,12 +229,12 @@ class _AthleteChangePasswordPageState
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
               child: _submitting
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text(
+                  : Text(
                       'Salvar nova senha',
                       style: TextStyle(fontWeight: FontWeight.w800),
                     ),

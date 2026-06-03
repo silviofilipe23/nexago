@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
 class BookingSuccessTicketCard extends StatelessWidget {
@@ -24,7 +25,7 @@ class BookingSuccessTicketCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(20),
       ),
       child: ClipRRect(
@@ -45,23 +46,23 @@ class BookingSuccessTicketCard extends StatelessWidget {
                           style: AppTypography.mono(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             letterSpacing: 0.5,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        SizedBox(height: 6),
                         Text(
                           timeRange,
                           style: AppTypography.mono(
                             fontSize: 26,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Container(
                     padding: const EdgeInsets.all(0),
                     decoration: BoxDecoration(
@@ -95,16 +96,16 @@ class BookingSuccessTicketCard extends StatelessWidget {
                   Text(
                     'Local',
                     style: theme.textTheme.labelSmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     locationLabel,
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                 ],
@@ -130,7 +131,7 @@ class _TicketDivider extends StatelessWidget {
           Positioned.fill(
             child: CustomPaint(
               painter: _DashedLinePainter(
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
               ),
             ),
           ),
@@ -155,7 +156,7 @@ class _TicketNotch extends StatelessWidget {
       width: 20,
       height: 20,
       decoration: BoxDecoration(
-        color: AppColors.canvas,
+        color: context.themeColors.canvas,
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
       ),

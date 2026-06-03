@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/booking_invite_model.dart';
 import '../domain/booking_invite_providers.dart';
 import '../domain/gamification_providers.dart';
@@ -27,9 +28,9 @@ class _BookingInvitePageState extends ConsumerState<BookingInvitePage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-      appBar: AppBar(title: const Text('Convite para jogar')),
+      appBar: AppBar(title: Text('Convite para jogar')),
       body: inviteAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => Center(child: CircularProgressIndicator()),
         error: (e, _) => _ErrorBody(message: 'Não foi possível carregar o convite.'),
         data: (invite) {
           if (invite == null) {
@@ -144,7 +145,7 @@ class _InviteBody extends StatelessWidget {
                   color: AppColors.brand,
                 ),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               Text(
                 '${invite.invitedByName} quer jogar com você.',
                 style: theme.textTheme.bodyMedium?.copyWith(
@@ -154,7 +155,7 @@ class _InviteBody extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         // Detalhes da reserva
         _Card(
           child: Column(
@@ -166,30 +167,30 @@ class _InviteBody extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 invite.courtName,
                 style: theme.textTheme.bodyLarge?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
-              const Divider(height: 24),
+              Divider(height: 24),
               _InfoRow(icon: Icons.calendar_today_outlined, label: dateLabel),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _InfoRow(icon: Icons.schedule_outlined, label: hourLabel),
             ],
           ),
         ),
-        const SizedBox(height: 28),
+        SizedBox(height: 28),
         FilledButton.icon(
           onPressed: accepting ? null : onAccept,
           icon: accepting
-              ? const SizedBox(
+              ? SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Icon(Icons.sports_volleyball_outlined),
+              : Icon(Icons.sports_volleyball_outlined),
           label: Text(accepting ? 'Confirmando...' : 'Quero jogar!'),
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.brand,
@@ -198,14 +199,14 @@ class _InviteBody extends StatelessWidget {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         OutlinedButton(
           onPressed: () => Navigator.of(context).maybePop(),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size.fromHeight(50),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
-          child: const Text('Agora não'),
+          child: Text('Agora não'),
         ),
       ],
     );
@@ -248,8 +249,8 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: AppColors.onSurfaceMuted),
-        const SizedBox(width: 8),
+        Icon(icon, size: 18, color: context.themeColors.onSurfaceMuted),
+        SizedBox(width: 8),
         Expanded(
           child: Text(label, style: Theme.of(context).textTheme.bodyLarge),
         ),
@@ -271,16 +272,16 @@ class _ErrorBody extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.link_off_rounded, size: 56, color: Theme.of(context).colorScheme.error),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               message,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge,
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             OutlinedButton(
               onPressed: () => Navigator.of(context).maybePop(),
-              child: const Text('Voltar'),
+              child: Text('Voltar'),
             ),
           ],
         ),

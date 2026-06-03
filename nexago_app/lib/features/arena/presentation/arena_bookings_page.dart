@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_booking_view_mode.dart';
 import '../domain/arena_bookings_grouping.dart';
@@ -27,7 +28,7 @@ class ArenaBookingsPage extends ConsumerWidget {
     final insight = ref.watch(arenaBookingsTodayInsightProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: managed.when(
           data: (arenaId) {
@@ -51,14 +52,14 @@ class ArenaBookingsPage extends ConsumerWidget {
                   ),
                   child: const FadeSlideIn(child: ArenaBookingsHeader()),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: ArenaDashboardTokens.horizontalPadding,
                   ),
                   child: const ArenaBookingsModeChips(),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Expanded(child: _BookingsBody(mode: mode, insight: insight)),
               ],
             );

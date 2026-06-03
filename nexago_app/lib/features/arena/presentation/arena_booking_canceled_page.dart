@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../domain/arena_booking_canceled_args.dart';
@@ -53,7 +54,7 @@ class _ArenaBookingCanceledPageState
     final notificationLine = _notificationLine(widget.args.athleteNames);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -65,22 +66,22 @@ class _ArenaBookingCanceledPageState
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const _CanceledHeroIcon(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: 24),
                     Text(
                       'Reserva cancelada.',
                       textAlign: TextAlign.center,
                       style: theme.textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                         letterSpacing: -0.3,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     RichText(
                       textAlign: TextAlign.center,
                       text: TextSpan(
                         style: theme.textTheme.bodyLarge?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w500,
                           height: 1.45,
                         ),
@@ -88,8 +89,8 @@ class _ArenaBookingCanceledPageState
                           TextSpan(text: '$notificationLine. O slot '),
                           TextSpan(
                             text: widget.args.slotHighlight,
-                            style: const TextStyle(
-                              color: AppColors.onSurface,
+                            style: TextStyle(
+                              color: context.themeColors.onSurface,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -97,14 +98,14 @@ class _ArenaBookingCanceledPageState
                         ],
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    SizedBox(height: 32),
                     _UndoCard(
                       secondsLeft: _secondsLeft,
                       canUndo: canUndo,
                       restoring: _restoring,
                       onUndo: _restore,
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     _SlotReleasedCard(
                       slotTimeRange: widget.args.slotTimeRange,
                       onCreateBooking: () => showAppSnackBar(
@@ -123,10 +124,10 @@ class _ArenaBookingCanceledPageState
             TextButton(
               onPressed: () => context.pop(),
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.onSurfaceMuted,
+                foregroundColor: context.themeColors.onSurfaceMuted,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: const Text(
+              child: Text(
                 'Voltar pra lista de reservas',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
@@ -195,11 +196,11 @@ class _CanceledHeroIcon extends StatelessWidget {
           Container(
             width: 72,
             height: 72,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.live,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.close_rounded,
               color: AppColors.white,
               size: 36,
@@ -242,7 +243,7 @@ class _UndoCard extends StatelessWidget {
             label: canUndo ? '${secondsLeft}s' : '0s',
             active: canUndo,
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,14 +252,14 @@ class _UndoCard extends StatelessWidget {
                   'Desfazer cancelamento',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   'Restaura a reserva e re-notifica os atletas',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w500,
                     height: 1.3,
                   ),
@@ -266,7 +267,7 @@ class _UndoCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           FilledButton(
             onPressed: canUndo && !restoring ? onUndo : null,
             style: FilledButton.styleFrom(
@@ -283,7 +284,7 @@ class _UndoCard extends StatelessWidget {
               ),
             ),
             child: restoring
-                ? const SizedBox(
+                ? SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
@@ -291,7 +292,7 @@ class _UndoCard extends StatelessWidget {
                       color: AppColors.black,
                     ),
                   )
-                : const Text(
+                : Text(
                     'Desfazer',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
@@ -322,7 +323,7 @@ class _CountdownBadge extends StatelessWidget {
           border: Border.all(
             color: active
                 ? AppColors.brand
-                : AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                : context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
             width: 2,
           ),
         ),
@@ -332,7 +333,7 @@ class _CountdownBadge extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.w800,
               fontSize: 14,
-              color: active ? AppColors.brand : AppColors.onSurfaceMuted,
+              color: active ? AppColors.brand : context.themeColors.onSurfaceMuted,
             ),
           ),
         ),
@@ -361,7 +362,7 @@ class _SlotReleasedCard extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.22),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.22),
         ),
       ),
       child: Column(
@@ -370,13 +371,13 @@ class _SlotReleasedCard extends StatelessWidget {
           Text(
             'SLOT LIBERADO · ${slotTimeRange.toUpperCase()}',
             style: theme.textTheme.labelSmall?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.6,
               fontSize: 10,
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Row(
             children: [
               Expanded(
@@ -390,27 +391,27 @@ class _SlotReleasedCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Criar reserva',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: OutlinedButton(
                   onPressed: onPromoFlash,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.onSurface,
+                    foregroundColor: context.themeColors.onSurface,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     side: BorderSide(
-                      color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                      color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Promo flash',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),

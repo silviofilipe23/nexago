@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -19,6 +20,9 @@ import 'core/router/app_router.dart';
 import 'core/router/routes.dart';
 import 'features/arena/domain/mercado_pago_providers.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/system_ui_overlay_style.dart';
+import 'core/theme/theme_mode_provider.dart';
+import 'core/theme/theme_preferences_repository.dart';
 import 'firebase_options.dart';
 import 'shared/constants/app_strings.dart';
 
@@ -27,16 +31,22 @@ Future<void> main() async {
   await initializeDateFormatting('pt_BR', null);
 
   // Evita registrar o app default duas vezes. Nota: em iOS/Android, **Hot restart (R)**
-  // pode quebrar o canal nativo do Firebase (`PlatformException channel-error`).
-  // Nesse caso, pare o app (q) e rode `flutter run` de novo; prefira Hot reload (r).
+  // pode quebrar canais nativos (Firebase, shared_preferences → `channel-error`).
+  // Pare o app (q) e rode `flutter run` de novo; prefira Hot reload (r).
+  // Após adicionar shared_preferences, faça um cold start (não só hot restart).
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   }
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
+  final themePrefs = await ThemePreferencesRepository.create();
+
   runApp(
-    const ProviderScope(
-      child: NexagoApp(),
+    ProviderScope(
+      overrides: [
+        themePreferencesRepositoryProvider.overrideWithValue(themePrefs),
+      ],
+      child: const NexagoApp(),
     ),
   );
 }
@@ -142,14 +152,22 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(goRouterProvider);
+    final themeMode = ref.watch(resolvedThemeModeProvider);
 
     return BiometricAppGate(
       child: MaterialApp.router(
         title: AppStrings.appName,
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.dark,
+        theme: AppTheme.light,
         darkTheme: AppTheme.dark,
-        themeMode: ThemeMode.dark,
+        themeMode: themeMode,
+        builder: (context, child) {
+          final brightness = Theme.of(context).brightness;
+          return AnnotatedRegion<SystemUiOverlayStyle>(
+            value: systemUiOverlayForBrightness(brightness),
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,

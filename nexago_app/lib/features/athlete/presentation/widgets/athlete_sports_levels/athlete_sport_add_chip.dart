@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../onboarding/domain/athlete_onboarding_options.dart';
 
 class AthleteSportAddChip extends StatelessWidget {
@@ -26,7 +27,7 @@ class AthleteSportAddChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         child: CustomPaint(
           painter: _DashedBorderPainter(
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
             radius: 999,
           ),
           child: Padding(
@@ -37,24 +38,24 @@ class AthleteSportAddChip extends StatelessWidget {
                 Container(
                   width: 22,
                   height: 22,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.brand,
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
-                  child: const Icon(
+                  child: Icon(
                     Icons.add_rounded,
                     size: 16,
-                    color: AppColors.canvas,
+                    color: context.themeColors.canvas,
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Text(
                   option.label,
                   style: theme.textTheme.labelLarge?.copyWith(
                     color: enabled
-                        ? AppColors.onSurface
-                        : AppColors.onSurfaceMuted,
+                        ? context.themeColors.onSurface
+                        : context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_date_utils.dart';
 import '../../domain/arena_schedule_providers.dart';
 
@@ -14,7 +15,7 @@ class ArenaScheduleDatePickerSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet<DateTime>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.surfaceSheet,
+      backgroundColor: context.themeColors.surfaceSheet,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -73,29 +74,29 @@ class _ArenaScheduleDatePickerSheetState
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'SELECIONE A DATA',
               style: theme.textTheme.labelSmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.8,
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               selectedLabel,
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Row(
               children: [
                 IconButton(
@@ -107,8 +108,8 @@ class _ArenaScheduleDatePickerSheetState
                       );
                     });
                   },
-                  icon: const Icon(Icons.chevron_left_rounded),
-                  color: AppColors.onSurface,
+                  icon: Icon(Icons.chevron_left_rounded),
+                  color: context.themeColors.onSurface,
                 ),
                 Expanded(
                   child: Text(
@@ -116,7 +117,7 @@ class _ArenaScheduleDatePickerSheetState
                     textAlign: TextAlign.center,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                     ),
                   ),
                 ),
@@ -129,51 +130,51 @@ class _ArenaScheduleDatePickerSheetState
                       );
                     });
                   },
-                  icon: const Icon(Icons.chevron_right_rounded),
-                  color: AppColors.onSurface,
+                  icon: Icon(Icons.chevron_right_rounded),
+                  color: context.themeColors.onSurface,
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             _MonthGrid(
               month: _visibleMonth,
               selected: _selected,
               onSelect: (d) => setState(() => _selected = d),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             // Row(
             //   children: [
             //     Text(
             //       'OCUPAÇÃO',
             //       style: theme.textTheme.labelSmall?.copyWith(
-            //         color: AppColors.onSurfaceMuted,
+            //         color: context.themeColors.onSurfaceMuted,
             //         fontWeight: FontWeight.w800,
             //         letterSpacing: 0.6,
             //       ),
             //     ),
-            //     const Spacer(),
+            //     Spacer(),
             //     _LegendDot(color: AppColors.pending, label: 'baixa'),
-            //     const SizedBox(width: 12),
+            //     SizedBox(width: 12),
             //     _LegendDot(color: AppColors.live, label: 'cheia'),
             //   ],
             // ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.onSurface,
+                      foregroundColor: context.themeColors.onSurface,
                       side: BorderSide(
-                        color: AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                        color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    child: const Text('Cancelar'),
+                    child: Text('Cancelar'),
                   ),
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: FilledButton(
                     onPressed: () => Navigator.pop(context, _selected),
@@ -182,7 +183,7 @@ class _ArenaScheduleDatePickerSheetState
                       foregroundColor: AppColors.black,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    child: const Text('OK'),
+                    child: Text('OK'),
                   ),
                 ),
               ],
@@ -213,7 +214,7 @@ class _MonthGrid extends StatelessWidget {
     final cells = <Widget>[];
 
     for (var i = 0; i < startWeekday; i++) {
-      cells.add(const SizedBox(height: 40));
+      cells.add(SizedBox(height: 40));
     }
     for (var d = 1; d <= daysInMonth; d++) {
       final date = DateTime(month.year, month.month, d);
@@ -237,7 +238,7 @@ class _MonthGrid extends StatelessWidget {
                         ? AppColors.black
                         : (isToday
                             ? AppColors.brand
-                            : AppColors.onSurface),
+                            : context.themeColors.onSurface),
                   ),
                 ),
               ),
@@ -277,11 +278,11 @@ class _LegendDot extends StatelessWidget {
           height: 8,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 6),
+        SizedBox(width: 6),
         Text(
           label,
           style: TextStyle(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontSize: 12,
             fontWeight: FontWeight.w600,
           ),

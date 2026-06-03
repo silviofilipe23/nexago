@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/arena_amenities.dart';
 import '../../../domain/arena_amenities_labels.dart';
 
@@ -26,7 +27,7 @@ class ArenaDetailAmenityChips extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
-              color: AppColors.surfaceCard,
+              color: context.themeColors.surfaceCard,
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
                 color: AppColors.brand.withValues(alpha: 0.45),
@@ -36,12 +37,12 @@ class ArenaDetailAmenityChips extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(item.icon, size: 16, color: AppColors.brand),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Text(
                   item.label,
                   style: theme.textTheme.labelMedium?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
               ],

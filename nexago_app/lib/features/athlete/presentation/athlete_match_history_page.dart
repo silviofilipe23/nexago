@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/match_history/athlete_match_history_models.dart';
 import '../domain/match_history/athlete_match_history_providers.dart';
@@ -28,7 +29,7 @@ class AthleteMatchHistoryPage extends ConsumerWidget {
       backgroundColor: AppColors.canvas,
       appBar: _appBar(context, theme),
       body: bundleAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (e, _) => Center(
@@ -69,7 +70,7 @@ class AthleteMatchHistoryPage extends ConsumerWidget {
                 }
               },
               borderRadius: BorderRadius.circular(12),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 40,
                 height: 40,
                 child: Icon(
@@ -118,16 +119,16 @@ class _ReadyBody extends ConsumerWidget {
           onTabChanged: (t) =>
               ref.read(matchHistoryTabProvider.notifier).state = t,
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         if (tab == MatchHistoryTab.matches) ...[
           MatchHistorySeasonCard(summary: bundle.seasonSummary),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           MatchHistoryFilterChips(
             filter: filter,
             onFilterChanged: (f) =>
                 ref.read(matchHistoryFilterProvider.notifier).state = f,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           if (derived.monthGroups.isEmpty)
             _emptyState('Nenhuma partida neste filtro.')
           else
@@ -147,7 +148,7 @@ class _ReadyBody extends ConsumerWidget {
             }),
         ] else ...[
           MatchHistoryTournamentStatsRow(counts: derived.medalCounts),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           ...bundle.tournaments.map(
             (t) => MatchHistoryTournamentCard(
               tournament: t,
@@ -186,7 +187,7 @@ class _ReadyBody extends ConsumerWidget {
       child: Center(
         child: Text(
           message,
-          style: const TextStyle(color: AppColors.onSurfaceMuted),
+          style: TextStyle(color: AppColors.onSurfaceMuted),
         ),
       ),
     );

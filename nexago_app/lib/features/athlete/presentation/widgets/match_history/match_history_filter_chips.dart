@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_history_models.dart';
 
 class MatchHistoryFilterChips extends StatelessWidget {
@@ -38,10 +39,10 @@ class MatchHistoryFilterChips extends StatelessWidget {
               showCheckmark: false,
               labelStyle: theme.textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: selected ? AppColors.onSurface : AppColors.onSurfaceMuted,
+                color: selected ? context.themeColors.onSurface : context.themeColors.onSurfaceMuted,
               ),
-              backgroundColor: AppColors.surfaceRaised,
-              selectedColor: AppColors.surfaceCard,
+              backgroundColor: context.themeColors.surfaceRaised,
+              selectedColor: context.themeColors.surfaceCard,
               side: BorderSide(
                 color: selected
                     ? AppColors.brand.withValues(alpha: 0.5)

@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../domain/arena_review.dart';
 import '../../domain/arena_review_providers.dart';
@@ -154,7 +155,7 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
     final arenaName = widget.pending.arenaName.trim();
 
     return Dialog(
-      backgroundColor: AppColors.surfaceCard,
+      backgroundColor: context.themeColors.surfaceCard,
       surfaceTintColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 20),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -175,14 +176,14 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
                     letterSpacing: 0.4,
                   ),
                 ),
-                const Spacer(),
+                Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceRaised,
+                    color: context.themeColors.surfaceRaised,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: AppColors.brand.withValues(alpha: 0.4),
@@ -199,35 +200,35 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             RichText(
               text: TextSpan(
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w900,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   height: 1.2,
                 ),
                 children: [
                   const TextSpan(text: 'Como foi o jogo na\n'),
                   TextSpan(
                     text: arenaName.isEmpty ? 'sua arena' : arenaName,
-                    style: const TextStyle(color: AppColors.brand),
+                    style: TextStyle(color: AppColors.brand),
                   ),
                   const TextSpan(text: '?'),
                 ],
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               _sessionSubtitle,
               style: AppTypography.mono(
                 fontSize: 12,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 0.3,
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             if (_ratingLabel.isNotEmpty)
               Center(
                 child: Text(
@@ -238,7 +239,7 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
                   ),
                 ),
               ),
-            if (_ratingLabel.isNotEmpty) const SizedBox(height: 10),
+            if (_ratingLabel.isNotEmpty) SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(5, (i) {
@@ -247,7 +248,7 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
                 return Padding(
                   padding: EdgeInsets.only(left: i == 0 ? 0 : 6),
                   child: Material(
-                    color: AppColors.surfaceRaised,
+                    color: context.themeColors.surfaceRaised,
                     borderRadius: BorderRadius.circular(10),
                     child: InkWell(
                       onTap: _sending
@@ -272,7 +273,7 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
                               : Icons.star_outline_rounded,
                           color: filled
                               ? AppColors.brand
-                              : AppColors.onSurfaceMuted,
+                              : context.themeColors.onSurfaceMuted,
                           size: 28,
                         ),
                       ),
@@ -281,17 +282,17 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
                 );
               }),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             Text(
               'O QUE DESTACOU? OPCIONAL',
               style: AppTypography.mono(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 letterSpacing: 0.4,
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -314,28 +315,28 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
               ],
             ),
             if (_showCommentField) ...[
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               TextField(
                 controller: _commentController,
                 minLines: 2,
                 maxLines: 4,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
                 decoration: InputDecoration(
                   hintText: 'Escreva um comentário…',
                   hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                   filled: true,
-                  fillColor: AppColors.surfaceRaised,
+                  fillColor: context.themeColors.surfaceRaised,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.surfaceRaised),
+                    borderSide: BorderSide(color: context.themeColors.surfaceRaised),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: AppColors.surfaceRaised),
+                    borderSide: BorderSide(color: context.themeColors.surfaceRaised),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -346,7 +347,7 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
                 ),
               ),
             ],
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
             Row(
               children: [
                 TextButton(
@@ -354,12 +355,12 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
                       ? null
                       : () => Navigator.of(context).pop(),
                   style: TextButton.styleFrom(
-                    foregroundColor: AppColors.onSurfaceMuted,
+                    foregroundColor: context.themeColors.onSurfaceMuted,
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                   ),
-                  child: const Text('Agora não'),
+                  child: Text('Agora não'),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Expanded(
                   child: FilledButton(
                     onPressed: (_rating > 0 && !_sending) ? _submit : null,
@@ -372,7 +373,7 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
                       ),
                     ),
                     child: _sending
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 22,
                             height: 22,
                             child: CircularProgressIndicator(
@@ -395,8 +396,8 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
                                   textAlign: TextAlign.center,
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              const Icon(
+                              SizedBox(width: 6),
+                              Icon(
                                 Icons.bolt_rounded,
                                 size: 18,
                                 color: AppColors.black,
@@ -444,14 +445,14 @@ class _HighlightChip extends StatelessWidget {
             border: Border.all(
               color: selected
                   ? AppColors.brand
-                  : AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  : context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
             ),
           ),
           child: Text(
             selected ? '✓ $label' : label,
             style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w700,
-              color: selected ? AppColors.brand : AppColors.onSurfaceMuted,
+              color: selected ? AppColors.brand : context.themeColors.onSurfaceMuted,
             ),
           ),
         ),
@@ -482,7 +483,7 @@ class _CommentChip extends StatelessWidget {
             border: Border.all(
               color: active
                   ? AppColors.brand
-                  : AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  : context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
               style: active ? BorderStyle.solid : BorderStyle.solid,
             ),
           ),
@@ -490,7 +491,7 @@ class _CommentChip extends StatelessWidget {
             '+ comentário',
             style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w700,
-              color: active ? AppColors.brand : AppColors.onSurfaceMuted,
+              color: active ? AppColors.brand : context.themeColors.onSurfaceMuted,
             ),
           ),
         ),

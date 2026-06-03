@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../athlete/domain/favorites_providers.dart';
 import '../../arenas/domain/arena_list_item.dart';
 import '../domain/arena_schedule_providers.dart';
@@ -18,7 +19,7 @@ class ArenaProfilePage extends ConsumerWidget {
     final arenaAsync = ref.watch(managedArenaDetailProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: arenaAsync.when(
         data: (arena) {
           if (arena == null) {
@@ -29,7 +30,7 @@ class ArenaProfilePage extends ConsumerWidget {
                   'Nenhuma arena vinculada ao seu usuário como gestor.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                       ),
                 ),
               ),
@@ -37,7 +38,7 @@ class ArenaProfilePage extends ConsumerWidget {
           }
           return _ArenaProfileBody(arena: arena);
         },
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (e, _) => Center(
@@ -120,17 +121,17 @@ class _ArenaProfileBody extends StatelessWidget {
                   arena.name,
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                     letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 const _PublicProfileStatus(),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 _ProfileCard(
                   child: _FollowersSection(arenaId: arena.id),
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 _ProfileCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,11 +140,11 @@ class _ArenaProfileBody extends StatelessWidget {
                         icon: Icons.chat_bubble_outline_rounded,
                         label: 'DESCRIÇÃO',
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       Text(
                         description,
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                           fontWeight: FontWeight.w500,
                           height: 1.45,
                         ),
@@ -151,7 +152,7 @@ class _ArenaProfileBody extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 _ProfileCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -160,13 +161,13 @@ class _ArenaProfileBody extends StatelessWidget {
                         icon: Icons.place_outlined,
                         label: 'ENDEREÇO',
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       for (var i = 0; i < addressLines.length; i++) ...[
-                        if (i > 0) const SizedBox(height: 4),
+                        if (i > 0) SizedBox(height: 4),
                         Text(
                           addressLines[i],
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                             fontWeight: FontWeight.w500,
                             height: 1.4,
                           ),
@@ -175,18 +176,18 @@ class _ArenaProfileBody extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 28),
+                SizedBox(height: 28),
                 SizedBox(
                   height: 52,
                   child: FilledButton.icon(
                     onPressed: () =>
                         context.pushNamed(AppRouteNames.arenaProfileEdit),
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.edit_outlined,
                       color: AppColors.black,
                       size: 20,
                     ),
-                    label: const Text(
+                    label: Text(
                       'Editar perfil',
                       style: TextStyle(
                         fontSize: 16,
@@ -270,12 +271,12 @@ class _CoverHeader extends StatelessWidget {
               children: [
                 IconButton(
                   onPressed: () => context.pop(),
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.arrow_back_rounded,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
-                const Spacer(),
+                Spacer(),
                 _EditCoverButton(onTap: onEditCover),
               ],
             ),
@@ -294,7 +295,7 @@ class _EditCoverButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceRaised.withValues(alpha: 0.85),
+      color: context.themeColors.surfaceRaised.withValues(alpha: 0.85),
       borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -307,13 +308,13 @@ class _EditCoverButton extends StatelessWidget {
               Icon(
                 Icons.image_outlined,
                 size: 16,
-                color: AppColors.onSurface.withValues(alpha: 0.9),
+                color: context.themeColors.onSurface.withValues(alpha: 0.9),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 'EDITAR CAPA',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 0.5,
                       fontSize: 10,
@@ -337,12 +338,12 @@ class _PublicProfileStatus extends StatelessWidget {
         Container(
           width: 8,
           height: 8,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.win,
             shape: BoxShape.circle,
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Text(
           'PERFIL PÚBLICO ATIVO',
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -377,7 +378,7 @@ class _FollowersSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _OverlappingFollowerAvatars(followers: preview),
-        const SizedBox(width: 14),
+        SizedBox(width: 14),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -387,15 +388,15 @@ class _FollowersSection extends ConsumerWidget {
                 '$count seguidor${count == 1 ? '' : 'es'}',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   height: 1.2,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 '+$growth essa semana',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w500,
                   height: 1.2,
                 ),
@@ -403,7 +404,7 @@ class _FollowersSection extends ConsumerWidget {
             ],
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         _ViewAllFollowersButton(
           onTap: () => context.pushNamed(
             AppRouteNames.arenaFollowers,
@@ -423,7 +424,7 @@ class _ViewAllFollowersButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceSheet,
+      color: context.themeColors.surfaceSheet,
       borderRadius: BorderRadius.circular(10),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -433,13 +434,13 @@ class _ViewAllFollowersButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.28),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.28),
             ),
           ),
-          child: const Text(
+          child: Text(
             'Ver todos',
             style: TextStyle(
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
               fontWeight: FontWeight.w800,
               fontSize: 13,
             ),
@@ -530,7 +531,7 @@ class _PlaceholderFollowerAvatar extends StatelessWidget {
         shape: BoxShape.circle,
         gradient: gradient,
         border: Border.all(
-          color: AppColors.surfaceRaised,
+          color: context.themeColors.surfaceRaised,
           width: 2.5,
         ),
       ),
@@ -556,7 +557,7 @@ class _FollowerAvatar extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: AppColors.surfaceRaised, width: 2.5),
+          border: Border.all(color: context.themeColors.surfaceRaised, width: 2.5),
         ),
         child: ClipOval(
           child: SizedBox.expand(
@@ -565,16 +566,16 @@ class _FollowerAvatar extends StatelessWidget {
                     imageUrl: follower.avatarUrl!,
                     fit: BoxFit.cover,
                     placeholder: (_, __) => const _AvatarSkeleton(),
-                    errorWidget: (_, __, ___) => _initials(follower.name),
+                    errorWidget: (_, __, ___) => _initials(context, follower.name),
                   )
-                : _initials(follower.name),
+                : _initials(context, follower.name),
           ),
         ),
       ),
     );
   }
 
-  Widget _initials(String name) {
+  Widget _initials(BuildContext context, String name) {
     final letter =
         name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?';
     return ColoredBox(
@@ -582,9 +583,9 @@ class _FollowerAvatar extends StatelessWidget {
       child: Center(
         child: Text(
           letter,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
       ),
@@ -606,7 +607,7 @@ class _ProfileSectionLabel extends StatelessWidget {
     return Row(
       children: [
         Icon(icon, size: 18, color: AppColors.brand),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -629,8 +630,8 @@ class _ProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(
-        color: AppColors.surfaceRaised,
+      decoration: ArenaDashboardTokens.cardDecoration(context,
+        color: context.themeColors.surfaceRaised,
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -683,7 +684,7 @@ class _LogoBadge extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: AppColors.surfaceRaised,
+          color: context.themeColors.surfaceRaised,
           width: 3,
         ),
         boxShadow: [
@@ -731,7 +732,7 @@ class _LogoGradient extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -745,7 +746,7 @@ class _LogoGradient extends StatelessWidget {
       child: Center(
         child: Text(
           monogram,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w900,
             color: AppColors.black,
@@ -791,8 +792,8 @@ class _CoverSkeletonState extends State<_CoverSkeleton>
         final t = Curves.easeInOut.transform(_pulse.value);
         return ColoredBox(
           color: Color.lerp(
-            AppColors.surfaceCard,
-            AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+            context.themeColors.surfaceCard,
+            context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
             t,
           )!,
         );
@@ -835,8 +836,8 @@ class _AvatarSkeletonState extends State<_AvatarSkeleton>
         final t = Curves.easeInOut.transform(_pulse.value);
         return ColoredBox(
           color: Color.lerp(
-            AppColors.surfaceSheet,
-            AppColors.onSurfaceMuted.withValues(alpha: 0.28),
+            context.themeColors.surfaceSheet,
+            context.themeColors.onSurfaceMuted.withValues(alpha: 0.28),
             t,
           )!,
         );

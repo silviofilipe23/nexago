@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'tournament_registration_dashed_border.dart';
 
 class TournamentRegistrationPartnerPhoneCard extends StatelessWidget {
@@ -14,7 +15,7 @@ class TournamentRegistrationPartnerPhoneCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -27,7 +28,7 @@ class TournamentRegistrationPartnerPhoneCard extends StatelessWidget {
               child: Text.rich(
                 TextSpan(
                   style: theme.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w500,
                   ),
                   children: [

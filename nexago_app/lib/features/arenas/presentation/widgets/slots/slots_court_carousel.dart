@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/arena_list_item.dart';
 import '../../../domain/arena_detail_logic.dart';
 import '../../../domain/slots_page_providers.dart';
@@ -35,12 +36,12 @@ class SlotsCourtCarousel extends StatelessWidget {
             style: theme.textTheme.labelSmall?.copyWith(
               fontWeight: FontWeight.w800,
               letterSpacing: 0.8,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
             ),
           ),
         ),
         if (loading)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(
               child: CircularProgressIndicator(
@@ -55,7 +56,7 @@ class SlotsCourtCarousel extends StatelessWidget {
             child: Text(
               'Nenhuma quadra disponível.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
           )
@@ -66,7 +67,7 @@ class SlotsCourtCarousel extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: summaries.length,
-              separatorBuilder: (_, _) => const SizedBox(width: 10),
+              separatorBuilder: (_, __) => SizedBox(width: 10),
               itemBuilder: (context, index) {
                 final item = summaries[index];
                 final court = item.court;
@@ -85,7 +86,7 @@ class SlotsCourtCarousel extends StatelessWidget {
                 }
 
                 return Material(
-                  color: AppColors.surfaceCard,
+                  color: context.themeColors.surfaceCard,
                   borderRadius: BorderRadius.circular(14),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
@@ -98,7 +99,7 @@ class SlotsCourtCarousel extends StatelessWidget {
                         border: Border.all(
                           color: isSelected
                               ? AppColors.brand
-                              : AppColors.surfaceRaised,
+                              : context.themeColors.surfaceRaised,
                           width: isSelected ? 2 : 1,
                         ),
                       ),
@@ -111,26 +112,26 @@ class SlotsCourtCarousel extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.titleSmall?.copyWith(
                               fontWeight: FontWeight.w800,
-                              color: AppColors.onSurface,
+                              color: context.themeColors.onSurface,
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          SizedBox(height: 6),
                           Row(
                             children: [
                               if (surface != null) ...[
                                 _Badge(label: surface),
-                                const SizedBox(width: 4),
+                                SizedBox(width: 4),
                               ],
                             ],
                           ),
-                          const Spacer(),
+                          Spacer(),
                           Text(
                             subtitle,
                             style: theme.textTheme.labelSmall?.copyWith(
                               fontWeight: FontWeight.w700,
                               color: item.hasFreeSlots && !court.isMaintenance
                                   ? AppColors.brand
-                                  : AppColors.onSurfaceMuted,
+                                  : context.themeColors.onSurfaceMuted,
                             ),
                           ),
                         ],
@@ -156,7 +157,7 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
@@ -164,7 +165,7 @@ class _Badge extends StatelessWidget {
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
               fontSize: 9,
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               letterSpacing: 0.4,
             ),
       ),

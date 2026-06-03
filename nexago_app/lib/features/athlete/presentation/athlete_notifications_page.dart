@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../tournaments/data/tournament_partner_invite_service.dart';
 import '../data/athlete_notifications_repository.dart';
@@ -147,19 +148,19 @@ class _AthleteNotificationsPageState
     final now = DateTime.now();
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left_rounded, size: 28),
+          icon: Icon(Icons.chevron_left_rounded, size: 28),
           onPressed: () => context.pop(),
         ),
         title: Text(
           'Notificações',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
         ),
         centerTitle: true,
@@ -169,7 +170,7 @@ class _AthleteNotificationsPageState
                 ? null
                 : () => _markAllRead(allItems),
             child: _markingAll
-                ? const SizedBox(
+                ? SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
@@ -178,7 +179,7 @@ class _AthleteNotificationsPageState
                     'Ler tudo',
                     style: TextStyle(
                       color: unreadCount == 0
-                          ? AppColors.onSurfaceMuted
+                          ? context.themeColors.onSurfaceMuted
                           : AppColors.brand,
                       fontWeight: FontWeight.w700,
                     ),
@@ -187,7 +188,7 @@ class _AthleteNotificationsPageState
         ],
       ),
       body: notificationsAsync.when(
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (_, __) => _EmptyState(
@@ -319,7 +320,7 @@ class _EmptyState extends StatelessWidget {
           textAlign: TextAlign.center,
           style: AppTypography.soraRegular(
             fontSize: 15,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w500,
           ),
         ),

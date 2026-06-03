@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class BookingPixAmountSection extends StatelessWidget {
   const BookingPixAmountSection({
@@ -37,10 +38,10 @@ class BookingPixAmountSection extends StatelessWidget {
           style: theme.textTheme.labelSmall?.copyWith(
             fontWeight: FontWeight.w800,
             letterSpacing: 0.8,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Row(
           children: [
             Expanded(
@@ -53,7 +54,7 @@ class BookingPixAmountSection extends StatelessWidget {
                 onTap: () => onFractionChanged(1.0),
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: _AmountOptionCard(
                 title: 'Apenas sinal · 50%',
@@ -93,7 +94,7 @@ class _AmountOptionCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: enabled ? onTap : null,
@@ -105,7 +106,7 @@ class _AmountOptionCard extends StatelessWidget {
             border: Border.all(
               color: selected
                   ? AppColors.brand
-                  : AppColors.surfaceRaised,
+                  : context.themeColors.surfaceRaised,
               width: selected ? 2 : 1,
             ),
           ),
@@ -116,22 +117,22 @@ class _AmountOptionCard extends StatelessWidget {
                 title,
                 style: theme.textTheme.labelMedium?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: selected ? AppColors.brand : AppColors.onSurface,
+                  color: selected ? AppColors.brand : context.themeColors.onSurface,
                 ),
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               Text(
                 amount,
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w900,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 footer,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   height: 1.2,
                 ),
               ),

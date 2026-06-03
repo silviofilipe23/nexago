@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/athlete_quest/athlete_quest_logic.dart';
 import '../../../domain/gamification_models.dart';
 
@@ -27,9 +28,9 @@ class AthleteQuestLevelCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -53,13 +54,13 @@ class AthleteQuestLevelCard extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: Text(
                   'Nível $displayLevel · $title',
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
               ),
@@ -67,32 +68,32 @@ class AthleteQuestLevelCard extends StatelessWidget {
                 '$xpCurrent / $xpGoal XP',
                 style: theme.textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
               minHeight: 6,
               value: summary.progressToNextLevel,
-              backgroundColor: AppColors.surfaceRaised,
+              backgroundColor: context.themeColors.surfaceRaised,
               color: AppColors.brand,
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           RichText(
             text: TextSpan(
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
               children: [
                 TextSpan(text: '$xpRemaining XP pra '),
                 TextSpan(
                   text: 'Nível $nextLevel · $nextTitle',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.brand,
                     fontWeight: FontWeight.w800,
                   ),

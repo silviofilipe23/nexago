@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../arenas/domain/my_booking_item.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../domain/athlete_booking_helpers.dart';
@@ -21,7 +22,7 @@ import 'widgets/athlete_profile_main_view.dart';
 /// Perfil do atleta.
 ///
 /// Se [embedded] for true (ex.: aba do shell), não usa [Scaffold] próprio —
-/// o pai fornece o layout; o conteúdo usa [AppColors.canvas].
+/// o pai fornece o layout; o conteúdo usa [context.themeColors.canvas].
 class AthleteProfilePage extends ConsumerWidget {
   const AthleteProfilePage({
     super.key,
@@ -45,7 +46,7 @@ class AthleteProfilePage extends ConsumerWidget {
             'Faça login para ver seu perfil.',
             textAlign: TextAlign.center,
             style: Theme.of(ctx).textTheme.bodyLarge?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
           ),
         ),
@@ -55,10 +56,10 @@ class AthleteProfilePage extends ConsumerWidget {
     if (viewed != null && viewed.isNotEmpty) {
       final page = AthletePublicProfilePage(userId: viewed);
       if (embedded) {
-        return ColoredBox(color: AppColors.canvas, child: page);
+        return ColoredBox(color: context.themeColors.canvas, child: page);
       }
       return Scaffold(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         body: page,
       );
     }
@@ -89,7 +90,7 @@ class AthleteProfilePage extends ConsumerWidget {
               onOpenSettings: () =>
                   context.pushNamed(AppRouteNames.athleteSettings),
             ),
-            loading: () => const Center(
+            loading: () => Center(
               child: CircularProgressIndicator(color: AppColors.brand),
             ),
             error: (e, _) => Center(
@@ -106,7 +107,7 @@ class AthleteProfilePage extends ConsumerWidget {
             ),
           );
         },
-        loading: () => const Center(
+        loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         error: (e, _) => Center(
@@ -126,20 +127,20 @@ class AthleteProfilePage extends ConsumerWidget {
 
     if (embedded) {
       return ColoredBox(
-        color: AppColors.canvas,
+        color: context.themeColors.canvas,
         child: bodyContent(),
       );
     }
 
     if (user == null) {
       return Scaffold(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         body: bodyNotSignedIn(context),
       );
     }
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       body: bodyContent(),
     );
   }
@@ -153,19 +154,19 @@ void _showBriefAlert(
   showDialog<void>(
     context: context,
     builder: (ctx) => AlertDialog(
-      backgroundColor: AppColors.surfaceSheet,
+      backgroundColor: context.themeColors.surfaceSheet,
       title: Text(
         title,
-        style: const TextStyle(color: AppColors.onSurface),
+        style: TextStyle(color: context.themeColors.onSurface),
       ),
       content: Text(
         message,
-        style: const TextStyle(color: AppColors.onSurfaceMuted),
+        style: TextStyle(color: context.themeColors.onSurfaceMuted),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(),
-          child: const Text(
+          child: Text(
             'OK',
             style: TextStyle(
               color: AppColors.brand,
@@ -289,23 +290,23 @@ class _PrivateProfileBlockedView extends StatelessWidget {
             Icon(
               Icons.visibility_off_outlined,
               size: 48,
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.7),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.7),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'Este perfil é privado',
               textAlign: TextAlign.center,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'O atleta limitou a visibilidade do perfil.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 height: 1.4,
               ),
             ),
@@ -315,7 +316,7 @@ class _PrivateProfileBlockedView extends StatelessWidget {
     );
 
     if (embedded) {
-      return ColoredBox(color: AppColors.canvas, child: body);
+      return ColoredBox(color: context.themeColors.canvas, child: body);
     }
     return body;
   }

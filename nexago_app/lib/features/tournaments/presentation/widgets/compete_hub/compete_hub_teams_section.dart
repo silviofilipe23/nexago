@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/compete_hub_models.dart';
 import '../../../domain/compete_hub_providers.dart';
@@ -25,7 +26,7 @@ class CompeteHubTeamsSection extends ConsumerWidget {
           onActionTap: () =>
               context.pushNamed(AppRouteNames.teamDiscover),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         _TeamCard(team: team),
       ],
     );
@@ -40,7 +41,7 @@ class _TeamCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: () => context.pushNamed(AppRouteNames.teamDiscover),
@@ -49,7 +50,7 @@ class _TeamCard extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.surfaceRaised),
+            border: Border.all(color: context.themeColors.surfaceRaised),
           ),
           child: Row(
             children: [
@@ -77,7 +78,7 @@ class _TeamCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,16 +88,16 @@ class _TeamCard extends StatelessWidget {
                       style: AppTypography.soraRegular(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       '${team.categoryLabel} · ${team.monthsTogether} meses juntos',
                       style: AppTypography.soraRegular(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: AppColors.onSurfaceMuted,
+                        color: context.themeColors.onSurfaceMuted,
                       ),
                     ),
                   ],
@@ -118,15 +119,15 @@ class _TeamCard extends StatelessWidget {
                     style: AppTypography.mono(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(width: 4),
+              SizedBox(width: 4),
               Icon(
                 Icons.chevron_right_rounded,
-                color: AppColors.onSurfaceMuted.withValues(alpha: 0.6),
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.6),
               ),
             ],
           ),
@@ -151,7 +152,7 @@ class _TeamAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.2),
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.onSurface, width: 2),
+        border: Border.all(color: context.themeColors.onSurface, width: 2),
       ),
       child: Text(
         initials,

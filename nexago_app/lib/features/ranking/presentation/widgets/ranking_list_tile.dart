@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../domain/ranking_display_helpers.dart';
 import '../../domain/ranking_list_models.dart';
@@ -35,7 +36,7 @@ class RankingListTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: highlight
               ? BoxDecoration(
-                  color: AppColors.surfaceCard,
+                  color: context.themeColors.surfaceCard,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: AppColors.brand.withValues(alpha: 0.45),
@@ -43,9 +44,9 @@ class RankingListTile extends StatelessWidget {
                   ),
                 )
               : BoxDecoration(
-                  color: AppColors.surfaceCard,
+                  color: context.themeColors.surfaceCard,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.surfaceRaised),
+                  border: Border.all(color: context.themeColors.surfaceRaised),
                 ),
           child: Row(
             children: [
@@ -60,12 +61,12 @@ class RankingListTile extends StatelessWidget {
                         ? AppColors.brand
                         : entry.rank <= 3
                             ? AppColors.brand
-                            : AppColors.onSurfaceMuted,
+                            : context.themeColors.onSurfaceMuted,
                   ),
                 ),
               ),
               RankingAvatarGroup(entry: entry, size: RankingAvatarSizes.list),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,15 +77,15 @@ class RankingListTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                       ),
                     ),
                     if (entry.subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
                         entry.subtitle,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -92,13 +93,13 @@ class RankingListTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 formatRankingPoints(entry.points),
                 style: AppTypography.soraRegular(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
-                  color: highlight ? AppColors.brand : AppColors.onSurface,
+                  color: highlight ? AppColors.brand : context.themeColors.onSurface,
                 ),
               ),
             ],

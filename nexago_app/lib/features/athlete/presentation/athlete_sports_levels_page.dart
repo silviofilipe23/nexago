@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/athlete_sports_levels_providers.dart';
 import 'widgets/athlete_sports_levels/athlete_sport_add_chip.dart';
@@ -28,10 +29,10 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
     });
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: _appBar(context, theme),
       body: switch (ui.status) {
-        AthleteSportsLevelsStatus.loading => const Center(
+        AthleteSportsLevelsStatus.loading => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
         AthleteSportsLevelsStatus.error => Center(
@@ -41,7 +42,7 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
               ui.errorMessage ?? 'Erro ao carregar perfil.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyLarge?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
           ),
@@ -62,7 +63,7 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
 
   PreferredSizeWidget _appBar(BuildContext context, ThemeData theme) {
     return AppBar(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
@@ -70,7 +71,7 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
         padding: const EdgeInsets.only(left: 12),
         child: Center(
           child: Material(
-            color: AppColors.surfaceRaised,
+            color: context.themeColors.surfaceRaised,
             borderRadius: BorderRadius.circular(12),
             child: InkWell(
               onTap: () {
@@ -81,12 +82,12 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
                 }
               },
               borderRadius: BorderRadius.circular(12),
-              child: const SizedBox(
+              child: SizedBox(
                 width: 40,
                 height: 40,
                 child: Icon(
                   Icons.chevron_left_rounded,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                 ),
               ),
             ),
@@ -97,7 +98,7 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
         'Esportes e níveis',
         style: theme.textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w800,
-          color: AppColors.onSurface,
+          color: context.themeColors.onSurface,
           letterSpacing: -0.3,
         ),
       ),
@@ -110,7 +111,7 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
             child: Text(
               'Quanto mais detalhe, melhores são as partidas que a gente sugere.',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 height: 1.35,
                 fontSize: 13,
               ),
@@ -138,7 +139,7 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
   }) async {
     final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      backgroundColor: AppColors.surfaceRaised,
+      backgroundColor: context.themeColors.surfaceRaised,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -155,31 +156,31 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
                   'Tornar esporte principal',
                   style: t.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Text(
                   sportLabel.isEmpty
                       ? 'Este esporte passará a ser o principal do seu perfil.'
                       : '$sportLabel será seu esporte principal.',
                   style: t.textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 FilledButton(
                   onPressed: () => Navigator.of(ctx).pop(true),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.canvas,
+                    foregroundColor: context.themeColors.canvas,
                   ),
-                  child: const Text('Tornar principal'),
+                  child: Text('Tornar principal'),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 TextButton(
                   onPressed: () => Navigator.of(ctx).pop(false),
-                  child: const Text('Cancelar'),
+                  child: Text('Cancelar'),
                 ),
               ],
             ),
@@ -217,7 +218,7 @@ class _ReadyBody extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 12),
             child: Row(
               children: [
-                const SizedBox(
+                SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
@@ -225,11 +226,11 @@ class _ReadyBody extends StatelessWidget {
                     color: AppColors.brand,
                   ),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Text(
                   'Salvando…',
                   style: theme.textTheme.labelMedium?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
               ],
@@ -238,20 +239,20 @@ class _ReadyBody extends StatelessWidget {
         Text(
           'SEUS ESPORTES',
           style: theme.textTheme.labelSmall?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.8,
             fontSize: 10,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         if (ui.enrollments.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 24),
             child: Text(
               'Adicione um esporte abaixo para começar.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
           )
@@ -271,22 +272,22 @@ class _ReadyBody extends StatelessWidget {
               ),
             );
           }),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
         Text(
           'ADICIONAR ESPORTE',
           style: theme.textTheme.labelSmall?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.8,
             fontSize: 10,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         if (ui.availableToAdd.isEmpty)
           Text(
             'Você já adicionou todos os esportes disponíveis.',
             style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
             ),
           )
         else
@@ -301,7 +302,7 @@ class _ReadyBody extends StatelessWidget {
               );
             }).toList(),
           ),
-        const SizedBox(height: 24),
+        SizedBox(height: 24),
         const AthleteSportsInviteBanner(),
       ],
     );

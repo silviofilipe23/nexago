@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/my_booking_guests_providers.dart';
 import '../../../domain/my_booking_item.dart';
@@ -52,7 +53,7 @@ class _MyBookingsBookingCardState extends ConsumerState<MyBookingsBookingCard> {
           child: Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.surfaceCard,
+              color: context.themeColors.surfaceCard,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: theme.colorScheme.outline.withValues(alpha: 0.1),
@@ -65,7 +66,7 @@ class _MyBookingsBookingCardState extends ConsumerState<MyBookingsBookingCard> {
                   start: widget.item.startTime,
                   end: widget.item.endTime,
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,29 +79,29 @@ class _MyBookingsBookingCardState extends ConsumerState<MyBookingsBookingCard> {
                               widget.item.arenaName,
                               style: AppTypography.soraRegular(
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.onSurface,
+                                color: context.themeColors.onSurface,
                                 fontSize: 14,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           MyBookingStatusBadge(ui: status),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       Text(
                         subtitle,
                         style: AppTypography.soraRegular(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       MyBookingsPaymentChip(payment: widget.item.paymentDisplay),
                       guestsAsync.when(
                         data: (guests) {
@@ -110,7 +111,7 @@ class _MyBookingsBookingCardState extends ConsumerState<MyBookingsBookingCard> {
                             child: _ConfirmedGuestRow(guest: guests.first),
                           );
                         },
-                        loading: () => const SizedBox(
+                        loading: () => SizedBox(
                           height: 32,
                           child: Align(
                             alignment: Alignment.centerLeft,
@@ -121,9 +122,9 @@ class _MyBookingsBookingCardState extends ConsumerState<MyBookingsBookingCard> {
                             ),
                           ),
                         ),
-                        error: (_, _) => const SizedBox.shrink(),
+                        error: (_, __) => const SizedBox.shrink(),
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       Align(
                         alignment: Alignment.centerRight,
                         child: Text(
@@ -131,7 +132,7 @@ class _MyBookingsBookingCardState extends ConsumerState<MyBookingsBookingCard> {
                           style: AppTypography.mono(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.onSurface,
+                            color: context.themeColors.onSurface,
                           ),
                         ),
                       ),
@@ -168,7 +169,7 @@ class _ConfirmedGuestRow extends StatelessWidget {
           child: guest.avatarUrl == null || guest.avatarUrl!.isEmpty
               ? Text(
                   initials,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                     color: AppColors.win,
@@ -176,13 +177,13 @@ class _ConfirmedGuestRow extends StatelessWidget {
                 )
               : null,
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Text(
           'com ${guest.shortLabel}',
           style: AppTypography.soraRegular(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
       ],
@@ -202,7 +203,7 @@ class _TimeColumn extends StatelessWidget {
       width: 64,
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -212,7 +213,7 @@ class _TimeColumn extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
           Padding(
@@ -222,7 +223,7 @@ class _TimeColumn extends StatelessWidget {
               style: AppTypography.mono(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
           ),
@@ -231,7 +232,7 @@ class _TimeColumn extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
             ),
           ),
         ],

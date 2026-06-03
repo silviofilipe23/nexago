@@ -6,6 +6,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/auth/auth_providers.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/partner_search_service.dart';
 import '../../../data/recent_partners_repository.dart';
 import '../../../domain/app_user_profile.dart';
@@ -148,7 +149,7 @@ class _TournamentRegistrationPartnerStepState
 
     final borderColor = _focused || query.isNotEmpty
         ? AppColors.brand
-        : AppColors.onSurfaceMuted.withValues(alpha: 0.12);
+        : context.themeColors.onSurfaceMuted.withValues(alpha: 0.12);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -158,45 +159,45 @@ class _TournamentRegistrationPartnerStepState
           style: AppTypography.soraRegular(
             fontSize: 26,
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             height: 1.05,
             letterSpacing: -0.4,
           ),
         ),
-        const SizedBox(height: 18),
+        SizedBox(height: 18),
         TextField(
           controller: _searchController,
           focusNode: _focusNode,
           cursorColor: AppColors.brand,
           style: theme.textTheme.bodyLarge?.copyWith(
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             fontWeight: FontWeight.w500,
           ),
           decoration: InputDecoration(
             hintText: 'Buscar por nome, apelido ou e-mail',
             hintStyle: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.6),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.6),
             ),
             prefixIcon: Icon(
               Icons.search_rounded,
-              color: AppColors.onSurfaceMuted.withValues(alpha: 0.62),
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.62),
             ),
             filled: true,
-            fillColor: AppColors.surfaceRaised,
+            fillColor: context.themeColors.surfaceRaised,
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(color: borderColor),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.brand),
+              borderSide: BorderSide(color: AppColors.brand),
             ),
             contentPadding: const EdgeInsets.symmetric(vertical: 14),
           ),
           onChanged: _onSearchChanged,
         ),
         if (!isSearching && !_loadingRecent && _recentPartners.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           TournamentRegistrationRecentPartnersChips(
             partners: _recentPartners,
             selectedUserId: widget.selectedUserId,
@@ -204,20 +205,20 @@ class _TournamentRegistrationPartnerStepState
           ),
         ],
         if (resultsHeader.isNotEmpty) ...[
-          const SizedBox(height: 22),
+          SizedBox(height: 22),
           Text(
             resultsHeader,
             style: AppTypography.mono(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w600,
               fontSize: 10,
               letterSpacing: 1.4,
             ),
           ),
         ],
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         if (_loadingRecent && !isSearching)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(
               child: CircularProgressIndicator(
@@ -227,7 +228,7 @@ class _TournamentRegistrationPartnerStepState
             ),
           )
         else if (_loadingSearch && isSearching)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(
               child: CircularProgressIndicator(
@@ -243,7 +244,7 @@ class _TournamentRegistrationPartnerStepState
               'Nenhum atleta encontrado.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
             ),
           )
@@ -253,7 +254,7 @@ class _TournamentRegistrationPartnerStepState
             child: Text(
               'Digite pelo menos 2 caracteres para buscar um parceiro.',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -281,7 +282,7 @@ class _TournamentRegistrationPartnerStepState
               );
             },
           ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         TournamentRegistrationPartnerPhoneCard(onTap: widget.onInviteByPhone),
       ],
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
 import 'match_detail_section_header.dart';
 import 'match_detail_sparkline.dart';
@@ -27,7 +28,7 @@ class MatchDetailMomentumSection extends StatelessWidget {
           eyebrow: momentum.eyebrow,
           title: momentum.title,
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
           decoration: BoxDecoration(
@@ -42,7 +43,7 @@ class MatchDetailMomentumSection extends StatelessWidget {
                 lineColor: lineColor,
               ),
               if (momentum.narrative.isNotEmpty) ...[
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 _MomentumNarrative(text: momentum.narrative, theme: theme),
               ],
             ],

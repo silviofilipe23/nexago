@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 
 class RankingYearFilterRow extends StatelessWidget {
@@ -32,7 +33,7 @@ class RankingYearFilterRow extends StatelessWidget {
                   onTap: () => onYearSelected(null),
                 ),
                 for (final year in yearOptions.whereType<int>()) ...[
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   _YearChip(
                     label: '$year',
                     selected: selectedYear == year,
@@ -43,13 +44,13 @@ class RankingYearFilterRow extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Text(
           modeLabel,
           style: AppTypography.mono(
             fontSize: 10,
             fontWeight: FontWeight.w600,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             letterSpacing: 0.4,
           ),
         ),
@@ -72,7 +73,7 @@ class _YearChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.onSurface : AppColors.surfaceCard,
+      color: selected ? context.themeColors.onSurface : context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
@@ -83,8 +84,8 @@ class _YearChip extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
             border: Border.all(
               color: selected
-                  ? AppColors.onSurface
-                  : AppColors.surfaceRaised,
+                  ? context.themeColors.onSurface
+                  : context.themeColors.surfaceRaised,
             ),
           ),
           child: Text(
@@ -92,7 +93,7 @@ class _YearChip extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: selected ? Colors.black : AppColors.onSurfaceMuted,
+              color: selected ? Colors.black : context.themeColors.onSurfaceMuted,
             ),
           ),
         ),

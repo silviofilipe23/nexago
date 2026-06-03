@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_manager_booking.dart';
 import 'arena_async_state.dart';
 import 'arena_booking_detail_history_full_page.dart';
@@ -96,14 +97,14 @@ class _HistoryContent extends StatelessWidget {
                   'Histórico do atleta',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
               ),
               Text(
                 'NA SUA ARENA',
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
                   fontSize: 10,
@@ -111,19 +112,19 @@ class _HistoryContent extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           _HistoryPillStrip(filledCount: stats.pillFillCount),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _HistoryInsightCard(
             insight: insight,
             onSendMessage: onSendMessage,
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Divider(
             height: 1,
-            color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           Row(
             children: [
               Expanded(
@@ -147,7 +148,7 @@ class _HistoryContent extends StatelessWidget {
             ],
           ),
           if (history.length > 1) ...[
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
@@ -161,7 +162,7 @@ class _HistoryContent extends StatelessWidget {
                     ),
                   );
                 },
-                child: const Text('Ver histórico completo'),
+                child: Text('Ver histórico completo'),
               ),
             ),
           ],
@@ -179,7 +180,7 @@ class _HistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(),
+      decoration: ArenaDashboardTokens.cardDecoration(context),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: child,
@@ -200,7 +201,7 @@ class _HistoryPillStrip extends StatelessWidget {
     return Row(
       children: [
         for (var i = 0; i < _pillCount; i++) ...[
-          if (i > 0) const SizedBox(width: 6),
+          if (i > 0) SizedBox(width: 6),
           Expanded(
             child: Container(
               height: 18,
@@ -212,7 +213,7 @@ class _HistoryPillStrip extends StatelessWidget {
                 border: Border.all(
                   color: i < filledCount
                       ? AppColors.brand.withValues(alpha: 0.5)
-                      : AppColors.onSurfaceMuted.withValues(alpha: 0.35),
+                      : context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
                   width: 1.5,
                 ),
               ),
@@ -259,7 +260,7 @@ class _HistoryInsightCard extends StatelessWidget {
             color: AppColors.brand,
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -268,16 +269,16 @@ class _HistoryInsightCard extends StatelessWidget {
                 insight.title,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   height: 1.3,
                 ),
               ),
               if (insight.bodySpans != null) ...[
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 RichText(
                   text: TextSpan(
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       fontWeight: FontWeight.w500,
                       height: 1.45,
                     ),
@@ -285,11 +286,11 @@ class _HistoryInsightCard extends StatelessWidget {
                   ),
                 ),
               ] else if (insight.body != null) ...[
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Text(
                   insight.body!,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w500,
                     height: 1.45,
                   ),
@@ -333,7 +334,7 @@ class _HistoryInsight {
           TextSpan(text: '$firstName nunca jogou aqui antes. Boas-vindas conta: '),
           TextSpan(
             text: 'enviar mensagem',
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.brand,
               fontWeight: FontWeight.w800,
             ),
@@ -451,15 +452,15 @@ class _HistoryStatColumn extends StatelessWidget {
           value,
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             height: 1,
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         Text(
           label,
           style: theme.textTheme.labelSmall?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.6,
             fontSize: 10,

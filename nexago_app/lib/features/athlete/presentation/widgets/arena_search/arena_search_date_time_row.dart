@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../arenas/domain/arena_search_filter_logic.dart';
 
 class ArenaSearchDateTimeRow extends StatelessWidget {
@@ -55,7 +56,7 @@ class ArenaSearchDateTimeRow extends StatelessWidget {
             onTap: onDateTap,
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: _PickerButton(
             icon: Icons.schedule_outlined,
@@ -86,7 +87,7 @@ class _PickerButton extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -95,18 +96,18 @@ class _PickerButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.surfaceRaised),
+            border: Border.all(color: context.themeColors.surfaceRaised),
           ),
           child: Row(
             children: [
-              Icon(icon, size: 18, color: AppColors.onSurfaceMuted),
-              const SizedBox(width: 8),
+              Icon(icon, size: 18, color: context.themeColors.onSurfaceMuted),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   label,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
               ),

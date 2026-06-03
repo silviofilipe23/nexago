@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/athlete_profile.dart';
 import '../../../domain/athlete_public_profile_models.dart';
@@ -76,7 +77,7 @@ class PublicProfileHeader extends StatelessWidget {
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.black.withValues(alpha: 0.2),
-                            AppColors.canvas.withValues(alpha: 0.75),
+                            context.themeColors.canvas.withValues(alpha: 0.75),
                           ],
                         ),
                       ),
@@ -91,12 +92,12 @@ class PublicProfileHeader extends StatelessWidget {
                 child: Row(
                   children: [
                     _IconButton(onTap: onBack, icon: Icons.arrow_back_rounded),
-                    const Spacer(),
+                    Spacer(),
                     _IconButton(
                       onTap: onBookmark,
                       icon: Icons.bookmark_border_rounded,
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     _IconButton(onTap: onMore, icon: Icons.more_horiz_rounded),
                   ],
                 ),
@@ -141,13 +142,13 @@ class PublicProfileHeader extends StatelessWidget {
                       style: AppTypography.soraRegular(
                         fontSize: 26,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.onSurface,
+                        color: context.themeColors.onSurface,
                         letterSpacing: -0.6,
                         height: 1.1,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 6),
+                  SizedBox(width: 6),
                   // Icon(
                   //   Icons.verified_rounded,
                   //   size: 20,
@@ -156,37 +157,37 @@ class PublicProfileHeader extends StatelessWidget {
                 ],
               ),
               if (handle != null) ...[
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   handle,
                   style: AppTypography.soraRegular(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
               ],
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _InfoRow(
                 ageLabel: ageLabel,
                 genderLabel: genderLabel,
                 location: location,
               ),
               if (bio.isNotEmpty) ...[
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Text(
                   bio,
                   textAlign: TextAlign.center,
                   style: AppTypography.soraRegular(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: AppColors.onSurface.withValues(alpha: 0.88),
+                    color: context.themeColors.onSurface.withValues(alpha: 0.88),
                     height: 1.45,
                   ),
                 ),
               ],
               if (sports.isNotEmpty) ...[
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -218,9 +219,9 @@ class _RankingBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard.withValues(alpha: 0.88),
+        color: context.themeColors.surfaceCard.withValues(alpha: 0.88),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.surfaceRaised),
+        border: Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -230,11 +231,11 @@ class _RankingBadge extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 9,
               fontWeight: FontWeight.w600,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               letterSpacing: 0.6,
             ),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Row(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -244,7 +245,7 @@ class _RankingBadge extends StatelessWidget {
                 style: AppTypography.soraRegular(
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.onSurface,
+                  color: context.themeColors.onSurface,
                   height: 1,
                 ),
               ),
@@ -296,15 +297,15 @@ class _InfoRow extends StatelessWidget {
               Icon(
                 Icons.location_on_outlined,
                 size: 14,
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
               ),
-              const SizedBox(width: 2),
+              SizedBox(width: 2),
               Text(
                 location,
                 style: AppTypography.soraRegular(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
             ],
@@ -325,16 +326,16 @@ class _SportChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
-        color: primary ? AppColors.brand : AppColors.surfaceCard,
+        color: primary ? AppColors.brand : context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(999),
-        border: primary ? null : Border.all(color: AppColors.surfaceRaised),
+        border: primary ? null : Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Text(
         label,
         style: AppTypography.soraRegular(
           fontSize: 13,
           fontWeight: FontWeight.w700,
-          color: primary ? AppColors.black : AppColors.onSurfaceMuted,
+          color: primary ? AppColors.black : context.themeColors.onSurfaceMuted,
         ),
       ),
     );
@@ -350,7 +351,7 @@ class _IconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceCard.withValues(alpha: 0.9),
+      color: context.themeColors.surfaceCard.withValues(alpha: 0.9),
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -358,7 +359,7 @@ class _IconButton extends StatelessWidget {
         child: SizedBox(
           width: 40,
           height: 40,
-          child: Icon(icon, color: AppColors.onSurface, size: 20),
+          child: Icon(icon, color: context.themeColors.onSurface, size: 20),
         ),
       ),
     );
@@ -399,8 +400,8 @@ class _CoverPhotoSkeletonState extends State<_CoverPhotoSkeleton>
         final t = Curves.easeInOut.transform(_pulse.value);
         return ColoredBox(
           color: Color.lerp(
-            AppColors.surfaceCard,
-            AppColors.onSurfaceMuted.withValues(alpha: 0.22),
+            context.themeColors.surfaceCard,
+            context.themeColors.onSurfaceMuted.withValues(alpha: 0.22),
             t,
           )!,
         );
@@ -421,8 +422,8 @@ class _DefaultCoverBackground extends StatelessWidget {
           end: Alignment.bottomRight,
           colors: [
             AppColors.brand.withValues(alpha: 0.14),
-            AppColors.canvas,
-            AppColors.canvas,
+            context.themeColors.canvas,
+            context.themeColors.canvas,
           ],
         ),
       ),

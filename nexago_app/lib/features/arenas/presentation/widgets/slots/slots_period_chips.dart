@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/slots_page_logic.dart';
 
 class SlotsPeriodChips extends StatelessWidget {
@@ -30,7 +31,7 @@ class SlotsPeriodChips extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: _options.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => SizedBox(width: 8),
         itemBuilder: (context, index) {
           final (period, label) = _options[index];
           final isSelected = selected == period;
@@ -42,14 +43,14 @@ class SlotsPeriodChips extends StatelessWidget {
               '$label $count',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                color: isSelected ? AppColors.black : AppColors.onSurface,
+                color: isSelected ? AppColors.black : context.themeColors.onSurface,
                 fontSize: 13,
               ),
             ),
             selectedColor: AppColors.brand,
-            backgroundColor: AppColors.surfaceCard,
+            backgroundColor: context.themeColors.surfaceCard,
             side: BorderSide(
-              color: isSelected ? AppColors.brand : AppColors.surfaceRaised,
+              color: isSelected ? AppColors.brand : context.themeColors.surfaceRaised,
             ),
             onSelected: (_) => onSelected(period),
           );

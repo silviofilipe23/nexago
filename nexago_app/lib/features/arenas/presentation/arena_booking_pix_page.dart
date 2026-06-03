@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/validation/cpf_cnpj.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
@@ -284,7 +285,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
     final showQr = _pix != null && !_loadingPix;
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: BookingPixAppBar(onBack: _onBack),
       body: _paymentFailed
           ? _buildFailedBody(context)
@@ -302,7 +303,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
                               _payNowReais,
                             ),
                           ),
-                          const SizedBox(height: 20),
+                          SizedBox(height: 20),
                           BookingPixAmountSection(
                             totalReais: _totalReais,
                             selectedFraction: _paymentFraction,
@@ -312,19 +313,19 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
                               setState(() => _paymentFraction = f);
                             },
                           ),
-                          const SizedBox(height: 20),
+                          SizedBox(height: 20),
                           BookingPixCpfField(
                             controller: _cpfController,
                             errorText: _cpfHint,
                             onSubmitted: _hasValidCpf ? _loadPix : null,
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: 12),
                           BookingPixSaveCpfTile(
                             value: _saveCpf,
                             onChanged: (v) => setState(() => _saveCpf = v),
                           ),
                           if (_pixError != null) ...[
-                            const SizedBox(height: 16),
+                            SizedBox(height: 16),
                             _PixErrorCard(
                               message: _pixError!,
                               onRetry: _loadPix,
@@ -337,13 +338,13 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
                               amountReais:
                                   _pix?.amountToPayNowReais ?? _payNowReais,
                             ),
-                            const SizedBox(height: 20),
+                            SizedBox(height: 20),
                           ],
                           BookingPixQrCard(
                             base64: _pix!.qrCodeBase64,
                             payload: _pix!.qrCode,
                           ),
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16),
                           BookingPixCopyButton(
                             onPressed: () async {
                               await Clipboard.setData(
@@ -353,9 +354,9 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
                               showAppSnackBar(context, 'Código PIX copiado.');
                             },
                           ),
-                          const SizedBox(height: 16),
+                          SizedBox(height: 16),
                           const BookingPixWaitingCard(),
-                          const SizedBox(height: 12),
+                          SizedBox(height: 12),
                           TextButton(
                             onPressed: _cancelling
                                 ? null
@@ -364,7 +365,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
                                     if (!context.mounted) return;
                                     context.pop();
                                   },
-                            child: const Text('Desistir do pagamento'),
+                            child: Text('Desistir do pagamento'),
                           ),
                         ],
                       ],
@@ -395,7 +396,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
               size: 56,
               color: AppColors.live.withValues(alpha: 0.9),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'Pagamento não concluído',
               textAlign: TextAlign.center,
@@ -403,16 +404,16 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'A reserva foi cancelada e o horário voltou a ficar disponível.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             FilledButton(
               onPressed: _onBack,
               style: FilledButton.styleFrom(
@@ -420,7 +421,7 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
                 foregroundColor: AppColors.black,
                 minimumSize: const Size.fromHeight(48),
               ),
-              child: const Text('Escolher outro horário'),
+              child: Text('Escolher outro horário'),
             ),
           ],
         ),
@@ -439,7 +440,7 @@ class _PixErrorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.live.withValues(alpha: 0.35)),
       ),
@@ -450,16 +451,16 @@ class _PixErrorCard extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.onSurface),
+              style: TextStyle(color: context.themeColors.onSurface),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             FilledButton(
               onPressed: onRetry,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.brand,
                 foregroundColor: AppColors.black,
               ),
-              child: const Text('Tentar novamente'),
+              child: Text('Tentar novamente'),
             ),
           ],
         ),

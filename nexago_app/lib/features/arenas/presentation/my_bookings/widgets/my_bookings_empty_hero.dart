@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../arena_booking_navigation.dart';
 
@@ -27,7 +28,7 @@ class MyBookingsEmptyHero extends ConsumerWidget {
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
+          color: context.themeColors.surfaceCard,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: AppColors.brand.withValues(alpha: 0.2)),
         ),
@@ -57,7 +58,7 @@ class MyBookingsEmptyHero extends ConsumerWidget {
                   height: 56,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [Color(0xFFCC0000), Color(0xFFFF6A1A)],
@@ -67,7 +68,7 @@ class MyBookingsEmptyHero extends ConsumerWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             Text(
               'SUA PRIMEIRA RESERVA',
               style: AppTypography.mono(
@@ -77,24 +78,24 @@ class MyBookingsEmptyHero extends ConsumerWidget {
                 letterSpacing: 1.2,
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text(
               'Hora de pisar\nna areia.',
               textAlign: TextAlign.center,
               style: theme.textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
                 letterSpacing: -0.5,
                 height: 1.1,
                 fontSize: 26,
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             RichText(
               textAlign: TextAlign.center,
               text: TextSpan(
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   height: 1.5,
                   fontSize: 14,
                 ),
@@ -117,7 +118,7 @@ class MyBookingsEmptyHero extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               child: DecoratedBox(
@@ -155,18 +156,18 @@ class MyBookingsEmptyHero extends ConsumerWidget {
                       Container(
                         width: 24,
                         height: 24,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: AppColors.black,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.add_rounded,
                           color: AppColors.brand,
                           size: 18,
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      const Text(
+                      SizedBox(width: 10),
+                      Text(
                         'Reservar uma quadra',
                         style: TextStyle(
                           fontWeight: FontWeight.w800,

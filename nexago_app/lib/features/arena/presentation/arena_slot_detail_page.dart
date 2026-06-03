@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/domain/arena_slot.dart';
@@ -55,15 +56,15 @@ class ArenaSlotDetailPage extends ConsumerWidget {
         .replaceAll('.', '');
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
+          icon: Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
         ),
-        title: const Text('Horário'),
+        title: Text('Horário'),
       ),
       body: SafeArea(
         top: false,
@@ -73,25 +74,25 @@ class ArenaSlotDetailPage extends ConsumerWidget {
             Text(
               '$eyebrow · ${args.courtName.toUpperCase()}',
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.4,
                   ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             _LargeTimeDisplay(
               startTime: slot.startTime,
               endTime: slot.endTime,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             _StatusPriceRow(slot: slot),
             if (liveAsync.hasError) ...[
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               const ArenaErrorState(
                 message: 'Não foi possível sincronizar este horário agora.',
               ),
             ],
-            const SizedBox(height: 28),
+            SizedBox(height: 28),
             FadeSlideIn(
               child: _QuickActionsGrid(
                 slot: slot,
@@ -99,7 +100,7 @@ class ArenaSlotDetailPage extends ConsumerWidget {
               ),
             ),
             if (history != null && history.hasEnoughData) ...[
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
               FadeSlideIn(
                 child: _WeekdayHistoryCard(
                   history: history,
@@ -107,7 +108,7 @@ class ArenaSlotDetailPage extends ConsumerWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 28),
+            SizedBox(height: 28),
             FadeSlideIn(
               child: slot.isBooked
                   ? _BookedDetails(slot: slot)
@@ -145,7 +146,7 @@ class _LargeTimeDisplay extends StatelessWidget {
           ':${startParts.length > 1 ? startParts[1] : '00'}',
           style: theme.textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
           ),
         ),
         Padding(
@@ -153,7 +154,7 @@ class _LargeTimeDisplay extends StatelessWidget {
           child: Text(
             '—',
             style: theme.textTheme.titleLarge?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
             ),
           ),
         ),
@@ -162,7 +163,7 @@ class _LargeTimeDisplay extends StatelessWidget {
           ':${endParts.length > 1 ? endParts[1] : '00'}',
           style: theme.textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
           ),
         ),
       ],
@@ -182,7 +183,7 @@ class _TimePart extends StatelessWidget {
       hour.padLeft(2, '0'),
       style: theme.textTheme.displayMedium?.copyWith(
         fontWeight: FontWeight.w800,
-        color: AppColors.onSurface,
+        color: context.themeColors.onSurface,
         height: 1,
         letterSpacing: -2,
       ),
@@ -207,7 +208,7 @@ class _StatusPriceRow extends StatelessWidget {
       label = slot.blockReason == ArenaSlotBlockReason.aula
           ? 'AULA'
           : 'BLOQUEADO';
-      color = AppColors.onSurfaceMuted;
+      color = context.themeColors.onSurfaceMuted;
     } else {
       label = 'DISPONÍVEL';
       color = AppColors.win;
@@ -237,11 +238,11 @@ class _StatusPriceRow extends StatelessWidget {
           ),
         ),
         if (priceStr != null) ...[
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Text(
             'preço · $priceStr',
             style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -269,12 +270,12 @@ class _QuickActionsGrid extends ConsumerWidget {
         Text(
           'AÇÕES RÁPIDAS',
           style: theme.textTheme.labelSmall?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.6,
           ),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         GridView.count(
           crossAxisCount: 2,
           shrinkWrap: true,
@@ -344,7 +345,7 @@ class _ActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(ArenaDashboardTokens.cardRadius),
       child: InkWell(
         onTap: enabled ? onTap : null,
@@ -356,23 +357,23 @@ class _ActionCard extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: enabled ? AppColors.brand : AppColors.onSurfaceMuted,
+                color: enabled ? AppColors.brand : context.themeColors.onSurfaceMuted,
                 size: 22,
               ),
-              const Spacer(),
+              Spacer(),
               Text(
                 title,
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: enabled
-                      ? AppColors.onSurface
-                      : AppColors.onSurfaceMuted,
+                      ? context.themeColors.onSurface
+                      : context.themeColors.onSurfaceMuted,
                 ),
               ),
               Text(
                 subtitle,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -398,7 +399,7 @@ class _WeekdayHistoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(),
+      decoration: ArenaDashboardTokens.cardDecoration(context),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -408,10 +409,10 @@ class _WeekdayHistoryCard extends StatelessWidget {
               'Esse slot nos últimos $weekdayLabel',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               '${history.filledCount}/${history.sampleSize}',
               style: theme.textTheme.headlineMedium?.copyWith(
@@ -419,7 +420,7 @@ class _WeekdayHistoryCard extends StatelessWidget {
                 color: AppColors.brand,
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Row(
               children: [
                 for (var i = 0; i < history.dateLabels.length; i++)
@@ -432,15 +433,15 @@ class _WeekdayHistoryCard extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: history.filledFlags[i]
                                 ? AppColors.brand.withValues(alpha: 0.35)
-                                : AppColors.surfaceRaised,
+                                : context.themeColors.surfaceRaised,
                             borderRadius: BorderRadius.circular(6),
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         Text(
                           history.dateLabels[i],
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             fontSize: 10,
                           ),
                         ),
@@ -449,13 +450,13 @@ class _WeekdayHistoryCard extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text(
               '${history.occupancyPercent.toStringAsFixed(0)}% de ocupação nos últimos '
               '${history.sampleSize} ${weekdayLabel}s nesse horário. '
               'Vale ativar promoção pra encher hoje.',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 height: 1.4,
               ),
             ),
@@ -485,7 +486,7 @@ class _BookedDetails extends ConsumerWidget {
         : const AsyncValue<String>.data('—');
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(),
+      decoration: ArenaDashboardTokens.cardDecoration(context),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -499,12 +500,12 @@ class _BookedDetails extends ConsumerWidget {
                 error: (_, __) => '—',
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             _LabeledRow(
               label: 'Pagamento',
               value: arenaBookingPaymentLabel(bookingAsync.valueOrNull),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             _LabeledRow(
               label: 'Status',
               value: arenaBookingStatusLabel(bookingAsync.valueOrNull),
@@ -535,7 +536,7 @@ class _BlockedDetailsState extends ConsumerState<_BlockedDetails> {
     final note = widget.slot.blockNote?.trim();
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(),
+      decoration: ArenaDashboardTokens.cardDecoration(context),
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
@@ -544,22 +545,22 @@ class _BlockedDetailsState extends ConsumerState<_BlockedDetails> {
             if (reason != null)
               _LabeledRow(label: 'Motivo', value: reason),
             if (note != null && note.isNotEmpty) ...[
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               _LabeledRow(label: 'Nota', value: note),
             ],
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: _busy || widget.slot.isVirtual
                   ? null
                   : () => _unblock(context),
               icon: _busy
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.lock_open_outlined),
-              label: const Text('Desbloquear'),
+                  : Icon(Icons.lock_open_outlined),
+              label: Text('Desbloquear'),
             ),
             if (widget.slot.isVirtual)
               Padding(
@@ -567,7 +568,7 @@ class _BlockedDetailsState extends ConsumerState<_BlockedDetails> {
                 child: Text(
                   'Este horário ainda não está salvo no Firestore.',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
               ),
@@ -610,16 +611,16 @@ class _LabeledRow extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
+                color: context.themeColors.onSurfaceMuted,
                 fontWeight: FontWeight.w600,
               ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           value,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.w500,
-                color: AppColors.onSurface,
+                color: context.themeColors.onSurface,
               ),
         ),
       ],

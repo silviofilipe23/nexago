@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/gamification_models.dart';
 import '../domain/achievements/achievement_providers.dart';
@@ -100,9 +101,9 @@ class _AthleteCompleteProfilePageState
     final completion = ref.watch(profileCompletionStateProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.canvas,
+      backgroundColor: context.themeColors.canvas,
       appBar: AppBar(
-        backgroundColor: AppColors.canvas,
+        backgroundColor: context.themeColors.canvas,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
@@ -111,16 +112,16 @@ class _AthleteCompleteProfilePageState
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: AppColors.surfaceRaised.withValues(alpha: 0.72),
+              color: context.themeColors.surfaceRaised.withValues(alpha: 0.72),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: AppColors.onSurface.withValues(alpha: 0.1),
+                color: context.themeColors.onSurface.withValues(alpha: 0.1),
               ),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.arrow_back_ios_new_rounded,
               size: 18,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
         ),
@@ -128,12 +129,12 @@ class _AthleteCompleteProfilePageState
           'Complete seu perfil',
           style: theme.textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w800,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
           ),
         ),
       ),
       body: completion == null
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: AppColors.brand),
             )
           : RefreshIndicator(
@@ -150,7 +151,7 @@ class _AthleteCompleteProfilePageState
                     remainingSteps: completion.remainingSteps,
                     remainingXp: completion.remainingXp,
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   ...completion.steps.map(
                     (status) => Padding(
                       padding: const EdgeInsets.only(bottom: 10),
@@ -162,11 +163,11 @@ class _AthleteCompleteProfilePageState
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                   const ProfileCompletionRewardCard(),
                   if (_syncing) ...[
-                    const SizedBox(height: 16),
-                    const Center(
+                    SizedBox(height: 16),
+                    Center(
                       child: SizedBox(
                         width: 24,
                         height: 24,

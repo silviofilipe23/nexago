@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class SlotsFullyBookedBanner extends StatelessWidget {
   const SlotsFullyBookedBanner({
@@ -19,7 +20,7 @@ class SlotsFullyBookedBanner extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: AppColors.live.withValues(alpha: 0.55),
@@ -39,27 +40,27 @@ class SlotsFullyBookedBanner extends StatelessWidget {
                 color: AppColors.live.withValues(alpha: 0.4),
               ),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.remove_rounded,
               color: AppColors.live,
               size: 28,
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Text(
             title,
             textAlign: TextAlign.center,
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w800,
-              color: AppColors.onSurface,
+              color: context.themeColors.onSurface,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             subtitle,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall?.copyWith(
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               height: 1.35,
             ),
           ),

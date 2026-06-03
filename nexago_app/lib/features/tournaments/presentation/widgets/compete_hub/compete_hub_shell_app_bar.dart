@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 
 /// App bar da aba Competir no shell do atleta.
@@ -46,7 +47,7 @@ class CompeteHubShellAppBar extends StatelessWidget implements PreferredSizeWidg
           'Competir',
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.w900,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             letterSpacing: -0.5,
           ),
         ),
@@ -56,13 +57,13 @@ class CompeteHubShellAppBar extends StatelessWidget implements PreferredSizeWidg
           icon: Icons.search_rounded,
           onTap: () => _openDiscoveryList(context, searchOpen: true),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         CompeteHubAppBarIconButton(
           icon: Icons.tune_rounded,
           onTap: () => _openDiscoveryList(context),
         ),
         ...trailingActions,
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
       ],
     );
   }
@@ -81,7 +82,7 @@ class CompeteHubAppBarIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceRaised,
+      color: context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -89,7 +90,7 @@ class CompeteHubAppBarIconButton extends StatelessWidget {
         child: SizedBox(
           width: 40,
           height: 40,
-          child: Icon(icon, color: AppColors.onSurface, size: 22),
+          child: Icon(icon, color: context.themeColors.onSurface, size: 22),
         ),
       ),
     );

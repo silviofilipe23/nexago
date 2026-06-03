@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/arena_search_providers.dart';
 import '../../arena_booking_navigation.dart';
@@ -41,7 +42,7 @@ class MyBookingsNearbySection extends ConsumerWidget {
                     '${snapshot.sectionTitlePrefix} · $sportLabel',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w800,
-                      color: AppColors.onSurface,
+                      color: context.themeColors.onSurface,
                       letterSpacing: -0.2,
                     ),
                   ),
@@ -51,15 +52,15 @@ class MyBookingsNearbySection extends ConsumerWidget {
                   style: AppTypography.mono(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.onSurfaceMuted,
+                    color: context.themeColors.onSurfaceMuted,
                     letterSpacing: 0.6,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             for (var i = 0; i < snapshot.topArenas.length; i++) ...[
-              if (i > 0) const SizedBox(height: 12),
+              if (i > 0) SizedBox(height: 12),
               MyBookingsNearbyArenaCard(
                 result: snapshot.topArenas[i],
                 kmDistance: i < snapshot.rankedArenas.length
@@ -77,7 +78,7 @@ class MyBookingsNearbySection extends ConsumerWidget {
           ],
         );
       },
-      loading: () => const Padding(
+      loading: () => Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
         child: Center(
           child: SizedBox(
@@ -93,7 +94,7 @@ class MyBookingsNearbySection extends ConsumerWidget {
           'Não foi possível carregar arenas próximas.',
           textAlign: TextAlign.center,
           style: theme.textTheme.bodySmall?.copyWith(
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
           ),
         ),
       ),

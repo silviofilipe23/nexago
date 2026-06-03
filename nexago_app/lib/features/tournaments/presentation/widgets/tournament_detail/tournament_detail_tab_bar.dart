@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_detail_tab.dart';
 
 class TournamentDetailTabBar extends StatefulWidget {
@@ -98,7 +99,7 @@ class _TournamentDetailTabBarState extends State<TournamentDetailTabBar> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.canvas,
+      color: context.themeColors.canvas,
       padding: const EdgeInsets.fromLTRB(
         TournamentDetailTabBar._horizontalPadding,
         TournamentDetailTabBar._verticalPadding,
@@ -127,7 +128,7 @@ class _TournamentDetailTabBarState extends State<TournamentDetailTabBar> {
                     children: [
                       for (final tab in widget.tabs) ...[
                         if (tab != widget.tabs.first)
-                          const SizedBox(width: 4),
+                          SizedBox(width: 4),
                         _TabSegment(
                           key: _tabKeys[tab],
                           label: tab.label,
@@ -135,7 +136,7 @@ class _TournamentDetailTabBarState extends State<TournamentDetailTabBar> {
                           onTap: () => widget.onSelected(tab),
                         ),
                       ],
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                     ],
                   ),
                 ),
@@ -219,7 +220,7 @@ class _TabSegment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.surfaceSheet : Colors.transparent,
+      color: selected ? context.themeColors.surfaceSheet : Colors.transparent,
       borderRadius: BorderRadius.circular(
         TournamentDetailTabBar._segmentRadius,
       ),
@@ -235,7 +236,7 @@ class _TabSegment extends StatelessWidget {
             style: AppTypography.soraRegular(
               fontSize: 14,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              color: selected ? AppColors.onSurface : AppColors.onSurfaceMuted,
+              color: selected ? context.themeColors.onSurface : context.themeColors.onSurfaceMuted,
             ),
           ),
         ),

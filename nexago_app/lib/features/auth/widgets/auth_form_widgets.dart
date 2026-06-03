@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/auth_password_strength.dart';
 
 const kNexagoLogoAsset = 'assets/images/nexago_logo.png';
@@ -119,7 +120,7 @@ class AuthTextField extends StatelessWidget {
       inputFormatters: inputFormatters,
       onChanged: onChanged,
       onSubmitted: onSubmitted,
-      style: const TextStyle(
+      style: TextStyle(
         color: AppColors.onSurface,
         fontSize: 16,
         fontWeight: FontWeight.w500,
@@ -146,16 +147,16 @@ class AuthTextField extends StatelessWidget {
         focusedBorder: borderless
             ? border
             : border.copyWith(
-                borderSide: const BorderSide(
+                borderSide: BorderSide(
                   color: AppColors.brand,
                   width: 1.5,
                 ),
               ),
         errorBorder: border.copyWith(
-          borderSide: const BorderSide(color: AppColors.live),
+          borderSide: BorderSide(color: AppColors.live),
         ),
         focusedErrorBorder: border.copyWith(
-          borderSide: const BorderSide(color: AppColors.live, width: 1.5),
+          borderSide: BorderSide(color: AppColors.live, width: 1.5),
         ),
       ),
     );
@@ -209,7 +210,7 @@ class AuthBackButton extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onPressed,
-          child: const SizedBox(
+          child: SizedBox(
             width: 40,
             height: 40,
             child: Icon(
@@ -270,7 +271,7 @@ class AuthInfoBanner extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, size: 18, color: AppColors.brand),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child:
                   child ??
@@ -389,7 +390,7 @@ class AuthTermsConsent extends StatelessWidget {
                 visualDensity: VisualDensity.compact,
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: Text.rich(
                 TextSpan(
@@ -470,7 +471,7 @@ class AuthPasswordStrength extends StatelessWidget {
             );
           }),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -482,7 +483,7 @@ class AuthPasswordStrength extends StatelessWidget {
                 letterSpacing: 0.4,
               ),
             ),
-            const Spacer(),
+            Spacer(),
             Wrap(
               spacing: 6,
               runSpacing: 6,
@@ -593,7 +594,7 @@ class AuthRegisterSuccessHero extends StatelessWidget {
                   ],
                 ),
                 alignment: Alignment.center,
-                child: const Icon(
+                child: Icon(
                   Icons.check_rounded,
                   size: 52,
                   color: AppColors.black,
@@ -603,7 +604,7 @@ class AuthRegisterSuccessHero extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 18),
+        SizedBox(height: 18),
         Text(
           'CONTA CRIADA',
           textAlign: TextAlign.center,
@@ -613,7 +614,7 @@ class AuthRegisterSuccessHero extends StatelessWidget {
             letterSpacing: 1.4,
           ),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         Text(
           'Bora pra quadra.',
           textAlign: TextAlign.center,
@@ -624,7 +625,7 @@ class AuthRegisterSuccessHero extends StatelessWidget {
             height: 1.12,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Text(
           'Mas primeiro, complete seu perfil de atleta para que possamos te oferecer a melhor experiência.',
           textAlign: TextAlign.center,
@@ -668,7 +669,7 @@ class AuthContinueButton extends StatelessWidget {
           ),
         ),
         child: loading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 22,
                 height: 22,
                 child: CircularProgressIndicator(
@@ -728,7 +729,7 @@ class AuthSocialButton extends StatelessWidget {
           ),
         ),
         child: loading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 22,
                 height: 22,
                 child: CircularProgressIndicator(strokeWidth: 2),
@@ -738,7 +739,7 @@ class AuthSocialButton extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   icon,
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Text(
                     label,
                     style: theme.textTheme.titleSmall?.copyWith(
@@ -825,7 +826,7 @@ class AuthLogo extends StatelessWidget {
           ),
         ),
         if (showTagline) ...[
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Text(
             'NEXAGO • BR',
             style: theme.textTheme.labelSmall?.copyWith(

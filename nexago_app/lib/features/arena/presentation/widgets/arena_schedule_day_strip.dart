@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/arena_date_utils.dart';
 import '../../domain/arena_schedule_providers.dart';
 
@@ -30,7 +31,7 @@ class ArenaScheduleDayStrip extends ConsumerWidget {
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 4),
         itemCount: daysCount,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => SizedBox(width: 8),
         itemBuilder: (context, index) {
           final day = today.add(Duration(days: index));
           final dOnly = arenaDateOnly(day);
@@ -55,12 +56,12 @@ class ArenaScheduleDayStrip extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: isSelected
                       ? AppColors.brand.withValues(alpha: 0.15)
-                      : AppColors.surfaceRaised,
+                      : context.themeColors.surfaceRaised,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isSelected
                         ? AppColors.brand
-                        : AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+                        : context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
                     width: isSelected ? 1.5 : 1,
                   ),
                 ),
@@ -74,7 +75,7 @@ class ArenaScheduleDayStrip extends ConsumerWidget {
                         fontWeight: FontWeight.w700,
                         color: isSelected
                             ? AppColors.brand
-                            : AppColors.onSurfaceMuted,
+                            : context.themeColors.onSurfaceMuted,
                         fontSize: 10,
                         letterSpacing: 0.3,
                         height: 1.1,
@@ -89,13 +90,13 @@ class ArenaScheduleDayStrip extends ConsumerWidget {
                           ?.copyWith(
                         fontWeight: FontWeight.w800,
                         color: isSelected
-                            ? AppColors.onSurface
-                            : AppColors.onSurfaceMuted,
+                            ? context.themeColors.onSurface
+                            : context.themeColors.onSurfaceMuted,
                         height: 1,
                       ),
                     ),
                     if (isSelected && stats.total > 0) ...[
-                      const SizedBox(height: 3),
+                      SizedBox(height: 3),
                       Text(
                         '${stats.total} SLOTS',
                         maxLines: 1,
@@ -109,11 +110,11 @@ class ArenaScheduleDayStrip extends ConsumerWidget {
                         ),
                       ),
                     ] else if (isToday && !isSelected) ...[
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Container(
                         width: 5,
                         height: 5,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           color: AppColors.brand,
                           shape: BoxShape.circle,
                         ),

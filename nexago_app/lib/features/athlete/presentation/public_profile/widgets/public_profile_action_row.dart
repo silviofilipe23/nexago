@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
 class PublicProfileActionRow extends StatelessWidget {
@@ -49,7 +50,7 @@ class PublicProfileActionRow extends StatelessWidget {
                         loading: followLoading,
                       ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             flex: 7,
             child: _SecondaryPillButton(
@@ -58,7 +59,7 @@ class PublicProfileActionRow extends StatelessWidget {
               onTap: onInvite,
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           _SharePillButton(onTap: onShare),
         ],
       ),
@@ -89,7 +90,7 @@ class _PrimaryPillButton extends StatelessWidget {
           height: PublicProfileActionRow._height,
           child: Center(
             child: loading
-                ? const SizedBox(
+                ? SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
@@ -128,7 +129,7 @@ class _SecondaryPillButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: PublicProfileActionRow._radius,
       child: InkWell(
         onTap: loading ? null : onTap,
@@ -138,10 +139,10 @@ class _SecondaryPillButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             borderRadius: PublicProfileActionRow._radius,
-            border: Border.all(color: AppColors.surfaceRaised),
+            border: Border.all(color: context.themeColors.surfaceRaised),
           ),
           child: loading
-              ? const Center(
+              ? Center(
                   child: SizedBox(
                     width: 18,
                     height: 18,
@@ -155,8 +156,8 @@ class _SecondaryPillButton extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (icon != null) ...[
-                      Icon(icon, size: 16, color: AppColors.onSurface),
-                      const SizedBox(width: 6),
+                      Icon(icon, size: 16, color: context.themeColors.onSurface),
+                      SizedBox(width: 6),
                     ],
                     Flexible(
                       child: Text(
@@ -166,7 +167,7 @@ class _SecondaryPillButton extends StatelessWidget {
                         style: AppTypography.soraRegular(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.onSurface,
+                          color: context.themeColors.onSurface,
                         ),
                       ),
                     ),
@@ -186,7 +187,7 @@ class _SharePillButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.surfaceCard,
+      color: context.themeColors.surfaceCard,
       borderRadius: PublicProfileActionRow._radius,
       child: InkWell(
         onTap: onTap,
@@ -196,11 +197,11 @@ class _SharePillButton extends StatelessWidget {
           height: PublicProfileActionRow._height,
           decoration: BoxDecoration(
             borderRadius: PublicProfileActionRow._radius,
-            border: Border.all(color: AppColors.surfaceRaised),
+            border: Border.all(color: context.themeColors.surfaceRaised),
           ),
-          child: const Icon(
+          child: Icon(
             Icons.ios_share_rounded,
-            color: AppColors.onSurface,
+            color: context.themeColors.onSurface,
             size: 20,
           ),
         ),

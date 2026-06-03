@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/match_history/athlete_match_history_models.dart';
 
@@ -44,7 +45,7 @@ class MatchHistoryTournamentCard extends StatelessWidget {
                   background: rankStyle.background,
                   foreground: rankStyle.foreground,
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -60,7 +61,7 @@ class MatchHistoryTournamentCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       if (venue.isNotEmpty) ...[
-                        const SizedBox(height: 6),
+                        SizedBox(height: 6),
                         Row(
                           children: [
                             Icon(
@@ -69,7 +70,7 @@ class MatchHistoryTournamentCard extends StatelessWidget {
                               color: AppColors.onSurfaceMuted
                                   .withValues(alpha: 0.85),
                             ),
-                            const SizedBox(width: 4),
+                            SizedBox(width: 4),
                             Expanded(
                               child: Text(
                                 venue,
@@ -85,7 +86,7 @@ class MatchHistoryTournamentCard extends StatelessWidget {
                           ],
                         ),
                       ],
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       Wrap(
                         spacing: 6,
                         runSpacing: 6,
@@ -113,7 +114,7 @@ class MatchHistoryTournamentCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: 4),
                 Icon(
                   Icons.chevron_right_rounded,
                   color: AppColors.onSurfaceMuted.withValues(alpha: 0.55),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/compete_hub_providers.dart';
 import '../../../domain/tournament_discovery_providers.dart';
 import 'compete_hub_section_header.dart';
@@ -27,30 +28,30 @@ class CompeteHubTournamentsSection extends ConsumerWidget {
             AppRouteNames.tournamentDiscoveryList,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         tournamentsAsync.when(
-          loading: () => const SizedBox(
+          loading: () => SizedBox(
             height: TournamentDiscoveryHubTile.tileHeight,
             child: Center(
               child: CircularProgressIndicator(color: AppColors.brand),
             ),
           ),
-          error: (_, __) => const SizedBox(
+          error: (_, __) => SizedBox(
             height: 80,
             child: Center(
               child: Text(
                 'Não foi possível carregar torneios.',
-                style: TextStyle(color: AppColors.onSurfaceMuted),
+                style: TextStyle(color: context.themeColors.onSurfaceMuted),
               ),
             ),
           ),
           data: (_) {
             if (preview.isEmpty) {
-              return const Padding(
+              return Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
                 child: Text(
                   'Nenhum torneio disponível no momento.',
-                  style: TextStyle(color: AppColors.onSurfaceMuted),
+                  style: TextStyle(color: context.themeColors.onSurfaceMuted),
                 ),
               );
             }
@@ -59,7 +60,7 @@ class CompeteHubTournamentsSection extends ConsumerWidget {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: preview.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                separatorBuilder: (_, __) => SizedBox(width: 10),
                 itemBuilder: (context, index) {
                   final tournament = preview[index];
                   return TournamentDiscoveryHubTile(

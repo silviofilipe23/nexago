@@ -4,6 +4,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_success_args.dart';
@@ -74,10 +75,10 @@ class TournamentDetailCategoryCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
+        color: context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.12),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
         ),
       ),
       child: Column(
@@ -92,7 +93,7 @@ class TournamentDetailCategoryCard extends StatelessWidget {
                   style: AppTypography.soraRegular(
                     fontSize: 17,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.onSurface,
+                    color: context.themeColors.onSurface,
                   ),
                 ),
               ),
@@ -149,7 +150,7 @@ class TournamentDetailCategoryCard extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -158,42 +159,42 @@ class TournamentDetailCategoryCard extends StatelessWidget {
               _TagChip(label: formatTag),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Row(
             children: [
               Text(
                 'VAGAS',
                 style: AppTypography.mono(
                   fontSize: 10,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.6,
                 ),
               ),
-              const Spacer(),
+              Spacer(),
               Text(
                 vacancy.total > 0
                     ? '${vacancy.enrolled}/${vacancy.total} equipes'
                     : '— equipes',
                 style: AppTypography.mono(
                   fontSize: 11,
-                  color: AppColors.onSurfaceMuted,
+                  color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(99),
             child: LinearProgressIndicator(
               value: vacancy.fill,
               minHeight: 5,
-              backgroundColor: AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+              backgroundColor: context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
               color: vacancy.barColor,
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             vacancy.caption,
             style: AppTypography.soraRegular(
@@ -202,7 +203,7 @@ class TournamentDetailCategoryCard extends StatelessWidget {
               color: vacancy.captionColor,
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -215,11 +216,11 @@ class TournamentDetailCategoryCard extends StatelessWidget {
                         'TAXA',
                         style: AppTypography.mono(
                           fontSize: 10,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                           letterSpacing: 0.6,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         formatCategoryEntryFee(offer),
                         style: AppTypography.soraRegular(
@@ -233,14 +234,14 @@ class TournamentDetailCategoryCard extends StatelessWidget {
                         'por equipe',
                         style: AppTypography.soraRegular(
                           fontSize: 12,
-                          color: AppColors.onSurfaceMuted,
+                          color: context.themeColors.onSurfaceMuted,
                         ),
                       ),
                     ],
                   ),
                 ),
                 if (prizes.isNotEmpty) ...[
-                  const SizedBox(width: 16),
+                  SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,14 +250,14 @@ class TournamentDetailCategoryCard extends StatelessWidget {
                           'PREMIAÇÃO',
                           style: AppTypography.mono(
                             fontSize: 10,
-                            color: AppColors.onSurfaceMuted,
+                            color: context.themeColors.onSurfaceMuted,
                             letterSpacing: 0.6,
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: 8),
                         for (final row in prizes) ...[
                           _PrizeLine(row: row),
-                          if (row != prizes.last) const SizedBox(height: 6),
+                          if (row != prizes.last) SizedBox(height: 6),
                         ],
                       ],
                     ),
@@ -265,7 +266,7 @@ class TournamentDetailCategoryCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           if (!offer.isCompleted)
             _CategoryCtaButton(
               kind: ctaKind,
@@ -292,10 +293,10 @@ class _TagChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
         ),
       ),
       child: Text(
@@ -303,7 +304,7 @@ class _TagChip extends StatelessWidget {
         style: AppTypography.mono(
           fontSize: 10,
           fontWeight: FontWeight.w600,
-          color: AppColors.onSurfaceMuted,
+          color: context.themeColors.onSurfaceMuted,
           letterSpacing: 0.4,
         ),
       ),
@@ -326,17 +327,17 @@ class _PrizeLine extends StatelessWidget {
           decoration: BoxDecoration(
             color: row.highlight
                 ? AppColors.brand
-                : AppColors.onSurfaceMuted.withValues(alpha: 0.5),
+                : context.themeColors.onSurfaceMuted.withValues(alpha: 0.5),
             shape: BoxShape.circle,
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
           child: Text(
             row.positionLabel,
             style: AppTypography.soraRegular(
               fontSize: 13,
-              color: AppColors.onSurfaceMuted,
+              color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -346,7 +347,7 @@ class _PrizeLine extends StatelessWidget {
           style: AppTypography.soraRegular(
             fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: row.highlight ? AppColors.brand : AppColors.onSurfaceMuted,
+            color: row.highlight ? AppColors.brand : context.themeColors.onSurfaceMuted,
           ),
         ),
       ],
@@ -398,11 +399,11 @@ class _CategoryCtaButton extends StatelessWidget {
       child: OutlinedButton(
         onPressed: null,
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.onSurfaceMuted,
+          foregroundColor: context.themeColors.onSurfaceMuted,
           side: BorderSide(
             color: kind == TournamentCategoryCtaKind.waitlist
                 ? AppColors.live.withValues(alpha: 0.35)
-                : AppColors.onSurfaceMuted.withValues(alpha: 0.2),
+                : context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
           ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -413,7 +414,7 @@ class _CategoryCtaButton extends StatelessWidget {
           style: AppTypography.soraRegular(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: AppColors.onSurfaceMuted,
+            color: context.themeColors.onSurfaceMuted,
           ),
         ),
       ),

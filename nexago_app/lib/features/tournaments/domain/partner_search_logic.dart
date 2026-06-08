@@ -57,3 +57,37 @@ String? _locationLabel(AppUserProfile profile) {
   }
   return city ?? state;
 }
+
+bool isPartnerListableProfile(AppUserProfile profile) {
+  return appUserDisplayName(profile).trim().isNotEmpty;
+}
+
+int comparePartnersForDisplay(AppUserProfile a, AppUserProfile b) {
+  final nameCmp = appUserDisplayName(a)
+      .toLowerCase()
+      .compareTo(appUserDisplayName(b).toLowerCase());
+  if (nameCmp != 0) return nameCmp;
+  return a.uid.compareTo(b.uid);
+}
+
+List<AppUserProfile> sortPartnersForDisplay(List<AppUserProfile> users) {
+  final sorted = [...users]..sort(comparePartnersForDisplay);
+  return sorted;
+}
+
+List<AppUserProfile> filterPartnersByQuery(
+  List<AppUserProfile> users,
+  String query,
+) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return users;
+  return users.where((user) {
+    for (final raw in [user.nickname, user.fullName, user.email]) {
+      final value = raw?.trim().toLowerCase();
+      if (value != null && value.isNotEmpty && value.contains(q)) {
+        return true;
+      }
+    }
+    return false;
+  }).toList();
+}

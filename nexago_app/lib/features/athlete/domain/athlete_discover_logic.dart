@@ -60,16 +60,29 @@ bool _matchesSport(AthleteProfile profile, String? sportFirestoreId) {
   return profile.secondarySportFirestoreIds.contains(sportFirestoreId);
 }
 
-bool _matchesCategory(AthleteProfile profile, AthleteDiscoverFilters filters) {
-  final quick = filters.quickCategory.label.trim();
-  if (quick.isNotEmpty) {
-    final cat = profile.category?.trim() ?? '';
-    if (!cat.toLowerCase().contains(quick.toLowerCase())) return false;
+bool _profileHasDefinedLevel(AthleteProfile profile) {
+  final sportId = profile.primarySportFirestoreId;
+  if (sportId != null && sportId.isNotEmpty) {
+    final code = profile.levelsBySportFirestore[sportId] ??
+        profile.levelsBySportFirestore[sportId.toUpperCase()];
+    if (code != null && code.trim().isNotEmpty) return true;
   }
-  if (filters.categories.isEmpty) return true;
-  final cat = (profile.category ?? '').trim().toLowerCase();
-  if (cat.isEmpty) return false;
-  return filters.categories.any((c) => cat.contains(c.toLowerCase()));
+  return profile.level.trim().isNotEmpty;
+}
+
+bool _matchesLevel(AthleteProfile profile, AthleteDiscoverFilters filters) {
+  final quick = filters.quickLevel.label.trim();
+  final hasLevelFilter = quick.isNotEmpty || filters.levels.isNotEmpty;
+  if (hasLevelFilter && !_profileHasDefinedLevel(profile)) return false;
+
+  final resolved = resolveAthleteLevelLabel(profile);
+  if (quick.isNotEmpty) {
+    if (resolved.toLowerCase() != quick.toLowerCase()) return false;
+  }
+  if (filters.levels.isEmpty) return true;
+  return filters.levels.any(
+    (level) => resolved.toLowerCase() == level.trim().toLowerCase(),
+  );
 }
 
 bool _matchesProximity(
@@ -114,7 +127,7 @@ List<AthleteDiscoverEntry> applyDiscoverFilters({
     if (!matchesDiscoverSearch(entry, q)) return false;
     if (!_matchesGender(profile, filters.gender)) return false;
     if (!_matchesSport(profile, filters.sportFirestoreId)) return false;
-    if (!_matchesCategory(profile, filters)) return false;
+    if (!_matchesLevel(profile, filters)) return false;
     if (!_matchesProximity(profile, viewerProfile, filters)) return false;
     if (!_matchesGameObjective(profile, filters)) return false;
     if (filters.completeProfileOnly && !profile.onboardingCompleted) {
@@ -225,6 +238,8 @@ AthleteDiscoverEntry buildDiscoverEntry({
   AthletePublicRankingSnapshot ranking = const AthletePublicRankingSnapshot(),
   bool isFollowing = false,
   bool isCurrentUser = false,
+  int followersCount = 0,
+  int? mutualFollowersCount,
 }) {
   return AthleteDiscoverEntry(
     userId: profile.id,
@@ -232,5 +247,7 @@ AthleteDiscoverEntry buildDiscoverEntry({
     ranking: ranking,
     isFollowing: isFollowing,
     isCurrentUser: isCurrentUser,
+    followersCount: followersCount,
+    mutualFollowersCount: mutualFollowersCount,
   );
 }

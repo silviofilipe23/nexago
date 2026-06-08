@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/auth/auth_providers.dart';
+import '../../../../../core/search/search_keywords.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/partner_search_service.dart';
@@ -41,91 +42,93 @@ class _TournamentRegistrationPartnerStepState
   final _searchController = TextEditingController();
   final _focusNode = FocusNode();
 
+  List<AppUserProfile> _displayPartners = const [];
   List<AppUserProfile> _recentPartners = const [];
-  List<AppUserProfile> _searchResults = const [];
-  bool _loadingRecent = true;
-  bool _loadingSearch = false;
+  bool _loadingPartners = true;
   bool _focused = false;
-  Timer? _debounce;
-  int _searchGeneration = 0;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
     super.initState();
     _focusNode.addListener(() => setState(() => _focused = _focusNode.hasFocus));
-    _loadRecentPartners();
+    _searchController.addListener(_onSearchChanged);
+    _loadInitialPartners();
   }
 
   @override
   void dispose() {
-    _debounce?.cancel();
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
-  Future<void> _loadRecentPartners() async {
+  void _onSearchChanged() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), _runPartnerSearch);
+    setState(() {});
+  }
+
+  Future<void> _loadInitialPartners() async {
     final uid = ref.read(authProvider).valueOrNull?.uid ?? '';
     if (uid.isEmpty) {
-      if (mounted) setState(() => _loadingRecent = false);
+      if (mounted) setState(() => _loadingPartners = false);
       return;
     }
 
     try {
-      final list = await ref.read(recentPartnersRepositoryProvider).loadRecentPartners(
-            currentUserId: uid,
-            categoryGenderType: widget.category.genderType,
-          );
-      if (mounted) {
-        setState(() {
-          _recentPartners =
-              list.where((profile) => profile.uid != uid).toList();
-          _loadingRecent = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _loadingRecent = false);
-    }
-  }
+      final service = ref.read(partnerSearchServiceProvider);
+      final recentRepo = ref.read(recentPartnersRepositoryProvider);
+      final partnersFuture = service.listPartners(
+        currentUserId: uid,
+        categoryGenderType: widget.category.genderType,
+      );
+      final recentFuture = recentRepo.loadRecentPartners(
+        currentUserId: uid,
+        categoryGenderType: widget.category.genderType,
+      );
+      final partners = await partnersFuture;
+      final recent = await recentFuture;
 
-  void _onSearchChanged(String value) {
-    setState(() {});
-    _debounce?.cancel();
-    if (value.trim().length < 2) {
+      if (!mounted) return;
       setState(() {
-        _searchResults = const [];
-        _loadingSearch = false;
+        _displayPartners = partners;
+        _recentPartners =
+            recent.where((profile) => profile.uid != uid).toList();
+        _loadingPartners = false;
       });
-      return;
+    } catch (_) {
+      if (mounted) setState(() => _loadingPartners = false);
     }
-
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      _runSearch(value);
-    });
   }
 
-  Future<void> _runSearch(String term) async {
-    final generation = ++_searchGeneration;
-    setState(() => _loadingSearch = true);
-
+  Future<void> _runPartnerSearch() async {
     final uid = ref.read(authProvider).valueOrNull?.uid ?? '';
+    if (uid.isEmpty || !mounted) return;
+
+    final query = _searchController.text.trim();
+    if (!isSearchTermLongEnough(query)) {
+      await _loadInitialPartners();
+      return;
+    }
+
+    setState(() => _loadingPartners = true);
+
     try {
-      final results = await ref.read(partnerSearchServiceProvider).searchPartner(
-            term: term,
-            currentUserId: uid,
-            categoryGenderType: widget.category.genderType,
-          );
-      if (!mounted || generation != _searchGeneration) return;
+      final service = ref.read(partnerSearchServiceProvider);
+      final results = await service.searchPartners(
+        currentUserId: uid,
+        categoryGenderType: widget.category.genderType,
+        query: query,
+      );
+      if (!mounted) return;
       setState(() {
-        _searchResults = results;
-        _loadingSearch = false;
+        _displayPartners = results;
+        _loadingPartners = false;
       });
     } catch (_) {
-      if (!mounted || generation != _searchGeneration) return;
-      setState(() {
-        _searchResults = const [];
-        _loadingSearch = false;
-      });
+      if (mounted) setState(() => _loadingPartners = false);
     }
   }
 
@@ -139,14 +142,16 @@ class _TournamentRegistrationPartnerStepState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final query = _searchController.text.trim();
-    final isSearching = query.length >= 2;
-
-    final displayProfiles = isSearching ? _searchResults : _recentPartners;
-    final resultsHeader = isSearching
-        ? partnerResultsHeader(count: _searchResults.length, category: widget.category)
-        : _recentPartners.isEmpty
+    final isFiltering = isSearchTermLongEnough(query);
+    final displayProfiles = _displayPartners;
+    final resultsHeader = isFiltering
+        ? partnerResultsHeader(
+            count: displayProfiles.length,
+            category: widget.category,
+          )
+        : displayProfiles.isEmpty
             ? ''
-            : '${_recentPartners.length} RECENTES · ${categoryBadgeLabel(widget.category)}';
+            : '${displayProfiles.length} ATLETAS · ${categoryBadgeLabel(widget.category)}';
 
     final borderColor = _focused || query.isNotEmpty
         ? AppColors.brand
@@ -195,9 +200,8 @@ class _TournamentRegistrationPartnerStepState
             ),
             contentPadding: const EdgeInsets.symmetric(vertical: 14),
           ),
-          onChanged: _onSearchChanged,
         ),
-        if (!isSearching && !_loadingRecent && _recentPartners.isNotEmpty) ...[
+        if (!isFiltering && !_loadingPartners && _recentPartners.isNotEmpty) ...[
           SizedBox(height: 16),
           TournamentRegistrationRecentPartnersChips(
             partners: _recentPartners,
@@ -218,7 +222,7 @@ class _TournamentRegistrationPartnerStepState
           ),
         ],
         SizedBox(height: 12),
-        if (_loadingRecent && !isSearching)
+        if (_loadingPartners)
           Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(
@@ -228,35 +232,16 @@ class _TournamentRegistrationPartnerStepState
               ),
             ),
           )
-        else if (_loadingSearch && isSearching)
-          Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: CircularProgressIndicator(
-                color: AppColors.brand,
-                strokeWidth: 2,
-              ),
-            ),
-          )
-        else if (isSearching && query.length >= 2 && _searchResults.isEmpty)
+        else if (displayProfiles.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 24),
             child: Text(
-              'Nenhum atleta encontrado.',
+              isFiltering
+                  ? 'Nenhum atleta encontrado.'
+                  : 'Nenhum atleta cadastrado no momento.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: context.themeColors.onSurfaceMuted,
-              ),
-            ),
-          )
-        else if (!isSearching && !_loadingRecent && _recentPartners.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Text(
-              'Digite pelo menos 2 caracteres para buscar um parceiro.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-                fontWeight: FontWeight.w500,
               ),
             ),
           )
@@ -265,7 +250,7 @@ class _TournamentRegistrationPartnerStepState
             (profile) {
               final candidate = partnerCandidateFromProfile(
                 profile,
-                tagLabel: !isSearching &&
+                tagLabel: !isFiltering &&
                         _recentPartners.any((p) => p.uid == profile.uid)
                     ? 'Jogou com você'
                     : null,

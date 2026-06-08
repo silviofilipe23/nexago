@@ -1,5 +1,8 @@
 import 'athlete_firestore_codes.dart';
 import 'athlete_profile.dart';
+import 'athlete_profile_options.dart';
+
+const athleteLevelSegmentCount = 4;
 
 class AthletePublicSportEntry {
   const AthletePublicSportEntry({
@@ -58,13 +61,14 @@ List<AthletePublicSportEntry> buildPublicSportEntries(AthleteProfile profile) {
     final label = AthleteFirestoreCodes.sportFirestoreToLabel(firestoreId);
     if (label == null || label.isEmpty) return;
     final levelCode = levels[firestoreId] ?? levels[firestoreId.toUpperCase()];
-    final levelLabel = levelCode != null && levelCode.isNotEmpty
-        ? AthleteFirestoreCodes.levelFirestoreToLabel(levelCode)
-        : (profile.level.trim().isNotEmpty ? profile.level : '—');
+    final levelLabel = resolveAthleteLevelLabel(
+      profile,
+      sportFirestoreId: firestoreId,
+    );
     entries.add(
       AthletePublicSportEntry(
         label: label,
-        levelLabel: levelLabel.isNotEmpty ? levelLabel : '—',
+        levelLabel: levelLabel,
         levelSegments: levelSegmentsFromCode(levelCode ?? profile.level),
         isPrimary: isPrimary,
       ),
@@ -81,8 +85,8 @@ List<AthletePublicSportEntry> buildPublicSportEntries(AthleteProfile profile) {
     entries.add(
       AthletePublicSportEntry(
         label: profile.sport,
-        levelLabel: profile.level.trim().isNotEmpty ? profile.level : '—',
-        levelSegments: levelSegmentsFromCode(profile.level),
+        levelLabel: resolveAthleteLevelLabel(profile),
+        levelSegments: resolveAthleteLevelSegments(profile),
         isPrimary: true,
       ),
     );
@@ -92,23 +96,63 @@ List<AthletePublicSportEntry> buildPublicSportEntries(AthleteProfile profile) {
 }
 
 int levelSegmentsFromCode(String? raw) {
-  final code = raw?.trim().toLowerCase() ?? '';
+  if (raw == null || raw.trim().isEmpty) return 1;
+
+  final normalizedLabel = AthleteProfileOptions.normalizeLevel(raw);
+  final code = AthleteFirestoreCodes.levelLabelToFirestore(
+    normalizedLabel.isNotEmpty ? normalizedLabel : raw,
+  ).toLowerCase();
+
   const map = {
     'iniciante': 1,
-    'basico': 2,
-    'básico': 2,
-    'intermediario': 3,
-    'intermediário': 3,
+    'basico': 1,
+    'básico': 1,
+    'intermediario': 2,
+    'intermediário': 2,
+    'open': 3,
+    'pro': 4,
     'avancado': 4,
     'avançado': 4,
-    'open': 5,
-    'profissional': 5,
+    'profissional': 4,
   };
   if (map.containsKey(code)) return map[code]!;
   for (final entry in map.entries) {
     if (code.contains(entry.key)) return entry.value;
   }
-  return 2;
+  return 1;
+}
+
+/// Níveis oficiais: Iniciante, Intermediário, Open e Pro.
+String resolveAthleteLevelLabel(
+  AthleteProfile profile, {
+  String? sportFirestoreId,
+}) {
+  final sportId = sportFirestoreId ?? profile.primarySportFirestoreId;
+  if (sportId != null && sportId.isNotEmpty) {
+    final code = profile.levelsBySportFirestore[sportId] ??
+        profile.levelsBySportFirestore[sportId.toUpperCase()];
+    if (code != null && code.trim().isNotEmpty) {
+      final label = AthleteFirestoreCodes.levelFirestoreToLabel(code);
+      if (label.isNotEmpty) return label;
+    }
+  }
+  final normalized = AthleteProfileOptions.normalizeLevel(profile.level);
+  return normalized.isNotEmpty ? normalized : AthleteProfileOptions.levels.first;
+}
+
+int resolveAthleteLevelSegments(
+  AthleteProfile profile, {
+  String? sportFirestoreId,
+}) {
+  final sportId = sportFirestoreId ?? profile.primarySportFirestoreId;
+  if (sportId != null && sportId.isNotEmpty) {
+    final code = profile.levelsBySportFirestore[sportId] ??
+        profile.levelsBySportFirestore[sportId.toUpperCase()];
+    if (code != null && code.trim().isNotEmpty) {
+      return levelSegmentsFromCode(code);
+    }
+  }
+  return levelSegmentsFromCode(profile.level);
 }
 
 String? athletePublicHandle(AthleteProfile profile) {

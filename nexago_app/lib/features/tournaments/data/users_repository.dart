@@ -1,8 +1,11 @@
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/user_roles.dart';
+import '../../../core/search/search_keywords.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../domain/app_user_profile.dart';
 import '../domain/partner_search_logic.dart';
@@ -30,7 +33,84 @@ class UsersRepository {
     return AppUserProfile.fromFirestore(snap);
   }
 
+  /// Busca atletas por prefixo de palavra (`keywords` + `hasAthleteRole`).
+  Future<List<AppUserProfile>> searchAthletesByKeywords(
+    String term, {
+    int max = 25,
+  }) async {
+    final token = normalizeSearchTerm(term);
+    if (!isSearchTermLongEnough(term)) return [];
+
+    try {
+      final snap = await _users
+          .where('hasAthleteRole', isEqualTo: true)
+          .where('keywords', arrayContains: token)
+          .limit(max)
+          .get();
+      return _finalizeAthleteResults(
+        snap.docs.map(AppUserProfile.fromFirestore),
+        max: max,
+      );
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('UsersRepository.searchAthletesByKeywords failed: $e');
+        debugPrint('$stackTrace');
+      }
+      return _searchUsersByNicknameOrNameLegacy(
+        term,
+        max: max,
+        roleFilter: kAthleteAppRole,
+      );
+    }
+  }
+
+  /// Busca organizadores por prefixo de palavra (`keywords` + `hasOrganizerRole`).
+  Future<List<AppUserProfile>> searchOrganizersByKeywords(
+    String term, {
+    int max = 25,
+  }) async {
+    final token = normalizeSearchTerm(term);
+    if (!isSearchTermLongEnough(term)) return [];
+
+    try {
+      final snap = await _users
+          .where('hasOrganizerRole', isEqualTo: true)
+          .where('keywords', arrayContains: token)
+          .limit(max)
+          .get();
+      return sortPartnersForDisplay(
+        snap.docs
+            .map(AppUserProfile.fromFirestore)
+            .where(isPartnerListableProfile)
+            .take(max)
+            .toList(),
+      );
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('UsersRepository.searchOrganizersByKeywords failed: $e');
+        debugPrint('$stackTrace');
+      }
+      return [];
+    }
+  }
+
   Future<List<AppUserProfile>> searchUsersByNicknameOrName(
+    String term, {
+    int max = 10,
+    String? roleFilter = 'athlete',
+  }) async {
+    if (roleFilter == kAthleteAppRole) {
+      final keywordResults = await searchAthletesByKeywords(term, max: max);
+      if (keywordResults.isNotEmpty) return keywordResults;
+    }
+    return _searchUsersByNicknameOrNameLegacy(
+      term,
+      max: max,
+      roleFilter: roleFilter,
+    );
+  }
+
+  Future<List<AppUserProfile>> _searchUsersByNicknameOrNameLegacy(
     String term, {
     int max = 10,
     String? roleFilter = 'athlete',
@@ -51,41 +131,197 @@ class UsersRepository {
       }
     }
 
+    Future<void> mergeAthleteRoleQueries({
+      required Query<Map<String, dynamic>> legacyRoleQuery,
+      required Query<Map<String, dynamic>> rolesArrayQuery,
+    }) async {
+      await mergeQuery(rolesArrayQuery);
+      await mergeQuery(legacyRoleQuery);
+    }
+
     if (roleFilter != null && roleFilter.isNotEmpty) {
+      final useMultiRoleAthleteFilter = roleFilter == kAthleteAppRole;
+
       for (final prefix in nicknameSearchPrefixes(t)) {
+        if (useMultiRoleAthleteFilter) {
+          await mergeAthleteRoleQueries(
+            legacyRoleQuery: _users
+                .where('role', isEqualTo: kAthleteAppRole)
+                .where('nickname', isGreaterThanOrEqualTo: prefix)
+                .where('nickname', isLessThan: '$prefix\uf8ff'),
+            rolesArrayQuery: _users
+                .where('roles', arrayContains: kAthleteAppRole)
+                .where('nickname', isGreaterThanOrEqualTo: prefix)
+                .where('nickname', isLessThan: '$prefix\uf8ff'),
+          );
+        } else {
+          await mergeQuery(
+            _users
+                .where('role', isEqualTo: roleFilter)
+                .where('nickname', isGreaterThanOrEqualTo: prefix)
+                .where('nickname', isLessThan: '$prefix\uf8ff'),
+          );
+        }
+      }
+
+      if (useMultiRoleAthleteFilter) {
+        await mergeAthleteRoleQueries(
+          legacyRoleQuery: _users
+              .where('role', isEqualTo: kAthleteAppRole)
+              .where('fullName', isGreaterThanOrEqualTo: t)
+              .where('fullName', isLessThan: '$t\uf8ff'),
+          rolesArrayQuery: _users
+              .where('roles', arrayContains: kAthleteAppRole)
+              .where('fullName', isGreaterThanOrEqualTo: t)
+              .where('fullName', isLessThan: '$t\uf8ff'),
+        );
+      } else {
         await mergeQuery(
           _users
               .where('role', isEqualTo: roleFilter)
-              .where('nickname', isGreaterThanOrEqualTo: prefix)
-              .where('nickname', isLessThan: '$prefix\uf8ff'),
+              .where('fullName', isGreaterThanOrEqualTo: t)
+              .where('fullName', isLessThan: '$t\uf8ff'),
         );
       }
 
-      await mergeQuery(
-        _users
-            .where('role', isEqualTo: roleFilter)
-            .where('fullName', isGreaterThanOrEqualTo: t)
-            .where('fullName', isLessThan: '$t\uf8ff'),
-      );
-
       final emailTerm = t.toLowerCase();
-      await mergeQuery(
-        _users
-            .where('role', isEqualTo: roleFilter)
-            .where('email', isGreaterThanOrEqualTo: emailTerm)
-            .where('email', isLessThan: '$emailTerm\uf8ff'),
-      );
-      if (emailTerm != t) {
+      if (useMultiRoleAthleteFilter) {
+        await mergeAthleteRoleQueries(
+          legacyRoleQuery: _users
+              .where('role', isEqualTo: kAthleteAppRole)
+              .where('email', isGreaterThanOrEqualTo: emailTerm)
+              .where('email', isLessThan: '$emailTerm\uf8ff'),
+          rolesArrayQuery: _users
+              .where('roles', arrayContains: kAthleteAppRole)
+              .where('email', isGreaterThanOrEqualTo: emailTerm)
+              .where('email', isLessThan: '$emailTerm\uf8ff'),
+        );
+        if (emailTerm != t) {
+          await mergeAthleteRoleQueries(
+            legacyRoleQuery: _users
+                .where('role', isEqualTo: kAthleteAppRole)
+                .where('email', isGreaterThanOrEqualTo: t)
+                .where('email', isLessThan: '$t\uf8ff'),
+            rolesArrayQuery: _users
+                .where('roles', arrayContains: kAthleteAppRole)
+                .where('email', isGreaterThanOrEqualTo: t)
+                .where('email', isLessThan: '$t\uf8ff'),
+          );
+        }
+      } else {
         await mergeQuery(
           _users
               .where('role', isEqualTo: roleFilter)
-              .where('email', isGreaterThanOrEqualTo: t)
-              .where('email', isLessThan: '$t\uf8ff'),
+              .where('email', isGreaterThanOrEqualTo: emailTerm)
+              .where('email', isLessThan: '$emailTerm\uf8ff'),
         );
+        if (emailTerm != t) {
+          await mergeQuery(
+            _users
+                .where('role', isEqualTo: roleFilter)
+                .where('email', isGreaterThanOrEqualTo: t)
+                .where('email', isLessThan: '$t\uf8ff'),
+          );
+        }
       }
     }
 
-    return byUid.values.take(max).toList();
+    var results = byUid.values.toList();
+    if (roleFilter == kAthleteAppRole) {
+      results = results.where(appUserHasAthleteRole).toList();
+    }
+    return results.take(max).toList();
+  }
+
+  /// Lista atletas em `users/` (prioriza `hasAthleteRole`, com fallback legado).
+  Future<List<AppUserProfile>> listAthleteProfiles({
+    int pageSize = 200,
+    int? maxResults,
+  }) async {
+    final byUid = <String, AppUserProfile>{};
+
+    await _paginateProfiles(
+      query: _users.where('hasAthleteRole', isEqualTo: true),
+      byUid: byUid,
+      pageSize: pageSize,
+      debugLabel: 'hasAthleteRole',
+      maxResults: maxResults,
+    );
+
+    if (byUid.isEmpty) {
+      await _paginateProfiles(
+        query: _users.where('roles', arrayContains: kAthleteAppRole),
+        byUid: byUid,
+        pageSize: pageSize,
+        debugLabel: 'roles[] athlete',
+        maxResults: maxResults,
+      );
+      await _paginateProfiles(
+        query: _users.where('role', isEqualTo: kAthleteAppRole),
+        byUid: byUid,
+        pageSize: pageSize,
+        debugLabel: 'role athlete',
+        maxResults: maxResults,
+      );
+    }
+
+    return _finalizeAthleteResults(byUid.values);
+  }
+
+  List<AppUserProfile> _finalizeAthleteResults(
+    Iterable<AppUserProfile> users, {
+    int? max,
+  }) {
+    var results = users
+        .where(appUserHasAthleteRole)
+        .where(isPartnerListableProfile)
+        .toList();
+    results = sortPartnersForDisplay(results);
+    if (max != null && results.length > max) {
+      return results.take(max).toList();
+    }
+    return results;
+  }
+
+  Future<void> _paginateProfiles({
+    required Query<Map<String, dynamic>> query,
+    required Map<String, AppUserProfile> byUid,
+    required int pageSize,
+    String debugLabel = 'users',
+    int? maxResults,
+  }) async {
+    DocumentSnapshot<Map<String, dynamic>>? lastDoc;
+
+    while (true) {
+      if (maxResults != null && byUid.length >= maxResults) return;
+      try {
+        final remaining = maxResults == null
+            ? pageSize
+            : (maxResults - byUid.length).clamp(1, pageSize);
+        var pageQuery = query.limit(remaining);
+        if (lastDoc != null) {
+          pageQuery = pageQuery.startAfterDocument(lastDoc);
+        }
+        final snap = await pageQuery.get();
+        if (snap.docs.isEmpty) return;
+
+        for (final doc in snap.docs) {
+          byUid[doc.id] = AppUserProfile.fromFirestore(doc);
+          if (maxResults != null && byUid.length >= maxResults) return;
+        }
+
+        if (snap.docs.length < remaining) return;
+        lastDoc = snap.docs.last;
+      } catch (e, stackTrace) {
+        if (kDebugMode) {
+          debugPrint(
+            'UsersRepository._paginateProfiles($debugLabel) failed: $e',
+          );
+          debugPrint('$stackTrace');
+        }
+        return;
+      }
+    }
   }
 
   Future<String> createMinimalUserProfile({

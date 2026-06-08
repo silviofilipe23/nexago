@@ -201,10 +201,7 @@ class AthleteProfile {
     final onboardingCompleted = isProfileComplete ||
         (onboardingRaw is bool && onboardingRaw) ||
         (sportOnboarding is Map && sportOnboarding['completedAt'] != null);
-    final birthRaw = (data['birthDate'] as String?)?.trim();
-    final birthDate = birthRaw != null && birthRaw.isNotEmpty
-        ? AthleteFirestoreCodes.birthDateIsoToBr(birthRaw) ?? birthRaw
-        : null;
+    final birthDate = _readBirthDate(data['birthDate']);
 
     return AthleteProfile(
       id: doc.id,
@@ -261,6 +258,22 @@ class AthleteProfile {
 
   static DateTime? _readTimestamp(dynamic raw) {
     if (raw is Timestamp) return raw.toDate();
+    return null;
+  }
+
+  /// Aceita `birthDate` como string (`YYYY-MM-DD`, `dd/mm/aaaa`) ou [Timestamp].
+  static String? _readBirthDate(dynamic raw) {
+    if (raw is Timestamp) {
+      final dt = raw.toDate();
+      final iso =
+          '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      return AthleteFirestoreCodes.birthDateIsoToBr(iso) ?? iso;
+    }
+    if (raw is String) {
+      final trimmed = raw.trim();
+      if (trimmed.isEmpty) return null;
+      return AthleteFirestoreCodes.birthDateIsoToBr(trimmed) ?? trimmed;
+    }
     return null;
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/search/search_keywords.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../data/firestore_tournament_discovery_data_source.dart';
 import '../data/leagues_repository.dart';
@@ -75,6 +76,12 @@ final tournamentDiscoveryDataSourceProvider =
 final discoveryTournamentsProvider =
     StreamProvider.autoDispose<List<DiscoveryTournament>>((ref) {
   return ref.watch(tournamentDiscoveryDataSourceProvider).watchTournaments();
+});
+
+final discoveryTournamentKeywordSearchProvider = FutureProvider.autoDispose
+    .family<List<DiscoveryTournament>, String>((ref, query) async {
+  if (!isSearchTermLongEnough(query)) return const [];
+  return ref.read(tournamentsRepositoryProvider).searchByKeywords(query);
 });
 
 final discoveryLeaguesProvider =

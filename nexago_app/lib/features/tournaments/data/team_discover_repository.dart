@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/search/search_keywords.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../athlete/domain/athlete_profile.dart';
 import '../../ranking/data/ranking_repository.dart';
@@ -35,6 +37,28 @@ class TeamDiscoverRepository {
     final snap = await _users.doc(id).get();
     if (!snap.exists) return null;
     return AthleteProfile.fromFirestore(snap);
+  }
+
+  Future<List<TournamentTeam>> searchTeamsByKeywords(
+    String term, {
+    int max = 25,
+  }) async {
+    final token = normalizeSearchTerm(term);
+    if (!isSearchTermLongEnough(term)) return [];
+
+    try {
+      final snap = await _teams
+          .where('keywords', arrayContains: token)
+          .limit(max)
+          .get();
+      return snap.docs.map(TournamentTeam.fromFirestore).toList();
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('TeamDiscoverRepository.searchTeamsByKeywords failed: $e');
+        debugPrint('$stackTrace');
+      }
+      return [];
+    }
   }
 
   Future<TeamDiscoverPageResult> fetchPage({

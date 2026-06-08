@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/auth/user_roles.dart';
+
 /// Perfil em `users/{uid}` (paridade com web `AppUserProfile`).
 class AppUserProfile {
   const AppUserProfile({
@@ -17,6 +19,7 @@ class AppUserProfile {
     this.invitedAt,
     this.city,
     this.state,
+    this.roles = const [],
   });
 
   final String uid;
@@ -33,6 +36,7 @@ class AppUserProfile {
   final DateTime? invitedAt;
   final String? city;
   final String? state;
+  final List<String> roles;
 
   factory AppUserProfile.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -53,7 +57,17 @@ class AppUserProfile {
       invitedAt: _timestamp(data['invitedAt']),
       city: _str(data['city']),
       state: _str(data['state']),
+      roles: _stringList(data['roles']),
     );
+  }
+
+  static List<String> _stringList(dynamic v) {
+    if (v is! List) return const [];
+    return v
+        .whereType<String>()
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList();
   }
 
   static String? _str(dynamic v) {
@@ -66,6 +80,11 @@ class AppUserProfile {
     if (v is Timestamp) return v.toDate();
     return null;
   }
+}
+
+/// Usuário elegível como parceiro de torneio (papel atleta no perfil Firestore).
+bool appUserHasAthleteRole(AppUserProfile user) {
+  return userDocHasAthleteRole(roles: user.roles, legacyRole: user.role);
 }
 
 /// Evita exibir IDs técnicos (Firestore/Auth) como nome de atleta.

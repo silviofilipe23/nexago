@@ -22,6 +22,57 @@ void main() {
     expect(safeMatchTeamDescription('Thiago / André'), 'Thiago / André');
   });
 
+  test('appUserHasAthleteRole prioritizes roles array over legacy role field', () {
+    expect(
+      appUserHasAthleteRole(
+        const AppUserProfile(uid: '1', role: 'athlete'),
+      ),
+      isTrue,
+    );
+    expect(
+      appUserHasAthleteRole(
+        const AppUserProfile(
+          uid: '2',
+          role: 'arena',
+          roles: ['arena', 'athlete'],
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      appUserHasAthleteRole(
+        const AppUserProfile(
+          uid: '5',
+          role: 'organizer',
+          roles: ['athlete', 'organizer'],
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      appUserHasAthleteRole(
+        const AppUserProfile(uid: '3', role: 'arena', roles: ['arena']),
+      ),
+      isFalse,
+    );
+    expect(
+      appUserHasAthleteRole(
+        const AppUserProfile(
+          uid: '6',
+          role: 'organizer',
+          roles: ['organizer'],
+        ),
+      ),
+      isFalse,
+    );
+    expect(
+      appUserHasAthleteRole(
+        const AppUserProfile(uid: '4', role: 'athlete', roles: ['arena']),
+      ),
+      isFalse,
+    );
+  });
+
   test('resolveAppUserDisplayName ignores uid-like profile fields', () {
     const profile = AppUserProfile(
       uid: 'abc',

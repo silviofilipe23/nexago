@@ -69,15 +69,43 @@ void main() {
       expect(result.first.userId, '1');
     });
 
-    test('filters by quick category Cat B', () {
+    test('filters by quick level Intermediário', () {
       final entries = [
-        _entry(profile: _profile(id: '1', category: 'Cat A')),
-        _entry(profile: _profile(id: '2', category: 'Cat B')),
+        _entry(profile: _profile(id: '1', level: 'Iniciante')),
+        _entry(profile: _profile(id: '2', level: 'Intermediário')),
       ];
       final result = applyDiscoverFilters(
         entries: entries,
         filters: const AthleteDiscoverFilters(
-          quickCategory: AthleteDiscoverQuickCategory.catB,
+          quickLevel: AthleteDiscoverQuickLevel.intermediario,
+        ),
+      );
+      expect(result.single.userId, '2');
+    });
+
+    test('maps legacy Básico to Iniciante quick filter', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', level: 'Básico')),
+        _entry(profile: _profile(id: '2', level: 'Pro')),
+      ];
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: const AthleteDiscoverFilters(
+          quickLevel: AthleteDiscoverQuickLevel.iniciante,
+        ),
+      );
+      expect(result.single.userId, '1');
+    });
+
+    test('excludes athletes without level when level filter is active', () {
+      final entries = [
+        _entry(profile: _profile(id: '1', level: '')),
+        _entry(profile: _profile(id: '2', level: 'Open')),
+      ];
+      final result = applyDiscoverFilters(
+        entries: entries,
+        filters: const AthleteDiscoverFilters(
+          quickLevel: AthleteDiscoverQuickLevel.open,
         ),
       );
       expect(result.single.userId, '2');

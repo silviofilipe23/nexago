@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../core/router/routes.dart';
+import '../../../core/search/search_keywords.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../data/my_tournament_registrations_repository.dart';
@@ -205,6 +206,11 @@ class _TournamentDiscoveryListPageState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tournamentsAsync = ref.watch(discoveryTournamentsProvider);
+    final query = _query;
+    final useKeywordSearch = isSearchTermLongEnough(query);
+    final keywordSearchAsync = useKeywordSearch
+        ? ref.watch(discoveryTournamentKeywordSearchProvider(query))
+        : null;
     final leaguesAsync = ref.watch(discoveryLeaguesProvider);
     final stats = ref.watch(tournamentHubStatsProvider);
     final myRegs = ref.watch(myTournamentRegistrationsProvider);
@@ -242,16 +248,30 @@ class _TournamentDiscoveryListPageState
                 ),
               ),
               data: (allLeagues) {
-                final query = _query;
+                if (useKeywordSearch &&
+                    keywordSearchAsync != null &&
+                    keywordSearchAsync.isLoading) {
+                  return Center(
+                    child: CircularProgressIndicator(color: AppColors.brand),
+                  );
+                }
+
+                final tournamentPool = useKeywordSearch &&
+                        keywordSearchAsync?.hasValue == true
+                    ? keywordSearchAsync!.value!
+                    : allTournaments;
+
                 final filtered = filterDiscoveryTournaments(
-                  tournaments: allTournaments,
+                  tournaments: tournamentPool,
                   category: _category,
                   openOnly: _openOnly,
                 );
-                final filteredByQuery = filterTournamentsByQuery(
-                  filtered,
-                  query,
-                );
+                final filteredByQuery = useKeywordSearch
+                    ? filtered
+                    : filterTournamentsByQuery(
+                        filtered,
+                        query,
+                      );
                 final sortedTournaments = sortDiscoveryTournamentsByDateProximity(
                   filteredByQuery,
                 );

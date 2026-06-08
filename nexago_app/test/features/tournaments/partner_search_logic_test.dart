@@ -73,6 +73,38 @@ void main() {
     });
   });
 
+  group('filterPartnersByQuery', () {
+    const users = [
+      AppUserProfile(uid: '1', nickname: 'Enzo', fullName: 'Enzo Ribeiro'),
+      AppUserProfile(uid: '2', fullName: 'Maria Silva', email: 'maria@test.com'),
+    ];
+
+    test('returns all when query is empty', () {
+      expect(filterPartnersByQuery(users, ''), users);
+    });
+
+    test('matches nickname fullName or email', () {
+      expect(
+        filterPartnersByQuery(users, 'enzo').map((u) => u.uid),
+        ['1'],
+      );
+      expect(
+        filterPartnersByQuery(users, 'maria@test').map((u) => u.uid),
+        ['2'],
+      );
+    });
+  });
+
+  group('sortPartnersForDisplay', () {
+    test('sorts by display name', () {
+      final sorted = sortPartnersForDisplay([
+        const AppUserProfile(uid: '2', fullName: 'Zeca'),
+        const AppUserProfile(uid: '1', fullName: 'Ana'),
+      ]);
+      expect(sorted.map((u) => u.uid), ['1', '2']);
+    });
+  });
+
   group('partnerResultsHeader', () {
     test('formats count and category badge', () {
       const category = TournamentCategoryOffer(

@@ -171,11 +171,13 @@ class _LevelBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < athleteLevelSegmentCount; i++)
           Expanded(
             child: Container(
               height: 5,
-              margin: EdgeInsets.only(right: i < 4 ? 4 : 0),
+              margin: EdgeInsets.only(
+                right: i < athleteLevelSegmentCount - 1 ? 4 : 0,
+              ),
               decoration: BoxDecoration(
                 color: i < segments
                     ? AppColors.brand

@@ -72,21 +72,34 @@ service cloud.firestore {
       return isAdmin() || isSuperAdmin() || isTournamentOrganizer();
     }
 
+    function userDocHasRole(data, requiredRole) {
+      return data.roles is list && data.roles.size() > 0
+        ? data.roles.hasAny([requiredRole])
+        : ('role' in data && data.role == requiredRole);
+    }
+
+    function userDocHasAthleteRole(data) {
+      return userDocHasRole(data, 'athlete');
+    }
+
     function userDocIsPublicAthlete(resource) {
-      return resource != null && (
-        (resource.data.roles is list && 'athlete' in resource.data.roles) ||
-        resource.data.role == 'athlete'
-      );
+      return resource != null && userDocHasAthleteRole(resource.data);
+    }
+    /** Atleta autenticado buscando parceiro (inscrição em torneio). */
+    function authUserCanListAthleteProfiles() {
+      return request.auth != null &&
+        resource != null &&
+        userDocHasAthleteRole(resource.data) &&
+        (
+          hasRoleClaim('athlete') ||
+          authUserHasAthleteProfile()
+        );
     }
     /** Atleta logado pré-cadastra parceiro sem conta (inscrição em torneio). */
     function authUserHasAthleteProfile() {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'athlete' ||
-          (
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles is list &&
-            'athlete' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles
-          )
+        userDocHasAthleteRole(
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data
         );
     }
     function inviterCanPreRegisterPartner() {
@@ -138,8 +151,7 @@ service cloud.firestore {
     }
     function isAthleteProfile(doc) {
       return doc != null && (
-        doc.data.role == 'athlete' ||
-        (doc.data.roles is list && doc.data.roles.hasAny(['athlete'])) ||
+        userDocHasAthleteRole(doc.data) ||
         (
           !('role' in doc.data) &&
           (!(doc.data.roles is list) || doc.data.roles.size() == 0)
@@ -376,6 +388,7 @@ service cloud.firestore {
       // Leitura completa: usuários podem ler seus próprios dados ou admins podem ler qualquer usuário
       allow read: if 
         (resource != null && userDocIsPublicAthlete(resource)) ||
+        authUserCanListAthleteProfiles() ||
         (request.auth != null && (
           request.auth.uid == userId ||
           isAdmin() ||

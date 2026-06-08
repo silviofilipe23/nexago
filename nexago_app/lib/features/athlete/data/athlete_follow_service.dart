@@ -90,4 +90,33 @@ class AthleteFollowService {
     final snap = await _followingRef(id).get();
     return snap.docs.map((d) => d.id).toSet();
   }
+
+  Future<Set<String>> fetchFollowerIds(String athleteId) async {
+    final id = athleteId.trim();
+    if (id.isEmpty) return {};
+    final snap = await _followersRef(id).get();
+    return snap.docs.map((d) => d.id).toSet();
+  }
+
+  /// Pessoas que o viewer segue e que também seguem [athleteId].
+  int countMutualFollowers({
+    required Set<String> viewerFollowingIds,
+    required Set<String> athleteFollowerIds,
+  }) {
+    if (viewerFollowingIds.isEmpty || athleteFollowerIds.isEmpty) return 0;
+    return athleteFollowerIds.where(viewerFollowingIds.contains).length;
+  }
+
+  Future<Map<String, Set<String>>> fetchFollowerIdsForAthletes(
+    Iterable<String> athleteIds,
+  ) async {
+    final unique = athleteIds.map((id) => id.trim()).where((id) => id.isNotEmpty).toSet();
+    final result = <String, Set<String>>{};
+    await Future.wait(
+      unique.map((athleteId) async {
+        result[athleteId] = await fetchFollowerIds(athleteId);
+      }),
+    );
+    return result;
+  }
 }

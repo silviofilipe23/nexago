@@ -62,6 +62,7 @@ class RecentPartnersRepository {
       if (profiles.length >= maxProfiles) break;
       final profile = await _users.getUserById(uid);
       if (profile == null) continue;
+      if (!appUserHasAthleteRole(profile)) continue;
       final hasName = (profile.fullName?.isNotEmpty == true) ||
           (profile.email?.isNotEmpty == true);
       if (!hasName) continue;

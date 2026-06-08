@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/search/search_keywords.dart';
 import '../domain/app_user_profile.dart';
 import '../domain/partner_search_logic.dart';
 import 'users_repository.dart';
@@ -9,26 +10,37 @@ class PartnerSearchService {
 
   final UsersRepository _users;
 
-  Future<List<AppUserProfile>> searchPartner({
-    required String term,
+  static const int initialBrowseLimit = 50;
+
+  Future<List<AppUserProfile>> listPartners({
     required String currentUserId,
     required String? categoryGenderType,
+    int browseLimit = initialBrowseLimit,
   }) async {
-    if (term.trim().length < 2) return [];
-
-    final strictGender = categoryGenderType == 'Masculino' ||
-        categoryGenderType == 'Feminino';
-    final fetchMax = strictGender ? 32 : 12;
-
-    var users = await _users.searchUsersByNicknameOrName(
-      term.trim(),
-      max: fetchMax,
-      roleFilter: 'athlete',
-    );
-
-    users = users.where((u) => u.uid != currentUserId).toList();
+    var users = await _users.listAthleteProfiles(maxResults: browseLimit);
+    users = users.where((user) => user.uid != currentUserId).toList();
     users = filterPartnersByCategoryGender(users, categoryGenderType);
-    return users.take(10).toList();
+    return sortPartnersForDisplay(users);
+  }
+
+  Future<List<AppUserProfile>> searchPartners({
+    required String currentUserId,
+    required String? categoryGenderType,
+    required String query,
+    int max = 25,
+  }) async {
+    final trimmed = query.trim();
+    if (!isSearchTermLongEnough(trimmed)) {
+      return listPartners(
+        currentUserId: currentUserId,
+        categoryGenderType: categoryGenderType,
+      );
+    }
+
+    var users = await _users.searchAthletesByKeywords(trimmed, max: max);
+    users = users.where((user) => user.uid != currentUserId).toList();
+    users = filterPartnersByCategoryGender(users, categoryGenderType);
+    return sortPartnersForDisplay(users);
   }
 }
 

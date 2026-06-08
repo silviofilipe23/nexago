@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_firestore_codes.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
@@ -104,6 +105,34 @@ void main() {
     });
   });
 
+  group('AthleteProfile.fromFirestore', () {
+    test('parses birthDate from Firestore Timestamp', () {
+      final snap = _FakeDoc(
+        id: 'u1',
+        fields: {
+          'name': 'João',
+          'birthDate': Timestamp.fromDate(DateTime(1990, 3, 15)),
+        },
+      );
+
+      final profile = AthleteProfile.fromFirestore(snap);
+      expect(profile.birthDate, '15/03/1990');
+    });
+
+    test('parses birthDate from ISO string', () {
+      final snap = _FakeDoc(
+        id: 'u2',
+        fields: {
+          'name': 'Ana',
+          'birthDate': '2000-01-01',
+        },
+      );
+
+      final profile = AthleteProfile.fromFirestore(snap);
+      expect(profile.birthDate, '01/01/2000');
+    });
+  });
+
   group('AthleteOnboardingDraft.toAthleteProfile', () {
     test('maps draft to firestore sport codes and goal array', () {
       const draft = AthleteOnboardingDraft(
@@ -128,4 +157,32 @@ void main() {
       );
     });
   });
+}
+
+class _FakeDoc implements DocumentSnapshot<Map<String, dynamic>> {
+  _FakeDoc({required this.id, required Map<String, dynamic> fields})
+      : _fields = fields;
+
+  @override
+  final String id;
+  final Map<String, dynamic> _fields;
+
+  @override
+  bool get exists => true;
+
+  @override
+  DocumentReference<Map<String, dynamic>> get reference =>
+      throw UnimplementedError();
+
+  @override
+  SnapshotMetadata get metadata => throw UnimplementedError();
+
+  @override
+  Map<String, dynamic>? data() => _fields;
+
+  @override
+  dynamic get(Object field) => _fields[field];
+
+  @override
+  dynamic operator [](Object field) => _fields[field];
 }

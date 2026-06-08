@@ -11,6 +11,7 @@ import '../../../../../core/theme/app_typography.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../../athlete/domain/athlete_follow_providers.dart';
 import '../../../../athlete/domain/athlete_profile_providers.dart';
+import '../../../../athlete/domain/athlete_public_profile_models.dart';
 import '../../../domain/team_discover_models.dart';
 import '../../../domain/team_discover_providers.dart';
 
@@ -480,7 +481,7 @@ class _LevelDots extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (var i = 0; i < 5; i++) ...[
+        for (var i = 0; i < athleteLevelSegmentCount; i++) ...[
           if (i > 0) SizedBox(width: 5),
           Container(
             width: 7,

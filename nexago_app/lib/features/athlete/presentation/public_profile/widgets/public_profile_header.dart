@@ -16,8 +16,6 @@ class PublicProfileHeader extends StatelessWidget {
     required this.ranking,
     required this.displayLevel,
     required this.onBack,
-    required this.onBookmark,
-    required this.onMore,
   });
 
   static const coverHeight = 240.0;
@@ -28,8 +26,6 @@ class PublicProfileHeader extends StatelessWidget {
   final AthletePublicRankingSnapshot ranking;
   final int displayLevel;
   final VoidCallback onBack;
-  final VoidCallback onBookmark;
-  final VoidCallback onMore;
 
   @override
   Widget build(BuildContext context) {
@@ -92,13 +88,6 @@ class PublicProfileHeader extends StatelessWidget {
                 child: Row(
                   children: [
                     _IconButton(onTap: onBack, icon: Icons.arrow_back_rounded),
-                    Spacer(),
-                    _IconButton(
-                      onTap: onBookmark,
-                      icon: Icons.bookmark_border_rounded,
-                    ),
-                    SizedBox(width: 8),
-                    _IconButton(onTap: onMore, icon: Icons.more_horiz_rounded),
                   ],
                 ),
               ),

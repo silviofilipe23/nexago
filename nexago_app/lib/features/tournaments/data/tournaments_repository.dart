@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
+import '../../../core/search/search_keywords.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_helpers.dart';
 import '../domain/tournament_discovery_models.dart';
@@ -60,6 +62,47 @@ class TournamentsRepository {
       if (detail != null) names[id] = detail.name;
     }
     return names;
+  }
+
+  /// Busca torneios por prefixo em `keywords` (coleção raiz + legado).
+  Future<List<DiscoveryTournament>> searchByKeywords(
+    String term, {
+    int max = 40,
+  }) async {
+    final token = normalizeSearchTerm(term);
+    if (!isSearchTermLongEnough(term)) return [];
+
+    final byId = <String, DiscoveryTournament>{};
+
+    Future<void> mergeQuery(Query<Map<String, dynamic>> query) async {
+      try {
+        final snap = await query.limit(max).get();
+        for (final doc in snap.docs) {
+          final item = TournamentDocumentMapper.fromSnapshot(doc);
+          if (item != null) byId[item.id] = item;
+        }
+      } catch (e, stackTrace) {
+        if (kDebugMode) {
+          debugPrint('TournamentsRepository.searchByKeywords failed: $e');
+          debugPrint('$stackTrace');
+        }
+      }
+    }
+
+    await mergeQuery(
+      _root.where('keywords', arrayContains: token),
+    );
+    await mergeQuery(
+      _firestore
+          .collection(
+            '${NexagoArtifactsPaths.publicDataBase}/tournaments',
+          )
+          .where('keywords', arrayContains: token),
+    );
+
+    final items = byId.values.toList()
+      ..sort(compareDiscoveryTournamentsByDateProximity);
+    return items.take(max).toList();
   }
 
   Future<Map<String, TournamentDetail>> getTournamentDetails(Set<String> ids) async {

@@ -217,8 +217,8 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
     _publishDisplay(state.rawEntries);
   }
 
-  void setQuickCategory(AthleteDiscoverQuickCategory category) {
-    final filters = state.filters.copyWith(quickCategory: category);
+  void setQuickLevel(AthleteDiscoverQuickLevel level) {
+    final filters = state.filters.copyWith(quickLevel: level);
     state = state.copyWith(filters: filters);
     _publishDisplay(state.rawEntries);
   }
@@ -231,15 +231,27 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
   void updateFollowing(String athleteId, bool isFollowing) {
     final raw = state.rawEntries
         .map(
-          (e) => e.userId == athleteId
-              ? AthleteDiscoverEntry(
-                  userId: e.userId,
-                  profile: e.profile,
-                  ranking: e.ranking,
-                  isFollowing: isFollowing,
-                  isCurrentUser: e.isCurrentUser,
-                )
-              : e,
+          (e) {
+            if (e.userId != athleteId) return e;
+
+            final wasFollowing = e.isFollowing;
+            var followersCount = e.followersCount;
+            if (isFollowing && !wasFollowing) {
+              followersCount += 1;
+            } else if (!isFollowing && wasFollowing && followersCount > 0) {
+              followersCount -= 1;
+            }
+
+            return AthleteDiscoverEntry(
+              userId: e.userId,
+              profile: e.profile,
+              ranking: e.ranking,
+              isFollowing: isFollowing,
+              isCurrentUser: e.isCurrentUser,
+              followersCount: followersCount,
+              mutualFollowersCount: e.mutualFollowersCount,
+            );
+          },
         )
         .toList();
     _publishDisplay(raw);

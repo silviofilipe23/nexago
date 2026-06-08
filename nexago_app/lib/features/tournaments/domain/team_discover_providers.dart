@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/search/search_keywords.dart';
 import '../../athlete/domain/athlete_follow_providers.dart';
 import '../../athlete/domain/athlete_profile.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
@@ -15,6 +16,7 @@ class TeamDiscoverState {
     this.filters = TeamDiscoverFilters.defaults,
     this.sort = TeamDiscoverSort.ranking,
     this.searchQuery = '',
+    this.isSearchMode = false,
     this.isLoading = false,
     this.isLoadingMore = false,
     this.hasMore = true,
@@ -28,6 +30,7 @@ class TeamDiscoverState {
   final TeamDiscoverFilters filters;
   final TeamDiscoverSort sort;
   final String searchQuery;
+  final bool isSearchMode;
   final bool isLoading;
   final bool isLoadingMore;
   final bool hasMore;
@@ -48,6 +51,7 @@ class TeamDiscoverState {
     TeamDiscoverFilters? filters,
     TeamDiscoverSort? sort,
     String? searchQuery,
+    bool? isSearchMode,
     bool? isLoading,
     bool? isLoadingMore,
     bool? hasMore,
@@ -61,6 +65,7 @@ class TeamDiscoverState {
       filters: filters ?? this.filters,
       sort: sort ?? this.sort,
       searchQuery: searchQuery ?? this.searchQuery,
+      isSearchMode: isSearchMode ?? this.isSearchMode,
       isLoading: isLoading ?? this.isLoading,
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       hasMore: hasMore ?? this.hasMore,
@@ -97,12 +102,15 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
     return ref.read(athleteFollowServiceProvider).fetchFollowingIds(uid);
   }
 
-  List<TeamDiscoverEntry> _applyPipeline(List<TeamDiscoverEntry> source) {
+  List<TeamDiscoverEntry> _applyPipeline(
+    List<TeamDiscoverEntry> source, {
+    bool skipLocalSearch = false,
+  }) {
     final filtered = applyTeamDiscoverFilters(
       entries: source,
       filters: state.filters,
       viewerProfile: _viewerProfile,
-      searchQuery: state.searchQuery,
+      searchQuery: skipLocalSearch ? '' : state.searchQuery,
       viewerTeamPoints: state.viewerTeamPoints,
     );
     return sortTeamDiscoverEntries(
@@ -121,7 +129,11 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
   }
 
   Future<void> loadInitial() async {
-    state = state.copyWith(isLoading: true, errorMessage: null);
+    state = state.copyWith(
+      isLoading: true,
+      errorMessage: null,
+      isSearchMode: false,
+    );
     _repo.clearCaches();
     try {
       final following = await _followingIds();
@@ -175,9 +187,39 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
     }
   }
 
-  void setSearchQuery(String query) {
+  Future<void> setSearchQuery(String query) async {
     state = state.copyWith(searchQuery: query);
-    _publishDisplay(state.rawEntries);
+    final trimmed = query.trim();
+    if (!isSearchTermLongEnough(trimmed)) {
+      if (state.isSearchMode) {
+        await loadInitial();
+      } else {
+        _publishDisplay(state.rawEntries);
+      }
+      return;
+    }
+
+    state = state.copyWith(isLoading: true, isSearchMode: true);
+    try {
+      final following = await _followingIds();
+      final teams = await _repo.searchTeamsByKeywords(trimmed);
+      final enriched = await _repo.enrichEntries(
+        teams: teams,
+        currentUserId: _currentUid,
+        followingIds: following,
+      );
+      state = state.copyWith(
+        rawEntries: enriched,
+        displayEntries: _applyPipeline(enriched, skipLocalSearch: true),
+        isLoading: false,
+        hasMore: false,
+        lastDocumentId: null,
+        isSearchMode: true,
+        errorMessage: null,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: '$e');
+    }
   }
 
   void setSort(TeamDiscoverSort sort) {

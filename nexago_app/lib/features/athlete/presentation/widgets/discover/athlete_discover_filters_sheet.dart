@@ -6,6 +6,7 @@ import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/athlete_discover_logic.dart';
 import '../../../domain/athlete_discover_models.dart';
 import '../../../domain/athlete_firestore_codes.dart';
+import '../../../domain/athlete_profile_options.dart';
 
 Future<AthleteDiscoverFilters?> showAthleteDiscoverFiltersSheet({
   required BuildContext context,
@@ -45,7 +46,7 @@ class _AthleteDiscoverFiltersSheet extends StatefulWidget {
 class _AthleteDiscoverFiltersSheetState
     extends State<_AthleteDiscoverFiltersSheet> {
   String? _sportId;
-  late Set<String> _categories;
+  late Set<String> _levels;
   late AthleteDiscoverGenderFilter _gender;
   AthleteDiscoverGameObjective? _objective;
   late double _distanceKm;
@@ -54,14 +55,14 @@ class _AthleteDiscoverFiltersSheetState
   late bool _lookingForPartner;
   late bool _completeProfile;
 
-  static const _categoryOptions = ['Cat A', 'Cat B', 'Cat C', 'PRO'];
+  static const _levelOptions = AthleteProfileOptions.levels;
 
   @override
   void initState() {
     super.initState();
     final f = widget.initial;
     _sportId = f.sportFirestoreId;
-    _categories = Set<String>.from(f.categories);
+    _levels = Set<String>.from(f.levels);
     _gender = f.gender;
     _objective = f.gameObjective;
     _distanceKm = f.maxDistanceKm.clamp(5, 100);
@@ -74,7 +75,7 @@ class _AthleteDiscoverFiltersSheetState
   void _clear() {
     setState(() {
       _sportId = null;
-      _categories = {};
+      _levels = {};
       _gender = AthleteDiscoverGenderFilter.all;
       _objective = null;
       _distanceKm = 50;
@@ -88,7 +89,7 @@ class _AthleteDiscoverFiltersSheetState
   AthleteDiscoverFilters _draft() {
     return widget.initial.copyWith(
       sportFirestoreId: _sportId,
-      categories: _categories,
+      levels: _levels,
       gender: _gender,
       gameObjective: _objective,
       maxDistanceKm: _distanceKm,
@@ -175,16 +176,16 @@ class _AthleteDiscoverFiltersSheetState
                       },
                     ),
                     SizedBox(height: 20),
-                    const _SectionLabel(label: 'CATEGORIA'),
+                    const _SectionLabel(label: 'NÍVEL'),
                     _ChipWrap(
-                      options: _categoryOptions,
-                      multiSelected: _categories,
+                      options: _levelOptions,
+                      multiSelected: _levels,
                       onToggle: (label) {
                         setState(() {
-                          if (_categories.contains(label)) {
-                            _categories.remove(label);
+                          if (_levels.contains(label)) {
+                            _levels.remove(label);
                           } else {
-                            _categories.add(label);
+                            _levels.add(label);
                           }
                         });
                       },
@@ -393,26 +394,33 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? Colors.transparent : context.themeColors.surfaceRaised,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: selected ? AppColors.brand : Colors.transparent,
-          width: 1.5,
-        ),
-      ),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
-        child: Padding(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Text(
-            label,
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.brand.withValues(alpha: 0.14)
+                : context.themeColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: selected ? AppColors.brand : Colors.transparent,
+              width: 1.5,
+            ),
+          ),
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
             style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 13,
               color: selected ? AppColors.brand : context.themeColors.onSurface,
             ),
+            child: Text(label),
           ),
         ),
       ),

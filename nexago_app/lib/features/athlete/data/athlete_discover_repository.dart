@@ -1,10 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/search/search_keywords.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../ranking/data/ranking_repository.dart';
+import '../../ranking/domain/ranking_models.dart';
 import '../../tournaments/data/users_repository.dart';
+import 'athlete_follow_service.dart';
 import '../domain/athlete_discover_logic.dart';
+import '../domain/athlete_follow_providers.dart';
 import '../domain/athlete_discover_models.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_public_profile_models.dart';
@@ -14,13 +19,16 @@ class AthleteDiscoverRepository {
     required FirebaseFirestore firestore,
     required RankingRepository rankingRepository,
     required UsersRepository usersRepository,
+    required AthleteFollowService followService,
   })  : _users = firestore.collection('users'),
         _rankingRepository = rankingRepository,
-        _usersRepository = usersRepository;
+        _usersRepository = usersRepository,
+        _followService = followService;
 
   final CollectionReference<Map<String, dynamic>> _users;
   final RankingRepository _rankingRepository;
   final UsersRepository _usersRepository;
+  final AthleteFollowService _followService;
 
   static const pageSize = 30;
 
@@ -60,6 +68,30 @@ class AthleteDiscoverRepository {
   }
 
   Future<List<AthleteProfile>> searchProfiles(String term) async {
+    final token = normalizeSearchTerm(term);
+    if (!isSearchTermLongEnough(term)) return [];
+
+    try {
+      final snap = await _users
+          .where('hasAthleteRole', isEqualTo: true)
+          .where('keywords', arrayContains: token)
+          .limit(25)
+          .get();
+      final profiles = <AthleteProfile>[];
+      for (final doc in snap.docs) {
+        final profile = AthleteProfile.fromFirestore(doc);
+        if (isDiscoverableProfile(profile)) {
+          profiles.add(profile);
+        }
+      }
+      if (profiles.isNotEmpty) return profiles;
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        debugPrint('AthleteDiscoverRepository.searchProfiles keywords failed: $e');
+        debugPrint('$stackTrace');
+      }
+    }
+
     final results = await _usersRepository.searchUsersByNicknameOrName(
       term,
       max: 25,
@@ -81,29 +113,29 @@ class AthleteDiscoverRepository {
     final cached = _rankingCache[athleteId];
     if (cached != null) return cached;
 
-    final entry = await _rankingRepository.getAthleteRankingEntry(athleteId);
-    final snapshot = entry == null
+    final row = await _rankingRepository.getAthleteRank(athleteId);
+    final snapshot = row == null
         ? const AthletePublicRankingSnapshot()
         : AthletePublicRankingSnapshot(
-            points: entry.totalPoints,
-            tournamentsCount: entry.tournamentsCount,
+            rank: row.rank,
+            points: row.totalPoints,
+            tournamentsCount: row.tournamentsCount,
           );
+    _rankingCache[athleteId] = snapshot;
+    return snapshot;
+  }
 
-    var rank = 0;
-    if (entry != null && entry.totalPoints > 0) {
-      final general = await _rankingRepository.loadAthleteRankingGeneral();
-      final idx = general.indexWhere((r) => r.athleteId == athleteId);
-      if (idx >= 0) rank = idx + 1;
-    }
-
-    final withRank = AthletePublicRankingSnapshot(
-      rank: rank > 0 ? rank : null,
-      points: snapshot.points,
-      tournamentsCount: snapshot.tournamentsCount,
-      seasonYear: DateTime.now().year,
+  AthletePublicRankingSnapshot _rankingFromGeneralRow(
+    Map<String, AthleteRankingRow> generalByAthleteId,
+    String athleteId,
+  ) {
+    final row = generalByAthleteId[athleteId];
+    if (row == null) return const AthletePublicRankingSnapshot();
+    return AthletePublicRankingSnapshot(
+      rank: row.rank,
+      points: row.totalPoints,
+      tournamentsCount: row.tournamentsCount,
     );
-    _rankingCache[athleteId] = withRank;
-    return withRank;
   }
 
   Future<List<AthleteDiscoverEntry>> enrichEntries({
@@ -111,15 +143,35 @@ class AthleteDiscoverRepository {
     required String? currentUserId,
     Set<String> followingIds = const {},
   }) async {
+    final profileIds = profiles.map((profile) => profile.id).toList();
+    final generalRows = await _rankingRepository.loadAthleteRankingGeneral();
+    final generalByAthleteId = {
+      for (final row in generalRows) row.athleteId: row,
+    };
+    final followerIdsByAthlete =
+        await _followService.fetchFollowerIdsForAthletes(profileIds);
+    final hasViewer = currentUserId != null && currentUserId.trim().isNotEmpty;
+
     final entries = <AthleteDiscoverEntry>[];
     for (final profile in profiles) {
-      final ranking = await rankingFor(profile.id);
+      final ranking = _rankingFromGeneralRow(generalByAthleteId, profile.id);
+      _rankingCache[profile.id] = ranking;
+      final athleteFollowerIds =
+          followerIdsByAthlete[profile.id] ?? const <String>{};
+      final isCurrentUser = hasViewer && profile.id == currentUserId;
       entries.add(
         buildDiscoverEntry(
           profile: profile,
           ranking: ranking,
           isFollowing: followingIds.contains(profile.id),
-          isCurrentUser: currentUserId != null && profile.id == currentUserId,
+          isCurrentUser: isCurrentUser,
+          followersCount: athleteFollowerIds.length,
+          mutualFollowersCount: hasViewer && !isCurrentUser
+              ? _followService.countMutualFollowers(
+                  viewerFollowingIds: followingIds,
+                  athleteFollowerIds: athleteFollowerIds,
+                )
+              : null,
         ),
       );
     }
@@ -135,6 +187,7 @@ final athleteDiscoverRepositoryProvider = Provider<AthleteDiscoverRepository>(
       firestore: ref.watch(firestoreProvider),
       rankingRepository: ref.watch(rankingRepositoryProvider),
       usersRepository: ref.watch(usersRepositoryProvider),
+      followService: ref.watch(athleteFollowServiceProvider),
     );
   },
 );

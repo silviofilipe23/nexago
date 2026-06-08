@@ -26,6 +26,30 @@ bool userHasArenaRole(IdTokenResult result) {
   return appRolesFromIdToken(result).contains(kArenaAppRole);
 }
 
+/// Papéis do documento Firestore: prioriza `roles[]`; usa `role` legado só se vazio.
+bool userDocHasRole({
+  required String requiredRole,
+  List<String> roles = const [],
+  String? legacyRole,
+}) {
+  final role = requiredRole.trim().toLowerCase();
+  if (roles.isNotEmpty) {
+    return roles.map((r) => r.trim().toLowerCase()).contains(role);
+  }
+  return legacyRole?.trim().toLowerCase() == role;
+}
+
+bool userDocHasAthleteRole({
+  List<String> roles = const [],
+  String? legacyRole,
+}) {
+  return userDocHasRole(
+    requiredRole: kAthleteAppRole,
+    roles: roles,
+    legacyRole: legacyRole,
+  );
+}
+
 bool userHasAthleteRole(IdTokenResult result) {
   return appRolesFromIdToken(result).contains(kAthleteAppRole);
 }

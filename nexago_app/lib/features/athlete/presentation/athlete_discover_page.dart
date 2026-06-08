@@ -7,12 +7,12 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
-import '../../../core/ui/app_snackbar.dart';
 import '../domain/athlete_discover_models.dart';
 import '../domain/athlete_discover_providers.dart';
 import '../domain/athlete_profile_providers.dart';
 import 'widgets/discover/athlete_discover_card.dart';
 import 'widgets/discover/athlete_discover_filters_sheet.dart';
+import 'widgets/discover/athlete_discover_level_chips.dart';
 
 class AthleteDiscoverPage extends ConsumerStatefulWidget {
   const AthleteDiscoverPage({super.key});
@@ -53,9 +53,7 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
   void _onSearchChanged() {
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 350), () {
-      ref
-          .read(athleteDiscoverProvider.notifier)
-          .search(_searchController.text);
+      ref.read(athleteDiscoverProvider.notifier).search(_searchController.text);
     });
   }
 
@@ -64,16 +62,14 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
     final result = await showAthleteDiscoverFiltersSheet(
       context: context,
       initial: state.filters,
-      previewResultCount: (draft) =>
-          ref.read(athleteDiscoverProvider.notifier).previewForFilters(draft).length,
+      previewResultCount: (draft) => ref
+          .read(athleteDiscoverProvider.notifier)
+          .previewForFilters(draft)
+          .length,
     );
     if (result != null && mounted) {
       ref.read(athleteDiscoverProvider.notifier).applyFilters(result);
     }
-  }
-
-  void _onInviteTap() {
-    showAppSnackBar(context, 'Convite por raio — em breve.');
   }
 
   @override
@@ -83,7 +79,6 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
     final cityLabel = viewer?.city.trim().isNotEmpty == true
         ? viewer!.city.trim()
         : 'sua região';
-    final now = DateTime.now();
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -125,53 +120,16 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: AthleteDiscoverQuickCategory.values.map((cat) {
-                    final selected = state.filters.quickCategory == cat;
-                    final label = cat.label.isEmpty ? 'Todos' : cat.label;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: FilterChip(
-                        label: Text(label),
-                        selected: selected,
-                        showCheckmark: false,
-                        onSelected: (_) => ref
-                            .read(athleteDiscoverProvider.notifier)
-                            .setQuickCategory(cat),
-                        labelStyle: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: selected
-                              ? context.themeColors.onSurface
-                              : context.themeColors.onSurfaceMuted,
-                        ),
-                        backgroundColor: context.themeColors.surfaceRaised,
-                        selectedColor: context.themeColors.surfaceCard,
-                        side: BorderSide(
-                          color: selected
-                              ? AppColors.brand.withValues(alpha: 0.5)
-                              : Colors.transparent,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
+            AthleteDiscoverLevelChips(
+              selected: state.filters.quickLevel,
+              onSelected: (level) => ref
+                  .read(athleteDiscoverProvider.notifier)
+                  .setQuickLevel(level),
             ),
             SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _MetaRow(
-                total: state.totalCount,
-                online: state.supportsOnlineFilter
-                    ? state.onlineCount(now)
-                    : null,
+              child: _SortRow(
                 sort: state.sort,
                 onSortChanged: (s) =>
                     ref.read(athleteDiscoverProvider.notifier).setSort(s),
@@ -184,7 +142,6 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
                 scrollController: _scrollController,
                 onRefresh: () =>
                     ref.read(athleteDiscoverProvider.notifier).refresh(),
-                onInvite: _onInviteTap,
               ),
             ),
           ],
@@ -269,16 +226,12 @@ class _DiscoverAppBar extends StatelessWidget {
   }
 }
 
-class _MetaRow extends StatelessWidget {
-  const _MetaRow({
-    required this.total,
-    required this.online,
+class _SortRow extends StatelessWidget {
+  const _SortRow({
     required this.sort,
     required this.onSortChanged,
   });
 
-  final int total;
-  final int? online;
   final AthleteDiscoverSort sort;
   final ValueChanged<AthleteDiscoverSort> onSortChanged;
 
@@ -290,61 +243,39 @@ class _MetaRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onlinePart = online != null ? ' · $online online' : '';
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            '$total ATLETAS$onlinePart',
-            style: AppTypography.mono(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: context.themeColors.onSurfaceMuted,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
-        PopupMenuButton<AthleteDiscoverSort>(
-          initialValue: sort,
-          onSelected: onSortChanged,
-          color: context.themeColors.surfaceCard,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Ordenar',
-                style: AppTypography.soraRegular(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.brand,
-                ),
-              ),
-              SizedBox(width: 4),
-              Text(
-                _sortLabels[sort]!,
-                style: AppTypography.mono(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: context.themeColors.onSurfaceMuted,
-                ),
-              ),
-              Icon(
-                Icons.expand_more_rounded,
-                size: 18,
+    return Align(
+      alignment: Alignment.centerRight,
+      child: PopupMenuButton<AthleteDiscoverSort>(
+        initialValue: sort,
+        onSelected: onSortChanged,
+        color: context.themeColors.surfaceCard,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Ordenar',
+              style: AppTypography.soraRegular(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
                 color: AppColors.brand,
               ),
-            ],
-          ),
-          itemBuilder: (context) => AthleteDiscoverSort.values
-              .map(
-                (s) => PopupMenuItem(
-                  value: s,
-                  child: Text(_sortLabels[s]!),
-                ),
-              )
-              .toList(),
+            ),
+            SizedBox(width: 4),
+            Text(
+              _sortLabels[sort]!,
+              style: AppTypography.mono(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: context.themeColors.onSurfaceMuted,
+              ),
+            ),
+            Icon(Icons.expand_more_rounded, size: 18, color: AppColors.brand),
+          ],
         ),
-      ],
+        itemBuilder: (context) => AthleteDiscoverSort.values
+            .map((s) => PopupMenuItem(value: s, child: Text(_sortLabels[s]!)))
+            .toList(),
+      ),
     );
   }
 }
@@ -354,20 +285,16 @@ class _DiscoverBody extends StatelessWidget {
     required this.state,
     required this.scrollController,
     required this.onRefresh,
-    required this.onInvite,
   });
 
   final AthleteDiscoverState state;
   final ScrollController scrollController;
   final Future<void> Function() onRefresh;
-  final VoidCallback onInvite;
 
   @override
   Widget build(BuildContext context) {
     if (state.isLoading && state.displayEntries.isEmpty) {
-      return Center(
-        child: CircularProgressIndicator(color: AppColors.brand),
-      );
+      return Center(child: CircularProgressIndicator(color: AppColors.brand));
     }
 
     if (state.errorMessage != null && state.displayEntries.isEmpty) {
@@ -428,19 +355,7 @@ class _DiscoverBody extends StatelessWidget {
           }
 
           final entry = state.displayEntries[index];
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: AthleteDiscoverCard(entry: entry)),
-              SizedBox(width: 8),
-              IconButton(
-                onPressed: onInvite,
-                icon: Icon(Icons.bolt_rounded),
-                color: AppColors.brand,
-                tooltip: 'Convidar',
-              ),
-            ],
-          );
+          return AthleteDiscoverCard(entry: entry);
         },
       ),
     );

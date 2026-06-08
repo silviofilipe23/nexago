@@ -34,32 +34,29 @@ class PublicProfileActionRow extends StatelessWidget {
           Expanded(
             flex: 11,
             child: isSelf
-                ? _PrimaryPillButton(
-                    label: 'Editar perfil',
-                    onTap: onInvite,
-                  )
+                ? _PrimaryPillButton(label: 'Editar perfil', onTap: onInvite)
                 : isFollowing
-                    ? _SecondaryPillButton(
-                        label: 'Seguindo',
-                        onTap: onFollow,
-                        loading: followLoading,
-                      )
-                    : _PrimaryPillButton(
-                        label: 'Seguir',
-                        onTap: onFollow,
-                        loading: followLoading,
-                      ),
+                ? _SecondaryPillButton(
+                    label: 'Seguindo',
+                    onTap: onFollow,
+                    loading: followLoading,
+                  )
+                : _PrimaryPillButton(
+                    label: 'Seguir',
+                    onTap: onFollow,
+                    loading: followLoading,
+                  ),
           ),
           SizedBox(width: 8),
-          Expanded(
-            flex: 7,
-            child: _SecondaryPillButton(
-              label: 'Convidar',
-              icon: Icons.bolt_rounded,
-              onTap: onInvite,
-            ),
-          ),
-          SizedBox(width: 8),
+          // Expanded(
+          //   flex: 7,
+          //   child: _SecondaryPillButton(
+          //     label: 'Convidar',
+          //     icon: Icons.bolt_rounded,
+          //     onTap: onInvite,
+          //   ),
+          // ),
+          // SizedBox(width: 8),
           _SharePillButton(onTap: onShare),
         ],
       ),
@@ -156,7 +153,11 @@ class _SecondaryPillButton extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     if (icon != null) ...[
-                      Icon(icon, size: 16, color: context.themeColors.onSurface),
+                      Icon(
+                        icon,
+                        size: 16,
+                        color: context.themeColors.onSurface,
+                      ),
                       SizedBox(width: 6),
                     ],
                     Flexible(

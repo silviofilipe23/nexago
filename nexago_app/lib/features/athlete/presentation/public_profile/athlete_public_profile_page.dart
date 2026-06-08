@@ -163,16 +163,6 @@ class _AthletePublicProfilePageState
                     ranking: ranking,
                     displayLevel: displayLevel,
                     onBack: () => context.pop(),
-                    onBookmark: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Salvar perfil em breve.')),
-                      );
-                    },
-                    onMore: () {
-                      Share.share(
-                        'Confira o perfil de ${profile.name} no NexaGO.',
-                      );
-                    },
                   ),
                 ),
                 SliverToBoxAdapter(

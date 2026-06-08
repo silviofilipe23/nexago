@@ -51,6 +51,13 @@ import {
 } from "./tournament-registration-pix";
 import {onBookingInviteCreatedNotifyInvitee} from "./booking-invite-notify";
 import {
+  onUserSearchKeywordsSync,
+  onTournamentSearchKeywordsSync,
+  onLegacyTournamentSearchKeywordsSync,
+  onTeamSearchKeywordsSync,
+  backfillSearchKeywords,
+} from "./search-keywords-sync";
+import {
   BOOKING_REMINDER_15M_MINUTES_BEFORE,
   BOOKING_REMINDER_15M_TYPE,
   collectConfirmedAthleteIds,
@@ -75,6 +82,11 @@ export {
   createTournamentRegistrationPixPayment,
   cancelPendingTournamentRegistrationPix,
   onBookingInviteCreatedNotifyInvitee,
+  onUserSearchKeywordsSync,
+  onTournamentSearchKeywordsSync,
+  onLegacyTournamentSearchKeywordsSync,
+  onTeamSearchKeywordsSync,
+  backfillSearchKeywords,
 };
 
 // Initialize Firebase Admin

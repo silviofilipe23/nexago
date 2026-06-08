@@ -21,6 +21,55 @@ class _FakeIdTokenResult implements IdTokenResult {
 }
 
 void main() {
+  group('userDocHasAthleteRole', () {
+    test('uses roles array when present', () {
+      expect(
+        userDocHasAthleteRole(
+          roles: ['arena', 'athlete'],
+          legacyRole: 'arena',
+        ),
+        isTrue,
+      );
+      expect(
+        userDocHasAthleteRole(
+          roles: ['athlete', 'organizer'],
+          legacyRole: 'organizer',
+        ),
+        isTrue,
+      );
+      expect(
+        userDocHasAthleteRole(roles: ['arena'], legacyRole: 'athlete'),
+        isFalse,
+      );
+      expect(
+        userDocHasAthleteRole(roles: ['organizer'], legacyRole: 'athlete'),
+        isFalse,
+      );
+    });
+
+    test('userDocHasRole supports any app role', () {
+      expect(
+        userDocHasRole(
+          requiredRole: kOrganizerAppRole,
+          roles: ['organizer', 'athlete'],
+          legacyRole: 'athlete',
+        ),
+        isTrue,
+      );
+    });
+
+    test('falls back to legacy role when roles is empty', () {
+      expect(
+        userDocHasAthleteRole(legacyRole: 'athlete'),
+        isTrue,
+      );
+      expect(
+        userDocHasAthleteRole(legacyRole: 'arena'),
+        isFalse,
+      );
+    });
+  });
+
   group('mobileRolesFromIdToken', () {
     test('maps athlete, arena and organizer claims', () {
       final roles = mobileRolesFromIdToken(

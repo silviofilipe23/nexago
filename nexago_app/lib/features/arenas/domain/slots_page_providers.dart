@@ -112,7 +112,7 @@ final slotsCalendarAvailabilityProvider = FutureProvider.autoDispose
   final out = <SlotsCalendarDayStatus>[];
 
   for (var i = 0; i < params.daysCount; i++) {
-    final day = DateTime(start.year, start.month, start.day + i);
+    final day = start.add(Duration(days: i));
     final query = SlotsQuery(
       arenaId: aid,
       courtId: cid,

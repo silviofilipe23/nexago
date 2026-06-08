@@ -396,6 +396,39 @@ void main() {
     });
   });
 
+  group('athleteMatchesCategoryGender', () {
+    test('allows mixed and open categories for any athlete', () {
+      const mixed = TournamentCategoryOffer(
+        id: 'm',
+        name: 'Misto',
+        entryFee: 90,
+        genderType: 'Misto',
+      );
+      const open = TournamentCategoryOffer(
+        id: 'o',
+        name: 'Open',
+        entryFee: 90,
+      );
+
+      expect(athleteMatchesCategoryGender(mixed, null), isTrue);
+      expect(athleteMatchesCategoryGender(mixed, 'Feminino'), isTrue);
+      expect(athleteMatchesCategoryGender(open, 'Masculino'), isTrue);
+    });
+
+    test('requires matching gender for restricted categories', () {
+      const masc = TournamentCategoryOffer(
+        id: 'm',
+        name: 'Masculino B',
+        entryFee: 90,
+        genderType: 'Masculino',
+      );
+
+      expect(athleteMatchesCategoryGender(masc, 'Masculino'), isTrue);
+      expect(athleteMatchesCategoryGender(masc, 'Feminino'), isFalse);
+      expect(athleteMatchesCategoryGender(masc, null), isFalse);
+    });
+  });
+
   group('isCategorySelectable', () {
     test('returns false when closed or full', () {
       const closed = TournamentCategoryOffer(

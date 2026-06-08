@@ -120,6 +120,7 @@ abstract final class TournamentDocumentMapper {
       leagueStageOrder: _int(data['leagueStageOrder']),
       leagueStageName: _str(data['leagueStageName']),
       tournamentPrizes: _parsePrizes(data['prizes']),
+      createdAt: _timestamp(data['createdAt'] ?? data['created_at']),
     );
   }
 

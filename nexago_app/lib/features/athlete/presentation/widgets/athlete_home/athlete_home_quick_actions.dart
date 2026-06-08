@@ -56,11 +56,11 @@ class AthleteHomeQuickActions extends StatelessWidget {
         label: 'Torneios',
         onTap: onTournaments,
       ),
-      AthleteHomeQuickAction(
-        icon: Icons.person_search_rounded,
-        label: 'Play Match',
-        onTap: () {},
-      ),
+      // AthleteHomeQuickAction(
+      //   icon: Icons.person_search_rounded,
+      //   label: 'Play Match',
+      //   onTap: () {},
+      // ),
     ];
   }
 }

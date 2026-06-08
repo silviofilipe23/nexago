@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../../core/location/user_location_providers.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
+import '../../../../arenas/domain/arena_booking_success_actions.dart';
+import '../../../../arenas/domain/arenas_providers.dart';
 import '../../../../arenas/domain/my_booking_item.dart';
 import '../../../domain/athlete_booking_helpers.dart';
 
@@ -24,10 +29,7 @@ class AthleteHomeNextBookingCard extends StatelessWidget {
     if (booking == null) {
       return AthleteHomeReserveCtaCard(onTap: onReserveTap);
     }
-    return _FeaturedBookingCard(
-      booking: booking!,
-      onTap: onBookingTap,
-    );
+    return _FeaturedBookingCard(booking: booking!, onTap: onBookingTap);
   }
 }
 
@@ -51,9 +53,7 @@ class AthleteHomeReserveCtaCard extends StatelessWidget {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppColors.brand.withValues(alpha: 0.35),
-            ),
+            border: Border.all(color: AppColors.brand.withValues(alpha: 0.35)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,24 +91,22 @@ class AthleteHomeReserveCtaCard extends StatelessWidget {
   }
 }
 
-class _FeaturedBookingCard extends StatelessWidget {
-  const _FeaturedBookingCard({
-    required this.booking,
-    this.onTap,
-  });
+class _FeaturedBookingCard extends ConsumerWidget {
+  const _FeaturedBookingCard({required this.booking, this.onTap});
 
   final MyBookingItem booking;
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final now = DateTime.now();
     final start = parseBookingStart(booking);
     final countdown = start != null
         ? formatCountdownLabel(now, start)
         : 'EM BREVE';
-    final courtSuffix = booking.courtName != null && booking.courtName!.isNotEmpty
+    final courtSuffix =
+        booking.courtName != null && booking.courtName!.isNotEmpty
         ? ' · ${booking.courtName}'
         : '';
     final arenaLine = '${booking.arenaName}$courtSuffix';
@@ -129,11 +127,7 @@ class _FeaturedBookingCard extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xFFFF8A4A),
-                Color(0xFFFF6A1A),
-                Color(0xFFE5560E),
-              ],
+              colors: [Color(0xFFFF8A4A), Color(0xFFFF6A1A), Color(0xFFE5560E)],
             ),
           ),
           child: Padding(
@@ -207,8 +201,7 @@ class _FeaturedBookingCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: () =>
-                            showAppSnackBar(context, 'Em breve.'),
+                        onPressed: () => _openDirections(context, ref),
                         icon: Icon(Icons.location_on_outlined, size: 18),
                         label: Text('Como chegar'),
                         style: FilledButton.styleFrom(
@@ -218,16 +211,16 @@ class _FeaturedBookingCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    SizedBox(width: 8),
-                    _IconAction(
-                      icon: Icons.ios_share_rounded,
-                      onTap: () => showAppSnackBar(context, 'Em breve.'),
-                    ),
-                    SizedBox(width: 8),
-                    _IconAction(
-                      icon: Icons.more_horiz_rounded,
-                      onTap: () => showAppSnackBar(context, 'Em breve.'),
-                    ),
+                    // SizedBox(width: 8),
+                    // _IconAction(
+                    //   icon: Icons.ios_share_rounded,
+                    //   onTap: () => showAppSnackBar(context, 'Em breve.'),
+                    // ),
+                    // SizedBox(width: 8),
+                    // _IconAction(
+                    //   icon: Icons.more_horiz_rounded,
+                    //   onTap: () => showAppSnackBar(context, 'Em breve.'),
+                    // ),
                   ],
                 ),
               ],
@@ -238,12 +231,51 @@ class _FeaturedBookingCard extends StatelessWidget {
     );
   }
 
+  Future<void> _openDirections(BuildContext context, WidgetRef ref) async {
+    final arenaAsync = booking.arenaId == null
+        ? null
+        : ref.read(arenaByIdProvider(booking.arenaId!));
+    final arena = arenaAsync?.valueOrNull;
+    final destination = ArenaBookingSuccessActions.resolveMapsDestination(
+      arenaName: booking.arenaName,
+      locationLabel: arena?.locationLabel,
+      addressLine: arena?.addressLine,
+      latitude: arena?.latitude,
+      longitude: arena?.longitude,
+    );
+
+    final location = await ref.read(userLocationProvider.future);
+    final origin = ArenaBookingSuccessActions.resolveMapsOrigin(
+      latitude: location.latitude,
+      longitude: location.longitude,
+    );
+
+    final uri = Uri.parse(
+      ArenaBookingSuccessActions.buildMapsDirectionsUrl(
+        destination: destination,
+        origin: origin,
+      ),
+    );
+    if (!await canLaunchUrl(uri)) {
+      if (context.mounted) {
+        showAppSnackBar(
+          context,
+          'Não foi possível abrir o mapa.',
+          isError: true,
+        );
+      }
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
   String _scheduleLine(MyBookingItem booking, DateTime? start) {
     if (start == null) {
       return 'Hoje · ${booking.startTime}';
     }
     final now = DateTime.now();
-    final isToday = start.year == now.year &&
+    final isToday =
+        start.year == now.year &&
         start.month == now.month &&
         start.day == now.day;
     if (isToday) {

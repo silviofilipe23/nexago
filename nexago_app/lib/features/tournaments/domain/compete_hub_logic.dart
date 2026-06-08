@@ -3,36 +3,55 @@ import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'tournament_discovery_models.dart';
+import 'tournament_listing_status.dart';
+import 'tournament_registration_logic.dart';
 
 final _hubTileDateFmt = DateFormat('d MMM', 'pt_BR');
 
-/// Seleciona torneios para preview horizontal no hub (destaque + abertos primeiro).
-List<DiscoveryTournament> pickTournamentsForHubPreview(
+DateTime hubTournamentSortDate(DiscoveryTournament tournament) {
+  return tournament.createdAt ?? tournament.startDate;
+}
+
+bool tournamentHasRegisterableCategoryForUser(
+  DiscoveryTournament tournament, {
+  String? athleteGender,
+  Set<String> registeredCategoryIds = const {},
+}) {
+  if (!canRegisterForTournament(tournament.status)) return false;
+  return tournament.categoryOffers.any((offer) {
+    if (registeredCategoryIds.contains(offer.id)) return false;
+    if (!isCategorySelectable(offer)) return false;
+    if (!athleteMatchesCategoryGender(offer, athleteGender)) return false;
+    return true;
+  });
+}
+
+/// Seleciona os torneios mais novos em que o atleta ainda pode se inscrever.
+List<DiscoveryTournament> pickNewestRegisterableTournamentsForHub(
   List<DiscoveryTournament> tournaments, {
-  int limit = 8,
+  String? athleteGender,
+  Map<String, Set<String>> registeredCategoriesByTournamentId = const {},
+  int limit = 5,
 }) {
   if (tournaments.isEmpty || limit <= 0) return const [];
 
-  final sorted = [...tournaments]..sort((a, b) {
-      final featuredCmp = (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
-      if (featuredCmp != 0) return featuredCmp;
+  final filtered = tournaments.where((tournament) {
+    final registered =
+        registeredCategoriesByTournamentId[tournament.id] ?? const {};
+    return tournamentHasRegisterableCategoryForUser(
+      tournament,
+      athleteGender: athleteGender,
+      registeredCategoryIds: registered,
+    );
+  }).toList();
 
-      final openCmp = (_openPriority(b.status)) - (_openPriority(a.status));
-      if (openCmp != 0) return openCmp;
+  filtered.sort((a, b) {
+    final cmp = hubTournamentSortDate(b).compareTo(hubTournamentSortDate(a));
+    if (cmp != 0) return cmp;
+    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  });
 
-      return a.startDate.compareTo(b.startDate);
-    });
-
-  return sorted.take(limit).toList();
-}
-
-int _openPriority(TournamentListingStatus status) {
-  return switch (status) {
-    TournamentListingStatus.open => 3,
-    TournamentListingStatus.almostFull => 2,
-    TournamentListingStatus.bracketsReady => 1,
-    _ => 0,
-  };
+  return filtered.take(limit).toList();
 }
 
 String hubTournamentCategoryCountLabel(DiscoveryTournament tournament) {

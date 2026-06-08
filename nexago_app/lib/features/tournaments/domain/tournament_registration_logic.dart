@@ -245,6 +245,18 @@ bool isCategorySelectable(
   return true;
 }
 
+/// Compatibilidade de gênero entre perfil do atleta e categoria.
+bool athleteMatchesCategoryGender(
+  TournamentCategoryOffer offer,
+  String? athleteGender,
+) {
+  final categoryGender = categoryGenderDisplayLabel(offer);
+  if (categoryGender.isEmpty || categoryGender == 'Misto') return true;
+  final athlete = athleteGender?.trim();
+  if (athlete == null || athlete.isEmpty) return false;
+  return athlete == categoryGender;
+}
+
 String paymentAmountLabel({
   required TournamentRegistrationQuote quote,
   required String amountType,

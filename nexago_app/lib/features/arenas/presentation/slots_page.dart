@@ -846,10 +846,15 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
         _selEnd != null &&
         _rangeStillValid(slots, _selStart!, _selEnd!);
 
+    final stripStart = computeSlotsDayStripStart(
+      today: DateTime.now(),
+      selectedDay: _selectedDay,
+      daysCount: _calendarDays,
+    );
     final calParams = SlotsCalendarParams(
       arenaId: arenaId,
       courtId: courtId,
-      startDay: _dateOnly(DateTime.now()),
+      startDay: stripStart,
       daysCount: _calendarDays,
       arenaFallbackPricePerHour: widget.arena.pricePerHourReais,
     );
@@ -934,6 +939,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                       onBack: _handleBack,
                     ),
                     SlotsDayStrip(
+                      startDay: stripStart,
                       selectedDay: _selectedDay,
                       daysCount: _calendarDays,
                       calendarDays: calendarAsync.valueOrNull,

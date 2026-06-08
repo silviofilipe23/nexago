@@ -105,7 +105,10 @@ class _PartnerRow extends StatelessWidget {
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.brand,
                 foregroundColor: AppColors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 minimumSize: Size.zero,
               ),
               child: Text('Chamar'),

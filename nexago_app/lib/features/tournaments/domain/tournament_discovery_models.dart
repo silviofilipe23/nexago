@@ -68,6 +68,7 @@ class DiscoveryTournament {
     this.leagueStageId,
     this.imageUrl,
     this.categoryOffers = const [],
+    this.createdAt,
   });
 
   final String id;
@@ -95,6 +96,9 @@ class DiscoveryTournament {
 
   /// Categorias para inscrição (espelha Firestore `categories[]`).
   final List<TournamentCategoryOffer> categoryOffers;
+
+  /// Data de criação do documento (`createdAt` no Firestore).
+  final DateTime? createdAt;
 }
 
 class TournamentCategoryOffer {

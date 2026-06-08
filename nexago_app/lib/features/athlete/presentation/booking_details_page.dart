@@ -107,8 +107,9 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         ? arena!.addressLine!.trim()
         : (arena?.locationLabel ?? 'Local a confirmar');
 
-    final bookingSnap =
-        ref.watch(arenaBookingDocProvider(widget.bookingId)).valueOrNull;
+    final bookingSnap = ref
+        .watch(arenaBookingDocProvider(widget.bookingId))
+        .valueOrNull;
     final bookingData = bookingSnap?.data();
 
     final currency = NumberFormat.currency(
@@ -116,8 +117,8 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       symbol: r'R$',
       decimalDigits: 2,
     );
-    final amountValue = widget.amountReais ??
-        (bookingData?['amountReais'] as num?)?.toDouble();
+    final amountValue =
+        widget.amountReais ?? (bookingData?['amountReais'] as num?)?.toDouble();
     final paymentLabel = amountValue != null
         ? currency.format(amountValue)
         : 'A confirmar';
@@ -128,16 +129,17 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         : bookingDetailsPaymentTypeLabel(widget.paymentType);
 
     final ps = (bookingData?['paymentStatus'] as String?)?.toLowerCase().trim();
-    final paidOnline =
-        (bookingData?['amountPaidOnlineReais'] as num?)?.toDouble();
+    final paidOnline = (bookingData?['amountPaidOnlineReais'] as num?)
+        ?.toDouble();
     final showSplit = bookingDetailsShowSplitCard(
       paymentStatus: ps,
       paidOnline: paidOnline,
     );
     final splitLabel = formatSplitPerPersonLabel(amountValue);
 
-    final attendance =
-        ref.watch(bookingAttendanceProvider(widget.bookingId)).valueOrNull;
+    final attendance = ref
+        .watch(bookingAttendanceProvider(widget.bookingId))
+        .valueOrNull;
 
     final canCancel = bookingDetailsCanCancel(detailsStatus);
     final actionsEnabled = bookingDetailsActionsEnabled(detailsStatus);
@@ -149,11 +151,11 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         onCancel: _cancelBooking,
         showCancel: canCancel,
       ),
-      bottomNavigationBar: BookingDetailsBottomBar(
-        onAddToCalendar: _addToCalendar,
-        inviteEnabled: actionsEnabled,
-        actionsEnabled: actionsEnabled,
-      ),
+      // bottomNavigationBar: BookingDetailsBottomBar(
+      //   onAddToCalendar: _addToCalendar,
+      //   inviteEnabled: actionsEnabled,
+      //   actionsEnabled: actionsEnabled,
+      // ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
@@ -283,8 +285,10 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     if (_sharing) return;
     setState(() => _sharing = true);
     try {
-      final dateLabel =
-          DateFormat("d 'de' MMMM", 'pt_BR').format(widget.startAt);
+      final dateLabel = DateFormat(
+        "d 'de' MMMM",
+        'pt_BR',
+      ).format(widget.startAt);
       final text = ArenaBookingSuccessActions.buildBookingShareMessage(
         arenaName: widget.arenaName,
         courtName: widget.courtName,
@@ -309,7 +313,8 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       dateKey: dateKey,
       startTime: DateFormat('HH:mm').format(widget.startAt),
       endTime: DateFormat('HH:mm').format(widget.endAt),
-      details: 'Código ${ArenaBookingSuccessActions.formatBookingDisplayCode(widget.bookingId)}',
+      details:
+          'Código ${ArenaBookingSuccessActions.formatBookingDisplayCode(widget.bookingId)}',
       location: widget.arenaName,
     );
     if (url == null) {
@@ -334,20 +339,19 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     final uid = ref.read(authProvider).valueOrNull?.uid;
     if (uid == null || uid.isEmpty) return;
     try {
-      await ref.read(bookingServiceProvider).cancelBooking(
-            bookingId: widget.bookingId,
-            athleteId: uid,
-          );
+      await ref
+          .read(bookingServiceProvider)
+          .cancelBooking(bookingId: widget.bookingId, athleteId: uid);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Reserva cancelada.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Reserva cancelada.')));
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível cancelar: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Não foi possível cancelar: $e')));
     }
   }
 }

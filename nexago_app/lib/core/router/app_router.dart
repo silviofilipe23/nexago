@@ -56,7 +56,9 @@ import '../../features/athlete/presentation/athlete_settings_page.dart';
 import '../../features/athlete/presentation/athlete_active_sessions_page.dart';
 import '../../features/athlete/presentation/athlete_change_password_page.dart';
 import '../../features/athlete/presentation/athlete_notification_settings_page.dart';
+import '../../features/athlete/presentation/athlete_favorite_arenas_page.dart';
 import '../../features/athlete/presentation/athlete_notifications_page.dart';
+import '../../features/arenas/domain/arena_search_filters.dart';
 import '../../features/athlete/presentation/athlete_match_detail_page.dart';
 import '../../features/athlete/presentation/athlete_quest_page.dart';
 import '../../features/athlete/presentation/athlete_match_history_page.dart';
@@ -233,6 +235,16 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.myBookings,
         name: AppRouteNames.myBookings,
         builder: (context, state) => const MyBookingsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.favoriteArenas,
+        name: AppRouteNames.favoriteArenas,
+        builder: (context, state) {
+          final extra = state.extra;
+          return AthleteFavoriteArenasPage(
+            slotFilters: extra is ArenaSearchSlotFilters ? extra : null,
+          );
+        },
       ),
       GoRoute(
         path: AppRoutes.athleteProfile,

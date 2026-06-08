@@ -72,6 +72,32 @@ void main() {
       expect(filterLeaguesByQuery(leagues, 'go/df').single.id, 'l1');
     });
 
+    test('registeredCategoriesByTournament groups category ids', () {
+      final regs = <MyTournamentRegistration>[
+        const MyTournamentRegistration(
+          registrationId: 'r1',
+          tournamentId: 't1',
+          tournamentName: 'T1',
+          dateLabel: '',
+          statusLabel: 'Pago',
+          isPaid: true,
+          categoryId: 'cat-a',
+        ),
+        const MyTournamentRegistration(
+          registrationId: 'r2',
+          tournamentId: 't1',
+          tournamentName: 'T1',
+          dateLabel: '',
+          statusLabel: 'Pago',
+          isPaid: true,
+          categoryId: 'cat-b',
+        ),
+      ];
+
+      final map = registeredCategoriesByTournament(regs);
+      expect(map['t1'], {'cat-a', 'cat-b'});
+    });
+
     test('registrationsByTournamentId maps by tournamentId', () {
       final regs = <MyTournamentRegistration>[
         const MyTournamentRegistration(

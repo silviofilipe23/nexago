@@ -9,11 +9,13 @@ class ArenaSearchHeader extends StatelessWidget {
     super.key,
     required this.activeFilterCount,
     required this.onFiltersTap,
+    required this.onFavoritesTap,
     required this.onLocationTap,
   });
 
   final int activeFilterCount;
   final VoidCallback onFiltersTap;
+  final VoidCallback onFavoritesTap;
   final VoidCallback onLocationTap;
 
   @override
@@ -53,7 +55,12 @@ class ArenaSearchHeader extends StatelessWidget {
           onTap: onFiltersTap,
           badgeCount: activeFilterCount,
         ),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
+        _IconActionButton(
+          icon: Icons.favorite_border_rounded,
+          onTap: onFavoritesTap,
+        ),
+        const SizedBox(width: 8),
         _IconActionButton(icon: Icons.place_outlined, onTap: onLocationTap),
       ],
     );

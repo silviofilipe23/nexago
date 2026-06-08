@@ -2,8 +2,44 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../arenas/domain/arena_list_item.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../data/favorites_service.dart';
+
+/// Une IDs favoritos com documentos de arena, preservando a ordem dos favoritos.
+List<ArenaListItem> mergeFavoriteArenas({
+  required List<String> favoriteIds,
+  required List<ArenaListItem> arenas,
+}) {
+  if (favoriteIds.isEmpty) return const [];
+  final byId = {for (final arena in arenas) arena.id: arena};
+  return [
+    for (final id in favoriteIds)
+      if (byId.containsKey(id)) byId[id]!,
+  ];
+}
+
+final favoriteArenasProvider =
+    Provider.autoDispose<AsyncValue<List<ArenaListItem>>>((ref) {
+  final idsAsync = ref.watch(favoriteArenaIdsProvider);
+  final arenasAsync = ref.watch(arenasStreamProvider);
+
+  if (idsAsync.isLoading || arenasAsync.isLoading) {
+    return const AsyncValue.loading();
+  }
+  if (idsAsync.hasError) {
+    return AsyncValue.error(idsAsync.error!, idsAsync.stackTrace!);
+  }
+  if (arenasAsync.hasError) {
+    return AsyncValue.error(arenasAsync.error!, arenasAsync.stackTrace!);
+  }
+
+  final ids = idsAsync.value ?? const <String>[];
+  final arenas = arenasAsync.value ?? const <ArenaListItem>[];
+  return AsyncValue.data(
+    mergeFavoriteArenas(favoriteIds: ids, arenas: arenas),
+  );
+});
 
 final favoritesServiceProvider = Provider<FavoritesService>((ref) {
   return FavoritesService(ref.watch(firestoreProvider));

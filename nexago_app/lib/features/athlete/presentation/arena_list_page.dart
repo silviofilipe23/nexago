@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/router/routes.dart';
 import '../../../core/location/user_location_providers.dart';
 import '../../../core/location/user_location_snapshot.dart';
 import '../../../core/theme/app_colors.dart';
@@ -13,6 +15,7 @@ import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/domain/arena_search_filter_logic.dart';
 import '../../arenas/domain/arena_search_providers.dart';
+import '../../arenas/domain/slots_page_logic.dart';
 import '../../arenas/presentation/arena_booking_navigation.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_providers.dart';
@@ -61,7 +64,8 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
 
   ArenaSportChip _sportChipFromProfile(AthleteProfile? profile) {
     if (profile == null) return ArenaSearchFilters.defaultSportChip;
-    final hasSport = profile.primarySportFirestoreId?.isNotEmpty == true ||
+    final hasSport =
+        profile.primarySportFirestoreId?.isNotEmpty == true ||
         profile.sport.trim().isNotEmpty;
     if (!hasSport) return ArenaSearchFilters.defaultSportChip;
 
@@ -90,7 +94,10 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
   }
 
   int _rawSearchResultCount() {
-    return ref.read(arenaSearchResultsProvider(_filters.slot)).valueOrNull?.length ??
+    return ref
+            .read(arenaSearchResultsProvider(_filters.slot))
+            .valueOrNull
+            ?.length ??
         0;
   }
 
@@ -171,8 +178,9 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
   int _previewFilterResultCount(ArenaSearchFilters draft) {
     final slotResults =
         ref.read(arenaSearchResultsProvider(_filters.slot)).valueOrNull ??
-            const <ArenaSearchResult>[];
-    final location = ref.read(userLocationProvider).valueOrNull ??
+        const <ArenaSearchResult>[];
+    final location =
+        ref.read(userLocationProvider).valueOrNull ??
         const UserLocationSnapshot(source: UserLocationSource.none);
     final favorites =
         ref.read(favoriteArenaIdsProvider).valueOrNull ?? const <String>[];
@@ -200,6 +208,10 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
       current: _filters.sortBy,
     );
     if (sort != null) _updateFilters(_filters.copyWith(sortBy: sort));
+  }
+
+  void _openFavoriteArenas() {
+    context.pushNamed(AppRouteNames.favoriteArenas, extra: _filters.slot);
   }
 
   Future<void> _openLocation() async {
@@ -341,7 +353,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                           : 'Nenhuma arena encontrada',
                       subtitle: rawCount > 0
                           ? 'Temos $rawCount arena${rawCount == 1 ? '' : 's'} na base, '
-                              'mas nenhuma passou nos filtros atuais.'
+                                'mas nenhuma passou nos filtros atuais.'
                           : 'Ajuste filtros, data ou horário para ver mais opções.',
                     ),
                   ),
@@ -355,37 +367,26 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
               slivers: [
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
-                  sliver: SliverToBoxAdapter(
-                    child: _buildHeaderControls(),
-                  ),
+                  sliver: SliverToBoxAdapter(child: _buildHeaderControls()),
                 ),
-                if (favoriteItems.isNotEmpty)
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                    sliver: SliverToBoxAdapter(
-                      child: ArenaSearchFavoritesStrip(
-                        items: favoriteItems,
-                        searchQuery: _filters.query,
-                        onViewAll: () {
-                          _updateFilters(
-                            _filters.copyWith(showOnlyFavorites: true),
-                          );
-                          scrollController.animateTo(
-                            0,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOut,
-                          );
-                        },
-                        onArenaTap: (arena) => openArenaDetail(context, arena),
-                        onToggleFavorite: (id, fav) => _toggleFavorite(
-                          userId: userId,
-                          arenaId: id,
-                          isFavorite: fav,
-                        ),
-                        isFavoritePending: _favoritePendingArenaIds.contains,
-                      ),
-                    ),
-                  ),
+                // if (favoriteItems.isNotEmpty)
+                //   SliverPadding(
+                //     padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                //     sliver: SliverToBoxAdapter(
+                //       child: ArenaSearchFavoritesStrip(
+                //         items: favoriteItems,
+                //         searchQuery: _filters.query,
+                //         onViewAll: _openFavoriteArenas,
+                //         onArenaTap: (arena) => openArenaDetail(context, arena),
+                //         onToggleFavorite: (id, fav) => _toggleFavorite(
+                //           userId: userId,
+                //           arenaId: id,
+                //           isFavorite: fav,
+                //         ),
+                //         isFavoritePending: _favoritePendingArenaIds.contains,
+                //       ),
+                //     ),
+                //   ),
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                   sliver: SliverToBoxAdapter(
@@ -434,12 +435,15 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                                   isFavorite: isFavorite,
                                 ),
                           onReserve: result.hasAvailability
-                              ? () => openArenaBookingSlots(
-                                  context,
-                                  arena: result.arena,
-                                  slot: result.selectedSlot,
-                                  date: _filters.slot.dateOnly,
-                                )
+                              ? () {
+                                  final slot = result.selectedSlot!;
+                                  openArenaBookingSlots(
+                                    context,
+                                    arena: result.arena,
+                                    slot: slot,
+                                    date: slotDayOnly(slot.date),
+                                  );
+                                }
                               : null,
                         ),
                       );
@@ -461,6 +465,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
         ArenaSearchHeader(
           activeFilterCount: countActiveSearchFilters(_filters),
           onFiltersTap: _openFilters,
+          onFavoritesTap: _openFavoriteArenas,
           onLocationTap: _openLocation,
         ),
         SizedBox(height: 16),
@@ -484,26 +489,12 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
           onDateTap: _pickDate,
           onTimeTap: _pickTime,
         ),
-        SizedBox(height: 12),
-        ArenaSearchFlexibleBanner(
-          boostPercent: _flexBoostPercent,
-          flexibleTime: _filters.slot.flexibleTime,
-          onToggle: _toggleFlexibleTime,
-        ),
-        if (_filters.showOnlyFavorites) ...[
-          SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: () =>
-                  _updateFilters(_filters.copyWith(showOnlyFavorites: false)),
-              child: Text(
-                'Ver todas as arenas',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-            ),
-          ),
-        ],
+        // SizedBox(height: 12),
+        // ArenaSearchFlexibleBanner(
+        //   boostPercent: _flexBoostPercent,
+        //   flexibleTime: _filters.slot.flexibleTime,
+        //   onToggle: _toggleFlexibleTime,
+        // ),
       ],
     );
   }

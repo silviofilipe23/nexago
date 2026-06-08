@@ -6,10 +6,10 @@ import 'package:nexago_app/features/tournaments/domain/tournament_discovery_mode
 DiscoveryTournament _tournament({
   required String id,
   required String name,
-  bool featured = false,
-  TournamentListingStatus status = TournamentListingStatus.scheduled,
+  TournamentListingStatus status = TournamentListingStatus.open,
   DateTime? startDate,
-  int categoryCount = 2,
+  DateTime? createdAt,
+  List<TournamentCategoryOffer> categoryOffers = const [],
 }) {
   return DiscoveryTournament(
     id: id,
@@ -25,20 +25,26 @@ DiscoveryTournament _tournament({
     spotsTotal: 20,
     spotsLeft: 10,
     status: status,
-    featured: featured,
+    featured: false,
     enrolledCount: 0,
     liveMatchesNow: 0,
-    categoryOffers: List.generate(
-      categoryCount,
-      (i) => TournamentCategoryOffer(
-        id: 'c$i',
-        name: 'Cat $i',
-        entryFee: 100,
-        genderType: 'm',
-        spotsTotal: 10,
-        spotsLeft: 5,
-      ),
-    ),
+    categoryOffers: categoryOffers,
+    createdAt: createdAt,
+  );
+}
+
+TournamentCategoryOffer _openCategory({
+  required String id,
+  String genderType = 'Masculino',
+}) {
+  return TournamentCategoryOffer(
+    id: id,
+    name: id,
+    entryFee: 100,
+    genderType: genderType,
+    spotsTotal: 10,
+    spotsLeft: 5,
+    maxTeams: 10,
   );
 }
 
@@ -47,33 +53,169 @@ void main() {
     await initializeDateFormatting('pt_BR');
   });
 
-  group('pickTournamentsForHubPreview', () {
-    test('prioritizes featured and open tournaments', () {
-      final result = pickTournamentsForHubPreview([
-        _tournament(id: '1', name: 'Later', featured: false),
-        _tournament(
-          id: '2',
-          name: 'Open featured',
-          featured: true,
-          status: TournamentListingStatus.open,
-        ),
-        _tournament(
-          id: '3',
-          name: 'Open',
-          status: TournamentListingStatus.open,
-        ),
-      ]);
+  group('pickNewestRegisterableTournamentsForHub', () {
+    test('orders by createdAt descending', () {
+      final result = pickNewestRegisterableTournamentsForHub(
+        [
+          _tournament(
+            id: 'older',
+            name: 'Older',
+            createdAt: DateTime(2026, 5, 1),
+            categoryOffers: [_openCategory(id: 'c1')],
+          ),
+          _tournament(
+            id: 'newer',
+            name: 'Newer',
+            createdAt: DateTime(2026, 6, 1),
+            categoryOffers: [_openCategory(id: 'c2')],
+          ),
+        ],
+        athleteGender: 'Masculino',
+      );
 
-      expect(result.first.id, '2');
-      expect(result.map((t) => t.id), contains('3'));
+      expect(result.map((t) => t.id), ['newer', 'older']);
     });
 
-    test('respects limit', () {
-      final result = pickTournamentsForHubPreview(
-        List.generate(10, (i) => _tournament(id: '$i', name: 'T$i')),
-        limit: 4,
+    test('falls back to startDate when createdAt is missing', () {
+      final result = pickNewestRegisterableTournamentsForHub(
+        [
+          _tournament(
+            id: 'a',
+            name: 'A',
+            startDate: DateTime(2026, 4, 1),
+            categoryOffers: [_openCategory(id: 'c1')],
+          ),
+          _tournament(
+            id: 'b',
+            name: 'B',
+            startDate: DateTime(2026, 6, 1),
+            categoryOffers: [_openCategory(id: 'c2')],
+          ),
+        ],
+        athleteGender: 'Masculino',
       );
-      expect(result, hasLength(4));
+
+      expect(result.first.id, 'b');
+    });
+
+    test('excludes closed tournaments and full categories', () {
+      final result = pickNewestRegisterableTournamentsForHub(
+        [
+          _tournament(
+            id: 'ended',
+            name: 'Ended',
+            status: TournamentListingStatus.ended,
+            categoryOffers: [_openCategory(id: 'c1')],
+          ),
+          _tournament(
+            id: 'open',
+            name: 'Open',
+            categoryOffers: [
+              const TournamentCategoryOffer(
+                id: 'full',
+                name: 'Full',
+                entryFee: 100,
+                genderType: 'Masculino',
+                spotsTotal: 8,
+                spotsLeft: 0,
+                maxTeams: 8,
+              ),
+            ],
+          ),
+          _tournament(
+            id: 'registerable',
+            name: 'Registerable',
+            categoryOffers: [_openCategory(id: 'ok')],
+          ),
+        ],
+        athleteGender: 'Masculino',
+      );
+
+      expect(result.map((t) => t.id), ['registerable']);
+    });
+
+    test('filters by athlete gender', () {
+      final result = pickNewestRegisterableTournamentsForHub(
+        [
+          _tournament(
+            id: 'masc',
+            name: 'Masc',
+            categoryOffers: [_openCategory(id: 'm', genderType: 'Masculino')],
+          ),
+          _tournament(
+            id: 'fem',
+            name: 'Fem',
+            categoryOffers: [_openCategory(id: 'f', genderType: 'Feminino')],
+          ),
+          _tournament(
+            id: 'mix',
+            name: 'Mix',
+            categoryOffers: [_openCategory(id: 'x', genderType: 'Misto')],
+          ),
+        ],
+        athleteGender: 'Masculino',
+      );
+
+      expect(result.map((t) => t.id), containsAll(['masc', 'mix']));
+      expect(result.map((t) => t.id), isNot(contains('fem')));
+    });
+
+    test('without profile gender only mixed/open categories count', () {
+      final result = pickNewestRegisterableTournamentsForHub(
+        [
+          _tournament(
+            id: 'masc',
+            name: 'Masc',
+            categoryOffers: [_openCategory(id: 'm', genderType: 'Masculino')],
+          ),
+          _tournament(
+            id: 'mix',
+            name: 'Mix',
+            categoryOffers: [_openCategory(id: 'x', genderType: 'Misto')],
+          ),
+        ],
+      );
+
+      expect(result.single.id, 'mix');
+    });
+
+    test('excludes categories already registered by athlete', () {
+      final result = pickNewestRegisterableTournamentsForHub(
+        [
+          _tournament(
+            id: 't1',
+            name: 'T1',
+            categoryOffers: [_openCategory(id: 'cat-a')],
+          ),
+        ],
+        athleteGender: 'Masculino',
+        registeredCategoriesByTournamentId: const {
+          't1': {'cat-a'},
+        },
+      );
+
+      expect(result, isEmpty);
+    });
+
+    test('respects limit of 5', () {
+      final tournaments = List.generate(
+        8,
+        (i) => _tournament(
+          id: '$i',
+          name: 'T$i',
+          createdAt: DateTime(2026, 6, i + 1),
+          categoryOffers: [_openCategory(id: 'c$i')],
+        ),
+      );
+
+      final result = pickNewestRegisterableTournamentsForHub(
+        tournaments,
+        athleteGender: 'Masculino',
+        limit: 5,
+      );
+
+      expect(result, hasLength(5));
+      expect(result.first.createdAt, DateTime(2026, 6, 8));
     });
   });
 
@@ -91,13 +233,24 @@ void main() {
     test('formats category count', () {
       expect(
         hubTournamentCategoryCountLabel(
-          _tournament(id: '1', name: 'A', categoryCount: 6),
+          _tournament(
+            id: '1',
+            name: 'A',
+            categoryOffers: [
+              _openCategory(id: 'c1'),
+              _openCategory(id: 'c2'),
+            ],
+          ),
         ),
-        '6 categorias',
+        '2 categorias',
       );
       expect(
         hubTournamentCategoryCountLabel(
-          _tournament(id: '1', name: 'A', categoryCount: 1),
+          _tournament(
+            id: '1',
+            name: 'A',
+            categoryOffers: [_openCategory(id: 'c1')],
+          ),
         ),
         '1 categoria',
       );

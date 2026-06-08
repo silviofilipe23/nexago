@@ -5,9 +5,10 @@ import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/slots_page_providers.dart';
 
-class SlotsDayStrip extends StatelessWidget {
+class SlotsDayStrip extends StatefulWidget {
   const SlotsDayStrip({
     super.key,
+    required this.startDay,
     required this.selectedDay,
     required this.daysCount,
     required this.calendarDays,
@@ -16,6 +17,7 @@ class SlotsDayStrip extends StatelessWidget {
     required this.dateOnly,
   });
 
+  final DateTime startDay;
   final DateTime selectedDay;
   final int daysCount;
   final List<SlotsCalendarDayStatus>? calendarDays;
@@ -26,25 +28,78 @@ class SlotsDayStrip extends StatelessWidget {
   static final _weekdayFmt = DateFormat('EEE', 'pt_BR');
 
   @override
+  State<SlotsDayStrip> createState() => _SlotsDayStripState();
+}
+
+class _SlotsDayStripState extends State<SlotsDayStrip> {
+  static const _itemWidth = 56.0;
+  static const _separatorWidth = 8.0;
+  static const _horizontalPadding = 16.0;
+
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
+  }
+
+  @override
+  void didUpdateWidget(SlotsDayStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.sameDay(oldWidget.selectedDay, widget.selectedDay) ||
+        !widget.sameDay(oldWidget.startDay, widget.startDay)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToSelected());
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToSelected() {
+    if (!_scrollController.hasClients) return;
+    final start = widget.dateOnly(widget.startDay);
+    final selected = widget.dateOnly(widget.selectedDay);
+    final index = selected.difference(start).inDays;
+    if (index < 0 || index >= widget.daysCount) return;
+
+    final offset = (index * (_itemWidth + _separatorWidth))
+        .clamp(0.0, _scrollController.position.maxScrollExtent);
+    _scrollController.jumpTo(offset);
+  }
+
+  SlotsCalendarDayStatus? _statusFor(DateTime d) {
+    final calendarDays = widget.calendarDays;
+    if (calendarDays == null) return null;
+    for (final s in calendarDays) {
+      if (widget.sameDay(s.date, d)) return s;
+    }
+    return null;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final today = dateOnly(DateTime.now());
+    final start = widget.dateOnly(widget.startDay);
 
     return SizedBox(
       height: 88,
       child: ListView.separated(
+        controller: _scrollController,
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: daysCount,
-        separatorBuilder: (_, __) => SizedBox(width: 8),
+        padding: const EdgeInsets.symmetric(horizontal: _horizontalPadding),
+        itemCount: widget.daysCount,
+        separatorBuilder: (_, __) => SizedBox(width: _separatorWidth),
         itemBuilder: (context, index) {
-          final day = today.add(Duration(days: index));
-          final d = dateOnly(day);
-          final isSelected = sameDay(d, selectedDay);
+          final d = start.add(Duration(days: index));
+          final isSelected = widget.sameDay(d, widget.selectedDay);
           final status = _statusFor(d);
           final weekLabel =
-              _weekdayFmt.format(d).replaceAll('.', '').toUpperCase();
+              SlotsDayStrip._weekdayFmt.format(d).replaceAll('.', '').toUpperCase();
           final dayNum = d.day.toString();
 
           final dotColor = isSelected
@@ -56,11 +111,11 @@ class SlotsDayStrip extends StatelessWidget {
           return Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => onSelect(d),
+              onTap: () => widget.onSelect(d),
               borderRadius: BorderRadius.circular(14),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                width: 56,
+                width: _itemWidth,
                 padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
@@ -85,7 +140,7 @@ class SlotsDayStrip extends StatelessWidget {
                         fontSize: 10,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
                       dayNum,
                       style: theme.textTheme.titleMedium?.copyWith(
@@ -93,7 +148,7 @@ class SlotsDayStrip extends StatelessWidget {
                         color: context.themeColors.onSurface,
                       ),
                     ),
-                    SizedBox(height: 6),
+                    const SizedBox(height: 6),
                     Container(
                       width: 6,
                       height: 6,
@@ -112,13 +167,5 @@ class SlotsDayStrip extends StatelessWidget {
         },
       ),
     );
-  }
-
-  SlotsCalendarDayStatus? _statusFor(DateTime d) {
-    if (calendarDays == null) return null;
-    for (final s in calendarDays!) {
-      if (sameDay(s.date, d)) return s;
-    }
-    return null;
   }
 }

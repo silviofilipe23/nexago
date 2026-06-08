@@ -41,32 +41,32 @@ class CompeteHubPlayMatchBanner extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'AÇÃO RÁPIDA',
-                            style: AppTypography.mono(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.black.withValues(alpha: 0.65),
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                          Text(
-                            'Play Match',
-                            style: AppTypography.soraRegular(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.black,
-                              height: 1.1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // Expanded(
+                    //   child: Column(
+                    //     mainAxisAlignment: MainAxisAlignment.center,
+                    //     crossAxisAlignment: CrossAxisAlignment.start,
+                    //     children: [
+                    //       Text(
+                    //         'AÇÃO RÁPIDA',
+                    //         style: AppTypography.mono(
+                    //           fontSize: 10,
+                    //           fontWeight: FontWeight.w700,
+                    //           color: AppColors.black.withValues(alpha: 0.65),
+                    //           letterSpacing: 0.8,
+                    //         ),
+                    //       ),
+                    //       Text(
+                    //         'Play Match',
+                    //         style: AppTypography.soraRegular(
+                    //           fontSize: 22,
+                    //           fontWeight: FontWeight.w800,
+                    //           color: AppColors.black,
+                    //           height: 1.1,
+                    //         ),
+                    //       ),
+                    //     ],
+                    //   ),
+                    // ),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 10,
@@ -119,11 +119,12 @@ class _DiagonalStripesPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color;
     const stripeWidth = 18.0;
-    for (var x = -size.height; x < size.width + size.height; x += stripeWidth * 2) {
-      canvas.drawRect(
-        Rect.fromLTWH(x, 0, stripeWidth, size.height),
-        paint,
-      );
+    for (
+      var x = -size.height;
+      x < size.width + size.height;
+      x += stripeWidth * 2
+    ) {
+      canvas.drawRect(Rect.fromLTWH(x, 0, stripeWidth, size.height), paint);
     }
   }
 

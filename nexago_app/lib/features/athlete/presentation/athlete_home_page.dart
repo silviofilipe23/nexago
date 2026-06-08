@@ -39,9 +39,8 @@ class AthleteHomePage extends ConsumerWidget {
       child: ColoredBox(
         color: context.themeColors.canvas,
         child: summaryAsync.when(
-          loading: () => Center(
-            child: CircularProgressIndicator(color: AppColors.brand),
-          ),
+          loading: () =>
+              Center(child: CircularProgressIndicator(color: AppColors.brand)),
           error: (_, __) => _ErrorState(),
           data: (summary) {
             final bookings = bookingsAsync.valueOrNull ?? [];
@@ -98,11 +97,11 @@ class AthleteHomePage extends ConsumerWidget {
                       label: 'Torneios',
                       onTap: () => _goToTab(ref, athleteShellCompeteTabIndex),
                     ),
-                    AthleteHomeQuickAction(
-                      icon: Icons.sports_tennis_rounded,
-                      label: 'Play Match',
-                      onTap: () => showAppSnackBar(context, 'Em breve.'),
-                    ),
+                    // AthleteHomeQuickAction(
+                    //   icon: Icons.sports_tennis_rounded,
+                    //   label: 'Play Match',
+                    //   onTap: () => showAppSnackBar(context, 'Em breve.'),
+                    // ),
                   ],
                 ),
                 SizedBox(height: 24),
@@ -117,17 +116,17 @@ class AthleteHomePage extends ConsumerWidget {
                   onMissionTap: (mission) =>
                       navigateForDailyMission(context, ref, mission),
                 ),
-                SizedBox(height: 24),
-                AthleteHomeSlotsSection(
-                  slots: mockAthleteHomeSlots(),
-                  onViewAll: () => _goToTab(ref, athleteShellReservarTabIndex),
-                ),
-                SizedBox(height: 24),
-                AthleteHomePlaysWithSection(
-                  partners: mockAthleteHomePlayPartners(),
-                  onInvite: () => showAppSnackBar(context, 'Em breve.'),
-                  onPartnerAction: (_) => showAppSnackBar(context, 'Em breve.'),
-                ),
+                // SizedBox(height: 24),
+                // AthleteHomeSlotsSection(
+                //   slots: mockAthleteHomeSlots(),
+                //   onViewAll: () => _goToTab(ref, athleteShellReservarTabIndex),
+                // ),
+                // SizedBox(height: 24),
+                // AthleteHomePlaysWithSection(
+                //   partners: mockAthleteHomePlayPartners(),
+                //   onInvite: () => showAppSnackBar(context, 'Em breve.'),
+                //   onPartnerAction: (_) => showAppSnackBar(context, 'Em breve.'),
+                // ),
               ],
             );
           },

@@ -56,6 +56,47 @@ void main() {
     });
   });
 
+  group('buildMapsDirectionsUrl', () {
+    test('includes destination and origin coordinates', () {
+      final url = ArenaBookingSuccessActions.buildMapsDirectionsUrl(
+        destination: '-16.6869,-49.2648',
+        origin: '-16.6799,-49.2550',
+      );
+      expect(url, contains('google.com/maps/dir'));
+      expect(url, contains('destination=-16.6869%2C-49.2648'));
+      expect(url, contains('origin=-16.6799%2C-49.2550'));
+      expect(url, contains('travelmode=driving'));
+    });
+
+    test('omits origin when not provided', () {
+      final url = ArenaBookingSuccessActions.buildMapsDirectionsUrl(
+        destination: 'Arena CFC, Goiânia',
+      );
+      expect(url, contains('destination='));
+      expect(url, isNot(contains('origin=')));
+    });
+  });
+
+  group('resolveMapsDestination', () {
+    test('prefers arena coordinates over text', () {
+      final dest = ArenaBookingSuccessActions.resolveMapsDestination(
+        arenaName: 'Arena CFC',
+        locationLabel: 'Goiânia · GO',
+        latitude: -16.6869,
+        longitude: -49.2648,
+      );
+      expect(dest, '-16.6869,-49.2648');
+    });
+
+    test('falls back to location label', () {
+      final dest = ArenaBookingSuccessActions.resolveMapsDestination(
+        arenaName: 'Arena CFC',
+        locationLabel: 'Goiânia · GO',
+      );
+      expect(dest, 'Goiânia · GO');
+    });
+  });
+
   group('buildWhatsAppUrl', () {
     test('normalizes brazilian mobile', () {
       final url = ArenaBookingSuccessActions.buildWhatsAppUrl(

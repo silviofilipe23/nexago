@@ -62,3 +62,16 @@ Map<String, MyTournamentRegistration> registrationsByTournamentId(
   return out;
 }
 
+Map<String, Set<String>> registeredCategoriesByTournament(
+  List<MyTournamentRegistration> regs,
+) {
+  final out = <String, Set<String>>{};
+  for (final r in regs) {
+    final tournamentId = r.tournamentId.trim();
+    final categoryId = r.categoryId.trim();
+    if (tournamentId.isEmpty || categoryId.isEmpty) continue;
+    out.putIfAbsent(tournamentId, () => {}).add(categoryId);
+  }
+  return out;
+}
+

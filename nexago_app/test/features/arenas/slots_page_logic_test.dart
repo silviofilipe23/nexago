@@ -154,4 +154,32 @@ void main() {
       expect(formatSelectionDurationLabel(2, 45), '1h30');
     });
   });
+
+  group('computeSlotsDayStripStart', () {
+    final today = DateTime(2026, 3, 8);
+
+    test('starts at today when selected is within window', () {
+      final start = computeSlotsDayStripStart(
+        today: today,
+        selectedDay: DateTime(2026, 3, 12),
+      );
+      expect(start, DateTime(2026, 3, 8));
+    });
+
+    test('starts at selected when beyond 21-day window', () {
+      final start = computeSlotsDayStripStart(
+        today: today,
+        selectedDay: DateTime(2026, 4, 15),
+      );
+      expect(start, DateTime(2026, 4, 15));
+    });
+
+    test('starts at selected when before today', () {
+      final start = computeSlotsDayStripStart(
+        today: today,
+        selectedDay: DateTime(2026, 3, 5),
+      );
+      expect(start, DateTime(2026, 3, 5));
+    });
+  });
 }

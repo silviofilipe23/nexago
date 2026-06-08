@@ -6,6 +6,11 @@ DateTime mockDiscoveryDate(int days, {int hour = 12, int minute = 0}) {
   return DateTime(x.year, x.month, x.day + days, hour, minute);
 }
 
+DateTime mockDiscoveryCreatedAt(int daysAgo) {
+  final x = DateTime.now();
+  return DateTime(x.year, x.month, x.day - daysAgo, 12);
+}
+
 const _ligaVerao = 'circuito-verao-nexago-2026';
 const _etapaNordeste = 'cv-26-nordeste';
 const _etapaSudeste = 'cv-26-sudeste';
@@ -71,6 +76,7 @@ List<TournamentDetail> buildMockTournamentDetails() {
           'Etapa estadual da temporada de praia 2026. Formato fase de grupos + eliminatória simples, melhor de 3 sets até a final (melhor de 5).',
       managerId: 'mock-organizer',
       locationAddress: 'Av. T-63, Goiânia',
+      createdAt: mockDiscoveryCreatedAt(1),
       tournamentPrizes: const [
         TournamentPrize(position: '1', value: 8000),
         TournamentPrize(position: '2', value: 3500),
@@ -147,11 +153,13 @@ List<TournamentDetail> buildMockTournamentDetails() {
       leagueStageId: _etapaSudeste,
       imageUrl:
           'https://images.unsplash.com/photo-1554068865-24cecd4cd24b?w=800&q=80',
+      createdAt: mockDiscoveryCreatedAt(0),
       categoryOffers: const [
         TournamentCategoryOffer(
           id: 'Fem B',
           name: 'Fem B',
           entryFee: 180,
+          genderType: 'Feminino',
           spotsLeft: 14,
           maxTeams: 24,
           spotsTotal: 24,
@@ -180,6 +188,7 @@ List<TournamentDetail> buildMockTournamentDetails() {
       offerEndsAt: mockDiscoveryDate(5, hour: 12),
       leagueId: _ligaVerao,
       leagueStageId: _etapaSudeste,
+      createdAt: mockDiscoveryCreatedAt(3),
     ),
     TournamentDetail(
       id: 'flash-individual-bh',
@@ -203,6 +212,7 @@ List<TournamentDetail> buildMockTournamentDetails() {
       featured: false,
       enrolledCount: 94,
       liveMatchesNow: 4,
+      createdAt: mockDiscoveryCreatedAt(5),
     ),
     TournamentDetail(
       id: 'misto-experience-floripa',
@@ -222,6 +232,18 @@ List<TournamentDetail> buildMockTournamentDetails() {
       featured: false,
       enrolledCount: 72,
       liveMatchesNow: 0,
+      createdAt: mockDiscoveryCreatedAt(2),
+      categoryOffers: const [
+        TournamentCategoryOffer(
+          id: 'Misto Open',
+          name: 'Misto Open',
+          entryFee: 210,
+          genderType: 'Misto',
+          spotsLeft: 28,
+          maxTeams: 40,
+          spotsTotal: 40,
+        ),
+      ],
     ),
     TournamentDetail(
       id: 'ranked-friday-recife',
@@ -247,6 +269,7 @@ List<TournamentDetail> buildMockTournamentDetails() {
       liveMatchesNow: 0,
       leagueId: _ligaVerao,
       leagueStageId: _etapaNordeste,
+      createdAt: mockDiscoveryCreatedAt(10),
     ),
   ];
 }

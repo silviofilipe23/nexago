@@ -24,6 +24,9 @@ abstract final class AppRoutes {
   /// Reservas do atleta (`arenaBookings`).
   static const String myBookings = '/my-bookings';
 
+  /// Arenas favoritas do atleta (fluxo Reservar).
+  static const String favoriteArenas = '/reservar/favoritas';
+
   /// Perfil do atleta (Firestore `athletes/{uid}`).
   static const String athleteProfile = '/athlete/profile';
 
@@ -209,6 +212,7 @@ abstract final class AppRouteNames {
   static const String authLoading = 'authLoading';
   static const String organizerHome = 'organizerHome';
   static const String myBookings = 'myBookings';
+  static const String favoriteArenas = 'favoriteArenas';
   static const String athleteProfile = 'athleteProfile';
   static const String athleteProfileEdit = 'athleteProfileEdit';
   static const String athleteCompleteProfile = 'athleteCompleteProfile';

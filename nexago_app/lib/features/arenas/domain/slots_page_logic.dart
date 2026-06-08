@@ -59,6 +59,22 @@ int slotStartMinutes(String startTime) => arenaSlotTimeToMinutes(startTime);
 
 DateTime slotDayOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
+/// Primeiro dia da faixa horizontal para que [selectedDay] apareça selecionável.
+DateTime computeSlotsDayStripStart({
+  required DateTime today,
+  required DateTime selectedDay,
+  int daysCount = 21,
+}) {
+  final todayOnly = slotDayOnly(today);
+  final selectedOnly = slotDayOnly(selectedDay);
+  final windowEnd = todayOnly.add(Duration(days: daysCount - 1));
+
+  if (selectedOnly.isBefore(todayOnly) || selectedOnly.isAfter(windowEnd)) {
+    return selectedOnly;
+  }
+  return todayOnly;
+}
+
 bool sameCalendarDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
 

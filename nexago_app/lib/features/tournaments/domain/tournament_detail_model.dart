@@ -44,6 +44,7 @@ class TournamentDetail {
     this.leagueStageOrder,
     this.leagueStageName,
     this.tournamentPrizes = const [],
+    this.createdAt,
   });
 
   final String id;
@@ -74,6 +75,7 @@ class TournamentDetail {
   final int? leagueStageOrder;
   final String? leagueStageName;
   final List<TournamentPrize> tournamentPrizes;
+  final DateTime? createdAt;
 
   DiscoveryTournament toDiscovery() {
     return DiscoveryTournament(
@@ -98,6 +100,7 @@ class TournamentDetail {
       leagueStageId: leagueStageId,
       imageUrl: imageUrl,
       categoryOffers: categoryOffers,
+      createdAt: createdAt,
     );
   }
 }

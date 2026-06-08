@@ -37,6 +37,61 @@ abstract final class ArenaBookingSuccessActions {
     return 'https://www.google.com/maps/search/?api=1&query=$q';
   }
 
+  /// Abre Google Maps / Apple Maps com rota (origem opcional → destino).
+  static String buildMapsDirectionsUrl({
+    required String destination,
+    String? origin,
+  }) {
+    final params = <String, String>{
+      'api': '1',
+      'destination': destination.trim(),
+      'travelmode': 'driving',
+    };
+    final from = origin?.trim();
+    if (from != null && from.isNotEmpty) {
+      params['origin'] = from;
+    }
+    return Uri(
+      scheme: 'https',
+      host: 'www.google.com',
+      path: '/maps/dir/',
+      queryParameters: params,
+    ).toString();
+  }
+
+  static String resolveMapsDestination({
+    required String arenaName,
+    String? locationLabel,
+    String? addressLine,
+    double? latitude,
+    double? longitude,
+  }) {
+    if (latitude != null &&
+        longitude != null &&
+        latitude.isFinite &&
+        longitude.isFinite) {
+      return '$latitude,$longitude';
+    }
+    return mapsQueryFromArena(
+      arenaName: arenaName,
+      locationLabel: locationLabel,
+      addressLine: addressLine,
+    );
+  }
+
+  static String? resolveMapsOrigin({
+    double? latitude,
+    double? longitude,
+  }) {
+    if (latitude != null &&
+        longitude != null &&
+        latitude.isFinite &&
+        longitude.isFinite) {
+      return '$latitude,$longitude';
+    }
+    return null;
+  }
+
   static String? buildWhatsAppUrl({
     required String? phone,
     required String message,

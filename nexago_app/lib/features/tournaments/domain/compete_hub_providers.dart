@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../athlete/domain/athlete_profile_providers.dart';
+import '../data/my_tournament_registrations_repository.dart';
 import 'compete_hub_logic.dart';
 import 'compete_hub_models.dart';
+import 'tournament_discovery_hub_logic.dart';
 import 'tournament_discovery_models.dart';
 import 'tournament_discovery_providers.dart';
 
@@ -63,5 +66,13 @@ final competeHubTournamentPreviewProvider =
     Provider.autoDispose<List<DiscoveryTournament>>((ref) {
   final tournaments = ref.watch(discoveryTournamentsProvider).valueOrNull ??
       const <DiscoveryTournament>[];
-  return pickTournamentsForHubPreview(tournaments);
+  final athleteGender = ref.watch(athleteProfileProvider).valueOrNull?.gender;
+  final regs = ref.watch(myTournamentRegistrationsProvider).valueOrNull ??
+      const <MyTournamentRegistration>[];
+  return pickNewestRegisterableTournamentsForHub(
+    tournaments,
+    athleteGender: athleteGender,
+    registeredCategoriesByTournamentId: registeredCategoriesByTournament(regs),
+    limit: 5,
+  );
 });

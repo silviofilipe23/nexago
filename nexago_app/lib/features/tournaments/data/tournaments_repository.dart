@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../domain/tournament_detail_model.dart';
+import '../domain/tournament_discovery_helpers.dart';
 import '../domain/tournament_discovery_models.dart';
 import 'nexago_artifacts_paths.dart';
 import 'tournament_document_mapper.dart';
@@ -20,9 +21,8 @@ class TournamentsRepository {
           .whereType<DiscoveryTournament>()
           .toList();
       items.sort((a, b) {
-        final c = a.startDate.compareTo(b.startDate);
-        if (c != 0) return c;
-        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+        final cmp = compareDiscoveryTournamentsByDateProximity(a, b);
+        return cmp;
       });
       return items;
     });

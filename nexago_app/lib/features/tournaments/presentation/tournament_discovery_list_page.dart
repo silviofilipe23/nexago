@@ -252,16 +252,22 @@ class _TournamentDiscoveryListPageState
                   filtered,
                   query,
                 );
+                final sortedTournaments = sortDiscoveryTournamentsByDateProximity(
+                  filteredByQuery,
+                );
                 final leagues = visibleLeaguesForTournaments(
                   leagues: allLeagues,
-                  filteredTournaments: filteredByQuery,
+                  filteredTournaments: sortedTournaments,
                 );
-                final leaguesByQuery = filterLeaguesByQuery(leagues, query);
+                final leaguesByQuery = sortDiscoveryLeaguesByDateProximity(
+                  filterLeaguesByQuery(leagues, query),
+                  sortedTournaments,
+                );
                 final standalone = standaloneTournaments(
                   leagues: allLeagues,
-                  filteredTournaments: filteredByQuery,
+                  filteredTournaments: sortedTournaments,
                 );
-                final filteredIds = filteredByQuery.map((t) => t.id).toSet();
+                final filteredIds = sortedTournaments.map((t) => t.id).toSet();
 
                 return ListView(
                   padding: const EdgeInsets.fromLTRB(
@@ -320,7 +326,7 @@ class _TournamentDiscoveryListPageState
                             ),
                             open: leagueHasOpenTournaments(
                               league: league,
-                              tournaments: filteredByQuery,
+                              tournaments: sortedTournaments,
                             ),
                             onTap: () => context.pushNamed(
                               AppRouteNames.leagueDetail,
@@ -338,7 +344,7 @@ class _TournamentDiscoveryListPageState
                       SizedBox(height: 10),
                       if ((_segment == DiscoveryListSegment.all
                               ? standalone
-                              : filteredByQuery)
+                              : sortedTournaments)
                           .isEmpty)
                         Padding(
                           padding: const EdgeInsets.symmetric(vertical: 24),
@@ -354,7 +360,7 @@ class _TournamentDiscoveryListPageState
                         for (final t
                             in (_segment == DiscoveryListSegment.all
                                 ? standalone
-                                : filteredByQuery)) ...[
+                                : sortedTournaments)) ...[
                           TournamentDiscoveryCard(
                             tournament: t,
                             registration: regsByTournament[t.id],

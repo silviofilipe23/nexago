@@ -87,3 +87,110 @@ int leagueTournamentCount(
   }
   return n;
 }
+
+DateTime _dayStart(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
+
+/// Próximo `startDate` entre os torneios visíveis da liga.
+DateTime? discoveryLeagueNearestStartDate(
+  DiscoveryLeague league,
+  Map<String, DiscoveryTournament> tournamentsById,
+) {
+  DateTime? nearest;
+  for (final stage in league.stages) {
+    for (final id in stage.tournamentIds) {
+      final tournament = tournamentsById[id];
+      if (tournament == null) continue;
+      final start = tournament.startDate;
+      if (nearest == null || start.isBefore(nearest)) {
+        nearest = start;
+      }
+    }
+  }
+  return nearest;
+}
+
+int compareDiscoveryTournamentsByDateProximity(
+  DiscoveryTournament a,
+  DiscoveryTournament b, {
+  DateTime? now,
+}) {
+  final clock = now ?? DateTime.now();
+  final today = _dayStart(clock);
+  final aStart = a.startDate;
+  final bStart = b.startDate;
+  final aPast = aStart.isBefore(today);
+  final bPast = bStart.isBefore(today);
+
+  if (!aPast && bPast) return -1;
+  if (aPast && !bPast) return 1;
+  if (!aPast && !bPast) {
+    final cmp = aStart.compareTo(bStart);
+    if (cmp != 0) return cmp;
+    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  }
+
+  final cmp = bStart.compareTo(aStart);
+  if (cmp != 0) return cmp;
+  return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+}
+
+int compareDiscoveryLeaguesByDateProximity(
+  DiscoveryLeague a,
+  DiscoveryLeague b,
+  Map<String, DiscoveryTournament> tournamentsById, {
+  DateTime? now,
+}) {
+  final aDate = discoveryLeagueNearestStartDate(a, tournamentsById);
+  final bDate = discoveryLeagueNearestStartDate(b, tournamentsById);
+  if (aDate == null && bDate == null) {
+    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  }
+  if (aDate == null) return 1;
+  if (bDate == null) return -1;
+
+  final clock = now ?? DateTime.now();
+  final today = _dayStart(clock);
+  final aPast = aDate.isBefore(today);
+  final bPast = bDate.isBefore(today);
+
+  if (!aPast && bPast) return -1;
+  if (aPast && !bPast) return 1;
+  if (!aPast && !bPast) {
+    final cmp = aDate.compareTo(bDate);
+    if (cmp != 0) return cmp;
+    return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+  }
+
+  final cmp = bDate.compareTo(aDate);
+  if (cmp != 0) return cmp;
+  return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+}
+
+List<DiscoveryTournament> sortDiscoveryTournamentsByDateProximity(
+  List<DiscoveryTournament> tournaments, {
+  DateTime? now,
+}) {
+  final sorted = [...tournaments]
+    ..sort(
+      (a, b) => compareDiscoveryTournamentsByDateProximity(a, b, now: now),
+    );
+  return sorted;
+}
+
+List<DiscoveryLeague> sortDiscoveryLeaguesByDateProximity(
+  List<DiscoveryLeague> leagues,
+  List<DiscoveryTournament> tournaments, {
+  DateTime? now,
+}) {
+  final byId = {for (final t in tournaments) t.id: t};
+  final sorted = [...leagues]
+    ..sort(
+      (a, b) => compareDiscoveryLeaguesByDateProximity(
+        a,
+        b,
+        byId,
+        now: now,
+      ),
+    );
+  return sorted;
+}

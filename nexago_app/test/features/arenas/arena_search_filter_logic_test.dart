@@ -3,7 +3,6 @@ import 'package:nexago_app/core/location/user_location_snapshot.dart';
 import 'package:nexago_app/features/arenas/domain/arena_amenities.dart';
 import 'package:nexago_app/features/arenas/domain/arena_list_item.dart';
 import 'package:nexago_app/features/arenas/domain/arena_search_filter_logic.dart';
-import 'package:nexago_app/features/arenas/domain/arena_search_filters.dart';
 import 'package:nexago_app/features/arenas/domain/arena_search_providers.dart';
 
 ArenaListItem _arena({
@@ -88,11 +87,7 @@ void main() {
 
     test('unlimited radius does not filter by distance', () {
       final near = _arena(id: 'near', lat: -16.68, lng: -49.26);
-      final far = _arena(
-        id: 'far',
-        lat: -10.0,
-        lng: -40.0,
-      );
+      final far = _arena(id: 'far', lat: -10.0, lng: -40.0);
       final filters = ArenaSearchFilters.showAll(
         slot: ArenaSearchFilters.defaults().slot,
       );
@@ -157,19 +152,12 @@ void main() {
       final onsiteOnly = _arena(id: 'onsite', online: false, onsite: true);
       final neither = _arena(id: 'none', online: false, onsite: false);
       final filters = ArenaSearchFilters.defaults().copyWith(
-        paymentMethods: {
-          ArenaPaymentFilter.pix,
-          ArenaPaymentFilter.onsite,
-        },
+        paymentMethods: {ArenaPaymentFilter.pix, ArenaPaymentFilter.onsite},
         radiusKm: 30,
       );
 
       final out = filterAndSortArenaResults(
-        results: [
-          _result(pixOnly),
-          _result(onsiteOnly),
-          _result(neither),
-        ],
+        results: [_result(pixOnly), _result(onsiteOnly), _result(neither)],
         filters: filters,
         userLocation: user,
         favoriteIds: const {},
@@ -211,10 +199,7 @@ void main() {
   group('arenaMatchesSportChip', () {
     test('beach tennis matches areia court type', () {
       final arena = _arena(id: 'b', courtTypes: const ['Areia premium']);
-      expect(
-        arenaMatchesSportChip(arena, ArenaSportChip.beachTennis),
-        isTrue,
-      );
+      expect(arenaMatchesSportChip(arena, ArenaSportChip.beachTennis), isTrue);
     });
 
     test('beach volleyball matches volei label', () {
@@ -231,14 +216,8 @@ void main() {
         courtTypes: const ['Vôlei de praia'],
         surfaces: const ['Areia'],
       );
-      expect(
-        arenaMatchesSurface(arena, {'Areia'}),
-        isTrue,
-      );
-      expect(
-        arenaMatchesSurface(arena, {'Saibro'}),
-        isFalse,
-      );
+      expect(arenaMatchesSurface(arena, {'Areia'}), isTrue);
+      expect(arenaMatchesSurface(arena, {'Saibro'}), isFalse);
     });
 
     test('empty court types pass any sport chip', () {
@@ -265,10 +244,7 @@ void main() {
 
   group('defaultSportChipFromProfile', () {
     test('defaults to beach volleyball', () {
-      expect(
-        defaultSportChipFromProfile(),
-        ArenaSportChip.beachVolleyball,
-      );
+      expect(defaultSportChipFromProfile(), ArenaSportChip.beachVolleyball);
     });
 
     test('maps VOLEI_PRAIA firestore code', () {

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/domain/favorites_providers.dart';
 import '../domain/arena_dashboard_providers.dart';
 import '../domain/arena_schedule_providers.dart';
+import '../domain/arena_shell_providers.dart';
 import 'arena_dashboard_formatters.dart';
 import 'widgets/arena_dashboard_followers_card.dart';
 import 'widgets/arena_dashboard_header.dart';
@@ -42,10 +42,12 @@ class ArenaDashboardPage extends ConsumerWidget {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final maxW =
-                constraints.maxWidth > 720 ? 640.0 : double.infinity;
+            final maxW = constraints.maxWidth > 720 ? 640.0 : double.infinity;
             return Center(
               child: SingleChildScrollView(
+                controller: ref
+                    .watch(arenaShellScrollRegistryProvider)
+                    .controllerFor(0),
                 key: const PageStorageKey<String>('arena-dashboard-scroll'),
                 padding: const EdgeInsets.fromLTRB(
                   ArenaDashboardTokens.horizontalPadding,
@@ -113,9 +115,7 @@ class ArenaDashboardPage extends ConsumerWidget {
                                   ],
                                 ),
                               ),
-                              SizedBox(
-                                height: ArenaDashboardTokens.sectionGap,
-                              ),
+                              SizedBox(height: ArenaDashboardTokens.sectionGap),
                               FadeSlideIn(
                                 duration: const Duration(milliseconds: 540),
                                 offsetY: 14,
@@ -125,9 +125,7 @@ class ArenaDashboardPage extends ConsumerWidget {
                                   metrics: metrics,
                                 ),
                               ),
-                              SizedBox(
-                                height: ArenaDashboardTokens.sectionGap,
-                              ),
+                              SizedBox(height: ArenaDashboardTokens.sectionGap),
                               FadeSlideIn(
                                 duration: const Duration(milliseconds: 580),
                                 offsetY: 14,
@@ -135,9 +133,7 @@ class ArenaDashboardPage extends ConsumerWidget {
                                   summary: summary,
                                 ),
                               ),
-                              SizedBox(
-                                height: ArenaDashboardTokens.sectionGap,
-                              ),
+                              SizedBox(height: ArenaDashboardTokens.sectionGap),
                               FadeSlideIn(
                                 duration: const Duration(milliseconds: 620),
                                 offsetY: 14,
@@ -146,9 +142,7 @@ class ArenaDashboardPage extends ConsumerWidget {
                                   arenaId: arenaId,
                                 ),
                               ),
-                              SizedBox(
-                                height: ArenaDashboardTokens.sectionGap,
-                              ),
+                              SizedBox(height: ArenaDashboardTokens.sectionGap),
                               const FadeSlideIn(
                                 duration: Duration(milliseconds: 660),
                                 offsetY: 14,

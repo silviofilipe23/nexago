@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../domain/match_history/athlete_match_history_providers.dart';
 import '../athlete_profile_section_header.dart';
+import '../athlete_profile_skeleton.dart';
 import 'match_history_match_card.dart';
 
 class AthleteProfileHistorySection extends ConsumerWidget {
@@ -20,7 +21,19 @@ class AthleteProfileHistorySection extends ConsumerWidget {
     final bundleAsync = ref.watch(currentAthleteMatchHistoryBundleProvider);
 
     return bundleAsync.when(
-      loading: () => const SizedBox.shrink(),
+      loading: () => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AthleteProfileSectionHeader(
+            title: 'Histórico',
+            trailing: 'VER TUDO',
+            onTrailingTap: onViewAll,
+            trailingBrand: true,
+          ),
+          const SizedBox(height: 10),
+          const AthleteProfileHistorySkeleton(),
+        ],
+      ),
       error: (_, __) => const SizedBox.shrink(),
       data: (bundle) {
         final preview = [...bundle.matches]

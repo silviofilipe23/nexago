@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
-enum TournamentMatchesFilter {
-  all,
-  mine,
-}
+enum TournamentMatchesFilter { all, mine }
 
 class TournamentMatchesFilterToggle extends StatelessWidget {
   const TournamentMatchesFilterToggle({
@@ -76,7 +72,9 @@ class _Segment extends StatelessWidget {
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 9),
           decoration: BoxDecoration(
-            color: selected ? context.themeColors.surfaceCard : Colors.transparent,
+            color: selected
+                ? context.themeColors.surfaceCard
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
           alignment: Alignment.center,
@@ -85,7 +83,9 @@ class _Segment extends StatelessWidget {
             style: AppTypography.soraRegular(
               fontSize: 13,
               fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-              color: selected ? context.themeColors.onSurface : context.themeColors.onSurfaceMuted,
+              color: selected
+                  ? context.themeColors.onSurface
+                  : context.themeColors.onSurfaceMuted,
             ),
           ),
         ),

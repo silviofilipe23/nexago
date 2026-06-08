@@ -77,8 +77,37 @@ void main() {
           offer,
           format: TournamentFormat.dupla,
         ),
-        '8 duplas · 5/8 inscritas',
+        'Masculino · 8 duplas · 5/8 inscritas',
       );
+    });
+
+    test('uses genderType when present', () {
+      const offer = TournamentCategoryOffer(
+        id: 'fem',
+        name: 'Sub 19',
+        entryFee: 160,
+        maxTeams: 8,
+        spotsLeft: 8,
+        genderType: 'feminino',
+      );
+
+      expect(categoryGenderDisplayLabel(offer), 'Feminino');
+      expect(
+        categoryRegistrationSubtitle(offer, format: TournamentFormat.dupla),
+        'Feminino · 8 duplas · 0/8 inscritas',
+      );
+    });
+
+    test('shows Misto for mixed categories', () {
+      const offer = TournamentCategoryOffer(
+        id: 'mix',
+        name: 'Open',
+        entryFee: 160,
+        maxTeams: 4,
+        genderType: 'misto',
+      );
+
+      expect(categoryGenderDisplayLabel(offer), 'Misto');
     });
   });
 

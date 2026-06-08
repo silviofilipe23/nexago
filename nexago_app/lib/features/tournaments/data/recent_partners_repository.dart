@@ -39,15 +39,26 @@ class RecentPartnersRepository {
       final team = teamSnap.data()!;
       final p1 = team['player1Id'] as String?;
       final p2 = team['player2Id'] as String?;
-      if (p1 == currentUserId && p2 != null && p2.isNotEmpty) {
-        partnerUids.add(p2);
-      } else if (p2 == currentUserId && p1 != null && p1.isNotEmpty) {
-        partnerUids.add(p1);
+      String? partnerUid;
+      if (p1 == currentUserId &&
+          p2 != null &&
+          p2.isNotEmpty &&
+          p2 != currentUserId) {
+        partnerUid = p2;
+      } else if (p2 == currentUserId &&
+          p1 != null &&
+          p1.isNotEmpty &&
+          p1 != currentUserId) {
+        partnerUid = p1;
+      }
+      if (partnerUid != null) {
+        partnerUids.add(partnerUid);
       }
     }
 
     final profiles = <AppUserProfile>[];
     for (final uid in partnerUids) {
+      if (uid == currentUserId) continue;
       if (profiles.length >= maxProfiles) break;
       final profile = await _users.getUserById(uid);
       if (profile == null) continue;

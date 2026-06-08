@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/athlete/domain/athlete_profile_providers.dart';
+import '../../features/auth/domain/post_login_bootstrap.dart';
 import '../auth/auth_providers.dart';
+import '../auth/active_role_providers.dart';
 
 /// Notifica o [GoRouter] quando o estado de auth muda (redirect de novo).
 final goRouterRefreshNotifierProvider = Provider<GoRouterRefreshNotifier>((ref) {
@@ -16,6 +18,12 @@ final goRouterRefreshNotifierProvider = Provider<GoRouterRefreshNotifier>((ref) 
     athleteProfileProvider,
     (previous, next) => notifier.notifyAuthChanged(),
   );
+  ref.listen(activeMobileRoleProvider, (previous, next) {
+    notifier.notifyAuthChanged();
+  });
+  ref.listen(sessionBootstrapProvider, (previous, next) {
+    notifier.notifyAuthChanged();
+  });
   return notifier;
 });
 

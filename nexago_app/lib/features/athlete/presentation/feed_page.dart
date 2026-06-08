@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 /// Feed social (placeholder).
@@ -21,7 +20,9 @@ class FeedPage extends StatelessWidget {
               Icon(
                 Icons.dynamic_feed_outlined,
                 size: 56,
-                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.5),
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.5,
+                ),
               ),
               SizedBox(height: 16),
               Text(

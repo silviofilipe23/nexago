@@ -1,13 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nexago_app/features/tournaments/domain/tournament_detail_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_tab.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
-import 'package:nexago_app/features/tournaments/domain/tournament_listing_status.dart';
 
-TournamentDetail _tournament({
-  required List<TournamentCategoryOffer> offers,
-}) {
+TournamentDetail _tournament({required List<TournamentCategoryOffer> offers}) {
   return TournamentDetail(
     id: 't1',
     name: 'Torneio',

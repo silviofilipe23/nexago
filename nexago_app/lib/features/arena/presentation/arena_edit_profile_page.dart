@@ -175,7 +175,11 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
             controller: ctrl,
             keyboardType: TextInputType.url,
             style: TextStyle(color: context.themeColors.onSurface),
-            decoration: _fieldDecoration(context,label: 'URL', hint: 'https://…'),
+            decoration: _fieldDecoration(
+              context,
+              label: 'URL',
+              hint: 'https://…',
+            ),
             autofocus: true,
           ),
           actions: [
@@ -310,7 +314,9 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
             payoutPixKey: _payoutPixKey.text,
             payoutPixKeyType: _payoutPixKeyType.asaasValue,
           );
-      await ref.read(arenaSearchMetadataServiceProvider).syncFromCourts(
+      await ref
+          .read(arenaSearchMetadataServiceProvider)
+          .syncFromCourts(
             arenaId: widget.initial.id,
             profileSports: _sports,
             surfaces: _surfaces,
@@ -318,7 +324,7 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
       if (!mounted) return;
       leftForSuccessRoute = true;
       ref.invalidate(managedArenaDetailProvider);
-      context.go(AppRoutes.athleteProfileUpdateSuccess);
+      context.go(AppRoutes.arenaProfileUpdateSuccess);
     } on ArenaProfileEditException catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, e.message, isError: true);
@@ -448,7 +454,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                               style: TextStyle(
                                 color: context.themeColors.onSurface,
                               ),
-                              decoration: _fieldDecoration(context,
+                              decoration: _fieldDecoration(
+                                context,
                                 label: 'Nome da arena',
                               ),
                               validator: (v) {
@@ -467,7 +474,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                               style: TextStyle(
                                 color: context.themeColors.onSurface,
                               ),
-                              decoration: _fieldDecoration(context,
+                              decoration: _fieldDecoration(
+                                context,
                                 label: 'Descrição',
                                 alignLabel: true,
                               ),
@@ -479,7 +487,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                               style: TextStyle(
                                 color: context.themeColors.onSurface,
                               ),
-                              decoration: _fieldDecoration(context,
+                              decoration: _fieldDecoration(
+                                context,
                                 label: 'Telefone',
                                 hint: '(DDD) número',
                               ),
@@ -500,7 +509,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                               style: TextStyle(
                                 color: context.themeColors.onSurface,
                               ),
-                              decoration: _fieldDecoration(context,
+                              decoration: _fieldDecoration(
+                                context,
                                 label: 'WhatsApp',
                                 hint: 'Opcional',
                               ),
@@ -519,7 +529,10 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                               style: TextStyle(
                                 color: context.themeColors.onSurface,
                               ),
-                              decoration: _fieldDecoration(context,label: 'Endereço'),
+                              decoration: _fieldDecoration(
+                                context,
+                                label: 'Endereço',
+                              ),
                             ),
                             SizedBox(height: 14),
                             BrStateCityFields(
@@ -562,7 +575,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                     style: TextStyle(
                                       color: context.themeColors.onSurface,
                                     ),
-                                    decoration: _fieldDecoration(context,
+                                    decoration: _fieldDecoration(
+                                      context,
                                       label: 'Latitude',
                                       hint: '-16.686891',
                                     ),
@@ -581,7 +595,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                     style: TextStyle(
                                       color: context.themeColors.onSurface,
                                     ),
-                                    decoration: _fieldDecoration(context,
+                                    decoration: _fieldDecoration(
+                                      context,
                                       label: 'Longitude',
                                       hint: '-49.264794',
                                     ),
@@ -593,10 +608,7 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                             SizedBox(height: 10),
                             OutlinedButton.icon(
                               onPressed: _saving ? null : _useCurrentLocation,
-                              icon: Icon(
-                                Icons.my_location_rounded,
-                                size: 20,
-                              ),
+                              icon: Icon(Icons.my_location_rounded, size: 20),
                               label: Text('Usar localização atual'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.brand,
@@ -761,9 +773,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                             ),
                             Divider(
                               height: 1,
-                              color: context.themeColors.onSurfaceMuted.withValues(
-                                alpha: 0.15,
-                              ),
+                              color: context.themeColors.onSurfaceMuted
+                                  .withValues(alpha: 0.15),
                             ),
                             SwitchListTile.adaptive(
                               contentPadding: const EdgeInsets.symmetric(
@@ -800,9 +811,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                             if (_onlinePayment) ...[
                               Divider(
                                 height: 1,
-                                color: context.themeColors.onSurfaceMuted.withValues(
-                                  alpha: 0.15,
-                                ),
+                                color: context.themeColors.onSurfaceMuted
+                                    .withValues(alpha: 0.15),
                               ),
                               Padding(
                                 padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
@@ -815,7 +825,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                       style: theme.textTheme.bodyMedium
                                           ?.copyWith(
                                             fontWeight: FontWeight.w700,
-                                            color: context.themeColors.onSurface,
+                                            color:
+                                                context.themeColors.onSurface,
                                           ),
                                     ),
                                     SizedBox(height: 8),
@@ -823,18 +834,22 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                       'Atletas pagam PIX via NexaGO (Asaas). Repasses automáticos usam a chave abaixo.',
                                       style: theme.textTheme.bodySmall
                                           ?.copyWith(
-                                            color: context.themeColors.onSurfaceMuted,
+                                            color: context
+                                                .themeColors
+                                                .onSurfaceMuted,
                                             height: 1.4,
                                           ),
                                     ),
                                     SizedBox(height: 10),
                                     DropdownButtonFormField<PayoutPixKeyType>(
-                                      value: _payoutPixKeyType,
-                                      dropdownColor: context.themeColors.surfaceSheet,
+                                      initialValue: _payoutPixKeyType,
+                                      dropdownColor:
+                                          context.themeColors.surfaceSheet,
                                       style: TextStyle(
                                         color: context.themeColors.onSurface,
                                       ),
-                                      decoration: _fieldDecoration(context,
+                                      decoration: _fieldDecoration(
+                                        context,
                                         label: 'Tipo da chave PIX',
                                       ),
                                       items: [
@@ -867,7 +882,8 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                                       style: TextStyle(
                                         color: context.themeColors.onSurface,
                                       ),
-                                      decoration: _fieldDecoration(context,
+                                      decoration: _fieldDecoration(
+                                        context,
                                         label: 'Chave PIX da arena',
                                         hint: _payoutPixKeyType.hintForField(),
                                       ),
@@ -972,7 +988,8 @@ class _EditProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(context,
+      decoration: ArenaDashboardTokens.cardDecoration(
+        context,
         color: context.themeColors.surfaceRaised,
       ),
       child: Padding(padding: padding, child: child),
@@ -1091,7 +1108,9 @@ class _EditCoverHeader extends StatelessWidget {
                 ),
                 Spacer(),
                 Material(
-                  color: context.themeColors.surfaceRaised.withValues(alpha: 0.9),
+                  color: context.themeColors.surfaceRaised.withValues(
+                    alpha: 0.9,
+                  ),
                   borderRadius: BorderRadius.circular(10),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
@@ -1107,7 +1126,9 @@ class _EditCoverHeader extends StatelessWidget {
                           Icon(
                             Icons.image_outlined,
                             size: 16,
-                            color: context.themeColors.onSurface.withValues(alpha: 0.9),
+                            color: context.themeColors.onSurface.withValues(
+                              alpha: 0.9,
+                            ),
                           ),
                           SizedBox(width: 6),
                           Text(
@@ -1291,7 +1312,9 @@ class _SearchMetadataChips extends StatelessWidget {
             color: isSelected ? AppColors.brand : context.themeColors.onSurface,
           ),
           side: BorderSide(
-            color: isSelected ? AppColors.brand : context.themeColors.surfaceRaised,
+            color: isSelected
+                ? AppColors.brand
+                : context.themeColors.surfaceRaised,
           ),
           onSelected: (_) => onToggle(label),
         );

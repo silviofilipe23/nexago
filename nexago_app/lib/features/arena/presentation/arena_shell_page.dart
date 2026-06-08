@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../domain/arena_shell_providers.dart';
 import '../domain/arena_tab.dart';
 
 /// Shell com navegação inferior escura (gestor da arena).
-class ArenaShellPage extends StatelessWidget {
+class ArenaShellPage extends ConsumerWidget {
   const ArenaShellPage({
     super.key,
     required this.navigationShell,
@@ -22,7 +24,7 @@ class ArenaShellPage extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex =
         navigationShell.currentIndex.clamp(0, _tabs.length - 1);
 
@@ -49,10 +51,13 @@ class ArenaShellPage extends StatelessWidget {
                     child: _NavItem(
                       tab: _tabs[i],
                       selected: i == currentIndex,
-                      onTap: () => navigationShell.goBranch(
-                        i,
-                        initialLocation: i == navigationShell.currentIndex,
-                      ),
+                      onTap: () {
+                        ref.read(arenaShellScrollRegistryProvider).scrollToTop(i);
+                        navigationShell.goBranch(
+                          i,
+                          initialLocation: i == navigationShell.currentIndex,
+                        );
+                      },
                     ),
                   ),
               ],

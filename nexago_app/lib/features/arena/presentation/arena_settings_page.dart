@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/active_role_providers.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
+import '../../auth/presentation/role_selection_page.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/domain/favorites_providers.dart';
 import '../domain/arena_providers.dart';
+import '../domain/arena_shell_providers.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_dashboard_tokens.dart';
 import 'widgets/arena_settings_group.dart';
@@ -62,6 +65,7 @@ class _SettingsBody extends ConsumerWidget {
     final followersAsync = ref.watch(arenaFollowersCountProvider(arenaId));
     final scheduleAsync = ref.watch(arenaSettingsTemplateProvider);
     final courtsAsync = ref.watch(arenaManagedCourtsProvider);
+    final canSwitchRole = ref.watch(hasMultipleMobileRolesProvider);
 
     final arena = arenaAsync.valueOrNull;
     final followers = followersAsync.valueOrNull ?? 0;
@@ -92,6 +96,8 @@ class _SettingsBody extends ConsumerWidget {
       builder: (context, constraints) {
         final maxW = constraints.maxWidth > 560 ? 480.0 : double.infinity;
         return SingleChildScrollView(
+          controller:
+              ref.watch(arenaShellScrollRegistryProvider).controllerFor(3),
           padding: const EdgeInsets.fromLTRB(
             ArenaDashboardTokens.horizontalPadding,
             12,
@@ -175,7 +181,22 @@ class _SettingsBody extends ConsumerWidget {
                       ),
                     ],
                   ),
-                  SizedBox(height: 28),
+                  SizedBox(height: 24),
+                  if (canSwitchRole)
+                    ArenaSettingsGroup(
+                      sectionLabel: 'ACESSO',
+                      children: [
+                        ArenaSettingsTile(
+                          icon: Icons.swap_horiz_rounded,
+                          title: 'Trocar papel',
+                          subtitle: 'Entrar como atleta ou organizador',
+                          variant: ArenaSettingsIconVariant.orange,
+                          onTap: () => navigateToRoleSelection(context, ref),
+                          showDivider: false,
+                        ),
+                      ],
+                    ),
+                  if (canSwitchRole) SizedBox(height: 24),
                   const _ArenaSettingsLogoutSection(),
                 ],
               ),

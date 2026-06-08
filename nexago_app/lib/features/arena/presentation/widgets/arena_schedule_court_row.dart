@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../arenas/domain/arena_slot_block_reason.dart';
 import '../../domain/arena_schedule_models.dart';
 import '../../domain/arena_slot_detail_providers.dart';
@@ -128,10 +127,7 @@ class ArenaScheduleCourtTile extends ConsumerWidget {
 }
 
 class _SubtitleBuilder {
-  const _SubtitleBuilder({
-    required this.row,
-    required this.athleteLabelAsync,
-  });
+  const _SubtitleBuilder({required this.row, required this.athleteLabelAsync});
 
   final ArenaScheduleCourtRow row;
   final AsyncValue<String>? athleteLabelAsync;
@@ -145,7 +141,8 @@ class _SubtitleBuilder {
 
     if (slot.isBooked) {
       final booking = row.booking;
-      final name = athleteLabelAsync?.maybeWhen(
+      final name =
+          athleteLabelAsync?.maybeWhen(
             data: (n) => n,
             orElse: () => 'Atleta',
           ) ??
@@ -155,9 +152,11 @@ class _SubtitleBuilder {
       final money = amount != null
           ? NumberFormat.currency(locale: 'pt_BR', symbol: r'R$').format(amount)
           : (slot.priceReais != null
-              ? NumberFormat.currency(locale: 'pt_BR', symbol: r'R$')
-                  .format(slot.priceReais)
-              : '');
+                ? NumberFormat.currency(
+                    locale: 'pt_BR',
+                    symbol: r'R$',
+                  ).format(slot.priceReais)
+                : '');
       final parts = <String>[name];
       if (pay.isNotEmpty && money.isNotEmpty) {
         parts.add('$pay $money');
@@ -170,8 +169,7 @@ class _SubtitleBuilder {
     if (slot.isBlocked) {
       final reason = slot.blockReason?.displayLabel ?? 'Bloqueado';
       final note = slot.blockNote?.trim();
-      final text =
-          note != null && note.isNotEmpty ? '$reason — $note' : reason;
+      final text = note != null && note.isNotEmpty ? '$reason — $note' : reason;
       return Text(text, style: muted, maxLines: 2);
     }
 

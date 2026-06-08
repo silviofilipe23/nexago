@@ -93,20 +93,16 @@ abstract final class AthleteOnboardingOptions {
       description: 'Estou começando ou jogo pouco tempo.',
     ),
     OnboardingLevelOption(
-      label: 'Básico',
-      description: 'Já jogo com regularidade, mas não tenho muita técnica.',
-    ),
-    OnboardingLevelOption(
       label: 'Intermediário',
-      description: 'Jogo com regularidade e tenho muita experiência.',
-    ),
-    OnboardingLevelOption(
-      label: 'Avançado',
-      description: 'Boa técnica e bastante experiência de quadra.',
+      description: 'Jogo com regularidade e tenho boa experiência.',
     ),
     OnboardingLevelOption(
       label: 'Open',
-      description: 'Participo de torneios e busco performance.',
+      description: 'Participo de torneios amadores e busco evoluir.',
+    ),
+    OnboardingLevelOption(
+      label: 'Pro',
+      description: 'Alto nível, torneios profissionais ou federados.',
     ),
   ];
 

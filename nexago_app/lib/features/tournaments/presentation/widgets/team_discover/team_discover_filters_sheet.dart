@@ -123,7 +123,9 @@ class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.35,
+                  ),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -216,11 +218,7 @@ class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
                     SizedBox(height: 20),
                     const _SectionLabel(label: 'STATUS DA PARCERIA'),
                     _ChipWrap(
-                      options: const [
-                        'Todos',
-                        'Ativa',
-                        'Procura dupla',
-                      ],
+                      options: const ['Todos', 'Ativa', 'Procura dupla'],
                       selectedLabel: switch (_partnership) {
                         TeamDiscoverPartnershipFilter.all => 'Todos',
                         TeamDiscoverPartnershipFilter.active => 'Ativa',

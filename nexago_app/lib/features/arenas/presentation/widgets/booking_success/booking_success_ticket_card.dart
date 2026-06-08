@@ -63,27 +63,27 @@ class BookingSuccessTicketCard extends StatelessWidget {
                     ),
                   ),
                   SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.all(0),
-                    decoration: BoxDecoration(
-                      color: AppColors.brand,
-                      borderRadius: BorderRadius.circular(90),
-                    ),
-                    child: QrImageView(
-                      data: qrPayload.isEmpty ? 'nexago' : qrPayload,
-                      version: QrVersions.auto,
-                      size: 60,
-                      backgroundColor: Colors.white,
-                      eyeStyle: const QrEyeStyle(
-                        eyeShape: QrEyeShape.square,
-                        color: Colors.black,
-                      ),
-                      dataModuleStyle: const QrDataModuleStyle(
-                        dataModuleShape: QrDataModuleShape.square,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
+                  // Container(
+                  //   padding: const EdgeInsets.all(0),
+                  //   decoration: BoxDecoration(
+                  //     color: AppColors.brand,
+                  //     borderRadius: BorderRadius.circular(90),
+                  //   ),
+                  //   child: QrImageView(
+                  //     data: qrPayload.isEmpty ? 'nexago' : qrPayload,
+                  //     version: QrVersions.auto,
+                  //     size: 60,
+                  //     backgroundColor: Colors.white,
+                  //     eyeStyle: const QrEyeStyle(
+                  //       eyeShape: QrEyeShape.square,
+                  //       color: Colors.black,
+                  //     ),
+                  //     dataModuleStyle: const QrDataModuleStyle(
+                  //       dataModuleShape: QrDataModuleShape.square,
+                  //       color: Colors.black,
+                  //     ),
+                  //   ),
+                  // ),
                 ],
               ),
             ),
@@ -131,7 +131,9 @@ class _TicketDivider extends StatelessWidget {
           Positioned.fill(
             child: CustomPaint(
               painter: _DashedLinePainter(
-                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.35,
+                ),
               ),
             ),
           ),

@@ -2,6 +2,12 @@
   <div class="legal-page__inner">
     <a class="legal-page__back" routerLink="/">← Voltar ao NexaGO</a>
 
+    <nav class="legal-page__nav" aria-label="Documentos legais">
+      <a routerLink="/privacidade">Privacidade</a>
+      <a routerLink="/termos">Termos de uso</a>
+      <a routerLink="/excluir-conta" class="legal-page__nav--active">Exclusão de conta</a>
+    </nav>
+
     <h1>Exclusão de conta — NexaGO</h1>
     <p class="legal-page__lead">
       O <strong>NexaGO</strong> (desenvolvido por Volley / NexaGO, conforme listado na Google Play Store) permite que
@@ -65,6 +71,8 @@
     </section>
 
     <p class="legal-page__footer">
+      Ver também: <a routerLink="/privacidade">Política de privacidade</a> ·
+      <a routerLink="/termos">Termos de uso</a><br />
       Dúvidas: <a [href]="'mailto:' + supportEmail">{{ supportEmail }}</a>
     </p>
   </div>

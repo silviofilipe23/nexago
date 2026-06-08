@@ -4,13 +4,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/auth/app_mobile_role.dart';
+import '../../../core/auth/active_role_providers.dart';
 import '../../arena/domain/arena_access_provider.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/daily_mission_sync_provider.dart';
 import '../domain/gamification_models.dart';
 import 'arena_list_page.dart';
 import 'widgets/gamification_feedback_sheet.dart';
-import 'athlete_bookings_page.dart';
+import 'athlete_agenda_page.dart';
 import 'athlete_community_page.dart';
 import 'athlete_home_page.dart';
 import '../../tournaments/presentation/tournament_discovery_page.dart'
@@ -53,7 +55,13 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final arenaPanelAsync = ref.watch(arenaPanelAccessProvider);
-    final hideAppBarForImmersiveTabs = _index == 0 || _index == 2 || _index == 4;
+    final activeRole = ref.watch(activeMobileRoleProvider);
+    final showArenaPanelShortcut = arenaPanelAsync.maybeWhen(
+      data: (allowed) => allowed && activeRole == AppMobileRole.arena,
+      orElse: () => false,
+    );
+    final hideAppBarForImmersiveTabs =
+        _index == 0 || _index == 1 || _index == 2 || _index == 4;
     final isCompeteTab = _index == 3;
 
     ref.listen<int>(athleteShellTabIndexProvider, (previous, next) {
@@ -84,8 +92,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
           ? null
           : isCompeteTab
               ? CompeteHubShellAppBar(
-                  trailingActions: arenaPanelAsync.maybeWhen(
-                    data: (allowed) => allowed
+                  trailingActions: showArenaPanelShortcut
                         ? [
                             IconButton(
                               tooltip: 'Painel da arena',
@@ -97,34 +104,26 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
                             ),
                           ]
                         : <Widget>[],
-                    orElse: () => <Widget>[],
-                  ),
                 )
               : AppBar(
                   title: Text(_titles[_index]),
                   actions: [
-                    ...arenaPanelAsync.maybeWhen(
-                      data: (allowed) => allowed
-                          ? [
-                              IconButton(
-                                tooltip: 'Painel da arena',
-                                onPressed: () =>
-                                    context.push(AppRoutes.arenaDashboard),
-                                icon: const Icon(
-                                  Icons.admin_panel_settings_outlined,
-                                ),
-                              ),
-                            ]
-                          : <Widget>[],
-                      orElse: () => <Widget>[],
-                    ),
+                    if (showArenaPanelShortcut)
+                      IconButton(
+                        tooltip: 'Painel da arena',
+                        onPressed: () =>
+                            context.push(AppRoutes.arenaDashboard),
+                        icon: const Icon(
+                          Icons.admin_panel_settings_outlined,
+                        ),
+                      ),
                   ],
                 ),
       body: IndexedStack(
         index: _index,
         children: const [
           AthleteHomePage(),
-          AthleteBookingsPage(),
+          AthleteAgendaPage(),
           ArenaListPage(),
           TournamentDiscoveryPage(),
           AthleteCommunityPage(),
@@ -141,6 +140,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
           onTap: (i) {
             ref.read(athleteShellTabIndexProvider.notifier).state = i;
             setState(() => _index = i);
+            ref.read(athleteShellScrollRegistryProvider).scrollToTop(i);
           },
           selectedItemColor: AppColors.brand,
           unselectedItemColor: theme.colorScheme.onSurface.withValues(

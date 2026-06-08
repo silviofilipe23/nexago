@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../auth/widgets/auth_form_widgets.dart';
 
@@ -74,15 +73,14 @@ class OnboardingScaffold extends StatelessWidget {
                                 ? onPrimary
                                 : null,
                           ),
-                          if (secondaryLabel != null && onSecondary != null) ...[
+                          if (secondaryLabel != null &&
+                              onSecondary != null) ...[
                             SizedBox(height: 12),
                             TextButton(
                               onPressed: primaryLoading ? null : onSecondary,
                               child: Text(
                                 secondaryLabel!,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
+                                style: Theme.of(context).textTheme.titleSmall
                                     ?.copyWith(
                                       color: context.themeColors.onSurfaceMuted,
                                       fontWeight: FontWeight.w600,

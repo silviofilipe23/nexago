@@ -3,17 +3,28 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_providers.dart';
-import '../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../arena/domain/arena_booking_labels.dart';
+import '../../arenas/domain/arena_booking_success_actions.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../domain/booking_attendance_providers.dart';
-import '../domain/booking_invite_providers.dart';
+import 'widgets/booking_details/booking_details_actions_section.dart';
+import 'widgets/booking_details/booking_details_app_bar.dart';
+import 'widgets/booking_details/booking_details_bottom_bar.dart';
+import 'widgets/booking_details/booking_details_policy_cards.dart';
+import 'widgets/booking_details/booking_details_hero_card.dart';
+import 'widgets/booking_details/booking_details_location_section.dart';
+import 'widgets/booking_details/booking_details_payment_section.dart';
+import 'widgets/booking_details/booking_details_team_section.dart';
+import 'widgets/booking_details/booking_details_view_model.dart';
+
+export 'widgets/booking_details/booking_details_view_model.dart'
+    show BookingDetailsStatus, bookingDetailsStatus;
 
 class BookingDetailsPage extends ConsumerStatefulWidget {
   const BookingDetailsPage({
@@ -52,7 +63,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
   bool _checkingIn = false;
   bool _attendancePulse = false;
   bool _locationVerified = false;
-  bool _inviting = false;
+  bool _sharing = false;
 
   @override
   void initState() {
@@ -71,304 +82,131 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final arenaAsync = widget.arenaId == null ? null : ref.watch(arenaByIdProvider(widget.arenaId!));
+    final arenaAsync = widget.arenaId == null
+        ? null
+        : ref.watch(arenaByIdProvider(widget.arenaId!));
     final arena = arenaAsync?.valueOrNull;
 
-    final status = _bookingStatus(_now, widget.startAt, widget.endAt, widget.status);
-    final countdown = _countdownLabel(_now, widget.startAt, widget.endAt, status);
-    final dateLabel = DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(widget.startAt);
-    final hourLabel = '${DateFormat('HH:mm', 'pt_BR').format(widget.startAt)} - ${DateFormat('HH:mm', 'pt_BR').format(widget.endAt)}';
-    final address = arena?.addressLine?.trim().isNotEmpty == true
-        ? arena!.addressLine!.trim()
-        : (arena?.locationLabel ?? 'Local a confirmar');
-    final bookingSnap = ref.watch(arenaBookingDocProvider(widget.bookingId)).valueOrNull;
-    final bookingData = bookingSnap?.data();
-    final currency = NumberFormat.currency(locale: 'pt_BR', symbol: r'R$', decimalDigits: 2);
-    final paymentLabel = widget.amountReais != null
-        ? currency.format(widget.amountReais)
-        : 'A confirmar';
-    final paymentTypeLabel = arenaBookingPaymentLabel(bookingData);
-    final paymentType =
-        paymentTypeLabel != '—' ? paymentTypeLabel : _paymentTypeLabel(widget.paymentType);
-    final ps = (bookingData?['paymentStatus'] as String?)?.toLowerCase().trim();
-    final paidOnline = (bookingData?['amountPaidOnlineReais'] as num?)?.toDouble();
-    final dueOnsite = (bookingData?['amountDueOnsiteReais'] as num?)?.toDouble();
-    final assistantState = getAssistantState(
+    final detailsStatus = bookingDetailsStatus(
+      _now,
+      widget.startAt,
+      widget.endAt,
+      widget.status,
+    );
+    final hero = buildBookingDetailsHeroModel(
       now: _now,
+      bookingId: widget.bookingId,
+      arenaName: widget.arenaName,
+      courtName: widget.courtName,
       startAt: widget.startAt,
       endAt: widget.endAt,
       rawStatus: widget.status,
     );
-    final assistantCard = _buildAssistantCard(assistantState, address);
-    final attendanceAsync = ref.watch(bookingAttendanceProvider(widget.bookingId));
-    final attendance = attendanceAsync.valueOrNull;
+
+    final address = arena?.addressLine?.trim().isNotEmpty == true
+        ? arena!.addressLine!.trim()
+        : (arena?.locationLabel ?? 'Local a confirmar');
+
+    final bookingSnap =
+        ref.watch(arenaBookingDocProvider(widget.bookingId)).valueOrNull;
+    final bookingData = bookingSnap?.data();
+
+    final currency = NumberFormat.currency(
+      locale: 'pt_BR',
+      symbol: r'R$',
+      decimalDigits: 2,
+    );
+    final amountValue = widget.amountReais ??
+        (bookingData?['amountReais'] as num?)?.toDouble();
+    final paymentLabel = amountValue != null
+        ? currency.format(amountValue)
+        : 'A confirmar';
+
+    final paymentTypeLabel = arenaBookingPaymentLabel(bookingData);
+    final paymentMethod = paymentTypeLabel != '—'
+        ? paymentTypeLabel
+        : bookingDetailsPaymentTypeLabel(widget.paymentType);
+
+    final ps = (bookingData?['paymentStatus'] as String?)?.toLowerCase().trim();
+    final paidOnline =
+        (bookingData?['amountPaidOnlineReais'] as num?)?.toDouble();
+    final showSplit = bookingDetailsShowSplitCard(
+      paymentStatus: ps,
+      paidOnline: paidOnline,
+    );
+    final splitLabel = formatSplitPerPersonLabel(amountValue);
+
+    final attendance =
+        ref.watch(bookingAttendanceProvider(widget.bookingId)).valueOrNull;
+
+    final canCancel = bookingDetailsCanCancel(detailsStatus);
+    final actionsEnabled = bookingDetailsActionsEnabled(detailsStatus);
 
     return Scaffold(
-      backgroundColor: theme.colorScheme.surfaceContainerLowest,
-      appBar: AppBar(title: Text('Detalhes da reserva')),
+      backgroundColor: context.themeColors.canvas,
+      appBar: BookingDetailsAppBar(
+        onShare: _shareBooking,
+        onCancel: _cancelBooking,
+        showCancel: canCancel,
+      ),
+      bottomNavigationBar: BookingDetailsBottomBar(
+        onAddToCalendar: _addToCalendar,
+        inviteEnabled: actionsEnabled,
+        actionsEnabled: actionsEnabled,
+      ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
-          assistantCard,
-          SizedBox(height: 14),
-          _SectionCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(widget.arenaName, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
-                SizedBox(height: 4),
-                Text(widget.courtName, style: theme.textTheme.titleMedium?.copyWith(color: AppColors.onSurfaceMuted)),
-                SizedBox(height: 16),
-                Text(_capitalize(dateLabel), style: theme.textTheme.bodyLarge),
-                SizedBox(height: 4),
-                Text(
-                  hourLabel,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: AppColors.brand,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                SizedBox(height: 10),
-                Text(
-                  countdown,
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    color: _statusColor(theme, status),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+          BookingDetailsHeroCard(model: hero),
+          const SizedBox(height: 14),
+          BookingDetailsTeamSection(
+            bookingId: widget.bookingId,
+            inviteEnabled: actionsEnabled,
           ),
-          SizedBox(height: 14),
-          _SectionCard(
-            title: 'Localização',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(address, style: theme.textTheme.bodyLarge),
-                SizedBox(height: 10),
-                OutlinedButton.icon(
-                  onPressed: () => _openMaps(address),
-                  icon: Icon(Icons.map_outlined),
-                  label: Text('Ver no mapa'),
-                ),
-              ],
-            ),
+          const SizedBox(height: 14),
+          BookingDetailsLocationSection(
+            arena: arena,
+            address: address,
+            onOpenMaps: actionsEnabled ? () => _openMaps(address) : null,
           ),
-          SizedBox(height: 14),
-          _SectionCard(
-            title: 'Participantes',
-            child: Column(
-              children: _buildParticipants(theme),
-            ),
+          const SizedBox(height: 14),
+          BookingDetailsPaymentSection(
+            startAt: widget.startAt,
+            endAt: widget.endAt,
+            amountLabel: paymentLabel,
+            paymentMethodLabel: paymentMethod,
+            showSplitCard: showSplit,
+            splitPerPersonLabel: splitLabel,
           ),
-          SizedBox(height: 14),
-          _SectionCard(
-            title: 'Pagamento',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Valor: $paymentLabel', style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
-                SizedBox(height: 4),
-                Text('Tipo: $paymentType', style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.onSurfaceMuted)),
-                if (ps == 'partial' && paidOnline != null && paidOnline > 0) ...[
-                  SizedBox(height: 8),
-                  Text(
-                    'Sinal PIX pago: ${currency.format(paidOnline)}',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.brand),
-                  ),
-                ],
-                if (ps == 'partial' && dueOnsite != null && dueOnsite > 0.02) ...[
-                  SizedBox(height: 4),
-                  Text(
-                    'Restante no local: ${currency.format(dueOnsite)}',
-                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ],
-            ),
+          const SizedBox(height: 14),
+          BookingDetailsAttendanceContent(
+            attendance: attendance,
+            bookingStatus: detailsStatus,
+            startAt: widget.startAt,
+            confirmedParticipantsFallback: widget.confirmedParticipants,
+            confirmingAttendance: _confirmingAttendance,
+            checkingIn: _checkingIn,
+            attendancePulse: _attendancePulse,
+            locationVerified: _locationVerified,
+            onConfirmAttendance: _confirmAttendance,
+            onLocationVerifiedChanged: (v) =>
+                setState(() => _locationVerified = v),
+            onCheckIn: _checkInNow,
           ),
-          SizedBox(height: 14),
-          _SectionCard(
-            title: 'Confirmação de presença',
-            child: _buildAttendanceSection(theme, attendance, status),
+          const SizedBox(height: 14),
+          BookingDetailsCancellationCard(arenaName: widget.arenaName),
+          const SizedBox(height: 14),
+          BookingDetailsActionsSection(
+            onDirections: () => _openMaps(address),
+            onShare: _shareBooking,
+            onCancel: canCancel ? _cancelBooking : null,
+            shareLoading: _sharing,
+            canCancel: canCancel,
+            actionsEnabled: actionsEnabled,
           ),
-          SizedBox(height: 14),
-          _SectionCard(
-            title: 'Ações',
-            child: Column(
-              children: [
-                _ActionBtn(label: 'Como chegar', icon: Icons.directions_outlined, onTap: () => _openMaps(address)),
-                SizedBox(height: 8),
-                _ActionBtn(
-                  label: _inviting ? 'Gerando link...' : 'Convidar jogador',
-                  icon: Icons.person_add_alt_1_outlined,
-                  onTap: (_inviting || status == _DetailsStatus.past || status == _DetailsStatus.canceled)
-                      ? null
-                      : _invitePlayer,
-                ),
-                SizedBox(height: 8),
-                _ActionBtn(
-                  label: 'Cancelar reserva',
-                  icon: Icons.cancel_outlined,
-                  danger: true,
-                  onTap: status == _DetailsStatus.future ? _cancelBooking : null,
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(height: 88),
         ],
       ),
-    );
-  }
-
-  Widget _buildAttendanceSection(
-    ThemeData theme,
-    BookingAttendanceState? attendance,
-    _DetailsStatus bookingStatus,
-  ) {
-    final startAt = widget.startAt;
-    final deadline = attendance?.confirmationDeadline ??
-        startAt.subtract(const Duration(hours: 2));
-    final now = DateTime.now();
-    final isBeforeWindow = now.isBefore(deadline);
-    final status = attendance?.attendanceStatus ?? 'pending';
-    final confirmed = attendance?.attendanceConfirmed == true ||
-        status == 'confirmed' ||
-        status == 'checked_in';
-    final isCheckedIn = status == 'checked_in';
-    final isFinished = bookingStatus == _DetailsStatus.past || bookingStatus == _DetailsStatus.canceled;
-    final confirmedPlayers = attendance?.confirmedPlayers ?? widget.confirmedParticipants;
-    final canCheckIn = attendance?.checkInAllowed == true && !isCheckedIn;
-
-    if (isCheckedIn) {
-      return Row(
-        children: [
-          Icon(Icons.qr_code_scanner_rounded, color: Color(0xFF2E7D32)),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Check-in realizado com sucesso${attendance?.locationVerified == true ? ' (local validado)' : ''}.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF2E7D32),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (confirmed) {
-      return Row(
-        children: [
-          Icon(Icons.verified_rounded, color: Color(0xFF2E7D32)),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Presença confirmada. 🔥 Boa! Jogadores comprometidos fazem o jogo acontecer.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF2E7D32),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (isFinished) {
-      return Text(
-        bookingStatus == _DetailsStatus.canceled
-            ? 'Reserva cancelada.'
-            : 'Reserva encerrada.',
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: AppColors.onSurfaceMuted,
-          fontWeight: FontWeight.w600,
-        ),
-      );
-    }
-
-    if (isBeforeWindow) {
-      return Text(
-        'Você poderá confirmar sua presença mais tarde.',
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: AppColors.onSurfaceMuted,
-          fontWeight: FontWeight.w600,
-        ),
-      );
-    }
-
-    final canConfirm = !_confirmingAttendance;
-    final scale = _attendancePulse ? 1.02 : 1.0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '⚠️ Confirme sua presença',
-          style: theme.textTheme.titleSmall?.copyWith(
-            color: theme.colorScheme.error,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        SizedBox(height: 6),
-        Text(
-          '$confirmedPlayers jogadores já confirmaram.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: AppColors.onSurfaceMuted,
-          ),
-        ),
-        SizedBox(height: 10),
-        AnimatedScale(
-          scale: scale,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutBack,
-          child: FilledButton.icon(
-            onPressed: canConfirm ? _confirmAttendance : null,
-            icon: _confirmingAttendance
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(Icons.how_to_reg_rounded),
-            label: Text(_confirmingAttendance
-                ? 'Confirmando...'
-                : 'Confirmar presença'),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.brand,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ),
-        if (canCheckIn) ...[
-          SizedBox(height: 12),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: Text('Estou próximo da arena'),
-            subtitle: Text('Opcional: use para validar localização'),
-            value: _locationVerified,
-            onChanged: _checkingIn ? null : (v) => setState(() => _locationVerified = v),
-          ),
-          SizedBox(height: 8),
-          FilledButton.icon(
-            onPressed: _checkingIn ? null : _checkInNow,
-            icon: _checkingIn
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(Icons.login_rounded),
-            label: Text(_checkingIn ? 'Validando check-in...' : 'Fazer check-in'),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF2E7D32),
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ],
     );
   }
 
@@ -397,9 +235,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         );
     } finally {
       if (mounted) {
-        setState(() {
-          _confirmingAttendance = false;
-        });
+        setState(() => _confirmingAttendance = false);
         Future<void>.delayed(const Duration(milliseconds: 250), () {
           if (!mounted) return;
           setState(() => _attendancePulse = false);
@@ -412,7 +248,9 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     if (_checkingIn) return;
     setState(() => _checkingIn = true);
     try {
-      await ref.read(checkInProvider).checkIn(
+      await ref
+          .read(checkInProvider)
+          .checkIn(
             bookingId: widget.bookingId,
             locationVerified: _locationVerified,
           );
@@ -430,128 +268,66 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
           SnackBar(content: Text('Não foi possível fazer check-in: $e')),
         );
     } finally {
-      if (mounted) {
-        setState(() => _checkingIn = false);
-      }
+      if (mounted) setState(() => _checkingIn = false);
     }
-  }
-
-  Widget _buildAssistantCard(AssistantStateType state, String address) {
-    switch (state) {
-      case AssistantStateType.before:
-        return AssistantCard(
-          title: 'Monte sua equipe',
-          message: 'Ainda dá tempo de convidar jogadores e confirmar presença.',
-          buttonLabel: 'Convidar jogadores',
-          color: const Color(0xFF1565C0),
-          onPressed: _invitePlayer,
-        );
-      case AssistantStateType.near:
-        return AssistantCard(
-          title: 'Hora de se preparar',
-          message: 'Seu jogo está próximo. Confira seus itens e planeje a saída.',
-          buttonLabel: 'Como chegar',
-          color: const Color(0xFFEF6C00),
-          onPressed: () => _openMaps(address),
-        );
-      case AssistantStateType.now:
-        return AssistantCard(
-          title: 'Saia agora',
-          message: 'Seu horário está chegando. Abra o mapa e vá para a arena.',
-          buttonLabel: 'Abrir mapa',
-          color: AppColors.brand,
-          onPressed: () => _openMaps(address),
-        );
-      case AssistantStateType.inProgress:
-        return AssistantCard(
-          title: 'Jogo em andamento',
-          message: 'Boa partida! Use o chat para coordenar com os participantes.',
-          buttonLabel: 'Abrir chat',
-          color: const Color(0xFF2E7D32),
-          onPressed: _openChat,
-        );
-      case AssistantStateType.finished:
-        return AssistantCard(
-          title: 'Partida finalizada',
-          message: 'Que tal compartilhar o resultado e postar no feed?',
-          buttonLabel: 'Postar no feed',
-          color: const Color(0xFF6A1B9A),
-          onPressed: _postResult,
-        );
-    }
-  }
-
-  List<Widget> _buildParticipants(ThemeData theme) {
-    final qty = widget.confirmedParticipants < 1 ? 1 : widget.confirmedParticipants;
-    return List.generate(qty, (index) {
-      final name = index == 0 ? 'Você' : 'Jogador confirmado ${index + 1}';
-      return Padding(
-        padding: EdgeInsets.only(bottom: index == qty - 1 ? 0 : 10),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.brand.withValues(alpha: 0.12),
-              child: Text(name.substring(0, 1), style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.w700)),
-            ),
-            SizedBox(width: 10),
-            Expanded(child: Text(name, style: theme.textTheme.bodyLarge)),
-          ],
-        ),
-      );
-    });
   }
 
   Future<void> _openMaps(String address) async {
-    final q = Uri.encodeComponent(address);
-    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$q');
+    final uri = Uri.parse(
+      ArenaBookingSuccessActions.buildMapsSearchUrl(address),
+    );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  Future<void> _invitePlayer() async {
-    if (_inviting) return;
-    setState(() => _inviting = true);
+  Future<void> _shareBooking() async {
+    if (_sharing) return;
+    setState(() => _sharing = true);
     try {
-      final user = ref.read(authProvider).valueOrNull;
-      if (user == null) return;
-      final displayName = user.displayName?.trim().isNotEmpty == true
-          ? user.displayName!.trim()
-          : 'Um jogador';
-
-      final invite = await ref.read(bookingInviteServiceProvider).createInvite(
-            bookingId: widget.bookingId,
-            invitedByUid: user.uid,
-            invitedByName: displayName,
-          );
-
-      final link = 'https://voleigo.com.br/convite/${invite.id}';
-      final text =
-          '$displayName te convidou para jogar em ${widget.arenaName}!\n'
-          '📅 ${DateFormat("d 'de' MMMM", 'pt_BR').format(widget.startAt)} · '
-          '${DateFormat('HH:mm', 'pt_BR').format(widget.startAt)}\n\n'
-          'Aceite o convite: $link';
-
-      await Share.share(text);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível gerar o convite: $e')),
+      final dateLabel =
+          DateFormat("d 'de' MMMM", 'pt_BR').format(widget.startAt);
+      final text = ArenaBookingSuccessActions.buildBookingShareMessage(
+        arenaName: widget.arenaName,
+        courtName: widget.courtName,
+        dateLabel: dateLabel,
+        timeRangeLabel:
+            '${DateFormat('HH:mm', 'pt_BR').format(widget.startAt)} - ${DateFormat('HH:mm', 'pt_BR').format(widget.endAt)}',
+        bookingId: widget.bookingId,
       );
+      await Share.share(text);
     } finally {
-      if (mounted) setState(() => _inviting = false);
+      if (mounted) setState(() => _sharing = false);
     }
   }
 
-  void _openChat() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Chat em breve.')),
+  Future<void> _addToCalendar() async {
+    final y = widget.startAt.year.toString().padLeft(4, '0');
+    final m = widget.startAt.month.toString().padLeft(2, '0');
+    final d = widget.startAt.day.toString().padLeft(2, '0');
+    final dateKey = '$y-$m-$d';
+    final url = ArenaBookingSuccessActions.buildGoogleCalendarEventUrl(
+      title: 'Reserva · ${widget.arenaName}',
+      dateKey: dateKey,
+      startTime: DateFormat('HH:mm').format(widget.startAt),
+      endTime: DateFormat('HH:mm').format(widget.endAt),
+      details: 'Código ${ArenaBookingSuccessActions.formatBookingDisplayCode(widget.bookingId)}',
+      location: widget.arenaName,
     );
-  }
-
-  void _postResult() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Publicação no feed em breve.')),
-    );
+    if (url == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível montar o evento.')),
+      );
+      return;
+    }
+    final uri = Uri.parse(url);
+    if (!await canLaunchUrl(uri)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Não foi possível abrir o calendário.')),
+      );
+      return;
+    }
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   Future<void> _cancelBooking() async {
@@ -574,213 +350,4 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
       );
     }
   }
-}
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    this.title,
-    required this.child,
-  });
-
-  final String? title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.12)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (title != null) ...[
-            Text(title!, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-            SizedBox(height: 10),
-          ],
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class AssistantCard extends StatelessWidget {
-  const AssistantCard({
-    super.key,
-    required this.title,
-    required this.message,
-    required this.buttonLabel,
-    required this.color,
-    required this.onPressed,
-  });
-
-  final String title;
-  final String message;
-  final String buttonLabel;
-  final Color color;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return TweenAnimationBuilder<double>(
-      duration: const Duration(milliseconds: 320),
-      tween: Tween<double>(begin: 0.96, end: 1),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value.clamp(0, 1),
-          child: Transform.scale(scale: value, child: child),
-        );
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 240),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.35)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: color,
-              ),
-            ),
-            SizedBox(height: 6),
-            Text(
-              message,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
-              ),
-            ),
-            SizedBox(height: 12),
-            FilledButton(
-              onPressed: onPressed,
-              style: FilledButton.styleFrom(
-                backgroundColor: color,
-                foregroundColor: Colors.white,
-              ),
-              child: Text(buttonLabel),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ActionBtn extends StatelessWidget {
-  const _ActionBtn({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-    this.danger = false,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback? onTap;
-  final bool danger;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = danger ? theme.colorScheme.error : AppColors.brand;
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: color,
-        side: BorderSide(color: color.withValues(alpha: 0.3)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-}
-
-enum _DetailsStatus { future, current, past, canceled }
-enum AssistantStateType { before, near, now, inProgress, finished }
-
-_DetailsStatus _bookingStatus(DateTime now, DateTime start, DateTime end, String rawStatus) {
-  final status = rawStatus.trim().toLowerCase();
-  if (status == 'canceled' || status == 'cancelled') return _DetailsStatus.canceled;
-  if (now.isAfter(start) && now.isBefore(end)) return _DetailsStatus.current;
-  if (now.isBefore(start)) return _DetailsStatus.future;
-  return _DetailsStatus.past;
-}
-
-AssistantStateType getAssistantState({
-  required DateTime now,
-  required DateTime startAt,
-  required DateTime endAt,
-  required String rawStatus,
-}) {
-  final status = _bookingStatus(now, startAt, endAt, rawStatus);
-  if (status == _DetailsStatus.current) return AssistantStateType.inProgress;
-  if (status == _DetailsStatus.past || status == _DetailsStatus.canceled) {
-    return AssistantStateType.finished;
-  }
-
-  final minutesToStart = startAt.difference(now).inMinutes;
-  if (minutesToStart <= 10) return AssistantStateType.now;
-  if (minutesToStart <= 45) return AssistantStateType.near;
-  return AssistantStateType.before;
-}
-
-String _countdownLabel(DateTime now, DateTime start, DateTime end, _DetailsStatus status) {
-  switch (status) {
-    case _DetailsStatus.future:
-      final diff = start.difference(now);
-      final min = diff.inMinutes;
-      if (min <= 59) return 'Começa em $min min';
-      final h = min ~/ 60;
-      final m = min % 60;
-      return m == 0 ? 'Começa em ${h}h' : 'Começa em ${h}h ${m}min';
-    case _DetailsStatus.current:
-      return 'Em andamento';
-    case _DetailsStatus.past:
-      return 'Finalizado';
-    case _DetailsStatus.canceled:
-      return 'Cancelado';
-  }
-}
-
-String _paymentTypeLabel(String? raw) {
-  final v = raw?.trim().toLowerCase() ?? '';
-  if (v.isEmpty) return 'Pagamento na arena';
-  if (v.contains('pix')) return 'PIX';
-  if (v.contains('card') || v.contains('cart')) return 'Cartão';
-  if (v.contains('online')) return 'Online';
-  if (v.contains('local') || v.contains('venue')) return 'No local';
-  return raw!.trim();
-}
-
-Color _statusColor(ThemeData theme, _DetailsStatus status) {
-  switch (status) {
-    case _DetailsStatus.future:
-      return theme.colorScheme.primary;
-    case _DetailsStatus.current:
-      return AppColors.brand;
-    case _DetailsStatus.past:
-      return AppColors.onSurfaceMuted;
-    case _DetailsStatus.canceled:
-      return theme.colorScheme.error;
-  }
-}
-
-String _capitalize(String value) {
-  if (value.isEmpty) return value;
-  return value[0].toUpperCase() + value.substring(1);
 }

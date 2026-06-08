@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/athlete_public_profile_models.dart';
@@ -53,7 +52,9 @@ class PublicProfileStatsRow extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    _PartnerAvatarStack(partners: mutualPartners.take(3).toList()),
+                    _PartnerAvatarStack(
+                      partners: mutualPartners.take(3).toList(),
+                    ),
                     SizedBox(width: 8),
                     Flexible(
                       child: Text(
@@ -153,7 +154,10 @@ class _PartnerAvatarStack extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: context.themeColors.surfaceRaised,
-                  border: Border.all(color: context.themeColors.canvas, width: 2),
+                  border: Border.all(
+                    color: context.themeColors.canvas,
+                    width: 2,
+                  ),
                 ),
                 child: Text(
                   partners[i].initials,

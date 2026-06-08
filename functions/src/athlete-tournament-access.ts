@@ -7,11 +7,26 @@ function trimString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function stringList(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((e) => (typeof e === "string" ? e.trim() : ""))
-    .filter((s) => s.length > 0);
+/** Parse legado `"Aparecida de Goiânia · GO"` ou `"Goiânia GO"`. */
+function parseLegacyLocation(raw: string): {city: string; state: string} {
+  const trimmed = raw.trim();
+  if (!trimmed) return {city: "", state: ""};
+
+  const parts = trimmed.split("·");
+  if (parts.length >= 2) {
+    const city = parts[0].trim();
+    const state = parts[parts.length - 1].trim().toUpperCase();
+    if (state.length === 2) return {city, state};
+  }
+
+  const match = /\s+([A-Z]{2})\s*$/.exec(trimmed);
+  if (match) {
+    const state = match[1];
+    const city = trimmed.slice(0, match.index).trim();
+    return {city, state};
+  }
+
+  return {city: trimmed, state: ""};
 }
 
 function resolveCity(data: UserAccessData): string {
@@ -21,16 +36,7 @@ function resolveCity(data: UserAccessData): string {
   if (stateField && !cityField.includes("·")) return cityField;
   const idx = cityField.indexOf("·");
   if (idx > 0) return cityField.slice(0, idx).trim();
-  return cityField;
-}
-
-function resolveState(data: UserAccessData): string {
-  const stateField = trimString(data.state) || trimString(data.uf);
-  if (stateField) return stateField;
-  const cityField = trimString(data.city);
-  const idx = cityField.indexOf("·");
-  if (idx > 0) return cityField.slice(idx + 1).trim();
-  return "";
+  return parseLegacyLocation(cityField).city;
 }
 
 export function isOnboardingCompleted(data: UserAccessData): boolean {
@@ -47,34 +53,6 @@ export function isOnboardingCompleted(data: UserAccessData): boolean {
   return false;
 }
 
-function hasProfilePhoto(data: UserAccessData): boolean {
-  const profilePhotoUrl = trimString(data.profilePhotoUrl);
-  if (profilePhotoUrl) return true;
-  const avatarUrl = trimString(data.avatarUrl);
-  if (avatarUrl) return true;
-  const photoURL = trimString(data.photoURL);
-  return photoURL.length > 0;
-}
-
-function hasSportLevel(data: UserAccessData): boolean {
-  const sportOnboarding = data.sportOnboarding;
-  if (sportOnboarding != null && typeof sportOnboarding === "object") {
-    const primarySportId = trimString(
-      (sportOnboarding as Record<string, unknown>).primarySportId,
-    );
-    if (primarySportId) return true;
-  }
-  const primarySport = trimString(data.primarySport);
-  if (primarySport) return true;
-  const sport = trimString(data.sport);
-  const level = trimString(data.level) || trimString(data.nivel);
-  return sport.length > 0 && level.length > 0;
-}
-
-function hasCityAndState(data: UserAccessData): boolean {
-  return resolveCity(data).length > 0 && resolveState(data).length > 0;
-}
-
 export function isValidWhatsApp(raw: unknown): boolean {
   const digits = trimString(raw).replace(/\D/g, "");
   if (digits.length >= 10 && digits.length <= 11) return true;
@@ -84,37 +62,43 @@ export function isValidWhatsApp(raw: unknown): boolean {
   return false;
 }
 
-function hasGoals(data: UserAccessData): boolean {
-  if (stringList(data.goals).length > 0) return true;
-  return trimString(data.gameObjective).length > 0;
+function resolvePhoneNumber(data: UserAccessData): string {
+  for (const key of ["phoneNumber", "phone", "whatsapp", "celular", "mobile"]) {
+    const value = trimString(data[key]);
+    if (value) return value;
+  }
+  return "";
 }
 
-/** IDs espelham [ProfileCompletionStep] no app. */
-export type ProfileCompletionStepId =
-  | "photo"
-  | "sportLevel"
-  | "city"
-  | "whatsapp"
-  | "goals";
+function hasValidWhatsApp(data: UserAccessData): boolean {
+  return isValidWhatsApp(resolvePhoneNumber(data));
+}
 
-const PROFILE_STEP_LABELS: Record<ProfileCompletionStepId, string> = {
-  photo: "foto de perfil",
-  sportLevel: "esporte e nível",
-  city: "cidade e UF",
+/** Cidade preenchida (UF não obrigatória para torneios). */
+function hasCity(data: UserAccessData): boolean {
+  return resolveCity(data).length > 0;
+}
+
+/** IDs dos requisitos mínimos para torneios. */
+export type TournamentProfileRequirementId =
+  | "onboarding"
+  | "whatsapp"
+  | "city";
+
+const TOURNAMENT_REQUIREMENT_LABELS: Record<TournamentProfileRequirementId, string> = {
+  onboarding: "cadastro inicial",
   whatsapp: "WhatsApp",
-  goals: "objetivos",
+  city: "cidade",
 };
 
-/** Passos de “Completar perfil” ainda pendentes (mesma ordem do app). */
-export function missingProfileStepIds(
+/** Requisitos de torneio ainda pendentes. */
+export function missingTournamentProfileRequirementIds(
   data: UserAccessData,
-): ProfileCompletionStepId[] {
-  const missing: ProfileCompletionStepId[] = [];
-  if (!hasProfilePhoto(data)) missing.push("photo");
-  if (!hasSportLevel(data)) missing.push("sportLevel");
-  if (!hasCityAndState(data)) missing.push("city");
-  if (!isValidWhatsApp(data.phoneNumber)) missing.push("whatsapp");
-  if (!hasGoals(data)) missing.push("goals");
+): TournamentProfileRequirementId[] {
+  const missing: TournamentProfileRequirementId[] = [];
+  if (!isOnboardingCompleted(data)) missing.push("onboarding");
+  if (!hasValidWhatsApp(data)) missing.push("whatsapp");
+  if (!hasCity(data)) missing.push("city");
   return missing;
 }
 
@@ -126,36 +110,43 @@ function formatMissingStepsList(labels: string[]): string {
   return `${head} e ${labels[labels.length - 1]}`;
 }
 
-/** Espelha [ProfileCompletionState.allComplete] no app. */
-export function isProfileStepsComplete(data: UserAccessData): boolean {
-  return (
-    hasProfilePhoto(data) &&
-    hasSportLevel(data) &&
-    hasCityAndState(data) &&
-    isValidWhatsApp(data.phoneNumber) &&
-    hasGoals(data)
-  );
+/** Perfil mínimo para inscrição em torneios. */
+export function isTournamentProfileReady(data: UserAccessData): boolean {
+  if (data.isProfileComplete === true) return true;
+  return isOnboardingCompleted(data) && hasValidWhatsApp(data) && hasCity(data);
+}
+
+/** @deprecated Gamificação — não usar para gate de torneios. */
+export function isProfileStepsComplete(_data: UserAccessData): boolean {
+  return isTournamentProfileReady(_data);
+}
+
+/** @deprecated Use missingTournamentProfileRequirementIds. */
+export function missingProfileStepIds(
+  data: UserAccessData,
+): TournamentProfileRequirementId[] {
+  return missingTournamentProfileRequirementIds(data);
 }
 
 export function canAccessOfficialTournaments(data: UserAccessData): boolean {
-  return isOnboardingCompleted(data) && isProfileStepsComplete(data);
+  return isTournamentProfileReady(data);
 }
 
 export function tournamentAccessBlockMessage(data: UserAccessData): string {
   if (canAccessOfficialTournaments(data)) {
     return "";
   }
-  if (!isOnboardingCompleted(data)) {
-    return "Conclua o cadastro inicial para competir em torneios oficiais.";
-  }
-  const missing = missingProfileStepIds(data);
+  const missing = missingTournamentProfileRequirementIds(data);
   if (missing.length === 0) {
-    return "Complete seu perfil para desbloquear torneios oficiais.";
+    return "Complete cadastro, WhatsApp e cidade para desbloquear torneios oficiais.";
   }
   const list = formatMissingStepsList(
-    missing.map((id) => PROFILE_STEP_LABELS[id]),
+    missing.map((id) => TOURNAMENT_REQUIREMENT_LABELS[id]),
   );
-  return `Complete no perfil: ${list} para desbloquear torneios oficiais.`;
+  if (missing.includes("onboarding")) {
+    return `Conclua o cadastro inicial. Falta: ${list}.`;
+  }
+  return `Falta completar no perfil: ${list}.`;
 }
 
 export async function loadUserAccessData(

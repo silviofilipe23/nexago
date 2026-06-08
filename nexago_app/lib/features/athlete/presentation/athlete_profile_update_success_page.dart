@@ -10,15 +10,11 @@ class AthleteProfileUpdateSuccessPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final goToProfileOnShell = Uri(
-      path: AppRoutes.discover,
-      queryParameters: const {'tab': 'profile'},
-    ).toString();
     return SuccessPage(
       title: 'Perfil atualizado',
       message: 'Suas alterações de atleta foram salvas com sucesso.',
       primaryActionLabel: 'Voltar ao perfil',
-      onPrimaryAction: () => context.go(goToProfileOnShell),
+      onPrimaryAction: () => context.go(AppRoutes.athleteProfile),
     );
   }
 }

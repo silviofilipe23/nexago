@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/slots_suggestion_models.dart';
 import 'slots_suggestion_tile.dart';
@@ -34,7 +33,9 @@ Future<void> showSlotsAllSuggestionsSheet({
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
+                    color: context.themeColors.onSurfaceMuted.withValues(
+                      alpha: 0.35,
+                    ),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

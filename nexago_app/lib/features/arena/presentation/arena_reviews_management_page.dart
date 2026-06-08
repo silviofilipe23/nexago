@@ -4,7 +4,6 @@ import 'dart:math' as math;
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/layout/app_scaffold.dart';
-import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/success_page.dart';
 import '../domain/arena_schedule_providers.dart';
@@ -49,16 +48,16 @@ class _ArenaReviewsManagementPageState
         ),
         data: (reviews) {
           if (reviews.isEmpty) {
-            return Center(
-              child: Text('Ainda não há avaliações registradas.'),
-            );
+            return Center(child: Text('Ainda não há avaliações registradas.'));
           }
 
           final visible = reviews.take(_visibleCount).toList(growable: false);
           final hasMore = reviews.length > visible.length;
 
           return ListView.separated(
-            key: const PageStorageKey<String>('arena-reviews-management-scroll'),
+            key: const PageStorageKey<String>(
+              'arena-reviews-management-scroll',
+            ),
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
             itemCount: visible.length + 1,
             separatorBuilder: (context, index) => SizedBox(height: 12),
@@ -70,7 +69,9 @@ class _ArenaReviewsManagementPageState
                     child: Center(
                       child: Text(
                         'Você chegou ao fim do histórico.',
-                        style: TextStyle(color: context.themeColors.onSurfaceMuted),
+                        style: TextStyle(
+                          color: context.themeColors.onSurfaceMuted,
+                        ),
                       ),
                     ),
                   );
@@ -147,7 +148,9 @@ class _ArenaReviewsManagementPageState
                           color: const Color(0xFFF5F5F5),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text('🏟️ Resposta da arena\n${review.reply!.message}'),
+                        child: Text(
+                          '🏟️ Resposta da arena\n${review.reply!.message}',
+                        ),
                       ),
                     ],
                     SizedBox(height: 10),
@@ -181,18 +184,23 @@ class _ArenaReviewsManagementPageState
                                     );
                                   }
                                   if (!context.mounted) return;
-                                  final scrollable = Scrollable.maybeOf(context);
+                                  final scrollable = Scrollable.maybeOf(
+                                    context,
+                                  );
                                   final previousOffset =
                                       scrollable?.position.pixels ?? 0;
                                   await Navigator.of(context).push(
                                     MaterialPageRoute<void>(
-                                      builder: (_) => const _ReviewReplySuccessPage(),
+                                      builder: (_) =>
+                                          const _ReviewReplySuccessPage(),
                                     ),
                                   );
-                                  WidgetsBinding.instance
-                                      .addPostFrameCallback((_) {
+                                  WidgetsBinding.instance.addPostFrameCallback((
+                                    _,
+                                  ) {
                                     final position = scrollable?.position;
-                                    if (position == null || !position.hasPixels) {
+                                    if (position == null ||
+                                        !position.hasPixels) {
                                       return;
                                     }
                                     final target = math.min(
@@ -205,7 +213,9 @@ class _ArenaReviewsManagementPageState
                                   if (!context.mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('Erro ao salvar resposta: $e'),
+                                      content: Text(
+                                        'Erro ao salvar resposta: $e',
+                                      ),
                                     ),
                                   );
                                 }

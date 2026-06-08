@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/auth_password_strength.dart';
 
 const kNexagoLogoAsset = 'assets/images/nexago_logo.png';
@@ -147,10 +146,7 @@ class AuthTextField extends StatelessWidget {
         focusedBorder: borderless
             ? border
             : border.copyWith(
-                borderSide: BorderSide(
-                  color: AppColors.brand,
-                  width: 1.5,
-                ),
+                borderSide: BorderSide(color: AppColors.brand, width: 1.5),
               ),
         errorBorder: border.copyWith(
           borderSide: BorderSide(color: AppColors.live),

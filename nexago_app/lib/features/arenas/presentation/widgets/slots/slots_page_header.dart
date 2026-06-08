@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class SlotsPageHeader extends StatelessWidget {
@@ -8,12 +7,10 @@ class SlotsPageHeader extends StatelessWidget {
     super.key,
     required this.title,
     required this.onBack,
-    required this.onSearch,
   });
 
   final String title;
   final VoidCallback onBack;
-  final VoidCallback onSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +32,7 @@ class SlotsPageHeader extends StatelessWidget {
               ),
             ),
           ),
-          _IconButton(icon: Icons.search_rounded, onTap: onSearch),
+          const SizedBox(width: 40),
         ],
       ),
     );

@@ -27,7 +27,9 @@ Future<ArenaSearchSortBy?> showArenaSearchSortSheet({
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
+                    color: context.themeColors.onSurfaceMuted.withValues(
+                      alpha: 0.35,
+                    ),
                     borderRadius: BorderRadius.circular(999),
                   ),
                 ),
@@ -36,9 +38,9 @@ Future<ArenaSearchSortBy?> showArenaSearchSortSheet({
               Text(
                 'Ordenar',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: context.themeColors.onSurface,
-                    ),
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
               ),
               SizedBox(height: 12),
               ...ArenaSearchSortBy.values.map(

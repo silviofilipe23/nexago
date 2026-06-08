@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/match_history/athlete_match_detail_models.dart';
 import '../domain/match_history/athlete_match_detail_providers.dart';
@@ -41,9 +40,8 @@ class AthleteMatchDetailPage extends ConsumerWidget {
       backgroundColor: AppColors.canvas,
       appBar: _appBar(context, theme, detailAsync.valueOrNull),
       body: detailAsync.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
-        ),
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: AppColors.brand)),
         error: (error, stackTrace) => _messageBody(
           theme,
           'Não foi possível carregar os detalhes da partida.',
@@ -149,17 +147,14 @@ class AthleteMatchDetailPage extends ConsumerWidget {
 }
 
 class _DetailBody extends StatelessWidget {
-  const _DetailBody({
-    required this.detail,
-    required this.hideTournamentAction,
-  });
+  const _DetailBody({required this.detail, required this.hideTournamentAction});
 
   final AthleteMatchDetail detail;
   final bool hideTournamentAction;
 
   @override
   Widget build(BuildContext context) {
-  if (detail.phase == MatchDetailPhase.canceled) {
+    if (detail.phase == MatchDetailPhase.canceled) {
       return ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
@@ -168,9 +163,9 @@ class _DetailBody extends StatelessWidget {
           Text(
             'Esta partida foi cancelada.',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: AppColors.onSurfaceMuted,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(color: AppColors.onSurfaceMuted),
           ),
         ],
       );
@@ -317,10 +312,7 @@ class _DetailBody extends StatelessWidget {
   List<Widget> _shareSectionWidgets() {
     final share = detail.shareInfo;
     if (share == null) return const [];
-    return [
-      SizedBox(height: 20),
-      MatchDetailShareSection(share: share),
-    ];
+    return [SizedBox(height: 20), MatchDetailShareSection(share: share)];
   }
 
   void _onTournament(BuildContext context) {

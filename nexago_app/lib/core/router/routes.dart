@@ -12,6 +12,15 @@ abstract final class AppRoutes {
   static const String register = '/register';
   static const String forgotPassword = '/forgot-password';
 
+  /// Seleção de papel após login (multi-role).
+  static const String roleSelection = '/auth/role-selection';
+
+  /// Loading pós-login / cold start autenticado.
+  static const String authLoading = '/auth/loading';
+
+  /// Home do organizador de torneio (v1 — em breve).
+  static const String organizerHome = '/organizer';
+
   /// Reservas do atleta (`arenaBookings`).
   static const String myBookings = '/my-bookings';
 
@@ -196,6 +205,9 @@ abstract final class AppRouteNames {
   static const String login = 'login';
   static const String register = 'register';
   static const String forgotPassword = 'forgotPassword';
+  static const String roleSelection = 'roleSelection';
+  static const String authLoading = 'authLoading';
+  static const String organizerHome = 'organizerHome';
   static const String myBookings = 'myBookings';
   static const String athleteProfile = 'athleteProfile';
   static const String athleteProfileEdit = 'athleteProfileEdit';

@@ -2,16 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 
 /// App bar da aba Competir no shell do atleta.
-class CompeteHubShellAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const CompeteHubShellAppBar({
-    super.key,
-    this.trailingActions = const [],
-  });
+class CompeteHubShellAppBar extends StatelessWidget
+    implements PreferredSizeWidget {
+  const CompeteHubShellAppBar({super.key, this.trailingActions = const []});
 
   final List<Widget> trailingActions;
 

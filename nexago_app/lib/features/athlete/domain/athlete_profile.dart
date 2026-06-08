@@ -216,9 +216,7 @@ class AthleteProfile {
       level: level,
       city: _resolveCity(data),
       state: _resolveState(data),
-      phoneNumber: (data['phoneNumber'] as String?)?.trim().isNotEmpty == true
-          ? data['phoneNumber'] as String
-          : null,
+      phoneNumber: _resolvePhoneNumber(data),
       cpfCnpj: _digitsOnly(
         (data['cpfCnpj'] as String?) ?? (data['cpf'] as String?),
       ),
@@ -294,6 +292,16 @@ class AthleteProfile {
         city: city,
         state: state ?? '',
       );
+
+  static String? _resolvePhoneNumber(Map<String, dynamic> data) {
+    for (final key in ['phoneNumber', 'phone', 'whatsapp', 'celular', 'mobile']) {
+      final raw = data[key];
+      if (raw is! String) continue;
+      final trimmed = raw.trim();
+      if (trimmed.isNotEmpty) return trimmed;
+    }
+    return null;
+  }
 
   static String _resolveCity(Map<String, dynamic> data) {
     final cityField = (data['city'] as String?)?.trim() ?? '';
@@ -375,7 +383,7 @@ class AthleteProfile {
       if (nickname != null && nickname!.isNotEmpty) 'nickname': nickname,
       if (avatarUrl != null && avatarUrl!.isNotEmpty)
         'profilePhotoUrl': avatarUrl!.trim(),
-      'isProfileComplete': isProfileComplete,
+      if (isProfileComplete) 'isProfileComplete': true,
       'sportOnboarding': sportOnboarding,
       if (sport.trim().isNotEmpty) 'sport': sport.trim(),
       if (level.trim().isNotEmpty) 'level': level.trim(),

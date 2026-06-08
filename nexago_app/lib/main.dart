@@ -23,6 +23,8 @@ import 'core/theme/app_theme.dart';
 import 'core/theme/system_ui_overlay_style.dart';
 import 'core/theme/theme_mode_provider.dart';
 import 'core/theme/theme_preferences_repository.dart';
+import 'core/auth/role_preferences_repository.dart';
+import 'core/auth/active_role_providers.dart';
 import 'firebase_options.dart';
 import 'shared/constants/app_strings.dart';
 
@@ -40,11 +42,13 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   final themePrefs = await ThemePreferencesRepository.create();
+  final rolePrefs = await RolePreferencesRepository.create();
 
   runApp(
     ProviderScope(
       overrides: [
         themePreferencesRepositoryProvider.overrideWithValue(themePrefs),
+        rolePreferencesRepositoryProvider.overrideWithValue(rolePrefs),
       ],
       child: const NexagoApp(),
     ),

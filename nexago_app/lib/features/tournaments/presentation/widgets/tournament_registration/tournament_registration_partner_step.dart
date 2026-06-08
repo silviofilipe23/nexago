@@ -78,7 +78,8 @@ class _TournamentRegistrationPartnerStepState
           );
       if (mounted) {
         setState(() {
-          _recentPartners = list;
+          _recentPartners =
+              list.where((profile) => profile.uid != uid).toList();
           _loadingRecent = false;
         });
       }

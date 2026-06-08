@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../../../tournaments/presentation/widgets/compete_hub/compete_hub_shell_app_bar.dart';
@@ -67,9 +66,7 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
         SizedBox(width: 8),
       ],
-      bottom: searchOpen
-          ? null
-          : null,
+      bottom: searchOpen ? null : null,
     );
   }
 }

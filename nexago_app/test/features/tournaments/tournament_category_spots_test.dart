@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_category_spots.dart';

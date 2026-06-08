@@ -14,10 +14,7 @@ abstract final class AthleteSettingsTokens {
   static const double sectionGap = 24;
   static const double tileDividerIndent = 68;
 
-  static BoxDecoration cardDecoration(
-    BuildContext context, {
-    Color? color,
-  }) =>
+  static BoxDecoration cardDecoration(BuildContext context, {Color? color}) =>
       BoxDecoration(
         color: color ?? context.themeColors.surfaceRaised,
         borderRadius: BorderRadius.circular(cardRadius),
@@ -26,14 +23,11 @@ abstract final class AthleteSettingsTokens {
         ),
       );
 
-  static BoxDecoration dangerDecoration(BuildContext context) =>
-      BoxDecoration(
-        color: context.themeColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(cardRadius),
-        border: Border.all(
-          color: AppColors.live.withValues(alpha: 0.35),
-        ),
-      );
+  static BoxDecoration dangerDecoration(BuildContext context) => BoxDecoration(
+    color: context.themeColors.surfaceRaised,
+    borderRadius: BorderRadius.circular(cardRadius),
+    border: Border.all(color: AppColors.live.withValues(alpha: 0.35)),
+  );
 }
 
 class AthleteSettingsGroup extends StatelessWidget {
@@ -66,12 +60,10 @@ class AthleteSettingsGroup extends StatelessWidget {
         DecoratedBox(
           decoration: AthleteSettingsTokens.cardDecoration(context),
           child: ClipRRect(
-            borderRadius:
-                BorderRadius.circular(AthleteSettingsTokens.cardRadius),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: children,
+            borderRadius: BorderRadius.circular(
+              AthleteSettingsTokens.cardRadius,
             ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: children),
           ),
         ),
       ],
@@ -80,10 +72,7 @@ class AthleteSettingsGroup extends StatelessWidget {
 }
 
 class AthleteSettingsDangerGroup extends StatelessWidget {
-  const AthleteSettingsDangerGroup({
-    super.key,
-    required this.children,
-  });
+  const AthleteSettingsDangerGroup({super.key, required this.children});
 
   final List<Widget> children;
 
@@ -93,10 +82,7 @@ class AthleteSettingsDangerGroup extends StatelessWidget {
       decoration: AthleteSettingsTokens.dangerDecoration(context),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AthleteSettingsTokens.cardRadius),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: children,
-        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: children),
       ),
     );
   }
@@ -179,7 +165,9 @@ class AthleteSettingsTile extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   fontWeight: FontWeight.w800,
-                                  color: titleColor ?? context.themeColors.onSurface,
+                                  color:
+                                      titleColor ??
+                                      context.themeColors.onSurface,
                                 ),
                               ),
                             ),
@@ -201,15 +189,14 @@ class AthleteSettingsTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (trailing != null) ...[
-                    SizedBox(width: 8),
-                    trailing!,
-                  ],
+                  if (trailing != null) ...[SizedBox(width: 8), trailing!],
                   if (showChevron)
                     Icon(
                       Icons.chevron_right_rounded,
                       size: 22,
-                      color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.85),
+                      color: context.themeColors.onSurfaceMuted.withValues(
+                        alpha: 0.85,
+                      ),
                     ),
                 ],
               ),
@@ -265,11 +252,7 @@ class AthleteSettingsToggleTile extends StatelessWidget {
                   color: context.themeColors.surfaceSheet,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  Icons.face_rounded,
-                  color: AppColors.win,
-                  size: 22,
-                ),
+                child: Icon(Icons.face_rounded, color: AppColors.win, size: 22),
               ),
               SizedBox(width: 12),
               Expanded(
@@ -317,10 +300,7 @@ class AthleteSettingsToggleTile extends StatelessWidget {
 }
 
 class AthleteSettingsOrangeBadge extends StatelessWidget {
-  const AthleteSettingsOrangeBadge({
-    super.key,
-    required this.label,
-  });
+  const AthleteSettingsOrangeBadge({super.key, required this.label});
 
   final String label;
 
@@ -339,10 +319,7 @@ class AthleteSettingsOrangeBadge extends StatelessWidget {
 }
 
 class AthleteSettingsMutedTrailing extends StatelessWidget {
-  const AthleteSettingsMutedTrailing({
-    super.key,
-    required this.label,
-  });
+  const AthleteSettingsMutedTrailing({super.key, required this.label});
 
   final String label;
 
@@ -353,9 +330,9 @@ class AthleteSettingsMutedTrailing extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: context.themeColors.onSurfaceMuted,
-              fontWeight: FontWeight.w600,
-            ),
+          color: context.themeColors.onSurfaceMuted,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

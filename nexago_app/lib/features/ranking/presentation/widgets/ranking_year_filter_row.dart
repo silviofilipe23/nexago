@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 
@@ -73,7 +72,9 @@ class _YearChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? context.themeColors.onSurface : context.themeColors.surfaceCard,
+      color: selected
+          ? context.themeColors.onSurface
+          : context.themeColors.surfaceCard,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
         onTap: onTap,
@@ -93,7 +94,9 @@ class _YearChip extends StatelessWidget {
             style: AppTypography.mono(
               fontSize: 12,
               fontWeight: FontWeight.w700,
-              color: selected ? Colors.black : context.themeColors.onSurfaceMuted,
+              color: selected
+                  ? Colors.black
+                  : context.themeColors.onSurfaceMuted,
             ),
           ),
         ),

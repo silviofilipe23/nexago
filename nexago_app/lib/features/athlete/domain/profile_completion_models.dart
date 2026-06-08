@@ -108,15 +108,16 @@ class ProfileCompletionState {
 
   bool get allComplete => completedCount >= totalSteps;
 
-  bool get canUnlockTournaments => canAccessOfficialTournaments(
-        onboardingCompleted: profile.onboardingCompleted,
-        profileStepsComplete: allComplete,
-        isProfileComplete: profile.isProfileComplete,
-      );
+  bool get canUnlockTournaments => isTournamentProfileReady(profile);
 
   List<String> get pendingTournamentAccessLabels => steps
       .where((s) => !s.isDone)
       .map((s) => s.step.tournamentAccessLabel)
+      .toList();
+
+  List<String> get pendingStepTitles => steps
+      .where((s) => !s.isDone)
+      .map((s) => s.step.title)
       .toList();
 
   static ProfileCompletionState fromProfile(
@@ -144,7 +145,9 @@ class ProfileCompletionState {
         (profile.primarySportFirestoreId != null &&
                 profile.primarySportFirestoreId!.isNotEmpty) ||
             profile.levelsBySportFirestore.isNotEmpty ||
-            (profile.sport.trim().isNotEmpty && profile.level.trim().isNotEmpty),
+            profile.sports.isNotEmpty ||
+            (profile.sport.trim().isNotEmpty && profile.level.trim().isNotEmpty) ||
+            profile.sport.trim().isNotEmpty,
       ProfileCompletionStep.city => _isCityStepDone(profile),
       ProfileCompletionStep.whatsapp =>
         ProfileCompletionValidators.isValidWhatsApp(profile.phoneNumber),

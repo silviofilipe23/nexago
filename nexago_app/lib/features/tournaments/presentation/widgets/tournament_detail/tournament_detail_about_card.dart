@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
@@ -41,10 +40,7 @@ class TournamentDetailAboutCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: _DetailCell(
-                  label: 'ORGANIZADOR',
-                  value: organizerName,
-                ),
+                child: _DetailCell(label: 'ORGANIZADOR', value: organizerName),
               ),
               SizedBox(width: 16),
               Expanded(

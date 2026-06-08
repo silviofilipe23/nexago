@@ -12,7 +12,7 @@ AthleteProfile _profile({
   String city = 'Goiânia',
   String? state = 'GO',
   String sport = 'Vôlei de praia',
-  String level = 'Avançado',
+  String level = 'Pro',
   String? category = 'Cat A',
   String? primarySportId = 'VOLEI_PRAIA',
   bool lookingForPartner = false,
@@ -127,7 +127,7 @@ void main() {
     test('sorts by level segments', () {
       final entries = [
         _entry(profile: _profile(id: '1', level: 'Iniciante')),
-        _entry(profile: _profile(id: '2', level: 'Avançado')),
+        _entry(profile: _profile(id: '2', level: 'Pro')),
       ];
       final sorted = sortDiscoverEntries(
         entries: entries,

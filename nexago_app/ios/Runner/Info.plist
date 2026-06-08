@@ -92,6 +92,10 @@
 	<string>O NexaGO usa sua localização para sugerir arenas perto de você.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>O NexaGO usa sua localização para sugerir arenas próximas e melhorar recomendações esportivas conforme sua região.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

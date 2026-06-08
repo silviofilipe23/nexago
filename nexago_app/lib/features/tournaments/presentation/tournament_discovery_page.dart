@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/ui/app_snackbar.dart';
 import '../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
+import '../../athlete/domain/athlete_shell_providers.dart';
 import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import 'widgets/compete_hub/compete_hub_athletes_section.dart';
-import 'widgets/compete_hub/compete_hub_play_match_banner.dart';
 import 'widgets/compete_hub/compete_hub_ranking_section.dart';
 import 'widgets/compete_hub/compete_hub_teams_section.dart';
 import 'widgets/compete_hub/compete_hub_tournaments_section.dart';
@@ -24,6 +23,10 @@ class TournamentDiscoveryPage extends ConsumerWidget {
     return ColoredBox(
       color: theme.colorScheme.surfaceContainerLowest,
       child: ListView(
+        controller:
+            ref.watch(athleteShellScrollRegistryProvider).controllerFor(
+                  athleteShellCompeteTabIndex,
+                ),
         padding: const EdgeInsets.fromLTRB(
           ArenaDashboardTokens.horizontalPadding,
           12,
@@ -35,6 +38,7 @@ class TournamentDiscoveryPage extends ConsumerWidget {
             TournamentAccessBanner(
               onboardingCompleted: access.onboardingCompleted,
               blockMessage: access.blockMessage,
+              missingStepTitles: access.missingStepTitles,
             ),
           const PendingTournamentInviterInvitesSection(),
           // const SizedBox(height: 16),

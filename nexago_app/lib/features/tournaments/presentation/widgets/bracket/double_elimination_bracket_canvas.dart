@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/double_elimination_bracket_layout.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
@@ -25,9 +24,7 @@ class DoubleEliminationBracketCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nodeByMatchId = {
-      for (final node in layout.nodes) node.matchId: node,
-    };
+    final nodeByMatchId = {for (final node in layout.nodes) node.matchId: node};
 
     return SizedBox.expand(
       child: InteractiveViewer(

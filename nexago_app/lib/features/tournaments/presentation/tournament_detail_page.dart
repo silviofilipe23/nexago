@@ -26,6 +26,14 @@ import 'widgets/tournament_detail/tournament_detail_overview_tab.dart';
 import 'widgets/tournament_detail/tournament_detail_prizes_tab.dart';
 import 'widgets/tournament_detail/tournament_detail_tab_bar.dart';
 
+void _handleTournamentDetailBack(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+    return;
+  }
+  context.go(AppRoutes.tournamentDiscoveryList);
+}
+
 class TournamentDetailPage extends ConsumerWidget {
   const TournamentDetailPage({super.key, required this.tournamentId});
 
@@ -44,13 +52,13 @@ class TournamentDetailPage extends ConsumerWidget {
         ),
         error: (e, _) => _ErrorBody(
           message: 'Não foi possível carregar o torneio.\n$e',
-          onBack: () => context.pop(),
+          onBack: () => _handleTournamentDetailBack(context),
         ),
         data: (tournament) {
           if (tournament == null) {
             return _ErrorBody(
               message: 'Torneio não encontrado.',
-              onBack: () => context.pop(),
+              onBack: () => _handleTournamentDetailBack(context),
             );
           }
 
@@ -109,7 +117,7 @@ class TournamentDetailPage extends ConsumerWidget {
     BuildContext context,
     TournamentAccessState access,
   ) {
-    final message = access.blockMessage;
+    final message = access.snackbarMessage;
     if (message != null) {
       showAppSnackBar(context, message, isError: true);
     }
@@ -228,7 +236,7 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
                       Icons.arrow_back_rounded,
                       color: context.themeColors.onSurface,
                     ),
-                    onPressed: () => context.pop(),
+                    onPressed: () => _handleTournamentDetailBack(context),
                   ),
                   actions: [
                     IconButton(

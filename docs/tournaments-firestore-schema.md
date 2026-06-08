@@ -68,7 +68,7 @@ Callables: `sendTournamentPartnerInvite`, `acceptTournamentPartnerInvite`, `canc
 
 Fluxo: enviar convite → parceiro aceita (cria `teams` + `inscriptions`) → cada atleta paga `share` → webhook soma `paidAmount` até `isPaid`.
 
-**Perfil obrigatório:** inscrição, convite (`sendTournamentPartnerInvite` / `acceptTournamentPartnerInvite`) e PIX (`createTournamentRegistrationPixPayment`) exigem onboarding concluído e os 5 passos de “Completar perfil” (foto, esporte/nível, cidade+UF, WhatsApp, objetivos), validados no app (`tournamentAccessStateProvider`) e no backend (`athlete-tournament-access.ts`).
+**Perfil obrigatório:** inscrição, convite (`sendTournamentPartnerInvite` / `acceptTournamentPartnerInvite`) e PIX (`createTournamentRegistrationPixPayment`) exigem **cadastro inicial concluído**, **WhatsApp válido** e **cidade** em `users/{uid}` (ou `isProfileComplete: true`). Os 5 passos de “Completar perfil” (foto, esporte/nível, objetivos etc.) continuam valendo para gamificação/XP, mas não bloqueiam torneios. Validação no app (`tournamentAccessStateProvider`) e no backend (`athlete-tournament-access.ts`).
 
 ## Equipe (`artifacts/.../teams`)
 

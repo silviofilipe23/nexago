@@ -1,77 +1,27 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../../../arenas/domain/my_booking_item.dart';
-import '../../domain/athlete_profile.dart';
+import '../../../ranking/domain/ranking_display_helpers.dart';
 import '../../domain/achievements/achievement_catalog.dart';
 import '../../domain/achievements/achievement_status.dart';
+import '../../domain/athlete_profile.dart';
+import '../../domain/athlete_profile_stats_logic.dart';
+import '../../domain/athlete_profile_stats_providers.dart';
 import '../../domain/gamification_models.dart';
 import '../../domain/profile_completion_models.dart';
 import 'athlete_profile_avatar.dart';
 import 'athlete_profile_ranking_section.dart';
+import 'athlete_profile_skeleton.dart';
 import 'match_history/athlete_profile_history_section.dart';
 
-/// Dados mockados até integração com backend (parceiros, ranking, etc.).
-abstract final class AthleteProfileMock {
-  static const locationFallback = 'Aparecida de Goiânia · GO';
-  static const profileCompletionPercent = 40;
-  static const profileStepsDone = 3;
-  static const profileStepsTotal = 5;
-  static const profileXpBonus = 150;
-  static const wins = 5;
-  static const ranking = 412;
-  static const xpCurrent = 340;
-  static const xpGoal = 1000;
-  static const displayLevel = 2;
-
-  static const playsWith = <_PlayPartner>[
-    _PlayPartner(
-      initials: 'EN',
-      name: 'Enzo R.',
-      games: '4 JOGOS',
-      color: Color(0xFF2BD17E),
-    ),
-    _PlayPartner(
-      initials: 'BR',
-      name: 'Bruno V.',
-      games: '2 JOGOS',
-      color: Color(0xFF7C6CFF),
-    ),
-    _PlayPartner(
-      initials: 'CA',
-      name: 'Camila S.',
-      games: '1 JOGO',
-      color: Color(0xFFFF6B9D),
-    ),
-  ];
-
-  static const achievements = <_AchievementItem>[
-    _AchievementItem(
-      title: 'Primeiro jogo',
-      icon: Icons.sync_rounded,
-      unlocked: true,
-    ),
-    _AchievementItem(
-      title: 'Bem-vindo',
-      icon: Icons.star_rounded,
-      unlocked: true,
-    ),
-    _AchievementItem(
-      title: 'Estreante',
-      icon: Icons.emoji_events_outlined,
-      unlocked: false,
-    ),
-    _AchievementItem(
-      title: 'Conector',
-      icon: Icons.groups_outlined,
-      unlocked: false,
-    ),
-  ];
-}
+const _locationFallback = 'Aparecida de Goiânia · GO';
 
 class _PlayPartner {
   const _PlayPartner({
@@ -152,7 +102,7 @@ class AthleteProfileMainView extends StatelessWidget {
     final initials = _initials(name);
     final location = profile.locationLabel.trim().isNotEmpty
         ? profile.locationLabel.trim()
-        : AthleteProfileMock.locationFallback;
+        : _locationFallback;
     final sport = profile.sport.trim().isNotEmpty
         ? profile.sport.trim()
         : 'Vôlei de praia';
@@ -160,10 +110,6 @@ class AthleteProfileMainView extends StatelessWidget {
         ? profile.level.trim().toUpperCase()
         : 'INICIANTE';
 
-    final games = totalBookings > 0 ? totalBookings : 7;
-    final streak = gamificationSummary.streak > 0
-        ? gamificationSummary.streak
-        : 3;
     final displayLevel = (gamificationSummary.level + 1).clamp(1, 999);
     final xpInLevel = gamificationSummary.xpInCurrentLevel;
     const xpPerLevel = 100;
@@ -233,12 +179,7 @@ class AthleteProfileMainView extends StatelessWidget {
                         const AthleteProfileRankingSection(),
                       ],
                       SizedBox(height: 14),
-                      _StatsGrid(
-                        games: games,
-                        wins: AthleteProfileMock.wins,
-                        streak: streak,
-                        ranking: AthleteProfileMock.ranking,
-                      ),
+                      const _AthleteProfileStatsSection(),
                       SizedBox(height: 14),
                       if (nextBooking != null)
                         _NextBookingCard(
@@ -278,8 +219,7 @@ class AthleteProfileMainView extends StatelessWidget {
                         onTrailingTap: onOpenPlaysWith,
                       ),
                       SizedBox(height: 10),
-                      _PlaysWithStrip(
-                        partners: AthleteProfileMock.playsWith,
+                      _AthleteProfilePlaysWithSection(
                         onInvite: onOpenPlaysWith,
                       ),
                       SizedBox(height: 8),
@@ -317,7 +257,7 @@ class AthleteProfileMainView extends StatelessWidget {
         );
       }).toList();
     }
-    if (badges.isEmpty) return AthleteProfileMock.achievements;
+    if (badges.isEmpty) return const [];
     return badges.take(4).map((b) {
       return _AchievementItem(
         title: b.title,
@@ -421,10 +361,10 @@ class _ProfileHeaderSection extends StatelessWidget {
                     else
                       SizedBox(width: 40),
                     Spacer(),
-                    _HeaderActionButton(
-                      icon: Icons.share_outlined,
-                      onPressed: onShare,
-                    ),
+                    // _HeaderActionButton(
+                    //   icon: Icons.share_outlined,
+                    //   onPressed: onShare,
+                    // ),
                     if (!readOnly && onOpenSettings != null) ...[
                       SizedBox(width: 8),
                       _HeaderActionButton(
@@ -433,13 +373,13 @@ class _ProfileHeaderSection extends StatelessWidget {
                         showBadge: showSettingsBadge,
                       ),
                     ],
-                    if (!readOnly) ...[
-                      SizedBox(width: 8),
-                      _HeaderActionButton(
-                        icon: Icons.edit_outlined,
-                        onPressed: onEdit,
-                      ),
-                    ],
+                    // if (!readOnly) ...[
+                    //   SizedBox(width: 8),
+                    //   _HeaderActionButton(
+                    //     icon: Icons.edit_outlined,
+                    //     onPressed: onEdit,
+                    //   ),
+                    // ],
                   ],
                 ),
               ),
@@ -652,7 +592,9 @@ class _ProfileIdentityRow extends StatelessWidget {
                       Icon(
                         Icons.location_on_outlined,
                         size: 14,
-                        color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.9),
+                        color: context.themeColors.onSurfaceMuted.withValues(
+                          alpha: 0.9,
+                        ),
                       ),
                       SizedBox(width: 4),
                       Expanded(
@@ -838,9 +780,8 @@ class _CompleteProfileCard extends StatelessWidget {
                       CircularProgressIndicator(
                         value: percent / 100,
                         strokeWidth: 4,
-                        backgroundColor: context.themeColors.onSurfaceMuted.withValues(
-                          alpha: 0.15,
-                        ),
+                        backgroundColor: context.themeColors.onSurfaceMuted
+                            .withValues(alpha: 0.15),
                         color: AppColors.brand,
                       ),
                       Text(
@@ -922,7 +863,9 @@ class _RoundedXpProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(height / 2);
-    final trackColor = context.themeColors.onSurfaceMuted.withValues(alpha: 0.15);
+    final trackColor = context.themeColors.onSurfaceMuted.withValues(
+      alpha: 0.15,
+    );
     final clamped = progress.clamp(0.0, 1.0);
 
     return SizedBox(
@@ -1010,18 +953,67 @@ class _XpLevelSection extends StatelessWidget {
   }
 }
 
-class _StatsGrid extends StatelessWidget {
-  const _StatsGrid({
-    required this.games,
-    required this.wins,
-    required this.streak,
-    required this.ranking,
-  });
+class _AthleteProfileStatsSection extends ConsumerWidget {
+  const _AthleteProfileStatsSection();
 
-  final int games;
-  final int wins;
-  final int streak;
-  final int ranking;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsync = ref.watch(athleteProfileStatsProvider);
+
+    return statsAsync.when(
+      loading: () => const AthleteProfileStatsGridSkeleton(),
+      error: (_, __) => const _StatsGrid(stats: AthleteProfileStats.empty),
+      data: (stats) => _StatsGrid(stats: stats),
+    );
+  }
+}
+
+class _AthleteProfilePlaysWithSection extends ConsumerWidget {
+  const _AthleteProfilePlaysWithSection({required this.onInvite});
+
+  final VoidCallback onInvite;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final partnersAsync = ref.watch(currentAthletePlayPartnersProvider);
+    final matchCounts = ref.watch(athleteProfilePartnerMatchCountsProvider)
+            .valueOrNull ??
+        const <String, int>{};
+
+    return partnersAsync.when(
+      loading: () => const AthleteProfilePlaysWithSkeleton(),
+      error: (_, __) => _PlaysWithStrip(partners: const [], onInvite: onInvite),
+      data: (partners) {
+        final tiles = partners
+            .map(
+              (partner) => _PlayPartner(
+                initials: partner.initials,
+                name: _shortPartnerName(partner.name),
+                games: formatPartnerGamesLabel(
+                  matchCounts[partner.userId] ?? 0,
+                ),
+                color: rankingAvatarColor(partner.userId),
+              ),
+            )
+            .toList(growable: false);
+        return _PlaysWithStrip(partners: tiles, onInvite: onInvite);
+      },
+    );
+  }
+}
+
+String _shortPartnerName(String fullName) {
+  final parts = fullName.trim().split(RegExp(r'\s+'));
+  if (parts.isEmpty || parts.first.isEmpty) return 'Atleta';
+  if (parts.length == 1) return parts.first;
+  final lastInitial = parts.last[0].toUpperCase();
+  return '${parts.first} $lastInitial.';
+}
+
+class _StatsGrid extends StatelessWidget {
+  const _StatsGrid({required this.stats});
+
+  final AthleteProfileStats stats;
 
   @override
   Widget build(BuildContext context) {
@@ -1029,7 +1021,7 @@ class _StatsGrid extends StatelessWidget {
       children: [
         Expanded(
           child: _StatCard(
-            value: '$games',
+            value: '${stats.games}',
             label: 'JOGOS',
             icon: Icons.sports_volleyball_outlined,
             iconColor: context.themeColors.onSurfaceMuted,
@@ -1038,7 +1030,7 @@ class _StatsGrid extends StatelessWidget {
         SizedBox(width: 8),
         Expanded(
           child: _StatCard(
-            value: '$wins',
+            value: '${stats.wins}',
             label: 'VITÓRIAS',
             icon: Icons.emoji_events_outlined,
             iconColor: context.themeColors.onSurfaceMuted,
@@ -1047,7 +1039,7 @@ class _StatsGrid extends StatelessWidget {
         SizedBox(width: 8),
         Expanded(
           child: _StatCard(
-            value: '$streak',
+            value: '${stats.streak}',
             label: 'SEQUÊNCIA',
             icon: Icons.local_fire_department_rounded,
             iconColor: AppColors.brand,
@@ -1056,7 +1048,7 @@ class _StatsGrid extends StatelessWidget {
         SizedBox(width: 8),
         Expanded(
           child: _StatCard(
-            value: '#$ranking',
+            value: stats.rankingLabel,
             label: 'RANKING',
             icon: Icons.star_outline_rounded,
             iconColor: context.themeColors.onSurfaceMuted,
@@ -1085,7 +1077,8 @@ class _StatCard extends StatelessWidget {
     final theme = Theme.of(context);
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(context,
+      decoration: ArenaDashboardTokens.cardDecoration(
+        context,
         color: context.themeColors.surfaceRaised.withValues(alpha: 0.75),
       ),
       child: Padding(
@@ -1243,7 +1236,8 @@ class _NextBookingCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Ink(
-          decoration: ArenaDashboardTokens.cardDecoration(context,
+          decoration: ArenaDashboardTokens.cardDecoration(
+            context,
             color: context.themeColors.surfaceRaised.withValues(alpha: 0.75),
           ),
           child: Padding(
@@ -1554,13 +1548,17 @@ class _AchievementTile extends StatelessWidget {
                       size: 28,
                       color: unlocked
                           ? AppColors.brand
-                          : context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
+                          : context.themeColors.onSurfaceMuted.withValues(
+                              alpha: 0.35,
+                            ),
                     ),
                     if (!unlocked)
                       Icon(
                         Icons.lock_outline_rounded,
                         size: 14,
-                        color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.5),
+                        color: context.themeColors.onSurfaceMuted.withValues(
+                          alpha: 0.5,
+                        ),
                       ),
                   ],
                 ),
@@ -1686,7 +1684,9 @@ class _InvitePartnerTile extends StatelessWidget {
                   shape: BoxShape.circle,
                   color: context.themeColors.surfaceRaised,
                   border: Border.all(
-                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.25),
+                    color: context.themeColors.onSurfaceMuted.withValues(
+                      alpha: 0.25,
+                    ),
                   ),
                 ),
                 child: Icon(

@@ -5,7 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/router/routes.dart';
-import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../../core/ui/app_status_views.dart';
@@ -107,8 +106,7 @@ class _EmptyBookingsBody extends ConsumerWidget {
     final nearbyAsync = ref.watch(myBookingsNearbyTodayProvider);
     final snapshot = nearbyAsync.valueOrNull;
     final nearbyCount = snapshot?.totalAvailableToday ?? 0;
-    final proximityPhrase =
-        snapshot?.proximityPhrase ?? 'perto de você';
+    final proximityPhrase = snapshot?.proximityPhrase ?? 'perto de você';
 
     return ListView(
       physics: const BouncingScrollPhysics(),
@@ -151,7 +149,7 @@ class _BookingsListBody extends ConsumerWidget {
     final streakWeeks = consecutiveBookingWeeks(items);
     final showStreak =
         tab == MyBookingsTab.upcoming &&
-            streakWeeks >= myBookingsStreakWeeksThreshold;
+        streakWeeks >= myBookingsStreakWeeksThreshold;
 
     final listItems = tab == MyBookingsTab.upcoming
         ? split.upcoming
@@ -260,7 +258,8 @@ class _BookingsListBody extends ConsumerWidget {
     final arena = arenaAsync?.valueOrNull;
     final locationQuery = arena?.locationLabel ?? item.arenaName;
     final startAt = _bookingStartDateTime(item);
-    final canCancelByTime = startAt != null &&
+    final canCancelByTime =
+        startAt != null &&
         ArenaBookingCancellationPolicy.canCancelBookingForFree(
           startAt,
           DateTime.now(),
@@ -277,15 +276,13 @@ class _BookingsListBody extends ConsumerWidget {
           dateLabel: formatBookingDateHeader(item.dateRaw),
           onOpenMaps: () async {
             final q = Uri.encodeComponent(locationQuery);
-            final uri =
-                Uri.parse('https://www.google.com/maps/search/?api=1&query=$q');
+            final uri = Uri.parse(
+              'https://www.google.com/maps/search/?api=1&query=$q',
+            );
             if (await canLaunchUrl(uri)) {
               await launchUrl(uri, mode: LaunchMode.externalApplication);
             } else if (context.mounted) {
-              showAppSnackBar(
-                context,
-                'Não foi possível abrir o Google Maps.',
-              );
+              showAppSnackBar(context, 'Não foi possível abrir o Google Maps.');
             }
           },
           onPayNow: () {

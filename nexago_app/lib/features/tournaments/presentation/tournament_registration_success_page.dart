@@ -301,16 +301,7 @@ class _TournamentRegistrationSuccessViewState
   }
 
   void _onClose(BuildContext context) {
-    if (context.canPop()) {
-      context.pop();
-      return;
-    }
-    context.go(
-      AppRoutes.tournamentDetail.replaceAll(
-        ':tournamentId',
-        widget.args.tournamentId,
-      ),
-    );
+    context.go(AppRoutes.discover);
   }
 
   Future<void> _shareToStory(BuildContext context) async {

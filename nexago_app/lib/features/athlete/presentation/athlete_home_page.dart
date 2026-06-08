@@ -54,6 +54,9 @@ class AthleteHomePage extends ConsumerWidget {
             );
 
             return ListView(
+              controller: ref
+                  .watch(athleteShellScrollRegistryProvider)
+                  .controllerFor(0),
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
               children: [
                 AthleteHomeHeader(

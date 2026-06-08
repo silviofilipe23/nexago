@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
-import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../data/tournament_inscriptions_repository.dart';
 import '../../domain/tournament_category_spots.dart';
@@ -26,10 +25,9 @@ class TournamentCategorySpotsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final enrollment = ref
-            .watch(
-              tournamentCategoryEnrollmentCountsProvider(tournamentId),
-            )
+    final enrollment =
+        ref
+            .watch(tournamentCategoryEnrollmentCountsProvider(tournamentId))
             .valueOrNull ??
         const <String, int>{};
     if (offers.isEmpty) return const SizedBox.shrink();
@@ -143,8 +141,8 @@ class _CategorySpotsRow extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: fill,
                   minHeight: 5,
-                  backgroundColor:
-                      context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
+                  backgroundColor: context.themeColors.onSurfaceMuted
+                      .withValues(alpha: 0.2),
                   color: color,
                 ),
               ),

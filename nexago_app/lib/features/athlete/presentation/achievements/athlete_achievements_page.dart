@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/auth_providers.dart';
-import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/achievements/achievement_category.dart';
 import '../../domain/achievements/achievement_providers.dart';
@@ -20,7 +19,8 @@ class AthleteAchievementsPage extends ConsumerStatefulWidget {
       _AthleteAchievementsPageState();
 }
 
-class _AthleteAchievementsPageState extends ConsumerState<AthleteAchievementsPage> {
+class _AthleteAchievementsPageState
+    extends ConsumerState<AthleteAchievementsPage> {
   @override
   void initState() {
     super.initState();
@@ -57,7 +57,9 @@ class _AthleteAchievementsPageState extends ConsumerState<AthleteAchievementsPag
               color: context.themeColors.surfaceRaised.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.15,
+                ),
               ),
             ),
             child: Icon(

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/match_history/athlete_match_history_models.dart';
 
@@ -67,8 +66,9 @@ class MatchHistoryTournamentCard extends StatelessWidget {
                             Icon(
                               Icons.location_on_outlined,
                               size: 14,
-                              color: AppColors.onSurfaceMuted
-                                  .withValues(alpha: 0.85),
+                              color: AppColors.onSurfaceMuted.withValues(
+                                alpha: 0.85,
+                              ),
                             ),
                             SizedBox(width: 4),
                             Expanded(
@@ -105,8 +105,7 @@ class MatchHistoryTournamentCard extends StatelessWidget {
                             label: record,
                             background: AppColors.win.withValues(alpha: 0.12),
                             foreground: AppColors.win,
-                            borderColor:
-                                AppColors.win.withValues(alpha: 0.22),
+                            borderColor: AppColors.win.withValues(alpha: 0.22),
                             mono: true,
                           ),
                         ],
@@ -232,24 +231,24 @@ _RankStyle _rankStyle(TournamentPlacement medal, int placement) {
 
   return switch (medal) {
     TournamentPlacement.gold => _RankStyle(
-        label: label,
-        background: const Color(0xFFE5B82E),
-        foreground: Colors.black,
-      ),
+      label: label,
+      background: const Color(0xFFE5B82E),
+      foreground: Colors.black,
+    ),
     TournamentPlacement.silver => _RankStyle(
-        label: label,
-        background: const Color(0xFFB8BEC8),
-        foreground: Colors.black,
-      ),
+      label: label,
+      background: const Color(0xFFB8BEC8),
+      foreground: Colors.black,
+    ),
     TournamentPlacement.bronze => _RankStyle(
-        label: label,
-        background: const Color(0xFFCD7F32),
-        foreground: Colors.black,
-      ),
+      label: label,
+      background: const Color(0xFFCD7F32),
+      foreground: Colors.black,
+    ),
     TournamentPlacement.other => _RankStyle(
-        label: label,
-        background: AppColors.surfaceRaised,
-        foreground: AppColors.onSurfaceMuted,
-      ),
+      label: label,
+      background: AppColors.surfaceRaised,
+      foreground: AppColors.onSurfaceMuted,
+    ),
   };
 }

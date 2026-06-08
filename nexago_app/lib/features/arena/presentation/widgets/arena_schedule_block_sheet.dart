@@ -32,10 +32,8 @@ class ArenaScheduleBlockSheet extends ConsumerStatefulWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => ArenaScheduleBlockSheet(
-        slot: slot,
-        courtName: courtName,
-      ),
+      builder: (ctx) =>
+          ArenaScheduleBlockSheet(slot: slot, courtName: courtName),
     );
     return result == true;
   }
@@ -45,7 +43,8 @@ class ArenaScheduleBlockSheet extends ConsumerStatefulWidget {
       _ArenaScheduleBlockSheetState();
 }
 
-class _ArenaScheduleBlockSheetState extends ConsumerState<ArenaScheduleBlockSheet> {
+class _ArenaScheduleBlockSheetState
+    extends ConsumerState<ArenaScheduleBlockSheet> {
   ArenaSlotBlockReason _reason = ArenaSlotBlockReason.manutencao;
   final _noteController = TextEditingController();
   bool _busy = false;
@@ -59,10 +58,10 @@ class _ArenaScheduleBlockSheetState extends ConsumerState<ArenaScheduleBlockShee
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dateLabel = DateFormat('EEE, d \'de\' MMMM', 'pt_BR')
-        .format(widget.slot.date)
-        .toUpperCase()
-        .replaceAll('.', '');
+    final dateLabel = DateFormat(
+      'EEE, d \'de\' MMMM',
+      'pt_BR',
+    ).format(widget.slot.date).toUpperCase().replaceAll('.', '');
     final timeRange = '${widget.slot.startTime} — ${widget.slot.endTime}';
 
     return Padding(
@@ -82,7 +81,9 @@ class _ArenaScheduleBlockSheetState extends ConsumerState<ArenaScheduleBlockShee
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.35,
+                  ),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -180,7 +181,9 @@ class _ArenaScheduleBlockSheetState extends ConsumerState<ArenaScheduleBlockShee
               decoration: InputDecoration(
                 hintText: 'Ex: troca da rede + limpeza geral',
                 hintStyle: TextStyle(
-                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.7),
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.7,
+                  ),
                 ),
                 filled: true,
                 fillColor: context.themeColors.surfaceRaised,

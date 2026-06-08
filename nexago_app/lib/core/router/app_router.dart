@@ -16,6 +16,9 @@ import '../../features/arenas/domain/arena_list_item.dart';
 import '../../features/auth/login_page.dart';
 import '../../features/auth/forgot_password_page.dart';
 import '../../features/auth/register_page.dart';
+import '../../features/auth/presentation/role_selection_page.dart';
+import '../../features/auth/presentation/auth_loading_page.dart';
+import '../../features/organizer/presentation/organizer_home_page.dart';
 import '../../features/arena/domain/arena_manager_booking.dart';
 import '../../features/arena/domain/arena_booking_canceled_args.dart';
 import '../../features/arena/presentation/arena_booking_canceled_page.dart';
@@ -37,9 +40,6 @@ import '../../features/arena/presentation/arena_slot_detail_page.dart';
 import '../../features/arena/presentation/arena_shell_page.dart';
 import '../../features/arena/domain/arena_slot_detail_args.dart';
 import '../../features/arenas/presentation/my_bookings_page.dart';
-import '../../features/arena/domain/arena_route_guard.dart';
-import '../../features/athlete/domain/athlete_profile_providers.dart';
-import '../../features/athlete/domain/booking_invite_providers.dart';
 import '../../features/athlete/onboarding/presentation/athlete_onboarding_welcome_page.dart';
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_goals_step.dart';
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_level_step.dart';
@@ -81,52 +81,30 @@ import '../../features/tournaments/domain/tournament_registration_success_args.d
 import '../../features/tournaments/presentation/tournament_registration_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_pix_page.dart';
 import '../../features/tournaments/presentation/tournament_registration_success_page.dart';
+import '../auth/post_login_destination.dart';
 import '../auth/auth_providers.dart';
-import '../auth/user_roles.dart';
 import 'go_router_refresh.dart';
 import 'routes.dart';
 
 bool _routeIsRegister(GoRouterState state) {
-  final path = state.uri.path;
-  final matched = state.matchedLocation;
-  return path == AppRoutes.register ||
-      matched == AppRoutes.register ||
-      path.startsWith('${AppRoutes.register}/') ||
-      matched.startsWith('${AppRoutes.register}/');
+  return routeIsRegisterPath(state.uri.path, state.matchedLocation);
 }
 
-bool _routeIsAthleteOnboarding(GoRouterState state) {
-  final path = state.uri.path;
-  final matched = state.matchedLocation;
-  return path == AppRoutes.athleteOnboarding ||
-      matched == AppRoutes.athleteOnboarding ||
-      path.startsWith('${AppRoutes.athleteOnboarding}/') ||
-      matched.startsWith('${AppRoutes.athleteOnboarding}/');
-}
-
-bool _needsAthleteOnboarding(AsyncValue profileAsync) {
-  return profileAsync.when(
-    data: (profile) =>
-        profile == null || !profile.onboardingCompleted,
-    loading: () => false,
-    error: (_, __) => false,
+Future<String?> _resolveAuthenticatedRedirect({
+  required Ref ref,
+  required User user,
+  required IdTokenResult token,
+  required GoRouterState state,
+  required bool leavingAuthRoute,
+}) {
+  return resolveAuthenticatedRedirect(
+    ref: ref,
+    user: user,
+    token: token,
+    path: state.uri.path,
+    matchedLocation: state.matchedLocation,
+    leavingAuthRoute: leavingAuthRoute,
   );
-}
-
-/// Mantém o bypass até o stream refletir [AthleteProfile.onboardingCompleted].
-bool _shouldBypassAthleteOnboardingRedirect(Ref ref) {
-  if (!ref.read(athleteOnboardingJustCompletedProvider)) {
-    return false;
-  }
-  final profileAsync = ref.read(athleteProfileProvider);
-  final isComplete = profileAsync.whenOrNull(
-    data: (profile) => profile?.onboardingCompleted == true,
-  );
-  if (isComplete == true) {
-    ref.read(athleteOnboardingJustCompletedProvider.notifier).state = false;
-    return false;
-  }
-  return true;
 }
 
 /// Router centralizado com guard baseado em [authProvider].
@@ -153,12 +131,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       }
 
       final user = authAsync.valueOrNull;
+      if (user == null && path == AppRoutes.authLoading) {
+        return AppRoutes.login;
+      }
+
       if (user == null && !isAuthRoute && !isPublicRoute) {
         return AppRoutes.login;
       }
 
       if (user != null && isAuthRoute) {
-        // Cadastro controla a navegação (tela de sucesso → completar perfil).
         if (_routeIsRegister(state)) {
           return null;
         }
@@ -166,73 +147,27 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         if (token == null) {
           return AppRoutes.login;
         }
-        if (!userIsArenaOnlyManager(token)) {
-          final profileAsync = ref.read(athleteProfileProvider);
-          if (profileAsync.isLoading) {
-            return null;
-          }
-          if (_shouldBypassAthleteOnboardingRedirect(ref)) {
-            return null;
-          }
-          if (_needsAthleteOnboarding(profileAsync)) {
-            return AppRoutes.athleteOnboardingWelcome;
-          }
-        }
-        // Redireciona para o convite pendente recebido via deep link
-        final pendingInvite = ref.read(pendingInviteIdProvider);
-        if (pendingInvite != null && pendingInvite.isNotEmpty) {
-          ref.read(pendingInviteIdProvider.notifier).state = null;
-          return '/convite/$pendingInvite';
-        }
-        if (userIsArenaOnlyManager(token)) {
-          return AppRoutes.arenaDashboard;
-        }
-        return AppRoutes.discover;
+        return _resolveAuthenticatedRedirect(
+          ref: ref,
+          user: user,
+          token: token,
+          state: state,
+          leavingAuthRoute: true,
+        );
       }
 
       if (user != null) {
-        if (_routeIsRegister(state) || _routeIsAthleteOnboarding(state)) {
-          return null;
-        }
-
         final token = await _safeGetIdTokenResult(user);
         if (token == null) {
           return isAuthRoute ? null : AppRoutes.login;
         }
-
-        if (!userIsArenaOnlyManager(token)) {
-          final profileAsync = ref.read(athleteProfileProvider);
-          if (profileAsync.isLoading) {
-            return null;
-          }
-          if (_shouldBypassAthleteOnboardingRedirect(ref)) {
-            return null;
-          }
-          if (_needsAthleteOnboarding(profileAsync) &&
-              !isAuthRoute &&
-              !isPublicRoute) {
-            return AppRoutes.athleteOnboardingWelcome;
-          }
-        }
-
-        if (isArenaManagerPanelPath(path)) {
-          if (!userHasArenaRole(token)) {
-            return AppRoutes.discover;
-          }
-        }
-
-        if (path == AppRoutes.discover && userIsArenaOnlyManager(token)) {
-          return AppRoutes.arenaDashboard;
-        }
-
-        if ((path == AppRoutes.home || path == '/') &&
-            userIsArenaOnlyManager(token)) {
-          return AppRoutes.arenaDashboard;
-        }
-
-        if (path == AppRoutes.home || path == '/') {
-          return AppRoutes.discover;
-        }
+        return _resolveAuthenticatedRedirect(
+          ref: ref,
+          user: user,
+          token: token,
+          state: state,
+          leavingAuthRoute: false,
+        );
       }
 
       return null;
@@ -254,19 +189,41 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ForgotPasswordPage(),
       ),
       GoRoute(
+        path: AppRoutes.authLoading,
+        name: AppRouteNames.authLoading,
+        builder: (context, state) => const AuthLoadingPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.roleSelection,
+        name: AppRouteNames.roleSelection,
+        builder: (context, state) => const RoleSelectionPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.organizerHome,
+        name: AppRouteNames.organizerHome,
+        builder: (context, state) => const OrganizerHomePage(),
+      ),
+      GoRoute(
         path: AppRoutes.home,
         redirect: (context, state) => AppRoutes.discover,
       ),
       GoRoute(
         path: AppRoutes.discover,
         name: AppRouteNames.discover,
+        redirect: (context, state) {
+          final tab = state.uri.queryParameters['tab']?.trim().toLowerCase();
+          if (tab == 'profile' || tab == 'perfil') {
+            return AppRoutes.athleteProfile;
+          }
+          return null;
+        },
         builder: (context, state) {
           final tab = state.uri.queryParameters['tab']?.trim().toLowerCase();
           final initialIndex = switch (tab) {
             'agenda' => 1,
             'reservar' => 2,
             'torneios' || 'competir' || 'feed' => 3,
-            'perfil' || 'profile' => 4,
+            'comunidade' || 'community' => 4,
             _ => 0,
           };
           return AthleteShellPage(initialIndex: initialIndex);

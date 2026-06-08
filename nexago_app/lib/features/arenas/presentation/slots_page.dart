@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 
 import '../../../core/layout/app_scaffold.dart';
 import '../../../core/router/routes.dart';
-import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
@@ -37,7 +36,6 @@ import 'widgets/slots/slots_duration_picker.dart';
 import 'widgets/slots/slots_list_section.dart';
 import 'widgets/slots/slots_page_header.dart';
 import 'widgets/slots/slots_period_chips.dart';
-import 'widgets/slots/slots_search_sheet.dart';
 
 /// Seleção de horários: quadras (`arenas/.../courts`) + `arenaSlots` por dia (YYYY-MM-DD).
 class SlotsPage extends ConsumerWidget {
@@ -150,6 +148,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
   static const _calendarDays = 21;
 
   late DateTime _selectedDay;
+
   /// Intervalo inclusivo na lista ordenada de slots (sempre índices consecutivos).
   int? _selStart;
   int? _selEnd;
@@ -221,7 +220,6 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
 
     return courts.first.id;
   }
-
 
   void _goToConfirm(
     BuildContext context,
@@ -305,10 +303,10 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
   }
 
   bool _isPastSlot(ArenaSlot slot) => isPastBookableSlot(
-        selectedDay: _selectedDay,
-        slot: slot,
-        now: DateTime.now(),
-      );
+    selectedDay: _selectedDay,
+    slot: slot,
+    now: DateTime.now(),
+  );
 
   void _onSlotTap(int index, List<ArenaSlot> slots) {
     final slot = slots[index];
@@ -389,7 +387,10 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     });
   }
 
-  void _applyInitialSuggestedSlotIfNeeded(String courtId, List<ArenaSlot> slots) {
+  void _applyInitialSuggestedSlotIfNeeded(
+    String courtId,
+    List<ArenaSlot> slots,
+  ) {
     final pending = _pendingApplyStartTime?.trim();
     if (pending != null && pending.isNotEmpty) {
       _applyStartTimeSelection(courtId, slots, pending);
@@ -404,7 +405,9 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
       return;
     }
     final suggestedCourt = widget.initialCourtId?.trim();
-    if (suggestedCourt != null && suggestedCourt.isNotEmpty && suggestedCourt != courtId) {
+    if (suggestedCourt != null &&
+        suggestedCourt.isNotEmpty &&
+        suggestedCourt != courtId) {
       return;
     }
 
@@ -484,7 +487,9 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     });
   }
 
-  Future<void> _openAllSuggestionsSheet(List<SlotsSuggestion> suggestions) async {
+  Future<void> _openAllSuggestionsSheet(
+    List<SlotsSuggestion> suggestions,
+  ) async {
     await showSlotsAllSuggestionsSheet(
       context: context,
       suggestions: suggestions,
@@ -686,20 +691,10 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     }
     final n = e - s + 1;
     final durationLabel = formatSelectionDurationLabel(n, slotDurationMinutes);
-    final meta =
-        '$durationLabel · ${_metaDateFmt.format(_selectedDay)}';
+    final meta = '$durationLabel · ${_metaDateFmt.format(_selectedDay)}';
     final totalVal = totalPriceForRange(slots, s, e);
-    final total =
-        totalVal != null ? _priceFmt.format(totalVal) : null;
+    final total = totalVal != null ? _priceFmt.format(totalVal) : null;
     return (meta: meta, total: total);
-  }
-
-  Future<void> _openSearchSheet(List<ArenaSlot> slots) async {
-    final time = await showSlotsSearchTimeSheet(context);
-    if (time == null || !mounted) return;
-    final idx = indexAtOrAfterTime(slots, time);
-    if (idx == null) return;
-    _scrollToSlotIndex(idx);
   }
 
   String _courtName(List<ArenaCourt> courts, String courtId) {
@@ -838,12 +833,15 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
       slotDurationMinutes: slotDurationMinutes,
     );
     final periodCountsMap = periodCounts(slots, _selectedDay);
-    final popularIdx =
-        slotsLoading ? null : mostPopularSlotIndex(slots, _selectedDay);
-    final lastIdx =
-        slotsLoading ? null : lastAvailableSlotIndex(slots, _selectedDay);
+    final popularIdx = slotsLoading
+        ? null
+        : mostPopularSlotIndex(slots, _selectedDay);
+    final lastIdx = slotsLoading
+        ? null
+        : lastAvailableSlotIndex(slots, _selectedDay);
     final barLabels = _bottomBarLabels(slots, slotDurationMinutes);
-    final canContinue = !slotsLoading &&
+    final canContinue =
+        !slotsLoading &&
         _selStart != null &&
         _selEnd != null &&
         _rangeStillValid(slots, _selStart!, _selEnd!);
@@ -855,8 +853,9 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
       daysCount: _calendarDays,
       arenaFallbackPricePerHour: widget.arena.pricePerHourReais,
     );
-    final calendarAsync =
-        ref.watch(slotsCalendarAvailabilityProvider(calParams));
+    final calendarAsync = ref.watch(
+      slotsCalendarAvailabilityProvider(calParams),
+    );
     final summariesAsync = ref.watch(
       slotsCourtDaySummaryProvider((
         arenaId: arenaId,
@@ -865,12 +864,13 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
       )),
     );
 
-    final showFullyBookedBody = !slotsLoading &&
-        shouldShowSlotsFullyBookedBody(slots, _selectedDay);
+    final showFullyBookedBody =
+        !slotsLoading && shouldShowSlotsFullyBookedBody(slots, _selectedDay);
     final freeCount = slotsLoading
         ? 0
         : countFreeSlotsForDay(slots, _selectedDay);
-    final showPeriodEmptyOnly = !slotsLoading &&
+    final showPeriodEmptyOnly =
+        !slotsLoading &&
         !showFullyBookedBody &&
         _periodFilter != SlotPeriodFilter.all &&
         freeCount > 0 &&
@@ -890,8 +890,9 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
       selectedDay: _selectedDay,
       enabled: showFullyBookedBody,
     );
-    final suggestionsAsync =
-        ref.watch(slotsSmartSuggestionsProvider(suggestionsParams));
+    final suggestionsAsync = ref.watch(
+      slotsSmartSuggestionsProvider(suggestionsParams),
+    );
 
     final bannerTitle = isDayWithoutSchedule(slots)
         ? 'Sem horários neste dia'
@@ -918,8 +919,9 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final maxW =
-                constraints.maxWidth > 640 ? 560.0 : constraints.maxWidth;
+            final maxW = constraints.maxWidth > 640
+                ? 560.0
+                : constraints.maxWidth;
             return Center(
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: maxW),
@@ -930,9 +932,6 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                       title:
                           '${widget.arena.name} · ${_courtName(courts, courtId)}',
                       onBack: _handleBack,
-                      onSearch: slotsLoading
-                          ? () {}
-                          : () => _openSearchSheet(slots),
                     ),
                     SlotsDayStrip(
                       selectedDay: _selectedDay,
@@ -963,15 +962,16 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                         jumpListToTop();
                       },
                     ),
-                    if (!showFullyBookedBody) ...[
-                      SizedBox(height: 8),
-                      SlotsPeriodChips(
-                        selected: _periodFilter,
-                        counts: periodCountsMap,
-                        onSelected: (p) => setState(() => _periodFilter = p),
-                      ),
-                      SizedBox(height: 8),
-                    ],
+                    // if (!showFullyBookedBody) ...[
+                    //   SizedBox(height: 8),
+                    //   SlotsPeriodChips(
+                    //     selected: _periodFilter,
+                    //     counts: periodCountsMap,
+                    //     onSelected: (p) => setState(() => _periodFilter = p),
+                    //   ),
+                    //   SizedBox(height: 8),
+                    // ],
+                    SizedBox(height: 8),
                     Expanded(
                       child: showFullyBookedBody
                           ? SlotsFullyBookedBody(
@@ -1013,15 +1013,15 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                             ),
                     ),
                     if (!showFullyBookedBody) ...[
-                      SlotsDurationPicker(
-                        options: durationOptions,
-                        selectedMinutes: _selectedDurationMinutes,
-                        onSelected: (minutes) => _applyDurationMinutes(
-                          minutes,
-                          slots,
-                          slotDurationMinutes,
-                        ),
-                      ),
+                      // SlotsDurationPicker(
+                      //   options: durationOptions,
+                      //   selectedMinutes: _selectedDurationMinutes,
+                      //   onSelected: (minutes) => _applyDurationMinutes(
+                      //     minutes,
+                      //     slots,
+                      //     slotDurationMinutes,
+                      //   ),
+                      // ),
                       SlotsBottomBar(
                         enabled: canContinue,
                         metaLabel: slotsLoading ? null : barLabels.meta,

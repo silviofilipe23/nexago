@@ -8,9 +8,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/athlete_quest/athlete_quest_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/gamification_providers.dart';
-import 'widgets/athlete_quest/athlete_quest_big_quest_card.dart';
 import 'widgets/athlete_quest/athlete_quest_daily_missions_section.dart';
-import 'widgets/athlete_quest/athlete_quest_league_section.dart';
 import 'widgets/athlete_quest/athlete_quest_level_card.dart';
 import 'daily_mission_navigation.dart';
 import 'widgets/athlete_quest/athlete_quest_streak_hero.dart';
@@ -29,9 +27,8 @@ class AthleteQuestPage extends ConsumerWidget {
       backgroundColor: context.themeColors.canvas,
       appBar: _appBar(context, theme),
       body: summaryAsync.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
-        ),
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: AppColors.brand)),
         error: (_, __) => const _ErrorState(),
         data: (summary) {
           if (questUi == null) {

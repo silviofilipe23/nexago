@@ -32,6 +32,15 @@ final inviterTournamentPartnerInvitesProvider =
       .watchInvitesAsInviter(uid);
 });
 
+final inviteeAcceptedTournamentPartnerInvitesProvider =
+    StreamProvider.autoDispose<List<TournamentPartnerInvite>>((ref) {
+  final uid = ref.watch(authProvider).valueOrNull?.uid ?? '';
+  if (uid.isEmpty) return Stream.value(const []);
+  return ref
+      .watch(tournamentPartnerInviteServiceProvider)
+      .watchAcceptedInvitesAsInvitee(uid);
+});
+
 final ongoingTournamentPartnerInvitesHomeProvider =
     StreamProvider.autoDispose<List<TournamentPartnerInvite>>((ref) {
   final uid = ref.watch(authProvider).valueOrNull?.uid ?? '';

@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_item.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_guests_providers.dart';
-import 'package:nexago_app/features/arenas/domain/my_booking_item.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_payment.dart';
 import 'package:nexago_app/features/arenas/presentation/my_bookings/my_bookings_logic.dart';
 

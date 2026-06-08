@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../athlete/domain/athlete_profile.dart';
 import '../../../athlete/domain/athlete_profile_providers.dart';
 import '../../domain/arena_booking_labels.dart';
@@ -16,10 +15,7 @@ import '../../domain/arena_slot_detail_providers.dart';
 import 'arena_dashboard_tokens.dart';
 
 class ArenaBookingCard extends ConsumerWidget {
-  const ArenaBookingCard({
-    super.key,
-    required this.booking,
-  });
+  const ArenaBookingCard({super.key, required this.booking});
 
   final ArenaManagerBooking booking;
 
@@ -33,7 +29,9 @@ class ArenaBookingCard extends ConsumerWidget {
 
     final statusBadge = _businessStatusBadge(booking.data);
     final statusColor = _statusBadgeColor(statusBadge);
-    final paymentLabel = _shortPaymentLabel(arenaBookingPaymentLabel(booking.data));
+    final paymentLabel = _shortPaymentLabel(
+      arenaBookingPaymentLabel(booking.data),
+    );
     final attendanceLabel = ArenaBookingsGrouping.attendanceChipLabel(booking);
     final isAttendancePending = attendanceLabel.toLowerCase() == 'pendente';
     final participants =
@@ -242,10 +240,7 @@ class ArenaBookingCard extends ConsumerWidget {
 }
 
 class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({
-    required this.label,
-    required this.color,
-  });
+  const _StatusBadge({required this.label, required this.color});
 
   final String label;
   final Color color;
@@ -265,10 +260,7 @@ class _StatusBadge extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           SizedBox(width: 5),
           Text(
@@ -358,8 +350,9 @@ class _BookingAvatar extends StatelessWidget {
     final radius = size / 2;
     final bg = backgroundColor ?? AppColors.brand.withValues(alpha: 0.22);
     final fg = foregroundColor ?? AppColors.brand;
-    final displayInitials =
-        initials.length > 2 ? initials.substring(0, 2) : initials;
+    final displayInitials = initials.length > 2
+        ? initials.substring(0, 2)
+        : initials;
 
     if (imageUrl != null && imageUrl!.isNotEmpty) {
       return Container(
@@ -429,11 +422,7 @@ class _BookingAvatar extends StatelessWidget {
 }
 
 class _MetaChip extends StatelessWidget {
-  const _MetaChip({
-    required this.icon,
-    required this.label,
-    this.accent,
-  });
+  const _MetaChip({required this.icon, required this.label, this.accent});
 
   final IconData icon;
   final String label;

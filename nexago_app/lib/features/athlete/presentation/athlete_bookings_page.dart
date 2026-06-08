@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_status_views.dart';
 import 'booking_details_page.dart';
 import '../../arenas/presentation/arena_booking_navigation.dart';
@@ -84,11 +83,12 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
           onRetry: () => ref.invalidate(myBookingsStreamProvider),
         ),
         data: (items) {
-          final bookings = items
-              .map(_athleteBookingFromFirestore)
-              .whereType<_AthleteBooking>()
-              .toList()
-            ..sort((a, b) => b.startAt.compareTo(a.startAt));
+          final bookings =
+              items
+                  .map(_athleteBookingFromFirestore)
+                  .whereType<_AthleteBooking>()
+                  .toList()
+                ..sort((a, b) => b.startAt.compareTo(a.startAt));
 
           if (bookings.isEmpty) {
             return RefreshIndicator(
@@ -101,7 +101,8 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
                   SizedBox(
                     height: MediaQuery.of(context).size.height * 0.75,
                     child: _EmptyAgendaState(
-                      onBookNow: () => openDiscoverReservarTab(context, ref: ref),
+                      onBookNow: () =>
+                          openDiscoverReservarTab(context, ref: ref),
                     ),
                   ),
                 ],
@@ -115,8 +116,8 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
                 null,
                 (prev, curr) =>
                     prev == null || curr.startAt.isBefore(prev.startAt)
-                        ? curr
-                        : prev,
+                    ? curr
+                    : prev,
               );
           final firstCurrentOrFutureIdx = bookings.indexWhere(
             (b) =>
@@ -130,8 +131,10 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
             return stage == _BookingStage.current ||
                 stage == _BookingStage.future;
           }).length;
-          final dateLabel =
-              DateFormat("EEEE, d 'de' MMMM", 'pt_BR').format(now);
+          final dateLabel = DateFormat(
+            "EEEE, d 'de' MMMM",
+            'pt_BR',
+          ).format(now);
           final nextLabel = nextBooking == null
               ? 'Sem próximos jogos confirmados'
               : 'Próximo em ${_minutesUntilLabel(now, nextBooking.startAt)}';
@@ -168,23 +171,27 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
                 }
 
                 final row = rows[index - 1];
-                if (row.isNowSeparator) {
-                  if (!_didAutoScroll && firstCurrentOrFutureIdx >= 0) {
-                    _didAutoScroll = true;
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (!mounted) return;
-                      _scrollToNowSeparator(context);
-                    });
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    child: const _NowSeparator(),
-                  );
-                }
+                // if (row.isNowSeparator) {
+                //   if (!_didAutoScroll && firstCurrentOrFutureIdx >= 0) {
+                //     _didAutoScroll = true;
+                //     WidgetsBinding.instance.addPostFrameCallback((_) {
+                //       if (!mounted) return;
+                //       _scrollToNowSeparator(context);
+                //     });
+                //   }
+                //   return Padding(
+                //     padding: const EdgeInsets.symmetric(vertical: 10),
+                //     child: const _NowSeparator(),
+                //   );
+                // }
 
                 final booking = row.booking!;
                 final stage = _bookingStage(
-                    now, booking.startAt, booking.endAt, booking.rawStatus);
+                  now,
+                  booking.startAt,
+                  booking.endAt,
+                  booking.rawStatus,
+                );
                 return _AnimatedTimelineEntry(
                   index: index - 1,
                   child: Padding(
@@ -232,10 +239,9 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
     final uid = ref.read(authProvider).valueOrNull?.uid;
     if (uid == null || uid.isEmpty) return;
     try {
-      await ref.read(bookingServiceProvider).cancelBooking(
-            bookingId: booking.id,
-            athleteId: uid,
-          );
+      await ref
+          .read(bookingServiceProvider)
+          .cancelBooking(bookingId: booking.id, athleteId: uid);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -249,7 +255,6 @@ class _AthleteBookingsPageState extends ConsumerState<AthleteBookingsPage> {
         );
     }
   }
-
 }
 
 class _AgendaHeader extends StatelessWidget {
@@ -333,10 +338,10 @@ class _TimelineBookingRow extends ConsumerWidget {
     final managedArenaName = arenaAsync?.valueOrNull?.name.trim();
     final displayArenaName =
         booking.arena.trim().isNotEmpty && booking.arena.trim() != 'Arena'
-            ? booking.arena.trim()
-            : (managedArenaName != null && managedArenaName.isNotEmpty
-                ? managedArenaName
-                : 'Arena');
+        ? booking.arena.trim()
+        : (managedArenaName != null && managedArenaName.isNotEmpty
+              ? managedArenaName
+              : 'Arena');
     final timeLabel = DateFormat('HH:mm', 'pt_BR').format(booking.startAt);
     final dateLabel = DateFormat('dd/MM', 'pt_BR').format(booking.startAt);
     final endHour = DateFormat('HH:mm', 'pt_BR').format(booking.endAt);
@@ -543,10 +548,7 @@ class _NowSeparator extends StatelessWidget {
 }
 
 class _AnimatedTimelineEntry extends StatelessWidget {
-  const _AnimatedTimelineEntry({
-    required this.index,
-    required this.child,
-  });
+  const _AnimatedTimelineEntry({required this.index, required this.child});
 
   final int index;
   final Widget child;
@@ -758,10 +760,10 @@ class _TimelineRow {
   }) : isNowSeparator = false;
 
   const _TimelineRow.nowSeparator()
-      : booking = null,
-        isFirst = false,
-        isLast = false,
-        isNowSeparator = true;
+    : booking = null,
+      isFirst = false,
+      isLast = false,
+      isNowSeparator = true;
 
   final _AthleteBooking? booking;
   final bool isFirst;
@@ -810,8 +812,8 @@ _AthleteBooking? _athleteBookingFromFirestore(MyBookingItem item) {
     arena: item.arenaName.trim().isNotEmpty
         ? item.arenaName.trim()
         : (item.arenaId?.trim().isNotEmpty == true
-            ? item.arenaId!.trim()
-            : 'Arena'),
+              ? item.arenaId!.trim()
+              : 'Arena'),
     court: item.courtName?.trim().isNotEmpty == true
         ? item.courtName!.trim()
         : 'Quadra',

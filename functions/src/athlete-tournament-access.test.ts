@@ -3,21 +3,20 @@ import assert from "node:assert/strict";
 import {
   canAccessOfficialTournaments,
   isOnboardingCompleted,
-  isProfileStepsComplete,
+  isTournamentProfileReady,
   isValidWhatsApp,
-  missingProfileStepIds,
+  missingTournamentProfileRequirementIds,
   tournamentAccessBlockMessage,
 } from "./athlete-tournament-access";
 
-const completeProfile = {
-  isProfileComplete: true,
-  profilePhotoUrl: "https://example.com/a.jpg",
-  sport: "Vôlei de praia",
-  level: "Iniciante",
+const tournamentReadyProfile = {
+  onboardingCompleted: true,
   city: "Goiânia",
-  state: "GO",
   phoneNumber: "(62) 99999-9999",
-  goals: ["RESERVAR_ARENA"],
+};
+
+const legacyCompleteProfile = {
+  isProfileComplete: true,
 };
 
 describe("athlete-tournament-access", () => {
@@ -38,68 +37,82 @@ describe("athlete-tournament-access", () => {
     assert.equal(isOnboardingCompleted({}), false);
   });
 
-  it("requires all five profile steps", () => {
-    assert.equal(isProfileStepsComplete(completeProfile), true);
+  it("requires onboarding, whatsapp and city for tournament profile", () => {
+    assert.equal(isTournamentProfileReady(tournamentReadyProfile), true);
     assert.equal(
-      isProfileStepsComplete({...completeProfile, profilePhotoUrl: ""}),
+      isTournamentProfileReady({
+        ...tournamentReadyProfile,
+        phoneNumber: "",
+      }),
       false,
     );
     assert.equal(
-      isProfileStepsComplete({...completeProfile, goals: []}),
+      isTournamentProfileReady({
+        onboardingCompleted: true,
+        phoneNumber: "(62) 99999-9999",
+      }),
       false,
     );
     assert.equal(
-      isProfileStepsComplete({...completeProfile, city: "", state: ""}),
-      false,
+      isTournamentProfileReady({
+        onboardingCompleted: true,
+        city: "Goiânia GO",
+        phoneNumber: "(62) 99999-9999",
+      }),
+      true,
     );
   });
 
-  it("combines onboarding and profile steps", () => {
-    assert.equal(canAccessOfficialTournaments(completeProfile), true);
+  it("does not require photo, sport or goals for tournament access", () => {
     assert.equal(
       canAccessOfficialTournaments({
-        ...completeProfile,
-        isProfileComplete: false,
+        onboardingCompleted: true,
+        city: "Goiânia",
+        phoneNumber: "(62) 99999-9999",
+      }),
+      true,
+    );
+    assert.equal(canAccessOfficialTournaments(legacyCompleteProfile), true);
+    assert.equal(
+      canAccessOfficialTournaments({
+        ...legacyCompleteProfile,
         onboardingCompleted: false,
       }),
-      false,
-    );
-    assert.equal(
-      canAccessOfficialTournaments({
-        onboardingCompleted: true,
-        profilePhotoUrl: "https://example.com/a.jpg",
-      }),
-      false,
+      true,
     );
   });
 
-  it("lists missing profile steps", () => {
+  it("lists missing tournament requirements", () => {
     assert.deepEqual(
-      missingProfileStepIds({
+      missingTournamentProfileRequirementIds({
         onboardingCompleted: true,
-        profilePhotoUrl: "https://example.com/a.jpg",
       }),
-      ["sportLevel", "city", "whatsapp", "goals"],
+      ["whatsapp", "city"],
     );
-    assert.deepEqual(missingProfileStepIds(completeProfile), []);
+    assert.deepEqual(
+      missingTournamentProfileRequirementIds(tournamentReadyProfile),
+      [],
+    );
   });
 
   it("returns block messages", () => {
-    assert.equal(tournamentAccessBlockMessage(completeProfile), "");
+    assert.equal(tournamentAccessBlockMessage(tournamentReadyProfile), "");
     assert.match(
       tournamentAccessBlockMessage({}),
       /cadastro inicial/i,
     );
     assert.match(
-      tournamentAccessBlockMessage({onboardingCompleted: true}),
-      /Complete no perfil:/i,
+      tournamentAccessBlockMessage({
+        onboardingCompleted: true,
+      }),
+      /WhatsApp.*cidade/i,
     );
     assert.match(
       tournamentAccessBlockMessage({
         onboardingCompleted: true,
-        profilePhotoUrl: "https://example.com/a.jpg",
+        city: "Goiânia",
       }),
-      /esporte e nível.*WhatsApp/i,
+      /WhatsApp/i,
     );
   });
 });

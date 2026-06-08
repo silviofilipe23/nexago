@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/features/tournaments/domain/compete_hub_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
-import 'package:nexago_app/features/tournaments/domain/tournament_listing_status.dart';
 
 DiscoveryTournament _tournament({
   required String id,
@@ -71,10 +70,7 @@ void main() {
 
     test('respects limit', () {
       final result = pickTournamentsForHubPreview(
-        List.generate(
-          10,
-          (i) => _tournament(id: '$i', name: 'T$i'),
-        ),
+        List.generate(10, (i) => _tournament(id: '$i', name: 'T$i')),
         limit: 4,
       );
       expect(result, hasLength(4));
@@ -84,11 +80,7 @@ void main() {
   group('hubTournamentDateLabel', () {
     test('formats short month label', () {
       final label = hubTournamentDateLabel(
-        _tournament(
-          id: '1',
-          name: 'A',
-          startDate: DateTime(2026, 5, 28),
-        ),
+        _tournament(id: '1', name: 'A', startDate: DateTime(2026, 5, 28)),
       );
       expect(label, contains('28'));
       expect(label, contains('mai'));

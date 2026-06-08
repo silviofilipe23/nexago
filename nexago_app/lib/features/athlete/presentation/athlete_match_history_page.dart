@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/match_history/athlete_match_history_models.dart';
 import '../domain/match_history/athlete_match_history_providers.dart';
@@ -29,9 +28,8 @@ class AthleteMatchHistoryPage extends ConsumerWidget {
       backgroundColor: AppColors.canvas,
       appBar: _appBar(context, theme),
       body: bundleAsync.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
-        ),
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: AppColors.brand)),
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -185,10 +183,7 @@ class _ReadyBody extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 32),
       child: Center(
-        child: Text(
-          message,
-          style: TextStyle(color: AppColors.onSurfaceMuted),
-        ),
+        child: Text(message, style: TextStyle(color: AppColors.onSurfaceMuted)),
       ),
     );
   }

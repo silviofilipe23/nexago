@@ -123,7 +123,9 @@ class _AthleteDiscoverFiltersSheetState
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.35,
+                  ),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -200,8 +202,7 @@ class _AthleteDiscoverFiltersSheetState
                         setState(() {
                           _gender = switch (label) {
                             'Masculino' => AthleteDiscoverGenderFilter.male,
-                            'Feminino' =>
-                              AthleteDiscoverGenderFilter.female,
+                            'Feminino' => AthleteDiscoverGenderFilter.female,
                             _ => AthleteDiscoverGenderFilter.all,
                           };
                         });

@@ -86,7 +86,8 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
   void _prefillPixFromArena() {
     final arena = ref.read(managedArenaDetailProvider).valueOrNull;
     if (arena == null) return;
-    if (_pixKeyController.text.trim().isEmpty && arena.payoutPixKey.trim().isNotEmpty) {
+    if (_pixKeyController.text.trim().isEmpty &&
+        arena.payoutPixKey.trim().isNotEmpty) {
       _pixKeyController.text = arena.payoutPixKey.trim();
     }
     _pixKeyType = PayoutPixKeyType.initial(
@@ -129,7 +130,9 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
 
     setState(() => _submitting = true);
     try {
-      final result = await ref.read(arenaWalletRepositoryProvider).requestWithdrawal(
+      final result = await ref
+          .read(arenaWalletRepositoryProvider)
+          .requestWithdrawal(
             arenaId: arenaId,
             amountReais: amount,
             pixKey: pixKey,
@@ -160,7 +163,8 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
     if (result.message != null && result.message!.trim().isNotEmpty) {
       return result.message!.trim();
     }
-    if (result.status == 'pending' && result.processingMode == 'manual_review') {
+    if (result.status == 'pending' &&
+        result.processingMode == 'manual_review') {
       return 'Saque acima de R\$ 500. Aguardando aprovação da plataforma.';
     }
     if (result.status == 'pending' && result.payoutStatus == 'failed') {
@@ -220,15 +224,15 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ArenaPlatformPixCard(
-                    payoutPixKey: arena?.payoutPixKey ?? '',
-                  ),
+                  ArenaPlatformPixCard(payoutPixKey: arena?.payoutPixKey ?? ''),
                   SizedBox(height: 20),
                   walletAsync.when(
                     loading: () => Center(
                       child: Padding(
                         padding: EdgeInsets.all(24),
-                        child: CircularProgressIndicator(color: AppColors.brand),
+                        child: CircularProgressIndicator(
+                          color: AppColors.brand,
+                        ),
                       ),
                     ),
                     error: (e, _) => Text('Erro: $e'),
@@ -245,7 +249,8 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                   ),
                   SizedBox(height: 10),
                   DecoratedBox(
-                    decoration: ArenaDashboardTokens.cardDecoration(context,
+                    decoration: ArenaDashboardTokens.cardDecoration(
+                      context,
                       color: context.themeColors.surfaceRaised,
                     ),
                     child: Padding(
@@ -262,13 +267,16 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                                 RegExp(r'[0-9.,]'),
                               ),
                             ],
-                            style: TextStyle(color: context.themeColors.onSurface),
+                            style: TextStyle(
+                              color: context.themeColors.onSurface,
+                            ),
                             decoration: InputDecoration(
                               labelText: 'Valor (reais)',
                               filled: true,
                               fillColor: context.themeColors.surfaceSheet,
                               errorText: amountError,
-                              helperText: amountError == null && availableReais > 0
+                              helperText:
+                                  amountError == null && availableReais > 0
                                   ? 'Disponível: ${_currency.format(availableReais)}'
                                   : null,
                               helperMaxLines: 2,
@@ -276,9 +284,11 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                           ),
                           SizedBox(height: 12),
                           DropdownButtonFormField<PayoutPixKeyType>(
-                            value: _pixKeyType,
+                            initialValue: _pixKeyType,
                             dropdownColor: context.themeColors.surfaceSheet,
-                            style: TextStyle(color: context.themeColors.onSurface),
+                            style: TextStyle(
+                              color: context.themeColors.onSurface,
+                            ),
                             decoration: InputDecoration(
                               labelText: 'Tipo da chave PIX',
                               filled: true,
@@ -298,7 +308,9 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                           SizedBox(height: 12),
                           TextField(
                             controller: _pixKeyController,
-                            style: TextStyle(color: context.themeColors.onSurface),
+                            style: TextStyle(
+                              color: context.themeColors.onSurface,
+                            ),
                             decoration: InputDecoration(
                               labelText: 'Chave PIX para receber',
                               hintText: _pixKeyType.hintForField(),
@@ -313,14 +325,16 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                             child: FilledButton(
                               onPressed: canSubmit
                                   ? () => _requestWithdrawal(
-                                        arenaId,
-                                        availableReais,
-                                      )
+                                      arenaId,
+                                      availableReais,
+                                    )
                                   : null,
                               style: FilledButton.styleFrom(
                                 backgroundColor: AppColors.brand,
                                 foregroundColor: AppColors.black,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                               ),
                               child: _submitting
                                   ? SizedBox(
@@ -364,7 +378,8 @@ class _BalanceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(context,
+      decoration: ArenaDashboardTokens.cardDecoration(
+        context,
         color: context.themeColors.surfaceRaised,
       ),
       child: Padding(
@@ -437,26 +452,21 @@ class _WithdrawalsSection extends ConsumerWidget {
               );
             }
             return Column(
-              children: items
-                  .map(
-                    (w) {
-                      final payout = w.payoutStatus?.trim();
-                      final transfer = w.asaasTransferId?.trim();
-                      final subtitleParts = <String>[
-                        w.status,
-                        if (payout != null && payout.isNotEmpty) payout,
-                        w.pixKey,
-                        if (transfer != null && transfer.isNotEmpty)
-                          'ID: $transfer',
-                      ];
-                      return ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(_currency.format(w.amountReais)),
-                        subtitle: Text(subtitleParts.join(' · ')),
-                      );
-                    },
-                  )
-                  .toList(),
+              children: items.map((w) {
+                final payout = w.payoutStatus?.trim();
+                final transfer = w.asaasTransferId?.trim();
+                final subtitleParts = <String>[
+                  w.status,
+                  if (payout != null && payout.isNotEmpty) payout,
+                  w.pixKey,
+                  if (transfer != null && transfer.isNotEmpty) 'ID: $transfer',
+                ];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(_currency.format(w.amountReais)),
+                  subtitle: Text(subtitleParts.join(' · ')),
+                );
+              }).toList(),
             );
           },
         ),

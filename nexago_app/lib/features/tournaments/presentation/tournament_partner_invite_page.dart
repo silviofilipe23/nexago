@@ -69,7 +69,7 @@ class _TournamentPartnerInvitePageState
 
   void _showProfileAccessBlocked() {
     final access = ref.read(tournamentAccessStateProvider);
-    final message = access.blockMessage;
+    final message = access.snackbarMessage;
     if (message != null && mounted) {
       showAppSnackBar(context, message, isError: true);
     }
@@ -295,6 +295,7 @@ class _TournamentPartnerInvitePageState
             child: TournamentAccessBanner(
               onboardingCompleted: access.onboardingCompleted,
               blockMessage: access.blockMessage,
+              missingStepTitles: access.missingStepTitles,
             ),
           )
         : null;

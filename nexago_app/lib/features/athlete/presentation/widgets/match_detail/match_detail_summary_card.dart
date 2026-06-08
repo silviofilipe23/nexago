@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
 import '../athlete_profile_avatar.dart';
 
@@ -72,7 +71,8 @@ class MatchDetailSummaryCard extends StatelessWidget {
                     set: detail.sets[i],
                     highlight: detail.isParticipantView
                         ? detail.sets[i].isWin
-                        : detail.sets[i].ourScore > detail.sets[i].opponentScore,
+                        : detail.sets[i].ourScore >
+                              detail.sets[i].opponentScore,
                   ),
                 ),
               ],
@@ -120,10 +120,7 @@ class _ResultBadge extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(
-              color: accent,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: accent, shape: BoxShape.circle),
           ),
           SizedBox(width: 8),
           Text(
@@ -157,8 +154,8 @@ class _TeamColumn extends StatelessWidget {
     final roleColor = side.isCurrentUser
         ? AppColors.brand
         : isWinner
-            ? AppColors.win
-            : AppColors.onSurfaceMuted;
+        ? AppColors.win
+        : AppColors.onSurfaceMuted;
 
     return Column(
       children: [

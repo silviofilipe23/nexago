@@ -200,15 +200,26 @@ String categoryBadgeLabel(TournamentCategoryOffer offer) {
       : name.substring(0, 4).toUpperCase();
 }
 
-/// Subtítulo do card de categoria: `8 duplas · 5/8 inscritas`.
+/// Género da categoria para exibição (Masculino, Feminino, Misto).
+String categoryGenderDisplayLabel(TournamentCategoryOffer offer) {
+  return switch (tournamentCategoryGenderTag(offer)) {
+    'MASCULINO' => 'Masculino',
+    'FEMININO' => 'Feminino',
+    'MISTO' => 'Misto',
+    _ => '',
+  };
+}
+
+/// Subtítulo do card de categoria: `Masculino · 8 duplas · 5/8 inscritas`.
 String categoryRegistrationSubtitle(
   TournamentCategoryOffer offer, {
   TournamentFormat format = TournamentFormat.dupla,
   int? inscriptionCount,
 }) {
+  final gender = categoryGenderDisplayLabel(offer);
   final capacity = categoryMaxTeams(offer);
   if (capacity <= 0) {
-    return 'Vagas a confirmar';
+    return gender.isNotEmpty ? gender : 'Vagas a confirmar';
   }
 
   final enrolled = categoryEnrolledCount(
@@ -216,7 +227,9 @@ String categoryRegistrationSubtitle(
     inscriptionCount: inscriptionCount,
   );
   final unit = format == TournamentFormat.dupla ? 'duplas' : 'vagas';
-  return '$capacity $unit · $enrolled/$capacity inscritas';
+  final spots = '$capacity $unit · $enrolled/$capacity inscritas';
+  if (gender.isNotEmpty) return '$gender · $spots';
+  return spots;
 }
 
 bool isCategorySelectable(

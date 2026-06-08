@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,14 +7,15 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
-import '../../../athlete/domain/athlete_shell_providers.dart';
 import '../../../athlete/domain/tournament_access_providers.dart';
+import '../../domain/tournament_detail_model.dart';
+import '../../domain/tournament_discovery_providers.dart';
 import '../../domain/tournament_partner_invite.dart';
 import '../../domain/tournament_partner_invite_providers.dart';
 import '../../domain/tournament_registration_navigation.dart';
 import '../../domain/tournament_registration_providers.dart';
 
-/// Escuta convites enviados e direciona o convidador ao pagamento quando aceitos.
+/// Escuta convites e inscrições pagas; direciona ambos os atletas à confirmação.
 class TournamentInviteAcceptCoordinator extends ConsumerStatefulWidget {
   const TournamentInviteAcceptCoordinator({super.key, required this.child});
 
@@ -27,7 +30,8 @@ class _TournamentInviteAcceptCoordinatorState
     extends ConsumerState<TournamentInviteAcceptCoordinator> {
   final Map<String, String> _statusByInviteId = <String, String>{};
   final Set<String> _handledAcceptIds = <String>{};
-  bool _seeded = false;
+  final Set<String> _handledPaidRegistrationIds = <String>{};
+  bool _inviterSeeded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -36,19 +40,65 @@ class _TournamentInviteAcceptCoordinatorState
       (previous, next) {
         final invites = next.valueOrNull;
         if (invites == null) return;
-        _onInvitesUpdated(invites);
+        _onInviterInvitesUpdated(invites);
       },
     );
+
+    ref.listen<AsyncValue<List<TournamentPartnerInvite>>>(
+      inviteeAcceptedTournamentPartnerInvitesProvider,
+      (previous, next) {
+        final invites = next.valueOrNull;
+        if (invites == null) return;
+        unawaited(_markAlreadyPaidRegistrations(invites));
+      },
+    );
+
+    for (final invite in _acceptedRegistrationInvites()) {
+      final regId = invite.registrationId?.trim() ?? '';
+      if (regId.isEmpty || _handledPaidRegistrationIds.contains(regId)) {
+        continue;
+      }
+
+      ref.listen(tournamentRegistrationSnapshotProvider(regId), (
+        previous,
+        next,
+      ) {
+        final wasPaid = previous?.valueOrNull?.isPaid == true;
+        final isPaid = next.valueOrNull?.isPaid == true;
+        if (!isPaid || wasPaid) return;
+        unawaited(_navigateToRegistrationSuccess(invite));
+      });
+    }
 
     return widget.child;
   }
 
-  void _onInvitesUpdated(List<TournamentPartnerInvite> invites) {
-    if (!_seeded) {
+  List<TournamentPartnerInvite> _acceptedRegistrationInvites() {
+    final inviter =
+        ref.watch(inviterTournamentPartnerInvitesProvider).valueOrNull ?? [];
+    final invitee =
+        ref.watch(inviteeAcceptedTournamentPartnerInvitesProvider).valueOrNull ??
+        [];
+    final byRegId = <String, TournamentPartnerInvite>{};
+    for (final invite in [...inviter, ...invitee]) {
+      if (!invite.isAccepted) continue;
+      final regId = invite.registrationId?.trim() ?? '';
+      if (regId.isEmpty) continue;
+      byRegId.putIfAbsent(regId, () => invite);
+    }
+    return byRegId.values.toList();
+  }
+
+  void _onInviterInvitesUpdated(List<TournamentPartnerInvite> invites) {
+    if (!_inviterSeeded) {
       for (final invite in invites) {
         _statusByInviteId[invite.id] = invite.status;
+        if (invite.isAccepted) {
+          _handledAcceptIds.add(invite.id);
+        }
       }
-      _seeded = true;
+      _inviterSeeded = true;
+      unawaited(_markAlreadyPaidRegistrations(invites));
       return;
     }
 
@@ -56,9 +106,77 @@ class _TournamentInviteAcceptCoordinatorState
       final prior = _statusByInviteId[invite.id];
       _statusByInviteId[invite.id] = invite.status;
       if (prior == 'pending' && invite.isAccepted) {
-        _handleInviteAccepted(invite);
+        unawaited(_handleInviteAccepted(invite));
       }
     }
+  }
+
+  Future<void> _markAlreadyPaidRegistrations(
+    List<TournamentPartnerInvite> invites,
+  ) async {
+    for (final invite in invites) {
+      if (!invite.isAccepted) continue;
+      final regId = invite.registrationId?.trim() ?? '';
+      if (regId.isEmpty || _handledPaidRegistrationIds.contains(regId)) {
+        continue;
+      }
+      final snap = await ref
+          .read(tournamentRegistrationSnapshotProvider(regId).future);
+      if (snap?.isPaid == true) {
+        _handledPaidRegistrationIds.add(regId);
+      }
+    }
+  }
+
+  bool _shouldDeferRegistrationPaidNavigation(String tournamentId) {
+    final location = GoRouterState.of(context).uri.toString();
+    if (location.contains('/inscricao/sucesso')) return true;
+    return location.contains('/torneios/$tournamentId/inscricao');
+  }
+
+  String _categoryNameFromInvite(
+    TournamentPartnerInvite invite,
+    TournamentDetail? tournament,
+  ) {
+    if (tournament == null) return invite.categoryId;
+    for (final offer in tournament.categoryOffers) {
+      if (offer.id == invite.categoryId) {
+        return offer.name.isNotEmpty ? offer.name : offer.id;
+      }
+    }
+    return invite.categoryId;
+  }
+
+  Future<void> _navigateToRegistrationSuccess(
+    TournamentPartnerInvite invite,
+  ) async {
+    final regId = invite.registrationId?.trim() ?? '';
+    if (regId.isEmpty || _handledPaidRegistrationIds.contains(regId)) return;
+    if (_shouldDeferRegistrationPaidNavigation(invite.tournamentId)) return;
+
+    final snap = await ref
+        .read(tournamentRegistrationSnapshotProvider(regId).future);
+    if (!mounted || snap?.isPaid != true) return;
+
+    _handledPaidRegistrationIds.add(regId);
+
+    final tournament = await ref
+        .read(tournamentDetailProvider(invite.tournamentId).future);
+    if (!mounted) return;
+
+    final tournamentName = tournament?.name.trim() ?? '';
+    if (tournamentName.isEmpty) return;
+
+    final categoryName = _categoryNameFromInvite(invite, tournament);
+
+    showAppSnackBar(context, 'Dupla inscrita! Pagamento confirmado.');
+    navigateToTournamentRegistrationSuccess(
+      context,
+      tournamentId: invite.tournamentId,
+      registrationId: regId,
+      tournamentName: tournamentName,
+      categoryName: categoryName,
+    );
   }
 
   Future<void> _handleInviteAccepted(TournamentPartnerInvite invite) async {
@@ -69,17 +187,18 @@ class _TournamentInviteAcceptCoordinatorState
     final snap = await ref
         .read(tournamentRegistrationSnapshotProvider(regId).future);
     if (!mounted) return;
-    if (snap?.isPaid == true) {
-      _handledAcceptIds.add(invite.id);
-      return;
-    }
 
     _handledAcceptIds.add(invite.id);
+
+    if (snap?.isPaid == true) {
+      await _navigateToRegistrationSuccess(invite);
+      return;
+    }
 
     final access = ref.read(tournamentAccessStateProvider);
     if (!access.canAccess) {
       if (!context.mounted) return;
-      final message = access.blockMessage;
+      final message = access.snackbarMessage;
       if (message != null) {
         showAppSnackBar(context, message, isError: true);
       }
@@ -92,19 +211,10 @@ class _TournamentInviteAcceptCoordinatorState
     }
 
     final firstName = invite.inviteeName.split(' ').first;
-    final tab = ref.read(athleteShellTabIndexProvider);
-    final onHomeOrCompete =
-        tab == 0 || tab == athleteShellCompeteTabIndex;
+    _showPaymentSnackBar(invite, firstName);
+  }
 
-    if (onHomeOrCompete) {
-      context.pushNamed(
-        AppRouteNames.tournamentRegistration,
-        pathParameters: {'tournamentId': invite.tournamentId},
-        queryParameters: tournamentRegistrationPaymentParams(invite),
-      );
-      return;
-    }
-
+  void _showPaymentSnackBar(TournamentPartnerInvite invite, String firstName) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
 

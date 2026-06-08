@@ -5,7 +5,6 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../arena/presentation/widgets/arena_dashboard_tokens.dart';
 import '../data/my_tournament_registrations_repository.dart';
 import '../domain/tournament_discovery_helpers.dart';
@@ -14,9 +13,16 @@ import '../domain/tournament_discovery_hub_providers.dart';
 import '../domain/tournament_discovery_labels.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
-import '../domain/tournament_listing_status.dart';
 import 'widgets/league_discovery_card.dart';
 import 'widgets/tournament_discovery_card.dart';
+
+void _handleDiscoveryListBack(BuildContext context) {
+  if (context.canPop()) {
+    context.pop();
+    return;
+  }
+  context.go('${AppRoutes.discover}?tab=competir');
+}
 
 /// Listagem completa de ligas e torneios (busca, filtros, segmentos).
 class TournamentDiscoveryListPage extends ConsumerStatefulWidget {
@@ -41,8 +47,9 @@ class _TournamentDiscoveryListPageState
       TournamentDiscoveryCategoryFilter.all;
   bool _openOnly = false;
   late bool _searching = widget.initialSearchOpen;
-  late final TextEditingController _searchController =
-      TextEditingController(text: widget.initialQuery);
+  late final TextEditingController _searchController = TextEditingController(
+    text: widget.initialQuery,
+  );
   late final FocusNode _searchFocus = FocusNode();
 
   @override
@@ -207,9 +214,8 @@ class _TournamentDiscoveryListPageState
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
       body: SafeArea(
         child: tournamentsAsync.when(
-          loading: () => Center(
-            child: CircularProgressIndicator(color: AppColors.brand),
-          ),
+          loading: () =>
+              Center(child: CircularProgressIndicator(color: AppColors.brand)),
           error: (e, _) => Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -269,7 +275,7 @@ class _TournamentDiscoveryListPageState
                       searching: _searching,
                       controller: _searchController,
                       focusNode: _searchFocus,
-                      onBack: () => context.pop(),
+                      onBack: () => _handleDiscoveryListBack(context),
                       onToggleSearch: () {
                         setState(() => _searching = !_searching);
                         if (!_searching) {
@@ -737,7 +743,8 @@ class DiscoveryListStatTile extends StatelessWidget {
     final color = accent ?? AppColors.brand;
 
     return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(context,
+      decoration: ArenaDashboardTokens.cardDecoration(
+        context,
         color: AppColors.surfaceCard,
       ),
       child: Padding(

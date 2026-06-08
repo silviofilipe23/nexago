@@ -8,6 +8,8 @@ void main() {
   group('AthleteProfileOptions', () {
     test('normalizeLevel maps legacy federado label', () {
       expect(AthleteProfileOptions.normalizeLevel('Open / federado'), 'Open');
+      expect(AthleteProfileOptions.normalizeLevel('Básico'), 'Iniciante');
+      expect(AthleteProfileOptions.normalizeLevel('Avançado'), 'Pro');
     });
 
     test('normalizeSport maps legacy labels', () {

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_history_models.dart';
 
@@ -70,7 +69,9 @@ class MatchHistoryTabSwitcher extends StatelessWidget {
               textAlign: TextAlign.center,
               style: theme.textTheme.labelLarge?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: selected ? context.themeColors.onSurface : context.themeColors.onSurfaceMuted,
+                color: selected
+                    ? context.themeColors.onSurface
+                    : context.themeColors.onSurfaceMuted,
               ),
             ),
           ),

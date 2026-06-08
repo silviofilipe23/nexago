@@ -53,31 +53,26 @@ void main() {
     expect(state.allComplete, isTrue);
   });
 
-  test('canUnlockTournaments requires onboarding and all steps', () {
-    final incomplete = ProfileCompletionState.fromProfile(
-      baseProfile(onboarding: true, goals: []),
-    );
-    expect(incomplete.canUnlockTournaments, isFalse);
+  test('tournament access requires onboarding, whatsapp and city only', () {
+    final incomplete = baseProfile(onboarding: true, goals: [], phone: null);
+    expect(isTournamentProfileReady(incomplete), isFalse);
+    expect(canAccessOfficialTournaments(profile: incomplete), isFalse);
 
-    final noOnboarding = ProfileCompletionState.fromProfile(
-      baseProfile(
-        onboarding: false,
-        avatar: 'https://example.com/a.jpg',
-      ),
+    final tournamentReady = baseProfile(
+      onboarding: true,
+      avatar: null,
+      goals: [],
+      phone: '(62) 99999-9999',
+      city: 'Goiânia',
     );
-    expect(noOnboarding.canUnlockTournaments, isFalse);
+    expect(isTournamentProfileReady(tournamentReady), isTrue);
+    expect(canAccessOfficialTournaments(profile: tournamentReady), isTrue);
 
-    final ok = ProfileCompletionState.fromProfile(
-      baseProfile(avatar: 'https://example.com/a.jpg', onboarding: true),
+    final gamificationIncomplete = ProfileCompletionState.fromProfile(
+      tournamentReady,
     );
-    expect(ok.canUnlockTournaments, isTrue);
-    expect(
-      canAccessOfficialTournaments(
-        onboardingCompleted: true,
-        profileStepsComplete: true,
-      ),
-      isTrue,
-    );
+    expect(gamificationIncomplete.allComplete, isFalse);
+    expect(gamificationIncomplete.canUnlockTournaments, isTrue);
   });
 
   test('whatsapp validation accepts 10-11 digits', () {
@@ -92,21 +87,26 @@ void main() {
     );
   });
 
-  test('isProfileComplete flag unlocks tournaments without all local steps', () {
+  test('isProfileComplete flag unlocks tournaments without gamification steps', () {
     final profile = baseProfile(
-      onboarding: true,
+      onboarding: false,
       goals: [],
+      phone: null,
+      city: '',
       isProfileComplete: true,
     );
     final completion = ProfileCompletionState.fromProfile(profile);
     expect(completion.allComplete, isFalse);
+    expect(canAccessOfficialTournaments(profile: profile), isTrue);
+  });
+
+  test('block message lists pending tournament requirements', () {
+    final profile = baseProfile(onboarding: true, goals: [], phone: null);
+
+    expect(tournamentProfileMissingTitles(profile), isNotEmpty);
     expect(
-      canAccessOfficialTournaments(
-        onboardingCompleted: profile.onboardingCompleted,
-        profileStepsComplete: completion.allComplete,
-        isProfileComplete: profile.isProfileComplete,
-      ),
-      isTrue,
+      tournamentAccessBlockMessageForProfile(profile),
+      contains('WhatsApp'),
     );
   });
 

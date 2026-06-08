@@ -3,12 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
-import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_providers.dart';
 import '../domain/arena_schedule_models.dart';
+import '../domain/arena_shell_providers.dart';
 import '../domain/arena_slot_detail_args.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_dashboard_tokens.dart';
@@ -76,11 +76,15 @@ class ArenaSchedulePage extends ConsumerWidget {
                       if (groups.isEmpty) {
                         return const ArenaEmptyState(
                           title: 'Agenda vazia',
-                          message: 'Nenhum horário neste dia para os filtros atuais.',
+                          message:
+                              'Nenhum horário neste dia para os filtros atuais.',
                           icon: Icons.event_busy_outlined,
                         );
                       }
                       return ListView.builder(
+                        controller: ref
+                            .watch(arenaShellScrollRegistryProvider)
+                            .controllerFor(1),
                         physics: const BouncingScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(
                           ArenaDashboardTokens.horizontalPadding,
@@ -96,10 +100,8 @@ class ArenaSchedulePage extends ConsumerWidget {
                             offsetY: 10,
                             child: ArenaScheduleHourGroupSection(
                               group: group,
-                              onSlotTap: (row) => _openSlotDetail(
-                                context,
-                                row: row,
-                              ),
+                              onSlotTap: (row) =>
+                                  _openSlotDetail(context, row: row),
                               onSlotLongPress: (row) => _openBlockSheet(
                                 context,
                                 ref,
@@ -111,9 +113,8 @@ class ArenaSchedulePage extends ConsumerWidget {
                         },
                       );
                     },
-                    loading: () => const ArenaLoadingState(
-                      label: 'Buscando horários...',
-                    ),
+                    loading: () =>
+                        const ArenaLoadingState(label: 'Buscando horários...'),
                     error: (e, _) => ArenaErrorState(
                       message: 'Erro ao carregar horários.\n$e',
                     ),
@@ -144,10 +145,7 @@ class ArenaSchedulePage extends ConsumerWidget {
     context.pushNamed(
       AppRouteNames.arenaSlotDetail,
       pathParameters: {'slotId': row.slot.id},
-      extra: ArenaSlotDetailArgs(
-        slot: row.slot,
-        courtName: row.courtName,
-      ),
+      extra: ArenaSlotDetailArgs(slot: row.slot, courtName: row.courtName),
     );
   }
 

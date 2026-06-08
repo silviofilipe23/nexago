@@ -16,6 +16,7 @@ import '../../arenas/domain/arena_search_providers.dart';
 import '../../arenas/presentation/arena_booking_navigation.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_providers.dart';
+import '../domain/athlete_shell_providers.dart';
 import '../domain/favorites_providers.dart';
 import '../domain/gamification_providers.dart';
 import 'favorite_success_page.dart';
@@ -43,7 +44,6 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
   late ArenaSearchFilters _filters;
   final Map<String, bool> _favoriteOverrides = <String, bool>{};
   final Set<String> _favoritePendingArenaIds = <String>{};
-  final ScrollController _scrollController = ScrollController();
   Timer? _searchDebounce;
   bool _sportChipUserSelected = false;
   static const _flexBoostPercent = 35;
@@ -97,7 +97,6 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -277,6 +276,9 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
     final favoriteIds =
         ref.watch(favoriteArenaIdsProvider).valueOrNull ?? const <String>[];
     final favoriteIdsSet = favoriteIds.toSet();
+    final scrollController = ref
+        .watch(athleteShellScrollRegistryProvider)
+        .controllerFor(athleteShellReservarTabIndex);
 
     final resultsAsync = ref.watch(arenaSearchResultsProvider(_filters.slot));
     final filtered = ref.watch(arenaSearchFilteredProvider(_filters));
@@ -307,7 +309,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
 
             if (items.isEmpty && !_filters.showOnlyFavorites) {
               return CustomScrollView(
-                controller: _scrollController,
+                controller: scrollController,
                 slivers: [
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
@@ -348,7 +350,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
             }
 
             return CustomScrollView(
-              controller: _scrollController,
+              controller: scrollController,
               physics: const BouncingScrollPhysics(),
               slivers: [
                 SliverPadding(
@@ -368,7 +370,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                           _updateFilters(
                             _filters.copyWith(showOnlyFavorites: true),
                           );
-                          _scrollController.animateTo(
+                          scrollController.animateTo(
                             0,
                             duration: const Duration(milliseconds: 300),
                             curve: Curves.easeOut,

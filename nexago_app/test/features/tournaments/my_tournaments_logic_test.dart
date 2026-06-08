@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/domain/my_tournaments_logic.dart';
-import 'package:nexago_app/features/tournaments/domain/my_tournaments_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 
 DiscoveryTournament _tournament({
@@ -45,24 +44,14 @@ void main() {
   group('splitMyTournamentEnrollments', () {
     test('splits ongoing vs completed by listing status', () {
       final enrollments = buildMyTournamentEnrollments(
-        registrations: [
-          _reg('live'),
-          _reg('done'),
-          _reg('open'),
-        ],
+        registrations: [_reg('live'), _reg('done'), _reg('open')],
         tournamentsById: {
-          'live': _tournament(
-            id: 'live',
-            status: TournamentListingStatus.live,
-          ),
+          'live': _tournament(id: 'live', status: TournamentListingStatus.live),
           'done': _tournament(
             id: 'done',
             status: TournamentListingStatus.completed,
           ),
-          'open': _tournament(
-            id: 'open',
-            status: TournamentListingStatus.open,
-          ),
+          'open': _tournament(id: 'open', status: TournamentListingStatus.open),
         },
       );
 
@@ -104,14 +93,8 @@ void main() {
       final enrollments = buildMyTournamentEnrollments(
         registrations: [_reg('open'), _reg('live')],
         tournamentsById: {
-          'open': _tournament(
-            id: 'open',
-            status: TournamentListingStatus.open,
-          ),
-          'live': _tournament(
-            id: 'live',
-            status: TournamentListingStatus.live,
-          ),
+          'open': _tournament(id: 'open', status: TournamentListingStatus.open),
+          'live': _tournament(id: 'live', status: TournamentListingStatus.live),
         },
       );
 
@@ -160,10 +143,7 @@ void main() {
 
   group('resolveSeasonYear', () {
     test('parses year from ranking season label', () {
-      expect(
-        resolveSeasonYear(rankingSeasonLabel: 'TEMPORADA 2026'),
-        2026,
-      );
+      expect(resolveSeasonYear(rankingSeasonLabel: 'TEMPORADA 2026'), 2026);
     });
 
     test('falls back to current year', () {

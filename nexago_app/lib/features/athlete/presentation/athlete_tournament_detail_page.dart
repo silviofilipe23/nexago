@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/match_history/athlete_tournament_detail_models.dart';
 import '../domain/match_history/athlete_tournament_detail_providers.dart';
@@ -20,20 +19,19 @@ class AthleteTournamentDetailPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final detailAsync = ref.watch(athleteTournamentDetailProvider(tournamentId));
+    final detailAsync = ref.watch(
+      athleteTournamentDetailProvider(tournamentId),
+    );
     final theme = Theme.of(context);
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
       appBar: _appBar(context, theme, detailAsync.valueOrNull?.name),
       body: detailAsync.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
-        ),
-        error: (_, __) => _messageBody(
-          theme,
-          'Não foi possível carregar o torneio.',
-        ),
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: AppColors.brand)),
+        error: (_, __) =>
+            _messageBody(theme, 'Não foi possível carregar o torneio.'),
         data: (detail) {
           if (detail == null) {
             return _messageBody(theme, 'Torneio não encontrado.');

@@ -24,10 +24,9 @@ import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
 import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../data/tournament_registration_service.dart';
+import '../domain/tournament_registration_navigation.dart';
 import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
-import '../domain/tournament_registration_success_args.dart';
-import '../../../core/router/routes.dart';
 
 class TournamentRegistrationPixPage extends ConsumerStatefulWidget {
   const TournamentRegistrationPixPage({
@@ -185,34 +184,30 @@ class _TournamentRegistrationPixPageState
     if (_navigatedBack || _paymentFailed || snap == null) return;
     final uid = ref.read(authServiceProvider).currentUser?.uid;
     if (uid == null || uid.isEmpty) return;
+
+    if (snap.isPaid) {
+      _navigatedBack = true;
+      _expiryTimer?.cancel();
+      if (!mounted) return;
+      showAppSnackBar(context, 'Inscrição confirmada!');
+      navigateToTournamentRegistrationSuccess(
+        context,
+        tournamentId: widget.args.tournamentId,
+        registrationId: widget.args.registrationId,
+        tournamentName: widget.args.tournamentName,
+        categoryName: widget.args.categoryName,
+      );
+      return;
+    }
+
     if (!snap.athleteSharePaid(uid)) return;
     _navigatedBack = true;
     _expiryTimer?.cancel();
     if (!mounted) return;
     showAppSnackBar(
       context,
-      snap.isPaid
-          ? 'Inscrição confirmada!'
-          : 'Parcela paga. Aguarde seu parceiro pagar a dele.',
+      'Parcela paga. Aguarde seu parceiro pagar a dele.',
     );
-    if (snap.isPaid) {
-      context.goNamed(
-        AppRouteNames.tournamentRegistrationSuccess,
-        pathParameters: {'tournamentId': widget.args.tournamentId},
-        extra: TournamentRegistrationSuccessArgs(
-          tournamentId: widget.args.tournamentId,
-          registrationId: widget.args.registrationId,
-          tournamentName: widget.args.tournamentName,
-          categoryName: widget.args.categoryName,
-        ),
-        queryParameters: {
-          'registrationId': widget.args.registrationId,
-          'tournamentName': widget.args.tournamentName,
-          'categoryName': widget.args.categoryName,
-        },
-      );
-      return;
-    }
     context.pop();
   }
 
@@ -243,6 +238,7 @@ class _TournamentRegistrationPixPageState
             TournamentAccessBanner(
               onboardingCompleted: access.onboardingCompleted,
               blockMessage: access.blockMessage,
+              missingStepTitles: access.missingStepTitles,
             ),
           ],
         ),

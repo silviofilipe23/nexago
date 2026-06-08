@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/arena_search_providers.dart';
@@ -9,10 +8,7 @@ import '../../arena_booking_navigation.dart';
 import 'my_bookings_nearby_arena_card.dart';
 
 class MyBookingsNearbySection extends ConsumerWidget {
-  const MyBookingsNearbySection({
-    super.key,
-    required this.sportLabel,
-  });
+  const MyBookingsNearbySection({super.key, required this.sportLabel});
 
   final String sportLabel;
 

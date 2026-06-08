@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import '../../domain/arena_bookings_providers.dart';
 import '../../domain/arena_providers.dart';
 
 class ArenaBookingsHeader extends ConsumerWidget {
@@ -14,14 +13,14 @@ class ArenaBookingsHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final arenaAsync = ref.watch(managedArenaDetailProvider);
-    final arenaName = arenaAsync.maybeWhen(
-          data: (a) => a?.name.trim(),
-          orElse: () => null,
-        ) ??
+    final arenaName =
+        arenaAsync.maybeWhen(data: (a) => a?.name.trim(), orElse: () => null) ??
         'Arena';
     final sum = ref.watch(arenaBookingsTabSummaryProvider);
-    final money = NumberFormat.currency(locale: 'pt_BR', symbol: r'R$')
-        .format(sum);
+    final money = NumberFormat.currency(
+      locale: 'pt_BR',
+      symbol: r'R$',
+    ).format(sum);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

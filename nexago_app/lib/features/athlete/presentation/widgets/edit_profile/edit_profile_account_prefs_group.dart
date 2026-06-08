@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../athlete_settings/athlete_settings_group.dart';
-import '../athlete_settings/athlete_settings_helpers.dart';
 
 /// Card CONTA E PREFERÊNCIAS do Editar perfil.
 class EditProfileAccountPrefsGroup extends StatelessWidget {
@@ -51,7 +49,9 @@ class EditProfileAccountPrefsGroup extends StatelessWidget {
                   Text(
                     'Vinculado à sua conta. Não pode ser alterado aqui.',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.75),
+                      color: context.themeColors.onSurfaceMuted.withValues(
+                        alpha: 0.75,
+                      ),
                       fontSize: 11,
                     ),
                   ),

@@ -24,6 +24,24 @@
   text-decoration: underline;
 }
 
+.legal-page__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.85rem;
+}
+
+.legal-page__nav a {
+  color: #a8a6a3;
+  text-decoration: none;
+}
+
+.legal-page__nav a:hover,
+.legal-page__nav a.legal-page__nav--active {
+  color: #ff6a1a;
+}
+
 h1 {
   font-size: 1.75rem;
   font-weight: 800;
@@ -43,6 +61,12 @@ h2 {
   margin: 0 0 1.5rem;
 }
 
+.legal-page__updated {
+  font-size: 0.85rem;
+  color: #7a7875;
+  margin: 0 0 1.5rem;
+}
+
 section ul,
 section ol {
   margin: 0.5rem 0 0;
@@ -52,6 +76,11 @@ section ol {
 
 section li + li {
   margin-top: 0.5rem;
+}
+
+section p {
+  color: #c9c7c4;
+  margin: 0.5rem 0 0;
 }
 
 a {

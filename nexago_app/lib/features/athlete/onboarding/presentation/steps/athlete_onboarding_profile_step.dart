@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 
+import '../../../../../core/media/profile_image_crop_config.dart';
+import '../../../../../core/media/profile_image_picker.dart';
 import '../../../../../core/router/app_router.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -57,36 +57,14 @@ class _AthleteOnboardingProfileStepState
   }
 
   Future<void> _pickPhoto() async {
-    final picker = ImagePicker();
-    XFile? x;
-    try {
-      x = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1600,
-        imageQuality: 88,
-        requestFullMetadata: false,
-      );
-    } on PlatformException {
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        'Não foi possível carregar esta foto. Tente outra imagem.',
-        isError: true,
-      );
-      return;
-    }
-    if (x == null) return;
-    final bytes = await x.readAsBytes();
-    final path = x.path.toLowerCase();
-    var contentType = 'image/jpeg';
-    if (path.endsWith('.png')) {
-      contentType = 'image/png';
-    } else if (path.endsWith('.webp')) {
-      contentType = 'image/webp';
-    }
+    final result = await pickProfileImage(
+      context: context,
+      target: ProfileImageCropTarget.avatar,
+    );
+    if (result == null || !mounted) return;
     ref.read(athleteOnboardingDraftProvider.notifier).setAvatar(
-          bytes: bytes,
-          contentType: contentType,
+          bytes: result.bytes,
+          contentType: result.contentType,
         );
   }
 
@@ -176,7 +154,7 @@ class _AthleteOnboardingProfileStepState
           ),
           SizedBox(height: 20),
           _PhotoPickerCard(
-            hasPhoto: draft.avatarBytes != null,
+            avatarBytes: draft.avatarBytes,
             onPick: _pickPhoto,
           ),
           SizedBox(height: 20),
@@ -273,16 +251,17 @@ class _AthleteOnboardingProfileStepState
 
 class _PhotoPickerCard extends StatelessWidget {
   const _PhotoPickerCard({
-    required this.hasPhoto,
+    required this.avatarBytes,
     required this.onPick,
   });
 
-  final bool hasPhoto;
+  final Uint8List? avatarBytes;
   final VoidCallback onPick;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasPhoto = avatarBytes != null;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -299,10 +278,14 @@ class _PhotoPickerCard extends StatelessWidget {
             CircleAvatar(
               radius: 28,
               backgroundColor: context.themeColors.surfaceRaised,
-              child: Icon(
-                hasPhoto ? Icons.check_rounded : Icons.person_outline_rounded,
-                color: hasPhoto ? AppColors.win : context.themeColors.onSurfaceMuted,
-              ),
+              backgroundImage:
+                  hasPhoto ? MemoryImage(avatarBytes!) : null,
+              child: hasPhoto
+                  ? null
+                  : Icon(
+                      Icons.person_outline_rounded,
+                      color: context.themeColors.onSurfaceMuted,
+                    ),
             ),
             SizedBox(width: 12),
             Expanded(
@@ -316,7 +299,9 @@ class _PhotoPickerCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'JPG ou PNG · até 2 MB',
+                    hasPhoto
+                        ? 'Toque em ajustar para recortar de novo'
+                        : 'JPG ou PNG · recorte circular',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: context.themeColors.onSurfaceMuted,
                     ),
@@ -326,8 +311,11 @@ class _PhotoPickerCard extends StatelessWidget {
             ),
             OutlinedButton.icon(
               onPressed: onPick,
-              icon: Icon(Icons.photo_camera_outlined, size: 18),
-              label: Text('Escolher'),
+              icon: Icon(
+                hasPhoto ? Icons.crop_rounded : Icons.photo_camera_outlined,
+                size: 18,
+              ),
+              label: Text(hasPhoto ? 'Ajustar' : 'Escolher'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: context.themeColors.onSurface,
                 side: BorderSide(

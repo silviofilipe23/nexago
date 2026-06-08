@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../arenas/domain/arena_amenities.dart';
 import '../../../../arenas/domain/arena_search_filters.dart';
 import '../../../../arenas/domain/arena_search_metadata.dart';
@@ -233,10 +232,7 @@ class _ArenaSearchFiltersSheetState extends State<_ArenaSearchFiltersSheet> {
                   ),
                   child: Text(
                     'Mostrar $resultCount arenas',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 16,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                   ),
                 ),
               ),
@@ -343,10 +339,7 @@ class _RadiusSlider extends StatelessWidget {
           children: [
             Text('1 km', style: muted),
             Spacer(),
-            Text(
-              '${ArenaSearchFilters.maxRadiusKm.toInt()} km',
-              style: muted,
-            ),
+            Text('${ArenaSearchFilters.maxRadiusKm.toInt()} km', style: muted),
           ],
         ),
         SliderTheme(
@@ -456,11 +449,7 @@ class _ArenaFilterChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (showCheckmark && selected) ...[
-                Icon(
-                  Icons.check_rounded,
-                  size: 16,
-                  color: AppColors.brand,
-                ),
+                Icon(Icons.check_rounded, size: 16, color: AppColors.brand),
                 SizedBox(width: 4),
               ],
               Text(label, style: textStyle),

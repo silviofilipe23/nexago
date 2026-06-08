@@ -62,5 +62,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./legal/account-deletion.component').then((m) => m.AccountDeletionComponent),
   },
+  {
+    path: 'privacidade',
+    loadComponent: () =>
+      import('./legal/privacy-policy.component').then((m) => m.PrivacyPolicyComponent),
+  },
+  {
+    path: 'termos',
+    loadComponent: () =>
+      import('./legal/terms-of-use.component').then((m) => m.TermsOfUseComponent),
+  },
   { path: '**', redirectTo: '', pathMatch: 'full' },
 ];

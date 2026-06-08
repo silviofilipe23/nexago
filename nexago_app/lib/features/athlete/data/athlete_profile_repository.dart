@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../domain/athlete_notification_preferences.dart';
 import '../domain/athlete_privacy_preferences.dart';
 import '../domain/athlete_profile.dart';
+import '../domain/profile_access.dart';
 import '../domain/profile_completion_models.dart';
 
 class AthleteProfileRepository {
@@ -30,12 +31,19 @@ class AthleteProfileRepository {
     final exists = snap.exists;
 
     final stepsComplete = ProfileCompletionState.fromProfile(profile).allComplete;
+    final tournamentReady = isTournamentProfileReady(profile);
     final data = <String, dynamic>{
       ...profile.toFirestore(),
       'city': profile.city.trim(),
-      if (stepsComplete || profile.isProfileComplete) 'isProfileComplete': true,
       'updatedAt': FieldValue.serverTimestamp(),
     };
+    data.remove('isProfileComplete');
+    if (stepsComplete || profile.isProfileComplete || tournamentReady) {
+      data['isProfileComplete'] = true;
+    }
+    if (stepsComplete || tournamentReady) {
+      data['onboardingCompleted'] = true;
+    }
 
     final stateTrim = profile.state?.trim() ?? '';
     if (stateTrim.isNotEmpty) {

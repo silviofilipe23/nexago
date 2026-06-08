@@ -47,6 +47,44 @@ void openArenaBookingSlots(
   );
 }
 
+void openDiscoverAgendaTab(BuildContext context, {WidgetRef? ref}) {
+  if (ref != null) {
+    ref.read(athleteShellTabIndexProvider.notifier).state =
+        athleteShellAgendaTabIndex;
+  } else {
+    try {
+      ProviderScope.containerOf(context, listen: false)
+          .read(athleteShellTabIndexProvider.notifier)
+          .state = athleteShellAgendaTabIndex;
+    } catch (_) {
+      // Sem Riverpod acima na árvore — initialIndex do discover resolve a aba.
+    }
+  }
+  context.goNamed(
+    AppRouteNames.discover,
+    queryParameters: const {'tab': 'agenda'},
+  );
+}
+
+void openDiscoverCompeteTab(BuildContext context, {WidgetRef? ref}) {
+  if (ref != null) {
+    ref.read(athleteShellTabIndexProvider.notifier).state =
+        athleteShellCompeteTabIndex;
+  } else {
+    try {
+      ProviderScope.containerOf(context, listen: false)
+          .read(athleteShellTabIndexProvider.notifier)
+          .state = athleteShellCompeteTabIndex;
+    } catch (_) {
+      // Sem Riverpod acima na árvore — initialIndex do discover resolve a aba.
+    }
+  }
+  context.goNamed(
+    AppRouteNames.discover,
+    queryParameters: const {'tab': 'torneios'},
+  );
+}
+
 void openDiscoverReservarTab(BuildContext context, {WidgetRef? ref}) {
   if (ref != null) {
     ref.read(athleteShellTabIndexProvider.notifier).state =

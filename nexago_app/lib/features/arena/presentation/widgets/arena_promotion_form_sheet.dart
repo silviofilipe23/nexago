@@ -145,7 +145,9 @@ class _ArenaPromotionFormSheetState
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.35,
+                  ),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -252,8 +254,7 @@ class _ArenaPromotionFormSheetState
                   padding: EdgeInsets.symmetric(vertical: 8),
                   child: LinearProgressIndicator(),
                 ),
-                error: (_, __) =>
-                    Text('Não foi possível carregar quadras.'),
+                error: (_, __) => Text('Não foi possível carregar quadras.'),
                 data: (courts) {
                   if (courts.isEmpty) {
                     return Text(

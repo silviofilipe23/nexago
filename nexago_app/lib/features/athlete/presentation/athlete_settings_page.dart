@@ -4,14 +4,15 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/auth/active_role_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_theme_mode_preference.dart';
 import '../../../core/theme/theme_mode_provider.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../auth/auth_legal_urls.dart';
+import '../../auth/presentation/role_selection_page.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../domain/achievements/achievement_providers.dart';
 import '../domain/athlete_profile.dart';
@@ -114,9 +115,11 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
     }
 
     final profile = profileAsync.valueOrNull ?? AthleteProfile.draft(user);
-    final matchHistorySubtitle =
-        ref.watch(athleteMatchHistorySettingsSubtitleProvider);
+    final matchHistorySubtitle = ref.watch(
+      athleteMatchHistorySettingsSubtitleProvider,
+    );
     final themePreference = ref.watch(appThemeModePreferenceProvider);
+    final canSwitchRole = ref.watch(hasMultipleMobileRolesProvider);
     final viewData = buildAthleteSettingsViewData(
       profile: profile,
       email: user.email,
@@ -196,6 +199,22 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
               ],
             ),
             SizedBox(height: AthleteSettingsTokens.sectionGap),
+            if (canSwitchRole) ...[
+              AthleteSettingsGroup(
+                sectionLabel: 'ACESSO',
+                children: [
+                  AthleteSettingsTile(
+                    icon: Icons.swap_horiz_rounded,
+                    title: 'Trocar papel',
+                    subtitle: 'Entrar como gestor, organizador ou atleta',
+                    variant: AthleteSettingsIconVariant.orange,
+                    onTap: () => navigateToRoleSelection(context, ref),
+                    showDivider: false,
+                  ),
+                ],
+              ),
+              SizedBox(height: AthleteSettingsTokens.sectionGap),
+            ],
             AthleteSettingsGroup(
               sectionLabel: 'PREFERÊNCIAS',
               children: [
@@ -214,9 +233,8 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   title: 'Privacidade e segurança',
                   subtitle: viewData.privacySubtitle,
                   variant: AthleteSettingsIconVariant.neutral,
-                  onTap: () => context.pushNamed(
-                    AppRouteNames.athletePrivacySecurity,
-                  ),
+                  onTap: () =>
+                      context.pushNamed(AppRouteNames.athletePrivacySecurity),
                   showDivider: true,
                 ),
                 AthleteSettingsTile(
@@ -232,9 +250,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                   title: 'Idioma',
                   subtitle: 'Idioma do app',
                   variant: AthleteSettingsIconVariant.neutral,
-                  trailing: AthleteSettingsMutedTrailing(
-                    label: 'Português',
-                  ),
+                  trailing: AthleteSettingsMutedTrailing(label: 'Português'),
                   showChevron: false,
                   onTap: () => showAthleteSettingsComingSoon(context),
                   showDivider: true,
@@ -312,7 +328,9 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                 style: AppTypography.mono(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.75),
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.75,
+                  ),
                   letterSpacing: 0.3,
                 ),
               ),

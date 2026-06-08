@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/my_booking_payment.dart';
 
 class MyBookingsPaymentChip extends StatelessWidget {
-  const MyBookingsPaymentChip({
-    super.key,
-    required this.payment,
-  });
+  const MyBookingsPaymentChip({super.key, required this.payment});
 
   final MyBookingPaymentDisplay payment;
 
@@ -19,9 +15,7 @@ class MyBookingsPaymentChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: payment.accentColor.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: payment.accentColor.withValues(alpha: 0.28),
-        ),
+        border: Border.all(color: payment.accentColor.withValues(alpha: 0.28)),
       ),
       child: Text(
         payment.label.toUpperCase(),

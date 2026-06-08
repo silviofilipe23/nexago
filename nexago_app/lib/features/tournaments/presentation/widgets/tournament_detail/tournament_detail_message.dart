@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 class TournamentDetailMessageList extends StatelessWidget {
@@ -18,9 +17,7 @@ class TournamentDetailMessageList extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-      children: [
-        TournamentDetailMessageBody(title: title, message: message),
-      ],
+      children: [TournamentDetailMessageBody(title: title, message: message)],
     );
   }
 }

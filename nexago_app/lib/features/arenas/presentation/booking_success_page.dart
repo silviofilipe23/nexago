@@ -7,13 +7,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../domain/arena_booking_labels.dart';
 import '../domain/arena_booking_success_actions.dart';
 import '../domain/arena_booking_success_args.dart';
 import '../domain/arenas_providers.dart';
+import 'arena_booking_navigation.dart';
 import 'widgets/booking_success/booking_success_action_grid.dart';
 import 'widgets/booking_success/booking_success_confetti.dart';
 import 'widgets/booking_success/booking_success_header.dart';
@@ -115,11 +115,7 @@ class BookingSuccessPage extends ConsumerWidget {
                     ),
                     SizedBox(height: 20),
                     BookingSuccessActionGrid(
-                      onCalendar: () =>
-                          _openCalendar(context, resolved, locationLabel),
                       onShare: () => _shareBooking(context, resolved),
-                      onWhatsApp: () =>
-                          _openWhatsApp(context, resolved, arena?.whatsapp),
                       onDirections: () => _openMaps(
                         context,
                         arenaName: resolved.arenaName,
@@ -132,7 +128,8 @@ class BookingSuccessPage extends ConsumerWidget {
                       width: double.infinity,
                       height: 52,
                       child: FilledButton(
-                        onPressed: () => context.go(AppRoutes.myBookings),
+                        onPressed: () =>
+                            openDiscoverAgendaTab(context, ref: ref),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.brand,
                           foregroundColor: AppColors.black,
@@ -144,7 +141,7 @@ class BookingSuccessPage extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              'Ver minha reserva',
+                              'Ver na agenda',
                               style: TextStyle(
                                 fontWeight: FontWeight.w900,
                                 fontSize: 15,
@@ -178,10 +175,7 @@ class BookingSuccessPage extends ConsumerWidget {
   }
 
   static Widget _successScaffold({required Widget body}) {
-    return Scaffold(
-      backgroundColor: AppColors.canvas,
-      body: body,
-    );
+    return Scaffold(backgroundColor: AppColors.canvas, body: body);
   }
 
   static String _ticketTimeRange(String start, String end) {
@@ -204,85 +198,6 @@ class BookingSuccessPage extends ConsumerWidget {
       bookingId: id,
     );
     await Share.share(text);
-  }
-
-  Future<void> _openCalendar(
-    BuildContext context,
-    BookingSuccessArgs resolved,
-    String locationLabel,
-  ) async {
-    final url = ArenaBookingSuccessActions.buildGoogleCalendarEventUrl(
-      title: 'Reserva · ${resolved.arenaName}',
-      dateKey: resolved.dateKey,
-      startTime: resolved.startTime,
-      endTime: resolved.endTime,
-      details: resolved.primaryBookingId != null
-          ? 'Código ${ArenaBookingSuccessActions.formatBookingDisplayCode(resolved.primaryBookingId!)}'
-          : null,
-      location: locationLabel,
-    );
-    if (url == null) {
-      if (context.mounted) {
-        showAppSnackBar(
-          context,
-          'Não foi possível montar o evento.',
-          isError: true,
-        );
-      }
-      return;
-    }
-    final uri = Uri.parse(url);
-    if (!await canLaunchUrl(uri)) {
-      if (context.mounted) {
-        showAppSnackBar(
-          context,
-          'Não foi possível abrir o calendário.',
-          isError: true,
-        );
-      }
-      return;
-    }
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
-  Future<void> _openWhatsApp(
-    BuildContext context,
-    BookingSuccessArgs resolved,
-    String? whatsapp,
-  ) async {
-    final id = resolved.primaryBookingId ?? '';
-    final message = ArenaBookingSuccessActions.buildBookingShareMessage(
-      arenaName: resolved.arenaName,
-      courtName: resolved.courtName,
-      dateLabel: resolved.dateLabel,
-      timeRangeLabel: resolved.timeRangeLabel,
-      bookingId: id,
-    );
-    final url = ArenaBookingSuccessActions.buildWhatsAppUrl(
-      phone: whatsapp,
-      message: message,
-    );
-    if (url == null) {
-      if (context.mounted) {
-        showAppSnackBar(
-          context,
-          'Esta arena ainda não cadastrou WhatsApp. Use Compartilhar para enviar aos amigos.',
-        );
-      }
-      return;
-    }
-    final uri = Uri.parse(url);
-    if (!await canLaunchUrl(uri)) {
-      if (context.mounted) {
-        showAppSnackBar(
-          context,
-          'Não foi possível abrir o WhatsApp.',
-          isError: true,
-        );
-      }
-      return;
-    }
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   Future<void> _openMaps(

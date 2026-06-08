@@ -7,7 +7,6 @@ import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/tournament_detail_model.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_logic.dart';
-import '../../../domain/tournament_uniform_selection.dart';
 
 /// Escolha de uniforme (titular ou parceiro no aceite).
 class TournamentRegistrationUniformStep extends StatelessWidget {
@@ -37,12 +36,12 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _TournamentUniformContextRow(
-          leagueBadge: leagueBadge ?? 'TORNEIO',
-          categoryName: category.name,
-          categoryBadge: categoryBadgeLabel(category),
-        ),
-        SizedBox(height: 20),
+        // _TournamentUniformContextRow(
+        //   leagueBadge: leagueBadge ?? 'TORNEIO',
+        //   categoryName: category.name,
+        //   categoryBadge: categoryBadgeLabel(category),
+        // ),
+        // SizedBox(height: 20),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -84,10 +83,10 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
           'Camisa oficial do torneio. Você troca tamanho/número até '
           '${kUniformChangeDeadlineDays} dias antes.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-                fontWeight: FontWeight.w500,
-                height: 1.4,
-              ),
+            color: context.themeColors.onSurfaceMuted,
+            fontWeight: FontWeight.w500,
+            height: 1.4,
+          ),
         ),
         SizedBox(height: 20),
         _JerseyPreviewCard(
@@ -110,10 +109,7 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
             Spacer(),
             TextButton(
               onPressed: () {
-                showAppSnackBar(
-                  context,
-                  'Tabela de medidas em breve.',
-                );
+                showAppSnackBar(context, 'Tabela de medidas em breve.');
               },
               style: TextButton.styleFrom(
                 padding: EdgeInsets.zero,
@@ -257,9 +253,9 @@ class _TournamentUniformContextRow extends StatelessWidget {
               Text(
                 categoryName,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: context.themeColors.onSurface,
-                    ),
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
               ),
             ],
           ),
@@ -351,7 +347,9 @@ class _JerseyPreviewCard extends StatelessWidget {
                       style: AppTypography.soraRegular(
                         fontSize: 72,
                         fontWeight: FontWeight.w800,
-                        color: context.themeColors.onSurface.withValues(alpha: 0.95),
+                        color: context.themeColors.onSurface.withValues(
+                          alpha: 0.95,
+                        ),
                         height: 1,
                       ),
                     ),
@@ -478,10 +476,7 @@ class _SizeChipRow extends StatelessWidget {
 }
 
 class _JerseyNumberStepper extends StatelessWidget {
-  const _JerseyNumberStepper({
-    required this.value,
-    required this.onChanged,
-  });
+  const _JerseyNumberStepper({required this.value, required this.onChanged});
 
   final int value;
   final ValueChanged<int> onChanged;
@@ -548,7 +543,9 @@ class _StepperButton extends StatelessWidget {
           height: 48,
           child: Icon(
             icon,
-            color: filled ? AppColors.black : context.themeColors.onSurfaceMuted,
+            color: filled
+                ? AppColors.black
+                : context.themeColors.onSurfaceMuted,
           ),
         ),
       ),

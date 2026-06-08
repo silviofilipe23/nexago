@@ -20,6 +20,7 @@ import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
 import '../domain/tournament_partner_invite_providers.dart';
 import '../domain/tournament_registration_logic.dart';
+import '../domain/tournament_registration_navigation.dart';
 import '../domain/tournament_registration_pix_args.dart';
 import '../domain/tournament_registration_providers.dart';
 import 'widgets/tournament_registration/tournament_registration_category_card.dart';
@@ -87,6 +88,9 @@ class _TournamentRegistrationPageState
         _step = widget.initialStep ?? TournamentRegistrationStep.waiting;
       }
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduleRegistrationPaidCheck();
+    });
   }
 
   void _scheduleInitialCategory(
@@ -239,6 +243,45 @@ class _TournamentRegistrationPageState
     context.go(AppRoutes.discover);
   }
 
+  void _navigateToRegistrationSuccess() {
+    if (!mounted || _paidPopHandled) return;
+    _paidPopHandled = true;
+
+    final tournament = ref
+        .read(tournamentDetailProvider(widget.tournamentId))
+        .valueOrNull;
+    if (tournament == null) return;
+
+    final regId = _registrationId ?? '';
+    if (regId.isEmpty) return;
+
+    final categoryName =
+        _category?.name ?? _category?.id ?? widget.initialCategoryId ?? '';
+
+    showAppSnackBar(context, 'Dupla inscrita! Pagamento confirmado.');
+    navigateToTournamentRegistrationSuccess(
+      context,
+      tournamentId: widget.tournamentId,
+      registrationId: regId,
+      tournamentName: tournament.name,
+      categoryName: categoryName,
+    );
+  }
+
+  void _scheduleRegistrationPaidCheck() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _paidPopHandled) return;
+      final regId = _registrationId ?? '';
+      if (regId.isEmpty) return;
+      final snap = ref
+          .read(tournamentRegistrationSnapshotProvider(regId))
+          .valueOrNull;
+      if (snap?.isPaid == true) {
+        _navigateToRegistrationSuccess();
+      }
+    });
+  }
+
   void _handleBack() {
     switch (_step) {
       case TournamentRegistrationStep.category:
@@ -262,7 +305,7 @@ class _TournamentRegistrationPageState
 
   void _showProfileAccessBlocked() {
     final access = ref.read(tournamentAccessStateProvider);
-    final message = access.blockMessage;
+    final message = access.snackbarMessage;
     if (message != null && mounted) {
       showAppSnackBar(context, message, isError: true);
     }
@@ -289,9 +332,7 @@ class _TournamentRegistrationPageState
         inviteeUid: partner.userId,
         inviteeName: partner.name,
         inviterName: athlete.name,
-        inviterUniform: categoryRequiresUniform(cat)
-            ? _titularUniform
-            : null,
+        inviterUniform: categoryRequiresUniform(cat) ? _titularUniform : null,
       );
       if (!mounted) return;
       setState(() {
@@ -421,12 +462,13 @@ class _TournamentRegistrationPageState
       case TournamentRegistrationStep.uniform:
         final cat = _category;
         return (
-          enabled: cat != null &&
+          enabled:
+              cat != null &&
               isUniformSelectionComplete(
                 category: cat,
                 selection: _titularUniform,
               ),
-          ctaLabel: 'Próximo — escolher parceiro →',
+          ctaLabel: 'Próximo — escolher parceiro',
           metaLabel: null,
           totalLabel: null,
         );
@@ -515,15 +557,13 @@ class _TournamentRegistrationPageState
             invite.registrationId!.isNotEmpty) {
           if (_registrationId != invite.registrationId) {
             setState(() => _registrationId = invite.registrationId);
+            _scheduleRegistrationPaidCheck();
           }
           if (_step == TournamentRegistrationStep.waiting) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
-              // showAppSnackBar(
-              //   context,
-              //   '${invite.inviteeName.split(' ').first} aceitou! Sigam para o pagamento.',
-              // );
               setState(() => _step = TournamentRegistrationStep.payment);
+              _scheduleRegistrationPaidCheck();
             });
           }
         } else if (invite.isDeclined || invite.isCancelled) {
@@ -558,18 +598,13 @@ class _TournamentRegistrationPageState
     final regId = _registrationId ?? '';
     if (regId.isNotEmpty) {
       ref.listen(tournamentRegistrationSnapshotProvider(regId), (prev, next) {
-        final snap = next.valueOrNull;
-        if (snap?.isPaid == true &&
-            mounted &&
-            !_paidPopHandled &&
-            _step == TournamentRegistrationStep.payment) {
-          _paidPopHandled = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            showAppSnackBar(context, 'Dupla inscrita! Pagamento confirmado.');
-            _exitRegistration();
-          });
-        }
+        final wasPaid = prev?.valueOrNull?.isPaid == true;
+        final isPaid = next.valueOrNull?.isPaid == true;
+        if (!isPaid || wasPaid || !mounted || _paidPopHandled) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted || _paidPopHandled) return;
+          _navigateToRegistrationSuccess();
+        });
       });
     }
 
@@ -582,9 +617,8 @@ class _TournamentRegistrationPageState
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       body: tournamentAsync.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
-        ),
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: AppColors.brand)),
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -607,7 +641,8 @@ class _TournamentRegistrationPageState
             );
           }
 
-          final registeredCategoryIds = ref
+          final registeredCategoryIds =
+              ref
                   .watch(
                     tournamentUserRegisteredCategoryIdsProvider(
                       widget.tournamentId,
@@ -680,11 +715,13 @@ class _TournamentRegistrationPageState
                 title: registrationHeaderTitle(_step),
                 tournamentName: tournament.name,
                 tournamentDateLabel: tournament.dateLabel,
-                categoryLabel: _step == TournamentRegistrationStep.waiting ||
+                categoryLabel:
+                    _step == TournamentRegistrationStep.waiting ||
                         _step == TournamentRegistrationStep.uniform
                     ? (_category?.name ?? _category?.id)
                     : null,
-                showTournamentInfo: _step == TournamentRegistrationStep.waiting ||
+                showTournamentInfo:
+                    _step == TournamentRegistrationStep.waiting ||
                     _step == TournamentRegistrationStep.uniform,
               ),
               Expanded(
@@ -697,6 +734,7 @@ class _TournamentRegistrationPageState
                         child: TournamentAccessBanner(
                           onboardingCompleted: access.onboardingCompleted,
                           blockMessage: access.blockMessage,
+                          missingStepTitles: access.missingStepTitles,
                         ),
                       ),
                     if (access.canAccess && showHero) ...[

@@ -1,0 +1,90 @@
+<main class="legal-page">
+  <div class="legal-page__inner">
+    <a class="legal-page__back" routerLink="/">← Voltar ao NexaGO</a>
+
+    <nav class="legal-page__nav" aria-label="Documentos legais">
+      <a routerLink="/privacidade">Privacidade</a>
+      <a routerLink="/termos" class="legal-page__nav--active">Termos de uso</a>
+      <a routerLink="/excluir-conta">Exclusão de conta</a>
+    </nav>
+
+    <h1>Termos de uso — NexaGO</h1>
+    <p class="legal-page__updated">Última atualização: {{ lastUpdated }}</p>
+    <p class="legal-page__lead">
+      Ao usar o app ou site NexaGO, você concorda com estes termos. Leia também nossa
+      <a routerLink="/privacidade">Política de privacidade</a>.
+    </p>
+
+    <section>
+      <h2>1. Serviço</h2>
+      <p>
+        O NexaGO conecta atletas a arenas e torneios, permitindo reservas, convites, ranking e funcionalidades
+        relacionadas ao esporte de praia e similares.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. Conta</h2>
+      <ul>
+        <li>Você deve fornecer informações verdadeiras no cadastro.</li>
+        <li>É sua responsabilidade manter a confidencialidade da senha e do acesso ao dispositivo.</li>
+        <li>Contas podem ser encerradas por violação destes termos ou por solicitação do usuário.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>3. Reservas e pagamentos</h2>
+      <ul>
+        <li>Horários, valores e políticas de cancelamento são definidos pela arena e exibidos antes da confirmação.</li>
+        <li>Pagamentos via PIX ou outros meios disponíveis seguem as regras do provedor (ex.: Mercado Pago).</li>
+        <li>Cancelamentos devem respeitar o prazo informado no app (ex.: cancelamento gratuito até X horas antes).</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>4. Conduta</h2>
+      <p>É proibido:</p>
+      <ul>
+        <li>Usar o serviço para fins ilegais, fraudulentos ou que prejudiquem outros usuários</li>
+        <li>Publicar conteúdo ofensivo, falso ou que viole direitos de terceiros</li>
+        <li>Tentar acessar sistemas ou dados de outros usuários sem autorização</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>5. Conteúdo e propriedade</h2>
+      <p>
+        Marcas, layout e software do NexaGO pertencem aos titulares do serviço. Conteúdo que você envia (ex.: foto de
+        perfil) permanece seu, com licença limitada para exibição no contexto do app.
+      </p>
+    </section>
+
+    <section>
+      <h2>6. Limitação de responsabilidade</h2>
+      <p>
+        O NexaGO atua como plataforma. Arenas são responsáveis pela operação das quadras e cumprimento de reservas.
+        O serviço é fornecido “como está”, na medida permitida pela lei aplicável.
+      </p>
+    </section>
+
+    <section>
+      <h2>7. Alterações</h2>
+      <p>
+        Podemos atualizar estes termos. O uso continuado após a publicação de alterações constitui aceite, salvo quando
+        a lei exigir consentimento adicional.
+      </p>
+    </section>
+
+    <section>
+      <h2>8. Contato</h2>
+      <p>
+        Dúvidas: <a [href]="'mailto:' + supportEmail">{{ supportEmail }}</a>.
+        Exclusão de conta: <a routerLink="/excluir-conta">nexago.app/excluir-conta</a>.
+      </p>
+    </section>
+
+    <p class="legal-page__footer">
+      Ver também: <a routerLink="/privacidade">Política de privacidade</a>
+    </p>
+  </div>
+</main>

@@ -7,7 +7,7 @@ import { RouterLink } from '@angular/router';
   standalone: true,
   imports: [RouterLink],
   templateUrl: './account-deletion.component.html',
-  styleUrls: ['./account-deletion.component.scss'],
+  styleUrls: ['./legal-page.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AccountDeletionComponent {

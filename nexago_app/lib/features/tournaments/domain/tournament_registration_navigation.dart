@@ -1,5 +1,35 @@
+import 'package:flutter/widgets.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/router/routes.dart';
 import 'tournament_partner_invite.dart';
 import 'tournament_registration_logic.dart';
+import 'tournament_registration_success_args.dart';
+
+/// Navega para a tela de confirmação (compartilhamento social).
+void navigateToTournamentRegistrationSuccess(
+  BuildContext context, {
+  required String tournamentId,
+  required String registrationId,
+  required String tournamentName,
+  required String categoryName,
+}) {
+  context.goNamed(
+    AppRouteNames.tournamentRegistrationSuccess,
+    pathParameters: {'tournamentId': tournamentId},
+    extra: TournamentRegistrationSuccessArgs(
+      tournamentId: tournamentId,
+      registrationId: registrationId,
+      tournamentName: tournamentName,
+      categoryName: categoryName,
+    ),
+    queryParameters: {
+      'registrationId': registrationId,
+      'tournamentName': tournamentName,
+      'categoryName': categoryName,
+    },
+  );
+}
 
 /// Query params para [AppRouteNames.tournamentRegistration].
 Map<String, String> tournamentRegistrationQueryParams({

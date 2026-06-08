@@ -163,21 +163,31 @@ class TournamentPartnerInviteService {
     });
   }
 
+  /// Convites recebidos já aceitos (parceiro convidado).
+  Stream<List<TournamentPartnerInvite>> watchAcceptedInvitesAsInvitee(
+    String uid,
+  ) {
+    if (uid.isEmpty) return Stream.value(const []);
+    return _firestore
+        .collection(_collection)
+        .where('inviteeUid', isEqualTo: uid)
+        .where('status', isEqualTo: 'accepted')
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map(TournamentPartnerInvite.fromFirestore)
+              .where((i) => !i.isExpired)
+              .toList(),
+        );
+  }
+
   /// Convites em andamento para Home/Competir:
   /// - enviados pelo usuário (pending/accepted)
   /// - recebidos pelo usuário já aceitos (accepted)
   Stream<List<TournamentPartnerInvite>> watchOngoingForHome(String uid) {
     if (uid.isEmpty) return Stream.value(const []);
     final inviterStream = watchInvitesAsInviter(uid);
-    final inviteeAcceptedStream = _firestore
-        .collection(_collection)
-        .where('inviteeUid', isEqualTo: uid)
-        .where('status', isEqualTo: 'accepted')
-        .snapshots()
-        .map((snap) => snap.docs
-            .map(TournamentPartnerInvite.fromFirestore)
-            .where((i) => !i.isExpired)
-            .toList());
+    final inviteeAcceptedStream = watchAcceptedInvitesAsInvitee(uid);
 
     return Stream.multi((controller) {
       List<TournamentPartnerInvite> inviterItems = const [];

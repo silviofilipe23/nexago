@@ -36,9 +36,9 @@ Future<RankingGenderFilter?> showRankingGenderFilterSheet(
               Text(
                 'Filtrar por gênero',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: context.themeColors.onSurface,
-                    ),
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
               ),
               SizedBox(height: 12),
               for (final option in const [

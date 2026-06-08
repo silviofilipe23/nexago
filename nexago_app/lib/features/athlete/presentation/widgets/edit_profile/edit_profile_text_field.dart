@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'edit_profile_field_decorations.dart';
 
@@ -90,7 +89,7 @@ class _EditProfileTextFieldState extends State<EditProfileTextField> {
               : null,
           buildCounter: widget.showCounter
               ? (_, {required currentLength, required isFocused, maxLength}) =>
-                  null
+                    null
               : null,
           keyboardType: widget.keyboardType,
           textCapitalization: widget.textCapitalization,

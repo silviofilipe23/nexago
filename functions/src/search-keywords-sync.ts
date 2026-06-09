@@ -287,6 +287,11 @@ async function backfillCollection(
   return {processed, updated, lastId};
 }
 
+/**
+ * Reprocessa `keywords` em lote (super admin). Após mudanças em nome/apelido,
+ * chame com `{ collection: "users", pageSize: 200 }` e repita com
+ * `startAfterId` do último doc até `hasMore` ser false.
+ */
 export const backfillSearchKeywords = onCall(
   {timeoutSeconds: 540},
   async (request) => {

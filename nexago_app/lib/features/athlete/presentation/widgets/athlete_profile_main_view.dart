@@ -11,6 +11,7 @@ import '../../../arenas/domain/my_booking_item.dart';
 import '../../../ranking/domain/ranking_display_helpers.dart';
 import '../../domain/achievements/achievement_catalog.dart';
 import '../../domain/achievements/achievement_status.dart';
+import '../../domain/athlete_display_name.dart';
 import '../../domain/athlete_profile.dart';
 import '../../domain/athlete_profile_stats_logic.dart';
 import '../../domain/athlete_profile_stats_providers.dart';
@@ -96,10 +97,9 @@ class AthleteProfileMainView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = profile.name.trim().isNotEmpty
-        ? profile.name.trim()
-        : 'Atleta';
-    final initials = _initials(name);
+    final name = athleteDisplayName(profile);
+    final secondaryName = athleteSecondaryLine(profile);
+    final initials = athleteInitials(profile);
     final location = profile.locationLabel.trim().isNotEmpty
         ? profile.locationLabel.trim()
         : _locationFallback;
@@ -137,6 +137,7 @@ class AthleteProfileMainView extends StatelessWidget {
               avatarUrl: profile.avatarUrl,
               initials: initials,
               name: name,
+              secondaryName: secondaryName,
               location: location,
               sport: sport,
               levelLabel: levelLabel,
@@ -267,14 +268,6 @@ class AthleteProfileMainView extends StatelessWidget {
     }).toList();
   }
 
-  static String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) {
-      return parts.first.substring(0, 1).toUpperCase();
-    }
-    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-  }
 }
 
 /// Topo do perfil: gradiente laranja, ondas e barra de ações.
@@ -294,6 +287,7 @@ class _ProfileHeaderSection extends StatelessWidget {
     required this.sport,
     required this.levelLabel,
     required this.displayLevel,
+    this.secondaryName,
   });
 
   final bool embedded;
@@ -306,6 +300,7 @@ class _ProfileHeaderSection extends StatelessWidget {
   final String? avatarUrl;
   final String initials;
   final String name;
+  final String? secondaryName;
   final String location;
   final String sport;
   final String levelLabel;
@@ -393,6 +388,7 @@ class _ProfileHeaderSection extends StatelessWidget {
                     avatarUrl: avatarUrl,
                     initials: initials,
                     name: name,
+                    secondaryName: secondaryName,
                     location: location,
                     sport: sport,
                     levelLabel: levelLabel,
@@ -503,11 +499,13 @@ class _ProfileIdentityRow extends StatelessWidget {
     required this.sport,
     required this.levelLabel,
     required this.displayLevel,
+    this.secondaryName,
   });
 
   final String? avatarUrl;
   final String initials;
   final String name;
+  final String? secondaryName;
   final String location;
   final String sport;
   final String levelLabel;
@@ -586,6 +584,18 @@ class _ProfileIdentityRow extends StatelessWidget {
                       height: 1.15,
                     ),
                   ),
+                  if (secondaryName != null) ...[
+                    SizedBox(height: 2),
+                    Text(
+                      secondaryName!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: context.themeColors.onSurfaceMuted,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                   SizedBox(height: 4),
                   Row(
                     children: [

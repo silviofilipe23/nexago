@@ -14,12 +14,13 @@ typedef TournamentUserRegistrationsByCategory = Map<String, String>;
 /// `categoryId` → `teamId` das inscrições do atleta no torneio.
 typedef TournamentUserTeamIdsByCategory = Map<String, String>;
 
-/// Agrega linhas de inscrição (`categoryId` = nome da categoria no torneio).
+/// Agrega inscrições confirmadas (`isPaid == true`) por `categoryId`.
 TournamentCategoryEnrollmentCounts countInscriptionsByCategoryData(
   Iterable<Map<String, dynamic>> rows,
 ) {
   final counts = <String, int>{};
   for (final data in rows) {
+    if (data['isPaid'] != true) continue;
     final categoryId = (data['categoryId'] as String?)?.trim() ?? '';
     if (categoryId.isEmpty) continue;
     counts[categoryId] = (counts[categoryId] ?? 0) + 1;

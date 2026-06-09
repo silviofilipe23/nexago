@@ -60,6 +60,7 @@ import '../../features/athlete/presentation/athlete_favorite_arenas_page.dart';
 import '../../features/athlete/presentation/athlete_notifications_page.dart';
 import '../../features/arenas/domain/arena_search_filters.dart';
 import '../../features/athlete/presentation/athlete_match_detail_page.dart';
+import '../../features/athlete/presentation/athlete_match_play_by_play_page.dart';
 import '../../features/athlete/presentation/athlete_quest_page.dart';
 import '../../features/athlete/presentation/athlete_match_history_page.dart';
 import '../../features/athlete/presentation/athlete_tournament_detail_page.dart';
@@ -338,6 +339,16 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 hideTournamentAction: fromTournament,
               );
             },
+            routes: [
+              GoRoute(
+                path: 'play-by-play',
+                name: AppRouteNames.athleteMatchPlayByPlay,
+                builder: (context, state) {
+                  final matchId = state.pathParameters['matchId'] ?? '';
+                  return AthleteMatchPlayByPlayPage(matchId: matchId);
+                },
+              ),
+            ],
           ),
           GoRoute(
             path: 'tournament/:tournamentId',

@@ -479,6 +479,95 @@ void main() {
 
       expect(mapTournamentEnrollmentToAgendaItem(e), isNull);
     });
+
+    test('uses registration startDate when discovery tournament is absent', () {
+      final today = DateTime.now();
+      final eventStart = DateTime(today.year, today.month, today.day, 8);
+      final e = MyTournamentEnrollment(
+        registration: MyTournamentRegistration(
+          registrationId: 'reg-local',
+          tournamentId: 'tour-1',
+          tournamentName: 'Copa Teste',
+          dateLabel: 'hoje',
+          statusLabel: 'Inscrito',
+          isPaid: true,
+          categoryId: 'cat-a',
+          startDate: eventStart,
+          listingStatus: TournamentListingStatus.open,
+        ),
+      );
+
+      final item = mapTournamentEnrollmentToAgendaItem(e)!;
+      expect(item.startsAt, DateTime(today.year, today.month, today.day));
+      expect(item.statusLabel, 'DIA DO EVENTO');
+    });
+
+    test('same-day start and end at midnight stays upcoming during afternoon', () {
+      final startBrt = DateTime.utc(2026, 6, 9, 3);
+      final endBrt = DateTime.utc(2026, 6, 9, 3);
+      final afternoon = DateTime(2026, 6, 9, 14);
+      final e = MyTournamentEnrollment(
+        registration: MyTournamentRegistration(
+          registrationId: 'reg-same-day',
+          tournamentId: 'PHRdRRMqc5oiCbYus2Fh',
+          tournamentName: 'nexaGO',
+          dateLabel: '09/06',
+          statusLabel: 'Inscrito',
+          isPaid: true,
+          categoryId: 'cat-a',
+          startDate: startBrt,
+          endDate: endBrt,
+          listingStatus: TournamentListingStatus.live,
+        ),
+      );
+
+      final item = mapTournamentEnrollmentToAgendaItem(e)!;
+      expect(item.statusLabel, 'DIA DO EVENTO');
+      expect(item.tournament?.isCompleted, isFalse);
+      expect(isAgendaItemPast(item, now: afternoon), isFalse);
+
+      final upcoming = filterAgendaItems(
+        items: [item],
+        filter: AthleteAgendaFilter.tournaments,
+        viewMode: AthleteAgendaViewMode.day,
+        selectedDay: DateTime(2026, 6, 9),
+        visibleMonth: startOfMonth(DateTime(2026, 6, 9)),
+        timeTab: AthleteAgendaTimeTab.upcoming,
+        now: afternoon,
+      );
+      expect(upcoming, hasLength(1));
+    });
+
+    test('normalizes UTC midnight to local event day for day filter', () {
+      final today = DateTime.now();
+      final startUtc = DateTime.utc(today.year, today.month, today.day);
+      final e = MyTournamentEnrollment(
+        registration: MyTournamentRegistration(
+          registrationId: 'reg-utc',
+          tournamentId: 'tour-1',
+          tournamentName: 'Copa UTC',
+          dateLabel: '',
+          statusLabel: 'Inscrito',
+          isPaid: true,
+          categoryId: 'cat-a',
+          startDate: startUtc,
+          listingStatus: TournamentListingStatus.open,
+        ),
+      );
+      final item = mapTournamentEnrollmentToAgendaItem(e)!;
+      final now = DateTime(today.year, today.month, today.day, 12);
+      final dayItems = filterAgendaItems(
+        items: [item],
+        filter: AthleteAgendaFilter.tournaments,
+        viewMode: AthleteAgendaViewMode.day,
+        selectedDay: DateTime(today.year, today.month, today.day),
+        visibleMonth: startOfMonth(today),
+        timeTab: AthleteAgendaTimeTab.upcoming,
+        now: now,
+      );
+      expect(dayItems, hasLength(1));
+      expect(isAgendaItemPast(item, now: now), isFalse);
+    });
   });
 
   group('formatAgendaTimelineTimeLabel', () {

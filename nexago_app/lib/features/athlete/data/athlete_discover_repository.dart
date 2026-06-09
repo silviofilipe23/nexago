@@ -31,6 +31,7 @@ class AthleteDiscoverRepository {
   final AthleteFollowService _followService;
 
   static const pageSize = 30;
+  static const maxDiscoverProfiles = 2000;
 
   final _rankingCache = <String, AthletePublicRankingSnapshot>{};
 
@@ -65,6 +66,168 @@ class AthleteDiscoverRepository {
       lastDocumentId: lastId,
       hasMore: hasMore,
     );
+  }
+
+  /// Carrega todos os perfis discoverable paginando até esgotar ou [maxProfiles].
+  Future<List<AthleteProfile>> fetchAllDiscoverableProfiles({
+    int limit = pageSize,
+    int maxProfiles = maxDiscoverProfiles,
+  }) async {
+    final all = <AthleteProfile>[];
+    String? cursor;
+
+    while (all.length < maxProfiles) {
+      final page = await fetchPage(
+        startAfterDocumentId: cursor,
+        limit: limit,
+      );
+      all.addAll(page.profiles);
+      if (!page.hasMore || page.lastDocumentId == null) break;
+      cursor = page.lastDocumentId;
+    }
+
+    return all;
+  }
+
+  /// Pré-filtra no Firestore (gênero, esporte, procura dupla) e aplica o restante
+  /// no cliente. Sem constraints de servidor, carrega o catálogo completo.
+  Future<List<AthleteProfile>> fetchProfilesForDiscover(
+    AthleteDiscoverFilters filters, {
+    int maxProfiles = maxDiscoverProfiles,
+  }) async {
+    final constraints = discoverFirestoreConstraints(filters);
+    if (constraints.isEmpty) {
+      return fetchAllDiscoverableProfiles(maxProfiles: maxProfiles);
+    }
+
+    try {
+      final profiles = await _fetchWithDiscoverConstraints(
+        constraints,
+        maxProfiles: maxProfiles,
+      );
+      if (profiles.isNotEmpty) return profiles;
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        debugPrint(
+          'AthleteDiscoverRepository.fetchProfilesForDiscover failed: $e',
+        );
+        debugPrint('$stackTrace');
+      }
+    }
+
+    return fetchAllDiscoverableProfiles(maxProfiles: maxProfiles);
+  }
+
+  Future<List<AthleteProfile>> _fetchWithDiscoverConstraints(
+    DiscoverFirestoreConstraints constraints, {
+    required int maxProfiles,
+  }) async {
+    if (constraints.sportFirestoreId != null) {
+      return _fetchProfilesMatchingSport(constraints, maxProfiles: maxProfiles);
+    }
+
+    return _paginateDiscoverQuery(
+      _buildDiscoverQuery(constraints),
+      maxProfiles: maxProfiles,
+    );
+  }
+
+  Future<List<AthleteProfile>> _fetchProfilesMatchingSport(
+    DiscoverFirestoreConstraints constraints, {
+    required int maxProfiles,
+  }) async {
+    final sportId = constraints.sportFirestoreId!;
+    final byId = <String, AthleteProfile>{};
+
+    Future<void> mergeFromQuery(Query<Map<String, dynamic>> query) async {
+      if (byId.length >= maxProfiles) return;
+      final batch = await _paginateDiscoverQuery(
+        query,
+        maxProfiles: maxProfiles - byId.length,
+      );
+      for (final profile in batch) {
+        byId[profile.id] = profile;
+        if (byId.length >= maxProfiles) break;
+      }
+    }
+
+    await mergeFromQuery(_buildDiscoverQuery(constraints));
+    if (byId.length < maxProfiles) {
+      await mergeFromQuery(
+        _buildDiscoverQuery(
+          constraints,
+          sportField: 'sportOnboarding.primarySportId',
+          sportId: sportId,
+        ),
+      );
+    }
+    if (byId.length < maxProfiles) {
+      await mergeFromQuery(
+        _buildDiscoverQuery(
+          constraints,
+          sportField: 'sportOnboarding.secondarySportIds',
+          sportId: sportId,
+          sportIsArray: true,
+        ),
+      );
+    }
+
+    return byId.values.toList();
+  }
+
+  Query<Map<String, dynamic>> _buildDiscoverQuery(
+    DiscoverFirestoreConstraints constraints, {
+    String sportField = 'discoverSportIds',
+    String? sportId,
+    bool sportIsArray = true,
+  }) {
+    final resolvedSportId = sportId ?? constraints.sportFirestoreId;
+    Query<Map<String, dynamic>> query =
+        _users.where('role', isEqualTo: 'athlete');
+
+    if (constraints.gender != null) {
+      query = query.where('gender', isEqualTo: constraints.gender);
+    }
+    if (constraints.lookingForPartnerOnly) {
+      query = query.where('lookingForPartner', isEqualTo: true);
+    }
+    if (resolvedSportId != null && resolvedSportId.isNotEmpty) {
+      query = sportIsArray
+          ? query.where(sportField, arrayContains: resolvedSportId)
+          : query.where(sportField, isEqualTo: resolvedSportId);
+    }
+
+    return query.orderBy(FieldPath.documentId);
+  }
+
+  Future<List<AthleteProfile>> _paginateDiscoverQuery(
+    Query<Map<String, dynamic>> baseQuery, {
+    required int maxProfiles,
+    int limit = pageSize,
+  }) async {
+    final profiles = <AthleteProfile>[];
+    Query<Map<String, dynamic>> query = baseQuery.limit(limit);
+    DocumentSnapshot<Map<String, dynamic>>? lastDoc;
+
+    while (profiles.length < maxProfiles) {
+      final snap = await query.get();
+      if (snap.docs.isEmpty) break;
+
+      for (final doc in snap.docs) {
+        final profile = AthleteProfile.fromFirestore(doc);
+        if (isDiscoverableProfile(profile)) {
+          profiles.add(profile);
+          if (profiles.length >= maxProfiles) break;
+        }
+      }
+
+      if (profiles.length >= maxProfiles || snap.docs.length < limit) break;
+
+      lastDoc = snap.docs.last;
+      query = baseQuery.startAfterDocument(lastDoc).limit(limit);
+    }
+
+    return profiles;
   }
 
   Future<List<AthleteProfile>> searchProfiles(String term) async {

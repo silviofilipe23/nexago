@@ -8,6 +8,7 @@ import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/athlete_follow_providers.dart';
+import '../../domain/athlete_display_name.dart';
 import '../../domain/athlete_profile_providers.dart';
 import '../../domain/athlete_public_profile_models.dart';
 import '../../domain/athlete_public_profile_providers.dart';
@@ -186,7 +187,7 @@ class _AthletePublicProfilePageState
                       },
                       onShare: () {
                         Share.share(
-                          'Confira o perfil de ${profile.name} no NexaGO.',
+                          'Confira o perfil de ${athleteDisplayName(profile)} no NexaGO.',
                         );
                       },
                     ),

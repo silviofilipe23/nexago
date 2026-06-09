@@ -39,18 +39,18 @@ class AthleteDiscoverCard extends ConsumerWidget {
             : BorderSide.none,
       ),
       clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => context.pushNamed(
-                AppRouteNames.athleteProfile,
-                queryParameters: {'userId': entry.userId},
-              ),
-              child: Column(
+      child: InkWell(
+        onTap: () => context.pushNamed(
+          AppRouteNames.athleteProfile,
+          queryParameters: {'userId': entry.userId},
+        ),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Row(
@@ -129,25 +129,25 @@ class AthleteDiscoverCard extends ConsumerWidget {
                   ),
                 ],
               ),
-            ),
-            SizedBox(height: 12),
-            Divider(
-              height: 1,
-              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
-            ),
-            SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                if (entry.profile.lookingForPartner)
-                  _LookingForPartnerBadge()
-                else
-                  const Spacer(flex: 2),
-                if (entry.profile.lookingForPartner) SizedBox(width: 8),
-                Expanded(flex: 3, child: _FollowButton(entry: entry)),
-              ],
-            ),
-          ],
+              SizedBox(height: 12),
+              Divider(
+                height: 1,
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+              ),
+              SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (entry.profile.lookingForPartner)
+                    _LookingForPartnerBadge()
+                  else
+                    const Spacer(flex: 2),
+                  if (entry.profile.lookingForPartner) SizedBox(width: 8),
+                  Expanded(flex: 3, child: _FollowButton(entry: entry)),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

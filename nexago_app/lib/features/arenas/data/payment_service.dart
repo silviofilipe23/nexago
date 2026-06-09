@@ -47,6 +47,8 @@ class PaymentService {
       'cancelPendingArenaBookingPayment';
   static const String _callableCreateTournamentRegistrationPixPayment =
       'createTournamentRegistrationPixPayment';
+  static const String _callableConfirmFreeTournamentRegistration =
+      'confirmFreeTournamentRegistration';
   static const String _callableCancelPendingTournamentRegistrationPix =
       'cancelPendingTournamentRegistrationPix';
 
@@ -169,6 +171,43 @@ class PaymentService {
     } catch (e) {
       if (e is PaymentException) rethrow;
       throw PaymentException('Não foi possível gerar o PIX: $e');
+    }
+  }
+
+  /// Confirma inscrição gratuita (taxa zero) sem PIX.
+  Future<({String registrationId, bool isPaid})>
+  confirmFreeTournamentRegistration({
+    required String registrationId,
+  }) async {
+    if (registrationId.isEmpty) {
+      throw PaymentException('Inscrição inválida.');
+    }
+
+    try {
+      final callable = _functions.httpsCallable(
+        _callableConfirmFreeTournamentRegistration,
+      );
+      final raw = await callable.call(
+        <String, dynamic>{'registrationId': registrationId},
+      );
+      final data = raw.data;
+      if (data is! Map) {
+        throw PaymentException('Resposta inválida do servidor.');
+      }
+      final map = Map<String, dynamic>.from(data);
+      final id = map['registrationId'] as String?;
+      if (id == null || id.isEmpty) {
+        throw PaymentException('Resposta inválida do servidor.');
+      }
+      return (
+        registrationId: id,
+        isPaid: map['isPaid'] == true,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      throw PaymentException(_mapFunctionsMessage(e));
+    } catch (e) {
+      if (e is PaymentException) rethrow;
+      throw PaymentException('Não foi possível confirmar a inscrição: $e');
     }
   }
 

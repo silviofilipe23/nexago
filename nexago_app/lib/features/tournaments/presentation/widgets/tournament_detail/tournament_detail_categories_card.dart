@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../domain/tournament_category_spots.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_success_args.dart';
@@ -16,6 +17,7 @@ class TournamentDetailCategoriesCard extends StatelessWidget {
     required this.tournamentName,
     required this.offers,
     this.enrollmentByCategoryId = const {},
+    this.enrollmentCountsResolved = false,
     this.registrationsByCategoryId = const {},
   });
 
@@ -23,6 +25,7 @@ class TournamentDetailCategoriesCard extends StatelessWidget {
   final String tournamentName;
   final List<TournamentCategoryOffer> offers;
   final Map<String, int> enrollmentByCategoryId;
+  final bool enrollmentCountsResolved;
   final Map<String, String> registrationsByCategoryId;
 
   @override
@@ -69,7 +72,11 @@ class TournamentDetailCategoriesCard extends StatelessWidget {
                 ),
               _CategoryRow(
                 offer: offers[i],
-                inscriptionCount: enrollmentByCategoryId[offers[i].id],
+                inscriptionCount: resolveInscriptionCountForOffer(
+                  enrollmentByCategoryId,
+                  offers[i],
+                  countsResolved: enrollmentCountsResolved,
+                ),
                 registrationId: registrationsByCategoryId[offers[i].id],
                 tournamentId: tournamentId,
                 tournamentName: tournamentName,

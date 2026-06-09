@@ -38,6 +38,22 @@ void main() {
     });
   });
 
+  group('registrationRequiresPayment', () {
+    test('false when entry fee is zero', () {
+      expect(
+        registrationRequiresPayment(buildRegistrationQuote(entryFee: 0)),
+        isFalse,
+      );
+    });
+
+    test('true when entry fee is positive', () {
+      expect(
+        registrationRequiresPayment(buildRegistrationQuote(entryFee: 90)),
+        isTrue,
+      );
+    });
+  });
+
   group('categoryBadgeLabel', () {
     test('uses level when available', () {
       const offer = TournamentCategoryOffer(
@@ -267,6 +283,28 @@ void main() {
         isPaid: false,
       );
       expect(label, contains('parcela paga'));
+    });
+
+    test('shows free registration confirmation progress', () {
+      final quote = buildRegistrationQuote(entryFee: 0);
+      expect(
+        registrationDualPaymentProgressLabel(
+          quote: quote,
+          paidAmount: 0,
+          isPaid: false,
+        ),
+        contains('gratuita'),
+      );
+      expect(
+        registrationDualPaymentProgressLabel(
+          quote: quote,
+          paidAmount: 0,
+          isPaid: false,
+          sharePaidUids: const ['partner'],
+          currentAthleteUid: 'me',
+        ),
+        contains('parceiro já confirmou'),
+      );
     });
   });
 

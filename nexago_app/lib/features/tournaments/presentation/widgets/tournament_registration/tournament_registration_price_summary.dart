@@ -18,6 +18,7 @@ class TournamentRegistrationPriceSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isFree = quote.entryFee <= 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,22 +44,24 @@ class TournamentRegistrationPriceSummary extends StatelessWidget {
             children: [
               _PriceRow(
                 label: 'Inscrição da dupla',
-                value: formatRegistrationMoney(quote.entryFee),
+                value: isFree ? 'Gratuita' : formatRegistrationMoney(quote.entryFee),
                 valueStyle: theme.textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: context.themeColors.onSurface,
+                  color: isFree ? AppColors.win : context.themeColors.onSurface,
                 ),
               ),
-              SizedBox(height: 12),
-              _PriceRow(
-                label: 'Taxa NexaGO',
-                value: formatRegistrationMoney(quote.platformFee),
-                hint: 'retida no pagamento',
-                valueStyle: theme.textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: context.themeColors.onSurface,
+              if (!isFree) ...[
+                SizedBox(height: 12),
+                _PriceRow(
+                  label: 'Taxa NexaGO',
+                  value: formatRegistrationMoney(quote.platformFee),
+                  hint: 'retida no pagamento',
+                  valueStyle: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: context.themeColors.onSurface,
+                  ),
                 ),
-              ),
+              ],
               if (showTotal) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -78,11 +81,11 @@ class TournamentRegistrationPriceSummary extends StatelessWidget {
                     ),
                     Spacer(),
                     Text(
-                      formatRegistrationMoney(quote.displayTotal),
+                      isFree ? 'Gratuita' : formatRegistrationMoney(quote.displayTotal),
                       style: AppTypography.mono(
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
-                        color: AppColors.brand,
+                        color: isFree ? AppColors.win : AppColors.brand,
                         letterSpacing: -0.5,
                       ),
                     ),

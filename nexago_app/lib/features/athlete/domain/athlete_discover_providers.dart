@@ -21,6 +21,7 @@ class AthleteDiscoverState {
     this.lastDocumentId,
     this.errorMessage,
     this.isSearchMode = false,
+    this.catalogIsComplete = false,
   });
 
   final List<AthleteDiscoverEntry> rawEntries;
@@ -34,6 +35,8 @@ class AthleteDiscoverState {
   final String? lastDocumentId;
   final String? errorMessage;
   final bool isSearchMode;
+  /// Verdadeiro quando [rawEntries] contém todos os atletas discoverable.
+  final bool catalogIsComplete;
 
   int get totalCount => displayEntries.length;
 
@@ -54,6 +57,7 @@ class AthleteDiscoverState {
     Object? lastDocumentId = _unset,
     Object? errorMessage = _unset,
     bool? isSearchMode,
+    bool? catalogIsComplete,
   }) {
     return AthleteDiscoverState(
       rawEntries: rawEntries ?? this.rawEntries,
@@ -71,6 +75,7 @@ class AthleteDiscoverState {
           ? this.errorMessage
           : errorMessage as String?,
       isSearchMode: isSearchMode ?? this.isSearchMode,
+      catalogIsComplete: catalogIsComplete ?? this.catalogIsComplete,
     );
   }
 
@@ -138,6 +143,7 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
         hasMore: page.hasMore,
         lastDocumentId: page.lastDocumentId,
         isSearchMode: false,
+        catalogIsComplete: !page.hasMore,
         errorMessage: null,
       );
     } catch (e) {
@@ -148,10 +154,59 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
     }
   }
 
-  Future<void> refresh() => loadInitial();
+  Future<void> _loadFullCatalog({bool showLoading = true}) async {
+    if (showLoading) {
+      state = state.copyWith(isLoading: true, errorMessage: null);
+    }
+    _repo.clearRankingCache();
+    try {
+      final following = await _followingIds();
+      final profiles = await _repo.fetchProfilesForDiscover(state.filters);
+      final enriched = await _repo.enrichEntries(
+        profiles: profiles,
+        currentUserId: _currentUid,
+        followingIds: following,
+      );
+      state = state.copyWith(
+        rawEntries: enriched,
+        displayEntries: _applyPipeline(enriched),
+        isLoading: false,
+        isLoadingMore: false,
+        hasMore: false,
+        lastDocumentId: null,
+        isSearchMode: false,
+        catalogIsComplete: true,
+        errorMessage: null,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: '$e');
+    }
+  }
+
+  /// Garante catálogo completo antes de pré-visualizar filtros no sheet.
+  Future<void> ensureCatalogForFiltering() async {
+    if (state.isSearchMode || state.catalogIsComplete) return;
+    await _loadFullCatalog(showLoading: false);
+  }
+
+  Future<void> refresh() async {
+    if (state.isSearchMode && state.searchQuery.trim().length >= 2) {
+      await search(state.searchQuery);
+    } else if (state.filters.hasActiveFilters) {
+      await _loadFullCatalog();
+    } else {
+      await loadInitial();
+    }
+  }
 
   Future<void> loadMore() async {
-    if (state.isSearchMode || !state.hasMore || state.isLoadingMore) return;
+    if (state.isSearchMode ||
+        state.filters.hasActiveFilters ||
+        state.catalogIsComplete ||
+        !state.hasMore ||
+        state.isLoadingMore) {
+      return;
+    }
     final cursor = state.lastDocumentId;
     if (cursor == null || cursor.isEmpty) return;
 
@@ -181,10 +236,15 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
     final trimmed = query.trim();
     state = state.copyWith(searchQuery: query);
     if (trimmed.length < 2) {
-      if (state.isSearchMode) {
-        await loadInitial();
+      state = state.copyWith(isSearchMode: false);
+      if (state.filters.hasActiveFilters) {
+        if (state.catalogIsComplete) {
+          _publishDisplay(state.rawEntries);
+        } else {
+          await _loadFullCatalog();
+        }
       } else {
-        _publishDisplay(state.rawEntries);
+        await loadInitial();
       }
       return;
     }
@@ -205,6 +265,7 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
         hasMore: false,
         lastDocumentId: null,
         isSearchMode: true,
+        catalogIsComplete: false,
         errorMessage: null,
       );
     } catch (e) {
@@ -217,15 +278,31 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
     _publishDisplay(state.rawEntries);
   }
 
-  void setQuickLevel(AthleteDiscoverQuickLevel level) {
+  Future<void> setQuickLevel(AthleteDiscoverQuickLevel level) async {
     final filters = state.filters.copyWith(quickLevel: level);
     state = state.copyWith(filters: filters);
-    _publishDisplay(state.rawEntries);
+    if (filters.hasActiveFilters) {
+      if (state.catalogIsComplete) {
+        _publishDisplay(state.rawEntries);
+      } else {
+        await _loadFullCatalog();
+      }
+    } else {
+      await loadInitial();
+    }
   }
 
-  void applyFilters(AthleteDiscoverFilters filters) {
+  Future<void> applyFilters(AthleteDiscoverFilters filters) async {
     state = state.copyWith(filters: filters);
-    _publishDisplay(state.rawEntries);
+    if (filters.hasActiveFilters) {
+      if (state.catalogIsComplete) {
+        _publishDisplay(state.rawEntries);
+      } else {
+        await _loadFullCatalog();
+      }
+    } else {
+      await loadInitial();
+    }
   }
 
   void updateFollowing(String athleteId, bool isFollowing) {

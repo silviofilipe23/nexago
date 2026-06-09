@@ -48,6 +48,7 @@ import {
 import {
   createTournamentRegistrationPixPayment,
   cancelPendingTournamentRegistrationPix,
+  confirmFreeTournamentRegistration,
 } from "./tournament-registration-pix";
 import {onBookingInviteCreatedNotifyInvitee} from "./booking-invite-notify";
 import {
@@ -81,6 +82,7 @@ export {
   cancelTournamentPartnerInvite,
   createTournamentRegistrationPixPayment,
   cancelPendingTournamentRegistrationPix,
+  confirmFreeTournamentRegistration,
   onBookingInviteCreatedNotifyInvitee,
   onUserSearchKeywordsSync,
   onTournamentSearchKeywordsSync,

@@ -1,9 +1,52 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/auth_providers.dart';
 import '../data/tournament_registration_service.dart';
 import '../data/users_repository.dart';
 import 'app_user_profile.dart';
 import 'tournament_registration_receipt.dart';
+import 'tournament_registration_success_preferences_providers.dart';
+
+/// Inscrições cuja tela de confirmação já foi exibida ou dispensada.
+class TournamentRegistrationSuccessHandledIdsNotifier
+    extends Notifier<Set<String>> {
+  String? _uid;
+
+  @override
+  Set<String> build() {
+    final auth = ref.watch(authProvider);
+    final uid = auth.valueOrNull?.uid.trim() ?? '';
+    _uid = uid.isEmpty ? null : uid;
+
+    if (_uid == null) return <String>{};
+
+    return ref
+        .read(tournamentRegistrationSuccessPreferencesRepositoryProvider)
+        .loadHandledIds(_uid!);
+  }
+
+  void markHandled(String registrationId) {
+    final id = registrationId.trim();
+    if (id.isEmpty || state.contains(id)) return;
+    state = {...state, id};
+
+    final uid = _uid;
+    if (uid == null) return;
+    ref
+        .read(tournamentRegistrationSuccessPreferencesRepositoryProvider)
+        .addHandledId(uid, id);
+  }
+
+  bool isHandled(String registrationId) {
+    final id = registrationId.trim();
+    return id.isNotEmpty && state.contains(id);
+  }
+}
+
+final tournamentRegistrationSuccessHandledIdsProvider =
+    NotifierProvider<TournamentRegistrationSuccessHandledIdsNotifier, Set<String>>(
+  TournamentRegistrationSuccessHandledIdsNotifier.new,
+);
 
 final tournamentRegistrationSnapshotProvider =
     StreamProvider.autoDispose.family<TournamentRegistrationSnapshot?, String>(

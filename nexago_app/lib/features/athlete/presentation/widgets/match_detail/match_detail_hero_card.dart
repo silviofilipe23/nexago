@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
-import '../athlete_profile_avatar.dart';
+import 'match_detail_team_avatar_stack.dart';
 
 class MatchDetailHeroCard extends StatelessWidget {
   const MatchDetailHeroCard({super.key, required this.detail});
@@ -342,7 +342,7 @@ class _VerticalTeamBlock extends StatelessWidget {
 
     return Column(
       children: [
-        _AvatarStack(players: side.players),
+        MatchDetailTeamAvatarStack(players: side.players),
         SizedBox(height: 10),
         Text(
           side.label,
@@ -366,43 +366,6 @@ class _VerticalTeamBlock extends StatelessWidget {
           ),
         ],
       ],
-    );
-  }
-}
-
-class _AvatarStack extends StatelessWidget {
-  const _AvatarStack({required this.players});
-
-  final List<MatchTeamPlayer> players;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      width: 72,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (players.isNotEmpty)
-            Positioned(
-              left: 0,
-              child: AthleteProfileAvatar(
-                size: 44,
-                initials: players.first.initials,
-                imageUrl: players.first.avatarUrl,
-              ),
-            ),
-          if (players.length > 1)
-            Positioned(
-              right: 0,
-              child: AthleteProfileAvatar(
-                size: 44,
-                initials: players[1].initials,
-                imageUrl: players[1].avatarUrl,
-              ),
-            ),
-        ],
-      ),
     );
   }
 }

@@ -5,6 +5,7 @@ import {
   buildTournamentSearchFields,
   buildUserSearchFields,
   generateKeywords,
+  normalizeNicknameForSearch,
   normalizeSearchTerm,
   tokenizeSearchText,
 } from "./search-keywords";
@@ -63,6 +64,24 @@ describe("search-keywords", () => {
     });
     assert.equal(fields.hasAthleteRole, true);
     assert.equal(fields.hasOrganizerRole, false);
+  });
+
+  it("buildUserSearchFields includes name nickname and email", () => {
+    const fields = buildUserSearchFields({
+      fullName: "Silvio Dionizio",
+      nickname: "@silvio",
+      email: "liga3@aaa.com",
+      roles: ["athlete"],
+    });
+    assert.equal(fields.hasAthleteRole, true);
+    assert.ok(fields.keywords.includes("silvio"));
+    assert.ok(fields.keywords.includes("dion"));
+    assert.ok(fields.keywords.includes("liga3"));
+  });
+
+  it("normalizeNicknameForSearch strips leading @", () => {
+    assert.equal(normalizeNicknameForSearch("@silvio"), "silvio");
+    assert.equal(normalizeNicknameForSearch("rafa"), "rafa");
   });
 
   it("buildTournamentSearchFields includes name and city", () => {

@@ -62,6 +62,107 @@ void main() {
     );
   });
 
+  test('resolveListingStatus promotes Open to live on event day', () {
+    final today = DateTime(2026, 6, 9, 14);
+    expect(
+      resolveListingStatus(
+        listingStatusRaw: 'Open',
+        startAt: DateTime(2026, 6, 9, 8),
+        now: today,
+      ),
+      TournamentListingStatus.live,
+    );
+  });
+
+  test('resolveListingStatus keeps Open when not event day', () {
+    expect(
+      resolveListingStatus(
+        listingStatusRaw: 'Open',
+        startAt: DateTime(2026, 6, 15),
+        now: DateTime(2026, 6, 9),
+      ),
+      TournamentListingStatus.open,
+    );
+  });
+
+  test('resolveListingStatus does not promote scheduled on event day', () {
+    expect(
+      resolveListingStatus(
+        listingStatusRaw: 'Draft',
+        startAt: DateTime(2026, 6, 9),
+        now: DateTime(2026, 6, 9, 10),
+      ),
+      TournamentListingStatus.scheduled,
+    );
+  });
+
+  test('isTournamentEventDay treats UTC midnight as calendar event date', () {
+    final startUtc = DateTime.utc(2026, 6, 9);
+    final nowLocal = DateTime(2026, 6, 9, 12);
+    expect(
+      isTournamentEventDay(startAt: startUtc, now: nowLocal),
+      isTrue,
+    );
+    expect(tournamentEventDateLocal(startUtc), DateTime(2026, 6, 9));
+  });
+
+  group('same-day calendar dates', () {
+    final startBrt = DateTime.utc(2026, 6, 9, 3); // 9/jun 00:00 BRT
+    final endBrt = DateTime.utc(2026, 6, 9, 3);
+    final afternoon = DateTime(2026, 6, 9, 14);
+
+    test('tournamentEffectiveEndAt extends equal midnight to end of day', () {
+      final effective = tournamentEffectiveEndAt(startBrt, endBrt);
+      expect(effective, DateTime(2026, 6, 9, 23, 59, 59));
+    });
+
+    test('resolveListingStatus keeps In Progress live on same-day event', () {
+      expect(
+        resolveListingStatus(
+          listingStatusRaw: 'In Progress',
+          startAt: startBrt,
+          endAt: endBrt,
+          now: afternoon,
+        ),
+        TournamentListingStatus.live,
+      );
+    });
+
+    test('isTournamentEventDay true while same-day event is active', () {
+      expect(
+        isTournamentEventDay(
+          startAt: startBrt,
+          endAt: endBrt,
+          now: afternoon,
+        ),
+        isTrue,
+      );
+    });
+
+    test('isTournamentEventDay false after effective end of day', () {
+      expect(
+        isTournamentEventDay(
+          startAt: startBrt,
+          endAt: endBrt,
+          now: DateTime(2026, 6, 10, 1),
+        ),
+        isFalse,
+      );
+    });
+
+    test('resolveListingStatus completes after effective end of day', () {
+      expect(
+        resolveListingStatus(
+          listingStatusRaw: 'In Progress',
+          startAt: startBrt,
+          endAt: endBrt,
+          now: DateTime(2026, 6, 10, 1),
+        ),
+        TournamentListingStatus.completed,
+      );
+    });
+  });
+
   test('resolveListingStatus derives almostFull from spots', () {
     final status = resolveListingStatus(
       spotsLeft: 2,

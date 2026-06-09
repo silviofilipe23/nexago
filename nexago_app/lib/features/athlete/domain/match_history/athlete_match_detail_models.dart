@@ -82,18 +82,45 @@ class MatchDetailXpInfo {
   final double progress;
 }
 
+class MatchDetailMomentumChartPoint {
+  const MatchDetailMomentumChartPoint({
+    required this.scoreDiff,
+    required this.time,
+    required this.scoreLabel,
+    required this.isOurTeam,
+    required this.teamLabel,
+  });
+
+  /// Vantagem da nossa dupla (positivo = na frente).
+  final int scoreDiff;
+  final String time;
+  final String scoreLabel;
+  final bool isOurTeam;
+  final String teamLabel;
+}
+
 class MatchDetailMomentumInfo {
   const MatchDetailMomentumInfo({
     required this.eyebrow,
     required this.title,
     required this.points,
     required this.narrative,
+    required this.ourTeamLabel,
+    required this.opponentTeamLabel,
+    required this.chartPoints,
+    this.summaryLabel,
+    this.chartHint,
   });
 
   final String eyebrow;
   final String title;
   final List<double> points;
   final String narrative;
+  final String ourTeamLabel;
+  final String opponentTeamLabel;
+  final List<MatchDetailMomentumChartPoint> chartPoints;
+  final String? summaryLabel;
+  final String? chartHint;
 }
 
 class MatchDetailHeadToHeadPastMatch {
@@ -125,10 +152,7 @@ class MatchDetailHeadToHeadInfo {
 }
 
 class MatchDetailFormRow {
-  const MatchDetailFormRow({
-    required this.label,
-    required this.results,
-  });
+  const MatchDetailFormRow({required this.label, required this.results});
 
   final String label;
   final List<bool> results;
@@ -139,20 +163,36 @@ class MatchDetailPlayByPlayItem {
     required this.time,
     required this.isOurTeam,
     required this.description,
+    required this.setNumber,
+    required this.scoreLabel,
+    required this.teamLabel,
   });
 
   final String time;
   final bool isOurTeam;
   final String description;
+  final int setNumber;
+
+  /// Placar do set após o ponto (perspectiva da dupla de referência).
+  final String scoreLabel;
+  final String teamLabel;
 }
 
-enum MatchDetailShareVariant {
-  victory,
-  defeat,
-  live,
-  scheduled,
-  spectator,
+class MatchDetailPlayByPlayGroup {
+  const MatchDetailPlayByPlayGroup({
+    required this.setNumber,
+    required this.setIndex,
+    required this.finalScoreLabel,
+    required this.items,
+  });
+
+  final int setNumber;
+  final int setIndex;
+  final String finalScoreLabel;
+  final List<MatchDetailPlayByPlayItem> items;
 }
+
+enum MatchDetailShareVariant { victory, defeat, live, scheduled, spectator }
 
 class MatchDetailShareSetPoint {
   const MatchDetailShareSetPoint({
@@ -167,6 +207,7 @@ class MatchDetailShareSetPoint {
   final int winnersScore;
   final int opponentsScore;
   final bool isCurrentSet;
+
   /// Rótulo exibido (ex.: "SET 2", "AGORA"); usa [label] se nulo.
   final String? displayLabel;
 
@@ -257,6 +298,7 @@ class AthleteMatchDetail {
     this.headToHead,
     this.formRows = const [],
     this.playByPlay = const [],
+    this.playByPlayGroups = const [],
     this.shareInfo,
     this.mvpSummary,
     this.isParticipantView = true,
@@ -293,7 +335,11 @@ class AthleteMatchDetail {
   final MatchDetailHeadToHeadInfo? headToHead;
   final List<MatchDetailFormRow> formRows;
   final List<MatchDetailPlayByPlayItem> playByPlay;
+  final List<MatchDetailPlayByPlayGroup> playByPlayGroups;
   final MatchDetailShareInfo? shareInfo;
+
+  int get totalPlayByPlayPoints =>
+      playByPlayGroups.fold(0, (sum, g) => sum + g.items.length);
   final String? mvpSummary;
   final bool isParticipantView;
   final String? winnerTeamId;
@@ -336,6 +382,7 @@ class AthleteMatchDetail {
     MatchDetailHeadToHeadInfo? headToHead,
     List<MatchDetailFormRow>? formRows,
     List<MatchDetailPlayByPlayItem>? playByPlay,
+    List<MatchDetailPlayByPlayGroup>? playByPlayGroups,
     MatchDetailShareInfo? shareInfo,
     String? mvpSummary,
     bool? isParticipantView,
@@ -364,8 +411,7 @@ class AthleteMatchDetail {
       startsInMinutes: startsInMinutes ?? this.startsInMinutes,
       scheduleSubtitle: scheduleSubtitle ?? this.scheduleSubtitle,
       currentSetIndex: currentSetIndex ?? this.currentSetIndex,
-      currentSetOurPoints:
-          currentSetOurPoints ?? this.currentSetOurPoints,
+      currentSetOurPoints: currentSetOurPoints ?? this.currentSetOurPoints,
       currentSetOpponentPoints:
           currentSetOpponentPoints ?? this.currentSetOpponentPoints,
       setTimelineItems: setTimelineItems ?? this.setTimelineItems,
@@ -374,6 +420,7 @@ class AthleteMatchDetail {
       headToHead: headToHead ?? this.headToHead,
       formRows: formRows ?? this.formRows,
       playByPlay: playByPlay ?? this.playByPlay,
+      playByPlayGroups: playByPlayGroups ?? this.playByPlayGroups,
       shareInfo: shareInfo ?? this.shareInfo,
       mvpSummary: mvpSummary ?? this.mvpSummary,
       isParticipantView: isParticipantView ?? this.isParticipantView,

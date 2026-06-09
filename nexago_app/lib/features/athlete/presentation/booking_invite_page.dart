@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../domain/athlete_display_name.dart';
+import '../domain/athlete_profile_providers.dart';
 import '../domain/booking_invite_model.dart';
 import '../domain/booking_invite_providers.dart';
 import '../domain/gamification_providers.dart';
@@ -64,9 +66,15 @@ class _BookingInvitePageState extends ConsumerState<BookingInvitePage> {
         return;
       }
 
-      final displayName = user?.displayName?.trim().isNotEmpty == true
-          ? user!.displayName!.trim()
-          : 'Atleta';
+      final profile = ref.read(athleteProfileProvider).valueOrNull;
+      final fromProfile = profile != null
+          ? athleteDisplayName(profile, fallback: '')
+          : '';
+      final displayName = fromProfile.isNotEmpty
+          ? fromProfile
+          : (user?.displayName?.trim().isNotEmpty == true
+              ? user!.displayName!.trim()
+              : 'Atleta');
 
       final service = ref.read(bookingInviteServiceProvider);
       await service.acceptInvite(

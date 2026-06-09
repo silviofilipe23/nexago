@@ -23,9 +23,13 @@ import {PLATFORM_FEE_FIXED_BRL} from "./mercadopago-arena-helpers";
 import {assertCanRegisterInTournament} from "./athlete-tournament-access";
 import {
   buildTournamentRegistrationExternalReference,
+  computeTeamGenderLabel,
   computeTournamentShareAmountReais,
+  isFreeRegistrationFullyConfirmed,
+  normalizeAthleteGenderBucket,
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
+import {deliverNotificationToUser} from "./notification-delivery";
 
 const pixPaymentSecrets = [...asaasArenaSecrets, PLATFORM_FEE_FIXED_BRL];
 
@@ -342,4 +346,210 @@ export const cancelPendingTournamentRegistrationPix = onCall({
 
   await cancelExistingPixPending(db, projectId, registrationId, callerUid);
   return {registrationId, status: "cancelled"};
+});
+
+async function loadUserGenderBucket(
+  db: Firestore,
+  uid: string,
+): Promise<ReturnType<typeof normalizeAthleteGenderBucket>> {
+  if (!uid) return null;
+  const snap = await db.doc(`users/${uid}`).get();
+  if (!snap.exists) return null;
+  const gender = snap.data()?.gender;
+  return normalizeAthleteGenderBucket(
+    typeof gender === "string" ? gender : undefined,
+  );
+}
+
+async function setTeamGenderWhenRegistrationPaid(
+  db: Firestore,
+  projectId: string,
+  teamId: string,
+): Promise<void> {
+  if (!teamId) return;
+
+  const teamRef = db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`);
+  const teamSnap = await teamRef.get();
+  if (!teamSnap.exists) {
+    logger.warn(`Team ${teamId} não encontrado para definir gender`);
+    return;
+  }
+
+  const data = teamSnap.data() ?? {};
+  const player1Id = typeof data.player1Id === "string" ? data.player1Id.trim() : "";
+  const player2Id = typeof data.player2Id === "string" ? data.player2Id.trim() : "";
+  if (!player1Id || !player2Id) return;
+
+  const [g1, g2] = await Promise.all([
+    loadUserGenderBucket(db, player1Id),
+    loadUserGenderBucket(db, player2Id),
+  ]);
+  const teamGender = computeTeamGenderLabel(g1, g2);
+  if (!teamGender) {
+    logger.warn(
+      `Team ${teamId}: não foi possível calcular gender (p1=${String(g1)} p2=${String(g2)})`,
+    );
+    return;
+  }
+
+  await teamRef.set(
+    {
+      gender: teamGender,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    {merge: true},
+  );
+}
+
+async function notifyRegistrationFullyConfirmed({
+  db,
+  projectId,
+  registrationId,
+  tournamentId,
+  categoryId,
+  teamId,
+  confirmedByUid,
+}: {
+  db: Firestore;
+  projectId: string;
+  registrationId: string;
+  tournamentId: string;
+  categoryId: string;
+  teamId: string;
+  confirmedByUid: string;
+}): Promise<void> {
+  const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
+  if (!teamSnap.exists) return;
+  const team = teamSnap.data() ?? {};
+  const athleteUids = [team.player1Id, team.player2Id]
+    .map((id) => (typeof id === "string" ? id.trim() : ""))
+    .filter((id, idx, arr) => id.length > 0 && arr.indexOf(id) === idx);
+  const recipients = athleteUids.filter((uid) => uid !== confirmedByUid);
+  const encodedCategoryName = encodeURIComponent(categoryId);
+  const url =
+    `/torneios/${tournamentId}/inscricao/sucesso?registrationId=${registrationId}` +
+    `&categoryName=${encodedCategoryName}`;
+
+  await Promise.all(
+    recipients.map((uid) =>
+      deliverNotificationToUser({
+        userId: uid,
+        title: "Inscricao confirmada",
+        body: "Sua dupla concluiu a inscrição. Toque para ver o comprovante.",
+        type: "tournament_registration_confirmed",
+        data: {
+          tournamentId,
+          registrationId,
+          url,
+        },
+      }),
+    ),
+  );
+}
+
+/** Confirma inscrição gratuita (taxa zero) sem PIX. */
+export const confirmFreeTournamentRegistration = onCall({
+}, async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Faça login para confirmar a inscrição.");
+  }
+
+  const data = (request.data ?? {}) as {registrationId?: string};
+  const registrationId =
+    typeof data.registrationId === "string" ? data.registrationId.trim() : "";
+  if (!registrationId) {
+    throw new HttpsError("invalid-argument", "registrationId é obrigatório");
+  }
+
+  const projectId = getFirebaseProjectId();
+  const db = getFirestore();
+
+  await assertCanRegisterInTournament(db, callerUid);
+
+  const registrationRef = db
+    .collection(artifactsInscriptionsPath(projectId))
+    .doc(registrationId);
+  const registrationSnap = await registrationRef.get();
+  if (!registrationSnap.exists) {
+    throw new HttpsError("not-found", "Inscrição não encontrada");
+  }
+
+  const registration = registrationSnap.data()!;
+  if (registration.isPaid === true) {
+    return {registrationId, isPaid: true, alreadyConfirmed: true};
+  }
+
+  const sharePaidUids = sharePaidUidsFromRegistration(registration);
+  if (sharePaidUids.includes(callerUid)) {
+    throw new HttpsError("failed-precondition", "Você já confirmou sua inscrição.");
+  }
+
+  const teamId = registration.teamId as string;
+  const tournamentId = registration.tournamentId as string;
+  const categoryId = registration.categoryId as string;
+
+  const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
+  if (!teamSnap.exists) {
+    throw new HttpsError("not-found", "Equipe não encontrada");
+  }
+  const team = teamSnap.data()!;
+  const player1Id = typeof team.player1Id === "string" ? team.player1Id.trim() : "";
+  const player2Id = typeof team.player2Id === "string" ? team.player2Id.trim() : "";
+  if (player1Id !== callerUid && player2Id !== callerUid) {
+    throw new HttpsError("permission-denied", "Você não é um dos atletas desta inscrição");
+  }
+
+  const {entryFee} = await loadTournamentEntryFee(
+    db,
+    projectId,
+    tournamentId,
+    categoryId,
+  );
+  if (entryFee > 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Esta categoria possui taxa de inscrição. Use o pagamento PIX.",
+    );
+  }
+
+  const teamUids = [player1Id, player2Id];
+  const updatedSharePaidUids = [...sharePaidUids, callerUid];
+  const wasPaidBefore = registration.isPaid === true;
+  const isPaid = isFreeRegistrationFullyConfirmed(teamUids, updatedSharePaidUids);
+
+  await registrationRef.update({
+    sharePaidUids: FieldValue.arrayUnion(callerUid),
+    isPaid,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  if (!wasPaidBefore && isPaid) {
+    try {
+      await setTeamGenderWhenRegistrationPaid(db, projectId, teamId);
+    } catch (genderError) {
+      logger.warn(
+        `Falha ao definir gender da equipe ${teamId} (registration ${registrationId})`,
+        genderError,
+      );
+    }
+    try {
+      await notifyRegistrationFullyConfirmed({
+        db,
+        projectId,
+        registrationId,
+        tournamentId,
+        categoryId,
+        teamId,
+        confirmedByUid: callerUid,
+      });
+    } catch (notifyError) {
+      logger.warn(
+        `Falha ao notificar inscrição gratuita ${registrationId}`,
+        notifyError,
+      );
+    }
+  }
+
+  return {registrationId, isPaid, alreadyConfirmed: false};
 });

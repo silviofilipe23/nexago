@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/auth/auth_providers.dart';
+import '../../../domain/athlete_display_name.dart';
 import '../../../domain/athlete_profile_providers.dart';
 import '../../../../arenas/domain/booking_providers.dart';
 import '../../../../arenas/domain/my_booking_confirmed_athlete.dart';
@@ -77,8 +78,9 @@ final bookingDetailsTeamProvider = FutureProvider.autoDispose
   String? organizerAvatar;
   if (user != null) {
     final profile = await ref.watch(athleteProfileProvider.future);
-    if (profile != null && profile.name.trim().isNotEmpty) {
-      organizerName = profile.name.trim();
+    if (profile != null) {
+      final display = athleteDisplayName(profile, fallback: '');
+      if (display.isNotEmpty) organizerName = display;
     }
     organizerAvatar = profile?.avatarUrl;
   }
@@ -110,7 +112,7 @@ final bookingDetailsTeamProvider = FutureProvider.autoDispose
     if (uid != null && uid.isNotEmpty) {
       final profile = await ref.watch(athleteProfileByIdProvider(uid).future);
       if (profile != null) {
-        if (name.isEmpty) name = profile.name.trim();
+        if (name.isEmpty) name = athleteDisplayName(profile, fallback: '');
         avatar ??= profile.avatarUrl;
       }
     }

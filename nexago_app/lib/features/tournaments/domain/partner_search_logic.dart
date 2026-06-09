@@ -17,14 +17,20 @@ List<AppUserProfile> filterPartnersByCategoryGender(
   List<AppUserProfile> users,
   String? categoryGenderType,
 ) {
-  final type = categoryGenderType?.trim() ?? '';
-  if (type != 'Masculino' && type != 'Feminino') {
+  final type = categoryGenderType?.trim().toLowerCase() ?? '';
+  if (type != 'masculino' && type != 'feminino') {
     return users;
   }
-  return users.where((u) {
-    final g = u.gender?.trim();
-    return g != null && g.isNotEmpty && g == type;
-  }).toList();
+  return users.where((u) => matchesCategoryGender(u.gender, categoryGenderType)).toList();
+}
+
+bool matchesCategoryGender(String? profileGender, String? categoryGenderType) {
+  final type = categoryGenderType?.trim().toLowerCase() ?? '';
+  if (type != 'masculino' && type != 'feminino') return true;
+  final gender = profileGender?.trim().toLowerCase() ?? '';
+  if (gender.isEmpty) return false;
+  if (type == 'masculino') return gender.startsWith('masc');
+  return gender.startsWith('fem');
 }
 
 TournamentRegistrationPartnerCandidate partnerCandidateFromProfile(
@@ -83,8 +89,12 @@ List<AppUserProfile> filterPartnersByQuery(
   if (q.isEmpty) return users;
   return users.where((user) {
     for (final raw in [user.nickname, user.fullName, user.email]) {
-      final value = raw?.trim().toLowerCase();
-      if (value != null && value.isNotEmpty && value.contains(q)) {
+      var value = raw?.trim().toLowerCase();
+      if (value == null || value.isEmpty) continue;
+      if (value.startsWith('@')) {
+        value = value.substring(1).trim();
+      }
+      if (value.contains(q)) {
         return true;
       }
     }

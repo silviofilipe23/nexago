@@ -12,7 +12,7 @@ AthleteProfile _profile({
   String city = 'Goiânia',
   String? state = 'GO',
   String sport = 'Vôlei de praia',
-  String level = 'Pro',
+  String level = 'Iniciante',
   String? category = 'Cat A',
   String? primarySportId = 'VOLEI_PRAIA',
   bool lookingForPartner = false,
@@ -47,10 +47,7 @@ AthleteDiscoverEntry _entry({
   final p = profile ?? _profile();
   return buildDiscoverEntry(
     profile: p,
-    ranking: AthletePublicRankingSnapshot(
-      rank: rank,
-      points: points,
-    ),
+    ranking: AthletePublicRankingSnapshot(rank: rank, points: points),
   );
 }
 
@@ -71,8 +68,12 @@ void main() {
 
     test('filters by quick level Intermediário', () {
       final entries = [
-        _entry(profile: _profile(id: '1', level: 'Iniciante')),
-        _entry(profile: _profile(id: '2', level: 'Intermediário')),
+        _entry(
+          profile: _profile(id: '1', level: 'Iniciante'),
+        ),
+        _entry(
+          profile: _profile(id: '2', level: 'Intermediário'),
+        ),
       ];
       final result = applyDiscoverFilters(
         entries: entries,
@@ -85,8 +86,12 @@ void main() {
 
     test('maps legacy Básico to Iniciante quick filter', () {
       final entries = [
-        _entry(profile: _profile(id: '1', level: 'Básico')),
-        _entry(profile: _profile(id: '2', level: 'Pro')),
+        _entry(
+          profile: _profile(id: '1', level: 'Básico'),
+        ),
+        _entry(
+          profile: _profile(id: '2', level: 'Iniciante'),
+        ),
       ];
       final result = applyDiscoverFilters(
         entries: entries,
@@ -99,8 +104,12 @@ void main() {
 
     test('excludes athletes without level when level filter is active', () {
       final entries = [
-        _entry(profile: _profile(id: '1', level: '')),
-        _entry(profile: _profile(id: '2', level: 'Open')),
+        _entry(
+          profile: _profile(id: '1', level: ''),
+        ),
+        _entry(
+          profile: _profile(id: '2', level: 'Open'),
+        ),
       ];
       final result = applyDiscoverFilters(
         entries: entries,
@@ -113,8 +122,12 @@ void main() {
 
     test('filters by gender', () {
       final entries = [
-        _entry(profile: _profile(id: '1', gender: 'masculino')),
-        _entry(profile: _profile(id: '2', gender: 'feminino')),
+        _entry(
+          profile: _profile(id: '1', gender: 'masculino'),
+        ),
+        _entry(
+          profile: _profile(id: '2', gender: 'feminino'),
+        ),
       ];
       final result = applyDiscoverFilters(
         entries: entries,
@@ -127,8 +140,12 @@ void main() {
 
     test('filters by search query', () {
       final entries = [
-        _entry(profile: _profile(id: '1', name: 'Rafael')),
-        _entry(profile: _profile(id: '2', name: 'Marina')),
+        _entry(
+          profile: _profile(id: '1', name: 'Rafael'),
+        ),
+        _entry(
+          profile: _profile(id: '2', name: 'Marina'),
+        ),
       ];
       final result = applyDiscoverFilters(
         entries: entries,
@@ -136,6 +153,56 @@ void main() {
         searchQuery: 'marina',
       );
       expect(result.single.userId, '2');
+    });
+  });
+
+  group('discoverFirestoreConstraints', () {
+    test('maps gender filter to Firestore value', () {
+      expect(
+        discoverGenderFirestoreValue(AthleteDiscoverGenderFilter.male),
+        'Masculino',
+      );
+      expect(
+        discoverGenderFirestoreValue(AthleteDiscoverGenderFilter.female),
+        'Feminino',
+      );
+      expect(
+        discoverGenderFirestoreValue(AthleteDiscoverGenderFilter.all),
+        isNull,
+      );
+    });
+
+    test('builds constraints from active filters', () {
+      final constraints = discoverFirestoreConstraints(
+        const AthleteDiscoverFilters(
+          gender: AthleteDiscoverGenderFilter.female,
+          lookingForPartnerOnly: true,
+          sportFirestoreId: 'VOLEI_PRAIA',
+        ),
+      );
+      expect(constraints.gender, 'Feminino');
+      expect(constraints.lookingForPartnerOnly, isTrue);
+      expect(constraints.sportFirestoreId, 'VOLEI_PRAIA');
+      expect(constraints.isEmpty, isFalse);
+    });
+
+    test('defaults produce empty constraints', () {
+      expect(
+        discoverFirestoreConstraints(AthleteDiscoverFilters.defaults).isEmpty,
+        isTrue,
+      );
+    });
+  });
+
+  group('discoverSportIdsForProfile', () {
+    test('includes primary and secondary sports', () {
+      final profile = _profile(
+        primarySportId: 'VOLEI_PRAIA',
+      ).copyWith(secondarySportFirestoreIds: const ['BEACH_TENNIS', 'TENIS']);
+      expect(
+        discoverSportIdsForProfile(profile),
+        containsAll(['VOLEI_PRAIA', 'BEACH_TENNIS', 'TENIS']),
+      );
     });
   });
 
@@ -154,8 +221,12 @@ void main() {
 
     test('sorts by level segments', () {
       final entries = [
-        _entry(profile: _profile(id: '1', level: 'Iniciante')),
-        _entry(profile: _profile(id: '2', level: 'Pro')),
+        _entry(
+          profile: _profile(id: '1', level: 'Iniciante'),
+        ),
+        _entry(
+          profile: _profile(id: '2', level: 'Iniciante'),
+        ),
       ];
       final sorted = sortDiscoverEntries(
         entries: entries,

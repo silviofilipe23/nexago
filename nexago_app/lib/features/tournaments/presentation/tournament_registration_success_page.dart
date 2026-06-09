@@ -95,7 +95,7 @@ class TournamentRegistrationSuccessPage extends ConsumerWidget {
   }
 }
 
-class _TournamentRegistrationSuccessView extends StatefulWidget {
+class _TournamentRegistrationSuccessView extends ConsumerStatefulWidget {
   const _TournamentRegistrationSuccessView({
     required this.args,
     required this.tournament,
@@ -123,12 +123,12 @@ class _TournamentRegistrationSuccessView extends StatefulWidget {
   final String footerLabel;
 
   @override
-  State<_TournamentRegistrationSuccessView> createState() =>
+  ConsumerState<_TournamentRegistrationSuccessView> createState() =>
       _TournamentRegistrationSuccessViewState();
 }
 
 class _TournamentRegistrationSuccessViewState
-    extends State<_TournamentRegistrationSuccessView> {
+    extends ConsumerState<_TournamentRegistrationSuccessView> {
   final _shareCardKey = GlobalKey();
   bool _sharing = false;
   late final TournamentRegistrationSharePhrase _sharePhrase;
@@ -301,7 +301,13 @@ class _TournamentRegistrationSuccessViewState
   }
 
   void _onClose(BuildContext context) {
-    context.go(AppRoutes.discover);
+    ref
+        .read(tournamentRegistrationSuccessHandledIdsProvider.notifier)
+        .markHandled(widget.args.registrationId);
+    context.goNamed(
+      AppRouteNames.tournamentDetail,
+      pathParameters: {'tournamentId': widget.args.tournamentId},
+    );
   }
 
   Future<void> _shareToStory(BuildContext context) async {

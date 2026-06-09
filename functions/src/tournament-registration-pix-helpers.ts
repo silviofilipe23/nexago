@@ -49,6 +49,18 @@ export function sharePaidUidsFromRegistration(
   return raw.filter((id): id is string => typeof id === "string" && id.trim().length > 0);
 }
 
+/** Inscrição gratuita: dupla confirmada quando os dois atletas constam em sharePaidUids. */
+export function isFreeRegistrationFullyConfirmed(
+  teamUids: string[],
+  sharePaidUids: string[],
+): boolean {
+  const uniqueTeamUids = teamUids
+    .map((id) => id.trim())
+    .filter((id, idx, arr) => id.length > 0 && arr.indexOf(id) === idx);
+  if (uniqueTeamUids.length < TEAM_SIZE) return false;
+  return uniqueTeamUids.every((uid) => sharePaidUids.includes(uid));
+}
+
 export type AthleteGenderBucket = "M" | "F";
 
 /** Normaliza `users/{uid}.gender` para comparação da dupla. */

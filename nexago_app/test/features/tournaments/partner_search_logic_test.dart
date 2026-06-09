@@ -31,6 +31,14 @@ void main() {
       expect(result.map((u) => u.uid), ['m']);
     });
 
+    test('matches legacy lowercase gender values', () {
+      const legacyMale = AppUserProfile(uid: 'lm', gender: 'masculino');
+      expect(
+        filterPartnersByCategoryGender([legacyMale], 'Masculino').length,
+        1,
+      );
+    });
+
     test('no filter for misto', () {
       final result = filterPartnersByCategoryGender(
         [male, female, noGender],
@@ -49,6 +57,19 @@ void main() {
             nickname: 'enzo',
             fullName: 'Enzo Ribeiro',
             email: 'e@test.com',
+          ),
+        ),
+        'enzo',
+      );
+    });
+
+    test('strips @ from nickname for display', () {
+      expect(
+        appUserDisplayName(
+          const AppUserProfile(
+            uid: '1',
+            nickname: '@enzo',
+            fullName: 'Enzo Ribeiro',
           ),
         ),
         'enzo',

@@ -78,17 +78,6 @@ final _shareDayFmt = DateFormat('d', 'pt_BR');
 final _shareMonthFmt = DateFormat('MMM', 'pt_BR');
 final _shareFooterFmt = DateFormat('MMM yyyy', 'pt_BR');
 
-String initialsFromDisplayName(String name) {
-  final parts = name.split(' ').where((p) => p.isNotEmpty).toList();
-  if (parts.isEmpty) return '?';
-  if (parts.length == 1) {
-    return parts.first.length >= 2
-        ? parts.first.substring(0, 2).toUpperCase()
-        : parts.first.toUpperCase();
-  }
-  return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-}
-
 String formatShareCardPlayerLine(String player1, String player2) {
   final p1 = player1.trim();
   final p2 = player2.trim();

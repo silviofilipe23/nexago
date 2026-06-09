@@ -223,17 +223,33 @@ String agendaTournamentSubtitle(MyTournamentEnrollment enrollment) {
   return parts.join(' · ');
 }
 
+DateTime agendaTournamentLocalEventStart(DateTime rawStart) {
+  return tournamentEventDateLocal(rawStart);
+}
+
+DateTime agendaTournamentLocalEventEnd(DateTime rawStart, DateTime? endAt) {
+  if (endAt != null) {
+    return tournamentEffectiveEndAt(rawStart, endAt);
+  }
+  final day = tournamentEventDateLocal(rawStart);
+  return DateTime(day.year, day.month, day.day, 23, 59, 59);
+}
+
 AthleteAgendaItem? mapTournamentEnrollmentToAgendaItem(
   MyTournamentEnrollment enrollment,
 ) {
-  final start = enrollment.startDate ??
+  final rawStart = enrollment.startDate ??
       parseBookingDateOnly(enrollment.registration.dateLabel);
-  if (start == null) return null;
+  if (rawStart == null) return null;
 
-  final end = start.add(const Duration(hours: 8));
-  final isLive = enrollment.isLive;
+  final startsAt = agendaTournamentLocalEventStart(rawStart);
+  final endsAt = agendaTournamentLocalEventEnd(
+    rawStart,
+    enrollment.endDate,
+  );
+  final showAsLive = enrollment.isLive || enrollment.isEventDay;
   final isCompleted = enrollment.isCompleted;
-  final accent = isLive
+  final accent = showAsLive
       ? AppColors.live
       : isCompleted
           ? AppColors.onSurfaceMuted
@@ -244,11 +260,11 @@ AthleteAgendaItem? mapTournamentEnrollmentToAgendaItem(
   return AthleteAgendaItem(
     id: 'tournament-$registrationId',
     kind: AthleteAgendaItemKind.tournament,
-    startsAt: start,
-    endsAt: end,
+    startsAt: startsAt,
+    endsAt: endsAt,
     title: enrollment.displayName,
     subtitle: agendaTournamentSubtitle(enrollment),
-    statusLabel: isLive
+    statusLabel: showAsLive
         ? 'DIA DO EVENTO'
         : isCompleted
             ? 'FINALIZADO'
@@ -257,7 +273,7 @@ AthleteAgendaItem? mapTournamentEnrollmentToAgendaItem(
     tournament: AthleteAgendaTournamentPayload(
       tournamentId: enrollment.tournamentId,
       registrationId: registrationId,
-      isLive: isLive,
+      isLive: showAsLive,
       isCompleted: isCompleted,
       categoryId: enrollment.registration.categoryId,
       categoryLabel: enrollment.categoryLabel,
@@ -321,7 +337,20 @@ bool isAgendaItemPast(AthleteAgendaItem item, {DateTime? now}) {
     return stage == AthleteAgendaBookingStage.past ||
         stage == AthleteAgendaBookingStage.canceled;
   }
-  if (item.tournament?.isCompleted == true) return true;
+  if (item.tournament != null) {
+    if (item.tournament!.isCompleted) return true;
+    if (clock.isBefore(item.startsAt)) return false;
+    final end = item.endsAt ??
+        DateTime(
+          item.startsAt.year,
+          item.startsAt.month,
+          item.startsAt.day,
+          23,
+          59,
+          59,
+        );
+    return clock.isAfter(end);
+  }
   if (clock.isBefore(item.startsAt)) return false;
   final end = item.endsAt ?? item.startsAt.add(const Duration(hours: 2));
   return !clock.isBefore(end);

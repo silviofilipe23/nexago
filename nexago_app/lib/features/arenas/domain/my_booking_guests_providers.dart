@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import 'arenas_providers.dart';
 import 'my_booking_confirmed_athlete.dart';
@@ -41,7 +42,7 @@ final myBookingGuestDisplaysProvider = FutureProvider.autoDispose
     if (uid != null && uid.isNotEmpty) {
       final profile = await ref.watch(athleteProfileByIdProvider(uid).future);
       if (profile != null) {
-        if (name.isEmpty) name = profile.name.trim();
+        if (name.isEmpty) name = athleteDisplayName(profile, fallback: '');
         avatar ??= profile.avatarUrl;
       }
       if (seen.contains(uid)) return;

@@ -12,6 +12,7 @@ class TournamentDetailOverviewTab extends StatelessWidget {
     required this.organizerName,
     this.leagueContextLabel,
     this.enrollmentByCategoryId = const {},
+    this.enrollmentCountsResolved = false,
     this.registrationsByCategoryId = const {},
   });
 
@@ -19,6 +20,7 @@ class TournamentDetailOverviewTab extends StatelessWidget {
   final String organizerName;
   final String? leagueContextLabel;
   final Map<String, int> enrollmentByCategoryId;
+  final bool enrollmentCountsResolved;
   final Map<String, String> registrationsByCategoryId;
 
   @override
@@ -50,6 +52,7 @@ class TournamentDetailOverviewTab extends StatelessWidget {
           tournamentName: tournament.name,
           offers: tournament.categoryOffers,
           enrollmentByCategoryId: enrollmentByCategoryId,
+          enrollmentCountsResolved: enrollmentCountsResolved,
           registrationsByCategoryId: registrationsByCategoryId,
         ),
       ],

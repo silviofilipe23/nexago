@@ -10,7 +10,7 @@ void main() {
     test('normalizeLevel maps legacy federado label', () {
       expect(AthleteProfileOptions.normalizeLevel('Open / federado'), 'Open');
       expect(AthleteProfileOptions.normalizeLevel('Básico'), 'Iniciante');
-      expect(AthleteProfileOptions.normalizeLevel('Avançado'), 'Pro');
+      expect(AthleteProfileOptions.normalizeLevel('Avançado'), 'Iniciante');
     });
 
     test('normalizeSport maps legacy labels', () {
@@ -122,10 +122,7 @@ void main() {
     test('parses birthDate from ISO string', () {
       final snap = _FakeDoc(
         id: 'u2',
-        fields: {
-          'name': 'Ana',
-          'birthDate': '2000-01-01',
-        },
+        fields: {'name': 'Ana', 'birthDate': '2000-01-01'},
       );
 
       final profile = AthleteProfile.fromFirestore(snap);
@@ -161,7 +158,7 @@ void main() {
 
 class _FakeDoc implements DocumentSnapshot<Map<String, dynamic>> {
   _FakeDoc({required this.id, required Map<String, dynamic> fields})
-      : _fields = fields;
+    : _fields = fields;
 
   @override
   final String id;

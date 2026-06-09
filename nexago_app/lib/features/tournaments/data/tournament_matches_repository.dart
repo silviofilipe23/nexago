@@ -45,6 +45,15 @@ class TournamentMatchesRepository {
     return TournamentMatchMapper.fromSnapshot(snap);
   }
 
+  Stream<TournamentMatch?> watchById(String matchId) {
+    final id = matchId.trim();
+    if (id.isEmpty) return Stream.value(null);
+    return _matches
+        .doc(id)
+        .snapshots()
+        .map(TournamentMatchMapper.fromSnapshot);
+  }
+
   Future<List<TournamentMatch>> getByTeamId(String teamId) async {
     if (teamId.trim().isEmpty) return [];
 

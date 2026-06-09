@@ -192,6 +192,7 @@ class _TournamentRegistrationPixPageState
       showAppSnackBar(context, 'Inscrição confirmada!');
       navigateToTournamentRegistrationSuccess(
         context,
+        ref: ref,
         tournamentId: widget.args.tournamentId,
         registrationId: widget.args.registrationId,
         tournamentName: widget.args.tournamentName,

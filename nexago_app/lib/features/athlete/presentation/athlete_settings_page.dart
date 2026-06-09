@@ -16,6 +16,7 @@ import '../../auth/presentation/role_selection_page.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../domain/achievements/achievement_providers.dart';
 import '../domain/athlete_profile.dart';
+import '../domain/athlete_display_name.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/gamification_models.dart';
 import '../domain/gamification_providers.dart';
@@ -141,7 +142,8 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
           ),
           children: [
             AthleteSettingsProfileCard(
-              name: profile.name,
+              name: athleteDisplayName(profile),
+              secondaryName: athleteSecondaryLine(profile),
               email: user.email,
               avatarUrl: profile.avatarUrl,
               displayLevel: viewData.displayLevel,

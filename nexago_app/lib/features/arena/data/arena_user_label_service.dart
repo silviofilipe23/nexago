@@ -32,6 +32,15 @@ class ArenaUserLabelService {
       final snap = await _firestore.collection('users').doc(uid).get();
       final data = snap.data();
       if (data != null) {
+        final nickname = (data['nickname'] as String?)?.trim();
+        if (nickname != null && nickname.isNotEmpty) {
+          final clean =
+              nickname.startsWith('@') ? nickname.substring(1).trim() : nickname;
+          if (clean.isNotEmpty) {
+            _cache[uid] = clean;
+            return clean;
+          }
+        }
         final fullName = (data['fullName'] as String?)?.trim();
         if (fullName != null && fullName.isNotEmpty) {
           _cache[uid] = fullName;

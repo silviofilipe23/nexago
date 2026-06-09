@@ -12,6 +12,7 @@ import '../../domain/tournament_detail_model.dart';
 import '../../domain/tournament_discovery_providers.dart';
 import '../../domain/tournament_partner_invite.dart';
 import '../../domain/tournament_partner_invite_providers.dart';
+import '../../domain/tournament_registration_logic.dart';
 import '../../domain/tournament_registration_navigation.dart';
 import '../../domain/tournament_registration_providers.dart';
 
@@ -30,7 +31,7 @@ class _TournamentInviteAcceptCoordinatorState
     extends ConsumerState<TournamentInviteAcceptCoordinator> {
   final Map<String, String> _statusByInviteId = <String, String>{};
   final Set<String> _handledAcceptIds = <String>{};
-  final Set<String> _handledPaidRegistrationIds = <String>{};
+  final Set<String> _seenUnpaidRegistrationIds = <String>{};
   bool _inviterSeeded = false;
 
   @override
@@ -55,18 +56,44 @@ class _TournamentInviteAcceptCoordinatorState
 
     for (final invite in _acceptedRegistrationInvites()) {
       final regId = invite.registrationId?.trim() ?? '';
-      if (regId.isEmpty || _handledPaidRegistrationIds.contains(regId)) {
-        continue;
-      }
+      if (regId.isEmpty) continue;
+
+      final handledIds = ref.watch(tournamentRegistrationSuccessHandledIdsProvider);
+      if (handledIds.contains(regId)) continue;
 
       ref.listen(tournamentRegistrationSnapshotProvider(regId), (
         previous,
         next,
       ) {
-        final wasPaid = previous?.valueOrNull?.isPaid == true;
         final isPaid = next.valueOrNull?.isPaid == true;
-        if (!isPaid || wasPaid) return;
-        unawaited(_navigateToRegistrationSuccess(invite));
+        if (!isPaid) {
+          _seenUnpaidRegistrationIds.add(regId);
+          return;
+        }
+
+        final handledNotifier = ref.read(
+          tournamentRegistrationSuccessHandledIdsProvider.notifier,
+        );
+        if (handledNotifier.isHandled(regId)) return;
+
+        final wasPaid = previous?.valueOrNull?.isPaid == true;
+        final action = registrationSuccessNavigationAction(
+          isPaid: isPaid,
+          wasPaid: wasPaid,
+          hasPreviousSnapshot: previous?.valueOrNull != null,
+          seenUnpaid: _seenUnpaidRegistrationIds.contains(regId),
+          alreadyHandled: false,
+        );
+
+        switch (action) {
+          case RegistrationSuccessNavigationAction.ignore:
+            return;
+          case RegistrationSuccessNavigationAction.markHandledOnly:
+            handledNotifier.markHandled(regId);
+            return;
+          case RegistrationSuccessNavigationAction.navigate:
+            unawaited(_navigateToRegistrationSuccess(invite));
+        }
       });
     }
 
@@ -114,16 +141,19 @@ class _TournamentInviteAcceptCoordinatorState
   Future<void> _markAlreadyPaidRegistrations(
     List<TournamentPartnerInvite> invites,
   ) async {
+    final handledNotifier = ref.read(
+      tournamentRegistrationSuccessHandledIdsProvider.notifier,
+    );
     for (final invite in invites) {
       if (!invite.isAccepted) continue;
       final regId = invite.registrationId?.trim() ?? '';
-      if (regId.isEmpty || _handledPaidRegistrationIds.contains(regId)) {
+      if (regId.isEmpty || handledNotifier.isHandled(regId)) {
         continue;
       }
       final snap = await ref
           .read(tournamentRegistrationSnapshotProvider(regId).future);
       if (snap?.isPaid == true) {
-        _handledPaidRegistrationIds.add(regId);
+        handledNotifier.markHandled(regId);
       }
     }
   }
@@ -151,14 +181,15 @@ class _TournamentInviteAcceptCoordinatorState
     TournamentPartnerInvite invite,
   ) async {
     final regId = invite.registrationId?.trim() ?? '';
-    if (regId.isEmpty || _handledPaidRegistrationIds.contains(regId)) return;
+    final handledNotifier = ref.read(
+      tournamentRegistrationSuccessHandledIdsProvider.notifier,
+    );
+    if (regId.isEmpty || handledNotifier.isHandled(regId)) return;
     if (_shouldDeferRegistrationPaidNavigation(invite.tournamentId)) return;
 
     final snap = await ref
         .read(tournamentRegistrationSnapshotProvider(regId).future);
     if (!mounted || snap?.isPaid != true) return;
-
-    _handledPaidRegistrationIds.add(regId);
 
     final tournament = await ref
         .read(tournamentDetailProvider(invite.tournamentId).future);
@@ -172,6 +203,7 @@ class _TournamentInviteAcceptCoordinatorState
     showAppSnackBar(context, 'Dupla inscrita! Pagamento confirmado.');
     navigateToTournamentRegistrationSuccess(
       context,
+      ref: ref,
       tournamentId: invite.tournamentId,
       registrationId: regId,
       tournamentName: tournamentName,

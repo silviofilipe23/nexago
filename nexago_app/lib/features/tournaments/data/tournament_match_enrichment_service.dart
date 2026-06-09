@@ -4,7 +4,6 @@ import '../../ranking/domain/ranking_display_helpers.dart';
 import '../domain/app_user_profile.dart';
 import '../domain/tournament_match.dart';
 import '../domain/tournament_match_card_view_model.dart';
-import '../domain/tournament_registration_receipt.dart';
 import '../domain/tournament_team.dart';
 import 'tournament_teams_repository.dart';
 import 'users_repository.dart';

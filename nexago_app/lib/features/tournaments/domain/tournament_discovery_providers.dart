@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/search/search_keywords.dart';
 import '../../arenas/domain/arenas_providers.dart';
+import '../../athlete/domain/athlete_display_name.dart';
+import '../../athlete/domain/athlete_profile_providers.dart';
 import '../data/firestore_tournament_discovery_data_source.dart';
 import '../data/leagues_repository.dart';
 import '../data/mock_tournament_discovery_data_source.dart';
@@ -13,7 +15,6 @@ import '../data/tournaments_repository.dart';
 import '../data/users_repository.dart';
 import 'tournament_match.dart';
 import 'tournament_match_card_view_model.dart';
-import '../../athlete/domain/athlete_profile_providers.dart';
 import 'tournament_detail_logic.dart';
 import 'tournament_detail_model.dart';
 import 'tournament_discovery_config.dart';
@@ -102,8 +103,9 @@ final tournamentOrganizerDisplayProvider = Provider.autoDispose
   final id = managerId.trim();
   if (id.isEmpty) return tournamentOrganizerDisplayName();
   final profile = ref.watch(athleteProfileByIdProvider(id)).valueOrNull;
-  final profileName =
-      profile != null && profile.name.trim().isNotEmpty ? profile.name : null;
+  final display =
+      profile != null ? athleteDisplayName(profile, fallback: '') : '';
+  final profileName = display.isNotEmpty ? display : null;
   final email = ref.watch(athleteUserEmailProvider(id)).valueOrNull;
   return tournamentOrganizerDisplayName(
     profileName: profileName,

@@ -8,6 +8,39 @@ enum CategorySpotsVisualStatus { available, almostFull, full }
 /// ≥75% das vagas preenchidas → quase lotada (amarelo).
 const double categorySpotsAlmostFullThreshold = 0.75;
 
+/// Contagem live de inscrições pagas para a categoria.
+///
+/// Retorna `null` enquanto o stream não resolve; `0` quando resolvido sem inscritos.
+int? resolveInscriptionCountForOffer(
+  Map<String, int> counts,
+  TournamentCategoryOffer offer, {
+  required bool countsResolved,
+}) {
+  if (!countsResolved) return null;
+
+  final id = offer.id.trim();
+  final name = offer.name.trim();
+
+  if (id.isNotEmpty && counts.containsKey(id)) {
+    return counts[id] ?? 0;
+  }
+  if (name.isNotEmpty && name != id && counts.containsKey(name)) {
+    return counts[name] ?? 0;
+  }
+
+  final idLower = id.toLowerCase();
+  final nameLower = name.toLowerCase();
+  for (final entry in counts.entries) {
+    final keyLower = entry.key.toLowerCase();
+    if ((id.isNotEmpty && keyLower == idLower) ||
+        (name.isNotEmpty && keyLower == nameLower)) {
+      return entry.value;
+    }
+  }
+
+  return 0;
+}
+
 /// Capacidade da categoria: `maxTeams` do Firestore, ou `spotsTotal` legado.
 int categoryMaxTeams(TournamentCategoryOffer offer) {
   if (offer.maxTeams > 0) return offer.maxTeams;

@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 
+import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_firestore_codes.dart';
 import '../../athlete/domain/athlete_profile.dart';
 import '../../athlete/domain/athlete_public_profile_models.dart';
@@ -145,8 +146,8 @@ class TeamDiscoverEntry {
   }
 
   String get membersLabel {
-    final p1 = player1?.name.trim() ?? '';
-    final p2 = player2?.name.trim() ?? '';
+    final p1 = player1 != null ? athleteDisplayName(player1!, fallback: '') : '';
+    final p2 = player2 != null ? athleteDisplayName(player2!, fallback: '') : '';
     if (p1.isNotEmpty && p2.isNotEmpty && p1 != p2) {
       return '$p1 · $p2';
     }
@@ -171,10 +172,10 @@ class TeamDiscoverEntry {
   }
 
   String get player1Initials =>
-      athleteInitialsFromName(player1?.name ?? '?');
+      player1 != null ? athleteInitials(player1!) : '?';
 
   String get player2Initials =>
-      athleteInitialsFromName(player2?.name ?? '?');
+      player2 != null ? athleteInitials(player2!) : '?';
 
   int? get rankPosition => ranking.hasRank ? ranking.rank : null;
 
@@ -230,9 +231,10 @@ class TeamDiscoverEntry {
   String get followTargetUserId => team.player1Id;
 
   static String _firstName(AthleteProfile? profile) {
-    final name = profile?.name.trim() ?? '';
-    if (name.isEmpty) return '';
-    return name.split(' ').first;
+    if (profile == null) return '';
+    final display = athleteDisplayName(profile, fallback: '');
+    if (display.isEmpty) return '';
+    return display.split(' ').first;
   }
 }
 

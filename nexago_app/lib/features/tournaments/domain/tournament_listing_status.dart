@@ -50,6 +50,47 @@ bool canRegisterForTournament(TournamentListingStatus status) {
       status == TournamentListingStatus.almostFull;
 }
 
+/// Data civil do evento (sem hora) para comparação de dia.
+///
+/// Timestamps UTC à meia-noite costumam representar o dia do evento no
+/// calendário (ex.: `2026-06-09T00:00:00Z` = 9 de junho), sem deslocar
+/// para o dia anterior em fusos como UTC-3.
+DateTime tournamentEventDateLocal(DateTime dateTime) {
+  if (dateTime.isUtc &&
+      dateTime.hour == 0 &&
+      dateTime.minute == 0 &&
+      dateTime.second == 0 &&
+      dateTime.millisecond == 0) {
+    return DateTime(dateTime.year, dateTime.month, dateTime.day);
+  }
+  final local = dateTime.toLocal();
+  return DateTime(local.year, local.month, local.day);
+}
+
+/// Fim efetivo do evento, corrigindo `startDate == endDate` à meia-noite (volley-track).
+DateTime tournamentEffectiveEndAt(DateTime startAt, DateTime endAt) {
+  final startDay = tournamentEventDateLocal(startAt);
+  final endDay = tournamentEventDateLocal(endAt);
+  if (startDay == endDay && !endAt.isAfter(startAt)) {
+    return DateTime(startDay.year, startDay.month, startDay.day, 23, 59, 59);
+  }
+  return endAt.toLocal();
+}
+
+/// Torneio acontece hoje (data local) e ainda não encerrou.
+bool isTournamentEventDay({
+  required DateTime startAt,
+  DateTime? endAt,
+  DateTime? now,
+}) {
+  final clock = now ?? DateTime.now();
+  if (endAt != null) {
+    final effectiveEnd = tournamentEffectiveEndAt(startAt, endAt);
+    if (effectiveEnd.isBefore(clock)) return false;
+  }
+  return tournamentEventDateLocal(startAt) == tournamentEventDateLocal(clock);
+}
+
 /// Deriva status de listagem a partir de campos do documento Firestore.
 TournamentListingStatus resolveListingStatus({
   String? listingStatusRaw,
@@ -60,13 +101,37 @@ TournamentListingStatus resolveListingStatus({
   DateTime? now,
 }) {
   final fromRaw = listingStatusFromRaw(listingStatusRaw);
-  if (fromRaw != null) return fromRaw;
-
   final clock = now ?? DateTime.now();
+  final effectiveEnd = startAt != null && endAt != null
+      ? tournamentEffectiveEndAt(startAt, endAt)
+      : endAt?.toLocal();
+
+  if (fromRaw != null && isTournamentTerminal(fromRaw)) {
+    return fromRaw;
+  }
+
   if (liveMatchesNow > 0) return TournamentListingStatus.live;
-  if (endAt != null && endAt.isBefore(clock)) {
+
+  if (fromRaw == TournamentListingStatus.live) {
+    if (effectiveEnd != null && effectiveEnd.isBefore(clock)) {
+      return TournamentListingStatus.completed;
+    }
+    return TournamentListingStatus.live;
+  }
+
+  if (effectiveEnd != null && effectiveEnd.isBefore(clock)) {
     return TournamentListingStatus.completed;
   }
+
+  final onEventDay = startAt != null &&
+      isTournamentEventDay(startAt: startAt, endAt: endAt, now: clock);
+
+  if (onEventDay && fromRaw != TournamentListingStatus.scheduled) {
+    return TournamentListingStatus.live;
+  }
+
+  if (fromRaw != null) return fromRaw;
+
   if (spotsLeft <= 0) return TournamentListingStatus.completed;
   if (spotsLeft <= 5) return TournamentListingStatus.almostFull;
   if (startAt != null && startAt.isBefore(clock.add(const Duration(hours: 2)))) {

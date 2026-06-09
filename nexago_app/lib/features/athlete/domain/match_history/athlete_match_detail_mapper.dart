@@ -9,6 +9,8 @@ import '../../../tournaments/domain/tournament_match_status.dart';
 import '../../../tournaments/domain/tournament_team.dart';
 import 'athlete_match_detail_models.dart';
 import 'athlete_match_history_models.dart';
+import 'match_detail_momentum_logic.dart';
+import 'match_detail_play_by_play_logic.dart';
 
 class AthleteMatchDetailMapperContext {
   const AthleteMatchDetailMapperContext({
@@ -23,6 +25,7 @@ class AthleteMatchDetailMapperContext {
   });
 
   final String athleteUid;
+
   /// Dupla do atleta logado; `null` = modo espectador (A vs B).
   final String? perspectiveTeamId;
   final String tournamentName;
@@ -191,10 +194,9 @@ AthleteMatchDetail _buildDetail({
           : playedAtForMatch(match),
     ),
     venueLabel: _venueLabel(match, context.venueLabel),
-    categoryLabel:
-        context.categoryLabelOverride?.trim().isNotEmpty == true
-            ? context.categoryLabelOverride!.trim()
-            : match.categoryId,
+    categoryLabel: context.categoryLabelOverride?.trim().isNotEmpty == true
+        ? context.categoryLabelOverride!.trim()
+        : match.categoryId,
     durationLabel: _durationLabel(match),
     scheduleTime: scheduleTime,
     startsInMinutes: startsIn,
@@ -203,6 +205,28 @@ AthleteMatchDetail _buildDetail({
     currentSetOurPoints: currentOur,
     currentSetOpponentPoints: currentOpp,
     setTimelineItems: timeline,
+    momentumInfo: buildMatchDetailMomentumInfo(
+      match: match,
+      perspectiveTeamId: perspectiveTeamId,
+      ourTeamLabel: ourTeam.label,
+      opponentTeamLabel: opponentTeam.label,
+      phase: phase,
+      isParticipantView: isParticipantView,
+    ),
+    playByPlayGroups: _playByPlayGroups(
+      match: match,
+      perspectiveTeamId: perspectiveTeamId,
+      ourTeam: ourTeam,
+      opponentTeam: opponentTeam,
+      isParticipantView: isParticipantView,
+    ),
+    playByPlay: _playByPlayPreview(
+      match: match,
+      perspectiveTeamId: perspectiveTeamId,
+      ourTeam: ourTeam,
+      opponentTeam: opponentTeam,
+      isParticipantView: isParticipantView,
+    ),
     isParticipantView: isParticipantView,
     winnerTeamId: match.winnerId?.trim().isNotEmpty == true
         ? match.winnerId!.trim()
@@ -304,7 +328,8 @@ int? _startsInMinutes(DateTime? scheduleTime) {
 String? _scheduleSubtitle(TournamentMatch match, DateTime? scheduleTime) {
   if (scheduleTime == null) return null;
   final now = DateTime.now();
-  final sameDay = scheduleTime.year == now.year &&
+  final sameDay =
+      scheduleTime.year == now.year &&
       scheduleTime.month == now.month &&
       scheduleTime.day == now.day;
   final dayPart = sameDay
@@ -328,10 +353,7 @@ String? _scheduleSubtitle(TournamentMatch match, DateTime? scheduleTime) {
   if (idx < 0 || idx >= rawSets.length) return (null, null);
   final set = rawSets[idx];
   final isTeamA = match.teamAId.trim() == perspectiveTeamId.trim();
-  return (
-    isTeamA ? set.a : set.b,
-    isTeamA ? set.b : set.a,
-  );
+  return (isTeamA ? set.a : set.b, isTeamA ? set.b : set.a);
 }
 
 List<MatchSetTimelineItem> _timelineFromSets(List<MatchSetScore> sets) {
@@ -444,11 +466,7 @@ MatchTeamSide _teamSide({
   }
 
   final pairLabel = team != null
-      ? _pairLabel(
-          team,
-          profiles,
-          displayNameOverrides: displayNameOverrides,
-        )
+      ? _pairLabel(team, profiles, displayNameOverrides: displayNameOverrides)
       : '';
   var label = pairLabel;
   if (label.isEmpty) label = description?.trim() ?? '';
@@ -459,8 +477,7 @@ MatchTeamSide _teamSide({
     players: players,
     label: label,
     roleLabel: roleLabel,
-    isCurrentUser: isCurrentUser ||
-        team?.containsPlayer(athleteUid) == true,
+    isCurrentUser: isCurrentUser || team?.containsPlayer(athleteUid) == true,
     teamId: teamId.isNotEmpty ? teamId : null,
   );
 }
@@ -511,9 +528,8 @@ List<MatchSetScore> _setScores({
       label: label,
       ourScore: isTeamA ? set.a : set.b,
       opponentScore: isTeamA ? set.b : set.a,
-      isCurrentSet: isLive &&
-          currentSetIndex != null &&
-          entry.key == currentSetIndex,
+      isCurrentSet:
+          isLive && currentSetIndex != null && entry.key == currentSetIndex,
     );
   }).toList();
 }
@@ -525,4 +541,37 @@ String _durationLabel(TournamentMatch match) {
   final minutes = end.difference(start).inMinutes;
   if (minutes <= 0) return '—';
   return '$minutes min';
+}
+
+List<MatchDetailPlayByPlayGroup> _playByPlayGroups({
+  required TournamentMatch match,
+  required String perspectiveTeamId,
+  required MatchTeamSide ourTeam,
+  required MatchTeamSide opponentTeam,
+  required bool isParticipantView,
+}) {
+  return buildPlayByPlayTimeline(
+    match: match,
+    perspectiveTeamId: perspectiveTeamId,
+    ourTeamLabel: ourTeam.label,
+    opponentTeamLabel: opponentTeam.label,
+    isParticipantView: isParticipantView,
+  );
+}
+
+List<MatchDetailPlayByPlayItem> _playByPlayPreview({
+  required TournamentMatch match,
+  required String perspectiveTeamId,
+  required MatchTeamSide ourTeam,
+  required MatchTeamSide opponentTeam,
+  required bool isParticipantView,
+}) {
+  final groups = _playByPlayGroups(
+    match: match,
+    perspectiveTeamId: perspectiveTeamId,
+    ourTeam: ourTeam,
+    opponentTeam: opponentTeam,
+    isParticipantView: isParticipantView,
+  );
+  return buildPlayByPlayPreview(groups);
 }

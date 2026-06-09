@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
 import 'match_detail_section_header.dart';
 
@@ -31,7 +31,9 @@ class MatchDetailLiveScorePanel extends StatelessWidget {
           decoration: BoxDecoration(
             color: context.themeColors.surfaceCard,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: context.themeColors.surfaceRaised),
+            border: Border.all(
+              color: AppColors.live.withValues(alpha: 0.35),
+            ),
           ),
           child: Column(
             children: [
@@ -43,8 +45,8 @@ class MatchDetailLiveScorePanel extends StatelessWidget {
                         Container(
                           width: 6,
                           height: 6,
-                          decoration: BoxDecoration(
-                            color: AppColors.brand,
+                          decoration: const BoxDecoration(
+                            color: AppColors.live,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -109,41 +111,31 @@ class MatchDetailLiveScorePanel extends StatelessWidget {
                   ),
                 ],
               ),
-              SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(
-                    child: _PointButton(
-                      label: '+ ${detail.ourTeam.label}',
-                      accent: AppColors.brand,
-                      onTap: () => showAppSnackBar(
-                        context,
-                        'DEMO • placar atualizado pela organização.',
+              if (detail.sets.isNotEmpty) ...[
+                SizedBox(height: 18),
+                Row(
+                  children: [
+                    for (var i = 0; i < detail.sets.length; i++) ...[
+                      if (i > 0) SizedBox(width: 8),
+                      Expanded(
+                        child: _SetScoreChip(
+                          set: detail.sets[i],
+                          isCurrentSet: detail.sets[i].isCurrentSet,
+                        ),
                       ),
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: _PointButton(
-                      label: '+ ${detail.opponentTeam.label}',
-                      accent: context.themeColors.onSurfaceMuted,
-                      onTap: () => showAppSnackBar(
-                        context,
-                        'DEMO • placar atualizado pela organização.',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                    ],
+                  ],
+                ),
+              ],
               SizedBox(height: 12),
               Text(
-                'DEMO • ATUALIZA PELO PLACAR DA ORGANIZAÇÃO',
+                'Placar atualizado em tempo real pela organização.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: context.themeColors.onSurfaceMuted,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.3,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
                 ),
               ),
             ],
@@ -154,48 +146,39 @@ class MatchDetailLiveScorePanel extends StatelessWidget {
   }
 }
 
-class _PointButton extends StatelessWidget {
-  const _PointButton({
-    required this.label,
-    required this.accent,
-    required this.onTap,
+class _SetScoreChip extends StatelessWidget {
+  const _SetScoreChip({
+    required this.set,
+    required this.isCurrentSet,
   });
 
-  final String label;
-  final Color accent;
-  final VoidCallback onTap;
+  final MatchSetScore set;
+  final bool isCurrentSet;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isBrand = accent == AppColors.brand;
+    final borderColor = isCurrentSet
+        ? AppColors.live.withValues(alpha: 0.55)
+        : context.themeColors.onSurfaceMuted.withValues(alpha: 0.2);
+    final textColor = isCurrentSet
+        ? AppColors.live
+        : context.themeColors.onSurfaceMuted;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isBrand
-                  ? AppColors.brand.withValues(alpha: 0.7)
-                  : context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
-            ),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: isBrand ? AppColors.brand : context.themeColors.onSurface,
-              height: 1.2,
-            ),
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+      decoration: BoxDecoration(
+        color: context.themeColors.canvas.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: borderColor),
+      ),
+      child: Text(
+        '${set.ourScore} · ${set.opponentScore}',
+        textAlign: TextAlign.center,
+        style: AppTypography.mono(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: textColor,
+          letterSpacing: 0.2,
         ),
       ),
     );

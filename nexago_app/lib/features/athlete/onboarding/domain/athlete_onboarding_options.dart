@@ -98,12 +98,12 @@ abstract final class AthleteOnboardingOptions {
     ),
     OnboardingLevelOption(
       label: 'Open',
-      description: 'Participo de torneios amadores e busco evoluir.',
+      description: 'Tenho alto nível amador e disputo torneios competitivos.',
     ),
-    OnboardingLevelOption(
-      label: 'Pro',
-      description: 'Alto nível, torneios profissionais ou federados.',
-    ),
+    // OnboardingLevelOption(
+    //   label: 'Pro',
+    //   description: 'Alto nível, torneios profissionais ou federados.',
+    // ),
   ];
 
   static const List<OnboardingGoalOption> goals = [

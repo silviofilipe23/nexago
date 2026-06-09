@@ -82,4 +82,44 @@ void main() {
     expect(matchStatusPillLabelPt(match.status), 'AO VIVO');
     expect(setsForMatch(match).first.a, 21);
   });
+
+  test('fromMap parses lastActions ordered by timestamp', () {
+    final t1 = DateTime.utc(2026, 6, 9, 17, 12, 21);
+    final t2 = DateTime.utc(2026, 6, 9, 17, 12, 45);
+    final match = TournamentMatchMapper.fromMap('live-2', {
+      'tournamentId': 'tour-1',
+      'categoryId': 'Open',
+      'teamAId': 'team-a',
+      'teamBId': 'team-b',
+      'status': 'In Progress',
+      'lastActions': [
+        {
+          'type': 'point',
+          'side': 'B',
+          'setIndex': 0,
+          'delta': 1,
+          'ts': Timestamp.fromDate(t2),
+        },
+        {
+          'type': 'point',
+          'side': 'A',
+          'setIndex': 0,
+          'delta': 1,
+          'ts': Timestamp.fromDate(t1),
+        },
+        {
+          'type': 'invalid',
+          'side': 'A',
+          'setIndex': 0,
+          'delta': 1,
+          'ts': Timestamp.fromDate(t1),
+        },
+      ],
+    });
+
+    expect(match.lastActions, hasLength(2));
+    expect(match.lastActions.first.side, 'A');
+    expect(match.lastActions.last.side, 'B');
+    expect(match.lastActions.first.setIndex, 0);
+  });
 }

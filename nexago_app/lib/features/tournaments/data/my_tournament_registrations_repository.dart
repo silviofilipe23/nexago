@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_labels.dart';
 import '../domain/tournament_discovery_models.dart';
 import 'nexago_artifacts_paths.dart';
@@ -39,7 +40,7 @@ class MyTournamentRegistrationsRepository {
         final tournamentId = data['tournamentId'] as String? ?? '';
         if (tournamentId.isEmpty) continue;
 
-        final tournament = await _loadTournament(tournamentId);
+        final tournament = await _loadTournamentDetail(tournamentId);
 
         final isPaid = data['isPaid'] == true;
         final categoryId = data['categoryId'] as String? ?? '';
@@ -57,6 +58,10 @@ class MyTournamentRegistrationsRepository {
                     : 'Inscrição',
             isPaid: isPaid,
             categoryId: categoryId,
+            startDate: tournament?.startDate,
+            endDate: tournament?.endDate,
+            listingStatus: tournament?.status,
+            locationLine: _tournamentLocationLine(tournament),
           ),
         );
       }
@@ -66,14 +71,25 @@ class MyTournamentRegistrationsRepository {
     });
   }
 
-  Future<DiscoveryTournament?> _loadTournament(String id) async {
+  static String? _tournamentLocationLine(TournamentDetail? tournament) {
+    if (tournament == null) return null;
+    final parts = <String>[];
+    final loc = tournament.location.trim();
+    final city = tournament.city.trim();
+    if (loc.isNotEmpty) parts.add(loc);
+    if (city.isNotEmpty) parts.add(city);
+    if (parts.isEmpty) return null;
+    return parts.join(' · ');
+  }
+
+  Future<TournamentDetail?> _loadTournamentDetail(String id) async {
     var doc = await _firestore.collection('tournaments').doc(id).get();
     if (!doc.exists) {
       doc = await _firestore
           .doc(NexagoArtifactsPaths.legacyTournamentDoc(id))
           .get();
     }
-    return TournamentDocumentMapper.fromSnapshot(doc);
+    return TournamentDocumentMapper.detailFromSnapshot(doc);
   }
 }
 

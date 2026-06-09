@@ -1,3 +1,4 @@
+import 'tournament_match_point_action.dart';
 import 'tournament_match_set.dart';
 import 'tournament_match_status.dart';
 
@@ -18,6 +19,7 @@ class TournamentMatch {
     required this.isGroupMatch,
     required this.matchNumber,
     this.sets = const [],
+    this.lastActions = const [],
     this.currentSetIndex,
     this.winnerId,
     this.scheduleTime,
@@ -43,6 +45,7 @@ class TournamentMatch {
   final bool isGroupMatch;
   final int matchNumber;
   final List<TournamentMatchSet> sets;
+  final List<TournamentMatchPointAction> lastActions;
   final int? currentSetIndex;
   final String? winnerId;
   final DateTime? scheduleTime;

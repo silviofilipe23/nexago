@@ -58,7 +58,7 @@ void main() {
         primaryAppSportId: 'beach_volleyball',
         otherAppSportIds: {'beach_tennis'},
         levelByAppSportId: {
-          'beach_volleyball': 'Pro',
+          'beach_volleyball': 'Iniciante',
           'beach_tennis': 'Iniciante',
         },
       );
@@ -71,10 +71,10 @@ void main() {
       final onboarding = firestore['sportOnboarding'] as Map<String, dynamic>;
       final levels = onboarding['levelsBySport'] as Map<String, dynamic>;
 
-      expect(levels['VOLEI_PRAIA'], 'pro');
+      expect(levels['VOLEI_PRAIA'], 'iniciante');
       expect(levels['BEACH_TENNIS'], 'iniciante');
       expect(updated.sport, 'Vôlei de praia');
-      expect(updated.level, 'Pro');
+      expect(updated.level, 'Iniciante');
       expect(updated.sports, ['Beach tennis']);
     });
   });

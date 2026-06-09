@@ -2,7 +2,7 @@ import 'athlete_match_detail_models.dart';
 import 'match_detail_share_builder.dart';
 
 /// Conteúdo demo alinhado ao protótipo B até existir API dedicada.
-/// TODO: remover ou condicionar quando Firestore expuser XP, H2H, momentum, etc.
+/// TODO: remover ou condicionar quando Firestore expuser XP, H2H, etc.
 AthleteMatchDetail enrichMatchDetailWithPrototypeDemo(AthleteMatchDetail detail) {
   final ourRole = detail.ourTeam.isCurrentUser
       ? 'VOCÊ • #11'
@@ -31,28 +31,6 @@ AthleteMatchDetail enrichMatchDetailWithPrototypeDemo(AthleteMatchDetail detail)
       streakLabel: '5 vitórias seguidas',
       levelProgressLabel: 'faltam 120 XP pro nível 6',
       progress: 0.62,
-    );
-  }
-
-  MatchDetailMomentumInfo? momentum;
-  if (detail.phase == MatchDetailPhase.completed ||
-      detail.phase == MatchDetailPhase.live) {
-    final hasTieBreak = detail.hasTieBreak;
-    momentum = MatchDetailMomentumInfo(
-      eyebrow: detail.phase == MatchDetailPhase.live
-          ? 'EM TEMPO REAL'
-          : (hasTieBreak ? 'A VIRADA' : 'MOMENTUM'),
-      title: detail.phase == MatchDetailPhase.live
-          ? 'Momentum'
-          : (hasTieBreak
-              ? 'Momentum do tie-break'
-              : 'Momentum da partida'),
-      points: detail.phase == MatchDetailPhase.live
-          ? const [0.3, 0.45, 0.35, 0.55, 0.5, 0.65, 0.6, 0.75]
-          : const [0.2, 0.25, 0.2, 0.35, 0.55, 0.7, 0.85, 0.9, 1.0],
-      narrative: hasTieBreak
-          ? 'Atrás de 0-2, você emendou 5 pontos seguidos e fechou em 15-12.'
-          : 'Sequência forte no fim do set decidiu o placar.',
     );
   }
 
@@ -86,57 +64,13 @@ AthleteMatchDetail enrichMatchDetailWithPrototypeDemo(AthleteMatchDetail detail)
     );
   }
 
-  List<MatchDetailFormRow> formRows = const [];
-  if (detail.isParticipantView &&
-      detail.phase == MatchDetailPhase.scheduled) {
-    formRows = [
-      const MatchDetailFormRow(
-        label: 'Você',
-        results: [true, true, true, false, true],
-      ),
-      MatchDetailFormRow(
-        label: opponentLabel,
-        results: const [true, false, true, true, false],
-      ),
-    ];
-  }
-
-  List<MatchDetailPlayByPlayItem> playByPlay = const [];
-  if (detail.phase == MatchDetailPhase.live) {
-    playByPlay = const [
-      MatchDetailPlayByPlayItem(
-        time: '18:32',
-        isOurTeam: true,
-        description: 'Ace de Marcos Vinícius',
-      ),
-      MatchDetailPlayByPlayItem(
-        time: '18:31',
-        isOurTeam: true,
-        description: 'Bloqueio de Victor Azevedo',
-      ),
-      MatchDetailPlayByPlayItem(
-        time: '18:30',
-        isOurTeam: false,
-        description: 'Ataque de Igor Mendonça',
-      ),
-      MatchDetailPlayByPlayItem(
-        time: '18:29',
-        isOurTeam: false,
-        description: 'Set 1 encerrado · 21-9',
-      ),
-    ];
-  }
-
   final share = buildMatchDetailShareInfo(detail);
 
   return detail.copyWith(
     ourTeam: updatedOurTeam,
     setTimelineItems: timeline,
     xpInfo: xp,
-    momentumInfo: momentum,
     headToHead: h2h,
-    formRows: formRows,
-    playByPlay: playByPlay,
     shareInfo: share,
   );
 }

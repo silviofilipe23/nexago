@@ -95,6 +95,28 @@ void main() {
     expect(d.categoryOffers.first.spotsTotal, 16);
   });
 
+  test('detailFromMap uses category id when present in Firestore', () {
+    const categoryUuid = '51e5b0b4-7de7-4e39-a883-e83325a2391e';
+    final d = TournamentDocumentMapper.detailFromMap('t-open', {
+      'name': 'nexaGO',
+      'capacity': 8,
+      'enrolledCount': 0,
+      'categories': [
+        {
+          'id': categoryUuid,
+          'categoryName': 'Open',
+          'entryFee': 0,
+          'maxTeams': 8,
+          'bracketFormat': 'Double Elimination',
+        },
+      ],
+    });
+
+    expect(d.categoryOffers, hasLength(1));
+    expect(d.categoryOffers.first.id, categoryUuid);
+    expect(d.categoryOffers.first.name, 'Open');
+  });
+
   test('detailFromMap parses category prizes with string values', () {
     final d = TournamentDocumentMapper.detailFromMap('d2', {
       'name': 'Open',

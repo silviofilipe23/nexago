@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 
+import 'athlete_display_name.dart';
 import 'athlete_firestore_codes.dart';
 import 'athlete_profile.dart';
 import 'athlete_public_profile_models.dart';
@@ -118,10 +119,9 @@ class AthleteDiscoverEntry {
   /// Seguidores em comum com o atleta logado; `null` sem sessão.
   final int? mutualFollowersCount;
 
-  String get displayName =>
-      profile.name.trim().isNotEmpty ? profile.name.trim() : 'Atleta';
+  String get displayName => athleteDisplayName(profile);
 
-  String get initials => athleteInitialsFromName(displayName);
+  String get initials => athleteInitials(profile);
 
   String? get handle => athletePublicHandle(profile);
 

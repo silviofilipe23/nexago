@@ -4,9 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
+import '../../../core/search/search_keywords.dart';
 import '../domain/athlete_notification_preferences.dart';
 import '../domain/athlete_privacy_preferences.dart';
+import '../domain/athlete_discover_logic.dart';
 import '../domain/athlete_profile.dart';
+import '../domain/athlete_public_profile_models.dart';
 import '../domain/profile_access.dart';
 import '../domain/profile_completion_models.dart';
 
@@ -71,6 +74,27 @@ class AthleteProfileRepository {
       // Primeiro save (ex.: onboarding): define papel de atleta.
       data['role'] = 'athlete';
       data['roles'] = ['athlete'];
+    }
+
+    final searchFields = buildUserSearchFields(data);
+    data['keywords'] = searchFields.keywords;
+    data['hasAthleteRole'] = searchFields.hasAthleteRole;
+    data['hasOrganizerRole'] = searchFields.hasOrganizerRole;
+
+    data['discoverSportIds'] = discoverSportIdsForProfile(profile);
+    data['discoverLevelLabel'] = resolveAthleteLevelLabel(profile);
+    data['lookingForPartner'] = profile.lookingForPartner;
+    if (profile.gameObjective != null && profile.gameObjective!.trim().isNotEmpty) {
+      data['gameObjective'] = profile.gameObjective!.trim();
+    } else if (exists) {
+      data['gameObjective'] = FieldValue.delete();
+    }
+
+    final normalizedGender = _normalizedGenderForFirestore(profile.gender);
+    if (normalizedGender != null) {
+      data['gender'] = normalizedGender;
+    } else if (exists) {
+      data['gender'] = FieldValue.delete();
     }
 
     // FieldValue.delete() em documento inexistente falha no Firestore.
@@ -159,4 +183,13 @@ class AthleteProfileRepository {
     );
     return ref.getDownloadURL();
   }
+}
+
+String? _normalizedGenderForFirestore(String? raw) {
+  final trimmed = raw?.trim() ?? '';
+  if (trimmed.isEmpty) return null;
+  final lower = trimmed.toLowerCase();
+  if (lower.startsWith('masc')) return 'Masculino';
+  if (lower.startsWith('fem')) return 'Feminino';
+  return trimmed;
 }

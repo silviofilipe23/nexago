@@ -37,7 +37,7 @@ class MyTournamentsOngoingCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: enrollment.borderColor.withValues(alpha: 0.65),
-                width: enrollment.isLive ? 1.5 : 1,
+                width: enrollment.isLive || enrollment.isEventDay ? 1.5 : 1,
               ),
             ),
             padding: const EdgeInsets.all(14),
@@ -59,7 +59,7 @@ class MyTournamentsOngoingCard extends StatelessWidget {
                       ),
                     ],
                     const Spacer(),
-                    if (enrollment.isLive)
+                    if (enrollment.isLive || enrollment.isEventDay)
                       _StatusPill(
                         label: '• DIA DO EVENTO',
                         color: AppColors.live,

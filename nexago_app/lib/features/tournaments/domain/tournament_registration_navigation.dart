@@ -1,19 +1,26 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import 'tournament_partner_invite.dart';
 import 'tournament_registration_logic.dart';
+import 'tournament_registration_providers.dart';
 import 'tournament_registration_success_args.dart';
 
 /// Navega para a tela de confirmação (compartilhamento social).
 void navigateToTournamentRegistrationSuccess(
   BuildContext context, {
+  required WidgetRef ref,
   required String tournamentId,
   required String registrationId,
   required String tournamentName,
   required String categoryName,
 }) {
+  ref
+      .read(tournamentRegistrationSuccessHandledIdsProvider.notifier)
+      .markHandled(registrationId);
+
   context.goNamed(
     AppRouteNames.tournamentRegistrationSuccess,
     pathParameters: {'tournamentId': tournamentId},

@@ -71,15 +71,16 @@ class TournamentDetailPage extends ConsumerWidget {
 
           final leagues = leaguesAsync.valueOrNull ?? [];
           final leagueCtx = resolveLeagueContext(leagues, tournament.id);
-          final enrollment = ref
-                  .watch(
-                    tournamentCategoryEnrollmentCountsProvider(tournamentId),
-                  )
-                  .valueOrNull ??
-              const <String, int>{};
+          final enrollmentAsync = ref.watch(
+            tournamentCategoryEnrollmentCountsProvider(tournamentId),
+          );
+          final enrollmentResolved = enrollmentAsync.hasValue;
+          final enrollment =
+              enrollmentAsync.valueOrNull ?? const <String, int>{};
           final stats = tournamentDetailStats(
             tournament,
             enrollmentByCategoryId: enrollment,
+            enrollmentCountsResolved: enrollmentResolved,
           );
           final organizerName = ref.watch(
             tournamentOrganizerDisplayProvider(tournament.managerId ?? ''),
@@ -103,6 +104,7 @@ class TournamentDetailPage extends ConsumerWidget {
             leagueContextLabel:
                 leagueCtx != null ? leagueContextLabel(leagueCtx) : null,
             enrollmentByCategoryId: enrollment,
+            enrollmentCountsResolved: enrollmentResolved,
             registrationsByCategoryId: registrationsByCategory,
             registrationResolved: registrationResolved,
             canAccessTournaments: access.canAccess,
@@ -136,6 +138,7 @@ class _TournamentDetailContent extends ConsumerStatefulWidget {
     required this.organizerName,
     required this.leagueContextLabel,
     required this.enrollmentByCategoryId,
+    required this.enrollmentCountsResolved,
     required this.registrationsByCategoryId,
     required this.registrationResolved,
     required this.canAccessTournaments,
@@ -147,6 +150,7 @@ class _TournamentDetailContent extends ConsumerStatefulWidget {
   final String organizerName;
   final String? leagueContextLabel;
   final Map<String, int> enrollmentByCategoryId;
+  final bool enrollmentCountsResolved;
   final Map<String, String> registrationsByCategoryId;
   final bool registrationResolved;
   final bool canAccessTournaments;
@@ -192,12 +196,14 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
           organizerName: widget.organizerName,
           leagueContextLabel: widget.leagueContextLabel,
           enrollmentByCategoryId: widget.enrollmentByCategoryId,
+          enrollmentCountsResolved: widget.enrollmentCountsResolved,
           registrationsByCategoryId: widget.registrationsByCategoryId,
         );
       case TournamentDetailTab.categories:
         return TournamentDetailCategoriesTab(
           tournament: widget.tournament,
           enrollmentByCategoryId: widget.enrollmentByCategoryId,
+          enrollmentCountsResolved: widget.enrollmentCountsResolved,
           registrationsByCategoryId: widget.registrationsByCategoryId,
           canAccessTournaments: widget.canAccessTournaments,
           onRegisterBlocked: widget.onRegisterBlocked,

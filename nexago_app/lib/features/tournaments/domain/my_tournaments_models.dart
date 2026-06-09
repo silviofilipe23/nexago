@@ -30,7 +30,9 @@ class MyTournamentEnrollment {
           : registration.tournamentName;
 
   TournamentListingStatus get listingStatus =>
-      tournament?.status ?? TournamentListingStatus.open;
+      tournament?.status ??
+      registration.listingStatus ??
+      TournamentListingStatus.open;
 
   bool get isCompleted => isTournamentTerminal(listingStatus);
 
@@ -38,8 +40,14 @@ class MyTournamentEnrollment {
 
   bool get isLive => listingStatus == TournamentListingStatus.live;
 
+  bool get isEventDay {
+    final start = startDate;
+    if (start == null || isCompleted) return false;
+    return isTournamentEventDay(startAt: start, endAt: endDate);
+  }
+
   MyTournamentCardAccent get cardAccent {
-    if (listingStatus == TournamentListingStatus.live) {
+    if (listingStatus == TournamentListingStatus.live || isEventDay) {
       return MyTournamentCardAccent.live;
     }
     if (listingStatus == TournamentListingStatus.open ||
@@ -95,7 +103,9 @@ class MyTournamentEnrollment {
     return tournamentFormatLabel(format);
   }
 
-  DateTime? get startDate => tournament?.startDate;
+  DateTime? get startDate => tournament?.startDate ?? registration.startDate;
+
+  DateTime? get endDate => registration.endDate;
 }
 
 /// Tokens visuais da tela Meus torneios (protótipo).

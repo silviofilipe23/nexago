@@ -2,27 +2,44 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/auth/auth_providers.dart';
 import '../../../tournaments/domain/app_user_profile.dart';
+import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
 import '../../../tournaments/domain/tournament_team.dart';
 import '../../../tournaments/data/users_repository.dart';
 import '../../../tournaments/domain/tournament_discovery_providers.dart';
+import '../athlete_display_name.dart';
 import '../athlete_profile_providers.dart';
 import 'athlete_match_detail_mapper.dart';
 import 'athlete_match_detail_models.dart';
+import 'match_detail_form_logic.dart';
 import 'match_detail_prototype_content.dart';
 import 'match_detail_share_builder.dart';
 
-final athleteMatchDetailProvider = FutureProvider.autoDispose
-    .family<AthleteMatchDetail?, String>((ref, matchId) async {
+final athleteMatchDetailProvider = StreamProvider.autoDispose
+    .family<AthleteMatchDetail?, String>((ref, matchId) async* {
   final uid = (ref.watch(authProvider).valueOrNull?.uid ?? '').trim();
-  if (uid.isEmpty) return null;
+  if (uid.isEmpty) {
+    yield null;
+    return;
+  }
 
   ref.watch(athleteProfileProvider);
 
-  final match =
-      await ref.read(tournamentMatchesRepositoryProvider).getById(matchId);
-  if (match == null) return null;
+  final matchRepo = ref.watch(tournamentMatchesRepositoryProvider);
+  await for (final match in matchRepo.watchById(matchId)) {
+    if (match == null) {
+      yield null;
+      continue;
+    }
+    yield await _resolveAthleteMatchDetail(ref, match: match, uid: uid);
+  }
+});
 
+Future<AthleteMatchDetail?> _resolveAthleteMatchDetail(
+  Ref ref, {
+  required TournamentMatch match,
+  required String uid,
+}) async {
   final teamIds =
       await ref.read(tournamentTeamsRepositoryProvider).teamIdsForAthlete(uid);
 
@@ -85,10 +102,11 @@ final athleteMatchDetailProvider = FutureProvider.autoDispose
   final displayNameOverrides = <String, String>{};
   final athleteProfile = ref.read(athleteProfileProvider).valueOrNull;
   if (athleteProfile != null && athleteProfile.id == uid) {
-    final athleteName = readableNameCandidate(athleteProfile.nickname) ??
-        readableNameCandidate(athleteProfile.name);
-    if (athleteName != null) {
-      displayNameOverrides[uid] = athleteName;
+    final athleteName = athleteDisplayName(athleteProfile, fallback: '');
+    final resolvedName =
+        athleteName.isNotEmpty ? athleteName : null;
+    if (resolvedName != null) {
+      displayNameOverrides[uid] = resolvedName;
     }
   }
 
@@ -107,10 +125,36 @@ final athleteMatchDetailProvider = FutureProvider.autoDispose
   );
 
   if (mapped == null) return null;
-  final enriched = enrichMatchDetailWithPrototypeDemo(mapped);
+
+  var detail = mapped;
+  if (mapped.isParticipantView &&
+      mapped.phase == MatchDetailPhase.scheduled) {
+    final ourTeamId = mapped.ourTeam.teamId?.trim() ?? '';
+    final opponentTeamId = mapped.opponentTeam.teamId?.trim() ?? '';
+    if (ourTeamId.isNotEmpty && opponentTeamId.isNotEmpty) {
+      final matchRepo = ref.read(tournamentMatchesRepositoryProvider);
+      final teamMatches = await Future.wait([
+        matchRepo.getByTeamId(ourTeamId),
+        matchRepo.getByTeamId(opponentTeamId),
+      ]);
+      detail = mapped.copyWith(
+        formRows: buildMatchDetailFormRows(
+          ourTeamMatches: teamMatches[0],
+          opponentTeamMatches: teamMatches[1],
+          ourTeamId: ourTeamId,
+          opponentTeamId: opponentTeamId,
+          excludeMatchId: match.id,
+          ourLabel: 'Você',
+          opponentLabel: mapped.opponentTeam.label,
+        ),
+      );
+    }
+  }
+
+  final enriched = enrichMatchDetailWithPrototypeDemo(detail);
   final share = buildMatchDetailShareInfo(enriched) ?? enriched.shareInfo;
   return enriched.copyWith(shareInfo: share);
-});
+}
 
 Future<String?> _categoryLabelForMatch({
   required Ref ref,

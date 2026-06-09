@@ -5,12 +5,14 @@ import 'package:nexago_app/features/tournaments/domain/tournament_discovery_mode
 
 void main() {
   group('countInscriptionsByCategoryData', () {
-    test('groups by categoryId', () {
+    test('groups paid inscriptions by categoryId', () {
       expect(
         countInscriptionsByCategoryData([
-          {'categoryId': 'Masculino C'},
-          {'categoryId': 'Masculino C'},
-          {'categoryId': 'Misto'},
+          {'categoryId': 'Masculino C', 'isPaid': true},
+          {'categoryId': 'Masculino C', 'isPaid': true},
+          {'categoryId': 'Misto', 'isPaid': true},
+          {'categoryId': 'Misto', 'isPaid': false},
+          {'categoryId': 'Feminino C'},
           {'tournamentId': 't1'},
         ]),
         {

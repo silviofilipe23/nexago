@@ -101,6 +101,14 @@ String? readableNameCandidate(String? value) {
   return trimmed;
 }
 
+String? readableNicknameCandidate(String? value) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.isEmpty) return null;
+  final clean = trimmed.startsWith('@') ? trimmed.substring(1).trim() : trimmed;
+  if (clean.isEmpty || looksLikeFirestoreUid(clean)) return null;
+  return clean;
+}
+
 String resolveAppUserDisplayName(
   AppUserProfile? profile, {
   String? override,
@@ -108,7 +116,7 @@ String resolveAppUserDisplayName(
 }) {
   for (final candidate in [
     readableNameCandidate(override),
-    if (profile != null) readableNameCandidate(profile.nickname),
+    if (profile != null) readableNicknameCandidate(profile.nickname),
     if (profile != null) readableNameCandidate(profile.fullName),
     if (profile != null) readableNameCandidate(profile.email),
   ]) {
@@ -153,7 +161,11 @@ String? appUserSecondaryLine(AppUserProfile user) {
 }
 
 String appUserInitials(AppUserProfile user) {
-  final name = appUserDisplayName(user);
+  final display = appUserDisplayName(user).trim();
+  return initialsFromDisplayName(display.isNotEmpty ? display : '?');
+}
+
+String initialsFromDisplayName(String name) {
   if (name.isEmpty) return '?';
   final parts = name.split(' ').where((p) => p.isNotEmpty).toList();
   if (parts.isEmpty) return '?';

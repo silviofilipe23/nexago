@@ -122,7 +122,7 @@ class TournamentCategoryOffer {
     this.uniformSizeOptionsShorts = const [],
   });
 
-  /// Id usado em inscrição / MP (`categoryName`).
+  /// Id da categoria no Firestore (`categories[].id`); legado usa `categoryName`.
   final String id;
   final String name;
   final double entryFee;
@@ -181,6 +181,10 @@ class MyTournamentRegistration {
     required this.statusLabel,
     required this.isPaid,
     required this.categoryId,
+    this.startDate,
+    this.endDate,
+    this.listingStatus,
+    this.locationLine,
   });
 
   final String registrationId;
@@ -190,4 +194,8 @@ class MyTournamentRegistration {
   final String statusLabel;
   final bool isPaid;
   final String categoryId;
+  final DateTime? startDate;
+  final DateTime? endDate;
+  final TournamentListingStatus? listingStatus;
+  final String? locationLine;
 }

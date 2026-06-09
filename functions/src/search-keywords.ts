@@ -122,11 +122,18 @@ function readString(data: Record<string, unknown>, key: string): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
+/** Remove `@` inicial de apelidos antes de tokenizar. */
+export function normalizeNicknameForSearch(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  return trimmed.startsWith("@") ? trimmed.slice(1).trim() : trimmed;
+}
+
 export function buildUserSearchFields(
   data: Record<string, unknown>
 ): UserSearchFields {
   const fullName = readString(data, "fullName") || readString(data, "name");
-  const nickname = readString(data, "nickname");
+  const nickname = normalizeNicknameForSearch(readString(data, "nickname"));
   const email = readString(data, "email");
 
   return {

@@ -259,6 +259,124 @@
       "density": "SPARSE_ALL"
     },
     {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "role",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "gender",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "role",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "lookingForPartner",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "role",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "discoverSportIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "role",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "gender",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "discoverSportIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "role",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sportOnboarding.primarySportId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "role",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "sportOnboarding.secondarySportIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
       "collectionGroup": "arenaBookings",
       "queryScope": "COLLECTION",
       "fields": [

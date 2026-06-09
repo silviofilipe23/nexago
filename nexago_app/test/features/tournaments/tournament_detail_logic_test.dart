@@ -81,6 +81,36 @@ void main() {
     expect(stats.prizeTotalLabel, contains('R\$'));
   });
 
+  test('tournamentDetailStats uses live enrollment when resolved', () {
+    final stats = tournamentDetailStats(
+      sample,
+      enrollmentByCategoryId: const {
+        'Masc': 10,
+        'Misto': 5,
+      },
+      enrollmentCountsResolved: true,
+    );
+    expect(stats.spotsEnrolled, 15);
+  });
+
+  test('tournamentDetailStats does not fall back to enrolledCount when live is zero',
+      () {
+    final stats = tournamentDetailStats(
+      sample,
+      enrollmentByCategoryId: const {},
+      enrollmentCountsResolved: true,
+    );
+    expect(stats.spotsEnrolled, 0);
+  });
+
+  test('tournamentDetailStats keeps legacy fallback while loading', () {
+    final stats = tournamentDetailStats(
+      sample,
+      enrollmentCountsResolved: false,
+    );
+    expect(stats.spotsEnrolled, 60);
+  });
+
   test('tournamentCategoryRowStatus closed vs open', () {
     expect(
       tournamentCategoryRowStatus(sample.categoryOffers[1]).label,

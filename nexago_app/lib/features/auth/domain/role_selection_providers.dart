@@ -4,6 +4,7 @@ import '../../../core/auth/app_mobile_role.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/active_role_providers.dart';
 import '../../arena/presentation/widgets/arena_selection_gate.dart';
+import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/domain/athlete_public_profile_providers.dart';
 
@@ -38,8 +39,8 @@ final roleSelectionFooterProvider =
 final roleSelectionFirstNameProvider = Provider<String>((ref) {
   final user = ref.watch(authProvider).valueOrNull;
   final profile = ref.watch(athleteProfileProvider).valueOrNull;
-  final raw = profile?.name.trim().isNotEmpty == true
-      ? profile!.name.trim()
+  final raw = profile != null
+      ? athleteDisplayName(profile, fallback: '')
       : user?.displayName?.trim() ?? '';
   if (raw.isEmpty) return 'atleta';
   return raw.split(RegExp(r'\s+')).first;

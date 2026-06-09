@@ -7,6 +7,7 @@ import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../data/my_tournament_registrations_repository.dart';
 import '../../../athlete/presentation/widgets/athlete_home/athlete_home_section_header.dart';
+import '../../domain/my_tournaments_logic.dart';
 import '../../domain/tournament_discovery_models.dart';
 
 class MyTournamentsHomeSection extends ConsumerWidget {
@@ -19,7 +20,7 @@ class MyTournamentsHomeSection extends ConsumerWidget {
     return regsAsync.when(
       data: (regs) {
         if (regs.isEmpty) return const SizedBox.shrink();
-        final preview = regs.take(3).toList();
+        final preview = sortRegistrationsForHomePreview(regs).take(3).toList();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -49,7 +50,15 @@ class MyTournamentsHomeSection extends ConsumerWidget {
         );
       },
       loading: () => const _MyTournamentsHomeSectionSkeleton(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, __) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          'Não foi possível carregar seus torneios.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: context.themeColors.onSurfaceMuted,
+              ),
+        ),
+      ),
     );
   }
 }
@@ -190,8 +199,13 @@ class _RegistrationRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final badgeColor =
-        registration.isPaid ? AppColors.brand : AppColors.pending;
+    final showAsLive = registrationShowsAsLiveToday(registration);
+    final badgeLabel = registrationHomeBadgeLabel(registration);
+    final badgeColor = showAsLive
+        ? AppColors.live
+        : registration.isPaid
+            ? AppColors.brand
+            : AppColors.pending;
 
     return Material(
       color: context.themeColors.surfaceCard,
@@ -203,7 +217,12 @@ class _RegistrationRow extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: context.themeColors.surfaceRaised),
+            border: Border.all(
+              color: showAsLive
+                  ? AppColors.live.withValues(alpha: 0.55)
+                  : context.themeColors.surfaceRaised,
+              width: showAsLive ? 1.5 : 1,
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -262,7 +281,7 @@ class _RegistrationRow extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    registration.statusLabel.toUpperCase(),
+                    badgeLabel.toUpperCase(),
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       color: badgeColor,

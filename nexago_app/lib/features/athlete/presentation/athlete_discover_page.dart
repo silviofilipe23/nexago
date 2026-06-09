@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
-import '../domain/athlete_discover_models.dart';
 import '../domain/athlete_discover_providers.dart';
 import '../domain/athlete_profile_providers.dart';
 import 'widgets/discover/athlete_discover_card.dart';
@@ -58,6 +57,9 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
   }
 
   Future<void> _openFilters() async {
+    await ref.read(athleteDiscoverProvider.notifier).ensureCatalogForFiltering();
+    if (!mounted) return;
+
     final state = ref.read(athleteDiscoverProvider);
     final result = await showAthleteDiscoverFiltersSheet(
       context: context,
@@ -125,15 +127,6 @@ class _AthleteDiscoverPageState extends ConsumerState<AthleteDiscoverPage> {
               onSelected: (level) => ref
                   .read(athleteDiscoverProvider.notifier)
                   .setQuickLevel(level),
-            ),
-            SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _SortRow(
-                sort: state.sort,
-                onSortChanged: (s) =>
-                    ref.read(athleteDiscoverProvider.notifier).setSort(s),
-              ),
             ),
             SizedBox(height: 12),
             Expanded(
@@ -226,60 +219,6 @@ class _DiscoverAppBar extends StatelessWidget {
   }
 }
 
-class _SortRow extends StatelessWidget {
-  const _SortRow({
-    required this.sort,
-    required this.onSortChanged,
-  });
-
-  final AthleteDiscoverSort sort;
-  final ValueChanged<AthleteDiscoverSort> onSortChanged;
-
-  static const _sortLabels = {
-    AthleteDiscoverSort.ranking: 'Ranking',
-    AthleteDiscoverSort.proximity: 'Proximidade',
-    AthleteDiscoverSort.level: 'Nível',
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: PopupMenuButton<AthleteDiscoverSort>(
-        initialValue: sort,
-        onSelected: onSortChanged,
-        color: context.themeColors.surfaceCard,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Ordenar',
-              style: AppTypography.soraRegular(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.brand,
-              ),
-            ),
-            SizedBox(width: 4),
-            Text(
-              _sortLabels[sort]!,
-              style: AppTypography.mono(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: context.themeColors.onSurfaceMuted,
-              ),
-            ),
-            Icon(Icons.expand_more_rounded, size: 18, color: AppColors.brand),
-          ],
-        ),
-        itemBuilder: (context) => AthleteDiscoverSort.values
-            .map((s) => PopupMenuItem(value: s, child: Text(_sortLabels[s]!)))
-            .toList(),
-      ),
-    );
-  }
-}
-
 class _DiscoverBody extends StatelessWidget {
   const _DiscoverBody({
     required this.state,
@@ -293,7 +232,8 @@ class _DiscoverBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (state.isLoading && state.displayEntries.isEmpty) {
+    if (state.isLoading &&
+        (state.displayEntries.isEmpty || state.filters.hasActiveFilters)) {
       return Center(child: CircularProgressIndicator(color: AppColors.brand));
     }
 

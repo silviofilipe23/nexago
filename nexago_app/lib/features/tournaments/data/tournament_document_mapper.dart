@@ -132,6 +132,10 @@ abstract final class TournamentDocumentMapper {
       if (item is! Map) continue;
       final map = Map<String, dynamic>.from(item);
       final name = _str(map['categoryName'] ?? map['name']) ?? 'Categoria';
+      final categoryId = _str(map['id'] ?? map['categoryId'])?.trim();
+      final offerId = categoryId != null && categoryId.isNotEmpty
+          ? categoryId
+          : name;
       final entryFee = _num(map['entryFee']) ?? 0;
       final maxTeams = _int(map['maxTeams']) ?? 0;
       final spotsTotalLegacy =
@@ -141,7 +145,7 @@ abstract final class TournamentDocumentMapper {
           _int(map['spotsLeft']) ?? (capacity > 0 ? capacity : 0);
       offers.add(
         TournamentCategoryOffer(
-          id: name,
+          id: offerId,
           name: name,
           entryFee: entryFee,
           spotsLeft: spotsLeft,

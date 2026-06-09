@@ -225,10 +225,17 @@ class _DetailBody extends StatelessWidget {
 
     if (detail.momentumInfo != null) {
       sections.addAll([
-        MatchDetailMomentumSection(momentum: detail.momentumInfo!),
+        MatchDetailMomentumSection(
+          momentum: detail.momentumInfo!,
+          onViewPlayByPlay: detail.playByPlay.isNotEmpty
+              ? () => _openPlayByPlay(context)
+              : null,
+        ),
         SizedBox(height: 20),
       ]);
     }
+
+    sections.addAll(_playByPlaySection(context));
 
     if (detail.setTimelineItems.isNotEmpty) {
       sections.addAll([
@@ -266,13 +273,13 @@ class _DetailBody extends StatelessWidget {
         MatchDetailMomentumSection(
           momentum: detail.momentumInfo!,
           isLive: true,
+          onViewPlayByPlay: detail.playByPlay.isNotEmpty
+              ? () => _openPlayByPlay(context)
+              : null,
         ),
         SizedBox(height: 20),
       ],
-      if (detail.playByPlay.isNotEmpty) ...[
-        MatchDetailPlayByPlaySection(items: detail.playByPlay),
-        SizedBox(height: 20),
-      ],
+      ..._playByPlaySection(context),
       ..._shareSectionWidgets(),
     ];
   }
@@ -309,10 +316,36 @@ class _DetailBody extends StatelessWidget {
     return sections;
   }
 
+  List<Widget> _playByPlaySection(BuildContext context) {
+    if (detail.playByPlay.isEmpty) return const [];
+    return [
+      MatchDetailPlayByPlaySection(
+        items: detail.playByPlay,
+        totalPoints: detail.totalPlayByPlayPoints,
+        ourTeamHeader: detail.isParticipantView
+            ? 'Sua dupla'
+            : detail.ourTeam.label,
+        opponentTeamHeader: detail.isParticipantView
+            ? 'Adversário'
+            : detail.opponentTeam.label,
+        playByPlayGroups: detail.playByPlayGroups,
+        onViewFullAnalysis: () => _openPlayByPlay(context),
+      ),
+      SizedBox(height: 20),
+    ];
+  }
+
   List<Widget> _shareSectionWidgets() {
     final share = detail.shareInfo;
     if (share == null) return const [];
     return [SizedBox(height: 20), MatchDetailShareSection(share: share)];
+  }
+
+  void _openPlayByPlay(BuildContext context) {
+    context.pushNamed(
+      AppRouteNames.athleteMatchPlayByPlay,
+      pathParameters: {'matchId': detail.id},
+    );
   }
 
   void _onTournament(BuildContext context) {

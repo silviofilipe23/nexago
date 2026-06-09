@@ -25,11 +25,11 @@ class TournamentCategorySpotsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final enrollment =
-        ref
-            .watch(tournamentCategoryEnrollmentCountsProvider(tournamentId))
-            .valueOrNull ??
-        const <String, int>{};
+    final enrollmentAsync = ref.watch(
+      tournamentCategoryEnrollmentCountsProvider(tournamentId),
+    );
+    final enrollmentResolved = enrollmentAsync.hasValue;
+    final enrollment = enrollmentAsync.valueOrNull ?? const <String, int>{};
     if (offers.isEmpty) return const SizedBox.shrink();
 
     final formatLabel = tournamentFormatLabel(format);
@@ -59,9 +59,10 @@ class TournamentCategorySpotsSection extends ConsumerWidget {
           _CategorySpotsRow(
             offer: offers[i],
             formatLabel: formatLabel,
-            inscriptionCount: inscriptionCountForCategory(
+            inscriptionCount: resolveInscriptionCountForOffer(
               enrollment,
-              offers[i].id,
+              offers[i],
+              countsResolved: enrollmentResolved,
             ),
           ),
         ],
@@ -79,7 +80,7 @@ class _CategorySpotsRow extends StatelessWidget {
 
   final TournamentCategoryOffer offer;
   final String formatLabel;
-  final int inscriptionCount;
+  final int? inscriptionCount;
 
   @override
   Widget build(BuildContext context) {

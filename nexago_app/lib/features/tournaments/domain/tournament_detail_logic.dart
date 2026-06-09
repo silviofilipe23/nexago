@@ -91,16 +91,21 @@ String tournamentDetailEntrySummary(TournamentDetail detail) {
 TournamentDetailStats tournamentDetailStats(
   TournamentDetail detail, {
   Map<String, int>? enrollmentByCategoryId,
+  bool enrollmentCountsResolved = false,
 }) {
+  final counts = enrollmentByCategoryId ?? const <String, int>{};
   final offers = detail.categoryOffers;
   if (offers.isEmpty) {
     final total = detail.spotsTotal;
-    final enrolled = (total - detail.spotsLeft).clamp(0, total);
+    final legacyEnrolled = (total - detail.spotsLeft).clamp(0, total);
+    final enrolled = enrollmentCountsResolved
+        ? counts.values.fold<int>(0, (sum, n) => sum + n)
+        : (legacyEnrolled > 0 ? legacyEnrolled : detail.enrolledCount);
     return TournamentDetailStats(
       categoryCount: 0,
       openCategories: 0,
       spotsTotal: total,
-      spotsEnrolled: enrolled > 0 ? enrolled : detail.enrolledCount,
+      spotsEnrolled: enrolled,
       prizeTotalLabel: _prizeTotalLabel(detail),
     );
   }
@@ -114,17 +119,23 @@ TournamentDetailStats tournamentDetailStats(
     if (total > 0) {
       spotsEnrolled += categoryEnrolledCount(
         o,
-        inscriptionCount: enrollmentByCategoryId?[o.id],
+        inscriptionCount: resolveInscriptionCountForOffer(
+          counts,
+          o,
+          countsResolved: enrollmentCountsResolved,
+        ),
       );
     }
     if (!o.registrationClosed && !o.isCompleted) openCategories++;
   }
 
+  final legacyEnrolled = spotsEnrolled > 0 ? spotsEnrolled : detail.enrolledCount;
   return TournamentDetailStats(
     categoryCount: offers.length,
     openCategories: openCategories,
     spotsTotal: spotsTotal > 0 ? spotsTotal : detail.spotsTotal,
-    spotsEnrolled: spotsEnrolled > 0 ? spotsEnrolled : detail.enrolledCount,
+    spotsEnrolled:
+        enrollmentCountsResolved ? spotsEnrolled : legacyEnrolled,
     prizeTotalLabel: _prizeTotalLabel(detail),
   );
 }

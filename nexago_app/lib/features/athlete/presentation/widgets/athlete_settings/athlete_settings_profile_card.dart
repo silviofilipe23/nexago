@@ -13,11 +13,13 @@ class AthleteSettingsProfileCard extends StatelessWidget {
     required this.email,
     required this.displayLevel,
     required this.onEdit,
+    this.secondaryName,
     this.avatarUrl,
     this.isLoading = false,
   });
 
   final String name;
+  final String? secondaryName;
   final String? email;
   final String? avatarUrl;
   final int displayLevel;
@@ -67,6 +69,18 @@ class AthleteSettingsProfileCard extends StatelessWidget {
                       letterSpacing: -0.2,
                     ),
                   ),
+                  if (secondaryName != null) ...[
+                    SizedBox(height: 2),
+                    Text(
+                      secondaryName!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: context.themeColors.onSurfaceMuted,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                   SizedBox(height: 4),
                   Text(
                     emailLine,

@@ -25,6 +25,8 @@ import 'core/theme/theme_mode_provider.dart';
 import 'core/theme/theme_preferences_repository.dart';
 import 'core/auth/role_preferences_repository.dart';
 import 'core/auth/active_role_providers.dart';
+import 'features/tournaments/data/tournament_registration_success_preferences_repository.dart';
+import 'features/tournaments/domain/tournament_registration_success_preferences_providers.dart';
 import 'firebase_options.dart';
 import 'shared/constants/app_strings.dart';
 
@@ -43,12 +45,16 @@ Future<void> main() async {
 
   final themePrefs = await ThemePreferencesRepository.create();
   final rolePrefs = await RolePreferencesRepository.create();
+  final tournamentSuccessPrefs =
+      await TournamentRegistrationSuccessPreferencesRepository.create();
 
   runApp(
     ProviderScope(
       overrides: [
         themePreferencesRepositoryProvider.overrideWithValue(themePrefs),
         rolePreferencesRepositoryProvider.overrideWithValue(rolePrefs),
+        tournamentRegistrationSuccessPreferencesRepositoryProvider
+            .overrideWithValue(tournamentSuccessPrefs),
       ],
       child: const NexagoApp(),
     ),

@@ -17,7 +17,7 @@ abstract final class AthleteProfileOptions {
     'Iniciante',
     'Intermediário',
     'Open',
-    'Pro',
+    // 'Pro',
   ];
 
   static const List<String> genders = ['Masculino', 'Feminino'];
@@ -29,7 +29,7 @@ abstract final class AthleteProfileOptions {
     const legacy = <String, String>{
       'Open / federado': 'Open',
       'Básico': 'Iniciante',
-      'Avançado': 'Pro',
+      // 'Avançado': 'Pro',
     };
     if (legacy.containsKey(v)) return legacy[v]!;
     for (final level in levels) {

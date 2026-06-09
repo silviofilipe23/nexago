@@ -10,26 +10,36 @@ class MatchDetailSparkline extends StatelessWidget {
     required this.points,
     this.lineColor = AppColors.win,
     this.height = 120,
+    this.showMidline = false,
   });
 
   final List<double> points;
   final Color lineColor;
   final double height;
+  final bool showMidline;
 
   @override
   Widget build(BuildContext context) {
-    if (points.isEmpty) return SizedBox(height: height);
+    final chartPoints = _normalizedPoints(points);
+    if (chartPoints.isEmpty) return SizedBox(height: height);
 
     return SizedBox(
       height: height,
       width: double.infinity,
       child: CustomPaint(
         painter: _SparklinePainter(
-          points: points,
+          points: chartPoints,
           lineColor: lineColor,
+          showMidline: showMidline,
         ),
       ),
     );
+  }
+
+  List<double> _normalizedPoints(List<double> raw) {
+    if (raw.isEmpty) return const [];
+    if (raw.length == 1) return [raw.first, raw.first];
+    return raw;
   }
 }
 
@@ -37,10 +47,12 @@ class _SparklinePainter extends CustomPainter {
   _SparklinePainter({
     required this.points,
     required this.lineColor,
+    required this.showMidline,
   });
 
   final List<double> points;
   final Color lineColor;
+  final bool showMidline;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -49,6 +61,25 @@ class _SparklinePainter extends CustomPainter {
     final minY = points.reduce(math.min);
     final maxY = points.reduce(math.max);
     final range = (maxY - minY).clamp(0.01, 1.0);
+
+    if (showMidline) {
+      final midY = size.height * 0.5;
+      final midPaint = Paint()
+        ..color = AppColors.onSurfaceMuted.withValues(alpha: 0.25)
+        ..strokeWidth = 1
+        ..style = PaintingStyle.stroke;
+      const dashWidth = 5.0;
+      const dashSpace = 4.0;
+      var startX = 0.0;
+      while (startX < size.width) {
+        canvas.drawLine(
+          Offset(startX, midY),
+          Offset(math.min(startX + dashWidth, size.width), midY),
+          midPaint,
+        );
+        startX += dashWidth + dashSpace;
+      }
+    }
 
     final path = Path();
     final fillPath = Path();
@@ -95,5 +126,7 @@ class _SparklinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SparklinePainter oldDelegate) =>
-      oldDelegate.points != points || oldDelegate.lineColor != lineColor;
+      oldDelegate.points != points ||
+      oldDelegate.lineColor != lineColor ||
+      oldDelegate.showMidline != showMidline;
 }

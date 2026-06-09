@@ -8,7 +8,8 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../data/mock_athlete_home_data.dart';
-import '../domain/athlete_booking_helpers.dart';
+import '../domain/athlete_home_featured_logic.dart';
+import '../domain/athlete_display_name.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/athlete_notifications_providers.dart';
@@ -20,6 +21,7 @@ import 'widgets/athlete_home/athlete_home_plays_with_section.dart';
 import 'widgets/athlete_home/athlete_home_quick_actions.dart';
 import 'daily_mission_navigation.dart';
 import 'widgets/athlete_home/athlete_home_slots_section.dart';
+import '../../tournaments/data/my_tournament_registrations_repository.dart';
 import '../../tournaments/presentation/widgets/my_tournaments_home_section.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_inviter_invites_section.dart';
 
@@ -33,6 +35,7 @@ class AthleteHomePage extends ConsumerWidget {
     final summaryAsync = ref.watch(gamificationSummaryProvider);
     final missionsAsync = ref.watch(dailyMissionsProvider);
     final bookingsAsync = ref.watch(myBookingsStreamProvider);
+    final registrationsAsync = ref.watch(myTournamentRegistrationsProvider);
 
     return SafeArea(
       bottom: false,
@@ -44,9 +47,13 @@ class AthleteHomePage extends ConsumerWidget {
           error: (_, __) => _ErrorState(),
           data: (summary) {
             final bookings = bookingsAsync.valueOrNull ?? [];
-            final nextBooking = findNextAthleteBooking(bookings);
-            final name = profile?.name.trim().isNotEmpty == true
-                ? profile!.name.trim()
+            final registrations = registrationsAsync.valueOrNull ?? [];
+            final featured = resolveAthleteHomeFeatured(
+              registrations: registrations,
+              bookings: bookings,
+            );
+            final name = profile != null
+                ? athleteDisplayName(profile)
                 : 'Atleta';
             final unreadNotifications = ref.watch(
               athleteUnreadNotificationsCountProvider,
@@ -70,13 +77,25 @@ class AthleteHomePage extends ConsumerWidget {
                       context.pushNamed(AppRouteNames.athleteNotifications),
                 ),
                 SizedBox(height: 20),
-                AthleteHomeNextBookingCard(
-                  booking: nextBooking,
+                AthleteHomeFeaturedCard(
+                  featured: featured,
                   onReserveTap: () =>
                       _goToTab(ref, athleteShellReservarTabIndex),
-                  onBookingTap: nextBooking != null
-                      ? () => context.pushNamed(AppRouteNames.myBookings)
-                      : null,
+                  onBookingTap: () =>
+                      context.pushNamed(AppRouteNames.myBookings),
+                  onTournamentTap: () {
+                    final tournament = switch (featured) {
+                      AthleteHomeFeaturedTournament(:final registration) =>
+                        registration,
+                      _ => null,
+                    };
+                    final id = tournament?.tournamentId.trim() ?? '';
+                    if (id.isEmpty) return;
+                    context.pushNamed(
+                      AppRouteNames.tournamentDetail,
+                      pathParameters: {'tournamentId': id},
+                    );
+                  },
                 ),
                 SizedBox(height: 16),
                 AthleteHomeQuickActions(

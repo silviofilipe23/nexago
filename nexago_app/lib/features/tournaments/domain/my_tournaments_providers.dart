@@ -13,23 +13,17 @@ final myTournamentsPageStateProvider =
   final tournamentsAsync = ref.watch(discoveryTournamentsProvider);
   final rankingAsync = ref.watch(competeHubUserRankingProvider);
 
-  if (regsAsync.isLoading || tournamentsAsync.isLoading) {
+  if (regsAsync.isLoading) {
     return const AsyncValue.loading();
   }
 
   if (regsAsync.hasError) {
     return AsyncValue.error(regsAsync.error!, regsAsync.stackTrace!);
   }
-  if (tournamentsAsync.hasError) {
-    return AsyncValue.error(
-      tournamentsAsync.error!,
-      tournamentsAsync.stackTrace!,
-    );
-  }
 
   final regs = regsAsync.value ?? const <MyTournamentRegistration>[];
   final tournaments =
-      tournamentsAsync.value ?? const <DiscoveryTournament>[];
+      tournamentsAsync.valueOrNull ?? const <DiscoveryTournament>[];
   final ranking = rankingAsync.valueOrNull;
 
   final seasonYear = resolveSeasonYear(

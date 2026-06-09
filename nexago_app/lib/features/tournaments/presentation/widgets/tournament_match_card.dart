@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/tournament_match_card_view_model.dart';
 import '../../domain/tournament_match_display.dart';
+import 'tournament_match_live_badge.dart';
 
 class TournamentMatchCard extends StatelessWidget {
   const TournamentMatchCard({
@@ -23,6 +24,7 @@ class TournamentMatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final match = viewModel.match;
     final isLive = match.isInProgress;
+    final isFinalized = match.isCompleted;
     final counts = setsWonCountForMatch(match);
     final hasScore = matchHasScoreData(match);
     final teamAWon = isMatchTeamWinner(match, isTeamA: true);
@@ -43,7 +45,10 @@ class TournamentMatchCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Column(
         children: [
-          if (metaLabel.isNotEmpty || timeLabel.isNotEmpty) ...[
+          if (metaLabel.isNotEmpty ||
+              timeLabel.isNotEmpty ||
+              isLive ||
+              isFinalized) ...[
             Row(
               children: [
                 if (metaLabel.isNotEmpty)
@@ -62,15 +67,17 @@ class TournamentMatchCard extends StatelessWidget {
                   )
                 else
                   Spacer(),
-                if (timeLabel.isNotEmpty)
+                if (isLive)
+                  const TournamentMatchLiveBadge()
+                else if (isFinalized)
+                  const TournamentMatchFinalizedBadge()
+                else if (timeLabel.isNotEmpty)
                   Text(
                     timeLabel,
                     style: AppTypography.mono(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: isLive
-                          ? AppColors.brand
-                          : context.themeColors.onSurfaceMuted,
+                      color: context.themeColors.onSurfaceMuted,
                       letterSpacing: 0.3,
                     ),
                   ),

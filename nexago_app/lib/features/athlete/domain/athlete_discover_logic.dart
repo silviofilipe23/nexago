@@ -251,3 +251,56 @@ AthleteDiscoverEntry buildDiscoverEntry({
     mutualFollowersCount: mutualFollowersCount,
   );
 }
+
+/// Igualdades suportadas em query Firestore para pré-filtrar descoberta.
+class DiscoverFirestoreConstraints {
+  const DiscoverFirestoreConstraints({
+    this.gender,
+    this.lookingForPartnerOnly = false,
+    this.sportFirestoreId,
+  });
+
+  final String? gender;
+  final bool lookingForPartnerOnly;
+  final String? sportFirestoreId;
+
+  bool get isEmpty =>
+      gender == null &&
+      !lookingForPartnerOnly &&
+      (sportFirestoreId == null || sportFirestoreId!.isEmpty);
+}
+
+String? discoverGenderFirestoreValue(AthleteDiscoverGenderFilter filter) {
+  return switch (filter) {
+    AthleteDiscoverGenderFilter.all => null,
+    AthleteDiscoverGenderFilter.male => 'Masculino',
+    AthleteDiscoverGenderFilter.female => 'Feminino',
+  };
+}
+
+DiscoverFirestoreConstraints discoverFirestoreConstraints(
+  AthleteDiscoverFilters filters,
+) {
+  final sportId = filters.sportFirestoreId?.trim();
+  return DiscoverFirestoreConstraints(
+    gender: discoverGenderFirestoreValue(filters.gender),
+    lookingForPartnerOnly: filters.lookingForPartnerOnly,
+    sportFirestoreId: sportId != null && sportId.isNotEmpty ? sportId : null,
+  );
+}
+
+/// Esportes inscritos (primário + secundários) para índice `discoverSportIds`.
+List<String> discoverSportIdsForProfile(AthleteProfile profile) {
+  final ids = <String>{};
+  final primary = profile.primarySportFirestoreId?.trim();
+  if (primary != null && primary.isNotEmpty) {
+    ids.add(primary);
+  }
+  for (final id in profile.secondarySportFirestoreIds) {
+    final trimmed = id.trim();
+    if (trimmed.isNotEmpty) {
+      ids.add(trimmed);
+    }
+  }
+  return ids.toList();
+}

@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
+import 'match_detail_momentum_chart.dart';
 import 'match_detail_section_header.dart';
-import 'match_detail_sparkline.dart';
 
 class MatchDetailMomentumSection extends StatelessWidget {
   const MatchDetailMomentumSection({
     super.key,
     required this.momentum,
     this.isLive = false,
+    this.onViewPlayByPlay,
   });
 
   final MatchDetailMomentumInfo momentum;
   final bool isLive;
+  final VoidCallback? onViewPlayByPlay;
 
   @override
   Widget build(BuildContext context) {
@@ -37,18 +40,85 @@ class MatchDetailMomentumSection extends StatelessWidget {
           ),
           child: Column(
             children: [
-              MatchDetailSparkline(
-                points: momentum.points,
-                lineColor: lineColor,
+              if (momentum.summaryLabel != null &&
+                  momentum.summaryLabel!.isNotEmpty) ...[
+                _SummaryPill(label: momentum.summaryLabel!, color: lineColor),
+                SizedBox(height: 12),
+              ],
+              MatchDetailMomentumChart(
+                chartPoints: momentum.chartPoints,
+                ourTeamLabel: momentum.ourTeamLabel,
+                opponentTeamLabel: momentum.opponentTeamLabel,
               ),
+              if (momentum.chartHint != null &&
+                  momentum.chartHint!.isNotEmpty) ...[
+                SizedBox(height: 10),
+                Text(
+                  momentum.chartHint!,
+                  textAlign: TextAlign.center,
+                  style: AppTypography.soraRegular(
+                    color: AppColors.onSurfaceMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w400,
+                    height: 1.35,
+                  ),
+                ),
+              ],
               if (momentum.narrative.isNotEmpty) ...[
                 SizedBox(height: 12),
                 _MomentumNarrative(text: momentum.narrative, theme: theme),
+              ],
+              if (onViewPlayByPlay != null) ...[
+                SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: onViewPlayByPlay,
+                    child: Text(
+                      'Ver ponto a ponto →',
+                      style: AppTypography.soraRegular(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.brand,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SummaryPill extends StatelessWidget {
+  const _SummaryPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Text(
+          label,
+          style: AppTypography.mono(
+            color: color,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.2,
+            fontSize: 11,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -63,10 +133,10 @@ class _MomentumNarrative extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text.rich(
       TextSpan(
-        style: theme.textTheme.bodySmall?.copyWith(
+        style: AppTypography.soraRegular(
           color: AppColors.onSurfaceMuted,
-          height: 1.45,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w400,
+          fontSize: 13,
         ),
         children: _buildSpans(text),
       ),
@@ -79,7 +149,7 @@ class _MomentumNarrative extends StatelessWidget {
 
     while (remaining.isNotEmpty) {
       final zeroTwo = RegExp(r'0-2').firstMatch(remaining);
-      final fivePts = RegExp(r'5 pontos seguidos').firstMatch(remaining);
+      final fivePts = RegExp(r'\d+ pontos seguidos').firstMatch(remaining);
       final score = RegExp(r'\d+-\d+').firstMatch(remaining);
 
       Match? earliest;

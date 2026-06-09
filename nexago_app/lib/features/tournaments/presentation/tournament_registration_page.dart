@@ -7,6 +7,9 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../../arenas/data/payment_service.dart';
+import '../../arenas/domain/payment_providers.dart';
+import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
 import '../../athlete/presentation/widgets/tournament_access_banner.dart';
@@ -14,6 +17,7 @@ import '../data/tournament_inscriptions_repository.dart';
 import '../data/tournament_partner_invite_service.dart';
 import '../data/users_repository.dart';
 import '../domain/app_user_profile.dart';
+import '../domain/tournament_category_spots.dart';
 import '../domain/tournament_detail_logic.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
@@ -258,9 +262,9 @@ class _TournamentRegistrationPageState
     final categoryName =
         _category?.name ?? _category?.id ?? widget.initialCategoryId ?? '';
 
-    showAppSnackBar(context, 'Dupla inscrita! Pagamento confirmado.');
     navigateToTournamentRegistrationSuccess(
       context,
+      ref: ref,
       tournamentId: widget.tournamentId,
       registrationId: regId,
       tournamentName: tournament.name,
@@ -484,15 +488,17 @@ class _TournamentRegistrationPageState
           inviteAccepted: inviteAccepted,
           registrationId: _registrationId,
         );
+        final isFree = quote != null && !registrationRequiresPayment(quote);
         return (
           enabled: canPay,
-          ctaLabel: 'Ir para pagamento',
+          ctaLabel: isFree ? 'Confirmar inscrição' : 'Ir para pagamento',
           metaLabel: inviteAccepted ? null : 'Aguardando parceiro',
-          totalLabel: quote != null && canPay
+          totalLabel: quote != null && canPay && !isFree
               ? formatRegistrationMoney(quote.shareAmount)
               : null,
         );
       case TournamentRegistrationStep.payment:
+        final isFree = quote != null && !registrationRequiresPayment(quote);
         return (
           enabled:
               _registrationId != null &&
@@ -502,10 +508,12 @@ class _TournamentRegistrationPageState
           ctaLabel: isFullyPaid
               ? 'Inscrição confirmada'
               : athleteSharePaid
-              ? 'Parcela paga'
-              : 'Confirmar e pagar',
-          metaLabel: athleteSharePaid ? 'Aguardando parceiro' : 'Sua parcela',
-          totalLabel: quote != null && !athleteSharePaid
+              ? (isFree ? 'Confirmado' : 'Parcela paga')
+              : (isFree ? 'Confirmar inscrição' : 'Confirmar e pagar'),
+          metaLabel: athleteSharePaid
+              ? 'Aguardando parceiro'
+              : (isFree ? 'Gratuito' : 'Sua parcela'),
+          totalLabel: quote != null && !athleteSharePaid && !isFree
               ? formatRegistrationMoney(quote.shareAmount)
               : null,
         );
@@ -514,16 +522,15 @@ class _TournamentRegistrationPageState
 
   ({String name, String initials, String? avatarUrl}) _athleteDisplay() {
     final profile = ref.watch(athleteProfileProvider).valueOrNull;
-    final nickname = profile?.nickname?.trim();
-    final name = nickname != null && nickname.isNotEmpty
-        ? nickname
-        : profile?.name.trim();
-    if (name != null && name.isNotEmpty) {
-      return (
-        name: name,
-        initials: _initialsFromName(name),
-        avatarUrl: profile?.avatarUrl,
-      );
+    if (profile != null) {
+      final name = athleteDisplayName(profile, fallback: '');
+      if (name.isNotEmpty) {
+        return (
+          name: name,
+          initials: athleteInitials(profile),
+          avatarUrl: profile.avatarUrl,
+        );
+      }
     }
     return (name: 'Você', initials: 'VC', avatarUrl: profile?.avatarUrl);
   }
@@ -658,18 +665,16 @@ class _TournamentRegistrationPageState
           _scheduleInitialRegistration(categories);
           _scheduleInitialInvite(categories);
 
+          final enrollmentAsync = ref.watch(
+            tournamentCategoryEnrollmentCountsProvider(widget.tournamentId),
+          );
+          final enrollmentResolved = enrollmentAsync.hasValue;
           final enrollment =
-              ref
-                  .watch(
-                    tournamentCategoryEnrollmentCountsProvider(
-                      widget.tournamentId,
-                    ),
-                  )
-                  .valueOrNull ??
-              const <String, int>{};
+              enrollmentAsync.valueOrNull ?? const <String, int>{};
           final stats = tournamentDetailStats(
             tournament,
             enrollmentByCategoryId: enrollment,
+            enrollmentCountsResolved: enrollmentResolved,
           );
           final quote = _category != null
               ? buildRegistrationQuote(entryFee: _category!.entryFee)
@@ -753,6 +758,7 @@ class _TournamentRegistrationPageState
                             tournament: tournament,
                             categories: categories,
                             enrollmentByCategoryId: enrollment,
+                            enrollmentCountsResolved: enrollmentResolved,
                             registeredCategoryIds: registeredCategoryIds,
                             quote: quote,
                             athleteName: athlete.name,
@@ -794,6 +800,7 @@ class _TournamentRegistrationPageState
     required TournamentDetail tournament,
     required List<TournamentCategoryOffer> categories,
     required Map<String, int> enrollmentByCategoryId,
+    required bool enrollmentCountsResolved,
     required Set<String> registeredCategoryIds,
     required TournamentRegistrationQuote? quote,
     required String athleteName,
@@ -819,9 +826,10 @@ class _TournamentRegistrationPageState
             TournamentRegistrationCategoryCard(
               offer: cat,
               format: tournament.format,
-              inscriptionCount: inscriptionCountForCategory(
+              inscriptionCount: resolveInscriptionCountForOffer(
                 enrollmentByCategoryId,
-                cat.id,
+                cat,
+                countsResolved: enrollmentCountsResolved,
               ),
               selected: _category?.id == cat.id,
               alreadyRegistered: registeredCategoryIds.contains(cat.id),
@@ -841,9 +849,10 @@ class _TournamentRegistrationPageState
             child: TournamentRegistrationCategoryCard(
               offer: category,
               format: tournament.format,
-              inscriptionCount: inscriptionCountForCategory(
+              inscriptionCount: resolveInscriptionCountForOffer(
                 enrollmentByCategoryId,
-                category.id,
+                category,
+                countsResolved: enrollmentCountsResolved,
               ),
               selected: true,
               showChangeAction: true,
@@ -954,6 +963,7 @@ class _TournamentRegistrationPageState
             dualPaymentOnly: true,
             progressLabel: progressLabel,
             isFullyPaid: isFullyPaid,
+            isFreeRegistration: !registrationRequiresPayment(quote),
           ),
         ];
     }
@@ -987,6 +997,22 @@ class _TournamentRegistrationPageState
     setState(() => _submitting = true);
     try {
       if (!mounted) return;
+      if (!registrationRequiresPayment(quote)) {
+        final result = await ref
+            .read(paymentServiceProvider)
+            .confirmFreeTournamentRegistration(registrationId: regId);
+        if (!mounted) return;
+        if (result.isPaid) {
+          _navigateToRegistrationSuccess();
+          return;
+        }
+        showAppSnackBar(
+          context,
+          'Inscrição confirmada. Aguarde seu parceiro confirmar a dele.',
+        );
+        return;
+      }
+
       await context.pushNamed(
         AppRouteNames.tournamentRegistrationPix,
         pathParameters: <String, String>{'tournamentId': widget.tournamentId},
@@ -1005,6 +1031,9 @@ class _TournamentRegistrationPageState
           shareAmountReais: quote.shareAmount,
         ),
       );
+    } on PaymentException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

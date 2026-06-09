@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../domain/tournament_match.dart';
+import '../domain/tournament_match_point_action.dart';
 import '../domain/tournament_match_set.dart';
 import '../domain/tournament_match_status.dart';
 
@@ -32,6 +33,10 @@ abstract final class TournamentMatchMapper {
       isGroupMatch: data['isGroupMatch'] == true,
       matchNumber: _int(data['matchNumber']) ?? 0,
       sets: _sets(data['sets']),
+      lastActions: _mergePointActions(
+        _lastActions(data['pointHistory']),
+        _lastActions(data['lastActions']),
+      ),
       currentSetIndex: _int(data['currentSetIndex']),
       winnerId: _str(data['winnerId']),
       scheduleTime: _timestamp(data['scheduleTime']),
@@ -42,6 +47,55 @@ abstract final class TournamentMatchMapper {
       courtName: _str(data['courtName']),
       description: _str(data['description']),
     );
+  }
+
+  static List<TournamentMatchPointAction> _mergePointActions(
+    List<TournamentMatchPointAction> primary,
+    List<TournamentMatchPointAction> secondary,
+  ) {
+    if (primary.isEmpty) return secondary;
+    if (secondary.isEmpty) return primary;
+
+    final merged = <TournamentMatchPointAction>[...primary, ...secondary];
+    merged.sort((a, b) => a.ts.compareTo(b.ts));
+    return merged;
+  }
+
+  static List<TournamentMatchPointAction> _lastActions(dynamic raw) {
+    if (raw is! List) return const [];
+
+    final actions = <TournamentMatchPointAction>[];
+    for (final entry in raw) {
+      if (entry is! Map) continue;
+      final map = Map<String, dynamic>.from(entry);
+      final type = _str(map['type']);
+      final side = _str(map['side']);
+      final setIndex = _int(map['setIndex']);
+      final delta = _int(map['delta']) ?? 1;
+      final ts = _timestamp(map['ts']);
+      if (type == null ||
+          side == null ||
+          setIndex == null ||
+          ts == null ||
+          type.toLowerCase() != 'point') {
+        continue;
+      }
+      final normalizedSide = side.toUpperCase();
+      if (normalizedSide != 'A' && normalizedSide != 'B') continue;
+
+      actions.add(
+        TournamentMatchPointAction(
+          type: type,
+          side: normalizedSide,
+          setIndex: setIndex,
+          delta: delta,
+          ts: ts,
+        ),
+      );
+    }
+
+    actions.sort((a, b) => a.ts.compareTo(b.ts));
+    return actions;
   }
 
   static List<TournamentMatchSet> _sets(dynamic raw) {

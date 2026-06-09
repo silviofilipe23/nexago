@@ -4,6 +4,7 @@ import {
   buildTournamentRegistrationExternalReference,
   computeTeamGenderLabel,
   computeTournamentShareAmountReais,
+  isFreeRegistrationFullyConfirmed,
   normalizeAthleteGenderBucket,
   parseTournamentRegistrationExternalReference,
   sharePaidUidsFromRegistration,
@@ -53,5 +54,17 @@ describe("tournament-registration-pix-helpers", () => {
     assert.equal(computeTeamGenderLabel("F", "F"), "Feminino");
     assert.equal(computeTeamGenderLabel("M", "F"), "Misto");
     assert.equal(computeTeamGenderLabel("M", null), null);
+  });
+
+  it("detects free registration fully confirmed", () => {
+    assert.equal(
+      isFreeRegistrationFullyConfirmed(["a", "b"], ["a"]),
+      false,
+    );
+    assert.equal(
+      isFreeRegistrationFullyConfirmed(["a", "b"], ["a", "b"]),
+      true,
+    );
+    assert.equal(isFreeRegistrationFullyConfirmed(["a"], ["a"]), false);
   });
 });

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/search/search_keywords.dart';
+import '../../../core/auth/user_roles.dart';
 import '../domain/app_user_profile.dart';
 import '../domain/partner_search_logic.dart';
 import 'users_repository.dart';
@@ -10,7 +11,8 @@ class PartnerSearchService {
 
   final UsersRepository _users;
 
-  static const int initialBrowseLimit = 50;
+  static const int initialBrowseLimit = 2000;
+  static const int searchResultLimit = 25;
 
   Future<List<AppUserProfile>> listPartners({
     required String currentUserId,
@@ -27,7 +29,7 @@ class PartnerSearchService {
     required String currentUserId,
     required String? categoryGenderType,
     required String query,
-    int max = 25,
+    int max = searchResultLimit,
   }) async {
     final trimmed = query.trim();
     if (!isSearchTermLongEnough(trimmed)) {
@@ -37,7 +39,11 @@ class PartnerSearchService {
       );
     }
 
-    var users = await _users.searchAthletesByKeywords(trimmed, max: max);
+    var users = await _users.searchUsersByNicknameOrName(
+      trimmed,
+      max: max,
+      roleFilter: kAthleteAppRole,
+    );
     users = users.where((user) => user.uid != currentUserId).toList();
     users = filterPartnersByCategoryGender(users, categoryGenderType);
     return sortPartnersForDisplay(users);

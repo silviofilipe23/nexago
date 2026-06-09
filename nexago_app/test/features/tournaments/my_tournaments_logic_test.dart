@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/domain/my_tournaments_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_listing_status.dart';
 
 DiscoveryTournament _tournament({
   required String id,
@@ -148,6 +149,53 @@ void main() {
 
     test('falls back to current year', () {
       expect(resolveSeasonYear(), DateTime.now().year);
+    });
+  });
+
+  group('registrationShowsAsLiveToday', () {
+    test('returns true for open registration on event day', () {
+      final today = DateTime.now();
+      final reg = MyTournamentRegistration(
+        registrationId: 'reg-1',
+        tournamentId: 't1',
+        tournamentName: 'Copa',
+        dateLabel: 'hoje',
+        statusLabel: 'Inscrito',
+        isPaid: true,
+        categoryId: 'cat',
+        startDate: DateTime(today.year, today.month, today.day),
+        listingStatus: TournamentListingStatus.open,
+      );
+      expect(registrationShowsAsLiveToday(reg), isTrue);
+      expect(registrationHomeBadgeLabel(reg), 'DIA DO EVENTO');
+    });
+
+    test('sortRegistrationsForHomePreview puts live today first', () {
+      final today = DateTime.now();
+      final todayReg = MyTournamentRegistration(
+        registrationId: 'reg-today',
+        tournamentId: 'today',
+        tournamentName: 'Hoje',
+        dateLabel: 'hoje',
+        statusLabel: 'Inscrito',
+        isPaid: true,
+        categoryId: 'cat',
+        startDate: DateTime(today.year, today.month, today.day),
+        listingStatus: TournamentListingStatus.open,
+      );
+      final laterReg = MyTournamentRegistration(
+        registrationId: 'reg-later',
+        tournamentId: 'later',
+        tournamentName: 'Depois',
+        dateLabel: '15/07',
+        statusLabel: 'Inscrito',
+        isPaid: true,
+        categoryId: 'cat',
+        startDate: today.add(const Duration(days: 14)),
+        listingStatus: TournamentListingStatus.open,
+      );
+      final sorted = sortRegistrationsForHomePreview([laterReg, todayReg]);
+      expect(sorted.first.registrationId, 'reg-today');
     });
   });
 }

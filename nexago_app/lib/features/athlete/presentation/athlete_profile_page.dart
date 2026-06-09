@@ -10,6 +10,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../arenas/domain/my_booking_item.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../domain/athlete_booking_helpers.dart';
+import '../domain/athlete_display_name.dart';
 import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/achievements/achievement_providers.dart';
@@ -219,7 +220,7 @@ class _AthleteProfileBody extends ConsumerWidget {
     WidgetRef ref,
     AthleteProfile profile,
   ) async {
-    final name = profile.name.trim().isNotEmpty ? profile.name.trim() : 'Atleta';
+    final name = athleteDisplayName(profile);
     final sport = profile.sport.trim().isNotEmpty ? profile.sport.trim() : 'esporte';
     await Share.share(
       'Confira meu perfil no NexaGO: $name — $sport',

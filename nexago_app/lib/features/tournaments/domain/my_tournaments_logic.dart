@@ -2,6 +2,49 @@ import 'tournament_discovery_models.dart';
 import 'tournament_listing_status.dart';
 import 'my_tournaments_models.dart';
 
+/// Badge de destaque na Home para inscrição no dia do evento ou ao vivo.
+bool registrationShowsAsLiveToday(MyTournamentRegistration registration) {
+  if (registration.listingStatus == TournamentListingStatus.live) {
+    return true;
+  }
+  final status = registration.listingStatus;
+  if (status != null && isTournamentTerminal(status)) return false;
+  final start = registration.startDate;
+  if (start == null) return false;
+  return isTournamentEventDay(
+    startAt: start,
+    endAt: registration.endDate,
+  );
+}
+
+String registrationHomeBadgeLabel(MyTournamentRegistration registration) {
+  if (registrationShowsAsLiveToday(registration)) {
+    return registration.listingStatus == TournamentListingStatus.live
+        ? 'AO VIVO'
+        : 'DIA DO EVENTO';
+  }
+  return registration.statusLabel;
+}
+
+/// Ordena inscrições para preview da Home (evento hoje / ao vivo primeiro).
+List<MyTournamentRegistration> sortRegistrationsForHomePreview(
+  List<MyTournamentRegistration> registrations,
+) {
+  final copy = List<MyTournamentRegistration>.from(registrations);
+  copy.sort((a, b) {
+    final aLive = registrationShowsAsLiveToday(a);
+    final bLive = registrationShowsAsLiveToday(b);
+    if (aLive != bLive) return aLive ? -1 : 1;
+    final aDate = a.startDate;
+    final bDate = b.startDate;
+    if (aDate != null && bDate != null) {
+      return aDate.compareTo(bDate);
+    }
+    return a.tournamentName.compareTo(b.tournamentName);
+  });
+  return copy;
+}
+
 /// Monta enrollments a partir de inscrições + mapa de torneios.
 List<MyTournamentEnrollment> buildMyTournamentEnrollments({
   required List<MyTournamentRegistration> registrations,

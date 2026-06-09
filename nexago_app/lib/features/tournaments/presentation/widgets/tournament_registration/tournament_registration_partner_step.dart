@@ -66,7 +66,7 @@ class _TournamentRegistrationPartnerStepState
 
   void _onSearchChanged() {
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 300), _runPartnerSearch);
+    _searchDebounce = Timer(const Duration(milliseconds: 350), _runPartnerSearch);
     setState(() {});
   }
 
@@ -180,7 +180,7 @@ class _TournamentRegistrationPartnerStepState
             fontWeight: FontWeight.w500,
           ),
           decoration: InputDecoration(
-            hintText: 'Buscar por nome, apelido ou e-mail',
+            hintText: 'Nome, @, apelido ou e-mail…',
             hintStyle: theme.textTheme.bodyMedium?.copyWith(
               color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.6),
             ),

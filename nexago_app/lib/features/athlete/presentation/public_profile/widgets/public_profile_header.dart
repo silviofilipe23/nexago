@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
+import '../../../domain/athlete_display_name.dart';
 import '../../../domain/athlete_profile.dart';
 import '../../../domain/athlete_public_profile_models.dart';
 import '../../widgets/athlete_profile_avatar.dart';
@@ -29,9 +30,8 @@ class PublicProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = profile.name.trim().isNotEmpty
-        ? profile.name.trim()
-        : 'Atleta';
+    final name = athleteDisplayName(profile);
+    final secondaryName = athleteSecondaryLine(profile);
     final handle = athletePublicHandle(profile);
     final ageLabel = athleteAgeCategoryLabel(profile.birthDate);
     final genderLabel = athleteGenderShortLabel(profile.gender);
@@ -106,7 +106,7 @@ class PublicProfileHeader extends StatelessWidget {
                 alignment: Alignment.topCenter,
                 child: AthleteProfileAvatar(
                   size: avatarSize,
-                  initials: athleteInitialsFromName(name),
+                  initials: athleteInitials(profile),
                   imageUrl: profile.avatarUrl,
                   displayLevel: displayLevel,
                 ),
@@ -145,6 +145,18 @@ class PublicProfileHeader extends StatelessWidget {
                   // ),
                 ],
               ),
+              if (secondaryName != null) ...[
+                SizedBox(height: 4),
+                Text(
+                  secondaryName,
+                  textAlign: TextAlign.center,
+                  style: AppTypography.soraRegular(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
+                ),
+              ],
               if (handle != null) ...[
                 SizedBox(height: 4),
                 Text(

@@ -6,6 +6,7 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
+import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../ranking/domain/ranking_display_helpers.dart';
 import '../../ranking/domain/ranking_providers.dart';
@@ -77,9 +78,11 @@ class _MyTournamentsPageState extends ConsumerState<MyTournamentsPage> {
 
   String _headerSubtitle(WidgetRef ref) {
     final profile = ref.watch(athleteProfileProvider).valueOrNull;
-    final name = profile?.name.trim();
-    final firstName = name != null && name.isNotEmpty
-        ? name.split(RegExp(r'\s+')).first.toUpperCase()
+    final display = profile != null
+        ? athleteDisplayName(profile, fallback: '')
+        : '';
+    final firstName = display.isNotEmpty
+        ? display.split(RegExp(r'\s+')).first.toUpperCase()
         : 'ATLETA';
     return '$firstName • DUPLA';
   }

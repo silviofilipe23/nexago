@@ -4,6 +4,82 @@ import 'package:nexago_app/features/tournaments/domain/tournament_category_spots
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 
 void main() {
+  group('resolveInscriptionCountForOffer', () {
+    const offer = TournamentCategoryOffer(
+      id: 'Masc',
+      name: 'Masculino C',
+      entryFee: 90,
+      maxTeams: 8,
+    );
+
+    test('returns null while counts are unresolved', () {
+      expect(
+        resolveInscriptionCountForOffer(
+          const {'Masculino C': 2},
+          offer,
+          countsResolved: false,
+        ),
+        isNull,
+      );
+    });
+
+    test('matches by id, name, or case-insensitive key', () {
+      expect(
+        resolveInscriptionCountForOffer(
+          const {'Masc': 3},
+          offer,
+          countsResolved: true,
+        ),
+        3,
+      );
+      expect(
+        resolveInscriptionCountForOffer(
+          const {'Masculino C': 2},
+          offer,
+          countsResolved: true,
+        ),
+        2,
+      );
+      expect(
+        resolveInscriptionCountForOffer(
+          const {'masculino c': 4},
+          offer,
+          countsResolved: true,
+        ),
+        4,
+      );
+    });
+
+    test('returns zero when resolved and category has no paid inscriptions', () {
+      expect(
+        resolveInscriptionCountForOffer(
+          const {'Misto': 1},
+          offer,
+          countsResolved: true,
+        ),
+        0,
+      );
+    });
+
+    test('matches inscription counts keyed by category uuid', () {
+      const uuid = '51e5b0b4-7de7-4e39-a883-e83325a2391e';
+      const uuidOffer = TournamentCategoryOffer(
+        id: uuid,
+        name: 'Open',
+        entryFee: 0,
+        maxTeams: 8,
+      );
+      expect(
+        resolveInscriptionCountForOffer(
+          const {uuid: 1},
+          uuidOffer,
+          countsResolved: true,
+        ),
+        1,
+      );
+    });
+  });
+
   group('categoryMaxTeams', () {
     test('uses inscription count when provided', () {
       const offer = TournamentCategoryOffer(

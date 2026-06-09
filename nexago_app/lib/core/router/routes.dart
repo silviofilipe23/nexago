@@ -72,6 +72,10 @@ abstract final class AppRoutes {
   /// Detalhe de partida: `/athlete/history/match/:matchId`
   static const String athleteMatchDetail = '/athlete/history/match/:matchId';
 
+  /// Análise ponto a ponto: `/athlete/history/match/:matchId/play-by-play`
+  static const String athleteMatchPlayByPlay =
+      '/athlete/history/match/:matchId/play-by-play';
+
   /// Query em [athleteMatchDetail]: `1` oculta «Ir ao torneio» (já está no torneio).
   static const String matchDetailFromTournamentQuery = 'fromTournament';
 
@@ -229,6 +233,7 @@ abstract final class AppRouteNames {
   static const String athleteQuest = 'athleteQuest';
   static const String athleteMatchHistory = 'athleteMatchHistory';
   static const String athleteMatchDetail = 'athleteMatchDetail';
+  static const String athleteMatchPlayByPlay = 'athleteMatchPlayByPlay';
   static const String athleteTournamentDetail = 'athleteTournamentDetail';
   static const String athleteProfileUpdateSuccess =
       'athleteProfileUpdateSuccess';

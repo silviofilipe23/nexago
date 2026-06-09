@@ -8,6 +8,7 @@ import '../../../domain/double_elimination_bracket_layout.dart';
 import '../../../domain/tournament_match.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
 import '../../../domain/tournament_match_display.dart';
+import '../tournament_match_live_badge.dart';
 
 class BracketMatchNode extends StatelessWidget {
   const BracketMatchNode({
@@ -82,7 +83,12 @@ class BracketMatchNode extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                _StatusPill(label: statusLabel, isLive: isLive),
+                if (isLive)
+                  const TournamentMatchLiveBadge()
+                else if (match.isCompleted)
+                  const TournamentMatchFinalizedBadge()
+                else
+                  _StatusPill(label: statusLabel, isLive: false),
               ],
             ),
             SizedBox(height: 6),

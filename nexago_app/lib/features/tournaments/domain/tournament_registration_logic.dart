@@ -120,6 +120,10 @@ TournamentRegistrationQuote buildRegistrationQuote({
   );
 }
 
+/// Inscrição paga exige PIX; taxa zero confirma sem pagamento.
+bool registrationRequiresPayment(TournamentRegistrationQuote quote) =>
+    quote.entryFee > 0;
+
 String formatRegistrationMoney(double value) => formatMoney(value);
 
 /// Badge do hero (ex.: `COPA GOIÁS 2026`).
@@ -328,6 +332,19 @@ String registrationDualPaymentProgressLabel({
   String? currentAthleteUid,
 }) {
   if (isPaid) return 'Inscrição confirmada — dupla inscrita no torneio.';
+  if (!registrationRequiresPayment(quote)) {
+    final selfConfirmed = currentAthleteSharePaid(
+      sharePaidUids: sharePaidUids,
+      athleteUid: currentAthleteUid,
+    );
+    if (selfConfirmed) {
+      return 'Você confirmou. Aguardando seu parceiro confirmar a inscrição.';
+    }
+    if (sharePaidUids.isNotEmpty) {
+      return 'Seu parceiro já confirmou. Confirme sua inscrição gratuita.';
+    }
+    return 'Cada atleta precisa confirmar a inscrição gratuita.';
+  }
   final selfPaid = currentAthleteSharePaid(
     sharePaidUids: sharePaidUids,
     athleteUid: currentAthleteUid,
@@ -358,3 +375,34 @@ bool registrationStickyEnabled({
   required bool stepEnabled,
 }) =>
     canAccess && stepEnabled;
+
+/// Resultado da avaliação de auto-navegação para a tela de confirmação.
+enum RegistrationSuccessNavigationAction {
+  /// Ignorar (já tratado, ainda não pago ou sem transição real).
+  ignore,
+
+  /// Inscrição já paga no primeiro snapshot — marcar como tratado sem navegar.
+  markHandledOnly,
+
+  /// Transição real para pago — navegar para confirmação.
+  navigate,
+}
+
+/// Decide se o coordinator deve abrir a tela de confirmação após pagamento.
+RegistrationSuccessNavigationAction registrationSuccessNavigationAction({
+  required bool isPaid,
+  required bool wasPaid,
+  required bool hasPreviousSnapshot,
+  required bool seenUnpaid,
+  required bool alreadyHandled,
+}) {
+  if (!isPaid) return RegistrationSuccessNavigationAction.ignore;
+  if (alreadyHandled) return RegistrationSuccessNavigationAction.ignore;
+  if (wasPaid) return RegistrationSuccessNavigationAction.ignore;
+
+  final isRealTransition = hasPreviousSnapshot || seenUnpaid;
+  if (!isRealTransition) {
+    return RegistrationSuccessNavigationAction.markHandledOnly;
+  }
+  return RegistrationSuccessNavigationAction.navigate;
+}

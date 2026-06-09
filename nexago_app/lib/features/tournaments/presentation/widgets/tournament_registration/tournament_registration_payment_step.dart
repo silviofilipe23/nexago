@@ -16,6 +16,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
     this.dualPaymentOnly = false,
     this.progressLabel,
     this.isFullyPaid = false,
+    this.isFreeRegistration = false,
   });
 
   final TournamentCategoryOffer category;
@@ -25,6 +26,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
   final bool dualPaymentOnly;
   final String? progressLabel;
   final bool isFullyPaid;
+  final bool isFreeRegistration;
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +40,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'PAGAMENTO',
+          isFreeRegistration ? 'CONFIRMAÇÃO' : 'PAGAMENTO',
           style: AppTypography.mono(
             color: context.themeColors.onSurfaceMuted,
             fontWeight: FontWeight.w600,
@@ -56,7 +58,9 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
         ),
         SizedBox(height: 4),
         Text(
-          dualPaymentOnly
+          isFreeRegistration
+              ? 'Esta categoria é gratuita. Cada atleta confirma a inscrição e a dupla é validada quando os dois confirmarem.'
+              : dualPaymentOnly
               ? 'Cada atleta paga sua parcela. A inscrição da dupla é confirmada quando os dois pagarem.'
               : 'Escolha como deseja pagar a inscrição.',
           style: theme.textTheme.bodyMedium?.copyWith(
@@ -107,37 +111,39 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             },
           ),
         ],
-        SizedBox(height: 20),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: context.themeColors.surfaceRaised,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+        if (!isFreeRegistration) ...[
+          SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: context.themeColors.surfaceRaised,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+              ),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  paymentType == 'full' ? 'Total da dupla' : 'Sua parcela',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Spacer(),
+                Text(
+                  amountLabel,
+                  style: AppTypography.mono(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.brand,
+                  ),
+                ),
+              ],
             ),
           ),
-          child: Row(
-            children: [
-              Text(
-                paymentType == 'full' ? 'Total da dupla' : 'Sua parcela',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: context.themeColors.onSurfaceMuted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Spacer(),
-              Text(
-                amountLabel,
-                style: AppTypography.mono(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.brand,
-                ),
-              ),
-            ],
-          ),
-        ),
+        ],
       ],
     );
   }

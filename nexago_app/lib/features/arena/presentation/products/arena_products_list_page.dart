@@ -81,7 +81,15 @@ class _ProductsBody extends ConsumerWidget {
                   children: [
                     _ProductsHeader(
                       arenaName: arenaName,
-                      onBack: () => context.pop(),
+                      onBack: () {
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          context.goNamed(AppRouteNames.arenaSettings);
+                        }
+                      },
+                      onStock: () =>
+                          context.pushNamed(AppRouteNames.arenaProductStock),
                       onAdd: () =>
                           context.pushNamed(AppRouteNames.arenaProductNew),
                     ),
@@ -107,18 +115,6 @@ class _ProductsBody extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton.icon(
-                        onPressed: () =>
-                            context.pushNamed(AppRouteNames.arenaProductStock),
-                        icon: const Icon(Icons.inventory_outlined, size: 18),
-                        label: const Text('Ver estoque'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.brand,
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -170,11 +166,13 @@ class _ProductsHeader extends StatelessWidget {
   const _ProductsHeader({
     required this.arenaName,
     required this.onBack,
+    required this.onStock,
     required this.onAdd,
   });
 
   final String? arenaName;
   final VoidCallback onBack;
+  final VoidCallback onStock;
   final VoidCallback onAdd;
 
   @override
@@ -234,7 +232,26 @@ class _ProductsHeader extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
+        Material(
+          color: context.themeColors.surfaceRaised,
+          borderRadius: BorderRadius.circular(12),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onStock,
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: Icon(
+                Icons.inventory_2_outlined,
+                color: context.themeColors.onSurface,
+                size: 22,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
         Material(
           color: AppColors.brand,
           borderRadius: BorderRadius.circular(12),

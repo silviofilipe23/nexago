@@ -78,6 +78,11 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
     Future<void>(() async {
       final notifications = ref.read(notificationServiceProvider);
       final router = ref.read(goRouterProvider);
+      void handleNotificationTap(Map<String, dynamic> data) {
+        debugPrint('Notification tap payload: $data');
+        navigateFromNotificationData(data, router);
+      }
+
       await notifications.initialize(
         onOpenMessage: (message) {
           debugPrint('FCM open payload: ${message.data}');
@@ -86,6 +91,7 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
         onForegroundMessage: (message) {
           debugPrint('FCM foreground payload: ${message.data}');
         },
+        onNotificationTap: handleNotificationTap,
       );
 
       await notifications.syncUserToken(ref.read(authProvider).valueOrNull?.uid);
@@ -102,9 +108,9 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
     _authSub = ref.listenManual<AsyncValue<User?>>(
       authProvider,
       (previous, next) async {
-        await ref
-            .read(notificationServiceProvider)
-            .syncUserToken(next.valueOrNull?.uid);
+        final notifications = ref.read(notificationServiceProvider);
+        final nextUid = next.valueOrNull?.uid.trim();
+        await notifications.syncUserToken(nextUid);
       },
     );
   }

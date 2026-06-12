@@ -87,7 +87,9 @@ class _SportCard extends StatelessWidget {
             child: Icon(
               Icons.bolt_rounded,
               size: 22,
-              color: entry.isPrimary ? AppColors.brand : context.themeColors.onSurfaceMuted,
+              color: entry.isPrimary
+                  ? AppColors.brand
+                  : context.themeColors.onSurfaceMuted,
             ),
           ),
           SizedBox(width: 12),
@@ -133,9 +135,7 @@ class _SportCard extends StatelessWidget {
                 SizedBox(height: 8),
                 Row(
                   children: [
-                    Expanded(
-                      child: _LevelBar(segments: entry.levelSegments),
-                    ),
+                    Expanded(child: _LevelBar(segments: entry.levelSegments)),
                     SizedBox(width: 10),
                     SizedBox(
                       width: _levelLabelWidth,
@@ -176,7 +176,7 @@ class _LevelBar extends StatelessWidget {
             child: Container(
               height: 5,
               margin: EdgeInsets.only(
-                right: i < athleteLevelSegmentCount - 1 ? 4 : 0,
+                right: i < athleteLevelSegmentCount - 1 ? 3 : 0,
               ),
               decoration: BoxDecoration(
                 color: i < segments

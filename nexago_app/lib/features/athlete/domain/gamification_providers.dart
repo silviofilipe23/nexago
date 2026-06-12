@@ -53,3 +53,17 @@ final gamificationNudgeProvider = Provider.autoDispose<String?>((ref) {
   final summary = ref.watch(gamificationSummaryProvider).valueOrNull;
   return summary?.motivationalNudge;
 });
+
+/// XP creditado no Firestore para vitória em partida de torneio (`gamification_events`).
+final tournamentMatchXpAwardProvider = StreamProvider.autoDispose
+    .family<int?, String>((ref, matchId) {
+  final userId = ref.watch(authProvider).valueOrNull?.uid;
+  final id = matchId.trim();
+  if (userId == null || userId.isEmpty || id.isEmpty) {
+    return Stream.value(null);
+  }
+  return ref.watch(gamificationServiceProvider).watchTournamentMatchXpAwarded(
+        userId: userId,
+        matchId: id,
+      );
+});

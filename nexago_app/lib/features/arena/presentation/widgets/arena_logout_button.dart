@@ -14,7 +14,7 @@ class ArenaLogoutButton extends ConsumerWidget {
     return IconButton(
       tooltip: 'Sair',
       onPressed: () async {
-        await ref.read(authServiceProvider).signOut();
+        await ref.read(appSignOutProvider)();
         if (!context.mounted) return;
         context.go(AppRoutes.login);
       },

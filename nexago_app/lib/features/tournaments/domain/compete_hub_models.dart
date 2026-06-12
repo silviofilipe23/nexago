@@ -45,40 +45,22 @@ class CompeteHubUserRanking {
 
 class CompeteHubAthletePreview {
   const CompeteHubAthletePreview({
+    this.userId,
     required this.name,
     required this.categoryLabel,
     required this.initials,
     required this.avatarColor,
+    this.avatarUrl,
     this.isOnline = false,
   });
 
+  final String? userId;
   final String name;
   final String categoryLabel;
   final String initials;
   final Color avatarColor;
+  final String? avatarUrl;
   final bool isOnline;
-}
-
-class CompeteHubTeamPreview {
-  const CompeteHubTeamPreview({
-    required this.partnerName,
-    required this.categoryLabel,
-    required this.monthsTogether,
-    required this.winRatePercent,
-    required this.wins,
-    required this.losses,
-    required this.partnerInitials,
-    required this.partnerColor,
-  });
-
-  final String partnerName;
-  final String categoryLabel;
-  final int monthsTogether;
-  final int winRatePercent;
-  final int wins;
-  final int losses;
-  final String partnerInitials;
-  final Color partnerColor;
 }
 
 class CompeteHubRankingEntry {
@@ -89,6 +71,7 @@ class CompeteHubRankingEntry {
     required this.points,
     required this.tournamentsCount,
     required this.avatarColor,
+    this.avatarUrl,
     this.isCurrentUser = false,
   });
 
@@ -98,5 +81,6 @@ class CompeteHubRankingEntry {
   final int points;
   final int tournamentsCount;
   final Color avatarColor;
+  final String? avatarUrl;
   final bool isCurrentUser;
 }

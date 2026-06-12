@@ -110,19 +110,26 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
         ref.read(rankingPageFilterProvider).copyWith(gender: selected);
   }
 
-  void _openAthleteProfile(RankingListEntry entry, RankingListMode mode) {
-    if (mode != RankingListMode.athletes) return;
-    final athleteId = entry.entityId.trim();
-    if (athleteId.isEmpty) return;
+  void _openProfile(RankingListEntry entry, RankingListMode mode) {
+    final id = entry.entityId.trim();
+    if (id.isEmpty) return;
+    if (mode == RankingListMode.athletes) {
+      context.pushNamed(
+        AppRouteNames.athleteProfile,
+        queryParameters: {'userId': id},
+      );
+      return;
+    }
     context.pushNamed(
-      AppRouteNames.athleteProfile,
-      queryParameters: {'userId': athleteId},
+      AppRouteNames.teamProfile,
+      pathParameters: {'teamId': id},
     );
   }
 
   VoidCallback? _profileTap(RankingListEntry entry, RankingListMode mode) {
-    if (mode != RankingListMode.athletes) return null;
-    return () => _openAthleteProfile(entry, mode);
+    final id = entry.entityId.trim();
+    if (id.isEmpty) return null;
+    return () => _openProfile(entry, mode);
   }
 
   Widget _buildUserListSlot({
@@ -335,7 +342,7 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
           RankingPodium(
             entries: podium,
             onEntryTap: filter.mode == RankingListMode.athletes
-                ? (entry) => _openAthleteProfile(entry, filter.mode)
+                ? (entry) => _openProfile(entry, filter.mode)
                 : null,
           ),
           SizedBox(height: 24),

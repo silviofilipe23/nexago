@@ -3,8 +3,11 @@
 Este guia cobre **tudo** que é necessário para push (FCM/APNs) funcionar no iPhone/iPad do NexaGO, além do que já existe no app (inbox in-app, Cloud Functions, token FCM).
 
 **Bundle ID:** `br.com.nexago.nexagoApp`  
-**Firebase project:** `volley-track-dev-4596c`  
+**Firebase project (app mobile / dev):** `volley-track-dev-4596c`  
+**Firebase project (default deploy / prod):** `volley-track-2dd3b`  
 **Team ID (Xcode):** `2S4HRY66UA`
+
+> **Importante:** o app Flutter (`firebase_options.dart`, `GoogleService-Info.plist`) usa **`volley-track-dev-4596c`**. A chave APNs e o deploy de Cloud Functions para testes locais devem ser no **mesmo** projeto. O alias `dev` em `.firebaserc` aponta para `volley-track-dev-4596c`.
 
 ---
 
@@ -14,12 +17,12 @@ Este guia cobre **tudo** que é necessário para push (FCM/APNs) funcionar no iP
 |--------|------------------|------------|
 | Inbox in-app (`users/{uid}/notifications`) | ✅ Implementado | Funciona sem push nativo |
 | Cloud Functions (`deliverNotificationToUser`) | ✅ Implementado | Envia FCM + grava inbox |
-| App Flutter (`NotificationService`, token sync) | ✅ Implementado | Aguarda token APNS no iOS |
+| App Flutter (`NotificationService`, token sync) | ✅ Implementado | Retry APNS (6×5s) + logout limpa token |
 | Android (`POST_NOTIFICATIONS`, `google-services.json`) | ✅ Configurado | Push tende a funcionar |
 | iOS entitlements (`aps-environment`) | ⚠️ Ver seção 2 | Adicionado no repo; exige perfil Apple |
 | iOS `UIBackgroundModes` | ⚠️ Ver seção 2 | `remote-notification` adicionado |
 | Apple Developer — Push capability | ❌ Manual | Habilitar no portal / Xcode |
-| Firebase Console — chave APNs (.p8) | ❌ Manual | Obrigatório para FCM → iOS |
+| Firebase Console — chave APNs (.p8) | ❌ Manual | Obrigatório no projeto **dev** usado pelo app |
 
 ---
 
@@ -106,17 +109,32 @@ Em **Project settings → Your apps**, o iOS app deve ter:
 
 ## 4. Backend (Cloud Functions)
 
-Já implementado em `functions/src/notification-delivery.ts`:
+Implementado em `functions/src/notification-delivery.ts`:
 
-- Lê tokens em `users/{userId}/tokens/*`
-- Envia via Firebase Admin `getMessaging().send()`
+- Lê tokens em `users/{userId}/tokens/*` (ignora docs sem campo `token`)
+- Payload APNS com `alert` + header `apns-push-type: alert` (iOS 13+)
+- Loga falhas FCM com código e remove tokens inválidos
 - Grava histórico em `users/{userId}/notifications`
 
-**Deploy** (se alterou functions):
+**Deploy para o projeto dev (mesmo do app mobile):**
 
 ```bash
 cd functions
 npm run build
+npm run deploy:dev
+```
+
+Ou manualmente:
+
+```bash
+firebase use dev
+firebase deploy --only functions
+```
+
+**Deploy produção** (somente quando o app apontar para `volley-track-2dd3b`):
+
+```bash
+firebase use default
 firebase deploy --only functions
 ```
 
@@ -142,7 +160,8 @@ Eventos que disparam push hoje:
      token: "<fcm-token>"
      platform: "ios" | "android"
    ```
-3. No iOS, se APNS ainda não estiver pronto, o sync é adiado (log: *APNS token ainda não disponível*).
+3. No iOS, se APNS ainda não estiver pronto, o sync re-tenta até 6 vezes (5s entre tentativas). Logs: `APNS retry N/6`.
+4. No logout, o token do dispositivo é removido de `users/{uid}/tokens/{installationId}`.
 
 **Preferências:** `users/{uid}.notificationPreferences.channels.push` — se `false`, o app não sincroniza token.
 
@@ -164,9 +183,10 @@ Eventos que disparam push hoje:
 | Sintoma | Causa provável |
 |---------|----------------|
 | Sem doc em `users/.../tokens` | Permissão negada, não logado, ou APNS indisponível |
-| Token existe, push não chega | Chave APNs não uploadada no Firebase |
+| Token existe, push não chega | Chave APNs no projeto **errado** (dev vs prod) ou Functions deployadas em `2dd3b` enquanto app usa `dev-4596c` |
+| Token existe, inbox ok, sem banner | Payload APNS incompleto (corrigido em `notification-delivery.ts`) — redeploy functions no projeto dev |
 | Funciona em Android, não no iOS | Push capability / entitlements / profile Apple |
-| Só inbox, sem banner | Push falhou mas `deliverNotificationToUser` gravou inbox |
+| Só inbox, sem banner | Push falhou mas `deliverNotificationToUser` gravou inbox — ver logs Cloud Functions (`FCM send falhou`) |
 | App aberto, sem banner iOS | Esperado parcialmente; iOS pode mostrar via `setForegroundNotificationPresentationOptions` |
 | App aberto Android, sem banner | Foreground não usa `flutter_local_notifications` (melhoria futura) |
 | TestFlight OK, Debug device falha | Profile Development vs `aps-environment` development |
@@ -176,8 +196,9 @@ Eventos que disparam push hoje:
 ```
 FCM permission: authorized
 APNS token ainda não disponível  → push ainda não configurado no device/profile
-FCM aguardando APNS token no iOS
+APNS retry N/6                   → sync automático aguardando token Apple
 FCM plugin indisponível          → hot restart quebrou canal nativo; cold start
+FCM deliver user=...: 0 ok       → ver código de erro no log da Function
 ```
 
 ---
@@ -198,7 +219,6 @@ Referência: [ios-privacy-resubmission.md](./app-store/ios-privacy-resubmission.
 1. **`flutter_local_notifications`** — banner quando o app está em foreground (Android + iOS).
 2. **Respeitar `pushEnabled` no backend** para todos os tipos (hoje convites de torneio sempre tentam push).
 3. **Canal WhatsApp/e-mail** — UI de preferências existe; envio automático ainda não.
-4. **Retry de sync APNS** — re-tentar `syncUserToken` quando `getAPNSToken()` ficar disponível (timer ou listener).
 
 ---
 

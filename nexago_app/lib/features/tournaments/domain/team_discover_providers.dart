@@ -1,12 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/search/search_keywords.dart';
-import '../../athlete/domain/athlete_follow_providers.dart';
 import '../../athlete/domain/athlete_profile.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../data/team_discover_repository.dart';
 import 'team_discover_logic.dart';
 import 'team_discover_models.dart';
+import 'team_follow_providers.dart';
 import '../../../core/auth/auth_providers.dart';
 
 class TeamDiscoverState {
@@ -96,10 +96,10 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
   AthleteProfile? get _viewerProfile =>
       ref.read(athleteProfileProvider).valueOrNull;
 
-  Future<Set<String>> _followingIds() async {
+  Future<Set<String>> _followingTeamIds() async {
     final uid = _currentUid;
     if (uid == null || uid.isEmpty) return {};
-    return ref.read(athleteFollowServiceProvider).fetchFollowingIds(uid);
+    return ref.read(teamFollowServiceProvider).fetchFollowingTeamIds(uid);
   }
 
   List<TeamDiscoverEntry> _applyPipeline(
@@ -136,13 +136,13 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
     );
     _repo.clearCaches();
     try {
-      final following = await _followingIds();
+      final following = await _followingTeamIds();
       final viewerPts = await _repo.viewerTeamPoints(_currentUid);
       final page = await _repo.fetchPage();
       final enriched = await _repo.enrichEntries(
         teams: page.teams,
         currentUserId: _currentUid,
-        followingIds: following,
+        followingTeamIds: following,
       );
       state = state.copyWith(
         rawEntries: enriched,
@@ -167,12 +167,12 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
 
     state = state.copyWith(isLoadingMore: true);
     try {
-      final following = await _followingIds();
+      final following = await _followingTeamIds();
       final page = await _repo.fetchPage(startAfterDocumentId: cursor);
       final enriched = await _repo.enrichEntries(
         teams: page.teams,
         currentUserId: _currentUid,
-        followingIds: following,
+        followingTeamIds: following,
       );
       final merged = [...state.rawEntries, ...enriched];
       state = state.copyWith(
@@ -201,12 +201,12 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
 
     state = state.copyWith(isLoading: true, isSearchMode: true);
     try {
-      final following = await _followingIds();
+      final following = await _followingTeamIds();
       final teams = await _repo.searchTeamsByKeywords(trimmed);
       final enriched = await _repo.enrichEntries(
         teams: teams,
         currentUserId: _currentUid,
-        followingIds: following,
+        followingTeamIds: following,
       );
       state = state.copyWith(
         rawEntries: enriched,
@@ -227,8 +227,8 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
     _publishDisplay(state.rawEntries);
   }
 
-  void setQuickCategory(TeamDiscoverQuickCategory category) {
-    final filters = state.filters.copyWith(quickCategory: category);
+  void setGenderFilter(TeamDiscoverGenderFilter gender) {
+    final filters = state.filters.copyWith(gender: gender);
     state = state.copyWith(filters: filters);
     _publishDisplay(state.rawEntries);
   }
@@ -238,10 +238,11 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
     _publishDisplay(state.rawEntries);
   }
 
-  void updateFollowing(String athleteId, bool isFollowing) {
+  void updateFollowing(String teamId, bool isFollowing) {
+    final id = teamId.trim();
     final raw = state.rawEntries
         .map(
-          (e) => e.followTargetUserId == athleteId
+          (e) => e.teamId == id
               ? TeamDiscoverEntry(
                   teamId: e.teamId,
                   team: e.team,

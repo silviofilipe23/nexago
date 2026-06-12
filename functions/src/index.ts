@@ -7,8 +7,6 @@ import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import {defineSecret} from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
-import {getMessaging} from "firebase-admin/messaging";
-import webpush, {PushSubscription} from "web-push";
 import {createHmac, createHash, randomBytes, timingSafeEqual} from "node:crypto";
 
 import {
@@ -55,6 +53,7 @@ import {
   onUserSearchKeywordsSync,
   onTournamentSearchKeywordsSync,
   onLegacyTournamentSearchKeywordsSync,
+  onLeagueSearchKeywordsSync,
   onTeamSearchKeywordsSync,
   backfillSearchKeywords,
 } from "./search-keywords-sync";
@@ -65,6 +64,11 @@ import {
   parseDateKeyFromBookingDate as parseBookingDateKey,
   sendBooking15mReminderToAthletes,
 } from "./arena-booking-reminder-15m";
+import {onTournamentMatchCompletedAwardXp} from "./tournament-match-gamification";
+import {
+  deliverNotificationToUser,
+  parseStoredFcmTokens,
+} from "./notification-delivery";
 
 export {
   quoteArenaBooking,
@@ -87,8 +91,10 @@ export {
   onUserSearchKeywordsSync,
   onTournamentSearchKeywordsSync,
   onLegacyTournamentSearchKeywordsSync,
+  onLeagueSearchKeywordsSync,
   onTeamSearchKeywordsSync,
   backfillSearchKeywords,
+  onTournamentMatchCompletedAwardXp,
 };
 
 // Initialize Firebase Admin
@@ -135,31 +141,6 @@ interface StoredWebPushSubscription {
   };
 }
 
-let webPushConfigured = false;
-
-function configureWebPushIfPossible(): boolean {
-  if (webPushConfigured) {
-    return true;
-  }
-
-  try {
-    const publicKey = WEB_PUSH_PUBLIC_KEY.value();
-    const privateKey = WEB_PUSH_PRIVATE_KEY.value();
-    const subject = WEB_PUSH_SUBJECT.value() || "mailto:suporte@voleigo.com.br";
-    if (!publicKey || !privateKey) {
-      logger.warn("WEB_PUSH_PUBLIC_KEY/WEB_PUSH_PRIVATE_KEY não configuradas.");
-      return false;
-    }
-
-    webpush.setVapidDetails(subject, publicKey, privateKey);
-    webPushConfigured = true;
-    return true;
-  } catch (error) {
-    logger.warn("Não foi possível configurar Web Push.", error);
-    return false;
-  }
-}
-
 async function getUserNotificationChannels(
   userId: string
 ): Promise<{ fcmTokens: string[]; webPushSubscriptions: StoredWebPushSubscription[] }> {
@@ -169,18 +150,9 @@ async function getUserNotificationChannels(
     db.collection(`users/${userId}/webPushSubscriptions`).get(),
   ]);
 
-  const fcmTokens = tokensSnapshot.docs
-    .map((doc) => {
-      const data = doc.data();
-      const token = data["token"];
-      if (typeof token === "string" && token.trim().length > 0) {
-        return token.trim();
-      }
-      // Compatibilidade com modelo legado onde o doc.id era o próprio token.
-      return doc.id;
-    })
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0);
+  const fcmTokens = parseStoredFcmTokens(tokensSnapshot.docs).map(
+    (entry) => entry.token
+  );
   const uniqueFcmTokens = Array.from(new Set(fcmTokens));
   const webPushSubscriptions = webPushSnapshot.docs
     .map((doc) => {
@@ -279,34 +251,12 @@ function parseDateKeyFromBookingDate(value: unknown): string | null {
   return null;
 }
 
-async function getUserFcmTokens(userId: string): Promise<string[]> {
-  const db = getFirestore();
-  const userDoc = await db.doc(`users/${userId}`).get();
-  const userData = userDoc.data() || {};
-  const directToken = typeof userData["fcmToken"] === "string" ? userData["fcmToken"].trim() : "";
-  const channels = await getUserNotificationChannels(userId);
-  const all = new Set<string>();
-  // Evita duplicidade de push usando token legado + subcoleção moderna ao mesmo tempo.
-  // Prioriza sempre users/{uid}/tokens/* e usa users/{uid}.fcmToken apenas como fallback.
-  if (channels.fcmTokens.length > 0) {
-    for (const token of channels.fcmTokens) {
-      if (token.trim().length > 0) {
-        all.add(token.trim());
-      }
-    }
-  } else if (directToken) {
-    all.add(directToken);
-  }
-  return Array.from(all);
-}
-
 export const onArenaReviewCreatedNotifyManager = onDocumentCreated(
   "arena_reviews/{reviewId}",
   async (event) => {
     const snap = event.data;
     if (!snap?.exists) return;
     const db = getFirestore();
-    const messaging = getMessaging();
     const data = snap.data() as {[k: string]: unknown};
     const arenaId = typeof data["arenaId"] === "string" ? data["arenaId"].trim() : "";
     if (!arenaId) return;
@@ -326,19 +276,7 @@ export const onArenaReviewCreatedNotifyManager = onDocumentCreated(
     const body = `⭐ ${rating} em ${arenaName}${comment ? ` • ${comment.slice(0, 80)}` : ""}`;
 
     try {
-      const tokens = await getUserFcmTokens(managerUserId);
-      if (tokens.length > 0) {
-        await Promise.allSettled(tokens.map((token) => messaging.send({
-          token,
-          notification: {title, body},
-          data: {
-            type: "arena_new_review",
-            reviewId: snap.id,
-            arenaId,
-          },
-        })));
-      }
-      await db.collection(`users/${managerUserId}/notifications`).add({
+      await deliverNotificationToUser({
         userId: managerUserId,
         title,
         body,
@@ -347,9 +285,7 @@ export const onArenaReviewCreatedNotifyManager = onDocumentCreated(
           reviewId: snap.id,
           arenaId,
         },
-        read: false,
-        createdAt: FieldValue.serverTimestamp(),
-        readAt: null,
+        requireInteraction: false,
       });
     } catch (error) {
       logger.error("onArenaReviewCreatedNotifyManager: falha no envio", error);
@@ -500,7 +436,6 @@ export const sendArenaBookingReminders = onSchedule({
   secrets: [WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY, WEB_PUSH_SUBJECT],
 }, async () => {
   const db = getFirestore();
-  const messaging = getMessaging();
   const projectId = getFirebaseProjectId();
   const remindersRef = db.collection(`artifacts/${projectId}/public/data/arenaBookingReminders`);
 
@@ -611,9 +546,14 @@ export const sendArenaBookingReminders = onSchedule({
             const courtName = (booking.courtName || "Quadra").trim();
             const arenaName = (booking.arenaName || "Arena").trim();
             const endTime = (booking.endTime || "").trim();
+            const inboxBody =
+              `${body}\n${arenaName} · ${courtName}\n${startTime}${endTime ? ` - ${endTime}` : ""}`;
 
-            const message = {
-              notification: {title, body},
+            const delivery = await deliverNotificationToUser({
+              userId: athleteId,
+              title,
+              body: inboxBody,
+              type: ARENA_REMINDER_TYPE,
               data: {
                 type: ARENA_REMINDER_TYPE,
                 bookingId: bookingDoc.id,
@@ -621,70 +561,18 @@ export const sendArenaBookingReminders = onSchedule({
                 date: dateKey,
                 startTime,
                 endTime,
-              },
-              android: {
-                priority: "high" as const,
-                notification: {
-                  channelId: "default",
-                  sound: "default",
-                },
-              },
-              apns: {
-                headers: {"apns-priority": "10"},
-                payload: {
-                  aps: {sound: "default"},
-                },
-              },
-            };
-
-            const fcmResults = await Promise.allSettled(
-              fcmTokens.map((token) => messaging.send({...message, token}))
-            );
-            const successful = fcmResults.filter((r) => r.status === "fulfilled").length;
-            const failedCount = fcmResults.length - successful;
-
-            const webPushResult = await sendWebPushToSubscriptions(webPushSubscriptions, {
-              notification: {title, body},
-              data: {
-                type: ARENA_REMINDER_TYPE,
-                bookingId: bookingDoc.id,
-                arenaId: String(booking.arenaId || ""),
-                date: dateKey,
-                startTime,
-                endTime,
+                hoursBefore: String(ARENA_REMINDER_HOURS_BEFORE),
               },
               requireInteraction: false,
             });
 
-            const totalSent = successful + webPushResult.sent;
-            const totalFailed = failedCount + webPushResult.failed;
-            sent += totalSent;
-            failed += totalFailed;
-
-            if (totalSent > 0) {
-              await db.collection(`users/${athleteId}/notifications`).add({
-                userId: athleteId,
-                title,
-                body: `${body}\n${arenaName} · ${courtName}\n${startTime}${endTime ? ` - ${endTime}` : ""}`,
-                type: ARENA_REMINDER_TYPE,
-                data: {
-                  bookingId: bookingDoc.id,
-                  arenaId: booking.arenaId || "",
-                  date: dateKey,
-                  startTime,
-                  endTime,
-                  hoursBefore: String(ARENA_REMINDER_HOURS_BEFORE),
-                },
-                read: false,
-                createdAt: FieldValue.serverTimestamp(),
-                readAt: null,
-              });
-            }
+            sent += delivery.sent;
+            failed += delivery.failed;
 
             await reminderDocRef.set({
               sentAt: FieldValue.serverTimestamp(),
-              sent: totalSent,
-              failed: totalFailed,
+              sent: delivery.sent,
+              failed: delivery.failed,
             }, {merge: true});
           }
         } catch (error) {
@@ -731,40 +619,24 @@ export const sendArenaBookingReminders = onSchedule({
       });
       if (!lockAcquired) continue;
       try {
-        const tokens = await getUserFcmTokens(athleteId);
-        if (tokens.length > 0) {
-          await Promise.allSettled(tokens.map((token) => messaging.send({
-            token,
-            notification: {title, body},
-            data: {
-              type: reminderType,
-              bookingId: bookingDoc.id,
-              arenaId: String(booking.arenaId || ""),
-              date: dateKey,
-              startTime,
-              minutesBefore: String(
-                shouldSend2h ?
-                  ATTENDANCE_REMINDER_2H_MINUTES_BEFORE :
-                  ATTENDANCE_REMINDER_30M_MINUTES_BEFORE
-              ),
-            },
-          })));
-          await db.collection(`users/${athleteId}/notifications`).add({
-            userId: athleteId,
-            title,
-            body,
-            type: reminderType,
-            data: {
-              bookingId: bookingDoc.id,
-              arenaId: booking.arenaId || "",
-              date: dateKey,
-              startTime,
-            },
-            read: false,
-            createdAt: FieldValue.serverTimestamp(),
-            readAt: null,
-          });
-        }
+        await deliverNotificationToUser({
+          userId: athleteId,
+          title,
+          body,
+          type: reminderType,
+          data: {
+            bookingId: bookingDoc.id,
+            arenaId: String(booking.arenaId || ""),
+            date: dateKey,
+            startTime,
+            minutesBefore: String(
+              shouldSend2h ?
+                ATTENDANCE_REMINDER_2H_MINUTES_BEFORE :
+                ATTENDANCE_REMINDER_30M_MINUTES_BEFORE
+            ),
+          },
+          requireInteraction: false,
+        });
         await bookingDoc.ref.set({
           [shouldSend2h ? "attendanceReminder2hSentAt" : "attendanceReminder30mSentAt"]:
             FieldValue.serverTimestamp(),
@@ -778,46 +650,6 @@ export const sendArenaBookingReminders = onSchedule({
 
   logger.info("arena booking reminder: ciclo concluído", {sent, skipped, failed});
 });
-
-async function sendWebPushToSubscriptions(
-  subscriptions: StoredWebPushSubscription[],
-  payload: Record<string, unknown>
-): Promise<{sent: number; failed: number}> {
-  if (subscriptions.length === 0) {
-    return {sent: 0, failed: 0};
-  }
-
-  const enabled = configureWebPushIfPossible();
-  if (!enabled) {
-    logger.warn("Web Push não configurado: WEB_PUSH_PUBLIC_KEY/WEB_PUSH_PRIVATE_KEY ausentes ou inválidos");
-    return {sent: 0, failed: subscriptions.length};
-  }
-
-  const db = getFirestore();
-  let sent = 0;
-  let failed = 0;
-
-  await Promise.allSettled(subscriptions.map(async (subscription) => {
-    try {
-      await webpush.sendNotification(subscription as PushSubscription, JSON.stringify(payload));
-      sent += 1;
-    } catch (error: any) {
-      failed += 1;
-      const statusCode = error?.statusCode as number | undefined;
-      logger.warn(`Web Push falhou (status ${statusCode}):`, error?.message ?? error);
-      if (statusCode === 404 || statusCode === 410) {
-        try {
-          await db.doc(`users/${subscription.userId}/webPushSubscriptions/${subscription.id}`).delete();
-          logger.info(`WebPushSubscription inválida removida para usuário ${subscription.userId}`);
-        } catch (cleanupError) {
-          logger.warn("Erro ao remover webPushSubscription inválida", cleanupError);
-        }
-      }
-    }
-  }));
-
-  return {sent, failed};
-}
 
 /**
  * Substitui todos os papéis do usuário por um único papel (compatível com clients antigos).
@@ -1809,132 +1641,36 @@ export const sendNotification = onCall({
   }
 
   try {
-    const db = getFirestore();
-    const {fcmTokens, webPushSubscriptions} = await getUserNotificationChannels(userId);
-    if (fcmTokens.length === 0 && webPushSubscriptions.length === 0) {
+    const pushData = data ?
+      Object.keys(data).reduce((acc, key) => {
+        acc[key] = String(data[key]);
+        return acc;
+      }, {} as Record<string, string>) :
+      {};
+    const notificationType =
+      typeof pushData.type === "string" ? pushData.type : "general";
+
+    const delivery = await deliverNotificationToUser({
+      userId,
+      title,
+      body,
+      type: notificationType,
+      data: pushData,
+      requireInteraction: !!requireInteraction,
+    });
+
+    if (delivery.sent === 0 && delivery.failed === 0) {
       logger.warn(`Nenhum canal de push encontrado para o usuário ${userId}`);
       return {success: false, message: "Usuário não possui inscrições de push registradas"};
     }
 
-    const messaging = getMessaging();
-
-    // Prepara a mensagem
-    const message = {
-      notification: {
-        title,
-        body
-      },
-      data: data ? {
-        ...Object.keys(data).reduce((acc, key) => {
-          acc[key] = String(data[key]);
-          return acc;
-        }, {} as Record<string, string>),
-        requireInteraction: requireInteraction ? "true" : "false"
-      } : {
-        requireInteraction: requireInteraction ? "true" : "false"
-      },
-      android: {
-        priority: "high" as const,
-        notification: {
-          channelId: "default",
-          sound: "default"
-        }
-      },
-      apns: {
-        headers: {
-          "apns-priority": "10"
-        },
-        payload: {
-          aps: {
-            sound: "default"
-          }
-        }
-      }
-    };
-
-    const fcmResults = await Promise.allSettled(
-      fcmTokens.map((token) =>
-        messaging.send({ ...message, token })
-      )
-    );
-
-    let fcmSuccessful = 0;
-    let fcmFailed = 0;
-    for (let i = 0; i < fcmResults.length; i++) {
-      const result = fcmResults[i];
-      const token = fcmTokens[i];
-      if (result.status === "fulfilled") {
-        fcmSuccessful += 1;
-      } else {
-        fcmFailed += 1;
-        const err = result.reason as { code?: string };
-        const code = err?.code ?? "";
-        if (
-          code === "messaging/invalid-registration-token" ||
-          code === "messaging/registration-token-not-registered" ||
-          code === "messaging/registration-token-not-found"
-        ) {
-          try {
-            await db.doc(`users/${userId}/tokens/${token}`).delete();
-            logger.info(`Token FCM inválido removido para usuário ${userId}`);
-          } catch (cleanupErr) {
-            logger.warn("Erro ao remover token FCM inválido", cleanupErr);
-          }
-        } else {
-          logger.warn(`FCM send falhou para token (código ${code}):`, (err as Error)?.message ?? err);
-        }
-      }
-    }
-
-    const webPushResult = await sendWebPushToSubscriptions(webPushSubscriptions, {
-      notification: {
-        title,
-        body,
-      },
-      data: data ? Object.keys(data).reduce((acc, key) => {
-        acc[key] = String(data[key]);
-        return acc;
-      }, {} as Record<string, string>) : {},
-      requireInteraction: !!requireInteraction,
-    });
-
-    const successful = fcmSuccessful + webPushResult.sent;
-    const failed = fcmFailed + webPushResult.failed;
-
-    logger.info(`Notificação enviada para ${userId}: ${successful} sucesso, ${failed} falhas`);
-
-    // Salva a notificação no histórico do usuário
-    if (successful > 0) {
-      try {
-        const notificationsRef = db.collection(`users/${userId}/notifications`);
-        const notificationDoc = notificationsRef.doc();
-        
-        await notificationDoc.set({
-          userId,
-          title,
-          body,
-          type: data?.['type'] || 'general',
-          data: data ? Object.keys(data).reduce((acc, key) => {
-            acc[key] = String(data[key]);
-            return acc;
-          }, {} as Record<string, string>) : undefined,
-          read: false,
-          createdAt: new Date(),
-          readAt: null
-        });
-        
-        logger.info(`Notificação salva no histórico para ${userId}`);
-      } catch (historyError) {
-        logger.warn(`Erro ao salvar notificação no histórico para ${userId}:`, historyError);
-        // Não falha a função se o histórico falhar
-      }
-    }
+    logger.info(`Notificação enviada para ${userId}: ${delivery.sent} sucesso, ${delivery.failed} falhas`);
 
     return {
-      success: successful > 0,
-      sent: successful,
-      failed,
-      total: fcmTokens.length + webPushSubscriptions.length
+      success: delivery.sent > 0,
+      sent: delivery.sent,
+      failed: delivery.failed,
+      total: delivery.sent + delivery.failed,
     };
   } catch (error) {
     logger.error("Erro ao enviar notificação:", error);
@@ -2052,75 +1788,24 @@ export const notifyArenaBookingCreated = onCall({
     endTime,
   };
 
-  // Push (quando houver inscrição cadastrada)
-  const {fcmTokens, webPushSubscriptions} = await getUserNotificationChannels(arenaManagerUserId);
-  const messaging = getMessaging();
-
-  const message = {
-    notification: {title, body},
-    data: {
-      ...data,
-      requireInteraction: "true",
-    },
-    android: {
-      priority: "high" as const,
-      notification: {
-        channelId: "default",
-        sound: "default",
-      },
-    },
-    apns: {
-      headers: {"apns-priority": "10"},
-      payload: {
-        aps: {sound: "default"},
-      },
-    },
-  };
-
-  const fcmResults =
-    fcmTokens.length > 0
-      ? await Promise.allSettled(fcmTokens.map((token) => messaging.send({...message, token})))
-      : [];
-
-  const fcmSuccessful = fcmResults.filter((r) => r.status === "fulfilled").length;
-  const fcmFailed = fcmResults.filter((r) => r.status === "rejected").length;
-
-  const webPushResult = await sendWebPushToSubscriptions(webPushSubscriptions, {
-    notification: {title, body},
+  const delivery = await deliverNotificationToUser({
+    userId: arenaManagerUserId,
+    title,
+    body,
+    type: notificationType,
     data,
     requireInteraction: true,
   });
 
-  const successful = fcmSuccessful + webPushResult.sent;
-  const failed = fcmFailed + webPushResult.failed;
-
-  // Histórico in-app (garante a exibição no app mesmo se não houver push configurado)
-  try {
-    const notificationsRef = db.collection(`users/${arenaManagerUserId}/notifications`);
-    const notificationDoc = notificationsRef.doc();
-
-    await notificationDoc.set({
-      userId: arenaManagerUserId,
-      title,
-      body,
-      type: notificationType,
-      data,
-      read: false,
-      createdAt: new Date(),
-      readAt: null,
-    });
-  } catch (historyError) {
-    logger.warn("Erro ao salvar notificação no histórico:", historyError);
-    // Não falha a função se o histórico falhar
-  }
-
-  logger.info(`Notificação criada para ${arenaManagerUserId}: ${successful} sucesso, ${failed} falhas`);
+  logger.info(
+    `Notificação criada para ${arenaManagerUserId}: ${delivery.sent} sucesso, ${delivery.failed} falhas`
+  );
 
   return {
     success: true,
-    sent: successful,
-    failed,
-    total: fcmTokens.length + webPushSubscriptions.length,
+    sent: delivery.sent,
+    failed: delivery.failed,
+    total: delivery.sent + delivery.failed,
   };
 });
 
@@ -2150,120 +1835,52 @@ export const sendBulkNotification = onCall({
   }
 
   try {
-    const db = getFirestore();
-    const messaging = getMessaging();
-    
-    const channelResults = await Promise.all(
-      userIds.map(async (userId: string) => ({userId, ...(await getUserNotificationChannels(userId))}))
-    );
-    const allTokens = channelResults.flatMap((result) => result.fcmTokens);
-    const allWebPushSubscriptions = channelResults.flatMap((result) => result.webPushSubscriptions);
-
-    if (allTokens.length === 0 && allWebPushSubscriptions.length === 0) {
-      logger.warn("Nenhum canal de push encontrado para os usuários especificados");
-      return {success: false, message: "Nenhuma inscrição de push encontrada"};
-    }
-
-    // Prepara a mensagem
-    const message = {
-      notification: {
-        title,
-        body
-      },
-      data: data ? {
-        ...Object.keys(data).reduce((acc, key) => {
-          acc[key] = String(data[key]);
-          return acc;
-        }, {} as Record<string, string>),
-        requireInteraction: requireInteraction ? "true" : "false"
-      } : {
-        requireInteraction: requireInteraction ? "true" : "false"
-      },
-      android: {
-        priority: "high" as const,
-        notification: {
-          channelId: "default",
-          sound: "default"
-        }
-      },
-      apns: {
-        headers: {
-          "apns-priority": "10"
-        },
-        payload: {
-          aps: {
-            sound: "default"
-          }
-        }
-      }
-    };
+    const pushData = data ?
+      Object.keys(data).reduce((acc, key) => {
+        acc[key] = String(data[key]);
+        return acc;
+      }, {} as Record<string, string>) :
+      {};
+    const notificationType =
+      typeof pushData.type === "string" ? pushData.type : "general";
 
     const results = await Promise.allSettled(
-      allTokens.map(token => 
-        messaging.send({
-          ...message,
-          token
+      userIds.map((userId: string) =>
+        deliverNotificationToUser({
+          userId,
+          title,
+          body,
+          type: notificationType,
+          data: pushData,
+          requireInteraction: !!requireInteraction,
         })
       )
     );
 
-    const fcmSuccessful = results.filter(r => r.status === "fulfilled").length;
-    const fcmFailed = results.filter(r => r.status === "rejected").length;
-
-    const webPushResult = await sendWebPushToSubscriptions(allWebPushSubscriptions, {
-      notification: {
-        title,
-        body,
-      },
-      data: data ? Object.keys(data).reduce((acc, key) => {
-        acc[key] = String(data[key]);
-        return acc;
-      }, {} as Record<string, string>) : {},
-      requireInteraction: !!requireInteraction,
-    });
-
-    const successful = fcmSuccessful + webPushResult.sent;
-    const failed = fcmFailed + webPushResult.failed;
-
-    logger.info(`Notificação em massa enviada: ${successful} sucesso, ${failed} falhas`);
-
-    // Salva a notificação no histórico de cada usuário
-    if (successful > 0) {
-      const historyPromises = userIds.map(async (userId: string) => {
-        try {
-          const notificationsRef = db.collection(`users/${userId}/notifications`);
-          const notificationDoc = notificationsRef.doc();
-          
-          await notificationDoc.set({
-            userId,
-            title,
-            body,
-            type: data?.['type'] || 'general',
-            data: data ? Object.keys(data).reduce((acc, key) => {
-              acc[key] = String(data[key]);
-              return acc;
-            }, {} as Record<string, string>) : undefined,
-            read: false,
-            createdAt: new Date(),
-            readAt: null
-          });
-          
-          logger.debug(`Notificação salva no histórico para ${userId}`);
-        } catch (historyError) {
-          logger.warn(`Erro ao salvar notificação no histórico para ${userId}:`, historyError);
-          // Não falha se um histórico falhar
-        }
-      });
-
-      await Promise.allSettled(historyPromises);
-      logger.info(`Histórico de notificações atualizado para ${userIds.length} usuários`);
+    let sent = 0;
+    let failed = 0;
+    for (const result of results) {
+      if (result.status === "fulfilled") {
+        sent += result.value.sent;
+        failed += result.value.failed;
+      } else {
+        failed += 1;
+        logger.warn("sendBulkNotification: falha por usuário", result.reason);
+      }
     }
 
+    if (sent === 0 && failed === 0) {
+      logger.warn("Nenhum canal de push encontrado para os usuários especificados");
+      return {success: false, message: "Nenhuma inscrição de push encontrada"};
+    }
+
+    logger.info(`Notificação em massa enviada: ${sent} sucesso, ${failed} falhas`);
+
     return {
-      success: true,
-      sent: successful,
+      success: sent > 0,
+      sent,
       failed,
-      total: allTokens.length + allWebPushSubscriptions.length
+      total: userIds.length,
     };
   } catch (error) {
     logger.error("Erro ao enviar notificação em massa:", error);
@@ -2287,7 +1904,6 @@ export const sendMatchReminders = onRequest({
 }, async (req, res) => {
   try {
     const db = getFirestore();
-    const messaging = getMessaging();
     const projectId = getFirebaseProjectId();
     
     // Busca todas as partidas agendadas para as próximas 1-2 horas
@@ -2345,16 +1961,6 @@ export const sendMatchReminders = onRequest({
           continue;
         }
 
-        const channelResults = await Promise.all(
-          Array.from(userIds).map(async (userId) => ({userId, ...(await getUserNotificationChannels(userId))}))
-        );
-        const allTokens = channelResults.flatMap((result) => result.fcmTokens);
-        const allWebPushSubscriptions = channelResults.flatMap((result) => result.webPushSubscriptions);
-
-        if (allTokens.length === 0 && allWebPushSubscriptions.length === 0) {
-          continue;
-        }
-
         // Formata horário
         const scheduleTime = match.scheduleTime?.toDate() || new Date();
         const timeStr = scheduleTime.toLocaleString('pt-BR', {
@@ -2380,97 +1986,38 @@ export const sendMatchReminders = onRequest({
           logger.warn(`Erro ao buscar nome do torneio ${match.tournamentId}:`, error);
         }
 
-        // Prepara mensagem
-        const message = {
-          notification: {
-            title: '⏰ Lembrete: Partida em 1h',
-            body: `${teamAName} vs ${teamBName}\n${courtName} - ${timeStr}`
-          },
-          data: {
-            type: 'match_reminder',
-            matchId,
-            tournamentId: match.tournamentId,
-            categoryId: match.categoryId,
-            url: `/admin/tournament/${match.tournamentId}/match/${matchId}/result/${encodeURIComponent(match.categoryId)}`
-          },
-          android: {
-            priority: 'high' as const,
-            notification: {
-              channelId: 'default',
-              sound: 'default'
-            }
-          },
-          apns: {
-            headers: {
-              'apns-priority': '10'
-            },
-            payload: {
-              aps: {
-                sound: 'default'
-              }
-            }
-          }
+        const title = '⏰ Lembrete: Partida em 1h';
+        const pushBody = `${teamAName} vs ${teamBName}\n${courtName} - ${timeStr}`;
+        const inboxBody = `${pushBody}\n${tournamentName}`;
+        const reminderData = {
+          matchId,
+          tournamentId: String(match.tournamentId),
+          categoryId: String(match.categoryId),
+          hoursBefore: '1',
+          url: `/admin/tournament/${match.tournamentId}/match/${matchId}/result/${encodeURIComponent(match.categoryId)}`,
         };
 
-        // Envia para todos os tokens
-        const results = await Promise.allSettled(
-          allTokens.map(token =>
-            messaging.send({
-              ...message,
-              token
+        const deliveryResults = await Promise.allSettled(
+          Array.from(userIds).map((userId) =>
+            deliverNotificationToUser({
+              userId,
+              title,
+              body: inboxBody,
+              type: 'match_reminder',
+              data: reminderData,
+              requireInteraction: false,
             })
           )
         );
 
-        const successful = results.filter(r => r.status === 'fulfilled').length;
-        const failed = results.length - successful;
-        const webPushResult = await sendWebPushToSubscriptions(allWebPushSubscriptions, {
-          notification: {
-            title: '⏰ Lembrete: Partida em 1h',
-            body: `${teamAName} vs ${teamBName}\n${courtName} - ${timeStr}`,
-          },
-          data: {
-            type: 'match_reminder',
-            matchId,
-            tournamentId: String(match.tournamentId),
-            categoryId: String(match.categoryId),
-            url: `/admin/tournament/${match.tournamentId}/match/${matchId}/result/${encodeURIComponent(match.categoryId)}`,
-          },
-          requireInteraction: false,
-        });
-
-        totalSent += successful + webPushResult.sent;
-        totalFailed += failed + webPushResult.failed;
-
-        // Salva a notificação no histórico de cada usuário
-        if (successful > 0 || webPushResult.sent > 0) {
-          const historyPromises = Array.from(userIds).map(async (userId: string) => {
-            try {
-              const notificationsRef = db.collection(`users/${userId}/notifications`);
-              const notificationDoc = notificationsRef.doc();
-              
-              await notificationDoc.set({
-                userId,
-                title: '⏰ Lembrete: Partida em 1h',
-                body: `${teamAName} vs ${teamBName}\n${courtName} - ${timeStr}\n${tournamentName}`,
-                type: 'match_reminder',
-                data: {
-                  matchId,
-                  tournamentId: match.tournamentId,
-                  categoryId: match.categoryId,
-                  hoursBefore: '1',
-                  url: `/admin/tournament/${match.tournamentId}/match/${matchId}/result/${encodeURIComponent(match.categoryId)}`
-                },
-                read: false,
-                createdAt: new Date(),
-                readAt: null
-              });
-            } catch (historyError) {
-              logger.warn(`Erro ao salvar lembrete no histórico para ${userId}:`, historyError);
-            }
-          });
-
-          await Promise.allSettled(historyPromises);
+        for (const result of deliveryResults) {
+          if (result.status === "fulfilled") {
+            totalSent += result.value.sent;
+            totalFailed += result.value.failed;
+          } else {
+            totalFailed += 1;
+            logger.warn(`sendMatchReminders: falha para partida ${matchId}`, result.reason);
+          }
         }
 
         // Marca que o lembrete foi enviado

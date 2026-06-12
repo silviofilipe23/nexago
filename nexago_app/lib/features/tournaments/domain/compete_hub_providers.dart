@@ -1,65 +1,46 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/auth_providers.dart';
+import '../../athlete/data/athlete_discover_repository.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../data/my_tournament_registrations_repository.dart';
+import '../data/team_discover_repository.dart';
 import 'compete_hub_logic.dart';
 import 'compete_hub_models.dart';
+import 'team_discover_models.dart';
+import 'team_follow_providers.dart';
 import 'tournament_discovery_hub_logic.dart';
 import 'tournament_discovery_models.dart';
 import 'tournament_discovery_providers.dart';
 
 final competeHubAthletesPreviewProvider =
-    Provider.autoDispose<List<CompeteHubAthletePreview>>((ref) {
-  return const [
-    CompeteHubAthletePreview(
-      name: 'João',
-      categoryLabel: 'Cat B',
-      initials: 'JO',
-      avatarColor: Color(0xFF5B8DEF),
-      isOnline: true,
-    ),
-    CompeteHubAthletePreview(
-      name: 'Marcos',
-      categoryLabel: 'Cat A',
-      initials: 'MA',
-      avatarColor: Color(0xFF2BD17E),
-      isOnline: true,
-    ),
-    CompeteHubAthletePreview(
-      name: 'Rafa',
-      categoryLabel: 'Cat C',
-      initials: 'RA',
-      avatarColor: Color(0xFFFF6A1A),
-    ),
-    CompeteHubAthletePreview(
-      name: 'Lucas',
-      categoryLabel: 'Cat B',
-      initials: 'LU',
-      avatarColor: Color(0xFF7C6CFF),
-    ),
-    CompeteHubAthletePreview(
-      name: 'Diego',
-      categoryLabel: 'Cat A',
-      initials: 'DI',
-      avatarColor: Color(0xFFFF6B9D),
-      isOnline: true,
-    ),
-  ];
+    FutureProvider.autoDispose<List<CompeteHubAthletePreview>>((ref) async {
+  final viewer = ref.watch(athleteProfileProvider).valueOrNull;
+  final user = await ref.watch(authProvider.future);
+  final profiles = await ref
+      .read(athleteDiscoverRepositoryProvider)
+      .fetchHubAthletesPreview(
+        viewer: viewer,
+        currentUserId: user?.uid,
+      );
+  final now = DateTime.now();
+  return profiles
+      .map((profile) => buildCompeteHubAthletePreview(profile, now: now))
+      .toList();
 });
 
-final competeHubTeamPreviewProvider =
-    Provider.autoDispose<CompeteHubTeamPreview>((ref) {
-  return const CompeteHubTeamPreview(
-    partnerName: 'Pedro Lima',
-    categoryLabel: 'Masc B',
-    monthsTogether: 14,
-    winRatePercent: 72,
-    wins: 20,
-    losses: 8,
-    partnerInitials: 'PL',
-    partnerColor: Color(0xFF5B8DEF),
-  );
+final competeHubTeamDiscoverPreviewProvider =
+    FutureProvider.autoDispose<List<TeamDiscoverEntry>>((ref) async {
+  final user = await ref.watch(authProvider.future);
+  final uid = user?.uid.trim();
+  final following = uid != null && uid.isNotEmpty
+      ? await ref.read(teamFollowServiceProvider).fetchFollowingTeamIds(uid)
+      : const <String>{};
+
+  return ref.read(teamDiscoverRepositoryProvider).fetchRandomPreview(
+        currentUserId: uid,
+        followingTeamIds: following,
+      );
 });
 
 final competeHubTournamentPreviewProvider =
@@ -69,7 +50,7 @@ final competeHubTournamentPreviewProvider =
   final athleteGender = ref.watch(athleteProfileProvider).valueOrNull?.gender;
   final regs = ref.watch(myTournamentRegistrationsProvider).valueOrNull ??
       const <MyTournamentRegistration>[];
-  return pickNewestRegisterableTournamentsForHub(
+  return pickTournamentsForHubPreview(
     tournaments,
     athleteGender: athleteGender,
     registeredCategoriesByTournamentId: registeredCategoriesByTournament(regs),

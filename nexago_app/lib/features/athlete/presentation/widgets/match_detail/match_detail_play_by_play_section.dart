@@ -126,9 +126,12 @@ class MatchDetailPlayByPlaySection extends StatelessWidget {
 
   bool _isSetClosingPoint(MatchDetailPlayByPlayItem item) {
     for (final group in playByPlayGroups) {
-      if (group.setNumber != item.setNumber || group.items.isEmpty) continue;
-      final last = group.items.last;
-      if (last.scoreLabel == item.scoreLabel && last.time == item.time) {
+      if (group.setNumber != item.setNumber) continue;
+      final recorded = group.items.where((i) => !i.isEstimated).toList();
+      if (recorded.isEmpty) continue;
+      final closing = recorded.last;
+      if (closing.scoreLabel != group.finalScoreLabel) continue;
+      if (closing.scoreLabel == item.scoreLabel && closing.time == item.time) {
         return true;
       }
     }
@@ -238,15 +241,15 @@ class _MirroredPlayByPlayRow extends StatelessWidget {
         children: [
           Expanded(
             child: item.isOurTeam
-                ? Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                ? _PlayByPlaySideRow(
+                    alignment: Alignment.centerRight,
                     children: [
                       if (closingLabel != null) ...[
                         closingLabel,
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                       ],
                       time,
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       scorePill,
                     ],
                   )
@@ -255,13 +258,14 @@ class _MirroredPlayByPlayRow extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: !item.isOurTeam
-                ? Row(
+                ? _PlayByPlaySideRow(
+                    alignment: Alignment.centerLeft,
                     children: [
                       scorePill,
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       time,
                       if (closingLabel != null) ...[
-                        const Spacer(),
+                        const SizedBox(width: 6),
                         closingLabel,
                       ],
                     ],
@@ -269,6 +273,31 @@ class _MirroredPlayByPlayRow extends StatelessWidget {
                 : const SizedBox.shrink(),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PlayByPlaySideRow extends StatelessWidget {
+  const _PlayByPlaySideRow({
+    required this.alignment,
+    required this.children,
+  });
+
+  final Alignment alignment;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: alignment,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: alignment,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: children,
+        ),
       ),
     );
   }

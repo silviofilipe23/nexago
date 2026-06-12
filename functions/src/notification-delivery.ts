@@ -15,6 +15,12 @@ interface StoredWebPushSubscription {
   keys: {p256dh: string; auth: string};
 }
 
+export interface StoredFcmToken {
+  docId: string;
+  token: string;
+  platform?: string;
+}
+
 let webPushConfigured = false;
 
 function configureWebPushIfPossible(): boolean {
@@ -33,25 +39,99 @@ function configureWebPushIfPossible(): boolean {
   }
 }
 
+/** Extrai tokens FCM válidos; ignora docs sem campo `token` (sem fallback para doc.id). */
+export function parseStoredFcmTokens(
+  docs: Array<{id: string; data: () => Record<string, unknown>}>
+): StoredFcmToken[] {
+  const byToken = new Map<string, StoredFcmToken>();
+
+  for (const doc of docs) {
+    const data = doc.data();
+    const rawToken = data["token"];
+    if (typeof rawToken !== "string" || rawToken.trim().length === 0) {
+      continue;
+    }
+    const token = rawToken.trim();
+    const platform = data["platform"];
+    byToken.set(token, {
+      docId: doc.id,
+      token,
+      platform: typeof platform === "string" ? platform : undefined,
+    });
+  }
+
+  return Array.from(byToken.values());
+}
+
+/** FCM exige que todos os valores em `data` sejam strings. */
+export function coerceNotificationData(
+  data: Record<string, string>,
+  type: string,
+  requireInteraction: boolean
+): Record<string, string> {
+  const out: Record<string, string> = {
+    type,
+    requireInteraction: requireInteraction ? "true" : "false",
+  };
+  for (const [key, value] of Object.entries(data)) {
+    out[key] = value == null ? "" : String(value);
+  }
+  return out;
+}
+
+/** Monta payload FCM com APNS alert explícito (iOS 13+). */
+export function buildFcmMessage(params: {
+  title: string;
+  body: string;
+  type: string;
+  data: Record<string, string>;
+  requireInteraction: boolean;
+}) {
+  const {title, body, type, data, requireInteraction} = params;
+  return {
+    notification: {title, body},
+    data: coerceNotificationData(data, type, requireInteraction),
+    android: {
+      priority: "high" as const,
+      notification: {channelId: "default", sound: "default"},
+    },
+    apns: {
+      headers: {
+        "apns-priority": "10",
+        "apns-push-type": "alert",
+      },
+      payload: {
+        aps: {
+          alert: {title, body},
+          sound: "default",
+        },
+      },
+    },
+    fcmOptions: {analyticsLabel: type},
+  };
+}
+
+export function isInvalidFcmTokenError(code: string): boolean {
+  return (
+    code === "messaging/invalid-registration-token" ||
+    code === "messaging/registration-token-not-registered" ||
+    code === "messaging/registration-token-not-found"
+  );
+}
+
 async function getUserNotificationChannels(
   userId: string
-): Promise<{fcmTokens: string[]; webPushSubscriptions: StoredWebPushSubscription[]}> {
+): Promise<{
+  fcmTokens: StoredFcmToken[];
+  webPushSubscriptions: StoredWebPushSubscription[];
+}> {
   const db = getFirestore();
   const [tokensSnapshot, webPushSnapshot] = await Promise.all([
     db.collection(`users/${userId}/tokens`).get(),
     db.collection(`users/${userId}/webPushSubscriptions`).get(),
   ]);
 
-  const fcmTokens = tokensSnapshot.docs
-    .map((doc) => {
-      const data = doc.data();
-      const token = data["token"];
-      if (typeof token === "string" && token.trim().length > 0) {
-        return token.trim();
-      }
-      return doc.id;
-    })
-    .filter((t) => t.length > 0);
+  const fcmTokens = parseStoredFcmTokens(tokensSnapshot.docs);
 
   const webPushSubscriptions = webPushSnapshot.docs
     .map((doc) => {
@@ -75,7 +155,7 @@ async function getUserNotificationChannels(
     })
     .filter((item): item is StoredWebPushSubscription => item !== null);
 
-  return {fcmTokens: Array.from(new Set(fcmTokens)), webPushSubscriptions};
+  return {fcmTokens, webPushSubscriptions};
 }
 
 async function sendWebPushToSubscriptions(
@@ -110,6 +190,65 @@ async function sendWebPushToSubscriptions(
         }
       }
     })
+  );
+
+  return {sent, failed};
+}
+
+async function sendFcmToTokens(
+  userId: string,
+  storedTokens: StoredFcmToken[],
+  message: ReturnType<typeof buildFcmMessage>
+): Promise<{sent: number; failed: number}> {
+  if (storedTokens.length === 0) {
+    logger.info(`FCM: nenhum token válido para usuário ${userId}`);
+    return {sent: 0, failed: 0};
+  }
+
+  const messaging = getMessaging();
+  const db = getFirestore();
+  const fcmResults = await Promise.allSettled(
+    storedTokens.map((entry) =>
+      messaging.send({...message, token: entry.token})
+    )
+  );
+
+  let sent = 0;
+  let failed = 0;
+
+  for (let i = 0; i < fcmResults.length; i++) {
+    const result = fcmResults[i];
+    const entry = storedTokens[i];
+    if (result.status === "fulfilled") {
+      sent += 1;
+      continue;
+    }
+
+    failed += 1;
+    const err = result.reason as {code?: string; message?: string};
+    const code = err?.code ?? "";
+    const platform = entry.platform ?? "unknown";
+
+    if (isInvalidFcmTokenError(code)) {
+      logger.warn(
+        `FCM token inválido removido (${platform}) user=${userId} doc=${entry.docId} code=${code}`
+      );
+      await db
+        .doc(`users/${userId}/tokens/${entry.docId}`)
+        .delete()
+        .catch((cleanupErr) => {
+          logger.warn("Erro ao remover token FCM inválido", cleanupErr);
+        });
+    } else {
+      logger.warn(
+        `FCM send falhou (${platform}) user=${userId} code=${code}:`,
+        err?.message ?? result.reason
+      );
+    }
+  }
+
+  logger.info(
+    `FCM deliver user=${userId}: ${sent} ok, ${failed} falha(s), ${storedTokens.length} token(s)`
   );
 
   return {sent, failed};
@@ -156,7 +295,6 @@ export async function deliverNotificationToUser(
   input: DeliverNotificationInput
 ): Promise<{sent: number; failed: number}> {
   const {userId, title, body, type, data, requireInteraction = true, skipPush = false} = input;
-  const messaging = getMessaging();
 
   let fcmSuccessful = 0;
   let fcmFailed = 0;
@@ -165,32 +303,17 @@ export async function deliverNotificationToUser(
   if (!skipPush) {
     const {fcmTokens, webPushSubscriptions} = await getUserNotificationChannels(userId);
 
-  const message = {
-    notification: {title, body},
-    data: {
-      ...data,
+    const message = buildFcmMessage({
+      title,
+      body,
       type,
-      requireInteraction: requireInteraction ? "true" : "false",
-    },
-    android: {
-      priority: "high" as const,
-      notification: {channelId: "default", sound: "default"},
-    },
-    apns: {
-      headers: {"apns-priority": "10"},
-      payload: {aps: {sound: "default"}},
-    },
-  };
+      data,
+      requireInteraction,
+    });
 
-    const fcmResults =
-      fcmTokens.length > 0
-        ? await Promise.allSettled(
-          fcmTokens.map((token) => messaging.send({...message, token}))
-        )
-        : [];
-
-    fcmSuccessful = fcmResults.filter((r) => r.status === "fulfilled").length;
-    fcmFailed = fcmResults.length - fcmSuccessful;
+    const fcmResult = await sendFcmToTokens(userId, fcmTokens, message);
+    fcmSuccessful = fcmResult.sent;
+    fcmFailed = fcmResult.failed;
 
     webPushResult = await sendWebPushToSubscriptions(webPushSubscriptions, {
       notification: {title, body},

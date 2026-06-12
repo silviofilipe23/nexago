@@ -141,9 +141,7 @@ const PRIMARY_SPORT_OPTIONS = [
 const LEVEL_OPTIONS = [
   'Iniciante',
   'Intermediario',
-  'Avancado',
-  'Pro / A',
-  'Amador competitivo',
+  'Open'
 ] as const;
 
 const DOMINANT_HAND_OPTIONS = ['Destro', 'Canhoto', 'Ambidestro'] as const;

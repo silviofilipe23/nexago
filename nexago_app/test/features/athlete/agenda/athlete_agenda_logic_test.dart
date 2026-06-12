@@ -7,7 +7,6 @@ import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_logic.d
 import 'package:nexago_app/features/athlete/domain/agenda/athlete_agenda_models.dart';
 import 'package:nexago_app/features/tournaments/domain/my_tournaments_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
-import 'package:nexago_app/features/tournaments/domain/tournament_listing_status.dart';
 
 void main() {
   setUpAll(() async {
@@ -17,72 +16,72 @@ void main() {
   final baseDay = DateTime(2025, 5, 26, 12);
 
   AthleteAgendaItem rentalAt(DateTime start) => AthleteAgendaItem(
-        id: 'rental-${start.millisecondsSinceEpoch}',
-        kind: AthleteAgendaItemKind.rental,
-        startsAt: start,
-        endsAt: start.add(const Duration(hours: 1)),
-        title: 'Arena Test',
-        subtitle: 'Quadra 1',
-        statusLabel: 'Em 2h',
-        accentColor: AppColors.brand,
-        rental: AthleteAgendaRentalPayload(
-          bookingId: 'b1',
-          arenaName: 'Arena Test',
-          courtName: 'Quadra 1',
-          startAt: start,
-          endAt: start.add(const Duration(hours: 1)),
-          rawStatus: 'confirmed',
-          confirmedParticipants: 4,
-          stage: AthleteAgendaBookingStage.future,
-        ),
-      );
+    id: 'rental-${start.millisecondsSinceEpoch}',
+    kind: AthleteAgendaItemKind.rental,
+    startsAt: start,
+    endsAt: start.add(const Duration(hours: 1)),
+    title: 'Arena Test',
+    subtitle: 'Quadra 1',
+    statusLabel: 'Em 2h',
+    accentColor: AppColors.brand,
+    rental: AthleteAgendaRentalPayload(
+      bookingId: 'b1',
+      arenaName: 'Arena Test',
+      courtName: 'Quadra 1',
+      startAt: start,
+      endAt: start.add(const Duration(hours: 1)),
+      rawStatus: 'confirmed',
+      confirmedParticipants: 4,
+      stage: AthleteAgendaBookingStage.future,
+    ),
+  );
 
   AthleteAgendaItem tournamentAt(DateTime start) => AthleteAgendaItem(
-        id: 'tournament-${start.millisecondsSinceEpoch}',
-        kind: AthleteAgendaItemKind.tournament,
-        startsAt: start,
-        title: 'Torneio X',
-        subtitle: 'Arena CFC',
-        statusLabel: 'INSCRIÇÕES ABERTAS',
-        accentColor: const Color(0xFFE5B82E),
-        tournament: const AthleteAgendaTournamentPayload(
-          tournamentId: 't1',
-          registrationId: 'r1',
-          isLive: false,
-        ),
-      );
+    id: 'tournament-${start.millisecondsSinceEpoch}',
+    kind: AthleteAgendaItemKind.tournament,
+    startsAt: start,
+    title: 'Torneio X',
+    subtitle: 'Arena CFC',
+    statusLabel: 'INSCRIÇÕES ABERTAS',
+    accentColor: const Color(0xFFE5B82E),
+    tournament: const AthleteAgendaTournamentPayload(
+      tournamentId: 't1',
+      registrationId: 'r1',
+      isLive: false,
+    ),
+  );
 
   AthleteAgendaItem challengeAt(DateTime start) => AthleteAgendaItem(
-        id: 'challenge-${start.millisecondsSinceEpoch}',
-        kind: AthleteAgendaItemKind.challenge,
-        startsAt: start,
-        title: 'Desafio',
-        subtitle: 'Ranking',
-        statusLabel: 'PENDENTE',
-        accentColor: athleteAgendaChallengeAccent,
-        challenge: const AthleteAgendaChallengePayload(challengeId: 'c1'),
-      );
+    id: 'challenge-${start.millisecondsSinceEpoch}',
+    kind: AthleteAgendaItemKind.challenge,
+    startsAt: start,
+    title: 'Desafio',
+    subtitle: 'Ranking',
+    statusLabel: 'PENDENTE',
+    accentColor: athleteAgendaChallengeAccent,
+    challenge: const AthleteAgendaChallengePayload(challengeId: 'c1'),
+  );
 
   AthleteAgendaItem pastRentalAt(DateTime start) => AthleteAgendaItem(
-        id: 'past-rental-${start.millisecondsSinceEpoch}',
-        kind: AthleteAgendaItemKind.rental,
-        startsAt: start,
-        endsAt: start.add(const Duration(hours: 1)),
-        title: 'Arena Passada',
-        subtitle: 'Quadra 1',
-        statusLabel: 'Finalizado',
-        accentColor: AppColors.onSurfaceMuted,
-        rental: AthleteAgendaRentalPayload(
-          bookingId: 'past-b1',
-          arenaName: 'Arena Passada',
-          courtName: 'Quadra 1',
-          startAt: start,
-          endAt: start.add(const Duration(hours: 1)),
-          rawStatus: 'confirmed',
-          confirmedParticipants: 4,
-          stage: AthleteAgendaBookingStage.past,
-        ),
-      );
+    id: 'past-rental-${start.millisecondsSinceEpoch}',
+    kind: AthleteAgendaItemKind.rental,
+    startsAt: start,
+    endsAt: start.add(const Duration(hours: 1)),
+    title: 'Arena Passada',
+    subtitle: 'Quadra 1',
+    statusLabel: 'Finalizado',
+    accentColor: AppColors.onSurfaceMuted,
+    rental: AthleteAgendaRentalPayload(
+      bookingId: 'past-b1',
+      arenaName: 'Arena Passada',
+      courtName: 'Quadra 1',
+      startAt: start,
+      endAt: start.add(const Duration(hours: 1)),
+      rawStatus: 'confirmed',
+      confirmedParticipants: 4,
+      stage: AthleteAgendaBookingStage.past,
+    ),
+  );
 
   group('mergeAgendaItems', () {
     test('merges and sorts by startsAt ascending', () {
@@ -117,7 +116,10 @@ void main() {
         visibleMonth: startOfMonth(baseDay),
         now: filterNow,
       );
-      expect(rentals.every((i) => i.kind == AthleteAgendaItemKind.rental), true);
+      expect(
+        rentals.every((i) => i.kind == AthleteAgendaItemKind.rental),
+        true,
+      );
       expect(rentals.length, 1);
     });
 
@@ -371,8 +373,7 @@ void main() {
     });
 
     test('formatAgendaEmptyHeroDescription includes nearby count', () {
-      final parts =
-          formatAgendaEmptyHeroDescription(12, 'num raio de 5 km');
+      final parts = formatAgendaEmptyHeroDescription(12, 'num raio de 5 km');
       expect(parts.nearbyCount, 12);
       expect(parts.suffix, contains('arenas livres'));
       expect(parts.suffix, contains('num raio de 5 km'));
@@ -435,7 +436,11 @@ void main() {
           enrolledCount: 12,
           liveMatchesNow: 0,
           categoryOffers: [
-            TournamentCategoryOffer(id: categoryId, name: categoryName, entryFee: 80),
+            TournamentCategoryOffer(
+              id: categoryId,
+              name: categoryName,
+              entryFee: 80,
+            ),
           ],
         ),
       );
@@ -502,41 +507,44 @@ void main() {
       expect(item.statusLabel, 'DIA DO EVENTO');
     });
 
-    test('same-day start and end at midnight stays upcoming during afternoon', () {
-      final startBrt = DateTime.utc(2026, 6, 9, 3);
-      final endBrt = DateTime.utc(2026, 6, 9, 3);
-      final afternoon = DateTime(2026, 6, 9, 14);
-      final e = MyTournamentEnrollment(
-        registration: MyTournamentRegistration(
-          registrationId: 'reg-same-day',
-          tournamentId: 'PHRdRRMqc5oiCbYus2Fh',
-          tournamentName: 'nexaGO',
-          dateLabel: '09/06',
-          statusLabel: 'Inscrito',
-          isPaid: true,
-          categoryId: 'cat-a',
-          startDate: startBrt,
-          endDate: endBrt,
-          listingStatus: TournamentListingStatus.live,
-        ),
-      );
+    test(
+      'same-day start and end at midnight stays upcoming during afternoon',
+      () {
+        final startBrt = DateTime.utc(2026, 6, 9, 3);
+        final endBrt = DateTime.utc(2026, 6, 9, 3);
+        final afternoon = DateTime(2026, 6, 9, 14);
+        final e = MyTournamentEnrollment(
+          registration: MyTournamentRegistration(
+            registrationId: 'reg-same-day',
+            tournamentId: 'PHRdRRMqc5oiCbYus2Fh',
+            tournamentName: 'nexaGO',
+            dateLabel: '09/06',
+            statusLabel: 'Inscrito',
+            isPaid: true,
+            categoryId: 'cat-a',
+            startDate: startBrt,
+            endDate: endBrt,
+            listingStatus: TournamentListingStatus.live,
+          ),
+        );
 
-      final item = mapTournamentEnrollmentToAgendaItem(e)!;
-      expect(item.statusLabel, 'DIA DO EVENTO');
-      expect(item.tournament?.isCompleted, isFalse);
-      expect(isAgendaItemPast(item, now: afternoon), isFalse);
+        final item = mapTournamentEnrollmentToAgendaItem(e)!;
+        expect(item.statusLabel, 'DIA DO EVENTO');
+        expect(item.tournament?.isCompleted, isFalse);
+        expect(isAgendaItemPast(item, now: afternoon), isFalse);
 
-      final upcoming = filterAgendaItems(
-        items: [item],
-        filter: AthleteAgendaFilter.tournaments,
-        viewMode: AthleteAgendaViewMode.day,
-        selectedDay: DateTime(2026, 6, 9),
-        visibleMonth: startOfMonth(DateTime(2026, 6, 9)),
-        timeTab: AthleteAgendaTimeTab.upcoming,
-        now: afternoon,
-      );
-      expect(upcoming, hasLength(1));
-    });
+        final upcoming = filterAgendaItems(
+          items: [item],
+          filter: AthleteAgendaFilter.tournaments,
+          viewMode: AthleteAgendaViewMode.day,
+          selectedDay: DateTime(2026, 6, 9),
+          visibleMonth: startOfMonth(DateTime(2026, 6, 9)),
+          timeTab: AthleteAgendaTimeTab.upcoming,
+          now: afternoon,
+        );
+        expect(upcoming, hasLength(1));
+      },
+    );
 
     test('normalizes UTC midnight to local event day for day filter', () {
       final today = DateTime.now();

@@ -98,6 +98,30 @@ void main() {
       expect(detail.setTimelineItems.length, 2);
     });
 
+    test('omits unplayed third set from timeline on 2-0 win', () {
+      final detail = mapMatchToDetail(
+        match: _match(
+          sets: const [
+            TournamentMatchSet(a: 21, b: 15),
+            TournamentMatchSet(a: 21, b: 18),
+            TournamentMatchSet(a: 0, b: 0),
+          ],
+        ),
+        context: AthleteMatchDetailMapperContext(
+          athleteUid: 'p1',
+          perspectiveTeamId: 'team_a',
+          tournamentName: 'Copa Teste',
+          venueLabel: '',
+          teams: _teams(),
+          profiles: _profiles(),
+        ),
+      );
+
+      expect(detail!.sets, hasLength(2));
+      expect(detail.setTimelineItems, hasLength(2));
+      expect(detail.setTimelineItems.map((item) => item.label), ['SET 1', 'SET 2']);
+    });
+
     test('maps loss when athlete is team B', () {
       final detail = mapMatchToDetail(
         match: _match(winnerId: 'team_a'),

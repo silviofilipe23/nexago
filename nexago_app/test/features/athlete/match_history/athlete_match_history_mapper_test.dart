@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/athlete/domain/match_history/athlete_match_history_mapper.dart';
 import 'package:nexago_app/features/athlete/domain/match_history/athlete_match_history_models.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
 
@@ -72,5 +74,64 @@ void main() {
     );
 
     expect(item, isNull);
+  });
+
+  test('mapMatchToHistoryItem resolves category id to offer name', () {
+    final match = TournamentMatch(
+      id: 'm3',
+      tournamentId: 't1',
+      categoryId: 'cat-wb3',
+      round: 1,
+      matchType: 'Group',
+      poolId: 'A',
+      teamAId: 'team-athlete',
+      teamBId: 'team-opponent',
+      status: TournamentMatchStatus.completed,
+      resultA: '21-19',
+      resultB: '19-21',
+      isGroupMatch: true,
+      matchNumber: 3,
+      winnerId: 'team-athlete',
+      matchEndedAt: DateTime(2025, 8, 10, 14, 0),
+    );
+
+    final item = mapMatchToHistoryItem(
+      match: match,
+      context: AthleteMatchHistoryMapperContext(
+        athleteTeamIds: {'team-athlete'},
+        tournamentNames: {'t1': 'Copa Praia'},
+        teamDisplayNames: {'team-opponent': 'Rival'},
+        tournamentDetails: {
+          't1': TournamentDetail(
+            id: 't1',
+            name: 'Copa Praia',
+            location: 'Arena',
+            city: 'Goiânia',
+            dateLabel: 'AGO 2025',
+            startDate: DateTime(2025, 8, 1),
+            endDate: null,
+            categories: const [TournamentGenderCat.m],
+            format: TournamentFormat.dupla,
+            priceLabel: 'R\$ 100',
+            priceValue: 100,
+            spotsLeft: 10,
+            spotsTotal: 16,
+            status: TournamentListingStatus.completed,
+            featured: false,
+            enrolledCount: 8,
+            liveMatchesNow: 0,
+            categoryOffers: const [
+              TournamentCategoryOffer(
+                id: 'cat-wb3',
+                name: 'WB3',
+                entryFee: 100,
+              ),
+            ],
+          ),
+        },
+      ),
+    );
+
+    expect(item?.competitionLabel, 'Copa Praia · WB3');
   });
 }

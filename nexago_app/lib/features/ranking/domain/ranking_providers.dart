@@ -234,6 +234,7 @@ CompeteHubRankingEntry _mapRankingEntry({
     points: row.totalPoints,
     tournamentsCount: row.tournamentsCount,
     avatarColor: rankingAvatarColor(row.athleteId),
+    avatarUrl: rankingAvatarUrl(profile),
     isCurrentUser: isCurrentUser,
   );
 }

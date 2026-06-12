@@ -15,6 +15,7 @@ import '../data/tournaments_repository.dart';
 import '../data/users_repository.dart';
 import 'tournament_match.dart';
 import 'tournament_match_card_view_model.dart';
+import 'tournament_match_point_event.dart';
 import 'tournament_detail_logic.dart';
 import 'tournament_detail_model.dart';
 import 'tournament_discovery_config.dart';
@@ -50,6 +51,13 @@ final tournamentMatchesProvider = StreamProvider.autoDispose
       .watchByTournament(tournamentId);
 });
 
+final matchPointEventsProvider = StreamProvider.autoDispose
+    .family<List<TournamentMatchPointEvent>, String>((ref, matchId) {
+  return ref
+      .watch(tournamentMatchesRepositoryProvider)
+      .watchPointEvents(matchId);
+});
+
 final tournamentMatchCardsProvider = StreamProvider.autoDispose
     .family<List<TournamentMatchCardViewModel>, String>((ref, tournamentId) {
   final repo = ref.watch(tournamentMatchesRepositoryProvider);
@@ -83,6 +91,12 @@ final discoveryTournamentKeywordSearchProvider = FutureProvider.autoDispose
     .family<List<DiscoveryTournament>, String>((ref, query) async {
   if (!isSearchTermLongEnough(query)) return const [];
   return ref.read(tournamentsRepositoryProvider).searchByKeywords(query);
+});
+
+final discoveryLeagueKeywordSearchProvider = FutureProvider.autoDispose
+    .family<List<DiscoveryLeague>, String>((ref, query) async {
+  if (!isSearchTermLongEnough(query)) return const [];
+  return ref.read(leaguesRepositoryProvider).searchByKeywords(query);
 });
 
 final discoveryLeaguesProvider =

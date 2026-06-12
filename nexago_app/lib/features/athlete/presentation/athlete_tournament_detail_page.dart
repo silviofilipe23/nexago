@@ -83,28 +83,7 @@ class AthleteTournamentDetailPage extends ConsumerWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: Material(
-            color: AppColors.surfaceRaised,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              onTap: () => showAppSnackBar(context, 'Em breve.'),
-              borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                width: 40,
-                height: 40,
-                child: Icon(
-                  Icons.ios_share_rounded,
-                  color: AppColors.onSurface,
-                  size: 20,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+      actions: [],
     );
   }
 

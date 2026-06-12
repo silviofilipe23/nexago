@@ -72,6 +72,7 @@ import '../../features/athlete/presentation/athlete_shell_page.dart';
 import '../../features/tournaments/presentation/league_detail_page.dart';
 import '../../features/athlete/presentation/athlete_discover_page.dart';
 import '../../features/tournaments/presentation/team_discover_page.dart';
+import '../../features/tournaments/presentation/team_profile/team_public_profile_page.dart';
 import '../../features/ranking/presentation/athlete_ranking_page.dart';
 import '../../features/tournaments/presentation/my_tournaments_page.dart';
 import '../../features/tournaments/presentation/tournament_discovery_list_page.dart';
@@ -442,6 +443,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.teamDiscover,
         name: AppRouteNames.teamDiscover,
         builder: (context, state) => const TeamDiscoverPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.teamProfile,
+        name: AppRouteNames.teamProfile,
+        builder: (context, state) {
+          final teamId = state.pathParameters['teamId']?.trim() ?? '';
+          return TeamPublicProfilePage(teamId: teamId);
+        },
       ),
       GoRoute(
         path: AppRoutes.tournamentDetail,

@@ -45,7 +45,6 @@ class _TeamDiscoverFiltersSheet extends StatefulWidget {
 
 class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
   String? _sportId;
-  late Set<String> _categories;
   late TeamDiscoverGenderFilter _gender;
   late TeamDiscoverPartnershipFilter _partnership;
   late double _distanceKm;
@@ -54,14 +53,11 @@ class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
   late bool _trendingOnly;
   late bool _sameRankingRange;
 
-  static const _categoryOptions = ['Cat A', 'Cat B', 'Cat C'];
-
   @override
   void initState() {
     super.initState();
     final f = widget.initial;
     _sportId = f.sportFirestoreId;
-    _categories = Set<String>.from(f.categories);
     _gender = f.gender;
     _partnership = f.partnership;
     _distanceKm = f.maxDistanceKm.clamp(5, 100);
@@ -74,7 +70,6 @@ class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
   void _clear() {
     setState(() {
       _sportId = null;
-      _categories = {};
       _gender = TeamDiscoverGenderFilter.all;
       _partnership = TeamDiscoverPartnershipFilter.all;
       _distanceKm = 50;
@@ -88,7 +83,6 @@ class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
   TeamDiscoverFilters _draft() {
     return widget.initial.copyWith(
       sportFirestoreId: _sportId,
-      categories: _categories,
       gender: _gender,
       partnership: _partnership,
       maxDistanceKm: _distanceKm,
@@ -171,21 +165,6 @@ class _TeamDiscoverFiltersSheetState extends State<_TeamDiscoverFiltersSheet> {
                         setState(() {
                           final id = sportFirestoreIdForLabel(label);
                           _sportId = _sportId == id ? null : id;
-                        });
-                      },
-                    ),
-                    SizedBox(height: 20),
-                    const _SectionLabel(label: 'CATEGORIA'),
-                    _ChipWrap(
-                      options: _categoryOptions,
-                      multiSelected: _categories,
-                      onToggle: (label) {
-                        setState(() {
-                          if (_categories.contains(label)) {
-                            _categories.remove(label);
-                          } else {
-                            _categories.add(label);
-                          }
                         });
                       },
                     ),
@@ -357,12 +336,10 @@ class _ChipWrap extends StatelessWidget {
     required this.options,
     required this.onToggle,
     this.selectedLabel,
-    this.multiSelected = const {},
   });
 
   final List<String> options;
   final String? selectedLabel;
-  final Set<String> multiSelected;
   final ValueChanged<String> onToggle;
 
   @override
@@ -371,9 +348,7 @@ class _ChipWrap extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: options.map((label) {
-        final selected = multiSelected.isNotEmpty
-            ? multiSelected.contains(label)
-            : selectedLabel == label;
+        final selected = selectedLabel == label;
         return _FilterChip(
           label: label,
           selected: selected,

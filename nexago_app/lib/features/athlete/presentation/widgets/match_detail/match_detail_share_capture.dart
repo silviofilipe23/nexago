@@ -13,8 +13,25 @@ Future<File?> captureMatchDetailShareCardPng(
   GlobalKey boundaryKey, {
   double pixelRatio = 3,
 }) async {
-  final renderObject = boundaryKey.currentContext?.findRenderObject();
-  if (renderObject is! RenderRepaintBoundary) return null;
+  final context = boundaryKey.currentContext;
+  if (context == null) {
+    debugPrint('captureMatchDetailShareCardPng: boundary context is null');
+    return null;
+  }
+
+  final renderObject = context.findRenderObject();
+  if (renderObject is! RenderRepaintBoundary) {
+    debugPrint(
+      'captureMatchDetailShareCardPng: expected RenderRepaintBoundary, '
+      'got ${renderObject.runtimeType}',
+    );
+    return null;
+  }
+
+  if (renderObject.debugNeedsPaint) {
+    await Future<void>.delayed(Duration.zero);
+    await WidgetsBinding.instance.endOfFrame;
+  }
 
   final image = await renderObject.toImage(pixelRatio: pixelRatio);
   final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -28,13 +45,27 @@ Future<File?> captureMatchDetailShareCardPng(
   return file;
 }
 
-Future<void> shareMatchDetailShareCardPng(
+/// Origem do popover no iOS/iPadOS (evita `PlatformException` no share sheet).
+Rect matchDetailSharePositionOrigin(BuildContext context) {
+  final size = MediaQuery.sizeOf(context);
+  const side = 2.0;
+  return Rect.fromLTWH(
+    (size.width - side) / 2,
+    (size.height - side) / 2,
+    side,
+    side,
+  );
+}
+
+Future<ShareResult> shareMatchDetailShareCardPng(
   File file, {
   MatchDetailShareVariant variant = MatchDetailShareVariant.victory,
+  Rect? sharePositionOrigin,
 }) {
   return Share.shareXFiles(
-    [XFile(file.path, mimeType: 'image/png')],
+    [XFile(file.path, mimeType: 'image/png', name: 'nexago_partida.png')],
     subject: shareSubjectForVariant(variant),
+    sharePositionOrigin: sharePositionOrigin,
   );
 }
 

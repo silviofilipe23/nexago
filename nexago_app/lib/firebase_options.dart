@@ -67,7 +67,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '735357850346',
     projectId: 'volley-track-dev-4596c',
     storageBucket: 'volley-track-dev-4596c.firebasestorage.app',
-    androidClientId: '735357850346-rdfkui80a3lp79gataa88d112egltju1.apps.googleusercontent.com',
     iosClientId: '735357850346-gfp95q15ctt1v54lslk23oun4h9jalmd.apps.googleusercontent.com',
     iosBundleId: 'br.com.nexago.nexagoApp',
   );
@@ -78,7 +77,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '735357850346',
     projectId: 'volley-track-dev-4596c',
     storageBucket: 'volley-track-dev-4596c.firebasestorage.app',
-    androidClientId: '735357850346-rdfkui80a3lp79gataa88d112egltju1.apps.googleusercontent.com',
     iosClientId: '735357850346-gfp95q15ctt1v54lslk23oun4h9jalmd.apps.googleusercontent.com',
     iosBundleId: 'br.com.nexago.nexagoApp',
   );

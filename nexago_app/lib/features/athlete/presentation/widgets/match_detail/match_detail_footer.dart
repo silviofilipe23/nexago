@@ -28,18 +28,18 @@ class MatchDetailFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (kind) {
       MatchDetailFooterKind.completed => _CompletedFooter(
-          hideTournament: hideTournamentAction,
-          onTournament: onTournament,
-          onRematch: onRematch,
-          onOpponentProfile: onOpponentProfile,
-        ),
+        hideTournament: hideTournamentAction,
+        onTournament: onTournament,
+        onRematch: onRematch,
+        onOpponentProfile: onOpponentProfile,
+      ),
       MatchDetailFooterKind.live => _LiveFooter(onShare: onShare),
       MatchDetailFooterKind.scheduled => const SizedBox.shrink(),
       MatchDetailFooterKind.spectator => _SpectatorFooter(
-          hideTournament: hideTournamentAction,
-          onTournament: onTournament,
-          onShare: onShare,
-        ),
+        hideTournament: hideTournamentAction,
+        onTournament: onTournament,
+        onShare: onShare,
+      ),
     };
   }
 }
@@ -63,19 +63,20 @@ class _CompletedFooter extends StatelessWidget {
       children: [
         _FooterActionsRow(
           children: [
-            _OutlineButton(
-              icon: Icons.refresh_rounded,
-              label: 'Revanche',
-              accent: AppColors.brand,
-              onTap:
-                  onRematch ?? () => showAppSnackBar(context, 'Em breve.'),
-            ),
-            _OutlineButton(
-              icon: Icons.person_outline_rounded,
-              label: 'Perfil deles',
-              onTap: onOpponentProfile ??
-                  () => showAppSnackBar(context, 'Em breve.'),
-            ),
+            // _OutlineButton(
+            //   icon: Icons.refresh_rounded,
+            //   label: 'Revanche',
+            //   accent: AppColors.brand,
+            //   onTap:
+            //       onRematch ?? () => showAppSnackBar(context, 'Em breve.'),
+            // ),
+            // _OutlineButton(
+            //   icon: Icons.person_outline_rounded,
+            //   label: 'Perfil deles',
+            //   onTap:
+            //       onOpponentProfile ??
+            //       () => showAppSnackBar(context, 'Em breve.'),
+            // ),
           ],
         ),
         if (!hideTournament) ...[
@@ -114,15 +115,18 @@ class _LiveFooter extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.notifications_none_rounded,
-                      size: 18, color: AppColors.black),
+                  Icon(
+                    Icons.notifications_none_rounded,
+                    size: 18,
+                    color: AppColors.black,
+                  ),
                   SizedBox(width: 8),
                   Text(
                     'Avisar no fim',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.black,
-                        ),
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.black,
+                    ),
                   ),
                 ],
               ),
@@ -199,8 +203,7 @@ class _OutlineButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.accent,
-  });
+  }) : accent = null;
 
   final IconData icon;
   final String label;
@@ -224,8 +227,9 @@ class _OutlineButton extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: (accent ?? context.themeColors.onSurfaceMuted)
-                  .withValues(alpha: accent != null ? 0.6 : 0.25),
+              color: (accent ?? context.themeColors.onSurfaceMuted).withValues(
+                alpha: accent != null ? 0.6 : 0.25,
+              ),
             ),
           ),
           child: Row(

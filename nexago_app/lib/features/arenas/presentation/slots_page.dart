@@ -32,10 +32,8 @@ import 'widgets/slots/slots_bottom_bar.dart';
 import 'widgets/slots/slots_fully_booked_body.dart';
 import 'widgets/slots/slots_court_carousel.dart';
 import 'widgets/slots/slots_day_strip.dart';
-import 'widgets/slots/slots_duration_picker.dart';
 import 'widgets/slots/slots_list_section.dart';
 import 'widgets/slots/slots_page_header.dart';
-import 'widgets/slots/slots_period_chips.dart';
 
 /// Seleção de horários: quadras (`arenas/.../courts`) + `arenaSlots` por dia (YYYY-MM-DD).
 class SlotsPage extends ConsumerWidget {

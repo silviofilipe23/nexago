@@ -26,11 +26,20 @@ String registrationHomeBadgeLabel(MyTournamentRegistration registration) {
   return registration.statusLabel;
 }
 
+/// Torneio concluído/encerrado não aparece na Home.
+bool isRegistrationCompletedForHome(MyTournamentRegistration registration) {
+  final status = registration.listingStatus;
+  if (status == null) return false;
+  return isTournamentTerminal(status);
+}
+
 /// Ordena inscrições para preview da Home (evento hoje / ao vivo primeiro).
 List<MyTournamentRegistration> sortRegistrationsForHomePreview(
   List<MyTournamentRegistration> registrations,
 ) {
-  final copy = List<MyTournamentRegistration>.from(registrations);
+  final copy = registrations
+      .where((r) => !isRegistrationCompletedForHome(r))
+      .toList();
   copy.sort((a, b) {
     final aLive = registrationShowsAsLiveToday(a);
     final bLive = registrationShowsAsLiveToday(b);

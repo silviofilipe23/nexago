@@ -3,7 +3,6 @@ import 'package:nexago_app/features/athlete/domain/athlete_home_featured_logic.d
 import 'package:nexago_app/features/arenas/domain/my_booking_item.dart';
 import 'package:nexago_app/features/arenas/domain/my_booking_payment.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
-import 'package:nexago_app/features/tournaments/domain/tournament_listing_status.dart';
 
 void main() {
   final now = DateTime(2026, 6, 9, 14);

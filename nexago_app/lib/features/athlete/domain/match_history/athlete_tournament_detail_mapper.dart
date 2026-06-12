@@ -1,6 +1,8 @@
 import 'package:intl/intl.dart';
 
+import '../../../tournaments/domain/tournament_detail_logic.dart';
 import '../../../tournaments/domain/tournament_detail_model.dart';
+import '../../../tournaments/domain/tournament_discovery_models.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
 import 'athlete_match_history_models.dart';
@@ -25,9 +27,20 @@ AthleteTournamentDetail buildAthleteTournamentDetail({
   final periodLabel = tournamentDoc?.dateLabel.trim().isNotEmpty == true
       ? tournamentDoc!.dateLabel
       : summary.periodLabel;
+  final categoryOffer = findTournamentCategoryOffer(
+    tournamentDoc: tournamentDoc,
+    categoryId: summary.categoryLabel,
+  );
+  final categoryLabel = resolveTournamentCategoryLabel(
+    categoryId: summary.categoryLabel,
+    tournamentDoc: tournamentDoc,
+  );
+  final genderLabel = categoryOffer != null
+      ? tournamentCategoryGenderTag(categoryOffer)
+      : summary.genderLabel;
   final metaParts = [
-    if (summary.categoryLabel.isNotEmpty) summary.categoryLabel,
-    if (summary.genderLabel.isNotEmpty) summary.genderLabel,
+    if (categoryLabel.isNotEmpty) categoryLabel,
+    if (genderLabel.isNotEmpty) genderLabel,
     if (periodLabel.isNotEmpty) periodLabel,
   ];
   final metaLabel = metaParts.join(' · ');
@@ -112,6 +125,36 @@ List<AthleteTournamentCampaignMatch> _campaignMatches({
       isFinal: match.matchType.toLowerCase().contains('final'),
     );
   }).toList();
+}
+
+TournamentCategoryOffer? findTournamentCategoryOffer({
+  TournamentDetail? tournamentDoc,
+  required String categoryId,
+}) {
+  final id = categoryId.trim();
+  if (id.isEmpty || tournamentDoc == null) return null;
+
+  for (final offer in tournamentDoc.categoryOffers) {
+    if (offer.id.trim() == id) return offer;
+  }
+  return null;
+}
+
+String resolveTournamentCategoryLabel({
+  required String categoryId,
+  TournamentDetail? tournamentDoc,
+}) {
+  final id = categoryId.trim();
+  if (id.isEmpty) return '';
+
+  final offer = findTournamentCategoryOffer(
+    tournamentDoc: tournamentDoc,
+    categoryId: id,
+  );
+  final name = offer?.name.trim() ?? '';
+  if (name.isNotEmpty) return name;
+
+  return id;
 }
 
 String formatTournamentPeriodLabel(TournamentDetail? detail) {

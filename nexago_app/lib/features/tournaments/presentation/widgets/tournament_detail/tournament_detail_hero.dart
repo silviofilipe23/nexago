@@ -43,9 +43,7 @@ class TournamentDetailHero extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(_radius),
-            border: Border.all(
-              color: AppColors.win.withValues(alpha: 0.22),
-            ),
+            border: Border.all(color: AppColors.win.withValues(alpha: 0.22)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -60,7 +58,9 @@ class TournamentDetailHero extends StatelessWidget {
               Divider(
                 height: 1,
                 thickness: 1,
-                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.2,
+                ),
               ),
               _HeroStatsRow(theme: theme, stats: stats),
             ],
@@ -146,10 +146,7 @@ class _HeroTopSection extends StatelessWidget {
 }
 
 class _MetaItem extends StatelessWidget {
-  const _MetaItem({
-    required this.icon,
-    required this.label,
-  });
+  const _MetaItem({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -166,11 +163,7 @@ class _MetaItem extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          icon,
-          size: 15,
-          color: context.themeColors.onSurfaceMuted,
-        ),
+        Icon(icon, size: 15, color: context.themeColors.onSurfaceMuted),
         SizedBox(width: 6),
         Expanded(
           child: Text(
@@ -396,7 +389,7 @@ class _StatColumn extends StatelessWidget {
             style: theme.textTheme.bodySmall?.copyWith(
               color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w500,
-              fontSize: 11,
+              fontSize: 10,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,

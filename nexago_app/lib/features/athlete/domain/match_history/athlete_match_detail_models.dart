@@ -68,18 +68,18 @@ class MatchSetTimelineItem {
 
 class MatchDetailXpInfo {
   const MatchDetailXpInfo({
-    required this.xpGained,
+    this.xpGained,
     required this.rankLabel,
     required this.streakLabel,
-    required this.levelProgressLabel,
-    required this.progress,
+    this.levelProgressLabel,
+    this.progress,
   });
 
-  final int xpGained;
+  final int? xpGained;
   final String rankLabel;
   final String streakLabel;
-  final String levelProgressLabel;
-  final double progress;
+  final String? levelProgressLabel;
+  final double? progress;
 }
 
 class MatchDetailMomentumChartPoint {
@@ -166,6 +166,7 @@ class MatchDetailPlayByPlayItem {
     required this.setNumber,
     required this.scoreLabel,
     required this.teamLabel,
+    this.isEstimated = false,
   });
 
   final String time;
@@ -176,6 +177,9 @@ class MatchDetailPlayByPlayItem {
   /// Placar do set após o ponto (perspectiva da dupla de referência).
   final String scoreLabel;
   final String teamLabel;
+
+  /// Ponto inferido do placar do set (sem registro ponto a ponto no placar).
+  final bool isEstimated;
 }
 
 class MatchDetailPlayByPlayGroup {

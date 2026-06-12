@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -18,11 +19,13 @@ class MatchDetailShareSection extends StatefulWidget {
     required this.share,
     this.compact = false,
     this.presentation = MatchDetailSharePresentation.page,
+    this.snackBarMessenger,
   });
 
   final MatchDetailShareInfo share;
   final bool compact;
   final MatchDetailSharePresentation presentation;
+  final ScaffoldMessengerState? snackBarMessenger;
 
   @override
   State<MatchDetailShareSection> createState() =>
@@ -33,29 +36,57 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
   final _captureKey = GlobalKey();
   bool _exporting = false;
 
+  void _showShareMessage(String message) {
+    final messenger = widget.snackBarMessenger;
+    if (messenger != null) {
+      showAppSnackBar(messenger.context, message);
+      return;
+    }
+    if (mounted) {
+      showAppSnackBar(context, message);
+    }
+  }
+
   Future<void> _exportAndShare() async {
     if (_exporting) return;
     setState(() => _exporting = true);
+
+    final shareOrigin = matchDetailSharePositionOrigin(context);
+    final closingSheet =
+        widget.presentation == MatchDetailSharePresentation.sheet;
+    final sheetNavigator = closingSheet ? Navigator.of(context) : null;
+
     try {
       await _precacheShareAvatars(context);
       if (!mounted) return;
       await WidgetsBinding.instance.endOfFrame;
+      await Future<void>.delayed(const Duration(milliseconds: 32));
       if (!mounted) return;
 
       final file = await captureMatchDetailShareCardPng(_captureKey);
       if (!mounted) return;
       if (file == null) {
-        showAppSnackBar(context, 'Não foi possível gerar a imagem.');
+        _showShareMessage('Não foi possível gerar a imagem.');
         return;
       }
-      await shareMatchDetailShareCardPng(
+
+      if (closingSheet && sheetNavigator != null && sheetNavigator.mounted) {
+        sheetNavigator.pop();
+        await Future<void>.delayed(const Duration(milliseconds: 280));
+      }
+
+      final result = await shareMatchDetailShareCardPng(
         file,
         variant: widget.share.variant,
+        sharePositionOrigin: shareOrigin,
       );
-    } catch (_) {
-      if (mounted) {
-        showAppSnackBar(context, 'Não foi possível compartilhar.');
+
+      if (result.status == ShareResultStatus.unavailable) {
+        _showShareMessage('Não foi possível compartilhar.');
       }
+    } catch (error, stackTrace) {
+      debugPrint('match detail share failed: $error\n$stackTrace');
+      _showShareMessage('Não foi possível compartilhar.');
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -71,9 +102,13 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
     }..removeWhere((url) => url.isEmpty);
 
     await Future.wait(
-      urls.map(
-        (url) => precacheImage(CachedNetworkImageProvider(url), context),
-      ),
+      urls.map((url) async {
+        try {
+          await precacheImage(CachedNetworkImageProvider(url), context);
+        } catch (error) {
+          debugPrint('share avatar precache skipped ($url): $error');
+        }
+      }),
     );
   }
 
@@ -120,36 +155,40 @@ class _MatchDetailShareSectionState extends State<MatchDetailShareSection> {
           SizedBox(height: 20),
           Center(child: preview),
           SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: _ShareActionButton(
-                  label: 'WhatsApp',
-                  icon: Icons.chat_rounded,
-                  filled: true,
-                  loading: _exporting,
-                  onTap: _exportAndShare,
+          SizedBox(
+            height: 54,
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: _exporting ? null : _exportAndShare,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: AppColors.black,
+                disabledBackgroundColor:
+                    AppColors.brand.withValues(alpha: 0.55),
+                disabledForegroundColor: AppColors.black.withValues(alpha: 0.6),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              SizedBox(width: 10),
-              Expanded(
-                child: _ShareActionButton(
-                  label: 'Stories',
-                  icon: Icons.ios_share_rounded,
-                  loading: _exporting,
-                  onTap: _exportAndShare,
+              icon: _exporting
+                  ? SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: AppColors.black,
+                      ),
+                    )
+                  : Icon(Icons.ios_share_rounded, size: 22),
+              label: Text(
+                'Compartilhar',
+                style: AppTypography.soraRegular(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.black,
                 ),
               ),
-              SizedBox(width: 10),
-              Expanded(
-                child: _ShareActionButton(
-                  label: 'Salvar',
-                  icon: Icons.download_rounded,
-                  loading: _exporting,
-                  onTap: _exportAndShare,
-                ),
-              ),
-            ],
+            ),
           ),
           if (widget.presentation == MatchDetailSharePresentation.sheet)
             SizedBox(height: 4),
@@ -211,75 +250,6 @@ class _ShareCardPreview extends StatelessWidget {
   }
 }
 
-class _ShareActionButton extends StatelessWidget {
-  const _ShareActionButton({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-    this.filled = false,
-    this.loading = false,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  final bool filled;
-  final bool loading;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: filled ? AppColors.brand : context.themeColors.surfaceCard,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: loading ? null : onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: filled
-                ? null
-                : Border.all(color: context.themeColors.surfaceRaised),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (loading)
-                SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: filled ? AppColors.black : context.themeColors.onSurface,
-                  ),
-                )
-              else
-                Icon(
-                  icon,
-                  size: 22,
-                  color: filled ? AppColors.black : context.themeColors.onSurface,
-                ),
-              SizedBox(height: 6),
-              Text(
-                label,
-                style: AppTypography.soraRegular(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: filled ? AppColors.black : context.themeColors.onSurface,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 String shareSectionTitle(MatchDetailShareVariant variant) {
   return switch (variant) {
     MatchDetailShareVariant.victory => 'Mostre a vitória',
@@ -294,6 +264,7 @@ void showMatchDetailShareSheet(
   BuildContext context,
   MatchDetailShareInfo share,
 ) {
+  final snackBarMessenger = ScaffoldMessenger.of(context);
   showModalBottomSheet<void>(
     context: context,
     backgroundColor: context.themeColors.surfaceSheet,
@@ -320,6 +291,7 @@ void showMatchDetailShareSheet(
             MatchDetailShareSection(
               share: share,
               presentation: MatchDetailSharePresentation.sheet,
+              snackBarMessenger: snackBarMessenger,
             ),
           ],
         ),

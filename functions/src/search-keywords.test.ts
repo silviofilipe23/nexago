@@ -2,6 +2,7 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
   buildTeamSearchFields,
+  buildLeagueSearchFields,
   buildTournamentSearchFields,
   buildUserSearchFields,
   generateKeywords,
@@ -93,6 +94,20 @@ describe("search-keywords", () => {
     assert.ok(fields.keywords.includes("open"));
     assert.ok(fields.keywords.includes("goiania"));
     assert.ok(fields.keywords.includes("ufg"));
+  });
+
+  it("buildLeagueSearchFields includes name, city and stage names", () => {
+    const fields = buildLeagueSearchFields({
+      name: "Liga NexaGO",
+      city: "Brasília",
+      seasonLabel: "2026",
+      stages: [{name: "Etapa Centro-Oeste"}, {name: "Final"}],
+    });
+    assert.ok(fields.keywords.includes("liga"));
+    assert.ok(fields.keywords.includes("brasilia"));
+    assert.ok(fields.keywords.includes("2026"));
+    assert.ok(fields.keywords.includes("etapa"));
+    assert.ok(fields.keywords.includes("final"));
   });
 
   it("buildTeamSearchFields merges team name and player names", () => {

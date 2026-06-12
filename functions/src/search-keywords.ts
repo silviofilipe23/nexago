@@ -18,6 +18,10 @@ export type TournamentSearchFields = {
   keywords: string[];
 };
 
+export type LeagueSearchFields = {
+  keywords: string[];
+};
+
 export type TeamSearchFields = {
   keywords: string[];
   player1DisplayName?: string;
@@ -156,6 +160,29 @@ export function buildTournamentSearchFields(
   };
 }
 
+export function buildLeagueSearchFields(
+  data: Record<string, unknown>
+): LeagueSearchFields {
+  const name = readString(data, "name");
+  const city = readString(data, "city");
+  const seasonLabel =
+    readString(data, "seasonLabel") || readString(data, "season");
+  const sources = [name, city, seasonLabel];
+
+  const stages = data.stages;
+  if (Array.isArray(stages)) {
+    for (const stage of stages) {
+      if (!stage || typeof stage !== "object") continue;
+      const stageName = readString(stage as Record<string, unknown>, "name");
+      if (stageName) sources.push(stageName);
+    }
+  }
+
+  return {
+    keywords: generateKeywords(sources),
+  };
+}
+
 export function buildTeamSearchFields(
   data: Record<string, unknown>,
   playerNames: string[] = []
@@ -225,6 +252,20 @@ export function tournamentSearchSourceFieldsChanged(
   const keys = ["name", "city", "location", "seasonLabel"];
   for (const key of keys) {
     if (before[key] !== after[key]) return true;
+  }
+  return false;
+}
+
+export function leagueSearchSourceFieldsChanged(
+  before: Record<string, unknown> | undefined,
+  after: Record<string, unknown> | undefined
+): boolean {
+  if (!after) return false;
+  if (!before) return true;
+
+  const keys = ["name", "city", "seasonLabel", "season", "stages"];
+  for (const key of keys) {
+    if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) return true;
   }
   return false;
 }

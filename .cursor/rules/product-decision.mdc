@@ -1,0 +1,15 @@
+---
+description: Product decision checklist before implementing features—complexity, athlete/organizer impact, simplest solution
+alwaysApply: true
+---
+
+# Product Decision Rule
+
+Antes de implementar qualquer funcionalidade:
+
+1. Avalie a complexidade.
+2. Avalie o impacto para o atleta.
+3. Avalie o impacto para organizadores.
+4. Sugira a solução mais simples possível.
+
+Evite overengineering.

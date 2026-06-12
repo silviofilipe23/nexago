@@ -1,0 +1,16 @@
+---
+description: Firebase work is incomplete until Firestore/Storage rules, ownership, roles, and sensitive fields are reviewed
+alwaysApply: true
+---
+
+# Firebase Security Rule
+
+Nenhuma implementação Firebase pode ser considerada concluída sem:
+
+- Firestore Rules revisadas
+- Storage Rules revisadas
+- Verificação de ownership
+- Verificação de roles
+- Validação de campos sensíveis
+
+Toda alteração em coleções críticas deve passar pela skill Firebase Rules Reviewer.

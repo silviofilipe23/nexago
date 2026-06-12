@@ -52,12 +52,16 @@ class PlayByPlaySetTimeline {
     required this.startTime,
     required this.blocks,
     required this.summary,
+    this.unrecordedPointsCount = 0,
+    this.lastRecordedScoreLabel,
   });
 
   final int setNumber;
   final String startTime;
   final List<PlayByPlayStreakBlock> blocks;
   final PlayByPlaySetSummary summary;
+  final int unrecordedPointsCount;
+  final String? lastRecordedScoreLabel;
 }
 
 PlayByPlaySetTimeline buildPlayByPlaySetTimeline({
@@ -65,7 +69,31 @@ PlayByPlaySetTimeline buildPlayByPlaySetTimeline({
   required AthleteMatchDetail detail,
 }) {
   final items = group.items;
-  if (items.isEmpty) {
+  final recordedItems =
+      items.where((item) => !item.isEstimated).toList(growable: false);
+  final unrecordedPointsCount = items.length - recordedItems.length;
+
+  if (recordedItems.isEmpty && items.isNotEmpty) {
+    return PlayByPlaySetTimeline(
+      setNumber: group.setNumber,
+      startTime: '—',
+      blocks: const [],
+      unrecordedPointsCount: unrecordedPointsCount,
+      summary: PlayByPlaySetSummary(
+        closerLabel: _closerLabelFromFinalScore(
+          detail: detail,
+          finalScoreLabel: group.finalScoreLabel,
+        ),
+        finalScore: _displayScore(group.finalScoreLabel),
+        maxStreak: 0,
+        comebackCount: 0,
+        tieCount: 0,
+        durationLabel: '—',
+      ),
+    );
+  }
+
+  if (recordedItems.isEmpty) {
     return PlayByPlaySetTimeline(
       setNumber: group.setNumber,
       startTime: '—',
@@ -81,7 +109,7 @@ PlayByPlaySetTimeline buildPlayByPlaySetTimeline({
     );
   }
 
-  final rawBlocks = _buildStreakBlocks(items);
+  final rawBlocks = _buildStreakBlocks(recordedItems);
   final maxStreak = rawBlocks.isEmpty
       ? 0
       : rawBlocks.map((b) => b.points.length).reduce((a, b) => a > b ? a : b);
@@ -106,24 +134,39 @@ PlayByPlaySetTimeline buildPlayByPlaySetTimeline({
     }
   }
 
-  final lastItem = items.last;
-  final closerLabel = lastItem.isOurTeam
-      ? detail.ourTeam.label
-      : detail.opponentTeam.label;
+  final closerLabel = _closerLabelFromFinalScore(
+    detail: detail,
+    finalScoreLabel: group.finalScoreLabel,
+  );
+  final lastRecorded = recordedItems.last;
 
   return PlayByPlaySetTimeline(
     setNumber: group.setNumber,
-    startTime: items.first.time,
+    startTime: recordedItems.first.time,
     blocks: blocks,
+    unrecordedPointsCount: unrecordedPointsCount,
+    lastRecordedScoreLabel: unrecordedPointsCount > 0
+        ? _displayScore(lastRecorded.scoreLabel)
+        : null,
     summary: PlayByPlaySetSummary(
       closerLabel: closerLabel,
       finalScore: _displayScore(group.finalScoreLabel),
       maxStreak: maxStreak,
       comebackCount: comebackCount,
       tieCount: tieCount,
-      durationLabel: _durationLabel(items),
+      durationLabel: _durationLabel(recordedItems),
     ),
   );
+}
+
+String _closerLabelFromFinalScore({
+  required AthleteMatchDetail detail,
+  required String finalScoreLabel,
+}) {
+  final score = _parseScore(finalScoreLabel);
+  if (score.our > score.opp) return detail.ourTeam.label;
+  if (score.opp > score.our) return detail.opponentTeam.label;
+  return '—';
 }
 
 int defaultPlayByPlaySetIndex(AthleteMatchDetail detail) {

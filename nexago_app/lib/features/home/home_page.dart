@@ -52,7 +52,7 @@ class HomePage extends ConsumerWidget {
         IconButton(
           tooltip: 'Sair',
           onPressed: () async {
-            await ref.read(authServiceProvider).signOut();
+            await ref.read(appSignOutProvider)();
           },
           icon: Icon(Icons.logout_rounded),
         ),

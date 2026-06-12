@@ -9,9 +9,11 @@ import type {UserRecord} from "firebase-admin/auth";
 
 import {callerIsSuperAdmin} from "./auth-roles";
 import {
+  buildLeagueSearchFields,
   buildTeamSearchFields,
   buildTournamentSearchFields,
   buildUserSearchFields,
+  leagueSearchSourceFieldsChanged,
   searchFieldsChanged,
   teamSearchSourceFieldsChanged,
   tournamentSearchSourceFieldsChanged,
@@ -53,6 +55,18 @@ async function applyTournamentSearchFields(
   data: Record<string, unknown>
 ): Promise<boolean> {
   const fields = buildTournamentSearchFields(data);
+  const payload = {keywords: fields.keywords};
+  const current = (await ref.get()).data();
+  if (!searchFieldsChanged(current, payload)) return false;
+  await ref.update(payload);
+  return true;
+}
+
+async function applyLeagueSearchFields(
+  ref: DocumentReference,
+  data: Record<string, unknown>
+): Promise<boolean> {
+  const fields = buildLeagueSearchFields(data);
   const payload = {keywords: fields.keywords};
   const current = (await ref.get()).data();
   if (!searchFieldsChanged(current, payload)) return false;
@@ -147,6 +161,34 @@ export const onTournamentSearchKeywordsSync = onDocumentWritten(
   }
 );
 
+export const onLeagueSearchKeywordsSync = onDocumentWritten(
+  "leagues/{leagueId}",
+  async (event) => {
+    const after = event.data?.after;
+    if (!after?.exists) return;
+
+    const afterData = after.data();
+    if (!afterData) return;
+
+    const beforeData = event.data?.before?.data();
+    if (
+      !leagueSearchSourceFieldsChanged(beforeData, afterData) &&
+      Array.isArray(afterData.keywords)
+    ) {
+      return;
+    }
+
+    try {
+      const updated = await applyLeagueSearchFields(after.ref, afterData);
+      if (updated) {
+        logger.info(`search-keywords: updated leagues/${after.id}`);
+      }
+    } catch (err) {
+      logger.error(`search-keywords: leagues/${after.id} failed`, err);
+    }
+  }
+);
+
 export const onLegacyTournamentSearchKeywordsSync = onDocumentWritten(
   "artifacts/{appId}/public/data/tournaments/{tournamentId}",
   async (event) => {
@@ -209,6 +251,7 @@ type BackfillCollection =
   | "users"
   | "tournaments"
   | "legacyTournaments"
+  | "leagues"
   | "teams";
 
 async function backfillCollection(
@@ -246,6 +289,20 @@ async function backfillCollection(
       processed += 1;
       lastId = doc.id;
       if (await applyTournamentSearchFields(doc.ref, doc.data())) updated += 1;
+    }
+    return {processed, updated, lastId};
+  }
+
+  if (collection === "leagues") {
+    let query = db.collection("leagues").orderBy("__name__").limit(pageSize);
+    if (startAfterId) {
+      query = query.startAfter(startAfterId);
+    }
+    const snap = await query.get();
+    for (const doc of snap.docs) {
+      processed += 1;
+      lastId = doc.id;
+      if (await applyLeagueSearchFields(doc.ref, doc.data())) updated += 1;
     }
     return {processed, updated, lastId};
   }
@@ -323,6 +380,7 @@ export const backfillSearchKeywords = onCall(
       "users",
       "tournaments",
       "legacyTournaments",
+      "leagues",
       "teams",
     ];
     if (!allowed.includes(collection)) {

@@ -82,6 +82,7 @@ class FirestoreAthleteMatchHistoryDataSource
       athleteTeamIds: teamIds,
       tournamentNames: tournamentNames,
       teamDisplayNames: teamDisplayNames,
+      tournamentDetails: tournamentDetails,
     );
 
     final historyItems = completed
@@ -96,6 +97,7 @@ class FirestoreAthleteMatchHistoryDataSource
       athleteTeamIds: teamIds,
       tournamentNames: tournamentNames,
       tournamentMeta: tournamentMeta,
+      tournamentDetails: tournamentDetails,
     );
 
     final year = DateTime.now().year;

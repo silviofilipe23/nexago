@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -76,10 +77,7 @@ class _CampaignRow extends StatelessWidget {
             width: 28,
             child: Column(
               children: [
-                _TimelineDot(
-                  isFinal: match.isFinal,
-                  isWin: match.isWin,
-                ),
+                _TimelineDot(isFinal: match.isFinal, isWin: match.isWin),
                 if (!isLast)
                   Expanded(
                     child: Container(
@@ -105,7 +103,9 @@ class _CampaignRow extends StatelessWidget {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: context.themeColors.surfaceRaised),
+                      border: Border.all(
+                        color: context.themeColors.surfaceRaised,
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -134,6 +134,7 @@ class _CampaignRow extends StatelessWidget {
                                 match.stageLabel,
                                 style: theme.textTheme.labelSmall?.copyWith(
                                   fontWeight: FontWeight.w900,
+                                  fontSize: 10,
                                   color: AppColors.brand,
                                   letterSpacing: 0.4,
                                 ),
@@ -141,15 +142,18 @@ class _CampaignRow extends StatelessWidget {
                               SizedBox(height: 2),
                               Text(
                                 dateStr,
-                                style: theme.textTheme.labelSmall?.copyWith(
+                                style: AppTypography.mono(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
                                   color: context.themeColors.onSurfaceMuted,
                                 ),
                               ),
                               SizedBox(height: 4),
                               Text(
                                 match.opponentLabel,
-                                style: theme.textTheme.titleSmall?.copyWith(
+                                style: AppTypography.soraRegular(
                                   fontWeight: FontWeight.w800,
+                                  fontSize: 12,
                                   color: context.themeColors.onSurface,
                                 ),
                                 maxLines: 1,
@@ -162,6 +166,7 @@ class _CampaignRow extends StatelessWidget {
                           match.scoreDisplay,
                           style: theme.textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w900,
+                            fontSize: 10,
                             color: context.themeColors.onSurface,
                           ),
                         ),

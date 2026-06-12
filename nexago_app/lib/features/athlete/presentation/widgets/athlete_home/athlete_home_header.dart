@@ -102,7 +102,7 @@ class AthleteHomeHeader extends StatelessWidget {
               Text(
                 dateLine,
                 style: AppTypography.mono(
-                  fontSize: 12,
+                  fontSize: 10,
                   color: context.themeColors.onSurfaceMuted,
                   fontWeight: FontWeight.w500,
                   letterSpacing: 0.2,
@@ -114,6 +114,7 @@ class AthleteHomeHeader extends StatelessWidget {
                 style: theme.textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.w900,
                   color: context.themeColors.onSurface,
+                  fontSize: 20,
                   letterSpacing: -0.3,
                 ),
               ),

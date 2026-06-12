@@ -130,7 +130,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   Future<void> _signOutAndGoLogin() async {
     setState(() => _submitting = true);
     try {
-      await ref.read(authServiceProvider).signOut();
+      await ref.read(appSignOutProvider)();
       if (!mounted) return;
       context.go(AppRoutes.login);
     } catch (_) {

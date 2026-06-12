@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -83,19 +84,23 @@ class MatchHistoryMatchCard extends StatelessWidget {
                                   children: [
                                     Text(
                                       match.opponentLabel,
-                                      style:
-                                          theme.textTheme.titleSmall?.copyWith(
-                                        fontWeight: FontWeight.w800,
-                                        color: context.themeColors.onSurface,
-                                      ),
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            color:
+                                                context.themeColors.onSurface,
+                                          ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     Text(
                                       match.competitionLabel,
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        color: context.themeColors.onSurfaceMuted,
-                                      ),
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: context
+                                                .themeColors
+                                                .onSurfaceMuted,
+                                          ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -109,13 +114,16 @@ class MatchHistoryMatchCard extends StatelessWidget {
                                     match.scoreDisplay,
                                     style: theme.textTheme.titleSmall?.copyWith(
                                       fontWeight: FontWeight.w900,
+                                      fontSize: 10,
                                       color: context.themeColors.onSurface,
                                     ),
                                   ),
                                   Text(
                                     dateStr,
-                                    style: theme.textTheme.labelSmall?.copyWith(
+                                    style: AppTypography.mono(
+                                      fontWeight: FontWeight.w600,
                                       color: context.themeColors.onSurfaceMuted,
+                                      fontSize: 10,
                                     ),
                                   ),
                                 ],

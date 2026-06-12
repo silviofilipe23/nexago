@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../arenas/domain/arena_list_item.dart';
-import '../../../../arenas/domain/arena_search_filter_logic.dart';
 import 'arena_search_highlight.dart';
 
 class FavoriteArenaCard extends StatelessWidget {
@@ -203,11 +202,7 @@ class FavoriteArenaHeartButton extends StatelessWidget {
                     color: AppColors.white,
                   ),
                 )
-              : const Icon(
-                  Icons.favorite,
-                  color: Color(0xFFE53935),
-                  size: 18,
-                ),
+              : const Icon(Icons.favorite, color: Color(0xFFE53935), size: 18),
         ),
       ),
     );

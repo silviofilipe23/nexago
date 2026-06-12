@@ -141,8 +141,42 @@ void main() {
 
       expect(timeline.blocks.first.isLongestStreak, isTrue);
       expect(timeline.summary.maxStreak, 6);
-      expect(timeline.summary.closerLabel, 'Carlos / Daniel');
+      expect(timeline.summary.closerLabel, 'Diego / Eduardo');
       expect(timeline.summary.finalScore, '18 – 21');
+    });
+
+    test('excludes estimated points from streak blocks', () {
+      final group = MatchDetailPlayByPlayGroup(
+        setNumber: 1,
+        setIndex: 0,
+        finalScoreLabel: '18-21',
+        items: [
+          _item(time: '14:19', isOurTeam: false, score: '7-8', teamLabel: 'adversário'),
+          _item(time: '14:20', isOurTeam: false, score: '7-9', teamLabel: 'adversário'),
+          _item(time: '14:21', isOurTeam: false, score: '7-10', teamLabel: 'adversário'),
+          MatchDetailPlayByPlayItem(
+            time: '14:36',
+            isOurTeam: true,
+            description: 'Ponto · sua dupla',
+            setNumber: 1,
+            scoreLabel: '18-21',
+            teamLabel: 'sua dupla',
+            isEstimated: true,
+          ),
+        ],
+      );
+
+      final timeline = buildPlayByPlaySetTimeline(
+        group: group,
+        detail: _detail(groups: [group]),
+      );
+
+      expect(timeline.blocks, hasLength(1));
+      expect(timeline.blocks.single.points, hasLength(3));
+      expect(timeline.unrecordedPointsCount, 1);
+      expect(timeline.lastRecordedScoreLabel, '7 – 10');
+      expect(timeline.summary.finalScore, '18 – 21');
+      expect(timeline.summary.closerLabel, 'Diego / Eduardo');
     });
 
     test('uses PONTO label for isolated points', () {

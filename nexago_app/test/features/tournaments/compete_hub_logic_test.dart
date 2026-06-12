@@ -1,7 +1,31 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/tournaments/domain/compete_hub_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
+
+AthleteProfile _athlete({
+  required String id,
+  String name = 'Atleta',
+  String city = '',
+  String? state,
+  String category = '',
+  String level = '',
+  String? avatarUrl,
+}) {
+  return AthleteProfile(
+    id: id,
+    name: name,
+    sport: 'Vôlei de praia',
+    level: level,
+    city: city,
+    state: state,
+    category: category.isEmpty ? null : category,
+    avatarUrl: avatarUrl,
+  );
+}
 
 DiscoveryTournament _tournament({
   required String id,
@@ -219,6 +243,56 @@ void main() {
     });
   });
 
+  group('pickTournamentsForHubPreview', () {
+    test('fills with finished tournaments when registerable list is short', () {
+      final result = pickTournamentsForHubPreview(
+        [
+          _tournament(
+            id: 'open',
+            name: 'Open',
+            createdAt: DateTime(2026, 6, 10),
+            categoryOffers: [_openCategory(id: 'c1')],
+          ),
+          _tournament(
+            id: 'ended',
+            name: 'Ended',
+            status: TournamentListingStatus.ended,
+            createdAt: DateTime(2026, 6, 9),
+            categoryOffers: [_openCategory(id: 'c2')],
+          ),
+          _tournament(
+            id: 'completed',
+            name: 'Completed',
+            status: TournamentListingStatus.completed,
+            createdAt: DateTime(2026, 6, 8),
+            categoryOffers: [_openCategory(id: 'c3')],
+          ),
+        ],
+        athleteGender: 'Masculino',
+        limit: 3,
+      );
+
+      expect(result.map((t) => t.id), ['open', 'ended', 'completed']);
+    });
+
+    test('does not duplicate tournaments when filling', () {
+      final result = pickTournamentsForHubPreview(
+        [
+          _tournament(
+            id: 'open',
+            name: 'Open',
+            categoryOffers: [_openCategory(id: 'c1')],
+          ),
+        ],
+        athleteGender: 'Masculino',
+        limit: 3,
+      );
+
+      expect(result, hasLength(1));
+      expect(result.single.id, 'open');
+    });
+  });
+
   group('hubTournamentDateLabel', () {
     test('formats short month label', () {
       final label = hubTournamentDateLabel(
@@ -226,6 +300,132 @@ void main() {
       );
       expect(label, contains('28'));
       expect(label, contains('mai'));
+    });
+  });
+
+  group('pickAthletesForHubPreview', () {
+    final viewer = _athlete(
+      id: 'me',
+      name: 'Viewer',
+      city: 'Goiânia',
+      state: 'GO',
+    );
+
+    test('prioritizes same city then same state', () {
+      final regional = [
+        _athlete(id: 'uf', name: 'UF', city: 'Anápolis', state: 'GO'),
+        _athlete(id: 'city1', name: 'C1', city: 'Goiânia', state: 'GO'),
+        _athlete(id: 'city2', name: 'C2', city: 'Goiânia', state: 'GO'),
+      ];
+
+      final picked = pickAthletesForHubPreview(
+        viewer: viewer,
+        regionalPool: regional,
+        randomPool: const [],
+        currentUserId: 'me',
+        limit: 3,
+        random: Random(1),
+      );
+
+      expect(picked.map((p) => p.id), containsAll(['city1', 'city2', 'uf']));
+      expect(picked.first.id, isIn(['city1', 'city2']));
+    });
+
+    test('fills with random pool when regional is insufficient', () {
+      final regional = [
+        _athlete(id: 'city1', name: 'C1', city: 'Goiânia', state: 'GO'),
+      ];
+      final random = List.generate(
+        5,
+        (i) => _athlete(id: 'r$i', name: 'R$i', city: 'SP', state: 'SP'),
+      );
+
+      final picked = pickAthletesForHubPreview(
+        viewer: viewer,
+        regionalPool: regional,
+        randomPool: random,
+        currentUserId: 'me',
+        limit: 4,
+        random: Random(2),
+      );
+
+      expect(picked, hasLength(4));
+      expect(picked.first.id, 'city1');
+      expect(picked.where((p) => p.id.startsWith('r')), hasLength(3));
+    });
+
+    test('excludes current user from results', () {
+      final regional = [
+        _athlete(id: 'me', name: 'Me', city: 'Goiânia', state: 'GO'),
+        _athlete(id: 'other', name: 'Other', city: 'Goiânia', state: 'GO'),
+      ];
+
+      final picked = pickAthletesForHubPreview(
+        viewer: viewer,
+        regionalPool: regional,
+        randomPool: const [],
+        currentUserId: 'me',
+        limit: 10,
+      );
+
+      expect(picked.map((p) => p.id), ['other']);
+    });
+
+    test('uses only random pool when viewer has no location', () {
+      final random = [
+        _athlete(id: 'a', city: 'Curitiba', state: 'PR'),
+        _athlete(id: 'b', city: 'SP', state: 'SP'),
+      ];
+
+      final picked = pickAthletesForHubPreview(
+        viewer: _athlete(id: 'me'),
+        regionalPool: const [],
+        randomPool: random,
+        currentUserId: 'me',
+        limit: 2,
+        random: Random(3),
+      );
+
+      expect(picked.map((p) => p.id), containsAll(['a', 'b']));
+    });
+  });
+
+  group('athleteMatchesViewerCity', () {
+    test('matches city with compatible state', () {
+      final viewer = _athlete(id: 'v', city: 'Goiânia', state: 'GO');
+      final other = _athlete(id: 'o', city: 'Goiânia', state: 'GO');
+      expect(athleteMatchesViewerCity(viewer, other), isTrue);
+    });
+
+    test('rejects different city', () {
+      final viewer = _athlete(id: 'v', city: 'Goiânia', state: 'GO');
+      final other = _athlete(id: 'o', city: 'Anápolis', state: 'GO');
+      expect(athleteMatchesViewerCity(viewer, other), isFalse);
+    });
+  });
+
+  group('buildCompeteHubAthletePreview', () {
+    test('uses category with level fallback', () {
+      final withCategory = buildCompeteHubAthletePreview(
+        _athlete(id: '1', name: 'Ana Silva', category: 'Cat B'),
+      );
+      expect(withCategory.name, 'Ana Silva');
+      expect(withCategory.categoryLabel, 'Cat B');
+      expect(withCategory.userId, '1');
+
+      final withLevel = buildCompeteHubAthletePreview(
+        _athlete(id: '2', name: 'Bob', level: 'Open'),
+      );
+      expect(withLevel.categoryLabel, 'Open');
+
+      final withPhoto = buildCompeteHubAthletePreview(
+        _athlete(
+          id: '3',
+          name: 'Carla',
+          avatarUrl: 'https://example.com/photo.jpg',
+        ),
+      );
+      expect(withPhoto.avatarUrl, 'https://example.com/photo.jpg');
     });
   });
 

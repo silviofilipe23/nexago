@@ -1,0 +1,42 @@
+---
+description: Strict UI patterns for bracket and ranking screens
+globs: src/app/components/{admin/bracket-view,team-ranking,athlete-ranking,ranking-page}/**/*.{html,ts,scss}
+alwaysApply: false
+---
+
+# Bracket and Ranking UI Rules
+
+## Match Card Hierarchy
+
+- Prioritize visual order: match stage/title > teams > score > metadata.
+- Keep score as primary visual anchor (`font-extrabold`, larger size, `tabular-nums`).
+- Metadata (time, court, match number) must remain compact and low emphasis.
+
+## Winner/Loser Semantics
+
+- Winner row must use explicit semantic styling (`emerald` accent, stronger border/background, winner badge).
+- Non-winner row should be visually de-emphasized (`opacity`/neutral background) without losing readability.
+- Do not rely on color alone; include text labels such as `VENCEDOR` or `CAMPEAO`.
+
+## Final Stage Emphasis
+
+- Final card must be more prominent than all other cards (strong gradient, ring, glow/shadow).
+- Third-place card should be highlighted, but always below final in hierarchy.
+- In-progress matches should have a clear live state (pulse/shimmer-like feedback), not subtle color-only changes.
+
+## Athlete Avatar Cluster
+
+- Team presentation should use dual-athlete avatar cluster when data exists.
+- Each avatar must support:
+  - image when `profilePhotoUrl` exists;
+  - initials fallback when image is missing.
+- Keep overlap, border, and size consistent across bracket and ranking screens.
+
+## Category Finalization Ordering
+
+- When category is finalized, display sections in this order:
+  1) Final
+  2) Third place
+  3) Elimination rounds (semis/quarters/etc.)
+  4) Group stage
+- Finalized category screens should be result-first and read-only oriented.

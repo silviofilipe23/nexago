@@ -273,7 +273,7 @@ class _ArenaSettingsLogoutSection extends ConsumerWidget {
       },
     );
     if (confirm != true || !context.mounted) return;
-    await ref.read(authServiceProvider).signOut();
+    await ref.read(appSignOutProvider)();
     if (!context.mounted) return;
     context.go(AppRoutes.login);
   }

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../../ranking/domain/ranking_display_helpers.dart';
 import '../../../tournaments/domain/app_user_profile.dart';
 import '../../../tournaments/domain/tournament_match.dart';
+import '../../../tournaments/domain/tournament_match_point_event.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
@@ -11,6 +12,7 @@ import 'athlete_match_detail_models.dart';
 import 'athlete_match_history_models.dart';
 import 'match_detail_momentum_logic.dart';
 import 'match_detail_play_by_play_logic.dart';
+import 'match_detail_set_timeline_logic.dart';
 
 class AthleteMatchDetailMapperContext {
   const AthleteMatchDetailMapperContext({
@@ -22,6 +24,7 @@ class AthleteMatchDetailMapperContext {
     required this.profiles,
     this.displayNameOverrides = const {},
     this.categoryLabelOverride,
+    this.pointEvents = const [],
   });
 
   final String athleteUid;
@@ -34,6 +37,7 @@ class AthleteMatchDetailMapperContext {
   final Map<String, AppUserProfile> profiles;
   final Map<String, String> displayNameOverrides;
   final String? categoryLabelOverride;
+  final List<TournamentMatchPointEvent> pointEvents;
 }
 
 AthleteMatchDetail? mapMatchToDetail({
@@ -150,15 +154,23 @@ AthleteMatchDetail _buildDetail({
         : null,
   );
   final rawSets = setsForMatch(match);
+  final displaySets = playedSetsForMatch(match);
   final currentSetIdx = match.currentSetIndex;
   final setScores = _setScores(
-    sets: rawSets,
+    sets: displaySets,
     perspectiveTeamId: perspectiveTeamId,
     match: match,
     currentSetIndex: currentSetIdx,
     isLive: phase == MatchDetailPhase.live,
   );
-  final timeline = _timelineFromSets(setScores);
+  final timeline = enrichSetTimelineItems(
+    match: match,
+    perspectiveTeamId: perspectiveTeamId,
+    items: _timelineFromSets(setScores),
+    isParticipantView: isParticipantView,
+    ourTeamLabel: ourTeam.label,
+    opponentTeamLabel: opponentTeam.label,
+  );
   final scheduleTime = match.scheduleTime;
   final startsIn = _startsInMinutes(scheduleTime);
   final (currentOur, currentOpp) = _currentSetPoints(
@@ -212,6 +224,7 @@ AthleteMatchDetail _buildDetail({
       opponentTeamLabel: opponentTeam.label,
       phase: phase,
       isParticipantView: isParticipantView,
+      pointEvents: context.pointEvents,
     ),
     playByPlayGroups: _playByPlayGroups(
       match: match,
@@ -219,6 +232,7 @@ AthleteMatchDetail _buildDetail({
       ourTeam: ourTeam,
       opponentTeam: opponentTeam,
       isParticipantView: isParticipantView,
+      pointEvents: context.pointEvents,
     ),
     playByPlay: _playByPlayPreview(
       match: match,
@@ -226,6 +240,7 @@ AthleteMatchDetail _buildDetail({
       ourTeam: ourTeam,
       opponentTeam: opponentTeam,
       isParticipantView: isParticipantView,
+      pointEvents: context.pointEvents,
     ),
     isParticipantView: isParticipantView,
     winnerTeamId: match.winnerId?.trim().isNotEmpty == true
@@ -549,6 +564,7 @@ List<MatchDetailPlayByPlayGroup> _playByPlayGroups({
   required MatchTeamSide ourTeam,
   required MatchTeamSide opponentTeam,
   required bool isParticipantView,
+  List<TournamentMatchPointEvent> pointEvents = const [],
 }) {
   return buildPlayByPlayTimeline(
     match: match,
@@ -556,6 +572,7 @@ List<MatchDetailPlayByPlayGroup> _playByPlayGroups({
     ourTeamLabel: ourTeam.label,
     opponentTeamLabel: opponentTeam.label,
     isParticipantView: isParticipantView,
+    pointEvents: pointEvents,
   );
 }
 
@@ -565,6 +582,7 @@ List<MatchDetailPlayByPlayItem> _playByPlayPreview({
   required MatchTeamSide ourTeam,
   required MatchTeamSide opponentTeam,
   required bool isParticipantView,
+  List<TournamentMatchPointEvent> pointEvents = const [],
 }) {
   final groups = _playByPlayGroups(
     match: match,
@@ -572,6 +590,7 @@ List<MatchDetailPlayByPlayItem> _playByPlayPreview({
     ourTeam: ourTeam,
     opponentTeam: opponentTeam,
     isParticipantView: isParticipantView,
+    pointEvents: pointEvents,
   );
   return buildPlayByPlayPreview(groups);
 }

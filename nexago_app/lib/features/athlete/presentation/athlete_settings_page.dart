@@ -45,7 +45,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
   }
 
   Future<void> _signOut() async {
-    await ref.read(authServiceProvider).signOut();
+    await ref.read(appSignOutProvider)();
   }
 
   Future<void> _openLegalSheet() async {

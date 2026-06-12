@@ -75,6 +75,38 @@ List<TournamentMatchSet> setsForMatch(TournamentMatch match) {
   return parseSetsFromResultStrings(match.resultA, match.resultB);
 }
 
+/// Sets efetivamente disputados — omite slots 0-0 não jogados (ex.: vitória 2-0).
+List<TournamentMatchSet> playedSetsForMatch(TournamentMatch match) {
+  final sets = setsForMatch(match);
+  if (sets.isEmpty) return sets;
+
+  final isLive = TournamentMatchStatus.isInProgress(match.status);
+  final currentSetIndex = match.currentSetIndex;
+
+  return [
+    for (var i = 0; i < sets.length; i++)
+      if (_setWasPlayed(
+        set: sets[i],
+        setIndex: i,
+        isLive: isLive,
+        currentSetIndex: currentSetIndex,
+      ))
+        sets[i],
+  ];
+}
+
+bool _setWasPlayed({
+  required TournamentMatchSet set,
+  required int setIndex,
+  required bool isLive,
+  required int? currentSetIndex,
+}) {
+  if (isLive && currentSetIndex != null && setIndex == currentSetIndex) {
+    return true;
+  }
+  return set.a + set.b > 0 || set.startedAt != null || set.endedAt != null;
+}
+
 List<TournamentMatchSet> parseSetsFromResultStrings(
   String resultA,
   String resultB,

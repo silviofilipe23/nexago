@@ -414,6 +414,14 @@ class PlayByPlayStreakTimeline extends StatelessWidget {
             _StreakTimelineRow(block: timeline.blocks[i]),
             if (i < timeline.blocks.length - 1) const SizedBox(height: 14),
           ],
+          if (timeline.unrecordedPointsCount > 0) ...[
+            const SizedBox(height: 14),
+            _UnrecordedPointsGap(
+              count: timeline.unrecordedPointsCount,
+              fromScore: timeline.lastRecordedScoreLabel,
+              toScore: timeline.summary.finalScore,
+            ),
+          ],
           const SizedBox(height: 8),
           PlayByPlaySetSummaryFooter(summary: timeline.summary),
         ],
@@ -644,6 +652,70 @@ class _PointScoreRow extends StatelessWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+class _UnrecordedPointsGap extends StatelessWidget {
+  const _UnrecordedPointsGap({
+    required this.count,
+    required this.fromScore,
+    required this.toScore,
+  });
+
+  final int count;
+  final String? fromScore;
+  final String toScore;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final pointsLabel = count == 1 ? '1 ponto' : '$count pontos';
+    final from = fromScore?.trim();
+    final trail = from != null && from.isNotEmpty
+        ? ' de $from até $toScore'
+        : ' até $toScore';
+
+    return Column(
+      children: [
+        SizedBox(
+          width: 28,
+          child: Column(
+            children: [
+              Container(width: 2, height: 12, color: AppColors.surfaceRaised),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceRaised,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.canvas, width: 2),
+                ),
+              ),
+              Container(width: 2, height: 12, color: AppColors.surfaceRaised),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceRaised.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.surfaceSheet),
+          ),
+          child: Text(
+            '··· $pointsLabel sem registro individual$trail',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.onSurfaceMuted,
+              fontSize: 10,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
       ],
     );
   }

@@ -2,7 +2,6 @@ import 'package:intl/intl.dart';
 
 import '../../domain/match_history/athlete_match_detail_models.dart';
 import '../../domain/match_history/athlete_match_history_models.dart';
-import '../../domain/match_history/match_detail_prototype_content.dart';
 import 'mock_athlete_match_history_data.dart';
 
 int _setsWon(List<MatchSetScore> sets) =>
@@ -77,8 +76,7 @@ AthleteMatchDetail _campaignDetail({
   final p2 = names.length > 1 ? names[1] : '—';
 
   final setsList = sets;
-  return enrichMatchDetailWithPrototypeDemo(
-    AthleteMatchDetail(
+  return AthleteMatchDetail(
     id: id,
     phase: MatchDetailPhase.completed,
     tournamentId: 'tour-copa-goias-2026',
@@ -120,7 +118,6 @@ AthleteMatchDetail _campaignDetail({
     durationLabel: '58min',
     mvpSummary: stage == 'FINAL' ? 'Você • 16 ataques • 4 aces · 5 blocks' : null,
     isParticipantView: true,
-  ),
   );
 }
 
@@ -130,8 +127,7 @@ AthleteMatchDetail _detailM1(AthleteMatchHistoryItem summary) {
       MatchSetScore(label: 'SET 2', ourScore: 18, opponentScore: 21),
       MatchSetScore(label: 'TIE', ourScore: 15, opponentScore: 12),
     ];
-  return enrichMatchDetailWithPrototypeDemo(
-    AthleteMatchDetail(
+  return AthleteMatchDetail(
     id: summary.id,
     phase: MatchDetailPhase.completed,
     tournamentId: 'tour-copa-goias-2026',
@@ -173,7 +169,6 @@ AthleteMatchDetail _detailM1(AthleteMatchHistoryItem summary) {
     durationLabel: '1h 12min',
     mvpSummary: 'Você • 18 ataques • 3 aces • 6 blocks',
     isParticipantView: true,
-  ),
   );
 }
 
@@ -182,8 +177,7 @@ AthleteMatchDetail _detailFromSummary(AthleteMatchHistoryItem summary) {
   final sets = _parseSets(summary.setsDisplay);
   final isWin = summary.isWin;
 
-  return enrichMatchDetailWithPrototypeDemo(
-    AthleteMatchDetail(
+  return AthleteMatchDetail(
     id: summary.id,
     phase: MatchDetailPhase.completed,
     tournamentId: _guessTournamentId(summary.competitionLabel),
@@ -233,7 +227,6 @@ AthleteMatchDetail _detailFromSummary(AthleteMatchHistoryItem summary) {
         ? 'Você • 14 ataques • 2 aces • 4 blocks'
         : null,
     isParticipantView: true,
-  ),
   );
 }
 

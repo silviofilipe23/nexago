@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -52,11 +54,14 @@ class _TournamentDiscoveryListPageState
     text: widget.initialQuery,
   );
   late final FocusNode _searchFocus = FocusNode();
+  Timer? _searchDebounce;
+  String _debouncedQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(() => setState(() {}));
+    _debouncedQuery = widget.initialQuery;
+    _searchController.addListener(_onSearchChanged);
     if (widget.initialSearchOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _searchFocus.requestFocus();
@@ -66,12 +71,21 @@ class _TournamentDiscoveryListPageState
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
   }
 
-  String get _query => _searchController.text;
+  void _onSearchChanged() {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (mounted) {
+        setState(() => _debouncedQuery = _searchController.text);
+      }
+    });
+  }
 
   void _openFilterSheet() {
     showModalBottomSheet<void>(
@@ -206,10 +220,13 @@ class _TournamentDiscoveryListPageState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tournamentsAsync = ref.watch(discoveryTournamentsProvider);
-    final query = _query;
-    final useKeywordSearch = isSearchTermLongEnough(query);
+    final searchQuery = _debouncedQuery;
+    final useKeywordSearch = isSearchTermLongEnough(searchQuery);
     final keywordSearchAsync = useKeywordSearch
-        ? ref.watch(discoveryTournamentKeywordSearchProvider(query))
+        ? ref.watch(discoveryTournamentKeywordSearchProvider(searchQuery))
+        : null;
+    final leagueKeywordSearchAsync = useKeywordSearch
+        ? ref.watch(discoveryLeagueKeywordSearchProvider(searchQuery))
         : null;
     final leaguesAsync = ref.watch(discoveryLeaguesProvider);
     final stats = ref.watch(tournamentHubStatsProvider);
@@ -248,17 +265,30 @@ class _TournamentDiscoveryListPageState
                 ),
               ),
               data: (allLeagues) {
-                if (useKeywordSearch &&
+                final keywordTournaments = keywordSearchAsync?.valueOrNull;
+                final useKeywordTournamentResults = useKeywordSearch &&
                     keywordSearchAsync != null &&
-                    keywordSearchAsync.isLoading) {
-                  return Center(
-                    child: CircularProgressIndicator(color: AppColors.brand),
-                  );
-                }
+                    !keywordSearchAsync.hasError &&
+                    keywordTournaments != null &&
+                    keywordTournaments.isNotEmpty;
 
-                final tournamentPool = useKeywordSearch &&
-                        keywordSearchAsync?.hasValue == true
-                    ? keywordSearchAsync!.value!
+                final keywordLeagues = leagueKeywordSearchAsync?.valueOrNull;
+                final useKeywordLeagueResults = useKeywordSearch &&
+                    leagueKeywordSearchAsync != null &&
+                    !leagueKeywordSearchAsync.hasError &&
+                    keywordLeagues != null &&
+                    keywordLeagues.isNotEmpty;
+
+                final keywordSearchLoading = useKeywordSearch &&
+                    ((keywordSearchAsync?.isLoading == true &&
+                            !keywordSearchAsync!.hasValue) ||
+                        (leagueKeywordSearchAsync?.isLoading == true &&
+                            !leagueKeywordSearchAsync!.hasValue)) &&
+                    !useKeywordTournamentResults &&
+                    !useKeywordLeagueResults;
+
+                final tournamentPool = useKeywordTournamentResults
+                    ? keywordTournaments
                     : allTournaments;
 
                 final filtered = filterDiscoveryTournaments(
@@ -266,21 +296,26 @@ class _TournamentDiscoveryListPageState
                   category: _category,
                   openOnly: _openOnly,
                 );
-                final filteredByQuery = useKeywordSearch
+                final filteredByQuery = useKeywordTournamentResults
                     ? filtered
                     : filterTournamentsByQuery(
                         filtered,
-                        query,
+                        searchQuery,
                       );
                 final sortedTournaments = sortDiscoveryTournamentsByDateProximity(
                   filteredByQuery,
                 );
+                final leagueSource = useKeywordLeagueResults
+                    ? keywordLeagues
+                    : allLeagues;
                 final leagues = visibleLeaguesForTournaments(
-                  leagues: allLeagues,
+                  leagues: leagueSource,
                   filteredTournaments: sortedTournaments,
                 );
                 final leaguesByQuery = sortDiscoveryLeaguesByDateProximity(
-                  filterLeaguesByQuery(leagues, query),
+                  useKeywordLeagueResults
+                      ? leagues
+                      : filterLeaguesByQuery(leagues, searchQuery),
                   sortedTournaments,
                 );
                 final standalone = standaloneTournaments(
@@ -328,6 +363,16 @@ class _TournamentDiscoveryListPageState
                       onOpenOnlyChanged: (v) => setState(() => _openOnly = v),
                     ),
                     SizedBox(height: 18),
+                    if (keywordSearchLoading)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 40),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.brand,
+                          ),
+                        ),
+                      )
+                    else ...[
                     if (_segment == DiscoveryListSegment.all ||
                         _segment == DiscoveryListSegment.leagues) ...[
                       if (leaguesByQuery.isNotEmpty) ...[
@@ -391,6 +436,7 @@ class _TournamentDiscoveryListPageState
                           ),
                           SizedBox(height: 10),
                         ],
+                    ],
                     ],
                   ],
                 );

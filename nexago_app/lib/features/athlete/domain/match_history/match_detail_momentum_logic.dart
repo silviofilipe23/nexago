@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../../../tournaments/domain/tournament_match.dart';
+import '../../../tournaments/domain/tournament_match_point_event.dart';
 import '../../../tournaments/domain/tournament_match_point_action.dart';
 import 'athlete_match_detail_models.dart';
 import 'match_detail_play_by_play_logic.dart';
@@ -14,6 +15,7 @@ MatchDetailMomentumInfo? buildMatchDetailMomentumInfo({
   required String opponentTeamLabel,
   required MatchDetailPhase phase,
   required bool isParticipantView,
+  List<TournamentMatchPointEvent> pointEvents = const [],
 }) {
   if (phase != MatchDetailPhase.live && phase != MatchDetailPhase.completed) {
     return null;
@@ -31,6 +33,7 @@ MatchDetailMomentumInfo? buildMatchDetailMomentumInfo({
     ourTeamLabel: ourTeamLabel,
     opponentTeamLabel: opponentTeamLabel,
     isParticipantView: isParticipantView,
+    pointEvents: pointEvents,
   );
 
   final scoredPointCount =
@@ -63,7 +66,7 @@ MatchDetailMomentumInfo? buildMatchDetailMomentumInfo({
     ourTeamLabel: ourTeamLabel,
     opponentTeamLabel: opponentTeamLabel,
     chartPoints: chartPoints,
-    narrative: _buildNarrative(
+    narrative: buildSetNarrative(
       actions: actions,
       ourIsSideA: ourIsSideA,
       ourLabel: ourLabel,
@@ -89,6 +92,7 @@ List<MatchDetailPlayByPlayItem> _focusSetPlayByPlayItems({
   required String ourTeamLabel,
   required String opponentTeamLabel,
   required bool isParticipantView,
+  List<TournamentMatchPointEvent> pointEvents = const [],
 }) {
   final groups = buildPlayByPlayTimeline(
     match: match,
@@ -96,6 +100,7 @@ List<MatchDetailPlayByPlayItem> _focusSetPlayByPlayItems({
     ourTeamLabel: ourTeamLabel,
     opponentTeamLabel: opponentTeamLabel,
     isParticipantView: isParticipantView,
+    pointEvents: pointEvents,
   );
 
   for (final group in groups) {
@@ -241,7 +246,7 @@ String? _buildSummaryLabel({
   return '${streak.$2} pontos seguidos · $who';
 }
 
-String _buildNarrative({
+String buildSetNarrative({
   required List<TournamentMatchPointAction> actions,
   required bool ourIsSideA,
   required String ourLabel,

@@ -1,0 +1,108 @@
+---
+description: NexaGO Court System UI design system for Angular frontend
+globs: src/**/*.{html,ts,scss}
+alwaysApply: false
+---
+
+# NexaGO Design System
+
+## Product Philosophy
+
+The platform is a tournament operating system focused on operational clarity, fast mobile use, and real-time readability in outdoor environments.
+
+The UI should feel competitive, modern, energetic, and data-oriented. Avoid generic SaaS aesthetics that dilute the sports identity.
+
+## Visual Direction
+
+Use the Court System direction:
+
+- dark surfaces on `--nx-surface-0` / `--nx-surface-1`
+- orange accent on `--color-primary`
+- subtle borders on `--nx-line`
+- restrained elevation (`--nx-elev-1`, `--nx-elev-2`, `--nx-elev-3`)
+- glass overlays via `--nx-glass-blur` and `--nx-glass-saturate`
+- orange glow only for live or focused states (`--nx-glow-orange`)
+
+Do not rely on heavy blur stacks, neon cyan/purple gradients, or oversized shadows in dark mode.
+
+## Tokens
+
+Prefer the `nx-*` tokens from `src/app/styles/tokens.scss`:
+
+- spacing: `--nx-s-1` through `--nx-s-9`
+- radius: `--nx-r-1` through `--nx-r-5`, `--nx-radius-pill`
+- motion: `--nx-d-fast`, `--nx-d-base`, `--nx-d-slow`
+- easing: `--nx-ease-out`, `--nx-ease-spring`
+- labels: `--nx-font-label`
+
+Legacy `--space-*` and `--radius-*` tokens remain for older screens; migrate new work to `nx-*`.
+
+## Core Rules
+
+- One full-orange primary CTA per screen.
+- Secondary actions use ghost or solid-dark variants.
+- Cards use 18px radius, 1px `--nx-line`, and light elevation by default.
+- Text fields are 52px tall with visible uppercase labels.
+- Primary buttons use white text on orange (`--color-on-primary`).
+- Minimum touch target is 44x44px.
+- Common UI transitions should stay at or below 240ms.
+- Prefer skeleton shimmer over centered spinners for page loading.
+- Skeletons appear after `--nx-skeleton-delay` (200ms) and use low-chroma shimmer for 1.4s.
+- In-app toasts auto-dismiss after `--nx-toast-duration` (4s) with slide-down entry and swipe-up dismiss.
+
+## Shared Components
+
+Use the primitives in `src/app/components/shared/ui/` before inventing page-specific markup:
+
+- `app-ui-button`
+- `app-ui-card`
+- `app-ui-input`
+- `app-ui-chip`
+- `app-ui-segmented-control`
+- `app-ui-skeleton`
+- `app-ui-avatar`
+- `app-ui-list-row`
+- `app-ui-bottom-sheet`
+- `app-ui-live-scoreboard`
+- `app-ui-toast`
+- `app-ui-empty-state`
+- `app-ui-loading-state`
+
+Domain-aligned surfaces:
+
+- `app-match-card` (scheduled / live / final variants, set ribbon, live glow)
+- `app-mobile-nav-footer` (floating tab bar, 64px, glass blur)
+- `app-navbar` (Top Bar 64px, root/detail modes)
+- `app-toast-container` (in-app toast stack)
+
+### Match Card
+
+- Estados visuais: `scheduled` (meta `#N · QUADRA`, chip com horário, placar `—`), `live` (meta `SET n · mm:ss`, chip `AO VIVO`, glow laranja, ribbon mono dos sets encerrados), `final` (meta fase + quadra, chip `ENCERRADA`, sets vencidos com vencedor em verde, ribbon `21-18` por set).
+- Toque curto emite `cardOpen`; long-press ou botão “Mais ações” abre `app-ui-bottom-sheet` com `quickActions` e conteúdo projetado em `[data-match-card-actions]`.
+- `options.interactive: false` desativa gestos; `options.showContextFooter` controla rodapés contextuais (bracket, atleta, vitória/derrota).
+
+### Toast
+
+- Variants: info (orange), success (green), error (live red).
+- Sports notifications should lead with compact pair/score title when data is available.
+- Tap navigates when `action.route` is provided.
+
+### Empty State
+
+- Geometric icon at 64px, title 18px bold, subtitle 13px muted.
+- Optional CTA via `app-ui-button` (primary uses white on orange).
+
+### Skeleton
+
+- Presets: `block`, `circle`, `matchCard`, `listRow`, `pageHeader`, `bracketTree`.
+- Do not use centered page spinners; match the loading layout shape.
+
+Global utility classes in `src/styles.scss` such as `.nx-card`, `.nx-btn`, `.nx-input`, `.nx-auth-*`, `.nx-chip`, `.nx-segmented`, and `.nx-skeleton` should stay aligned with those components.
+
+## Auth Screens
+
+Login and register should use the auth shell/card pattern:
+
+- Google action: ghost
+- form submit: primary
+- register submit: primary `lg`

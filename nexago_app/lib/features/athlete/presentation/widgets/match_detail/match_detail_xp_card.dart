@@ -51,7 +51,10 @@ class MatchDetailXpCard extends StatelessWidget {
                           color: context.themeColors.onSurface,
                         ),
                         children: [
-                          TextSpan(text: '+${xp.xpGained} XP • você subiu para '),
+                          if (xp.xpGained != null)
+                            TextSpan(text: '+${xp.xpGained} XP • você subiu para ')
+                          else
+                            const TextSpan(text: 'Vitória • você está em '),
                           TextSpan(
                             text: xp.rankLabel,
                             style: TextStyle(color: AppColors.brand),
@@ -61,7 +64,9 @@ class MatchDetailXpCard extends StatelessWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      '${xp.streakLabel} • ${xp.levelProgressLabel}',
+                      xp.levelProgressLabel != null
+                          ? '${xp.streakLabel} • ${xp.levelProgressLabel}'
+                          : xp.streakLabel,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: context.themeColors.onSurfaceMuted,
                         fontWeight: FontWeight.w600,
@@ -72,16 +77,18 @@ class MatchDetailXpCard extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: xp.progress.clamp(0.0, 1.0),
-              minHeight: 6,
-              backgroundColor: context.themeColors.surfaceRaised,
-              color: AppColors.brand,
+          if (xp.progress != null) ...[
+            SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: xp.progress!.clamp(0.0, 1.0),
+                minHeight: 6,
+                backgroundColor: context.themeColors.surfaceRaised,
+                color: AppColors.brand,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

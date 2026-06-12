@@ -65,41 +65,56 @@ service cloud.firestore {
         'matchStartedAt',
         'matchEndedAt',
         'lastActions',
+        'pointEventSeq',
         'updatedAt'
       ]);
+    }
+    function matchDoc(appId, matchId) {
+      return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/matches/$(matchId));
+    }
+    function canWriteMatchPointEvents(appId, matchId) {
+      return request.auth != null && matchDoc(appId, matchId).data != null && (
+        isAdmin() ||
+        isSuperAdmin() ||
+        isTournamentOrganizer() ||
+        canManageTournament(matchDoc(appId, matchId).data.tournamentId) ||
+        canScoreTournament(matchDoc(appId, matchId).data.tournamentId)
+      );
+    }
+    function isValidPointEventCreate(appId, matchId) {
+      let expectedSeq = matchDoc(appId, matchId).data.get('pointEventSeq', 0) + 1;
+      return request.resource.data.keys().hasAll(['seq', 'type', 'setIndex', 'scoreA', 'scoreB', 'ts']) &&
+        request.resource.data.seq is int &&
+        request.resource.data.seq == expectedSeq &&
+        request.resource.data.type in ['match-start', 'point', 'set-end', 'undo-point', 'undo-set-end', 'match-end'] &&
+        request.resource.data.setIndex is int &&
+        request.resource.data.setIndex >= 0 &&
+        request.resource.data.setIndex <= 2 &&
+        request.resource.data.scoreA is int &&
+        request.resource.data.scoreB is int &&
+        request.resource.data.scoreA >= 0 &&
+        request.resource.data.scoreB >= 0 &&
+        request.resource.data.ts is timestamp;
     }
     function canWriteOperationalTorneios() {
       return isAdmin() || isSuperAdmin() || isTournamentOrganizer();
     }
 
-    function userDocHasRole(data, requiredRole) {
-      return data.roles is list && data.roles.size() > 0
-        ? data.roles.hasAny([requiredRole])
-        : ('role' in data && data.role == requiredRole);
-    }
-
-    function userDocHasAthleteRole(data) {
-      return userDocHasRole(data, 'athlete');
-    }
-
     function userDocIsPublicAthlete(resource) {
-      return resource != null && userDocHasAthleteRole(resource.data);
-    }
-    /** Atleta autenticado buscando parceiro (inscrição em torneio). */
-    function authUserCanListAthleteProfiles() {
-      return request.auth != null &&
-        resource != null &&
-        userDocHasAthleteRole(resource.data) &&
-        (
-          hasRoleClaim('athlete') ||
-          authUserHasAthleteProfile()
-        );
+      return resource != null && (
+        (resource.data.roles is list && 'athlete' in resource.data.roles) ||
+        resource.data.role == 'athlete'
+      );
     }
     /** Atleta logado pré-cadastra parceiro sem conta (inscrição em torneio). */
     function authUserHasAthleteProfile() {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        userDocHasAthleteRole(
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'athlete' ||
+          (
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles is list &&
+            'athlete' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles
+          )
         );
     }
     function inviterCanPreRegisterPartner() {
@@ -151,7 +166,8 @@ service cloud.firestore {
     }
     function isAthleteProfile(doc) {
       return doc != null && (
-        userDocHasAthleteRole(doc.data) ||
+        doc.data.role == 'athlete' ||
+        (doc.data.roles is list && doc.data.roles.hasAny(['athlete'])) ||
         (
           !('role' in doc.data) &&
           (!(doc.data.roles is list) || doc.data.roles.size() == 0)
@@ -500,6 +516,14 @@ service cloud.firestore {
       allow create, delete: if request.auth != null && request.auth.uid == userId;
     }
 
+    match /users/{userId}/followingTeams/{teamId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null &&
+        request.auth.uid == userId &&
+        request.resource.data.teamId == teamId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
     // Índice de torneios em que o atleta atua como staff (espelho de tournaments/{id}/staff/{userId})
     match /users/{userId}/tournamentStaff/{tournamentId} {
       allow read: if request.auth != null && request.auth.uid == userId;
@@ -783,6 +807,13 @@ service cloud.firestore {
       
       // Deletar partida: apenas admins podem deletar
       allow delete: if request.auth != null && isAdmin();
+
+      // Timeline append-only de lançamento (replay / analytics).
+      match /pointEvents/{eventId} {
+        allow read: if true;
+        allow create: if canWriteMatchPointEvents(appId, matchId) && isValidPointEventCreate(appId, matchId);
+        allow update, delete: if false;
+      }
     }
     
     // Regras para mensagens de contato (criação apenas via Cloud Function após validar captcha)

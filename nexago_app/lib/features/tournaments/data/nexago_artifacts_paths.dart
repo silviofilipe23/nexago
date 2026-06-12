@@ -24,6 +24,9 @@ abstract final class NexagoArtifactsPaths {
 
   static String matchesCollection() => '$publicDataBase/matches';
 
+  static String matchPointEventsCollection(String matchId) =>
+      '${matchesCollection()}/${matchId.trim()}/pointEvents';
+
   static String legacyTournamentDoc(String tournamentId) =>
       '$publicDataBase/tournaments/$tournamentId';
 }

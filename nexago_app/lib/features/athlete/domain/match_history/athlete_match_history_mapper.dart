@@ -5,6 +5,7 @@ import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
 import 'athlete_match_history_models.dart';
+import 'athlete_tournament_detail_mapper.dart';
 
 class TournamentHistoryMeta {
   const TournamentHistoryMeta({
@@ -21,11 +22,13 @@ class AthleteMatchHistoryMapperContext {
     required this.athleteTeamIds,
     required this.tournamentNames,
     required this.teamDisplayNames,
+    this.tournamentDetails = const {},
   });
 
   final Set<String> athleteTeamIds;
   final Map<String, String> tournamentNames;
   final Map<String, String> teamDisplayNames;
+  final Map<String, TournamentDetail> tournamentDetails;
 }
 
 AthleteMatchHistoryItem? mapMatchToHistoryItem({
@@ -47,7 +50,13 @@ AthleteMatchHistoryItem? mapMatchToHistoryItem({
 
   final tournamentName =
       context.tournamentNames[match.tournamentId] ?? 'Torneio';
-  final competitionLabel = '$tournamentName · ${match.categoryId}';
+  final categoryLabel = resolveTournamentCategoryLabel(
+    categoryId: match.categoryId,
+    tournamentDoc: context.tournamentDetails[match.tournamentId],
+  );
+  final competitionLabel = categoryLabel.isEmpty
+      ? tournamentName
+      : '$tournamentName · $categoryLabel';
 
   final isWin = match.athleteTeamWon(athleteTeamId);
   final scoreDisplay = scoreDisplayForAthleteTeam(
@@ -85,6 +94,7 @@ List<AthleteTournamentHistoryItem> buildTournamentHistoryItems({
   required Set<String> athleteTeamIds,
   required Map<String, String> tournamentNames,
   Map<String, TournamentHistoryMeta> tournamentMeta = const {},
+  Map<String, TournamentDetail> tournamentDetails = const {},
 }) {
   final byTournament = <String, List<TournamentMatch>>{};
   for (final match in rawMatches) {
@@ -106,7 +116,10 @@ List<AthleteTournamentHistoryItem> buildTournamentHistoryItems({
       if (teamId == null || !TournamentMatchStatus.isCompleted(match.status)) {
         continue;
       }
-      categoryLabel ??= match.categoryId;
+      categoryLabel ??= resolveTournamentCategoryLabel(
+        categoryId: match.categoryId,
+        tournamentDoc: tournamentDetails[tournamentId],
+      );
       final playedAt = playedAtForMatch(match);
       if (playedAt != null &&
           (latestPlayedAt == null || playedAt.isAfter(latestPlayedAt))) {

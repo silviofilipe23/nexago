@@ -15,7 +15,6 @@ import '../../arenas/domain/booking_providers.dart';
 import '../domain/booking_attendance_providers.dart';
 import 'widgets/booking_details/booking_details_actions_section.dart';
 import 'widgets/booking_details/booking_details_app_bar.dart';
-import 'widgets/booking_details/booking_details_bottom_bar.dart';
 import 'widgets/booking_details/booking_details_policy_cards.dart';
 import 'widgets/booking_details/booking_details_hero_card.dart';
 import 'widgets/booking_details/booking_details_location_section.dart';

@@ -41,6 +41,50 @@ void main() {
     await initializeDateFormatting('pt_BR');
   });
 
+  group('playedSetsForMatch', () {
+    test('excludes unplayed third set on 2-0 completed match', () {
+      final match = _match(
+        status: TournamentMatchStatus.completed,
+        winnerId: 'team-a',
+        sets: const [
+          TournamentMatchSet(a: 21, b: 15),
+          TournamentMatchSet(a: 21, b: 18),
+          TournamentMatchSet(a: 0, b: 0),
+        ],
+      );
+
+      expect(setsForMatch(match), hasLength(3));
+      expect(playedSetsForMatch(match), hasLength(2));
+    });
+
+    test('keeps current live set even when score is 0-0', () {
+      final match = TournamentMatch(
+        id: 'm1',
+        tournamentId: 't1',
+        categoryId: 'cat-a',
+        round: 1,
+        matchType: 'Group',
+        poolId: 'A',
+        teamAId: 'team-a',
+        teamBId: 'team-b',
+        status: TournamentMatchStatus.inProgress,
+        resultA: '',
+        resultB: '',
+        isGroupMatch: true,
+        matchNumber: 1,
+        sets: const [
+          TournamentMatchSet(a: 21, b: 19),
+          TournamentMatchSet(a: 0, b: 0),
+        ],
+        currentSetIndex: 1,
+      );
+
+      expect(playedSetsForMatch(match), hasLength(2));
+      expect(playedSetsForMatch(match).last.a, 0);
+      expect(playedSetsForMatch(match).last.b, 0);
+    });
+  });
+
   group('setsWonCountForMatch', () {
     test('counts sets won from structured sets', () {
       final match = _match(

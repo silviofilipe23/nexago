@@ -19,8 +19,8 @@ class MyTournamentsHomeSection extends ConsumerWidget {
 
     return regsAsync.when(
       data: (regs) {
-        if (regs.isEmpty) return const SizedBox.shrink();
         final preview = sortRegistrationsForHomePreview(regs).take(3).toList();
+        if (preview.isEmpty) return const SizedBox.shrink();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [

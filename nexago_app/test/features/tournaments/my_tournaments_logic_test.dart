@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/domain/my_tournaments_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
-import 'package:nexago_app/features/tournaments/domain/tournament_listing_status.dart';
 
 DiscoveryTournament _tournament({
   required String id,
@@ -168,6 +167,32 @@ void main() {
       );
       expect(registrationShowsAsLiveToday(reg), isTrue);
       expect(registrationHomeBadgeLabel(reg), 'DIA DO EVENTO');
+    });
+
+    test('sortRegistrationsForHomePreview excludes completed tournaments', () {
+      final ongoing = MyTournamentRegistration(
+        registrationId: 'reg-ongoing',
+        tournamentId: 'ongoing',
+        tournamentName: 'Em andamento',
+        dateLabel: '15/07',
+        statusLabel: 'Inscrito',
+        isPaid: true,
+        categoryId: 'cat',
+        listingStatus: TournamentListingStatus.open,
+      );
+      final completed = MyTournamentRegistration(
+        registrationId: 'reg-done',
+        tournamentId: 'done',
+        tournamentName: 'Concluído',
+        dateLabel: '01/06',
+        statusLabel: 'Concluído',
+        isPaid: true,
+        categoryId: 'cat',
+        listingStatus: TournamentListingStatus.completed,
+      );
+      final sorted = sortRegistrationsForHomePreview([completed, ongoing]);
+      expect(sorted, hasLength(1));
+      expect(sorted.first.registrationId, 'reg-ongoing');
     });
 
     test('sortRegistrationsForHomePreview puts live today first', () {

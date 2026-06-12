@@ -114,9 +114,8 @@ class _SecondaryPillButton extends StatelessWidget {
   const _SecondaryPillButton({
     required this.label,
     required this.onTap,
-    this.icon,
     this.loading = false,
-  });
+  }) : icon = null;
 
   final String label;
   final VoidCallback onTap;

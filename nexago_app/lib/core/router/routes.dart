@@ -200,6 +200,9 @@ abstract final class AppRoutes {
   /// Listagem de duplas (catálogo público).
   static const String teamDiscover = '/competir/duplas';
 
+  /// Perfil público da dupla: `/competir/duplas/:teamId`
+  static const String teamProfile = '/competir/duplas/:teamId';
+
   /// Torneios inscritos do atleta (em andamento e concluídos).
   static const String myTournaments = '/competir/meus-torneios';
 }
@@ -287,5 +290,6 @@ abstract final class AppRouteNames {
   static const String athleteRanking = 'athleteRanking';
   static const String athleteDiscover = 'athleteDiscover';
   static const String teamDiscover = 'teamDiscover';
+  static const String teamProfile = 'teamProfile';
   static const String myTournaments = 'myTournaments';
 }

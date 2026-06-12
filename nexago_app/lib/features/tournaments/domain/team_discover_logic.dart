@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../../athlete/domain/athlete_discover_logic.dart';
 import '../../athlete/domain/athlete_firestore_codes.dart';
 import '../../athlete/domain/athlete_profile.dart';
@@ -34,7 +36,7 @@ bool matchesTeamDiscoverSearch(TeamDiscoverEntry entry, String query) {
   return parts.any((p) => p.toLowerCase().contains(q));
 }
 
-RankingGenderFilter? _teamGender(TeamDiscoverEntry entry) {
+RankingGenderFilter? resolveTeamDiscoverGender(TeamDiscoverEntry entry) {
   final fromTeam = normalizeRankingGender(entry.team.gender);
   if (fromTeam != null) return fromTeam;
   final g1 = normalizeRankingGender(entry.player1?.gender);
@@ -47,9 +49,18 @@ RankingGenderFilter? _teamGender(TeamDiscoverEntry entry) {
   return g1 ?? g2;
 }
 
+String teamDiscoverGenderLabel(TeamDiscoverEntry entry) {
+  return switch (resolveTeamDiscoverGender(entry)) {
+    RankingGenderFilter.male => 'Masculino',
+    RankingGenderFilter.female => 'Feminino',
+    RankingGenderFilter.mixed => 'Misto',
+    _ => '',
+  };
+}
+
 bool _matchesTeamGender(TeamDiscoverEntry entry, TeamDiscoverGenderFilter filter) {
   if (filter == TeamDiscoverGenderFilter.all) return true;
-  final entity = _teamGender(entry);
+  final entity = resolveTeamDiscoverGender(entry);
   return matchesRankingGenderFilter(
     teamDiscoverGenderToRanking(filter)!,
     entity,
@@ -67,17 +78,6 @@ bool _matchesSport(TeamDiscoverEntry entry, String? sportFirestoreId) {
     }
   }
   return false;
-}
-
-bool _matchesCategory(TeamDiscoverEntry entry, TeamDiscoverFilters filters) {
-  final quick = filters.quickCategory.label.trim();
-  final cat = entry.displayCategory.trim().toLowerCase();
-  if (quick.isNotEmpty) {
-    if (cat.isEmpty || !cat.contains(quick.toLowerCase())) return false;
-  }
-  if (filters.categories.isEmpty) return true;
-  if (cat.isEmpty) return false;
-  return filters.categories.any((c) => cat.contains(c.toLowerCase()));
 }
 
 bool _matchesProximity(
@@ -151,7 +151,6 @@ List<TeamDiscoverEntry> applyTeamDiscoverFilters({
     if (!matchesTeamDiscoverSearch(entry, q)) return false;
     if (!_matchesTeamGender(entry, filters.gender)) return false;
     if (!_matchesSport(entry, filters.sportFirestoreId)) return false;
-    if (!_matchesCategory(entry, filters)) return false;
     if (!_matchesProximity(entry, viewerProfile, filters)) return false;
     if (!_matchesPartnership(entry, filters)) return false;
     if (!_matchesTrending(entry, filters)) return false;
@@ -254,6 +253,19 @@ String? teamSportFirestoreIdForLabel(String label) {
     }
   }
   return null;
+}
+
+/// Amostra aleatória de equipes para preview do hub (antes do enrich).
+List<TournamentTeam> pickRandomTeamsForHubPreview(
+  List<TournamentTeam> teams, {
+  int count = 5,
+  Random? random,
+}) {
+  if (teams.isEmpty || count <= 0) return const [];
+
+  final rng = random ?? Random();
+  final shuffled = [...teams]..shuffle(rng);
+  return shuffled.take(count).toList();
 }
 
 TeamDiscoverEntry buildTeamDiscoverEntry({

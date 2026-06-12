@@ -62,6 +62,35 @@ class GamificationService {
         .doc(eventId);
   }
 
+  static const String tournamentMatchWonEventType = 'TOURNAMENT_MATCH_WON';
+
+  static String tournamentMatchXpEventId(String matchId) =>
+      'tournament_match_${matchId.trim()}';
+
+  /// XP concedido para vitória em partida de torneio, ou `null` se ainda não creditado.
+  Stream<int?> watchTournamentMatchXpAwarded({
+    required String userId,
+    required String matchId,
+  }) {
+    final uid = userId.trim();
+    final mid = matchId.trim();
+    if (uid.isEmpty || mid.isEmpty) return Stream.value(null);
+
+    return _eventRef(uid, tournamentMatchXpEventId(mid)).snapshots().map((snap) {
+      if (!snap.exists) return null;
+      final data = snap.data();
+      if (data == null) return null;
+
+      final xp = (data['xp'] as num?)?.toInt();
+      if (xp != null && xp > 0) return xp;
+
+      final type = data['type']?.toString() ?? '';
+      if (type == tournamentMatchWonEventType) return xpGameCompleted;
+
+      return null;
+    });
+  }
+
   Stream<GamificationSummary> watchSummary(String userId) {
     return _summaryRef(userId).snapshots().map((doc) {
       final map = doc.data();

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import '../../../../../core/ui/app_snackbar.dart';
 import '../../../domain/match_history/athlete_match_detail_models.dart';
 import 'match_detail_info_section.dart';
 import 'match_detail_section_header.dart';
@@ -44,7 +43,8 @@ class MatchDetailWhereWhenSection extends StatelessWidget {
       ),
     ];
 
-    if (detail.durationLabel != '—' && detail.phase == MatchDetailPhase.completed) {
+    if (detail.durationLabel != '—' &&
+        detail.phase == MatchDetailPhase.completed) {
       rows.add(
         MatchDetailInfoRow(
           icon: Icons.timer_outlined,
@@ -63,29 +63,30 @@ class MatchDetailWhereWhenSection extends StatelessWidget {
         ),
         SizedBox(height: 14),
         MatchDetailInfoSection(rows: rows),
-        if (showActions) ...[
-          SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _PrimaryActionButton(
-                  icon: Icons.notifications_active_rounded,
-                  label: 'Lembrar-me',
-                  onTap: () => showAppSnackBar(context, 'Em breve.'),
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                child: _SecondaryActionButton(
-                  icon: Icons.account_tree_outlined,
-                  label: 'Ver chave',
-                  onTap: onViewBracket ??
-                      () => showAppSnackBar(context, 'Em breve.'),
-                ),
-              ),
-            ],
-          ),
-        ],
+        // if (showActions) ...[
+        //   SizedBox(height: 16),
+        //   Row(
+        //     children: [
+        //       // Expanded(
+        //       //   child: _PrimaryActionButton(
+        //       //     icon: Icons.notifications_active_rounded,
+        //       //     label: 'Lembrar-me',
+        //       //     onTap: () => showAppSnackBar(context, 'Em breve.'),
+        //       //   ),
+        //       // ),
+        //       SizedBox(width: 12),
+        //       Expanded(
+        //         child: _SecondaryActionButton(
+        //           icon: Icons.account_tree_outlined,
+        //           label: 'Ver chave',
+        //           onTap:
+        //               onViewBracket ??
+        //               () => showAppSnackBar(context, 'Em breve.'),
+        //         ),
+        //       ),
+        //     ],
+        //   ),
+        // ],
       ],
     );
   }

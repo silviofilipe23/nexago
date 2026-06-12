@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
+import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
 import '../../../../ranking/domain/ranking_display_helpers.dart';
 import '../../../domain/compete_hub_models.dart';
+
+const _hubRankingAvatarSize = 36.0;
 
 class CompeteHubRankingRow extends StatelessWidget {
   const CompeteHubRankingRow({super.key, required this.entry});
@@ -43,21 +46,10 @@ class CompeteHubRankingRow extends StatelessWidget {
               ),
             ),
           ),
-          Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: entry.avatarColor.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              entry.initials,
-              style: theme.textTheme.labelSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: entry.avatarColor,
-              ),
-            ),
+          AthleteProfileAvatar(
+            size: _hubRankingAvatarSize,
+            initials: entry.initials,
+            imageUrl: entry.avatarUrl,
           ),
           SizedBox(width: 10),
           Expanded(

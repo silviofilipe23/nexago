@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../../../tournaments/domain/tournament_match.dart';
+import '../../../tournaments/domain/tournament_match_point_event.dart';
 import 'athlete_match_detail_models.dart';
 
 const playByPlayPreviewLimit = 6;
@@ -11,40 +12,50 @@ List<MatchDetailPlayByPlayGroup> buildPlayByPlayTimeline({
   required String ourTeamLabel,
   required String opponentTeamLabel,
   required bool isParticipantView,
+  List<TournamentMatchPointEvent> pointEvents = const [],
 }) {
   final ourIsSideA = match.teamAId.trim() == perspectiveTeamId.trim();
-  final pointActions =
-      match.lastActions.where((a) => a.isPoint).toList()
-        ..sort((a, b) => a.ts.compareTo(b.ts));
-
   final pointsBySet = <int, List<_TimelinePoint>>{};
-  for (final action in pointActions) {
-    final setIndex = action.setIndex;
-    final current = pointsBySet[setIndex];
-    final last = current == null || current.isEmpty
-        ? (our: 0, opp: 0)
-        : (our: current.last.ourScore, opp: current.last.oppScore);
-    final isOurPoint = action.isSideA == ourIsSideA;
-    final updated = isOurPoint
-        ? (our: last.our + action.delta, opp: last.opp)
-        : (our: last.our, opp: last.opp + action.delta);
 
-    pointsBySet.putIfAbsent(setIndex, () => []).add(
-      _TimelinePoint(
-        ts: action.ts,
-        isOurTeam: isOurPoint,
-        ourScore: updated.our,
-        oppScore: updated.opp,
-      ),
-    );
-  }
-
-  if (match.sets.isNotEmpty) {
-    _completeTimelineFromSetScores(
+  if (pointEvents.isNotEmpty) {
+    _replayPointEventsToTimeline(
+      pointEvents: pointEvents,
       pointsBySet: pointsBySet,
-      match: match,
       ourIsSideA: ourIsSideA,
     );
+  } else {
+    final pointActions =
+        match.lastActions.where((a) => a.isPoint).toList()
+          ..sort((a, b) => a.ts.compareTo(b.ts));
+
+    for (final action in pointActions) {
+      final setIndex = action.setIndex;
+      final current = pointsBySet[setIndex];
+      final last = current == null || current.isEmpty
+          ? (our: 0, opp: 0)
+          : (our: current.last.ourScore, opp: current.last.oppScore);
+      final isOurPoint = action.isSideA == ourIsSideA;
+      final updated = isOurPoint
+          ? (our: last.our + action.delta, opp: last.opp)
+          : (our: last.our, opp: last.opp + action.delta);
+
+      pointsBySet.putIfAbsent(setIndex, () => []).add(
+        _TimelinePoint(
+          ts: action.ts,
+          isOurTeam: isOurPoint,
+          ourScore: updated.our,
+          oppScore: updated.opp,
+        ),
+      );
+    }
+
+    if (match.sets.isNotEmpty) {
+      _completeTimelineFromSetScores(
+        pointsBySet: pointsBySet,
+        match: match,
+        ourIsSideA: ourIsSideA,
+      );
+    }
   }
 
   if (pointsBySet.isEmpty) return const [];
@@ -88,8 +99,47 @@ List<MatchDetailPlayByPlayItem> buildPlayByPlayPreview(
     for (final group in groups) ...group.items,
   ];
   if (flat.isEmpty) return const [];
-  if (flat.length <= limit) return flat.reversed.toList();
-  return flat.reversed.take(limit).toList();
+
+  final hasRecorded = flat.any((item) => !item.isEstimated);
+  final hasEstimated = flat.any((item) => item.isEstimated);
+  final source = hasRecorded && hasEstimated
+      ? flat.where((item) => !item.isEstimated).toList(growable: false)
+      : flat;
+
+  if (source.isEmpty) return const [];
+  if (source.length <= limit) return source.reversed.toList();
+  return source.reversed.take(limit).toList();
+}
+
+void _replayPointEventsToTimeline({
+  required List<TournamentMatchPointEvent> pointEvents,
+  required Map<int, List<_TimelinePoint>> pointsBySet,
+  required bool ourIsSideA,
+}) {
+  final sorted = [...pointEvents]..sort((a, b) => a.seq.compareTo(b.seq));
+  final ourSide = ourIsSideA ? 'A' : 'B';
+
+  for (final event in sorted) {
+    if (event.isPoint) {
+      final ourScore = ourIsSideA ? event.scoreA : event.scoreB;
+      final oppScore = ourIsSideA ? event.scoreB : event.scoreA;
+      final isOurTeam = event.side?.trim().toUpperCase() == ourSide;
+
+      pointsBySet.putIfAbsent(event.setIndex, () => []).add(
+        _TimelinePoint(
+          ts: event.ts,
+          isOurTeam: isOurTeam,
+          ourScore: ourScore,
+          oppScore: oppScore,
+        ),
+      );
+    } else if (event.isUndoPoint) {
+      final points = pointsBySet[event.setIndex];
+      if (points != null && points.isNotEmpty) {
+        points.removeLast();
+      }
+    }
+  }
 }
 
 void _completeTimelineFromSetScores({
@@ -205,6 +255,7 @@ List<_TimelinePoint> _syntheticPoints({
         isOurTeam: isOurTeam,
         ourScore: our,
         oppScore: opp,
+        isEstimated: true,
       ),
     );
   }
@@ -263,6 +314,7 @@ List<MatchDetailPlayByPlayItem> _toPlayByPlayItems({
           opponentTeamLabel: opponentTeamLabel,
           isParticipantView: isParticipantView,
         ),
+        isEstimated: point.isEstimated,
       ),
   ];
 }
@@ -304,12 +356,14 @@ class _TimelinePoint {
     required this.isOurTeam,
     required this.ourScore,
     required this.oppScore,
+    this.isEstimated = false,
   });
 
   final DateTime ts;
   final bool isOurTeam;
   final int ourScore;
   final int oppScore;
+  final bool isEstimated;
 }
 
 extension _FirstLast<T> on List<T> {

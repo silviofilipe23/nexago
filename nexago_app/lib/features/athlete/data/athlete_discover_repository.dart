@@ -8,6 +8,7 @@ import '../../ranking/data/ranking_repository.dart';
 import '../../ranking/domain/ranking_models.dart';
 import '../../tournaments/data/users_repository.dart';
 import 'athlete_follow_service.dart';
+import '../../tournaments/domain/compete_hub_logic.dart';
 import '../domain/athlete_discover_logic.dart';
 import '../domain/athlete_follow_providers.dart';
 import '../domain/athlete_discover_models.dart';
@@ -342,6 +343,76 @@ class AthleteDiscoverRepository {
   }
 
   void clearRankingCache() => _rankingCache.clear();
+
+  /// Preview do Compete Hub: mesma cidade → mesmo UF → aleatório (até [previewCount]).
+  Future<List<AthleteProfile>> fetchHubAthletesPreview({
+    required AthleteProfile? viewer,
+    required String? currentUserId,
+    int previewCount = 10,
+    int regionalPoolSize = 50,
+    int randomPoolSize = 40,
+  }) async {
+    final regionalPool = <AthleteProfile>[];
+    final viewerState = viewer?.state?.trim().toUpperCase();
+
+    if (viewerState != null && viewerState.isNotEmpty) {
+      try {
+        final snap = await _users
+            .where('hasAthleteRole', isEqualTo: true)
+            .where('state', isEqualTo: viewerState)
+            .limit(regionalPoolSize)
+            .get();
+        for (final doc in snap.docs) {
+          final profile = AthleteProfile.fromFirestore(doc);
+          if (!isDiscoverableProfile(profile)) continue;
+          regionalPool.add(profile);
+        }
+      } catch (e, stackTrace) {
+        if (kDebugMode) {
+          debugPrint(
+            'AthleteDiscoverRepository.fetchHubAthletesPreview regional failed: $e',
+          );
+          debugPrint('$stackTrace');
+        }
+      }
+    }
+
+    var randomPool = <AthleteProfile>[];
+    final preliminary = pickAthletesForHubPreview(
+      viewer: viewer,
+      regionalPool: regionalPool,
+      randomPool: const [],
+      currentUserId: currentUserId,
+      limit: previewCount,
+    );
+
+    if (preliminary.length < previewCount) {
+      try {
+        final page = await fetchPage(limit: randomPoolSize);
+        final pickedIds = preliminary.map((p) => p.id).toSet();
+        for (final profile in page.profiles) {
+          if (!isDiscoverableProfile(profile)) continue;
+          if (pickedIds.contains(profile.id)) continue;
+          randomPool.add(profile);
+        }
+      } catch (e, stackTrace) {
+        if (kDebugMode) {
+          debugPrint(
+            'AthleteDiscoverRepository.fetchHubAthletesPreview random failed: $e',
+          );
+          debugPrint('$stackTrace');
+        }
+      }
+    }
+
+    return pickAthletesForHubPreview(
+      viewer: viewer,
+      regionalPool: regionalPool,
+      randomPool: randomPool,
+      currentUserId: currentUserId,
+      limit: previewCount,
+    );
+  }
 }
 
 final athleteDiscoverRepositoryProvider = Provider<AthleteDiscoverRepository>(

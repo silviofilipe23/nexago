@@ -12,6 +12,7 @@ import '../domain/team_discover_models.dart';
 import '../domain/team_discover_providers.dart';
 import 'widgets/team_discover/team_discover_card.dart';
 import 'widgets/team_discover/team_discover_filters_sheet.dart';
+import 'widgets/team_discover/team_discover_list_skeleton.dart';
 
 class TeamDiscoverPage extends ConsumerStatefulWidget {
   const TeamDiscoverPage({super.key});
@@ -126,18 +127,17 @@ class _TeamDiscoverPageState extends ConsumerState<TeamDiscoverPage> {
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  children: TeamDiscoverQuickCategory.values.map((cat) {
-                    final selected = state.filters.quickCategory == cat;
-                    final label = cat.label.isEmpty ? 'Todos' : cat.label;
+                  children: TeamDiscoverGenderFilter.values.map((gender) {
+                    final selected = state.filters.gender == gender;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: FilterChip(
-                        label: Text(label),
+                        label: Text(gender.chipLabel),
                         selected: selected,
                         showCheckmark: false,
                         onSelected: (_) => ref
                             .read(teamDiscoverProvider.notifier)
-                            .setQuickCategory(cat),
+                            .setGenderFilter(gender),
                         labelStyle: TextStyle(
                           fontWeight: FontWeight.w700,
                           color: selected
@@ -360,9 +360,7 @@ class _DiscoverBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state.isLoading && state.displayEntries.isEmpty) {
-      return Center(
-        child: CircularProgressIndicator(color: AppColors.brand),
-      );
+      return const TeamDiscoverListSkeleton();
     }
 
     if (state.errorMessage != null && state.displayEntries.isEmpty) {

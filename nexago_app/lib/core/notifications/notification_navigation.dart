@@ -8,7 +8,14 @@ void navigateFromNotification(
   RemoteMessage message,
   GoRouter router,
 ) {
-  final target = resolveNotificationRoute(message.data);
+  navigateFromNotificationData(message.data, router);
+}
+
+void navigateFromNotificationData(
+  Map<String, dynamic> data,
+  GoRouter router,
+) {
+  final target = resolveNotificationRoute(data);
   if (target == null || target.isEmpty) return;
 
   // Garante navegação após estabilizar o frame atual.

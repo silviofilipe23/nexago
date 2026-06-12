@@ -2,7 +2,7 @@ import 'athlete_firestore_codes.dart';
 import 'athlete_profile.dart';
 import 'athlete_profile_options.dart';
 
-const athleteLevelSegmentCount = 4;
+const athleteLevelSegmentCount = 3;
 
 class AthletePublicSportEntry {
   const AthletePublicSportEntry({
@@ -110,10 +110,6 @@ int levelSegmentsFromCode(String? raw) {
     'intermediario': 2,
     'intermediário': 2,
     'open': 3,
-    'pro': 4,
-    'avancado': 4,
-    'avançado': 4,
-    'profissional': 4,
   };
   if (map.containsKey(code)) return map[code]!;
   for (final entry in map.entries) {
@@ -129,7 +125,8 @@ String resolveAthleteLevelLabel(
 }) {
   final sportId = sportFirestoreId ?? profile.primarySportFirestoreId;
   if (sportId != null && sportId.isNotEmpty) {
-    final code = profile.levelsBySportFirestore[sportId] ??
+    final code =
+        profile.levelsBySportFirestore[sportId] ??
         profile.levelsBySportFirestore[sportId.toUpperCase()];
     if (code != null && code.trim().isNotEmpty) {
       final label = AthleteFirestoreCodes.levelFirestoreToLabel(code);
@@ -137,7 +134,9 @@ String resolveAthleteLevelLabel(
     }
   }
   final normalized = AthleteProfileOptions.normalizeLevel(profile.level);
-  return normalized.isNotEmpty ? normalized : AthleteProfileOptions.levels.first;
+  return normalized.isNotEmpty
+      ? normalized
+      : AthleteProfileOptions.levels.first;
 }
 
 int resolveAthleteLevelSegments(
@@ -146,7 +145,8 @@ int resolveAthleteLevelSegments(
 }) {
   final sportId = sportFirestoreId ?? profile.primarySportFirestoreId;
   if (sportId != null && sportId.isNotEmpty) {
-    final code = profile.levelsBySportFirestore[sportId] ??
+    final code =
+        profile.levelsBySportFirestore[sportId] ??
         profile.levelsBySportFirestore[sportId.toUpperCase()];
     if (code != null && code.trim().isNotEmpty) {
       return levelSegmentsFromCode(code);
@@ -169,13 +169,10 @@ String? athletePublicHandle(AthleteProfile profile) {
   return '@$first.$last';
 }
 
-String athleteAgeCategoryLabel(String? birthDateIso) {
-  if (birthDateIso == null || birthDateIso.trim().isEmpty) return '';
-  final match = RegExp(
-    r'^(\d{4})-(\d{2})-(\d{2})$',
-  ).firstMatch(birthDateIso.trim());
-  if (match == null) return '';
-  final year = int.tryParse(match.group(1)!);
+String athleteAgeCategoryLabel(String? birthDateRaw) {
+  final iso = AthleteFirestoreCodes.birthDateBrToIso(birthDateRaw);
+  if (iso == null) return '';
+  final year = int.tryParse(iso.substring(0, 4));
   if (year == null) return '';
   final age = DateTime.now().year - year;
   if (age <= 23) return 'SUB 23';

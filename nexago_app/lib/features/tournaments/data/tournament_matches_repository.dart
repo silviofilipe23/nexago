@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../domain/tournament_match.dart';
+import '../domain/tournament_match_point_event.dart';
 import 'nexago_artifacts_paths.dart';
 import 'tournament_match_mapper.dart';
+import 'tournament_match_point_event_mapper.dart';
 
 /// Lê partidas em `artifacts/.../matches` filtradas por `tournamentId`.
 ///
@@ -52,6 +54,39 @@ class TournamentMatchesRepository {
         .doc(id)
         .snapshots()
         .map(TournamentMatchMapper.fromSnapshot);
+  }
+
+  CollectionReference<Map<String, dynamic>> _pointEventsRef(String matchId) {
+    return _firestore.collection(
+      NexagoArtifactsPaths.matchPointEventsCollection(matchId),
+    );
+  }
+
+  Future<List<TournamentMatchPointEvent>> getPointEvents(String matchId) async {
+    final id = matchId.trim();
+    if (id.isEmpty) return const [];
+
+    final snap = await _pointEventsRef(id).orderBy('seq').get();
+    return _mapPointEvents(snap.docs);
+  }
+
+  Stream<List<TournamentMatchPointEvent>> watchPointEvents(String matchId) {
+    final id = matchId.trim();
+    if (id.isEmpty) return Stream.value(const []);
+
+    return _pointEventsRef(id)
+        .orderBy('seq')
+        .snapshots()
+        .map((snap) => _mapPointEvents(snap.docs));
+  }
+
+  List<TournamentMatchPointEvent> _mapPointEvents(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    return docs
+        .map(TournamentMatchPointEventMapper.fromSnapshot)
+        .whereType<TournamentMatchPointEvent>()
+        .toList(growable: false);
   }
 
   Future<List<TournamentMatch>> getByTeamId(String teamId) async {

@@ -1,4 +1,7 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -116,7 +119,7 @@ class TeamDiscoverRepository {
   Future<List<TeamDiscoverEntry>> enrichEntries({
     required List<TournamentTeam> teams,
     required String? currentUserId,
-    Set<String> followingIds = const {},
+    Set<String> followingTeamIds = const {},
   }) async {
     final entries = <TeamDiscoverEntry>[];
     for (final team in teams) {
@@ -134,7 +137,7 @@ class TeamDiscoverRepository {
           player1: p1,
           player2: p2,
           ranking: ranking,
-          isFollowing: followingIds.contains(team.player1Id),
+          isFollowing: followingTeamIds.contains(team.id),
           isCurrentUserTeam: isCurrent,
         ),
       );
@@ -168,6 +171,28 @@ class TeamDiscoverRepository {
   void clearCaches() {
     _rankingCache.clear();
     _generalTeamRanking = null;
+  }
+
+  /// Preview aleatório para o Compete Hub (amostra do pool paginado).
+  Future<List<TeamDiscoverEntry>> fetchRandomPreview({
+    required String? currentUserId,
+    Set<String> followingTeamIds = const {},
+    int samplePoolSize = pageSize,
+    int previewCount = 5,
+    Random? random,
+  }) async {
+    final page = await fetchPage(limit: samplePoolSize);
+    final picked = pickRandomTeamsForHubPreview(
+      page.teams,
+      count: previewCount,
+      random: random,
+    );
+    if (picked.isEmpty) return const [];
+    return enrichEntries(
+      teams: picked,
+      currentUserId: currentUserId,
+      followingTeamIds: followingTeamIds,
+    );
   }
 }
 

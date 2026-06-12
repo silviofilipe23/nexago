@@ -1,0 +1,17 @@
+---
+description: Cost and scalability checklist before implementing any Firebase feature
+alwaysApply: true
+---
+
+# Cost Awareness
+
+Antes de implementar qualquer funcionalidade Firebase, responder:
+
+1. Quantas leituras gera?
+2. Quantas escritas gera?
+3. Escala para 10.000 usuários?
+4. Escala para 100.000 usuários?
+
+Se existir alternativa mais barata com experiência equivalente, preferir a alternativa mais barata.
+
+Para revisões detalhadas, usar a skill `nexago-cost-reviewer`.

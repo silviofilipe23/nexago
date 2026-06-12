@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
 import 'package:nexago_app/features/tournaments/domain/team_discover_logic.dart';
@@ -75,25 +77,36 @@ void main() {
       expect(result.first.teamId, 't1');
     });
 
-    test('filters by quick category Cat B', () {
+    test('filters by gender masculino', () {
       final entries = [
         _entry(
-          team: const TournamentTeam(id: 't1', player1Id: 'p1', player2Id: 'p2'),
-          player1: _player(category: 'Cat A'),
+          team: const TournamentTeam(
+            id: 't1',
+            player1Id: 'p1',
+            player2Id: 'p2',
+            gender: 'masculino',
+          ),
+          player1: _player(gender: 'masculino'),
+          player2: _player(id: 'p2', name: 'João Silva', gender: 'masculino'),
         ),
         _entry(
-          team: const TournamentTeam(id: 't2', player1Id: 'p3', player2Id: 'p4'),
-          player1: _player(id: 'p3', category: 'Cat B'),
-          player2: _player(id: 'p4', category: 'Cat B'),
+          team: const TournamentTeam(
+            id: 't2',
+            player1Id: 'p3',
+            player2Id: 'p4',
+            gender: 'feminino',
+          ),
+          player1: _player(id: 'p3', name: 'Ana Costa', gender: 'feminino'),
+          player2: _player(id: 'p4', name: 'Bia Lima', gender: 'feminino'),
         ),
       ];
       final result = applyTeamDiscoverFilters(
         entries: entries,
         filters: const TeamDiscoverFilters(
-          quickCategory: TeamDiscoverQuickCategory.catB,
+          gender: TeamDiscoverGenderFilter.male,
         ),
       );
-      expect(result.single.teamId, 't2');
+      expect(result.single.teamId, 't1');
     });
 
     test('filters by search query', () {
@@ -147,6 +160,48 @@ void main() {
         sort: TeamDiscoverSort.trending,
       );
       expect(sorted.first.teamId, 't2');
+    });
+  });
+
+  group('pickRandomTeamsForHubPreview', () {
+    test('returns up to count teams from pool', () {
+      final teams = List.generate(
+        8,
+        (i) => TournamentTeam(
+          id: 'team-$i',
+          player1Id: 'p1-$i',
+          player2Id: 'p2-$i',
+        ),
+      );
+
+      final picked = pickRandomTeamsForHubPreview(
+        teams,
+        count: 5,
+        random: Random(42),
+      );
+
+      expect(picked, hasLength(5));
+      expect(picked.map((t) => t.id).toSet(), hasLength(5));
+      expect(teams.map((t) => t.id), containsAll(picked.map((t) => t.id)));
+    });
+
+    test('returns empty list when pool is empty', () {
+      expect(pickRandomTeamsForHubPreview([]), isEmpty);
+    });
+
+    test('returns fewer teams when pool is smaller than count', () {
+      final teams = [
+        const TournamentTeam(id: 't1', player1Id: 'a', player2Id: 'b'),
+        const TournamentTeam(id: 't2', player1Id: 'c', player2Id: 'd'),
+      ];
+
+      final picked = pickRandomTeamsForHubPreview(
+        teams,
+        count: 5,
+        random: Random(1),
+      );
+
+      expect(picked, hasLength(2));
     });
   });
 }

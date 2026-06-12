@@ -153,6 +153,24 @@ abstract final class AppRoutes {
   /// Pagamentos / saldo (gestor). Filha de [arenaSettings] — evita conflito com `/arena/:arenaId`.
   static const String arenaPayments = '/arena/settings/payments';
 
+  /// Catálogo de produtos (gestor).
+  static const String arenaProducts = '/arena/products';
+
+  /// Novo produto (gestor).
+  static const String arenaProductNew = '/arena/products/new';
+
+  /// Editar produto: `/arena/products/:productId/edit`
+  static const String arenaProductEdit = '/arena/products/:productId/edit';
+
+  /// Alertas de estoque (gestor).
+  static const String arenaProductStock = '/arena/products/stock';
+
+  /// Repor estoque: `/arena/products/:productId/restock`
+  static const String arenaProductRestock = '/arena/products/:productId/restock';
+
+  /// Pós-exclusão de produto (desfazer).
+  static const String arenaProductDeleted = '/arena/products/deleted';
+
   /// Bloqueio do atleta ao tentar reservar.
   static const String arenaBookingBlocked = '/arena/:arenaId/book/blocked';
 
@@ -274,6 +292,12 @@ abstract final class AppRouteNames {
   static const String arenaBookingPix = 'arenaBookingPix';
   static const String arenaBookingSuccess = 'arenaBookingSuccess';
   static const String arenaPayments = 'arenaPayments';
+  static const String arenaProducts = 'arenaProducts';
+  static const String arenaProductNew = 'arenaProductNew';
+  static const String arenaProductEdit = 'arenaProductEdit';
+  static const String arenaProductStock = 'arenaProductStock';
+  static const String arenaProductRestock = 'arenaProductRestock';
+  static const String arenaProductDeleted = 'arenaProductDeleted';
   static const String arenaBookingBlocked = 'arenaBookingBlocked';
   static const String bookingSuccess = 'bookingSuccess';
   static const String bookingInvite = 'bookingInvite';

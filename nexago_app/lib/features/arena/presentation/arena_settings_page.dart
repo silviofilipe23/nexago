@@ -12,6 +12,8 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/domain/favorites_providers.dart';
 import '../domain/arena_providers.dart';
+import '../domain/products/arena_product_logic.dart';
+import '../domain/products/arena_product_providers.dart';
 import '../domain/arena_shell_providers.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_dashboard_tokens.dart';
@@ -71,6 +73,9 @@ class _SettingsBody extends ConsumerWidget {
     final followers = followersAsync.valueOrNull ?? 0;
     final schedule = scheduleAsync.valueOrNull;
     final courts = courtsAsync.valueOrNull ?? const [];
+
+    final productSummary = ref.watch(managedArenaProductSummaryProvider);
+    final productsSubtitle = formatProductSummarySubtitle(productSummary);
 
     final profileSubtitle = arena != null
         ? '${arena.locationLabel} • ${formatFollowersCount(followers)}'
@@ -143,6 +148,18 @@ class _SettingsBody extends ConsumerWidget {
                         title: 'Quadras',
                         subtitle: courtsSubtitle,
                         onTap: () => context.pushNamed(AppRouteNames.arenaCourts),
+                        showDivider: true,
+                      ),
+                      ArenaSettingsTile(
+                        icon: Icons.inventory_2_outlined,
+                        title: 'Produtos e estoque',
+                        subtitle: productsSubtitle,
+                        variant: ArenaSettingsIconVariant.neutral,
+                        onTap: () =>
+                            context.pushNamed(AppRouteNames.arenaProducts),
+                        trailingBadge: productSummary.alertCount > 0
+                            ? _ProductsAlertBadge(count: productSummary.alertCount)
+                            : null,
                         showDivider: false,
                       ),
                     ],
@@ -276,6 +293,32 @@ class _ArenaSettingsLogoutSection extends ConsumerWidget {
     await ref.read(appSignOutProvider)();
     if (!context.mounted) return;
     context.go(AppRoutes.login);
+  }
+}
+
+class _ProductsAlertBadge extends StatelessWidget {
+  const _ProductsAlertBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.brand.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.brand.withValues(alpha: 0.45)),
+      ),
+      child: Text(
+        '$count',
+        style: const TextStyle(
+          color: AppColors.brand,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
   }
 }
 

@@ -38,6 +38,12 @@ import '../../features/arena/presentation/arena_settings_page.dart';
 import '../../features/arena/presentation/arena_payments_page.dart';
 import '../../features/arena/presentation/arena_slot_detail_page.dart';
 import '../../features/arena/presentation/arena_shell_page.dart';
+import '../../features/arena/presentation/products/arena_product_form_page.dart';
+import '../../features/arena/presentation/products/arena_product_deleted_page.dart';
+import '../../features/arena/domain/products/arena_product_delete_args.dart';
+import '../../features/arena/presentation/products/arena_products_list_page.dart';
+import '../../features/arena/presentation/products/arena_restock_page.dart';
+import '../../features/arena/presentation/products/arena_stock_alerts_page.dart';
 import '../../features/arena/domain/arena_slot_detail_args.dart';
 import '../../features/arenas/presentation/my_bookings_page.dart';
 import '../../features/athlete/onboarding/presentation/athlete_onboarding_welcome_page.dart';
@@ -720,6 +726,54 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.arenaCourts,
         name: AppRouteNames.arenaCourts,
         builder: (context, state) => const ArenaCourtsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaProducts,
+        name: AppRouteNames.arenaProducts,
+        builder: (context, state) => const ArenaProductsListPage(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            name: AppRouteNames.arenaProductNew,
+            builder: (context, state) => const ArenaProductFormPage(),
+          ),
+          GoRoute(
+            path: 'stock',
+            name: AppRouteNames.arenaProductStock,
+            builder: (context, state) => const ArenaStockAlertsPage(),
+          ),
+          GoRoute(
+            path: ':productId/edit',
+            name: AppRouteNames.arenaProductEdit,
+            builder: (context, state) {
+              final productId = state.pathParameters['productId'] ?? '';
+              return ArenaProductFormPage(productId: productId);
+            },
+          ),
+          GoRoute(
+            path: ':productId/restock',
+            name: AppRouteNames.arenaProductRestock,
+            builder: (context, state) {
+              final productId = state.pathParameters['productId'] ?? '';
+              return ArenaRestockPage(productId: productId);
+            },
+          ),
+          GoRoute(
+            path: 'deleted',
+            name: AppRouteNames.arenaProductDeleted,
+            builder: (context, state) {
+              final extra = state.extra;
+              if (extra is! ArenaProductDeleteArgs) {
+                return const Scaffold(
+                  body: Center(
+                    child: Text('Dados de exclusão inválidos.'),
+                  ),
+                );
+              }
+              return ArenaProductDeletedPage(args: extra);
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.arenaFollowers,

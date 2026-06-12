@@ -102,6 +102,7 @@ service cloud.firestore {
 
     function userDocIsPublicAthlete(resource) {
       return resource != null && (
+        resource.data.hasAthleteRole == true ||
         (resource.data.roles is list && 'athlete' in resource.data.roles) ||
         resource.data.role == 'athlete'
       );
@@ -163,6 +164,70 @@ service cloud.firestore {
       return request.auth != null &&
         exists(/databases/$(database)/documents/arenas/$(arenaId)) &&
         get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid;
+    }
+    function canManageArenaProducts(arenaId) {
+      return request.auth != null && (
+        isArenaManagerByArenaId(arenaId) ||
+        isSuperAdmin()
+      );
+    }
+    function isValidArenaProductCategory(category) {
+      return category in ['bebidas', 'alimentacao', 'equipamentos', 'servicos'];
+    }
+    function isValidArenaProductData(data) {
+      return data.name is string &&
+        data.name.size() > 0 &&
+        data.name.size() <= 120 &&
+        data.nameLower is string &&
+        data.nameLower.size() > 0 &&
+        isValidArenaProductCategory(data.category) &&
+        data.active is bool &&
+        data.priceCents is int &&
+        data.priceCents >= 0 &&
+        data.priceCents <= 100000000 &&
+        data.stockQuantity is int &&
+        data.stockQuantity >= 0 &&
+        data.stockQuantity <= 1000000 &&
+        data.minStockQuantity is int &&
+        data.minStockQuantity >= 0 &&
+        data.minStockQuantity <= 1000000 &&
+        (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 500)) &&
+        (!('emoji' in data) || data.emoji == null || (data.emoji is string && data.emoji.size() <= 8)) &&
+        (!('imageUrl' in data) || data.imageUrl == null || (data.imageUrl is string && data.imageUrl.size() <= 2048));
+    }
+    function isValidArenaStockMovementType(movementType) {
+      return movementType in ['purchase', 'adjustment', 'loss', 'sale'];
+    }
+    function isValidArenaStockMovementCreate(arenaId, productId) {
+      let productDoc = get(/databases/$(database)/documents/arenas/$(arenaId)/products/$(productId));
+      let data = request.resource.data;
+      return canManageArenaProducts(arenaId) &&
+        productDoc.exists &&
+        data.keys().hasAll([
+          'productId',
+          'productName',
+          'type',
+          'quantityDelta',
+          'quantityBefore',
+          'quantityAfter',
+          'createdAt',
+          'createdByUid'
+        ]) &&
+        data.productId == productId &&
+        data.productName is string &&
+        data.productName.size() > 0 &&
+        isValidArenaStockMovementType(data.type) &&
+        data.quantityDelta is int &&
+        data.quantityDelta != 0 &&
+        data.quantityBefore is int &&
+        data.quantityBefore >= 0 &&
+        data.quantityAfter is int &&
+        data.quantityAfter >= 0 &&
+        data.quantityAfter == data.quantityBefore + data.quantityDelta &&
+        data.quantityAfter == productDoc.data.stockQuantity + data.quantityDelta &&
+        data.createdAt is timestamp &&
+        data.createdByUid == request.auth.uid &&
+        (!('note' in data) || data.note == null || (data.note is string && data.note.size() <= 300));
     }
     function isAthleteProfile(doc) {
       return doc != null && (
@@ -244,22 +309,26 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /arenas/{arenaId}/products/{productId} {
-      allow read, create, update, delete: if request.auth != null && (
-        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
-        isSuperAdmin()
-      );
+      allow read: if canManageArenaProducts(arenaId);
+      allow create: if canManageArenaProducts(arenaId) &&
+        isValidArenaProductData(request.resource.data) &&
+        request.resource.data.createdAt is timestamp &&
+        request.resource.data.updatedAt is timestamp;
+      allow update: if canManageArenaProducts(arenaId) &&
+        isValidArenaProductData(request.resource.data) &&
+        request.resource.data.updatedAt is timestamp &&
+        request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if canManageArenaProducts(arenaId);
     }
     match /arenas/{arenaId}/sales/{saleId} {
-      allow read, create: if request.auth != null && (
-        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
-        isSuperAdmin()
-      );
+      allow read, create: if canManageArenaProducts(arenaId);
       allow update, delete: if false;
     }
     match /arenas/{arenaId}/stockMovements/{movementId} {
-      allow read, create: if request.auth != null && (
-        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
-        isSuperAdmin()
+      allow read: if canManageArenaProducts(arenaId);
+      allow create: if isValidArenaStockMovementCreate(
+        arenaId,
+        request.resource.data.productId
       );
       allow update, delete: if false;
     }
@@ -404,7 +473,6 @@ service cloud.firestore {
       // Leitura completa: usuários podem ler seus próprios dados ou admins podem ler qualquer usuário
       allow read: if 
         (resource != null && userDocIsPublicAthlete(resource)) ||
-        authUserCanListAthleteProfiles() ||
         (request.auth != null && (
           request.auth.uid == userId ||
           isAdmin() ||

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../domain/arena_route_guard.dart';
 import '../domain/arena_shell_providers.dart';
 import '../domain/arena_tab.dart';
 
@@ -19,6 +20,7 @@ class ArenaShellPage extends ConsumerWidget {
   static const _tabs = <ArenaTab>[
     ArenaTab.dashboard,
     ArenaTab.schedule,
+    ArenaTab.comandas,
     ArenaTab.bookings,
     ArenaTab.settings,
   ];
@@ -27,11 +29,16 @@ class ArenaShellPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex =
         navigationShell.currentIndex.clamp(0, _tabs.length - 1);
+    final hideBottomNav = shouldHideArenaShellBottomNav(
+      GoRouterState.of(context).uri.path,
+    );
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       body: navigationShell,
-      bottomNavigationBar: DecoratedBox(
+      bottomNavigationBar: hideBottomNav
+          ? null
+          : DecoratedBox(
         decoration: BoxDecoration(
           color: context.themeColors.surfaceSheet,
           border: Border(
@@ -131,6 +138,10 @@ class _NavItem extends StatelessWidget {
         return selected
             ? Icons.calendar_month_rounded
             : Icons.calendar_month_outlined;
+      case ArenaTab.comandas:
+        return selected
+            ? Icons.receipt_long_rounded
+            : Icons.receipt_long_outlined;
       case ArenaTab.bookings:
         return selected
             ? Icons.event_available_rounded

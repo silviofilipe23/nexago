@@ -102,7 +102,7 @@ class _SettingsBody extends ConsumerWidget {
         final maxW = constraints.maxWidth > 560 ? 480.0 : double.infinity;
         return SingleChildScrollView(
           controller:
-              ref.watch(arenaShellScrollRegistryProvider).controllerFor(3),
+              ref.watch(arenaShellScrollRegistryProvider).controllerFor(4),
           padding: const EdgeInsets.fromLTRB(
             ArenaDashboardTokens.horizontalPadding,
             12,

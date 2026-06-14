@@ -123,7 +123,7 @@ class _FlatList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scrollController =
-        ref.watch(arenaShellScrollRegistryProvider).controllerFor(2);
+        ref.watch(arenaShellScrollRegistryProvider).controllerFor(3);
     return async.when(
       data: (bookings) {
         if (bookings.isEmpty && insight == null) {
@@ -182,7 +182,7 @@ class _GroupedList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scrollController =
-        ref.watch(arenaShellScrollRegistryProvider).controllerFor(2);
+        ref.watch(arenaShellScrollRegistryProvider).controllerFor(3);
     return async.when(
       data: (sections) {
         if (sections.isEmpty) {

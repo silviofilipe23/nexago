@@ -38,9 +38,23 @@ import '../../features/arena/presentation/arena_settings_page.dart';
 import '../../features/arena/presentation/arena_payments_page.dart';
 import '../../features/arena/presentation/arena_slot_detail_page.dart';
 import '../../features/arena/presentation/arena_shell_page.dart';
+import '../../features/arena/presentation/comandas/arena_comandas_page.dart';
+import '../../features/arena/presentation/comandas/arena_comanda_new_type_page.dart';
+import '../../features/arena/presentation/comandas/arena_comanda_link_booking_page.dart';
+import '../../features/arena/presentation/comandas/arena_comanda_customer_page.dart';
+import '../../features/arena/presentation/comandas/arena_comanda_review_page.dart';
+import '../../features/arena/presentation/comandas/arena_comanda_opened_page.dart';
+import '../../features/arena/presentation/comandas/arena_comanda_detail_page.dart';
+import '../../features/arena/presentation/comandas/arena_comanda_quick_add_page.dart';
+import '../../features/arena/presentation/comandas/arena_comanda_payment_page.dart';
+import '../../features/arena/presentation/comandas/arena_comanda_closed_page.dart';
+import '../../features/arena/domain/comandas/arena_comanda_created_args.dart';
+import '../../features/arena/domain/comandas/arena_comanda_closed_args.dart';
 import '../../features/arena/presentation/products/arena_product_form_page.dart';
 import '../../features/arena/presentation/products/arena_product_deleted_page.dart';
 import '../../features/arena/domain/products/arena_product_delete_args.dart';
+import '../../features/arena/domain/products/arena_stock_movement_registered_args.dart';
+import '../../features/arena/presentation/products/arena_stock_movement_registered_page.dart';
 import '../../features/arena/presentation/products/arena_products_list_page.dart';
 import '../../features/arena/presentation/products/arena_restock_page.dart';
 import '../../features/arena/presentation/products/arena_stock_alerts_page.dart';
@@ -662,6 +676,100 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
+                path: AppRoutes.arenaComandas,
+                name: AppRouteNames.arenaComandas,
+                builder: (context, state) => const ArenaComandasPage(),
+                routes: [
+                  GoRoute(
+                    path: 'new/type',
+                    name: AppRouteNames.arenaComandaNewType,
+                    builder: (context, state) =>
+                        const ArenaComandaNewTypePage(),
+                  ),
+                  GoRoute(
+                    path: 'new/link',
+                    name: AppRouteNames.arenaComandaNewLink,
+                    builder: (context, state) =>
+                        const ArenaComandaLinkBookingPage(),
+                  ),
+                  GoRoute(
+                    path: 'new/customer',
+                    name: AppRouteNames.arenaComandaNewCustomer,
+                    builder: (context, state) =>
+                        const ArenaComandaCustomerPage(),
+                  ),
+                  GoRoute(
+                    path: 'new/review',
+                    name: AppRouteNames.arenaComandaNewReview,
+                    builder: (context, state) =>
+                        const ArenaComandaReviewPage(),
+                  ),
+                  GoRoute(
+                    path: 'opened',
+                    name: AppRouteNames.arenaComandaOpened,
+                    builder: (context, state) {
+                      final extra = state.extra;
+                      if (extra is! ArenaComandaCreatedArgs) {
+                        return const Scaffold(
+                          body: Center(
+                            child: Text('Dados da comanda inválidos.'),
+                          ),
+                        );
+                      }
+                      return ArenaComandaOpenedPage(args: extra);
+                    },
+                  ),
+                  GoRoute(
+                    path: ':comandaId',
+                    name: AppRouteNames.arenaComandaDetail,
+                    builder: (context, state) {
+                      final comandaId =
+                          state.pathParameters['comandaId']?.trim() ?? '';
+                      return ArenaComandaDetailPage(comandaId: comandaId);
+                    },
+                    routes: [
+                      GoRoute(
+                        path: 'quick-add',
+                        name: AppRouteNames.arenaComandaQuickAdd,
+                        builder: (context, state) {
+                          final comandaId =
+                              state.pathParameters['comandaId']?.trim() ?? '';
+                          return ArenaComandaQuickAddPage(comandaId: comandaId);
+                        },
+                      ),
+                      GoRoute(
+                        path: 'payment',
+                        name: AppRouteNames.arenaComandaPayment,
+                        builder: (context, state) {
+                          final comandaId =
+                              state.pathParameters['comandaId']?.trim() ?? '';
+                          return ArenaComandaPaymentPage(comandaId: comandaId);
+                        },
+                      ),
+                      GoRoute(
+                        path: 'closed',
+                        name: AppRouteNames.arenaComandaClosed,
+                        builder: (context, state) {
+                          final extra = state.extra;
+                          if (extra is! ArenaComandaClosedArgs) {
+                            return const Scaffold(
+                              body: Center(
+                                child: Text('Dados da comanda inválidos.'),
+                              ),
+                            );
+                          }
+                          return ArenaComandaClosedPage(args: extra);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: AppRoutes.arenaBookings,
                 name: AppRouteNames.arenaBookings,
                 builder: (context, state) => const ArenaBookingsPage(),
@@ -771,6 +879,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 );
               }
               return ArenaProductDeletedPage(args: extra);
+            },
+          ),
+          GoRoute(
+            path: 'movement-registered',
+            name: AppRouteNames.arenaStockMovementRegistered,
+            builder: (context, state) {
+              final extra = state.extra;
+              if (extra is! ArenaStockMovementRegisteredArgs) {
+                return const Scaffold(
+                  body: Center(
+                    child: Text('Dados da movimentação inválidos.'),
+                  ),
+                );
+              }
+              return ArenaStockMovementRegisteredPage(args: extra);
             },
           ),
         ],

@@ -119,6 +119,32 @@ void main() {
     });
   });
 
+  group('restockActionAccent', () {
+    test('maps movement types to semantic accents', () {
+      expect(
+        restockActionAccent(
+          type: ArenaStockMovementType.purchase,
+          quantity: 24,
+        ),
+        RestockActionAccent.inbound,
+      );
+      expect(
+        restockActionAccent(
+          type: ArenaStockMovementType.adjustment,
+          quantity: -2,
+        ),
+        RestockActionAccent.adjustment,
+      );
+      expect(
+        restockActionAccent(
+          type: ArenaStockMovementType.loss,
+          quantity: -2,
+        ),
+        RestockActionAccent.outbound,
+      );
+    });
+  });
+
   group('computeTurnover7d', () {
     test('sums sale and loss quantities', () {
       final total = computeTurnover7d([
@@ -201,6 +227,43 @@ void main() {
         ),
       );
       expect(title, 'Ajuste (quebra (2))');
+    });
+  });
+
+  group('stockMovementSuccessCopy', () {
+    test('headline varies by type', () {
+      expect(
+        stockMovementSuccessHeadline(ArenaStockMovementType.purchase),
+        'Entrada registrada.',
+      );
+      expect(
+        stockMovementSuccessHeadline(ArenaStockMovementType.loss),
+        'Perda registrada.',
+      );
+    });
+
+    test('type detail label reflects direction on adjustment', () {
+      expect(
+        stockMovementTypeDetailLabel(
+          ArenaStockMovementType.adjustment,
+          quantityDelta: 3,
+        ),
+        'Entrada · Ajuste',
+      );
+      expect(
+        stockMovementTypeDetailLabel(
+          ArenaStockMovementType.adjustment,
+          quantityDelta: -2,
+        ),
+        'Saída · Ajuste',
+      );
+    });
+  });
+
+  group('formatSignedQuantityDelta', () {
+    test('prefixes positive deltas', () {
+      expect(formatSignedQuantityDelta(24), '+24');
+      expect(formatSignedQuantityDelta(-2), '-2');
     });
   });
 }

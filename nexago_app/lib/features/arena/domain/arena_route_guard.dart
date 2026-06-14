@@ -12,6 +12,7 @@ bool isArenaManagerPanelPath(String path) {
     AppRoutes.arenaSettings,
     AppRoutes.arenaPayments,
     AppRoutes.arenaProducts,
+    AppRoutes.arenaComandas,
     AppRoutes.arenaProductNew,
     AppRoutes.arenaProductStock,
     AppRoutes.arenaAvailabilitySettings,
@@ -26,4 +27,10 @@ bool isArenaManagerPanelPath(String path) {
     }
   }
   return false;
+}
+
+/// Sub-rotas de comandas (wizard, sucesso, detalhe) ocupam tela cheia sem tab bar.
+bool shouldHideArenaShellBottomNav(String path) {
+  if (path == AppRoutes.arenaComandas) return false;
+  return path.startsWith('${AppRoutes.arenaComandas}/');
 }

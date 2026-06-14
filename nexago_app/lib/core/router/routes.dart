@@ -101,6 +101,7 @@ abstract final class AppRoutes {
 
   static const String arenaDashboard = '/arena/dashboard';
   static const String arenaSchedule = '/arena/schedule';
+  static const String arenaComandas = '/arena/comandas';
   static const String arenaCourts = '/arena/courts';
   static const String arenaBookings = '/arena/bookings';
 
@@ -170,6 +171,24 @@ abstract final class AppRoutes {
 
   /// Pós-exclusão de produto (desfazer).
   static const String arenaProductDeleted = '/arena/products/deleted';
+
+  /// Pós-registro de movimentação de estoque.
+  static const String arenaStockMovementRegistered =
+      '/arena/products/movement-registered';
+
+  /// Nova comanda — wizard (gestor).
+  static const String arenaComandaNewType = '/arena/comandas/new/type';
+  static const String arenaComandaNewLink = '/arena/comandas/new/link';
+  static const String arenaComandaNewCustomer = '/arena/comandas/new/customer';
+  static const String arenaComandaNewReview = '/arena/comandas/new/review';
+  static const String arenaComandaOpened = '/arena/comandas/opened';
+  static const String arenaComandaDetail = '/arena/comandas/:comandaId';
+  static const String arenaComandaQuickAdd =
+      '/arena/comandas/:comandaId/quick-add';
+  static const String arenaComandaPayment =
+      '/arena/comandas/:comandaId/payment';
+  static const String arenaComandaClosed =
+      '/arena/comandas/:comandaId/closed';
 
   /// Bloqueio do atleta ao tentar reservar.
   static const String arenaBookingBlocked = '/arena/:arenaId/book/blocked';
@@ -269,6 +288,7 @@ abstract final class AppRouteNames {
 
   static const String arenaDashboard = 'arenaDashboard';
   static const String arenaSchedule = 'arenaSchedule';
+  static const String arenaComandas = 'arenaComandas';
   static const String arenaCourts = 'arenaCourts';
   static const String arenaBookings = 'arenaBookings';
   static const String arenaBookingDetail = 'arenaBookingDetail';
@@ -298,6 +318,17 @@ abstract final class AppRouteNames {
   static const String arenaProductStock = 'arenaProductStock';
   static const String arenaProductRestock = 'arenaProductRestock';
   static const String arenaProductDeleted = 'arenaProductDeleted';
+  static const String arenaStockMovementRegistered =
+      'arenaStockMovementRegistered';
+  static const String arenaComandaNewType = 'arenaComandaNewType';
+  static const String arenaComandaNewLink = 'arenaComandaNewLink';
+  static const String arenaComandaNewCustomer = 'arenaComandaNewCustomer';
+  static const String arenaComandaNewReview = 'arenaComandaNewReview';
+  static const String arenaComandaOpened = 'arenaComandaOpened';
+  static const String arenaComandaDetail = 'arenaComandaDetail';
+  static const String arenaComandaQuickAdd = 'arenaComandaQuickAdd';
+  static const String arenaComandaPayment = 'arenaComandaPayment';
+  static const String arenaComandaClosed = 'arenaComandaClosed';
   static const String arenaBookingBlocked = 'arenaBookingBlocked';
   static const String bookingSuccess = 'bookingSuccess';
   static const String bookingInvite = 'bookingInvite';

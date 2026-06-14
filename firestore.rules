@@ -6,7 +6,7 @@ service cloud.firestore {
     function hasRoleClaim(r) {
       return request.auth != null && (
         (request.auth.token.roles is list && r in request.auth.token.roles) ||
-        request.auth.token.role == r
+        (('role' in request.auth.token) && request.auth.token.role == r)
       );
     }
 
@@ -14,7 +14,9 @@ service cloud.firestore {
       return request.auth != null && hasRoleClaim('admin');
     }
     function isSuperAdmin() {
-      return request.auth != null && request.auth.token.superAdmin == true;
+      return request.auth != null &&
+        ('superAdmin' in request.auth.token) &&
+        request.auth.token.superAdmin == true;
     }
     function isArena() {
       return request.auth != null && hasRoleClaim('arena');
@@ -202,7 +204,7 @@ service cloud.firestore {
       let productDoc = get(/databases/$(database)/documents/arenas/$(arenaId)/products/$(productId));
       let data = request.resource.data;
       return canManageArenaProducts(arenaId) &&
-        productDoc.exists &&
+        productDoc.data != null &&
         data.keys().hasAll([
           'productId',
           'productName',
@@ -217,27 +219,254 @@ service cloud.firestore {
         data.productName is string &&
         data.productName.size() > 0 &&
         isValidArenaStockMovementType(data.type) &&
-        data.quantityDelta is int &&
-        data.quantityDelta != 0 &&
-        data.quantityBefore is int &&
-        data.quantityBefore >= 0 &&
-        data.quantityAfter is int &&
-        data.quantityAfter >= 0 &&
-        data.quantityAfter == data.quantityBefore + data.quantityDelta &&
-        data.quantityAfter == productDoc.data.stockQuantity + data.quantityDelta &&
-        data.createdAt is timestamp &&
+        isFirestoreInt(data.quantityDelta) &&
+        firestoreIntValue(data.quantityDelta) != 0 &&
+        isFirestoreInt(data.quantityBefore) &&
+        firestoreIntValue(data.quantityBefore) >= 0 &&
+        isFirestoreInt(data.quantityAfter) &&
+        firestoreIntValue(data.quantityAfter) >= 0 &&
+        firestoreIntValue(data.quantityAfter) ==
+          firestoreIntValue(data.quantityBefore) +
+          firestoreIntValue(data.quantityDelta) &&
+        (
+          firestoreIntValue(data.quantityBefore) == arenaProductStockQty(productDoc) ||
+          firestoreIntValue(data.quantityAfter) == arenaProductStockQty(productDoc)
+        ) &&
+        isCreateTimestamp(data.createdAt) &&
         data.createdByUid == request.auth.uid &&
         (!('note' in data) || data.note == null || (data.note is string && data.note.size() <= 300));
     }
-    function isAthleteProfile(doc) {
-      return doc != null && (
-        doc.data.role == 'athlete' ||
-        (doc.data.roles is list && doc.data.roles.hasAny(['athlete'])) ||
+    function isValidArenaComandaStatus(status) {
+      return status in ['open', 'closing', 'partiallyPaid', 'closed'];
+    }
+    function isValidArenaComandaType(type) {
+      return type in ['shared', 'individual', 'table', 'event'];
+    }
+    function isValidArenaComandaCreate(data) {
+      return data.keys().hasAll([
+          'arenaId',
+          'displayNumber',
+          'type',
+          'status',
+          'customerName',
+          'allowAppOrders',
+          'rentalCents',
+          'itemsTotalCents',
+          'totalCents',
+          'itemsCount',
+          'openedByUid',
+          'openedAt',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.arenaId is string &&
+        data.arenaId.size() > 0 &&
+        isArenaManagerByArenaId(data.arenaId) &&
+        data.displayNumber is int &&
+        data.displayNumber > 0 &&
+        data.displayNumber <= 999999 &&
+        isValidArenaComandaType(data.type) &&
+        data.type == 'individual' &&
+        data.status == 'open' &&
+        data.customerName is string &&
+        data.customerName.size() > 0 &&
+        data.customerName.size() <= 120 &&
+        data.allowAppOrders is bool &&
+        data.rentalCents is int &&
+        data.rentalCents >= 0 &&
+        data.rentalCents <= 100000000 &&
+        data.itemsTotalCents is int &&
+        data.itemsTotalCents == 0 &&
+        data.totalCents is int &&
+        data.totalCents == data.rentalCents &&
+        data.itemsCount is int &&
+        data.itemsCount == 0 &&
+        (!('paidCents' in data) || (data.paidCents is int && data.paidCents == 0)) &&
+        data.openedByUid == request.auth.uid &&
+        data.openedAt is timestamp &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp &&
+        (!('bookingId' in data) || data.bookingId == null || (data.bookingId is string && data.bookingId.size() <= 128)) &&
+        (!('bookingDisplayCode' in data) || data.bookingDisplayCode == null || (data.bookingDisplayCode is string && data.bookingDisplayCode.size() <= 32)) &&
+        (!('locationLabel' in data) || data.locationLabel == null || (data.locationLabel is string && data.locationLabel.size() <= 120)) &&
+        (!('customerWhatsapp' in data) || data.customerWhatsapp == null || (data.customerWhatsapp is string && data.customerWhatsapp.size() <= 32)) &&
+        (!('customerCpf' in data) || data.customerCpf == null || (data.customerCpf is string && data.customerCpf.size() <= 14));
+    }
+    function isValidArenaComandaItemSource(source) {
+      return source in ['counter', 'app'];
+    }
+    function isValidArenaComandaPaymentMethod(method) {
+      return method in ['pix', 'credit', 'debit', 'cash', 'wallet', 'other'];
+    }
+    function arenaComandaPaidCents(data) {
+      return 'paidCents' in data && data.paidCents is int
+        ? data.paidCents
+        : (
+            'paidCents' in data && data.paidCents is number
+              ? int(data.paidCents)
+              : 0
+          );
+    }
+    function arenaComandaRentalCents(data) {
+      return 'rentalCents' in data && data.rentalCents is int
+        ? data.rentalCents
+        : (
+            'rentalCents' in data && data.rentalCents is number
+              ? int(data.rentalCents)
+              : 0
+          );
+    }
+    function arenaProductStockQty(productDoc) {
+      return productDoc.data.stockQuantity is int
+        ? productDoc.data.stockQuantity
+        : (
+            productDoc.data.stockQuantity is number
+              ? int(productDoc.data.stockQuantity)
+              : 0
+          );
+    }
+    function isValidArenaProductStockUpdate() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'stockQuantity',
+          'updatedAt'
+        ]) &&
+        isFirestoreInt(request.resource.data.stockQuantity) &&
+        firestoreIntValue(request.resource.data.stockQuantity) >= 0 &&
+        firestoreIntValue(request.resource.data.stockQuantity) <= 1000000 &&
         (
-          !('role' in doc.data) &&
-          (!(doc.data.roles is list) || doc.data.roles.size() == 0)
-        )
-      );
+          request.resource.data.updatedAt is timestamp ||
+          request.resource.data.updatedAt == request.time
+        );
+    }
+    function arenaComandaStatusValue(data) {
+      return data.status is string ? data.status : 'open';
+    }
+    function isCreateTimestamp(value) {
+      return value is timestamp || value == request.time;
+    }
+    function isFirestoreInt(value) {
+      return value is int || (value is number && value == int(value));
+    }
+    function firestoreIntValue(value) {
+      return value is int ? value : int(value);
+    }
+    function comandaPaymentStateChanged() {
+      return arenaComandaStatusValue(request.resource.data) !=
+          arenaComandaStatusValue(resource.data) ||
+        arenaComandaPaidCents(request.resource.data) !=
+          arenaComandaPaidCents(resource.data);
+    }
+    function isValidArenaComandaItemCreate(comandaId, data) {
+      let comandaDoc = get(/databases/$(database)/documents/arenaComandas/$(comandaId));
+      return comandaDoc.data != null &&
+        canManageArenaProducts(comandaDoc.data.arenaId) &&
+        data.keys().hasAll([
+          'productId',
+          'productName',
+          'quantity',
+          'unitPriceCents',
+          'lineTotalCents',
+          'source',
+          'addedByName',
+          'addedByUid',
+          'createdAt'
+        ]) &&
+        data.productId is string &&
+        data.productId.size() > 0 &&
+        data.productName is string &&
+        data.productName.size() > 0 &&
+        data.productName.size() <= 120 &&
+        isFirestoreInt(data.quantity) &&
+        firestoreIntValue(data.quantity) > 0 &&
+        firestoreIntValue(data.quantity) <= 99 &&
+        isFirestoreInt(data.unitPriceCents) &&
+        firestoreIntValue(data.unitPriceCents) >= 0 &&
+        firestoreIntValue(data.unitPriceCents) <= 100000000 &&
+        isFirestoreInt(data.lineTotalCents) &&
+        firestoreIntValue(data.lineTotalCents) ==
+          firestoreIntValue(data.unitPriceCents) * firestoreIntValue(data.quantity) &&
+        isValidArenaComandaItemSource(data.source) &&
+        data.addedByName is string &&
+        data.addedByName.size() > 0 &&
+        data.addedByName.size() <= 120 &&
+        data.addedByUid == request.auth.uid &&
+        isCreateTimestamp(data.createdAt) &&
+        (!('emoji' in data) || data.emoji == null || (data.emoji is string && data.emoji.size() <= 16));
+    }
+    function isValidArenaComandaItemDelete(comandaId) {
+      let comandaDoc = get(/databases/$(database)/documents/arenaComandas/$(comandaId));
+      let status = arenaComandaStatusValue(comandaDoc.data);
+      return comandaDoc.data != null &&
+        canManageArenaProducts(comandaDoc.data.arenaId) &&
+        status in ['open', 'closing', 'partiallyPaid'];
+    }
+    function isValidArenaComandaPaymentCreate(comandaId, data) {
+      let comandaDoc = get(/databases/$(database)/documents/arenaComandas/$(comandaId));
+      return comandaDoc.data != null &&
+        canManageArenaProducts(comandaDoc.data.arenaId) &&
+        data.keys().hasAll([
+          'method',
+          'amountCents',
+          'payerName',
+          'receivedByUid',
+          'createdAt'
+        ]) &&
+        isValidArenaComandaPaymentMethod(data.method) &&
+        data.amountCents is int &&
+        data.amountCents > 0 &&
+        data.amountCents <= 100000000 &&
+        data.payerName is string &&
+        data.payerName.size() > 0 &&
+        data.payerName.size() <= 120 &&
+        data.receivedByUid == request.auth.uid &&
+        isCreateTimestamp(data.createdAt);
+    }
+    function isValidArenaComandaUpdate() {
+      return         request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'status',
+          'itemsTotalCents',
+          'totalCents',
+          'itemsCount',
+          'paidCents',
+          'rentalCents',
+          'updatedAt'
+        ]) &&
+        isValidArenaComandaStatus(
+          arenaComandaStatusValue(request.resource.data)
+        ) &&
+        request.resource.data.itemsTotalCents is int &&
+        request.resource.data.itemsTotalCents >= 0 &&
+        request.resource.data.totalCents is int &&
+        request.resource.data.totalCents ==
+          arenaComandaRentalCents(resource.data) +
+          request.resource.data.itemsTotalCents &&
+        request.resource.data.itemsCount is int &&
+        request.resource.data.itemsCount >= 0 &&
+        (
+          request.resource.data.updatedAt is timestamp ||
+          request.resource.data.updatedAt == request.time
+        ) &&
+        (
+          !comandaPaymentStateChanged() ||
+          (
+            arenaComandaPaidCents(request.resource.data) >= 0 &&
+            arenaComandaPaidCents(request.resource.data) <=
+              request.resource.data.totalCents &&
+            (
+              arenaComandaStatusValue(request.resource.data) == 'closed'
+                ? arenaComandaPaidCents(request.resource.data) >=
+                  request.resource.data.totalCents
+                : true
+            ) &&
+            (
+              arenaComandaStatusValue(request.resource.data) == 'partiallyPaid'
+                ? arenaComandaPaidCents(request.resource.data) > 0 &&
+                  arenaComandaPaidCents(request.resource.data) <
+                    request.resource.data.totalCents
+                : true
+            )
+          )
+        );
     }
 
     // Regras para arenas
@@ -314,10 +543,14 @@ service cloud.firestore {
         isValidArenaProductData(request.resource.data) &&
         request.resource.data.createdAt is timestamp &&
         request.resource.data.updatedAt is timestamp;
-      allow update: if canManageArenaProducts(arenaId) &&
-        isValidArenaProductData(request.resource.data) &&
-        request.resource.data.updatedAt is timestamp &&
-        request.resource.data.createdAt == resource.data.createdAt;
+      allow update: if canManageArenaProducts(arenaId) && (
+        isValidArenaProductStockUpdate() ||
+        (
+          isValidArenaProductData(request.resource.data) &&
+          request.resource.data.updatedAt is timestamp &&
+          request.resource.data.createdAt == resource.data.createdAt
+        )
+      );
       allow delete: if canManageArenaProducts(arenaId);
     }
     match /arenas/{arenaId}/sales/{saleId} {
@@ -332,13 +565,57 @@ service cloud.firestore {
       );
       allow update, delete: if false;
     }
-    match /arenaComandas/{comandaId} {
-      allow read, create, update: if request.auth != null && (
-        isSuperAdmin() ||
-        (resource != null && isArenaManagerByArenaId(resource.data.arenaId)) ||
-        (resource == null && isArenaManagerByArenaId(request.resource.data.arenaId))
-      );
+    match /arenas/{arenaId}/metadata/{docId} {
+      allow read: if canManageArenaProducts(arenaId);
+      allow create, update: if docId == 'comandaCounter' &&
+        canManageArenaProducts(arenaId) &&
+        request.resource.data.keys().hasAll(['lastNumber', 'updatedAt']) &&
+        request.resource.data.lastNumber is int &&
+        request.resource.data.lastNumber > 0 &&
+        request.resource.data.lastNumber <= 999999 &&
+        request.resource.data.updatedAt is timestamp &&
+        (
+          resource == null ||
+          request.resource.data.lastNumber == resource.data.lastNumber + 1
+        );
       allow delete: if false;
+    }
+    match /arenaComandas/{comandaId} {
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        (resource != null && isArenaManagerByArenaId(resource.data.arenaId))
+      );
+      allow create: if request.auth != null &&
+        isValidArenaComandaCreate(request.resource.data);
+      allow update: if request.auth != null && (
+        isSuperAdmin() ||
+        canManageArenaProducts(resource.data.arenaId)
+      ) && isValidArenaComandaUpdate();
+      allow delete: if false;
+      match /items/{itemId} {
+        allow read: if request.auth != null && (
+          isSuperAdmin() ||
+          canManageArenaProducts(
+            get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId
+          )
+        );
+        allow create: if request.auth != null &&
+          isValidArenaComandaItemCreate(comandaId, request.resource.data);
+        allow delete: if request.auth != null &&
+          isValidArenaComandaItemDelete(comandaId);
+        allow update: if false;
+      }
+      match /payments/{paymentId} {
+        allow read: if request.auth != null && (
+          isSuperAdmin() ||
+          canManageArenaProducts(
+            get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId
+          )
+        );
+        allow create: if request.auth != null &&
+          isValidArenaComandaPaymentCreate(comandaId, request.resource.data);
+        allow update, delete: if false;
+      }
     }
     match /arenaSlots/{slotId} {
       allow read: if true;

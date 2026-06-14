@@ -176,6 +176,11 @@ String formatMovementDelta(ArenaStockMovement movement) {
   return '$sign${movement.quantityDelta}';
 }
 
+String formatSignedQuantityDelta(int quantityDelta) {
+  final sign = quantityDelta > 0 ? '+' : '';
+  return '$sign$quantityDelta';
+}
+
 String formatProductSummarySubtitle(ArenaProductSummary summary) {
   if (summary.activeCount == 0) return 'Nenhum produto ativo';
   final parts = <String>['${summary.activeCount} ativos'];
@@ -210,4 +215,63 @@ String restockActionLabel({
     ArenaStockMovementType.loss => 'Registrar perda · -$absQty un',
     ArenaStockMovementType.sale => 'Registrar saída · -$absQty un',
   };
+}
+
+/// Cor semântica do CTA de repor estoque (mapeada para tokens na UI).
+enum RestockActionAccent {
+  inbound,
+  adjustment,
+  outbound,
+}
+
+RestockActionAccent restockActionAccent({
+  required ArenaStockMovementType type,
+  required int quantity,
+}) {
+  return switch (type) {
+    ArenaStockMovementType.purchase => RestockActionAccent.inbound,
+    ArenaStockMovementType.adjustment => RestockActionAccent.adjustment,
+    ArenaStockMovementType.loss => RestockActionAccent.outbound,
+    ArenaStockMovementType.sale => RestockActionAccent.outbound,
+  };
+}
+
+String stockMovementSuccessHeadline(ArenaStockMovementType type) {
+  return switch (type) {
+    ArenaStockMovementType.purchase => 'Entrada registrada.',
+    ArenaStockMovementType.adjustment => 'Ajuste registrado.',
+    ArenaStockMovementType.loss => 'Perda registrada.',
+    ArenaStockMovementType.sale => 'Saída registrada.',
+  };
+}
+
+String stockMovementSuccessMessage(ArenaStockMovementType type) {
+  return switch (type) {
+    ArenaStockMovementType.purchase =>
+      'foi atualizado e já reflete nas vendas.',
+    ArenaStockMovementType.adjustment ||
+    ArenaStockMovementType.loss =>
+      'foi atualizado no inventário.',
+    ArenaStockMovementType.sale =>
+      'foi atualizado e já reflete nas vendas.',
+  };
+}
+
+String stockMovementTypeDetailLabel(
+  ArenaStockMovementType type, {
+  required int quantityDelta,
+}) {
+  return switch (type) {
+    ArenaStockMovementType.purchase => 'Entrada · Compra',
+    ArenaStockMovementType.adjustment when quantityDelta >= 0 =>
+      'Entrada · Ajuste',
+    ArenaStockMovementType.adjustment => 'Saída · Ajuste',
+    ArenaStockMovementType.loss => 'Saída · Perda',
+    ArenaStockMovementType.sale => 'Saída · Vendas',
+  };
+}
+
+String formatStockMovementRegisteredAt(DateTime date) {
+  final formatter = DateFormat('d MMM, HH:mm', 'pt_BR');
+  return 'Você · ${formatter.format(date)}';
 }

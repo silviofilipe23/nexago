@@ -10,10 +10,7 @@ import '../domain/arena_tab.dart';
 
 /// Shell com navegação inferior escura (gestor da arena).
 class ArenaShellPage extends ConsumerWidget {
-  const ArenaShellPage({
-    super.key,
-    required this.navigationShell,
-  });
+  const ArenaShellPage({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
@@ -27,8 +24,10 @@ class ArenaShellPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentIndex =
-        navigationShell.currentIndex.clamp(0, _tabs.length - 1);
+    final currentIndex = navigationShell.currentIndex.clamp(
+      0,
+      _tabs.length - 1,
+    );
     final hideBottomNav = shouldHideArenaShellBottomNav(
       GoRouterState.of(context).uri.path,
     );
@@ -39,39 +38,44 @@ class ArenaShellPage extends ConsumerWidget {
       bottomNavigationBar: hideBottomNav
           ? null
           : DecoratedBox(
-        decoration: BoxDecoration(
-          color: context.themeColors.surfaceSheet,
-          border: Border(
-            top: BorderSide(
-              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
-            ),
-          ),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SizedBox(
-            height: 64,
-            child: Row(
-              children: [
-                for (var i = 0; i < _tabs.length; i++)
-                  Expanded(
-                    child: _NavItem(
-                      tab: _tabs[i],
-                      selected: i == currentIndex,
-                      onTap: () {
-                        ref.read(arenaShellScrollRegistryProvider).scrollToTop(i);
-                        navigationShell.goBranch(
-                          i,
-                          initialLocation: i == navigationShell.currentIndex,
-                        );
-                      },
+              decoration: BoxDecoration(
+                color: context.themeColors.surfaceSheet,
+                border: Border(
+                  top: BorderSide(
+                    color: context.themeColors.onSurfaceMuted.withValues(
+                      alpha: 0.12,
                     ),
                   ),
-              ],
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: SizedBox(
+                  height: 64,
+                  child: Row(
+                    children: [
+                      for (var i = 0; i < _tabs.length; i++)
+                        Expanded(
+                          child: _NavItem(
+                            tab: _tabs[i],
+                            selected: i == currentIndex,
+                            onTap: () {
+                              ref
+                                  .read(arenaShellScrollRegistryProvider)
+                                  .scrollToTop(i);
+                              navigationShell.goBranch(
+                                i,
+                                initialLocation:
+                                    i == navigationShell.currentIndex,
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -99,7 +103,9 @@ class _NavItem extends StatelessWidget {
             Icon(
               _iconFor(tab, selected: selected),
               size: 22,
-              color: selected ? context.themeColors.onSurface : context.themeColors.onSurfaceMuted,
+              color: selected
+                  ? context.themeColors.onSurface
+                  : context.themeColors.onSurfaceMuted,
             ),
             SizedBox(height: 4),
             Text(
@@ -108,8 +114,9 @@ class _NavItem extends StatelessWidget {
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.3,
-                color:
-                    selected ? context.themeColors.onSurface : context.themeColors.onSurfaceMuted,
+                color: selected
+                    ? context.themeColors.onSurface
+                    : context.themeColors.onSurfaceMuted,
               ),
             ),
             SizedBox(height: 4),
@@ -131,9 +138,7 @@ class _NavItem extends StatelessWidget {
   static IconData _iconFor(ArenaTab tab, {required bool selected}) {
     switch (tab) {
       case ArenaTab.dashboard:
-        return selected
-            ? Icons.dashboard_rounded
-            : Icons.dashboard_outlined;
+        return selected ? Icons.dashboard_rounded : Icons.dashboard_outlined;
       case ArenaTab.schedule:
         return selected
             ? Icons.calendar_month_rounded

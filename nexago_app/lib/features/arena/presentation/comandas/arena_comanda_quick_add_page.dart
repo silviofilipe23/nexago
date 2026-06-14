@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -125,7 +126,10 @@ class _ArenaComandaQuickAddPageState
 
       ref.read(arenaComandaQuickAddDraftProvider.notifier).reset();
       if (!mounted) return;
-      context.pop();
+      context.goNamed(
+        AppRouteNames.arenaComandaDetail,
+        pathParameters: {'comandaId': comanda.id},
+      );
     } catch (e) {
       if (mounted) {
         showAppSnackBar(context, _submitErrorMessage(e));

@@ -204,18 +204,37 @@ class ArenaComandasRepository {
         throw StateError('Comanda não está aberta para lançamentos.');
       }
 
+      final validLines =
+          lines.where((line) => line.quantity > 0).toList(growable: false);
+      if (validLines.isEmpty) return;
+
       final notePrefix =
           'comanda ${formatComandaNumber(comanda.displayNumber)}';
 
+      // Firestore exige todas as leituras antes de qualquer escrita.
+      final productIds = validLines
+          .map((line) => line.productId.trim())
+          .where((id) => id.isNotEmpty)
+          .toSet();
+      final productSnaps = <String, DocumentSnapshot<Map<String, dynamic>>>{};
+      for (final productId in productIds) {
+        productSnaps[productId] =
+            await txn.get(_products(arenaRef).doc(productId));
+      }
+
       var addedItemsTotal = 0;
       var addedItemsCount = 0;
+      final stockAfterByProduct = <String, int>{};
+      final pendingLines = <({
+        ArenaProduct product,
+        ArenaComandaItem item,
+        ArenaStockMovement movement,
+      })>[];
 
-      for (final line in lines) {
-        if (line.quantity <= 0) continue;
-
-        final productRef = _products(arenaRef).doc(line.productId.trim());
-        final productSnap = await txn.get(productRef);
-        if (!productSnap.exists) {
+      for (final line in validLines) {
+        final productId = line.productId.trim();
+        final productSnap = productSnaps[productId];
+        if (productSnap == null || !productSnap.exists) {
           throw StateError('Produto não encontrado.');
         }
 
@@ -229,53 +248,64 @@ class ArenaComandasRepository {
           quantity: line.quantity,
         );
         final productData = productSnap.data() ?? {};
-        final before = (productData['stockQuantity'] as num?)?.toInt() ?? 0;
+        final initialStock =
+            (productData['stockQuantity'] as num?)?.toInt() ?? 0;
+        final before = stockAfterByProduct.putIfAbsent(
+          productId,
+          () => initialStock,
+        );
         final after = previewRestock(currentQuantity: before, delta: delta);
         if (after < 0) {
           throw StateError('Estoque insuficiente para "${product.name}".');
         }
+        stockAfterByProduct[productId] = after;
 
         final lineTotalCents = product.priceCents * line.quantity;
         addedItemsTotal += lineTotalCents;
         addedItemsCount += line.quantity;
 
-        final item = ArenaComandaItem(
-          id: '',
-          productId: product.id,
-          productName: product.name,
-          emoji: product.emoji,
-          quantity: line.quantity,
-          unitPriceCents: product.priceCents,
-          lineTotalCents: lineTotalCents,
-          source: ArenaComandaItemSource.counter,
-          addedByName: addedByName,
-          addedByUid: managerUid,
-        );
+        pendingLines.add((
+          product: product,
+          item: ArenaComandaItem(
+            id: '',
+            productId: product.id,
+            productName: product.name,
+            emoji: product.emoji,
+            quantity: line.quantity,
+            unitPriceCents: product.priceCents,
+            lineTotalCents: lineTotalCents,
+            source: ArenaComandaItemSource.counter,
+            addedByName: addedByName,
+            addedByUid: managerUid,
+          ),
+          movement: ArenaStockMovement(
+            id: '',
+            productId: product.id,
+            productName: product.name,
+            type: ArenaStockMovementType.sale,
+            quantityDelta: delta,
+            quantityBefore: before,
+            quantityAfter: after,
+            createdByUid: managerUid,
+            note: notePrefix,
+          ),
+        ));
+      }
 
+      for (final pending in pendingLines) {
         final itemRef = _items(comanda.id).doc();
-        txn.set(itemRef, item.toFirestore());
+        txn.set(itemRef, pending.item.toFirestore());
 
-        final movement = ArenaStockMovement(
-          id: '',
-          productId: product.id,
-          productName: product.name,
-          type: ArenaStockMovementType.sale,
-          quantityDelta: delta,
-          quantityBefore: before,
-          quantityAfter: after,
-          createdByUid: managerUid,
-          note: notePrefix,
-        );
         final movementRef = _movements(arenaRef).doc();
-        txn.set(movementRef, movement.toFirestore());
+        txn.set(movementRef, pending.movement.toFirestore());
+      }
 
-        txn.update(productRef, {
-          'stockQuantity': after,
+      for (final entry in stockAfterByProduct.entries) {
+        txn.update(_products(arenaRef).doc(entry.key), {
+          'stockQuantity': entry.value,
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }
-
-      if (addedItemsCount == 0) return;
 
       final newItemsTotal = comanda.itemsTotalCents + addedItemsTotal;
       final newItemsCount = comanda.itemsCount + addedItemsCount;

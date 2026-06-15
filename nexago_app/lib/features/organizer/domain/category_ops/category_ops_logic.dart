@@ -1,3 +1,5 @@
+import '../../../tournaments/domain/tournament_detail_logic.dart';
+import '../tournament_create/tournament_create_logic.dart';
 import 'category_ops_models.dart';
 
 String formatCategoryMoneyCents(int cents) {
@@ -38,14 +40,15 @@ List<OrganizerCategoryTeamRow> filterCategoryTeams(
 
   result = switch (filter) {
     OrganizerCategoryTeamFilter.all => result,
-    OrganizerCategoryTeamFilter.seeds =>
-      result.where((t) => t.seedRank != null),
+    OrganizerCategoryTeamFilter.seeds => result.where(
+      (t) => t.seedRank != null,
+    ),
     OrganizerCategoryTeamFilter.pending => result.where(
-        (t) => t.status == OrganizerTeamRegistrationStatus.pending,
-      ),
+      (t) => t.status == OrganizerTeamRegistrationStatus.pending,
+    ),
     OrganizerCategoryTeamFilter.waitlist => result.where(
-        (t) => t.status == OrganizerTeamRegistrationStatus.waitlist,
-      ),
+      (t) => t.status == OrganizerTeamRegistrationStatus.waitlist,
+    ),
   };
 
   if (query.isNotEmpty) {
@@ -68,11 +71,13 @@ List<OrganizerCategoryTeamRow> sortCategoryTeams(
   copy.sort((a, b) {
     return switch (sort) {
       OrganizerTeamSort.registrationOrder =>
-        (a.registeredAt ?? DateTime(2100))
-            .compareTo(b.registeredAt ?? DateTime(2100)),
+        (a.registeredAt ?? DateTime(2100)).compareTo(
+          b.registeredAt ?? DateTime(2100),
+        ),
       OrganizerTeamSort.ranking =>
-        (b.player1.rankingPoints + b.player2.rankingPoints)
-            .compareTo(a.player1.rankingPoints + a.player2.rankingPoints),
+        (b.player1.rankingPoints + b.player2.rankingPoints).compareTo(
+          a.player1.rankingPoints + a.player2.rankingPoints,
+        ),
     };
   });
   return copy;
@@ -165,21 +170,21 @@ CategoryBracketStatus _parseBracketStatus(String? raw) =>
     };
 
 Map<String, dynamic> categoryOpsToMap(CategoryOpsState state) => {
-      'seeds': state.seeds,
-      'seedByRanking': state.seedByRanking,
-      'bracketStatus': state.bracketStatus.name,
-      if (state.bracketFormatOverride.isNotEmpty)
-        'bracketFormatOverride': state.bracketFormatOverride,
-      'bracketConfig': {
-        'winnersAdvantage': state.winnersAdvantage,
-        'phaseBestOf': state.phaseBestOf,
-        'finalBestOf5': state.finalBestOf5,
-        'thirdPlaceEnabled': state.thirdPlaceEnabled,
-      },
-      'groupsPreview': state.groupsPreview
-          .map((g) => {'id': g.id, 'teamIds': g.teamIds})
-          .toList(),
-    };
+  'seeds': state.seeds,
+  'seedByRanking': state.seedByRanking,
+  'bracketStatus': state.bracketStatus.name,
+  if (state.bracketFormatOverride.isNotEmpty)
+    'bracketFormatOverride': state.bracketFormatOverride,
+  'bracketConfig': {
+    'winnersAdvantage': state.winnersAdvantage,
+    'phaseBestOf': state.phaseBestOf,
+    'finalBestOf5': state.finalBestOf5,
+    'thirdPlaceEnabled': state.thirdPlaceEnabled,
+  },
+  'groupsPreview': state.groupsPreview
+      .map((g) => {'id': g.id, 'teamIds': g.teamIds})
+      .toList(),
+};
 
 List<OrganizerCategoryTeamRow> applySeedOrder(
   List<OrganizerCategoryTeamRow> teams,
@@ -217,14 +222,14 @@ List<String> defaultSeedOrderByRanking(List<OrganizerCategoryTeamRow> teams) {
 }
 
 int categoryShellTabCount(OrganizerCategoryShellTab tab) => switch (tab) {
-      OrganizerCategoryShellTab.teams => 0,
-      OrganizerCategoryShellTab.payments => 0,
-      OrganizerCategoryShellTab.bracket => 0,
-      OrganizerCategoryShellTab.matches => 0,
-    };
+  OrganizerCategoryShellTab.teams => 0,
+  OrganizerCategoryShellTab.payments => 0,
+  OrganizerCategoryShellTab.bracket => 0,
+  OrganizerCategoryShellTab.matches => 0,
+};
 
 String categoryShellTabLabel(OrganizerCategoryShellTab tab, {int? count}) {
-  final suffix = count != null && count > 0 ? ' $count' : '';
+  final suffix = count != null && count > 0 ? ' ($count)' : '';
   return switch (tab) {
     OrganizerCategoryShellTab.teams => 'Duplas$suffix',
     OrganizerCategoryShellTab.payments => 'Pagamentos$suffix',
@@ -232,3 +237,46 @@ String categoryShellTabLabel(OrganizerCategoryShellTab tab, {int? count}) {
     OrganizerCategoryShellTab.matches => 'Jogos',
   };
 }
+
+String organizerTeamSortLabel(OrganizerTeamSort sort) => switch (sort) {
+      OrganizerTeamSort.registrationOrder => 'Ordem de inscrição',
+      OrganizerTeamSort.ranking => 'Ranking',
+    };
+
+String categoryBracketFormatLabel(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return '';
+
+  final fromSystem = bracketFormatLabelFromRaw(trimmed);
+  if (fromSystem != trimmed) return fromSystem;
+
+  final legacy = bracketFormatLabel(trimmed);
+  if (legacy.toLowerCase() != trimmed.toLowerCase()) return legacy;
+
+  if (isDoubleEliminationBracketFormat(trimmed)) {
+    return 'Dupla eliminatória';
+  }
+
+  return trimmed;
+}
+
+String categoryBracketFormatShortLabel(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return '';
+
+  final fromSystem = bracketFormatShortLabelFromRaw(trimmed);
+  if (fromSystem != trimmed) return fromSystem;
+
+  if (isDoubleEliminationBracketFormat(trimmed)) return 'Dupla elim.';
+
+  final n = trimmed.toLowerCase();
+  return switch (n) {
+    'pool play + se' || 'group cross + play-in' => 'Grupos + SE',
+    _ => categoryBracketFormatLabel(trimmed),
+  };
+}
+int countTeamsByStatus(
+  List<OrganizerCategoryTeamRow> teams,
+  OrganizerTeamRegistrationStatus status,
+) =>
+    teams.where((t) => t.status == status).length;

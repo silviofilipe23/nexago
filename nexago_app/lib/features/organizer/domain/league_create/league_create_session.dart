@@ -206,8 +206,11 @@ Map<String, dynamic> _categoryToJson(TournamentCategoryDraft category) => {
       'spots': category.spots,
       'useDefaultPrice': category.useDefaultPrice,
       'priceCents': category.priceCents,
-      'customFormatEnabled': category.customFormatEnabled,
-      'bracketSystem': category.bracketSystem?.name,
+      'bracketSystem': category.bracketSystem.name,
+      'teamsPerGroup': category.teamsPerGroup,
+      'qualifiersPerGroup': category.qualifiersPerGroup,
+      'bestOf': category.bestOf.name,
+      'finalBestOf5': category.finalBestOf5,
       'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
       'prizes': category.prizes.map(_prizeToJson).toList(),
     };
@@ -257,14 +260,19 @@ TournamentCategoryDraft? _categoryFromJson(Map<String, dynamic> json) {
       spots: json['spots'] as int? ?? 16,
       useDefaultPrice: json['useDefaultPrice'] as bool? ?? true,
       priceCents: json['priceCents'] as int? ?? 9000,
-      customFormatEnabled: json['customFormatEnabled'] as bool? ?? false,
-      bracketSystem: json['bracketSystem'] != null
-          ? _enumByName(
-              TournamentBracketSystem.values,
-              json['bracketSystem'] as String?,
-              TournamentBracketSystem.groupsThenKnockout,
-            )
-          : null,
+      bracketSystem: _enumByName(
+        TournamentBracketSystem.values,
+        json['bracketSystem'] as String?,
+        TournamentBracketSystem.groupsThenKnockout,
+      ),
+      teamsPerGroup: json['teamsPerGroup'] as int? ?? 4,
+      qualifiersPerGroup: json['qualifiersPerGroup'] as int? ?? 2,
+      bestOf: _enumByName(
+        TournamentBestOf.values,
+        json['bestOf'] as String?,
+        TournamentBestOf.bestOf3,
+      ),
+      finalBestOf5: json['finalBestOf5'] as bool? ?? true,
       maxRegistrationsPerAthlete:
           json['maxRegistrationsPerAthlete'] as int? ?? 2,
       prizes: _prizesFromJson(json['prizes']),

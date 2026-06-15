@@ -12,6 +12,7 @@ import {deliverNotificationToUser} from "./notification-delivery";
 import {MatchStatus, isMatchCompleted} from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
 import {tryAwardLeagueStagePointsForMatch} from "./league-ranking";
+import {applyBracketAdvances} from "./category-bracket-advance";
 
 function getFirebaseProjectId(): string {
   return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
@@ -198,10 +199,25 @@ async function advanceBracketWinnerInternal(
   db: Firestore,
   projectId: string,
   data: FirebaseFirestore.DocumentData,
-): Promise<{advanced: boolean; nextMatchId?: string}> {
+): Promise<{advanced: boolean; nextMatchId?: string; nextMatchIds?: string[]}> {
   const winnerId = data.winnerId as string | undefined;
   if (!winnerId) {
     return {advanced: false};
+  }
+
+  if (data.winnerAdvance || data.loserAdvance) {
+    const metadataResult = await applyBracketAdvances(
+      db,
+      artifactsMatchesPath(projectId),
+      data,
+    );
+    if (metadataResult.advanced) {
+      return {
+        advanced: true,
+        nextMatchId: metadataResult.nextMatchIds[0],
+        nextMatchIds: metadataResult.nextMatchIds,
+      };
+    }
   }
 
   const tournamentId = data.tournamentId as string;

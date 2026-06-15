@@ -17,7 +17,9 @@ abstract final class TournamentCreateMapper {
     TournamentCreateStep? wizardStep,
     bool isUpdate = false,
   }) {
-    final categories = draft.categories.map(_categoryToMap).toList();
+    final categories = draft.categories
+        .map((c) => _categoryToMap(c, draft: draft))
+        .toList();
     final capacity = draft.totalSpots;
     final startAt = draft.startAt!;
     final endAt = draft.endAt!;
@@ -55,11 +57,6 @@ abstract final class TournamentCreateMapper {
       'liveMatchesNow': 0,
       'managerId': managerId,
       'categories': categories,
-      'bracketSystem': bracketFormatFirestoreValue(draft.bracketSystem),
-      'teamsPerGroup': draft.teamsPerGroup,
-      'qualifiersPerGroup': draft.qualifiersPerGroup,
-      'bestOf': draft.bestOf.name,
-      'finalBestOf5': draft.finalBestOf5,
       'defaultEntryFeeCents': draft.defaultPriceCents,
       'registrationOpensAt': draft.registrationOpensAt != null
           ? Timestamp.fromDate(draft.registrationOpensAt!)
@@ -101,10 +98,28 @@ abstract final class TournamentCreateMapper {
     String id,
   ) {
     final categoriesRaw = data['categories'];
+    final tournamentBracketSystem = _parseBracketSystem(
+      data['bracketSystem'] as String? ?? data['bracketFormat'] as String?,
+    );
+    final tournamentTeamsPerGroup = (data['teamsPerGroup'] as num?)?.toInt() ?? 4;
+    final tournamentQualifiersPerGroup =
+        (data['qualifiersPerGroup'] as num?)?.toInt() ?? 2;
+    final tournamentBestOf = _parseBestOf(data['bestOf'] as String?);
+    final tournamentFinalBestOf5 = data['finalBestOf5'] as bool? ?? true;
+
     final categories = categoriesRaw is List
         ? categoriesRaw
             .whereType<Map>()
-            .map((raw) => _categoryFromMap(Map<String, dynamic>.from(raw)))
+            .map(
+              (raw) => _categoryFromMap(
+                Map<String, dynamic>.from(raw),
+                fallbackBracketSystem: tournamentBracketSystem,
+                fallbackTeamsPerGroup: tournamentTeamsPerGroup,
+                fallbackQualifiersPerGroup: tournamentQualifiersPerGroup,
+                fallbackBestOf: tournamentBestOf,
+                fallbackFinalBestOf5: tournamentFinalBestOf5,
+              ),
+            )
             .whereType<TournamentCategoryDraft>()
             .toList()
         : <TournamentCategoryDraft>[];
@@ -128,13 +143,6 @@ abstract final class TournamentCreateMapper {
       categories: categories,
       defaultPriceCents:
           (data['defaultEntryFeeCents'] as num?)?.toInt() ?? 18000,
-      bracketSystem: _parseBracketSystem(
-        data['bracketSystem'] as String? ?? data['bracketFormat'] as String?,
-      ),
-      teamsPerGroup: (data['teamsPerGroup'] as num?)?.toInt() ?? 4,
-      qualifiersPerGroup: (data['qualifiersPerGroup'] as num?)?.toInt() ?? 2,
-      bestOf: _parseBestOf(data['bestOf'] as String?),
-      finalBestOf5: data['finalBestOf5'] as bool? ?? true,
       registrationOpensAt: _timestamp(data['registrationOpensAt']),
       registrationClosesAt: _timestamp(data['registrationClosesAt']),
       paymentMode: _parsePaymentMode(data['paymentMode'] as String?),
@@ -157,7 +165,15 @@ abstract final class TournamentCreateMapper {
     );
   }
 
-  static TournamentCategoryDraft? _categoryFromMap(Map<String, dynamic> map) {
+  static TournamentCategoryDraft? _categoryFromMap(
+    Map<String, dynamic> map, {
+    TournamentBracketSystem fallbackBracketSystem =
+        TournamentBracketSystem.groupsThenKnockout,
+    int fallbackTeamsPerGroup = 4,
+    int fallbackQualifiersPerGroup = 2,
+    TournamentBestOf fallbackBestOf = TournamentBestOf.bestOf3,
+    bool fallbackFinalBestOf5 = true,
+  }) {
     final id = map['id'] as String?;
     if (id == null || id.isEmpty) return null;
 
@@ -165,6 +181,7 @@ abstract final class TournamentCreateMapper {
         (((map['entryFee'] as num?)?.toDouble() ?? 0) * 100).round();
 
     final bracketRaw = map['bracketFormat'] as String?;
+    final hasCategoryBracket = bracketRaw != null && bracketRaw.isNotEmpty;
     final customFormatEnabled = map['customFormatEnabled'] as bool? ?? false;
 
     return TournamentCategoryDraft(
@@ -179,10 +196,17 @@ abstract final class TournamentCreateMapper {
           16,
       useDefaultPrice: map['useDefaultPrice'] as bool? ?? true,
       priceCents: entryFeeCents,
-      customFormatEnabled: customFormatEnabled,
-      bracketSystem: bracketRaw != null && bracketRaw.isNotEmpty
+      bracketSystem: hasCategoryBracket || customFormatEnabled
           ? _parseBracketSystem(bracketRaw)
-          : null,
+          : fallbackBracketSystem,
+      teamsPerGroup:
+          (map['teamsPerGroup'] as num?)?.toInt() ?? fallbackTeamsPerGroup,
+      qualifiersPerGroup: (map['qualifiersPerGroup'] as num?)?.toInt() ??
+          fallbackQualifiersPerGroup,
+      bestOf: map['bestOf'] != null
+          ? _parseBestOf(map['bestOf'] as String?)
+          : fallbackBestOf,
+      finalBestOf5: map['finalBestOf5'] as bool? ?? fallbackFinalBestOf5,
       maxRegistrationsPerAthlete:
           (map['maxRegistrationsPerAthlete'] as num?)?.toInt() ?? 2,
       prizes: _parsePrizes(map['prizes']),
@@ -292,12 +316,10 @@ abstract final class TournamentCreateMapper {
     };
   }
 
-  static Map<String, dynamic> _categoryToMap(TournamentCategoryDraft category) {
-    final effectiveFormat = category.customFormatEnabled &&
-            category.bracketSystem != null
-        ? category.bracketSystem!
-        : null;
-
+  static Map<String, dynamic> _categoryToMap(
+    TournamentCategoryDraft category, {
+    required TournamentCreateDraft draft,
+  }) {
     return {
       'id': category.id,
       'categoryName': category.name.trim().isEmpty
@@ -313,10 +335,11 @@ abstract final class TournamentCreateMapper {
       'entryFee': category.priceCents / 100,
       'entryFeeCents': category.priceCents,
       'useDefaultPrice': category.useDefaultPrice,
-      'customFormatEnabled': category.customFormatEnabled,
-      'bracketFormat': effectiveFormat != null
-          ? bracketFormatFirestoreValue(effectiveFormat)
-          : null,
+      'bracketFormat': bracketFormatFirestoreValue(category.bracketSystem),
+      'teamsPerGroup': category.teamsPerGroup,
+      'qualifiersPerGroup': category.qualifiersPerGroup,
+      'bestOf': category.bestOf.name,
+      'finalBestOf5': category.finalBestOf5,
       'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
       'registrationClosed': false,
       'isCompleted': false,
@@ -330,9 +353,11 @@ abstract final class TournamentCreateMapper {
             },
           )
           .toList(),
-      'uniformType': null,
-      'uniformNameOnShirt': false,
-      'uniformNumberOnShirt': false,
+      'uniformType': draft.uniformRequired ? 'top_only' : 'none',
+      'uniformNameOnShirt':
+          draft.uniformRequired && draft.uniformNameOnShirt,
+      'uniformNumberOnShirt':
+          draft.uniformRequired && draft.uniformNumberOnShirt,
     };
   }
 

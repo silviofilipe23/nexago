@@ -12,13 +12,11 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/auth/auth_providers.dart';
 import 'core/biometric/biometric_app_gate.dart';
-import 'features/athlete/domain/booking_invite_providers.dart';
+import 'core/deep_link/deep_link_navigation.dart';
 import 'core/notifications/notification_navigation.dart';
 import 'core/notifications/notification_providers.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/router/app_router.dart';
-import 'core/router/routes.dart';
-import 'features/arena/domain/mercado_pago_providers.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/system_ui_overlay_style.dart';
 import 'core/theme/theme_mode_provider.dart';
@@ -116,46 +114,11 @@ class _NexagoAppState extends ConsumerState<NexagoApp> {
   }
 
   void _handleDeepLink(Uri uri) {
-    if (_isMercadoPagoOAuthReturn(uri)) {
-      _handleMercadoPagoOAuthReturn(uri);
-      return;
-    }
-
-    final segments = uri.pathSegments;
-    if (segments.length < 2 || segments[0] != 'convite') return;
-    final inviteId = segments[1];
-    final router = ref.read(goRouterProvider);
-    final user = ref.read(authProvider).valueOrNull;
-    if (user != null) {
-      router.go('/convite/$inviteId');
-    } else {
-      ref.read(pendingInviteIdProvider.notifier).state = inviteId;
-      router.go('/login');
-    }
-  }
-
-  bool _isMercadoPagoOAuthReturn(Uri uri) {
-    if (uri.scheme == 'nexago' && uri.host == 'mercadopago') return true;
-    if (uri.scheme == 'https' &&
-        uri.host == 'voleigo.com.br' &&
-        uri.pathSegments.length >= 2 &&
-        uri.pathSegments[0] == 'arena' &&
-        uri.pathSegments[1] == 'mercadopago') {
-      return true;
-    }
-    return false;
-  }
-
-  void _handleMercadoPagoOAuthReturn(Uri uri) {
-    final mp = uri.queryParameters['mp'];
-    final router = ref.read(goRouterProvider);
-    final user = ref.read(authProvider).valueOrNull;
-    if (user == null) {
-      router.go('/login');
-      return;
-    }
-    ref.read(mercadoPagoOAuthFeedbackProvider.notifier).state = mp;
-    router.go(AppRoutes.arenaPayments);
+    navigateFromDeepLink(
+      uri: uri,
+      ref: ref,
+      router: ref.read(goRouterProvider),
+    );
   }
 
   @override

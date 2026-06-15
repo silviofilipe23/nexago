@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_document_mapper.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
 
 void main() {
   test('fromMap maps categories and pricing', () {
@@ -143,5 +144,30 @@ void main() {
     expect(prizes[0].value, 2000);
     expect(prizes[1].value, 2000);
     expect(prizes[2].value, 500);
+  });
+
+  test('detailFromMap falls back to tournament-level uniform flags', () {
+    final d = TournamentDocumentMapper.detailFromMap('uniform-root', {
+      'name': 'Open',
+      'capacity': 16,
+      'enrolledCount': 0,
+      'uniformRequired': true,
+      'uniformNumberOnShirt': true,
+      'uniformNameOnShirt': false,
+      'categories': [
+        {
+          'id': 'cat-1',
+          'categoryName': 'Misto',
+          'entryFee': 90,
+          'maxTeams': 16,
+        },
+      ],
+    });
+
+    final category = d.categoryOffers.first;
+    expect(category.uniformType, 'top_only');
+    expect(category.uniformNumberOnShirt, isTrue);
+    expect(category.uniformNameOnShirt, isFalse);
+    expect(categoryRequiresUniform(category), isTrue);
   });
 }

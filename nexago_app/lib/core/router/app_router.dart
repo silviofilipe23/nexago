@@ -21,7 +21,6 @@ import '../../features/auth/presentation/auth_loading_page.dart';
 import '../../features/organizer/presentation/organizer_home_page.dart';
 import '../../features/organizer/presentation/create/organizer_create_chooser_page.dart';
 import '../../features/organizer/presentation/tournament_create/steps/tournament_create_categories_page.dart';
-import '../../features/organizer/presentation/tournament_create/steps/tournament_create_format_page.dart';
 import '../../features/organizer/presentation/tournament_create/steps/tournament_create_identity_page.dart';
 import '../../features/organizer/presentation/tournament_create/steps/tournament_create_location_page.dart';
 import '../../features/organizer/presentation/tournament_create/steps/tournament_create_prizes_page.dart';
@@ -290,7 +289,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'tournaments/new/format',
             name: AppRouteNames.organizerTournamentCreateFormat,
-            builder: (context, state) => const TournamentCreateFormatPage(),
+            redirect: (context, state) =>
+                state.namedLocation(AppRouteNames.organizerTournamentCreateCategories),
           ),
           GoRoute(
             path: 'tournaments/new/registration',

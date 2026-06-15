@@ -131,11 +131,28 @@ String suggestCategoryName(TournamentCategoryDraft category) {
   return parts.join(' ').trim();
 }
 
-String categoryFormatLabel(TournamentCategoryDraft category) {
-  if (category.customFormatEnabled && category.bracketSystem != null) {
-    return bracketSystemShortLabel(category.bracketSystem!);
-  }
-  return '';
+String bracketSystemCardLabel(TournamentBracketSystem system) =>
+    switch (system) {
+      TournamentBracketSystem.groupsThenKnockout => 'Grupos+SE',
+      TournamentBracketSystem.singleElimination => 'Chave simples',
+      TournamentBracketSystem.roundRobin => 'Pontos corridos',
+      TournamentBracketSystem.groupsWithRepechage => 'Grupos+rep.',
+      TournamentBracketSystem.doubleElimination => 'Dupla elim.',
+    };
+
+String categoryFormatLabel(TournamentCategoryDraft category) =>
+    bracketSystemShortLabel(category.bracketSystem);
+
+String categoryFormatSummary(TournamentCategoryDraft category) {
+  final format = bracketSystemShortLabel(category.bracketSystem);
+  final sets = bestOfLabel(category.bestOf);
+  return '$format · $sets';
+}
+
+String categoryFormatCardLabel(TournamentCategoryDraft category) {
+  final format = bracketSystemCardLabel(category.bracketSystem);
+  final sets = bestOfLabel(category.bestOf);
+  return '$format · $sets';
 }
 
 List<String> categoryTags(TournamentCategoryDraft category) {
@@ -159,7 +176,6 @@ String stepTitle(TournamentCreateStep step) => switch (step) {
   TournamentCreateStep.identity => 'Identidade do torneio',
   TournamentCreateStep.location => 'Local e datas',
   TournamentCreateStep.categories => 'Categorias',
-  TournamentCreateStep.format => 'Formato de jogo',
   TournamentCreateStep.registration => 'Inscrições',
   TournamentCreateStep.prizes => 'Premiação',
   TournamentCreateStep.rules => 'Regulamento & ranking',
@@ -171,9 +187,7 @@ String stepSubtitle(TournamentCreateStep step) => switch (step) {
     'O básico que aparece para os atletas na busca.',
   TournamentCreateStep.location => 'Onde e quando o torneio acontece.',
   TournamentCreateStep.categories =>
-    'Cada categoria roda sua própria chave, com vagas e preço próprios.',
-  TournamentCreateStep.format =>
-    'Vale como padrão. Categorias podem ter formato próprio.',
+    'Cada categoria roda sua própria chave, formato, vagas e preço.',
   TournamentCreateStep.registration =>
     'Janela de inscrição e como você recebe.',
   TournamentCreateStep.prizes =>
@@ -236,7 +250,6 @@ bool canContinueFromStep(
           !draft.endAt!.isBefore(draft.startAt!) &&
           draft.courtsCount > 0,
     TournamentCreateStep.categories => draft.categories.isNotEmpty,
-    TournamentCreateStep.format => true,
     TournamentCreateStep.registration =>
       draft.registrationOpensAt != null &&
           draft.registrationClosesAt != null &&
@@ -272,6 +285,7 @@ TournamentCreateStep inferResumeStep(TournamentCreateDraft draft) {
 
 TournamentCreateStep? parseWizardStep(String? raw) {
   if (raw == null || raw.isEmpty) return null;
+  if (raw == 'format') return TournamentCreateStep.categories;
   for (final step in TournamentCreateStep.values) {
     if (step.name == raw) return step;
   }
@@ -311,6 +325,60 @@ String bracketFormatFirestoreValue(TournamentBracketSystem system) =>
       TournamentBracketSystem.doubleElimination => 'double_elimination',
     };
 
+/// Resolve o sistema de chave a partir do valor salvo no Firestore ou legado.
+TournamentBracketSystem? bracketSystemFromRaw(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return null;
+
+  for (final value in TournamentBracketSystem.values) {
+    if (value.name == trimmed) return value;
+  }
+
+  final n = trimmed.toLowerCase();
+  return switch (n) {
+    'groups_knockout' ||
+    'groups_then_knockout' ||
+    'pool play + se' ||
+    'pool play+se' =>
+      TournamentBracketSystem.groupsThenKnockout,
+    'single_elimination' || 'single elimination' =>
+      TournamentBracketSystem.singleElimination,
+    'round_robin' || 'round robin' => TournamentBracketSystem.roundRobin,
+    'groups_repechage' ||
+    'groups_with_repechage' ||
+    'groups with repechage' =>
+      TournamentBracketSystem.groupsWithRepechage,
+    'double_elimination' || 'double elimination' =>
+      TournamentBracketSystem.doubleElimination,
+    _ when n.contains('pool') &&
+            (n.contains('se') || n.contains('mata') || n.contains('elim')) =>
+      TournamentBracketSystem.groupsThenKnockout,
+    _ when n.contains('grupos') && n.contains('mata') =>
+      TournamentBracketSystem.groupsThenKnockout,
+    _ when n.contains('group cross') || n.contains('play-in') =>
+      TournamentBracketSystem.groupsThenKnockout,
+    _ when n.contains('dupla') && n.contains('elim') =>
+      TournamentBracketSystem.doubleElimination,
+    _ => null,
+  };
+}
+
+String bracketFormatLabelFromRaw(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return '';
+  final system = bracketSystemFromRaw(trimmed);
+  if (system != null) return bracketSystemLabel(system);
+  return trimmed;
+}
+
+String bracketFormatShortLabelFromRaw(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return '';
+  final system = bracketSystemFromRaw(trimmed);
+  if (system != null) return bracketSystemShortLabel(system);
+  return trimmed;
+}
+
 String genderTypeFirestoreValue(TournamentCategoryGender gender) =>
     switch (gender) {
       TournamentCategoryGender.male => 'male',
@@ -318,11 +386,17 @@ String genderTypeFirestoreValue(TournamentCategoryGender gender) =>
       TournamentCategoryGender.mixed => 'mixed',
     };
 
-String reviewFormatSummary(TournamentCreateDraft draft) {
-  final sport = sportLabel(draft.sport);
-  final format = bracketSystemShortLabel(draft.bracketSystem);
-  final sets = bestOfLabel(draft.bestOf);
-  return '$sport · $format · $sets';
+String reviewSportSummary(TournamentCreateDraft draft) =>
+    sportLabel(draft.sport);
+
+String reviewCategoriesDetailSummary(TournamentCreateDraft draft) {
+  if (draft.categories.isEmpty) return 'Nenhuma categoria';
+  return draft.categories
+      .map((c) {
+        final name = c.name.trim().isEmpty ? suggestCategoryName(c) : c.name.trim();
+        return '$name · ${categoryFormatSummary(c)}';
+      })
+      .join('\n');
 }
 
 String reviewLocationSummary(TournamentCreateDraft draft) {
@@ -360,10 +434,10 @@ String reviewPrizesSummary(TournamentCreateDraft draft) {
 }
 
 String reviewUniformSummary(TournamentCreateDraft draft) {
-  if (!draft.uniformRequired) return 'Sem uniforme obrigatório';
-  final parts = <String>['Obrigatório'];
-  if (draft.uniformNumberOnShirt) parts.add('com número');
-  if (draft.uniformNameOnShirt) parts.add('nome do atleta');
+  if (!draft.uniformRequired) return 'Sem kit na inscrição';
+  final parts = <String>['Kit na inscrição'];
+  if (draft.uniformNumberOnShirt) parts.add('número');
+  if (draft.uniformNameOnShirt) parts.add('nome na camisa');
   return parts.join(' · ');
 }
 

@@ -92,6 +92,24 @@ void main() {
     });
   });
 
+  group('categoryFormatSummary', () {
+    test('includes bracket and sets', () {
+      const category = TournamentCategoryDraft(
+        id: '1',
+        bracketSystem: TournamentBracketSystem.doubleElimination,
+        bestOf: TournamentBestOf.bestOf3,
+      );
+      expect(categoryFormatSummary(category), 'Dupla eliminatória · MD3');
+      expect(categoryFormatCardLabel(category), 'Dupla elim. · MD3');
+    });
+  });
+
+  group('parseWizardStep', () {
+    test('maps legacy format step to categories', () {
+      expect(parseWizardStep('format'), TournamentCreateStep.categories);
+    });
+  });
+
   group('review summaries', () {
     test('formats categories summary', () {
       const draft = TournamentCreateDraft(
@@ -102,6 +120,77 @@ void main() {
         ],
       );
       expect(reviewCategoriesSummary(draft), '2 categorias · 28 vagas no total');
+    });
+  });
+
+  group('reviewUniformSummary', () {
+    test('describes kit and registration fields', () {
+      expect(
+        reviewUniformSummary(
+          const TournamentCreateDraft(uniformRequired: false),
+        ),
+        'Sem kit na inscrição',
+      );
+      expect(
+        reviewUniformSummary(
+          const TournamentCreateDraft(
+            uniformRequired: true,
+            uniformNumberOnShirt: true,
+            uniformNameOnShirt: true,
+          ),
+        ),
+        'Kit na inscrição · número · nome na camisa',
+      );
+      expect(
+        reviewUniformSummary(
+          const TournamentCreateDraft(
+            uniformRequired: true,
+            uniformNumberOnShirt: false,
+            uniformNameOnShirt: true,
+          ),
+        ),
+        'Kit na inscrição · nome na camisa',
+      );
+    });
+  });
+
+  group('bracketFormatLabelFromRaw', () {
+    test('maps firestore values to friendly portuguese labels', () {
+      expect(
+        bracketFormatLabelFromRaw('groups_knockout'),
+        'Fase de grupos + mata-mata',
+      );
+      expect(
+        bracketFormatShortLabelFromRaw('groups_knockout'),
+        'Grupos + SE',
+      );
+      expect(
+        bracketFormatLabelFromRaw('single_elimination'),
+        'Mata-mata (chave simples)',
+      );
+      expect(
+        bracketFormatLabelFromRaw('double_elimination'),
+        'Dupla eliminatória',
+      );
+      expect(
+        bracketFormatLabelFromRaw('round_robin'),
+        'Todos contra todos',
+      );
+      expect(
+        bracketFormatLabelFromRaw('groups_repechage'),
+        'Grupos + repescagem',
+      );
+    });
+
+    test('maps legacy display strings', () {
+      expect(
+        bracketFormatLabelFromRaw('Pool Play + SE'),
+        'Fase de grupos + mata-mata',
+      );
+      expect(
+        bracketFormatLabelFromRaw('Single Elimination'),
+        'Mata-mata (chave simples)',
+      );
     });
   });
 }

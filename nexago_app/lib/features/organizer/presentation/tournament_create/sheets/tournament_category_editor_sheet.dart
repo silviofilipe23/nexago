@@ -6,6 +6,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
 import '../../../domain/tournament_create/tournament_create_providers.dart';
+import '../widgets/organizer_category_format_section.dart';
 import '../widgets/organizer_form_widgets.dart';
 
 Future<void> showTournamentCategoryEditorSheet(
@@ -183,6 +184,33 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
               labelBuilder: skillLevelLabel,
               onSelected: (value) => setState(
                 () => _category = _category.copyWith(skillLevel: value),
+              ),
+            ),
+            const SizedBox(height: 20),
+            OrganizerCategoryFormatSection(
+              bracketSystem: _category.bracketSystem,
+              teamsPerGroup: _category.teamsPerGroup,
+              qualifiersPerGroup: _category.qualifiersPerGroup,
+              bestOf: _category.bestOf,
+              finalBestOf5: _category.finalBestOf5,
+              onBracketSystemChanged: (system) => setState(
+                () => _category = _category.copyWith(bracketSystem: system),
+              ),
+              onTeamsPerGroupChanged: (value) {
+                if (value < 2) return;
+                setState(() => _category = _category.copyWith(teamsPerGroup: value));
+              },
+              onQualifiersPerGroupChanged: (value) {
+                if (value < 1) return;
+                setState(
+                  () => _category = _category.copyWith(qualifiersPerGroup: value),
+                );
+              },
+              onBestOfChanged: (value) => setState(
+                () => _category = _category.copyWith(bestOf: value),
+              ),
+              onFinalBestOf5Changed: (value) => setState(
+                () => _category = _category.copyWith(finalBestOf5: value),
               ),
             ),
             const SizedBox(height: 20),

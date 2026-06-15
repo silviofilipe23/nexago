@@ -49,7 +49,7 @@ class TournamentCreateRegistrationPage extends ConsumerWidget {
     return TournamentCreateWizardScaffold(
       step: TournamentCreateStep.registration,
       onBack: () {
-        syncWizardStep(ref, TournamentCreateStep.format);
+        syncWizardStep(ref, TournamentCreateStep.categories);
         Navigator.of(context).maybePop();
       },
       onClose: () => _handleClose(context, ref),

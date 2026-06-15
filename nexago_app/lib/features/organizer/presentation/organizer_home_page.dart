@@ -20,8 +20,10 @@ import '../domain/league_create/league_create_providers.dart';
 import '../domain/league_stage_create/league_stage_create_draft.dart';
 import '../domain/league_stage_create/league_stage_create_providers.dart';
 import 'league_create/league_create_navigation.dart';
+import 'league_create/sheets/organizer_league_actions_sheet.dart';
 import 'league_stage_create/league_stage_create_navigation.dart';
 import 'tournament_create/tournament_create_navigation.dart';
+import 'sheets/organizer_settings_sheet.dart';
 
 enum _OrganizerEventFilter { all, leagues, tournaments }
 
@@ -256,12 +258,8 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
                               borderRadius: BorderRadius.circular(12),
                               clipBehavior: Clip.antiAlias,
                               child: InkWell(
-                                onTap: canSwitch
-                                    ? () => navigateToRoleSelection(context, ref)
-                                    : () => showAppSnackBar(
-                                          context,
-                                          'Configurações em breve.',
-                                        ),
+                                onTap: () =>
+                                    showOrganizerSettingsSheet(context, ref),
                                 child: const SizedBox(
                                   width: 44,
                                   height: 44,
@@ -271,6 +269,12 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
                             ),
                           ],
                         ),
+                        if (canSwitch) ...[
+                          const SizedBox(height: 20),
+                          _RoleSwitchBanner(
+                            onTap: () => navigateToRoleSelection(context, ref),
+                          ),
+                        ],
                         const SizedBox(height: 24),
                         if (hasLocalTournamentDraft) ...[
                           _LocalDraftBanner(
@@ -425,9 +429,10 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
                                 final id = (event['id'] as String?)?.trim();
                                 if (id == null || id.isEmpty) return;
                                 if (event['_kind'] == 'league') {
-                                  context.pushNamed(
-                                    AppRouteNames.leagueDetail,
-                                    pathParameters: {'leagueId': id},
+                                  showOrganizerLeagueActionsSheet(
+                                    context,
+                                    leagueId: id,
+                                    league: event,
                                   );
                                   return;
                                 }
@@ -472,6 +477,76 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
                 borderRadius: BorderRadius.circular(14),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RoleSwitchBanner extends StatelessWidget {
+  const _RoleSwitchBanner({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.themeColors.surfaceCard,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.brand.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.swap_horiz_rounded,
+                  color: AppColors.brand,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Trocar papel',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Entrar como atleta ou gestor de arena',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: context.themeColors.onSurfaceMuted,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: context.themeColors.onSurfaceMuted,
+              ),
+            ],
           ),
         ),
       ),
@@ -957,6 +1032,12 @@ class _OrganizerEventCard extends StatelessWidget {
     if (isLive) return const _LiveBadge(label: 'Inscrições abertas');
     if (status == 'draft') return const _HeroBadge(label: 'Rascunho', muted: true);
     if (status == 'open') return const _LiveBadge(label: 'Publicado');
+    if (status == 'closed') {
+      return const _HeroBadge(label: 'Encerrada', muted: true);
+    }
+    if (status == 'cancelled') {
+      return const _HeroBadge(label: 'Cancelada', muted: true);
+    }
     return const SizedBox.shrink();
   }
 

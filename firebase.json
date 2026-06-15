@@ -47,7 +47,27 @@
     },
     {
       "target": "site",
-      "public": "dist/site/browser"
+      "public": "dist/site/browser",
+      "headers": [
+        {
+          "source": "/.well-known/apple-app-site-association",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        {
+          "source": "/.well-known/assetlinks.json",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      ]
     }
   ],
   "storage": {

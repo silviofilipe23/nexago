@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/athlete/domain/athlete_profile.dart';
 import '../../features/athlete/domain/athlete_profile_providers.dart';
+import '../deep_link/deep_link_navigation.dart';
 import '../../features/athlete/domain/booking_invite_providers.dart';
 import '../../features/auth/domain/post_login_bootstrap.dart';
 import '../router/routes.dart';
@@ -108,6 +109,11 @@ Future<String?> resolveAuthenticatedRedirect({
   }
 
   if (leavingAuthRoute) {
+    final pendingDeepLink = consumePendingDeepLinkPath(ref);
+    if (pendingDeepLink != null) {
+      return pendingDeepLink;
+    }
+
     final pendingInvite = ref.read(pendingInviteIdProvider);
     if (pendingInvite != null && pendingInvite.isNotEmpty) {
       ref.read(pendingInviteIdProvider.notifier).state = null;

@@ -27,7 +27,7 @@ void main() {
       ),
     );
 
-    expect(find.text('LOTADO'), findsOneWidget);
+    expect(find.text('Lotado'), findsOneWidget);
     expect(find.text('Gerar chave'), findsOneWidget);
   });
 }

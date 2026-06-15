@@ -167,7 +167,6 @@ class LeagueStageCreateWizardNotifier
           leagueState: context.state,
           defaultPriceCents: context.defaultPriceCents,
           rankingTableId: context.rankingTableId,
-          bracketSystem: context.bracketSystem,
           paymentMode: context.paymentMode,
           stage: targetStage.copyWith(
             city: targetStage.city.isEmpty ? context.city : targetStage.city,

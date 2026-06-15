@@ -325,20 +325,11 @@ class _MetaRow extends StatelessWidget {
                   color: context.themeColors.onSurfaceMuted,
                 ),
               ),
-              Icon(
-                Icons.expand_more_rounded,
-                size: 18,
-                color: AppColors.brand,
-              ),
+              Icon(Icons.expand_more_rounded, size: 18, color: AppColors.brand),
             ],
           ),
           itemBuilder: (context) => TeamDiscoverSort.values
-              .map(
-                (s) => PopupMenuItem(
-                  value: s,
-                  child: Text(_sortLabels[s]!),
-                ),
-              )
+              .map((s) => PopupMenuItem(value: s, child: Text(_sortLabels[s]!)))
               .toList(),
         ),
       ],

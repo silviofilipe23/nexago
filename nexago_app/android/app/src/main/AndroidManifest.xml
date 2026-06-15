@@ -28,7 +28,7 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- App Links: intercepta https://voleigo.com.br/convite/* -->
+            <!-- App Links: convites voleigo.com.br -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
@@ -37,6 +37,38 @@
                     android:scheme="https"
                     android:host="voleigo.com.br"
                     android:pathPrefix="/convite/"/>
+            </intent-filter>
+            <!-- App Links: torneios nexago.app -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="nexago.app"
+                    android:pathPrefix="/torneios"/>
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data
+                    android:scheme="https"
+                    android:host="nexago.app"
+                    android:pathPrefix="/torneios-convite"/>
+            </intent-filter>
+            <!-- Deep link custom scheme (dev / fallback) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="nexago" android:pathPrefix="/torneios"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="nexago" android:host="torneios"/>
             </intent-filter>
             <!-- Retorno OAuth Mercado Pago (gestor) -->
             <intent-filter>

@@ -41,6 +41,12 @@ void main() {
     expect(map['city'], 'Goiânia');
     expect(map['categories'], isA<List>());
     expect((map['categories'] as List).length, 1);
+    expect(map.containsKey('bracketSystem'), isFalse);
+
+    final category = (map['categories'] as List).first as Map<String, dynamic>;
+    expect(category['bracketFormat'], 'groups_knockout');
+    expect(category['teamsPerGroup'], 4);
+    expect(category['bestOf'], 'bestOf3');
     expect(map['keywords'], isA<List>());
     expect(map['enrolledCount'], 0);
   });
@@ -98,7 +104,76 @@ void main() {
     expect(parsed.draft.city, 'Goiânia');
     expect(parsed.draft.categories, hasLength(1));
     expect(parsed.draft.categories.first.name, 'Masculino Open');
+    expect(
+      parsed.draft.categories.first.bracketSystem,
+      TournamentBracketSystem.groupsThenKnockout,
+    );
+    expect(parsed.draft.categories.first.bestOf, TournamentBestOf.bestOf3);
     expect(parsed.wizardStep, TournamentCreateStep.registration);
+  });
+
+  test('fromFirestore legacy category inherits tournament-level format', () {
+    final parsed = TournamentCreateMapper.fromFirestore(
+      {
+        'name': 'Legacy',
+        'city': 'Goiânia',
+        'locationName': 'Arena',
+        'startAt': Timestamp.fromDate(DateTime(2026, 3, 28)),
+        'endAt': Timestamp.fromDate(DateTime(2026, 3, 30)),
+        'bracketSystem': 'double_elimination',
+        'teamsPerGroup': 3,
+        'qualifiersPerGroup': 1,
+        'bestOf': 'bestOf5',
+        'finalBestOf5': false,
+        'categories': [
+          {
+            'id': 'cat-1',
+            'categoryName': 'Masc',
+            'maxTeams': 8,
+          },
+        ],
+      },
+      'legacy-1',
+    );
+
+    final category = parsed.draft.categories.first;
+    expect(category.bracketSystem, TournamentBracketSystem.doubleElimination);
+    expect(category.teamsPerGroup, 3);
+    expect(category.qualifiersPerGroup, 1);
+    expect(category.bestOf, TournamentBestOf.bestOf5);
+    expect(category.finalBestOf5, isFalse);
+  });
+
+  test('toFirestore persists per-category format fields', () {
+    final draft = TournamentCreateDraft(
+      name: 'Multi',
+      city: 'Goiânia',
+      locationName: 'Arena',
+      startAt: DateTime(2026, 4, 1),
+      endAt: DateTime(2026, 4, 2),
+      categories: const [
+        TournamentCategoryDraft(
+          id: 'c1',
+          bracketSystem: TournamentBracketSystem.groupsThenKnockout,
+        ),
+        TournamentCategoryDraft(
+          id: 'c2',
+          bracketSystem: TournamentBracketSystem.doubleElimination,
+          bestOf: TournamentBestOf.bestOf5,
+        ),
+      ],
+    );
+
+    final map = TournamentCreateMapper.toFirestore(
+      draft: draft,
+      managerId: 'uid',
+      publish: true,
+    );
+
+    final categories = map['categories'] as List;
+    expect(categories[0]['bracketFormat'], 'groups_knockout');
+    expect(categories[1]['bracketFormat'], 'double_elimination');
+    expect(categories[1]['bestOf'], 'bestOf5');
   });
 
     test('toFirestore includes wizardStep when provided', () {
@@ -122,5 +197,63 @@ void main() {
     expect(map['wizardStep'], 'prizes');
     expect(map.containsKey('createdAt'), isFalse);
     expect(map.containsKey('enrolledCount'), isFalse);
+  });
+
+  test('toFirestore propagates uniform settings to categories', () {
+    final draft = TournamentCreateDraft(
+      name: 'Uniform Open',
+      city: 'Goiânia',
+      locationName: 'Arena',
+      startAt: DateTime(2026, 4, 1),
+      endAt: DateTime(2026, 4, 2),
+      uniformRequired: true,
+      uniformNumberOnShirt: true,
+      uniformNameOnShirt: true,
+      categories: const [TournamentCategoryDraft(id: 'cat-1')],
+    );
+
+    final map = TournamentCreateMapper.toFirestore(
+      draft: draft,
+      managerId: 'uid',
+      publish: true,
+    );
+
+    expect(map['uniformRequired'], isTrue);
+    expect(map['uniformNumberOnShirt'], isTrue);
+    expect(map['uniformNameOnShirt'], isTrue);
+
+    final category = (map['categories'] as List).first as Map<String, dynamic>;
+    expect(category['uniformType'], 'top_only');
+    expect(category['uniformNumberOnShirt'], isTrue);
+    expect(category['uniformNameOnShirt'], isTrue);
+  });
+
+  test('toFirestore clears category uniform when kit disabled', () {
+    final draft = TournamentCreateDraft(
+      name: 'No Kit',
+      city: 'Goiânia',
+      locationName: 'Arena',
+      startAt: DateTime(2026, 4, 1),
+      endAt: DateTime(2026, 4, 2),
+      uniformRequired: false,
+      uniformNumberOnShirt: true,
+      uniformNameOnShirt: true,
+      categories: const [TournamentCategoryDraft(id: 'cat-1')],
+    );
+
+    final map = TournamentCreateMapper.toFirestore(
+      draft: draft,
+      managerId: 'uid',
+      publish: true,
+    );
+
+    expect(map['uniformRequired'], isFalse);
+    expect(map['uniformNumberOnShirt'], isFalse);
+    expect(map['uniformNameOnShirt'], isFalse);
+
+    final category = (map['categories'] as List).first as Map<String, dynamic>;
+    expect(category['uniformType'], 'none');
+    expect(category['uniformNumberOnShirt'], isFalse);
+    expect(category['uniformNameOnShirt'], isFalse);
   });
 }

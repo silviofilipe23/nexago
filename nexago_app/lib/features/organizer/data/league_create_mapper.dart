@@ -209,11 +209,6 @@ abstract final class LeagueCreateMapper {
   }
 
   static Map<String, dynamic> _categoryToMap(TournamentCategoryDraft category) {
-    final effectiveFormat = category.customFormatEnabled &&
-            category.bracketSystem != null
-        ? category.bracketSystem!
-        : null;
-
     return {
       'id': category.id,
       'categoryName': category.name.trim().isEmpty
@@ -229,10 +224,11 @@ abstract final class LeagueCreateMapper {
       'entryFee': category.priceCents / 100,
       'entryFeeCents': category.priceCents,
       'useDefaultPrice': category.useDefaultPrice,
-      'customFormatEnabled': category.customFormatEnabled,
-      'bracketFormat': effectiveFormat != null
-          ? bracketFormatFirestoreValue(effectiveFormat)
-          : null,
+      'bracketFormat': bracketFormatFirestoreValue(category.bracketSystem),
+      'teamsPerGroup': category.teamsPerGroup,
+      'qualifiersPerGroup': category.qualifiersPerGroup,
+      'bestOf': category.bestOf.name,
+      'finalBestOf5': category.finalBestOf5,
       'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
       'registrationClosed': false,
       'isCompleted': false,
@@ -260,7 +256,6 @@ abstract final class LeagueCreateMapper {
         (((map['entryFee'] as num?)?.toDouble() ?? 0) * 100).round();
 
     final bracketRaw = map['bracketFormat'] as String?;
-    final customFormatEnabled = map['customFormatEnabled'] as bool? ?? false;
 
     return TournamentCategoryDraft(
       id: id,
@@ -274,14 +269,24 @@ abstract final class LeagueCreateMapper {
           16,
       useDefaultPrice: map['useDefaultPrice'] as bool? ?? true,
       priceCents: entryFeeCents,
-      customFormatEnabled: customFormatEnabled,
       bracketSystem: bracketRaw != null && bracketRaw.isNotEmpty
           ? _parseBracketSystem(bracketRaw)
-          : null,
+          : TournamentBracketSystem.groupsThenKnockout,
+      teamsPerGroup: (map['teamsPerGroup'] as num?)?.toInt() ?? 4,
+      qualifiersPerGroup: (map['qualifiersPerGroup'] as num?)?.toInt() ?? 2,
+      bestOf: _parseBestOf(map['bestOf'] as String?),
+      finalBestOf5: map['finalBestOf5'] as bool? ?? true,
       maxRegistrationsPerAthlete:
           (map['maxRegistrationsPerAthlete'] as num?)?.toInt() ?? 2,
       prizes: _parsePrizes(map['prizes']),
     );
+  }
+
+  static TournamentBestOf _parseBestOf(String? raw) {
+    for (final value in TournamentBestOf.values) {
+      if (value.name == raw) return value;
+    }
+    return TournamentBestOf.bestOf3;
   }
 
   static List<TournamentCategoryPrizeDraft> _parsePrizes(dynamic raw) {

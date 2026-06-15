@@ -63,8 +63,11 @@ class TournamentCategoryDraft {
     this.spots = 16,
     this.useDefaultPrice = true,
     this.priceCents = 18000,
-    this.customFormatEnabled = false,
-    this.bracketSystem,
+    this.bracketSystem = TournamentBracketSystem.groupsThenKnockout,
+    this.teamsPerGroup = 4,
+    this.qualifiersPerGroup = 2,
+    this.bestOf = TournamentBestOf.bestOf3,
+    this.finalBestOf5 = true,
     this.maxRegistrationsPerAthlete = 2,
     this.prizes = const [],
   });
@@ -78,8 +81,11 @@ class TournamentCategoryDraft {
   final int spots;
   final bool useDefaultPrice;
   final int priceCents;
-  final bool customFormatEnabled;
-  final TournamentBracketSystem? bracketSystem;
+  final TournamentBracketSystem bracketSystem;
+  final int teamsPerGroup;
+  final int qualifiersPerGroup;
+  final TournamentBestOf bestOf;
+  final bool finalBestOf5;
   final int maxRegistrationsPerAthlete;
   final List<TournamentCategoryPrizeDraft> prizes;
 
@@ -93,9 +99,11 @@ class TournamentCategoryDraft {
     int? spots,
     bool? useDefaultPrice,
     int? priceCents,
-    bool? customFormatEnabled,
     TournamentBracketSystem? bracketSystem,
-    bool clearCustomBracketSystem = false,
+    int? teamsPerGroup,
+    int? qualifiersPerGroup,
+    TournamentBestOf? bestOf,
+    bool? finalBestOf5,
     int? maxRegistrationsPerAthlete,
     List<TournamentCategoryPrizeDraft>? prizes,
   }) {
@@ -109,10 +117,11 @@ class TournamentCategoryDraft {
       spots: spots ?? this.spots,
       useDefaultPrice: useDefaultPrice ?? this.useDefaultPrice,
       priceCents: priceCents ?? this.priceCents,
-      customFormatEnabled: customFormatEnabled ?? this.customFormatEnabled,
-      bracketSystem: clearCustomBracketSystem
-          ? null
-          : (bracketSystem ?? this.bracketSystem),
+      bracketSystem: bracketSystem ?? this.bracketSystem,
+      teamsPerGroup: teamsPerGroup ?? this.teamsPerGroup,
+      qualifiersPerGroup: qualifiersPerGroup ?? this.qualifiersPerGroup,
+      bestOf: bestOf ?? this.bestOf,
+      finalBestOf5: finalBestOf5 ?? this.finalBestOf5,
       maxRegistrationsPerAthlete:
           maxRegistrationsPerAthlete ?? this.maxRegistrationsPerAthlete,
       prizes: prizes ?? this.prizes,
@@ -120,7 +129,7 @@ class TournamentCategoryDraft {
   }
 }
 
-/// Estado completo do wizard de criação de torneio (8 passos).
+/// Estado completo do wizard de criação de torneio (7 passos).
 @immutable
 class TournamentCreateDraft {
   const TournamentCreateDraft({
@@ -140,11 +149,6 @@ class TournamentCreateDraft {
     this.courtsCount = 4,
     this.categories = const [],
     this.defaultPriceCents = 18000,
-    this.bracketSystem = TournamentBracketSystem.groupsThenKnockout,
-    this.teamsPerGroup = 4,
-    this.qualifiersPerGroup = 2,
-    this.bestOf = TournamentBestOf.bestOf3,
-    this.finalBestOf5 = true,
     this.registrationOpensAt,
     this.registrationClosesAt,
     this.paymentMode = TournamentPaymentMode.appPixCard,
@@ -177,11 +181,6 @@ class TournamentCreateDraft {
   final int courtsCount;
   final List<TournamentCategoryDraft> categories;
   final int defaultPriceCents;
-  final TournamentBracketSystem bracketSystem;
-  final int teamsPerGroup;
-  final int qualifiersPerGroup;
-  final TournamentBestOf bestOf;
-  final bool finalBestOf5;
   final DateTime? registrationOpensAt;
   final DateTime? registrationClosesAt;
   final TournamentPaymentMode paymentMode;
@@ -224,11 +223,6 @@ class TournamentCreateDraft {
     int? courtsCount,
     List<TournamentCategoryDraft>? categories,
     int? defaultPriceCents,
-    TournamentBracketSystem? bracketSystem,
-    int? teamsPerGroup,
-    int? qualifiersPerGroup,
-    TournamentBestOf? bestOf,
-    bool? finalBestOf5,
     DateTime? registrationOpensAt,
     DateTime? registrationClosesAt,
     TournamentPaymentMode? paymentMode,
@@ -265,11 +259,6 @@ class TournamentCreateDraft {
       courtsCount: courtsCount ?? this.courtsCount,
       categories: categories ?? this.categories,
       defaultPriceCents: defaultPriceCents ?? this.defaultPriceCents,
-      bracketSystem: bracketSystem ?? this.bracketSystem,
-      teamsPerGroup: teamsPerGroup ?? this.teamsPerGroup,
-      qualifiersPerGroup: qualifiersPerGroup ?? this.qualifiersPerGroup,
-      bestOf: bestOf ?? this.bestOf,
-      finalBestOf5: finalBestOf5 ?? this.finalBestOf5,
       registrationOpensAt: registrationOpensAt ?? this.registrationOpensAt,
       registrationClosesAt: registrationClosesAt ?? this.registrationClosesAt,
       paymentMode: paymentMode ?? this.paymentMode,
@@ -294,7 +283,6 @@ enum TournamentCreateStep {
   identity,
   location,
   categories,
-  format,
   registration,
   prizes,
   rules,
@@ -304,5 +292,5 @@ enum TournamentCreateStep {
 extension TournamentCreateStepX on TournamentCreateStep {
   int get index => TournamentCreateStep.values.indexOf(this);
   int get number => index + 1;
-  static const total = 8;
+  static const total = 7;
 }

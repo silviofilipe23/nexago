@@ -1,3 +1,8 @@
+export interface BracketAdvanceSlot {
+  matchNumber: number;
+  teamSlot: "teamAId" | "teamBId";
+}
+
 export interface MatchDraft {
   round: number;
   matchType: string;
@@ -6,6 +11,8 @@ export interface MatchDraft {
   teamBId: string;
   isGroupMatch: boolean;
   matchNumber: number;
+  winnerAdvance?: BracketAdvanceSlot;
+  loserAdvance?: BracketAdvanceSlot;
 }
 
 export function buildGroupsKnockoutMatches(
@@ -114,5 +121,114 @@ export function buildDoubleEliminationMatches(teamIds: string[]): MatchDraft[] {
     matchNumber: matchNumber++,
   });
 
+  wireDoubleEliminationAdvances(matches);
   return matches;
+}
+
+function slotForIndex(index: number): "teamAId" | "teamBId" {
+  return index % 2 === 0 ? "teamAId" : "teamBId";
+}
+
+function advanceTo(
+  target: MatchDraft,
+  teamSlot: "teamAId" | "teamBId",
+): BracketAdvanceSlot {
+  return {matchNumber: target.matchNumber, teamSlot};
+}
+
+/** Liga vencedores/perdedores WB/LB/Final após gerar a chave DE. */
+export function wireDoubleEliminationAdvances(matches: MatchDraft[]): void {
+  const finalMatch = matches.find((m) => m.matchType === "Final");
+  if (!finalMatch) return;
+
+  const wbRounds: MatchDraft[][] = [];
+  const lbRounds: MatchDraft[][] = [];
+
+  for (const match of matches) {
+    if (match.matchType === "WB") {
+      const idx = match.round - 1;
+      if (!wbRounds[idx]) wbRounds[idx] = [];
+      wbRounds[idx].push(match);
+    } else if (match.matchType === "LB") {
+      const idx = match.round - 1;
+      if (!lbRounds[idx]) lbRounds[idx] = [];
+      lbRounds[idx].push(match);
+    }
+  }
+
+  for (const round of wbRounds) {
+    round.sort((a, b) => a.matchNumber - b.matchNumber);
+  }
+  for (const round of lbRounds) {
+    round.sort((a, b) => a.matchNumber - b.matchNumber);
+  }
+
+  const wbRoundCount = wbRounds.length;
+  if (wbRoundCount === 0) return;
+
+  for (let r = 0; r < wbRoundCount - 1; r++) {
+    const current = wbRounds[r];
+    const next = wbRounds[r + 1];
+    for (let i = 0; i < current.length; i++) {
+      const target = next[Math.floor(i / 2)];
+      if (!target) continue;
+      current[i].winnerAdvance = advanceTo(target, slotForIndex(i));
+    }
+  }
+
+  const wbFinal = wbRounds[wbRoundCount - 1][0];
+  if (wbFinal) {
+    wbFinal.winnerAdvance = advanceTo(finalMatch, "teamAId");
+    const lbFinalRound = lbRounds[lbRounds.length - 1];
+    const lbFinal = lbFinalRound?.[0];
+    if (lbFinal) {
+      wbFinal.loserAdvance = advanceTo(lbFinal, "teamBId");
+    }
+  }
+
+  const wbFirst = wbRounds[0];
+  const lbFirst = lbRounds[0];
+  if (wbFirst && lbFirst) {
+    for (let i = 0; i < wbFirst.length; i++) {
+      const target = lbFirst[Math.floor(i / 2)];
+      if (!target) continue;
+      wbFirst[i].loserAdvance = advanceTo(target, slotForIndex(i));
+    }
+  }
+
+  for (let r = 1; r < wbRoundCount - 1; r++) {
+    const wbRound = wbRounds[r];
+    const lbRound = lbRounds[2 * r];
+    if (!wbRound || !lbRound) continue;
+    for (let i = 0; i < wbRound.length; i++) {
+      const target = lbRound[Math.min(i, lbRound.length - 1)];
+      if (!target) continue;
+      wbRound[i].loserAdvance = advanceTo(target, "teamBId");
+    }
+  }
+
+  for (let r = 0; r < lbRounds.length - 1; r++) {
+    const current = lbRounds[r];
+    const next = lbRounds[r + 1];
+    if (!current || !next) continue;
+
+    if (current.length === next.length) {
+      for (let i = 0; i < current.length; i++) {
+        current[i].winnerAdvance = advanceTo(next[i], "teamAId");
+      }
+      continue;
+    }
+
+    for (let i = 0; i < current.length; i++) {
+      const target = next[Math.floor(i / 2)];
+      if (!target) continue;
+      current[i].winnerAdvance = advanceTo(target, slotForIndex(i));
+    }
+  }
+
+  const lbFinalRound = lbRounds[lbRounds.length - 1];
+  const lbFinal = lbFinalRound?.[0];
+  if (lbFinal) {
+    lbFinal.winnerAdvance = advanceTo(finalMatch, "teamBId");
+  }
 }

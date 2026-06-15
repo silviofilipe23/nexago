@@ -4,6 +4,56 @@ Projeto Firebase: **`volley-track-dev-4596c`**
 
 Checklist operacional para validar o fluxo end-to-end após mudanças em competições. Marque **Pass** ou **Fail** e anote o ID do torneio/liga usado.
 
+---
+
+## Roteiro enxuto (~15 min) — só o crítico
+
+Use **duas contas**: organizador + atleta. Anote IDs no final.
+
+### A. Torneio avulso (grupos ou mata-mata)
+
+| # | Quem | Ação | OK se |
+|---|------|------|-------|
+| A1 | Org | Publicar torneio `open` | Aparece em **Competir** (atleta) |
+| A2 | Atleta | Inscrever dupla (convite/PIX) | Só confirma após pagamento/CF |
+| A3 | Org | Gerar chave + encerrar 1 partida com placar | Match `Completed`; vencedor avança se houver próxima rodada |
+| A4 | Org | `Chamar para quadra` em outra partida | Atleta vê partida ao vivo / `liveMatchesNow` > 0 |
+| A5 | Org | Encerrar inscrições | Atleta **não** inicia nova inscrição |
+
+**Fail rápido:** draft no Competir · inscrição paga pelo app · placar sem `pointEvents` · inscrição aberta após encerrar.
+
+### B. Liga (1 etapa basta)
+
+| # | Quem | Ação | OK se |
+|---|------|------|-------|
+| B1 | Org | Liga publicada + 1 etapa `open` | Etapa não fica `draft` |
+| B2 | Org | Final da categoria na etapa | Ranking da liga mostra 1º/2º (aba **Duplas**) |
+| B3 | Atleta | Detalhe da liga → **Atletas** | Mesmos pontos dos jogadores da dupla campeã |
+| B4 | Org | ⋯ no card → **Encerrar temporada** | Status `closed`; some “Adicionar etapa” |
+
+**Fail rápido:** ranking vazio após final · `closed` bloqueado · etapa nova após encerrar.
+
+### C. Só se usar dupla eliminação (extra ~5 min)
+
+| # | Ação | OK se |
+|---|------|-------|
+| C1 | **Republicar** chave DE (bracket novo) | — |
+| C2 | Encerrar WB R1 | Perdedores no LB; vencedores na WB R2 |
+| C3 | Encerrar WB final + LB final | Grand Final com os dois slots preenchidos |
+
+**Ignorar:** brackets DE gerados antes do deploy de avanço (sem `winnerAdvance`).
+
+### Registro mínimo
+
+```
+Data: __________  Executor: __________
+Torneio ID: __________  Liga ID: __________
+A1–A5: ☐  B1–B4: ☐  C1–C3: ☐ (opcional)
+Bloqueadores: __________
+```
+
+---
+
 ## Pré-requisitos
 
 - App Flutter apontando para `volley-track-dev-4596c` (`flutter run` com flavor dev).
@@ -34,7 +84,9 @@ Checklist operacional para validar o fluxo end-to-end após mudanças em competi
 | L3 | Ranking na liga | Atleta abre detalhe da liga | ☐ | Ranking vazio após final ou pontos ignoram best-N |
 | L3b | Ranking atletas | Alternar para aba **Atletas** | ☐ | Pontos não espelham duplas |
 | L4 | Best-N | Liga com `best_4_of_6` e 5+ etapas simuladas | ☐ | `effectivePoints` ≠ soma das 4 melhores etapas |
-| L5 | Dupla eliminação | Encerrar última LB + Final | ☐ | 3º/4º da LB não pontuam; 1º/2º na Final |
+| L5 | Dupla eliminação | Encerrar WB R1 → LB; WB final + LB final → Grand Final | ☐ | Slots vazios na Final ou LB após placar |
+| L6 | Encerrar liga | Organizador → Encerrar temporada | ☐ | Rules bloqueiam `closed` ou etapas ainda liberadas |
+| L7 | Cancelar liga | Organizador → Cancelar liga | ☐ | Liga cancelada ainda visível em Competir |
 
 ## Registro da execução
 

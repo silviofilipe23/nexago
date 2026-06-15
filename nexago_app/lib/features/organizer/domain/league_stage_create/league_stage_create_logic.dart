@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../league_create/league_create_draft.dart';
+import '../tournament_create/tournament_create_draft.dart';
 import '../tournament_create/tournament_create_logic.dart';
 import 'league_stage_create_draft.dart';
 
@@ -164,8 +165,30 @@ String reviewStageRegistrationSummary(LeagueStageCreateDraft draft) {
 }
 
 String reviewStageFormatSummary(LeagueStageCreateDraft draft) {
-  final format = bracketSystemShortLabel(draft.bracketSystem);
-  return '$format · pontos somam no circuito';
+  final enabled = draft.categories.where((c) => c.enabled).toList();
+  if (enabled.isEmpty) return 'Formato por categoria';
+  final formats = enabled
+      .map((c) => '${c.name.trim()}: ${bracketSystemShortLabel(c.bracketSystem)}')
+      .join(' · ');
+  return '$formats · pontos somam no circuito';
+}
+
+TournamentBracketSystem _parseBracketFormat(String? raw) {
+  return switch (raw) {
+    'groups_knockout' => TournamentBracketSystem.groupsThenKnockout,
+    'single_elimination' => TournamentBracketSystem.singleElimination,
+    'round_robin' => TournamentBracketSystem.roundRobin,
+    'groups_repechage' => TournamentBracketSystem.groupsWithRepechage,
+    'double_elimination' => TournamentBracketSystem.doubleElimination,
+    _ => TournamentBracketSystem.groupsThenKnockout,
+  };
+}
+
+TournamentBestOf _parseBestOf(String? raw) {
+  for (final value in TournamentBestOf.values) {
+    if (value.name == raw) return value;
+  }
+  return TournamentBestOf.bestOf3;
 }
 
 List<LeagueStageCategoryDraft> categoriesFromLeagueCategories(
@@ -184,6 +207,7 @@ List<LeagueStageCategoryDraft> categoriesFromLeagueCategories(
         (map['spotsTotal'] as num?)?.toInt() ??
         16;
     final price = (map['entryFeeCents'] as num?)?.toInt() ?? defaultPriceCents;
+    final bracketRaw = map['bracketFormat'] as String?;
 
     return LeagueStageCategoryDraft(
       categoryId: id,
@@ -191,6 +215,13 @@ List<LeagueStageCategoryDraft> categoriesFromLeagueCategories(
       enabled: true,
       spots: spots,
       priceCents: price,
+      bracketSystem: bracketRaw != null && bracketRaw.isNotEmpty
+          ? _parseBracketFormat(bracketRaw)
+          : TournamentBracketSystem.groupsThenKnockout,
+      teamsPerGroup: (map['teamsPerGroup'] as num?)?.toInt() ?? 4,
+      qualifiersPerGroup: (map['qualifiersPerGroup'] as num?)?.toInt() ?? 2,
+      bestOf: _parseBestOf(map['bestOf'] as String?),
+      finalBestOf5: map['finalBestOf5'] as bool? ?? true,
     );
   }).whereType<LeagueStageCategoryDraft>().toList();
 }

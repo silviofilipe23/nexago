@@ -5,7 +5,15 @@ String organizerTournamentShareLink(String tournamentId) =>
     'https://nexago.app/torneios/$tournamentId';
 
 String organizerTournamentRegistrationShareLink(String tournamentId) =>
-    'https://nexago.app/torneios/$tournamentId/inscricao';
+    'nexago:///torneios/$tournamentId/inscricao';
+
+String organizerTournamentRegistrationShareMessage({
+  required String tournamentName,
+  required String tournamentId,
+}) {
+  final link = organizerTournamentRegistrationShareLink(tournamentId);
+  return 'Inscreva-se no $tournamentName no NexaGO:\n$link';
+}
 
 OrganizerTournamentListingBadge tournamentListingBadge(String listingStatus) {
   return switch (listingStatus.trim().toLowerCase()) {
@@ -31,7 +39,7 @@ String tournamentContextBadge({
   int? leagueStageOrder,
 }) {
   if (isLeagueStage && leagueStageOrder != null) {
-    return 'TORNEIO · ETAPA $leagueStageOrder';
+    return 'TORNEIO · $leagueStageOrder ETAPA';
   }
   return 'TORNEIO';
 }

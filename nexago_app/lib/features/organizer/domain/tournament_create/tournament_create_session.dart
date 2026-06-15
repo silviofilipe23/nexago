@@ -32,7 +32,7 @@ class TournamentCreateSession {
   }
 
   Map<String, dynamic> toJson() => {
-        'version': 1,
+        'version': 2,
         'managerUid': managerUid,
         'updatedAt': updatedAt.toIso8601String(),
         'currentStep': currentStep.name,
@@ -42,7 +42,7 @@ class TournamentCreateSession {
   static TournamentCreateSession? fromJson(Map<String, dynamic> json) {
     try {
       final version = json['version'] as int? ?? 1;
-      if (version != 1) return null;
+      if (version != 1 && version != 2) return null;
 
       final managerUid = json['managerUid'] as String? ?? '';
       if (managerUid.isEmpty) return null;
@@ -58,7 +58,7 @@ class TournamentCreateSession {
 
       final draftJson = json['draft'];
       if (draftJson is! Map<String, dynamic>) return null;
-      final draft = _draftFromJson(draftJson);
+      final draft = _draftFromJson(draftJson, version: version);
       if (draft == null) return null;
 
       return TournamentCreateSession(
@@ -90,11 +90,6 @@ Map<String, dynamic> _draftToJson(TournamentCreateDraft draft) => {
       'courtsCount': draft.courtsCount,
       'categories': draft.categories.map(_categoryToJson).toList(),
       'defaultPriceCents': draft.defaultPriceCents,
-      'bracketSystem': draft.bracketSystem.name,
-      'teamsPerGroup': draft.teamsPerGroup,
-      'qualifiersPerGroup': draft.qualifiersPerGroup,
-      'bestOf': draft.bestOf.name,
-      'finalBestOf5': draft.finalBestOf5,
       'registrationOpensAt': draft.registrationOpensAt?.toIso8601String(),
       'registrationClosesAt': draft.registrationClosesAt?.toIso8601String(),
       'paymentMode': draft.paymentMode.name,
@@ -111,8 +106,47 @@ Map<String, dynamic> _draftToJson(TournamentCreateDraft draft) => {
       'visibility': draft.visibility.name,
     };
 
-TournamentCreateDraft? _draftFromJson(Map<String, dynamic> json) {
+TournamentCreateDraft? _draftFromJson(
+  Map<String, dynamic> json, {
+  required int version,
+}) {
   try {
+    final legacyBracketSystem = version == 1
+        ? _enumByName(
+            TournamentBracketSystem.values,
+            json['bracketSystem'] as String?,
+            TournamentBracketSystem.groupsThenKnockout,
+          )
+        : TournamentBracketSystem.groupsThenKnockout;
+    final legacyTeamsPerGroup = version == 1
+        ? json['teamsPerGroup'] as int? ?? 4
+        : 4;
+    final legacyQualifiersPerGroup = version == 1
+        ? json['qualifiersPerGroup'] as int? ?? 2
+        : 2;
+    final legacyBestOf = version == 1
+        ? _enumByName(
+            TournamentBestOf.values,
+            json['bestOf'] as String?,
+            TournamentBestOf.bestOf3,
+          )
+        : TournamentBestOf.bestOf3;
+    final legacyFinalBestOf5 =
+        version == 1 ? json['finalBestOf5'] as bool? ?? true : true;
+
+    var categories = _categoriesFromJson(
+      json['categories'],
+      fallbackBracketSystem: legacyBracketSystem,
+      fallbackTeamsPerGroup: legacyTeamsPerGroup,
+      fallbackQualifiersPerGroup: legacyQualifiersPerGroup,
+      fallbackBestOf: legacyBestOf,
+      fallbackFinalBestOf5: legacyFinalBestOf5,
+    );
+
+    if (version == 1 && categories.isEmpty) {
+      categories = const [];
+    }
+
     return TournamentCreateDraft(
       tournamentId: json['tournamentId'] as String?,
       sport: _enumByName(
@@ -132,21 +166,8 @@ TournamentCreateDraft? _draftFromJson(Map<String, dynamic> json) {
       endAt: _parseDate(json['endAt']),
       firstMatchAt: _parseDate(json['firstMatchAt']),
       courtsCount: json['courtsCount'] as int? ?? 4,
-      categories: _categoriesFromJson(json['categories']),
+      categories: categories,
       defaultPriceCents: json['defaultPriceCents'] as int? ?? 18000,
-      bracketSystem: _enumByName(
-        TournamentBracketSystem.values,
-        json['bracketSystem'] as String?,
-        TournamentBracketSystem.groupsThenKnockout,
-      ),
-      teamsPerGroup: json['teamsPerGroup'] as int? ?? 4,
-      qualifiersPerGroup: json['qualifiersPerGroup'] as int? ?? 2,
-      bestOf: _enumByName(
-        TournamentBestOf.values,
-        json['bestOf'] as String?,
-        TournamentBestOf.bestOf3,
-      ),
-      finalBestOf5: json['finalBestOf5'] as bool? ?? true,
       registrationOpensAt: _parseDate(json['registrationOpensAt']),
       registrationClosesAt: _parseDate(json['registrationClosesAt']),
       paymentMode: _enumByName(
@@ -185,8 +206,11 @@ Map<String, dynamic> _categoryToJson(TournamentCategoryDraft category) => {
       'spots': category.spots,
       'useDefaultPrice': category.useDefaultPrice,
       'priceCents': category.priceCents,
-      'customFormatEnabled': category.customFormatEnabled,
-      'bracketSystem': category.bracketSystem?.name,
+      'bracketSystem': category.bracketSystem.name,
+      'teamsPerGroup': category.teamsPerGroup,
+      'qualifiersPerGroup': category.qualifiersPerGroup,
+      'bestOf': category.bestOf.name,
+      'finalBestOf5': category.finalBestOf5,
       'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
       'prizes': category.prizes.map(_prizeToJson).toList(),
     };
@@ -197,19 +221,46 @@ Map<String, dynamic> _prizeToJson(TournamentCategoryPrizeDraft prize) => {
       if (prize.label != null) 'label': prize.label,
     };
 
-List<TournamentCategoryDraft> _categoriesFromJson(dynamic raw) {
+List<TournamentCategoryDraft> _categoriesFromJson(
+  dynamic raw, {
+  required TournamentBracketSystem fallbackBracketSystem,
+  required int fallbackTeamsPerGroup,
+  required int fallbackQualifiersPerGroup,
+  required TournamentBestOf fallbackBestOf,
+  required bool fallbackFinalBestOf5,
+}) {
   if (raw is! List) return const [];
   return raw
       .whereType<Map<String, dynamic>>()
-      .map(_categoryFromJson)
+      .map(
+        (json) => _categoryFromJson(
+          json,
+          fallbackBracketSystem: fallbackBracketSystem,
+          fallbackTeamsPerGroup: fallbackTeamsPerGroup,
+          fallbackQualifiersPerGroup: fallbackQualifiersPerGroup,
+          fallbackBestOf: fallbackBestOf,
+          fallbackFinalBestOf5: fallbackFinalBestOf5,
+        ),
+      )
       .whereType<TournamentCategoryDraft>()
       .toList();
 }
 
-TournamentCategoryDraft? _categoryFromJson(Map<String, dynamic> json) {
+TournamentCategoryDraft? _categoryFromJson(
+  Map<String, dynamic> json, {
+  required TournamentBracketSystem fallbackBracketSystem,
+  required int fallbackTeamsPerGroup,
+  required int fallbackQualifiersPerGroup,
+  required TournamentBestOf fallbackBestOf,
+  required bool fallbackFinalBestOf5,
+}) {
   try {
     final id = json['id'] as String?;
     if (id == null || id.isEmpty) return null;
+
+    final hasBracket = json['bracketSystem'] != null;
+    final customFormatEnabled = json['customFormatEnabled'] as bool? ?? false;
+
     return TournamentCategoryDraft(
       id: id,
       name: json['name'] as String? ?? '',
@@ -236,14 +287,24 @@ TournamentCategoryDraft? _categoryFromJson(Map<String, dynamic> json) {
       spots: json['spots'] as int? ?? 16,
       useDefaultPrice: json['useDefaultPrice'] as bool? ?? true,
       priceCents: json['priceCents'] as int? ?? 18000,
-      customFormatEnabled: json['customFormatEnabled'] as bool? ?? false,
-      bracketSystem: json['bracketSystem'] != null
+      bracketSystem: hasBracket || customFormatEnabled
           ? _enumByName(
               TournamentBracketSystem.values,
               json['bracketSystem'] as String?,
-              TournamentBracketSystem.groupsThenKnockout,
+              fallbackBracketSystem,
             )
-          : null,
+          : fallbackBracketSystem,
+      teamsPerGroup: json['teamsPerGroup'] as int? ?? fallbackTeamsPerGroup,
+      qualifiersPerGroup:
+          json['qualifiersPerGroup'] as int? ?? fallbackQualifiersPerGroup,
+      bestOf: json['bestOf'] != null
+          ? _enumByName(
+              TournamentBestOf.values,
+              json['bestOf'] as String?,
+              fallbackBestOf,
+            )
+          : fallbackBestOf,
+      finalBestOf5: json['finalBestOf5'] as bool? ?? fallbackFinalBestOf5,
       maxRegistrationsPerAthlete:
           json['maxRegistrationsPerAthlete'] as int? ?? 2,
       prizes: _prizesFromJson(json['prizes']),
@@ -283,6 +344,7 @@ DateTime? _parseDate(dynamic raw) {
 
 TournamentCreateStep? _parseStep(String? name) {
   if (name == null || name.isEmpty) return null;
+  if (name == 'format') return TournamentCreateStep.categories;
   for (final step in TournamentCreateStep.values) {
     if (step.name == name) return step;
   }

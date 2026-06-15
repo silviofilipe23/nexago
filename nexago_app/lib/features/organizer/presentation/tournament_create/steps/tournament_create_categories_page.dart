@@ -35,10 +35,7 @@ class TournamentCreateCategoriesPage extends ConsumerWidget {
           for (final category in draft.categories) ...[
             OrganizerCategoryCard(
               category: category,
-              formatLabel: category.customFormatEnabled &&
-                      category.bracketSystem != null
-                  ? bracketSystemShortLabel(category.bracketSystem!)
-                  : bracketSystemShortLabel(draft.bracketSystem),
+              formatLabel: categoryFormatCardLabel(category),
               onEdit: () => showTournamentCategoryEditorSheet(
                 context,
                 ref,

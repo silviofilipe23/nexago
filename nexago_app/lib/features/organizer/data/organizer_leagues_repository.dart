@@ -21,7 +21,6 @@ typedef PublishedLeagueForStageAdd = ({
   String state,
   int defaultPriceCents,
   String rankingTableId,
-  TournamentBracketSystem bracketSystem,
   TournamentPaymentMode paymentMode,
   List<LeagueStageCategoryDraft> categories,
   List<LeagueStageDraft> existingStages,
@@ -289,7 +288,6 @@ class OrganizerLeaguesRepository {
       state: (data['state'] as String?) ?? '',
       defaultPriceCents: defaultPrice,
       rankingTableId: (data['rankingTableId'] as String?) ?? 'state_circuit',
-      bracketSystem: _parseBracketSystem(data['bracketSystem'] as String?),
       paymentMode: _parsePaymentMode(data['paymentMode'] as String?),
       categories: categories,
       existingStages: existingStages,
@@ -327,6 +325,11 @@ class OrganizerLeaguesRepository {
       throw StateError('Sem permissão para atualizar esta liga.');
     }
 
+    final leagueStatus = (leagueData['listingStatus'] as String?) ?? '';
+    if (leagueStatus != 'open') {
+      throw StateError('A liga precisa estar publicada para adicionar etapas.');
+    }
+
     final existingStages = stagesFromLeagueData(leagueData['stages'] as List?);
     final tournamentId = _tournaments.doc().id;
     final definedStage = draft.stage.copyWith(
@@ -362,20 +365,59 @@ class OrganizerLeaguesRepository {
     return (tournamentId: tournamentId, published: publish);
   }
 
+  Future<void> closeLeague(String leagueId) async {
+    await _updateLeagueListingStatus(leagueId, 'closed');
+  }
+
+  Future<void> cancelLeague(String leagueId) async {
+    await _updateLeagueListingStatus(leagueId, 'cancelled');
+  }
+
+  Future<void> _updateLeagueListingStatus(
+    String leagueId,
+    String listingStatus,
+  ) async {
+    final id = leagueId.trim();
+    if (id.isEmpty) throw ArgumentError('ID da liga inválido.');
+
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) {
+      throw StateError('Usuário não autenticado.');
+    }
+
+    final ref = _leagues.doc(id);
+    final snap = await ref.get();
+    if (!snap.exists) throw StateError('Liga não encontrada.');
+
+    final data = snap.data();
+    if (data == null || (data['managerId'] as String?) != uid) {
+      throw StateError('Sem permissão para gerenciar esta liga.');
+    }
+
+    final current = (data['listingStatus'] as String?) ?? '';
+    if (current == listingStatus) return;
+
+    if (listingStatus == 'closed' && current != 'open') {
+      throw StateError('Só é possível encerrar uma liga publicada.');
+    }
+    if (listingStatus == 'cancelled' &&
+        current != 'open' &&
+        current != 'draft') {
+      throw StateError('Esta liga não pode ser cancelada.');
+    }
+
+    await ref.update({
+      'listingStatus': listingStatus,
+      'status': listingStatus,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   TournamentSport _parseSport(String? raw) {
     for (final value in TournamentSport.values) {
       if (value.name == raw) return value;
     }
     return TournamentSport.beachVolleyball;
-  }
-
-  TournamentBracketSystem _parseBracketSystem(String? raw) {
-    return switch (raw) {
-      'groups_knockout' => TournamentBracketSystem.groupsThenKnockout,
-      'single_elimination' => TournamentBracketSystem.singleElimination,
-      'round_robin' => TournamentBracketSystem.roundRobin,
-      _ => TournamentBracketSystem.groupsThenKnockout,
-    };
   }
 
   TournamentPaymentMode _parsePaymentMode(String? raw) {

@@ -285,25 +285,6 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
     );
   }
 
-  void setBracketSystem(TournamentBracketSystem value) =>
-      _updateDraft(state.draft.copyWith(bracketSystem: value));
-
-  void setTeamsPerGroup(int value) {
-    if (value < 2) return;
-    _updateDraft(state.draft.copyWith(teamsPerGroup: value));
-  }
-
-  void setQualifiersPerGroup(int value) {
-    if (value < 1) return;
-    _updateDraft(state.draft.copyWith(qualifiersPerGroup: value));
-  }
-
-  void setBestOf(TournamentBestOf value) =>
-      _updateDraft(state.draft.copyWith(bestOf: value));
-
-  void setFinalBestOf5(bool value) =>
-      _updateDraft(state.draft.copyWith(finalBestOf5: value));
-
   void setRegistrationOpensAt(DateTime? value) =>
       _updateDraft(state.draft.copyWith(registrationOpensAt: value));
 
@@ -370,8 +351,13 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
   void setRegulationNotes(String value) =>
       _updateDraft(state.draft.copyWith(regulationNotes: value));
 
-  void setUniformRequired(bool value) =>
-      _updateDraft(state.draft.copyWith(uniformRequired: value));
+  void setUniformRequired(bool value) => _updateDraft(
+        state.draft.copyWith(
+          uniformRequired: value,
+          uniformNumberOnShirt: value ? state.draft.uniformNumberOnShirt : false,
+          uniformNameOnShirt: value ? state.draft.uniformNameOnShirt : false,
+        ),
+      );
 
   void setUniformNumberOnShirt(bool value) =>
       _updateDraft(state.draft.copyWith(uniformNumberOnShirt: value));

@@ -82,7 +82,6 @@ Map<String, dynamic> _draftToJson(LeagueStageCreateDraft draft) => {
       'leagueState': draft.leagueState,
       'defaultPriceCents': draft.defaultPriceCents,
       'rankingTableId': draft.rankingTableId,
-      'bracketSystem': draft.bracketSystem.name,
       'paymentMode': draft.paymentMode.name,
       'stage': _stageToJson(draft.stage),
       'categories': draft.categories.map(_categoryToJson).toList(),
@@ -113,11 +112,6 @@ LeagueStageCreateDraft? _draftFromJson(Map<String, dynamic> json) {
       leagueState: json['leagueState'] as String? ?? '',
       defaultPriceCents: json['defaultPriceCents'] as int? ?? 9000,
       rankingTableId: json['rankingTableId'] as String? ?? 'state_circuit',
-      bracketSystem: _enumByName(
-        TournamentBracketSystem.values,
-        json['bracketSystem'] as String?,
-        TournamentBracketSystem.groupsThenKnockout,
-      ),
       paymentMode: _enumByName(
         TournamentPaymentMode.values,
         json['paymentMode'] as String?,
@@ -185,6 +179,11 @@ Map<String, dynamic> _categoryToJson(LeagueStageCategoryDraft category) => {
       'ageBand': category.ageBand.name,
       'skillLevel': category.skillLevel.name,
       'priceCents': category.priceCents,
+      'bracketSystem': category.bracketSystem.name,
+      'teamsPerGroup': category.teamsPerGroup,
+      'qualifiersPerGroup': category.qualifiersPerGroup,
+      'bestOf': category.bestOf.name,
+      'finalBestOf5': category.finalBestOf5,
     };
 
 List<LeagueStageCategoryDraft> _categoriesFromJson(dynamic raw) {
@@ -225,6 +224,19 @@ LeagueStageCategoryDraft? _categoryFromJson(Map<String, dynamic> json) {
       TournamentSkillLevel.open,
     ),
     priceCents: json['priceCents'] as int? ?? 9000,
+    bracketSystem: _enumByName(
+      TournamentBracketSystem.values,
+      json['bracketSystem'] as String?,
+      TournamentBracketSystem.groupsThenKnockout,
+    ),
+    teamsPerGroup: json['teamsPerGroup'] as int? ?? 4,
+    qualifiersPerGroup: json['qualifiersPerGroup'] as int? ?? 2,
+    bestOf: _enumByName(
+      TournamentBestOf.values,
+      json['bestOf'] as String?,
+      TournamentBestOf.bestOf3,
+    ),
+    finalBestOf5: json['finalBestOf5'] as bool? ?? true,
   );
 }
 

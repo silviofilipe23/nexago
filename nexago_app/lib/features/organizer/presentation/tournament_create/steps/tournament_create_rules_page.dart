@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
@@ -26,8 +27,9 @@ class _TournamentCreateRulesPageState
   @override
   void initState() {
     super.initState();
-    _notesController =
-        TextEditingController(text: ref.read(tournamentCreateDraftProvider).regulationNotes);
+    _notesController = TextEditingController(
+      text: ref.read(tournamentCreateDraftProvider).regulationNotes,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       syncWizardStep(ref, TournamentCreateStep.rules);
     });
@@ -46,7 +48,9 @@ class _TournamentCreateRulesPageState
     );
     final path = result?.files.single.path;
     if (path == null) return;
-    ref.read(tournamentCreateWizardProvider.notifier).setRegulationPdfPath(path);
+    ref
+        .read(tournamentCreateWizardProvider.notifier)
+        .setRegulationPdfPath(path);
   }
 
   Future<void> _handleClose() => handleWizardClose(context, ref);
@@ -54,8 +58,9 @@ class _TournamentCreateRulesPageState
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(tournamentCreateDraftProvider);
-    final canContinue =
-        ref.watch(tournamentCreateCanContinueProvider(TournamentCreateStep.rules));
+    final canContinue = ref.watch(
+      tournamentCreateCanContinueProvider(TournamentCreateStep.rules),
+    );
 
     return TournamentCreateWizardScaffold(
       step: TournamentCreateStep.rules,
@@ -80,7 +85,9 @@ class _TournamentCreateRulesPageState
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+                    color: context.themeColors.onSurfaceMuted.withValues(
+                      alpha: 0.12,
+                    ),
                   ),
                 ),
                 child: Row(
@@ -92,8 +99,10 @@ class _TournamentCreateRulesPageState
                         color: AppColors.brand.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.description_outlined,
-                          color: AppColors.brand),
+                      child: const Icon(
+                        Icons.description_outlined,
+                        color: AppColors.brand,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -104,15 +113,15 @@ class _TournamentCreateRulesPageState
                             draft.regulationPdfPath != null
                                 ? draft.regulationPdfPath!.split('/').last
                                 : 'Anexar regulamento em PDF',
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                ),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w800),
                           ),
                           Text(
                             draft.regulationPdfPath != null
                                 ? 'PDF anexado'
                                 : 'Opcional · até 5 MB',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
                                   color: context.themeColors.onSurfaceMuted,
                                 ),
                           ),
@@ -122,9 +131,9 @@ class _TournamentCreateRulesPageState
                     Text(
                       'Trocar',
                       style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            color: AppColors.brand,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        color: AppColors.brand,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ],
                 ),
@@ -143,10 +152,12 @@ class _TournamentCreateRulesPageState
                 .setRegulationNotes(value),
           ),
           const SizedBox(height: 20),
+          const OrganizerSectionLabel('UNIFORME NA INSCRIÇÃO'),
+          const SizedBox(height: 8),
           OrganizerToggleSettingRow(
             icon: Icons.checkroom_outlined,
-            title: 'Uniforme obrigatório',
-            subtitle: 'As duplas precisam jogar com camisa padronizada.',
+            title: 'Kit do torneio na inscrição',
+            subtitle: 'Atletas escolhem o tamanho da camisa ao se inscrever.',
             value: draft.uniformRequired,
             onChanged: (value) => ref
                 .read(tournamentCreateWizardProvider.notifier)
@@ -154,8 +165,9 @@ class _TournamentCreateRulesPageState
             nested: [
               OrganizerToggleSettingRow(
                 icon: Icons.tag_outlined,
-                title: 'Número na camisa',
-                subtitle: 'Cada atleta com um número de identificação.',
+                title: 'Solicitar número na inscrição',
+                subtitle:
+                    'Cada atleta informa o número que vai na camisa (1–99).',
                 value: draft.uniformNumberOnShirt,
                 onChanged: (value) => ref
                     .read(tournamentCreateWizardProvider.notifier)
@@ -164,8 +176,9 @@ class _TournamentCreateRulesPageState
               const SizedBox(height: 8),
               OrganizerToggleSettingRow(
                 icon: Icons.badge_outlined,
-                title: 'Nome do atleta',
-                subtitle: 'Sobrenome impresso na camisa.',
+                title: 'Solicitar nome na inscrição',
+                subtitle:
+                    'Cada atleta informa o sobrenome impresso na camisa.',
                 value: draft.uniformNameOnShirt,
                 onChanged: (value) => ref
                     .read(tournamentCreateWizardProvider.notifier)
@@ -193,7 +206,9 @@ class _TournamentCreateRulesPageState
               value: draft.rankingTableId,
               decoration: InputDecoration(
                 filled: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
               items: const [
                 DropdownMenuItem(
@@ -210,38 +225,99 @@ class _TournamentCreateRulesPageState
               },
             ),
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: context.themeColors.surfaceCard,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                children: [
-                  for (final entry in defaultRankingPointsPreview.entries)
-                    Text(
-                      '${entry.key}: ${entry.value} pts',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                ],
-              ),
-            ),
+            const _RankingPointsPreviewGrid(),
           ],
         ],
       ),
       footer: OrganizerWizardContinueButton(
         label: 'Continuar',
         enabled: canContinue,
-        onPressed: () => goToNextCreateStep(
-          context,
-          ref,
-          TournamentCreateStep.rules,
-        ),
+        onPressed: () =>
+            goToNextCreateStep(context, ref, TournamentCreateStep.rules),
       ),
+    );
+  }
+}
+
+class _RankingPointsPreviewGrid extends StatelessWidget {
+  const _RankingPointsPreviewGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = defaultRankingPointsPreview.entries.toList(growable: false);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      decoration: BoxDecoration(
+        color: context.themeColors.surfaceCard,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          for (var row = 0; row < entries.length; row += 2) ...[
+            if (row > 0) const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _RankingPointCell(
+                    label: entries[row].key,
+                    points: entries[row].value,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: row + 1 < entries.length
+                      ? _RankingPointCell(
+                          label: entries[row + 1].key,
+                          points: entries[row + 1].value,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RankingPointCell extends StatelessWidget {
+  const _RankingPointCell({required this.label, required this.points});
+
+  final String label;
+  final int points;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: context.themeColors.onSurfaceMuted,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const Spacer(),
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: '$points',
+                style: AppTypography.mono(fontWeight: FontWeight.w800),
+              ),
+              TextSpan(
+                text: ' pts',
+                style: AppTypography.mono(
+                  color: context.themeColors.onSurfaceMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

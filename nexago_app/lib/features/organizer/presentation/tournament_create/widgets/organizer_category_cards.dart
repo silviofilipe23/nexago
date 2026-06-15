@@ -110,57 +110,63 @@ class OrganizerCategoryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          Row(
+          Wrap(
+            spacing: 14,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Icon(
-                Icons.groups_2_outlined,
-                size: 16,
-                color: context.themeColors.onSurfaceMuted,
+              _MetaChip(
+                icon: Icons.groups_2_outlined,
+                label: spotsUnitLabel(category.dispute, category.spots),
               ),
-              const SizedBox(width: 4),
-              Text(
-                spotsUnitLabel(category.dispute, category.spots),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+              _MetaChip(
+                icon: Icons.payments_outlined,
+                label: formatCents(category.priceCents),
               ),
-              const SizedBox(width: 14),
-              Icon(
-                Icons.payments_outlined,
-                size: 16,
-                color: context.themeColors.onSurfaceMuted,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                formatCents(category.priceCents),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-              ),
-              const Spacer(),
               if (formatLabel.isNotEmpty)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.account_tree_outlined,
-                      size: 16,
-                      color: AppColors.brand,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      formatLabel,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: AppColors.brand,
-                            fontWeight: FontWeight.w800,
-                          ),
-                    ),
-                  ],
+                _MetaChip(
+                  icon: Icons.account_tree_outlined,
+                  label: formatLabel,
+                  accent: true,
                 ),
             ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({
+    required this.icon,
+    required this.label,
+    this.accent = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = accent ? AppColors.brand : context.themeColors.onSurfaceMuted;
+    final textStyle = accent
+        ? Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: AppColors.brand,
+              fontWeight: FontWeight.w800,
+            )
+        : Theme.of(context).textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 4),
+        Text(label, style: textStyle),
+      ],
     );
   }
 }

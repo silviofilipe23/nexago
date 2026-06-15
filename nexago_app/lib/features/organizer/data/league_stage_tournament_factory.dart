@@ -6,7 +6,6 @@ import '../domain/league_create/league_create_draft.dart';
 import '../domain/league_stage_create/league_stage_create_draft.dart';
 import '../domain/tournament_create/tournament_create_draft.dart';
 import '../domain/tournament_create/tournament_create_logic.dart';
-import 'league_create_mapper.dart';
 
 abstract final class LeagueStageTournamentFactory {
   LeagueStageTournamentFactory._();
@@ -51,7 +50,6 @@ abstract final class LeagueStageTournamentFactory {
       categories: categories,
       capacity: capacity > 0 ? capacity : 16,
       managerId: managerId,
-      bracketSystem: TournamentBracketSystem.groupsThenKnockout,
       defaultPriceCents: league.defaultPriceCents,
       rankingTableId: league.rankingTableId,
       leagueId: league.leagueId ?? '',
@@ -105,7 +103,6 @@ abstract final class LeagueStageTournamentFactory {
       categories: categories,
       capacity: capacity > 0 ? capacity : 16,
       managerId: managerId,
-      bracketSystem: draft.bracketSystem,
       defaultPriceCents: draft.defaultPriceCents,
       rankingTableId: draft.rankingTableId,
       leagueId: draft.leagueId,
@@ -140,7 +137,6 @@ abstract final class LeagueStageTournamentFactory {
     required List<Map<String, dynamic>> categories,
     required int capacity,
     required String managerId,
-    required TournamentBracketSystem bracketSystem,
     required int defaultPriceCents,
     required String rankingTableId,
     required String leagueId,
@@ -178,11 +174,6 @@ abstract final class LeagueStageTournamentFactory {
       'liveMatchesNow': 0,
       'managerId': managerId,
       'categories': categories,
-      'bracketSystem': bracketFormatFirestoreValue(bracketSystem),
-      'teamsPerGroup': 4,
-      'qualifiersPerGroup': 2,
-      'bestOf': TournamentBestOf.bestOf3.name,
-      'finalBestOf5': true,
       'defaultEntryFeeCents': defaultPriceCents,
       'registrationOpensAt': registrationOpensAt != null
           ? Timestamp.fromDate(registrationOpensAt)
@@ -224,8 +215,11 @@ abstract final class LeagueStageTournamentFactory {
       'entryFee': category.priceCents / 100,
       'entryFeeCents': category.priceCents,
       'useDefaultPrice': true,
-      'customFormatEnabled': false,
-      'bracketFormat': null,
+      'bracketFormat': bracketFormatFirestoreValue(category.bracketSystem),
+      'teamsPerGroup': category.teamsPerGroup,
+      'qualifiersPerGroup': category.qualifiersPerGroup,
+      'bestOf': category.bestOf.name,
+      'finalBestOf5': category.finalBestOf5,
       'maxRegistrationsPerAthlete': 2,
       'registrationClosed': !category.enabled,
       'isCompleted': false,
@@ -237,11 +231,6 @@ abstract final class LeagueStageTournamentFactory {
   }
 
   static Map<String, dynamic> _categoryToMap(TournamentCategoryDraft category) {
-    final effectiveFormat = category.customFormatEnabled &&
-            category.bracketSystem != null
-        ? category.bracketSystem!
-        : null;
-
     return {
       'id': category.id,
       'categoryName': category.name.trim().isEmpty
@@ -257,10 +246,11 @@ abstract final class LeagueStageTournamentFactory {
       'entryFee': category.priceCents / 100,
       'entryFeeCents': category.priceCents,
       'useDefaultPrice': category.useDefaultPrice,
-      'customFormatEnabled': category.customFormatEnabled,
-      'bracketFormat': effectiveFormat != null
-          ? bracketFormatFirestoreValue(effectiveFormat)
-          : null,
+      'bracketFormat': bracketFormatFirestoreValue(category.bracketSystem),
+      'teamsPerGroup': category.teamsPerGroup,
+      'qualifiersPerGroup': category.qualifiersPerGroup,
+      'bestOf': category.bestOf.name,
+      'finalBestOf5': category.finalBestOf5,
       'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
       'registrationClosed': false,
       'isCompleted': false,
@@ -276,14 +266,6 @@ abstract final class LeagueStageTournamentFactory {
       if (map['disputeType'] == TournamentCategoryDispute.individual.name) {
         return 'individual';
       }
-    }
-    return 'dupla';
-  }
-
-  static String _disputeFormatValue(List<TournamentCategoryDraft> categories) {
-    if (categories
-        .any((c) => c.dispute == TournamentCategoryDispute.individual)) {
-      return 'individual';
     }
     return 'dupla';
   }

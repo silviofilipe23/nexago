@@ -28,6 +28,24 @@ service cloud.firestore {
     function isValidTournamentListingStatus(status) {
       return status is string && status in ['draft', 'open'];
     }
+    function isValidLeagueListingStatus(status) {
+      return status is string && status in ['draft', 'open', 'closed', 'cancelled'];
+    }
+    function leagueListingStatusTransitionAllowed(before, after) {
+      return before == after ||
+        (before == 'draft' && after in ['open', 'cancelled']) ||
+        (before == 'open' && after in ['closed', 'cancelled']);
+    }
+    function organizerCanUpdateOwnLeague() {
+      return request.auth != null &&
+        resource.data.managerId == request.auth.uid &&
+        request.resource.data.managerId == resource.data.managerId &&
+        isValidLeagueListingStatus(request.resource.data.listingStatus) &&
+        leagueListingStatusTransitionAllowed(
+          resource.data.listingStatus,
+          request.resource.data.listingStatus
+        );
+    }
     function organizerCanCreateTournament() {
       return request.auth != null &&
         isTournamentOrganizer() &&
@@ -1367,16 +1385,13 @@ service cloud.firestore {
           request.resource.data.managerId == request.auth.uid &&
           request.resource.data.name is string &&
           request.resource.data.name.size() > 0 &&
+          isValidLeagueListingStatus(request.resource.data.listingStatus) &&
           request.resource.data.listingStatus in ['draft', 'open']
         )
       );
       allow update: if request.auth != null && (
         isAdmin() ||
-        (
-          resource.data.managerId == request.auth.uid &&
-          request.resource.data.managerId == resource.data.managerId &&
-          request.resource.data.listingStatus in ['draft', 'open']
-        )
+        organizerCanUpdateOwnLeague()
       );
       allow delete: if request.auth != null && (
         isAdmin() ||

@@ -28,6 +28,11 @@ class LeagueStageCategoryDraft {
     this.ageBand = TournamentAgeBand.open,
     this.skillLevel = TournamentSkillLevel.open,
     this.priceCents = 9000,
+    this.bracketSystem = TournamentBracketSystem.groupsThenKnockout,
+    this.teamsPerGroup = 4,
+    this.qualifiersPerGroup = 2,
+    this.bestOf = TournamentBestOf.bestOf3,
+    this.finalBestOf5 = true,
   });
 
   final String categoryId;
@@ -39,6 +44,11 @@ class LeagueStageCategoryDraft {
   final TournamentAgeBand ageBand;
   final TournamentSkillLevel skillLevel;
   final int priceCents;
+  final TournamentBracketSystem bracketSystem;
+  final int teamsPerGroup;
+  final int qualifiersPerGroup;
+  final TournamentBestOf bestOf;
+  final bool finalBestOf5;
 
   LeagueStageCategoryDraft copyWith({
     String? categoryId,
@@ -50,6 +60,11 @@ class LeagueStageCategoryDraft {
     TournamentAgeBand? ageBand,
     TournamentSkillLevel? skillLevel,
     int? priceCents,
+    TournamentBracketSystem? bracketSystem,
+    int? teamsPerGroup,
+    int? qualifiersPerGroup,
+    TournamentBestOf? bestOf,
+    bool? finalBestOf5,
   }) {
     return LeagueStageCategoryDraft(
       categoryId: categoryId ?? this.categoryId,
@@ -61,6 +76,11 @@ class LeagueStageCategoryDraft {
       ageBand: ageBand ?? this.ageBand,
       skillLevel: skillLevel ?? this.skillLevel,
       priceCents: priceCents ?? this.priceCents,
+      bracketSystem: bracketSystem ?? this.bracketSystem,
+      teamsPerGroup: teamsPerGroup ?? this.teamsPerGroup,
+      qualifiersPerGroup: qualifiersPerGroup ?? this.qualifiersPerGroup,
+      bestOf: bestOf ?? this.bestOf,
+      finalBestOf5: finalBestOf5 ?? this.finalBestOf5,
     );
   }
 }
@@ -77,7 +97,6 @@ class LeagueStageCreateDraft {
     this.leagueState = '',
     this.defaultPriceCents = 9000,
     this.rankingTableId = 'state_circuit',
-    this.bracketSystem = TournamentBracketSystem.groupsThenKnockout,
     this.paymentMode = TournamentPaymentMode.appPixCard,
     this.stage = const LeagueStageDraft(id: 'stage-1', order: 1),
     this.categories = const [],
@@ -97,7 +116,6 @@ class LeagueStageCreateDraft {
   final String leagueState;
   final int defaultPriceCents;
   final String rankingTableId;
-  final TournamentBracketSystem bracketSystem;
   final TournamentPaymentMode paymentMode;
   final LeagueStageDraft stage;
   final List<LeagueStageCategoryDraft> categories;
@@ -124,7 +142,6 @@ class LeagueStageCreateDraft {
     String? leagueState,
     int? defaultPriceCents,
     String? rankingTableId,
-    TournamentBracketSystem? bracketSystem,
     TournamentPaymentMode? paymentMode,
     LeagueStageDraft? stage,
     List<LeagueStageCategoryDraft>? categories,
@@ -145,7 +162,6 @@ class LeagueStageCreateDraft {
       leagueState: leagueState ?? this.leagueState,
       defaultPriceCents: defaultPriceCents ?? this.defaultPriceCents,
       rankingTableId: rankingTableId ?? this.rankingTableId,
-      bracketSystem: bracketSystem ?? this.bracketSystem,
       paymentMode: paymentMode ?? this.paymentMode,
       stage: stage ?? this.stage,
       categories: categories ?? this.categories,

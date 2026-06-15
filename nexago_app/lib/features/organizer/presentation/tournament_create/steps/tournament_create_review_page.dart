@@ -119,12 +119,12 @@ class _TournamentCreateReviewPageState
           const SizedBox(height: 20),
           _ReviewSection(
             icon: Icons.sports_volleyball_outlined,
-            label: 'ESPORTE & FORMATO',
-            value: reviewFormatSummary(draft),
+            label: 'ESPORTE',
+            value: reviewSportSummary(draft),
             onEdit: () => goToCreateStep(
               context,
               ref,
-              TournamentCreateStep.format,
+              TournamentCreateStep.identity,
             ),
           ),
           _ReviewSection(
@@ -139,8 +139,8 @@ class _TournamentCreateReviewPageState
           ),
           _ReviewSection(
             icon: Icons.group_add_outlined,
-            label: 'CATEGORIAS',
-            value: reviewCategoriesSummary(draft),
+            label: 'CATEGORIAS & FORMATO',
+            value: reviewCategoriesDetailSummary(draft),
             onEdit: () => goToCreateStep(
               context,
               ref,

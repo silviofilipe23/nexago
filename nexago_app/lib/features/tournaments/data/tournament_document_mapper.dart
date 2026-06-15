@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_listing_status.dart';
+import '../domain/tournament_uniform_selection.dart';
 
 /// Mapeia `tournaments/{id}` (ou legado artifacts) → [DiscoveryTournament] / [TournamentDetail].
 ///
@@ -38,7 +39,12 @@ abstract final class TournamentDocumentMapper {
   }
 
   static TournamentDetail detailFromMap(String id, Map<String, dynamic> data) {
-    final offers = _parseCategoryOffers(data['categories']);
+    final offers = _parseCategoryOffers(
+      data['categories'],
+      tournamentUniformRequired: data['uniformRequired'] == true,
+      tournamentUniformNumberOnShirt: data['uniformNumberOnShirt'] == true,
+      tournamentUniformNameOnShirt: data['uniformNameOnShirt'] == true,
+    );
     final genderCats = _genderCatsFromOffers(offers);
 
     final capacity = _int(data['capacity']) ?? 0;
@@ -127,7 +133,12 @@ abstract final class TournamentDocumentMapper {
     );
   }
 
-  static List<TournamentCategoryOffer> _parseCategoryOffers(dynamic raw) {
+  static List<TournamentCategoryOffer> _parseCategoryOffers(
+    dynamic raw, {
+    bool tournamentUniformRequired = false,
+    bool tournamentUniformNumberOnShirt = false,
+    bool tournamentUniformNameOnShirt = false,
+  }) {
     final offers = <TournamentCategoryOffer>[];
     if (raw is! List) return offers;
 
@@ -146,6 +157,39 @@ abstract final class TournamentDocumentMapper {
       final capacity = maxTeams > 0 ? maxTeams : spotsTotalLegacy;
       final spotsLeft =
           _int(map['spotsLeft']) ?? (capacity > 0 ? capacity : 0);
+
+      var uniformType = _str(map['uniformType']);
+      var uniformNameOnShirt = map['uniformNameOnShirt'] == true;
+      var uniformNumberOnShirt = map['uniformNumberOnShirt'] == true;
+
+      final preliminaryOffer = TournamentCategoryOffer(
+        id: offerId,
+        name: name,
+        entryFee: entryFee,
+        spotsLeft: spotsLeft,
+        maxTeams: capacity,
+        spotsTotal: capacity,
+        level: _str(map['level']) ?? '',
+        genderType: _str(map['genderType']) ?? '',
+        bracketFormat: _str(map['bracketFormat']) ?? '',
+        registrationClosed: map['registrationClosed'] == true,
+        isCompleted: map['isCompleted'] == true,
+        prizes: _parseCategoryPrizes(map['prizes']),
+        uniformType: uniformType,
+        uniformNameOnShirt: uniformNameOnShirt,
+        uniformNumberOnShirt: uniformNumberOnShirt,
+        uniformSizeOptionsTop: _stringList(map['uniformSizeOptionsTop']),
+        uniformSizeOptionsShorts:
+            _stringList(map['uniformSizeOptionsShorts']),
+      );
+
+      if (!categoryRequiresUniform(preliminaryOffer) &&
+          tournamentUniformRequired) {
+        uniformType = 'top_only';
+        uniformNumberOnShirt = tournamentUniformNumberOnShirt;
+        uniformNameOnShirt = tournamentUniformNameOnShirt;
+      }
+
       offers.add(
         TournamentCategoryOffer(
           id: offerId,
@@ -160,9 +204,9 @@ abstract final class TournamentDocumentMapper {
           registrationClosed: map['registrationClosed'] == true,
           isCompleted: map['isCompleted'] == true,
           prizes: _parseCategoryPrizes(map['prizes']),
-          uniformType: _str(map['uniformType']),
-          uniformNameOnShirt: map['uniformNameOnShirt'] == true,
-          uniformNumberOnShirt: map['uniformNumberOnShirt'] == true,
+          uniformType: uniformType,
+          uniformNameOnShirt: uniformNameOnShirt,
+          uniformNumberOnShirt: uniformNumberOnShirt,
           uniformSizeOptionsTop: _stringList(map['uniformSizeOptionsTop']),
           uniformSizeOptionsShorts:
               _stringList(map['uniformSizeOptionsShorts']),

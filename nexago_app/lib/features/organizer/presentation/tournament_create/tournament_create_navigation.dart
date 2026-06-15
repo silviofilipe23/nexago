@@ -27,8 +27,6 @@ String routeNameForCreateStep(TournamentCreateStep step) => switch (step) {
         AppRouteNames.organizerTournamentCreateLocation,
       TournamentCreateStep.categories =>
         AppRouteNames.organizerTournamentCreateCategories,
-      TournamentCreateStep.format =>
-        AppRouteNames.organizerTournamentCreateFormat,
       TournamentCreateStep.registration =>
         AppRouteNames.organizerTournamentCreateRegistration,
       TournamentCreateStep.prizes =>
@@ -46,8 +44,6 @@ TournamentCreateStep stepFromRouteName(String name) => switch (name) {
         TournamentCreateStep.location,
       AppRouteNames.organizerTournamentCreateCategories =>
         TournamentCreateStep.categories,
-      AppRouteNames.organizerTournamentCreateFormat =>
-        TournamentCreateStep.format,
       AppRouteNames.organizerTournamentCreateRegistration =>
         TournamentCreateStep.registration,
       AppRouteNames.organizerTournamentCreatePrizes =>

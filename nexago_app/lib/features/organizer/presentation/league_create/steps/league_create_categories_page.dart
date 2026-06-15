@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/league_create/league_create_draft.dart';
 import '../../../domain/league_create/league_create_providers.dart';
+import '../../../domain/tournament_create/tournament_create_logic.dart';
 import '../league_create_navigation.dart';
 import '../league_create_wizard_scaffold.dart';
 import '../sheets/league_category_editor_sheet.dart';
@@ -21,7 +22,6 @@ class LeagueCreateCategoriesPage extends ConsumerWidget {
     final canContinue = ref.watch(
       leagueCreateCanContinueProvider(LeagueCreateStep.categories),
     );
-
     return LeagueCreateWizardScaffold(
       step: LeagueCreateStep.categories,
       onBack: () {
@@ -35,7 +35,7 @@ class LeagueCreateCategoriesPage extends ConsumerWidget {
           for (final category in draft.categories) ...[
             OrganizerCategoryCard(
               category: category,
-              formatLabel: '',
+              formatLabel: categoryFormatCardLabel(category),
               extraBadge: 'Herdado',
               onEdit: () => showLeagueCategoryEditorSheet(
                 context,

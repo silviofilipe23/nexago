@@ -122,6 +122,40 @@ void main() {
       expect(map['listingStatus'], 'draft');
       expect(map['registrationOpensAt'], isNotNull);
       expect(map['registrationClosesAt'], isNotNull);
+      expect(map.containsKey('bracketSystem'), isFalse);
+    });
+
+    test('categories carry distinct bracket formats', () {
+      final draft = LeagueStageCreateDraft(
+        leagueId: 'league-1',
+        leagueName: 'Circuito',
+        stage: const LeagueStageDraft(id: 'stage-1', order: 1),
+        categories: const [
+          LeagueStageCategoryDraft(
+            categoryId: 'c1',
+            name: 'Masc',
+            bracketSystem: TournamentBracketSystem.groupsThenKnockout,
+          ),
+          LeagueStageCategoryDraft(
+            categoryId: 'c2',
+            name: 'Fem',
+            bracketSystem: TournamentBracketSystem.doubleElimination,
+            bestOf: TournamentBestOf.bestOf5,
+          ),
+        ],
+      );
+
+      final map = LeagueStageTournamentFactory.buildFromStageCreate(
+        draft: draft,
+        managerId: 'manager-1',
+        tournamentId: 'tournament-1',
+        publish: true,
+      );
+
+      final categories = map['categories'] as List;
+      expect(categories[0]['bracketFormat'], 'groups_knockout');
+      expect(categories[1]['bracketFormat'], 'double_elimination');
+      expect(categories[1]['bestOf'], 'bestOf5');
     });
   });
 

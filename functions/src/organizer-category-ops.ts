@@ -161,6 +161,8 @@ export const generateCategoryBracket = onCall(async (request) => {
       resultB: "",
       isGroupMatch: draft.isGroupMatch,
       matchNumber: draft.matchNumber,
+      ...(draft.winnerAdvance ? {winnerAdvance: draft.winnerAdvance} : {}),
+      ...(draft.loserAdvance ? {loserAdvance: draft.loserAdvance} : {}),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });

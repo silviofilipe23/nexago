@@ -36,7 +36,18 @@ void main() {
     test('registration link includes inscricao path', () {
       expect(
         organizerTournamentRegistrationShareLink('abc'),
-        'https://nexago.app/torneios/abc/inscricao',
+        'nexago:///torneios/abc/inscricao',
+      );
+    });
+
+    test('registration share message includes name and link', () {
+      expect(
+        organizerTournamentRegistrationShareMessage(
+          tournamentName: 'Open Goiânia',
+          tournamentId: 'abc',
+        ),
+        'Inscreva-se no Open Goiânia no NexaGO:\n'
+        'nexago:///torneios/abc/inscricao',
       );
     });
   });

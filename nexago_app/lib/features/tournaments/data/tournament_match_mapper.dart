@@ -46,7 +46,45 @@ abstract final class TournamentMatchMapper {
       teamBDescription: _str(data['teamBDescription']),
       courtName: _str(data['courtName']),
       description: _str(data['description']),
+      courtId: _str(data['courtId']) ?? '',
+      scheduleEndTime: _timestamp(data['scheduleEndTime']),
+      dayKey: _str(data['dayKey']) ?? '',
+      queueOrder: _int(data['queueOrder']) ?? 0,
+      queueStatus: _str(data['queueStatus']) ?? '',
+      checkInTeamAStatus: _checkInStatus(data['checkIn'], 'teamA'),
+      checkInTeamBStatus: _checkInStatus(data['checkIn'], 'teamB'),
+      servingTeamId: _str(data['servingTeamId']) ?? '',
+      liveElapsedSec: _int(data['liveElapsedSec']) ?? 0,
+      pointEventSeq: _int(data['pointEventSeq']) ?? 0,
+      reportStatus: _reportStatus(data['report']),
+      reportedByUid: _reportField(data['report'], 'reportedByUid') ?? '',
+      teamAConfirmed: _reportBool(data['report'], 'teamAConfirmed'),
+      teamBConfirmed: _reportBool(data['report'], 'teamBConfirmed'),
     );
+  }
+
+  static String _checkInStatus(dynamic raw, String teamKey) {
+    if (raw is! Map) return '';
+    final team = raw[teamKey];
+    if (team is! Map) return '';
+    return (team['status'] as String?)?.trim() ?? '';
+  }
+
+  static String _reportStatus(dynamic raw) {
+    if (raw is! Map) return '';
+    return (raw['status'] as String?)?.trim() ?? '';
+  }
+
+  static String? _reportField(dynamic raw, String key) {
+    if (raw is! Map) return null;
+    final v = raw[key];
+    if (v is String && v.trim().isNotEmpty) return v.trim();
+    return null;
+  }
+
+  static bool _reportBool(dynamic raw, String key) {
+    if (raw is! Map) return false;
+    return raw[key] == true;
   }
 
   static List<TournamentMatchPointAction> _mergePointActions(

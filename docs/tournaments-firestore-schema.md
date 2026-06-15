@@ -33,6 +33,15 @@ Não usar `torneios/` (visão operacional do backoffice).
 
 `categoryOps` é atualizado pelo gestor do torneio (client) para seeds/rascunho; publicação de chave e partidas via callable `generateCategoryBracket` (admin SDK cria `matches`).
 
+### Match ops (G–J)
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `courts` | array | `{ id, name, order }` — quadras operacionais (ex.: `Q1`) |
+| `matchOps` | map | `activeDayKey`, `dayStart`, `dayEnd`, `defaultMatchDurationMin`, `minRestBetweenMatchesMin`, `checkInToleranceMin`, `autoScheduleRules` |
+
+Callables: `scheduleMatch`, `rescheduleMatch`, `autoScheduleTournamentDay`, `callMatchToCourt`, `releaseMatchAfterCheckIn`, `declareMatchWalkover`, `validateMatchResult`, `advanceBracketWinner` (`functions/src/organizer-match-ops.ts`).
+
 `uniformType` (por categoria): `none` | `top_only` | `full`.
 
 Capacidade exibida no app: `maxTeams` por categoria. Inscritos contados em `artifacts/{projectId}/public/data/inscriptions` (`tournamentId` + `categoryId` = `categoryName`).
@@ -127,6 +136,24 @@ Fluxo: enviar convite → parceiro aceita (cria `teams` + `inscriptions`) → ca
 Subcoleção `pixPending/{payerUid}` (somente Cloud Functions): cobrança Asaas aberta por atleta (`asaasPaymentId`, `amountReais`, `status`, `paymentExpiresAt`).
 
 O app agrega inscrições por `categoryId` para exibir `N/M inscritas` e vagas restantes (`maxTeams - count`).
+
+## Partidas (`artifacts/.../matches`) — match ops
+
+Extensões operacionais (além dos campos de chave/placar existentes):
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `courtId` / `courtName` | string | Quadra atribuída |
+| `scheduleEndTime` | Timestamp | Fim previsto do slot |
+| `dayKey` | string | `YYYY-MM-DD` do dia ativo |
+| `queueOrder` / `queueStatus` | number / string | Fila: `waiting`, `on_deck`, `on_court`, `completed` |
+| `checkIn` | map | `teamA` / `teamB`: `{ status, at, byUid }` (`pending`/`present`/`wo`) |
+| `servingTeamId` | string | Equipe no saque |
+| `liveElapsedSec` | number | Timer denormalizado |
+| `pointEventSeq` | number | Sequência monotônica para `pointEvents` |
+| `report` | map | `{ status, reportedByUid, teamAConfirmed, teamBConfirmed }` |
+
+Subcoleção `auditLog/{eventId}`: append-only (`type`, `at`, `byUid`, `byRole`, `meta`).
 
 ## Inscrição + pagamento
 

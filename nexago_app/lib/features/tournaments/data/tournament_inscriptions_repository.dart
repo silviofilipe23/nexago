@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -131,6 +133,21 @@ class TournamentInscriptionsRepository {
   CollectionReference<Map<String, dynamic>> get _teams =>
       _firestore.collection(NexagoArtifactsPaths.teamsCollection());
 
+  Future<Map<String, Map<String, dynamic>>> _batchLoadTeams(
+    Set<String> teamIds,
+  ) async {
+    final teams = <String, Map<String, dynamic>>{};
+    final ids = teamIds.where((id) => id.trim().isNotEmpty).toList();
+    for (var i = 0; i < ids.length; i += 30) {
+      final chunk = ids.sublist(i, min(i + 30, ids.length));
+      final snap = await _teams.where(FieldPath.documentId, whereIn: chunk).get();
+      for (final doc in snap.docs) {
+        teams[doc.id] = doc.data();
+      }
+    }
+    return teams;
+  }
+
   Stream<TournamentCategoryEnrollmentCounts> watchEnrollmentCountsByCategory(
     String tournamentId,
   ) {
@@ -154,22 +171,23 @@ class TournamentInscriptionsRepository {
         .where('tournamentId', isEqualTo: tid)
         .snapshots()
         .asyncMap((snap) async {
-      final rows = <OrganizerInscriptionWithTeam>[];
+      final teamIds = <String>{};
       for (final doc in snap.docs) {
-        final data = doc.data();
-        final teamId = (data['teamId'] as String?)?.trim() ?? '';
-        Map<String, dynamic>? team;
-        if (teamId.isNotEmpty) {
-          final teamSnap = await _teams.doc(teamId).get();
-          if (teamSnap.exists) team = teamSnap.data();
-        }
-        rows.add((
-          registrationId: doc.id,
-          inscription: data,
-          team: team,
-        ));
+        final teamId = (doc.data()['teamId'] as String?)?.trim() ?? '';
+        if (teamId.isNotEmpty) teamIds.add(teamId);
       }
-      return rows;
+      final teamsById = await _batchLoadTeams(teamIds);
+      return snap.docs
+          .map((doc) {
+            final data = doc.data();
+            final teamId = (data['teamId'] as String?)?.trim() ?? '';
+            return (
+              registrationId: doc.id,
+              inscription: data,
+              team: teamId.isNotEmpty ? teamsById[teamId] : null,
+            );
+          })
+          .toList();
     });
   }
 

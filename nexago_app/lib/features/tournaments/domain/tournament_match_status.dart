@@ -1,4 +1,4 @@
-/// Status exatamente como gravado no Firestore (espaço em "In Progress").
+/// Status canônico de partida (PascalCase no Firestore).
 abstract final class TournamentMatchStatus {
   TournamentMatchStatus._();
 
@@ -7,15 +7,30 @@ abstract final class TournamentMatchStatus {
   static const completed = 'Completed';
   static const canceled = 'Canceled';
 
+  /// Chave normalizada para comparar legado (`in_progress`, etc.).
+  static String canonicalKey(String status) =>
+      status.trim().toLowerCase().replaceAll('_', ' ');
+
+  /// Converte legado para valor canônico quando reconhecido.
+  static String normalize(String status) {
+    return switch (canonicalKey(status)) {
+      'scheduled' => scheduled,
+      'in progress' => inProgress,
+      'completed' => completed,
+      'canceled' || 'cancelled' => canceled,
+      _ => status,
+    };
+  }
+
   static bool isCompleted(String status) =>
-      status.trim().toLowerCase() == completed.toLowerCase();
+      canonicalKey(status) == canonicalKey(completed);
 
   static bool isInProgress(String status) =>
-      status.trim().toLowerCase() == inProgress.toLowerCase();
+      canonicalKey(status) == canonicalKey(inProgress);
 
   static bool isScheduled(String status) =>
-      status.trim().toLowerCase() == scheduled.toLowerCase();
+      canonicalKey(status) == canonicalKey(scheduled);
 
   static bool isCanceled(String status) =>
-      status.trim().toLowerCase() == canceled.toLowerCase();
+      canonicalKey(status) == canonicalKey(canceled);
 }

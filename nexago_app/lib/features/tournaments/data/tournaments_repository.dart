@@ -7,6 +7,7 @@ import '../domain/tournament_discovery_helpers.dart';
 import '../domain/tournament_discovery_models.dart';
 import 'nexago_artifacts_paths.dart';
 import 'tournament_document_mapper.dart';
+import '../domain/tournament_listing_status.dart';
 
 class TournamentsRepository {
   TournamentsRepository(this._firestore);
@@ -18,14 +19,16 @@ class TournamentsRepository {
 
   Stream<List<DiscoveryTournament>> watchDiscoveryTournaments() {
     return _root.snapshots().map((snap) {
-      final items = snap.docs
-          .map(TournamentDocumentMapper.fromSnapshot)
-          .whereType<DiscoveryTournament>()
-          .toList();
-      items.sort((a, b) {
-        final cmp = compareDiscoveryTournamentsByDateProximity(a, b);
-        return cmp;
-      });
+      final items = <DiscoveryTournament>[];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final raw =
+            (data['listingStatus'] as String?) ?? (data['status'] as String?);
+        if (!isPubliclyListedTournament(raw)) continue;
+        final item = TournamentDocumentMapper.fromSnapshot(doc);
+        if (item != null) items.add(item);
+      }
+      items.sort(compareDiscoveryTournamentsByDateProximity);
       return items;
     });
   }

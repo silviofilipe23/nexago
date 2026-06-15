@@ -111,6 +111,7 @@ class TournamentRegistrationService {
         'teamId': teamRef.id,
         'tournamentId': tournamentId,
         'categoryId': categoryId,
+        'participantUids': [uid, player2],
         'isPaid': false,
         'paidAmount': 0,
         'createdAt': FieldValue.serverTimestamp(),

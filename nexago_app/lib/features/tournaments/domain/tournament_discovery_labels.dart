@@ -33,6 +33,17 @@ String tournamentStatusLabel(TournamentListingStatus status) {
   };
 }
 
+/// Rótulo com suporte a `listingStatus` bruto (ex.: closed → inscrições encerradas).
+String tournamentStatusLabelFromRaw({
+  required TournamentListingStatus status,
+  String? listingStatusRaw,
+}) {
+  if (isRegistrationListingClosed(listingStatusRaw)) {
+    return 'Inscrições encerradas';
+  }
+  return tournamentStatusLabel(status);
+}
+
 Color tournamentStatusColor(TournamentListingStatus status) {
   return switch (status) {
     TournamentListingStatus.scheduled => AppColors.onSurfaceMuted,

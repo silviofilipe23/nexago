@@ -79,6 +79,16 @@ import {
   closeTournamentRegistrations,
   cancelTournament,
 } from "./organizer-category-ops";
+import {
+  scheduleMatch,
+  rescheduleMatch,
+  autoScheduleTournamentDay,
+  callMatchToCourt,
+  releaseMatchAfterCheckIn,
+  declareMatchWalkover,
+  validateMatchResult,
+  advanceBracketWinner,
+} from "./organizer-match-ops";
 
 export {
   quoteArenaBooking,
@@ -113,6 +123,14 @@ export {
   resendRegistrationPayment,
   closeTournamentRegistrations,
   cancelTournament,
+  scheduleMatch,
+  rescheduleMatch,
+  autoScheduleTournamentDay,
+  callMatchToCourt,
+  releaseMatchAfterCheckIn,
+  declareMatchWalkover,
+  validateMatchResult,
+  advanceBracketWinner,
 };
 
 // Initialize Firebase Admin

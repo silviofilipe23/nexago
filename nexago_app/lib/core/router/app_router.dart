@@ -47,6 +47,18 @@ import '../../features/organizer/presentation/category_ops/organizer_category_ge
 import '../../features/organizer/presentation/category_ops/organizer_category_format_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_communicate_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_bracket_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_match_center_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_match_call_queue_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_court_panel_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_court_schedule_grid_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_auto_schedule_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_match_check_in_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_match_live_table_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_match_quick_score_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_match_validate_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_match_summary_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_match_insights_page.dart';
+import '../../features/tournaments/presentation/public_match_live_page.dart';
 import '../../features/arena/domain/arena_manager_booking.dart';
 import '../../features/arena/domain/arena_booking_canceled_args.dart';
 import '../../features/arena/presentation/arena_booking_canceled_page.dart';
@@ -397,6 +409,147 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             },
             routes: [
               GoRoute(
+                path: 'matches',
+                name: AppRouteNames.organizerMatchCenter,
+                builder: (context, state) {
+                  final tournamentId =
+                      state.pathParameters['tournamentId']?.trim() ?? '';
+                  final categoryId =
+                      state.uri.queryParameters['categoryId']?.trim() ?? '';
+                  return OrganizerMatchCenterPage(
+                    tournamentId: tournamentId,
+                    initialCategoryId: categoryId,
+                  );
+                },
+                routes: [
+                  GoRoute(
+                    path: 'queue',
+                    name: AppRouteNames.organizerMatchQueue,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      return OrganizerMatchCallQueuePage(
+                        tournamentId: tournamentId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'courts',
+                    name: AppRouteNames.organizerMatchCourts,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      return OrganizerCourtPanelPage(
+                        tournamentId: tournamentId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'schedule',
+                    name: AppRouteNames.organizerMatchSchedule,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      return OrganizerCourtScheduleGridPage(
+                        tournamentId: tournamentId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'auto-schedule',
+                    name: AppRouteNames.organizerMatchAutoSchedule,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      return OrganizerAutoSchedulePage(
+                        tournamentId: tournamentId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'insights',
+                    name: AppRouteNames.organizerMatchInsights,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      return OrganizerMatchInsightsPage(
+                        tournamentId: tournamentId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: ':matchId/check-in',
+                    name: AppRouteNames.organizerMatchCheckIn,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final matchId =
+                          state.pathParameters['matchId']?.trim() ?? '';
+                      return OrganizerMatchCheckInPage(
+                        tournamentId: tournamentId,
+                        matchId: matchId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: ':matchId/live',
+                    name: AppRouteNames.organizerMatchLive,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final matchId =
+                          state.pathParameters['matchId']?.trim() ?? '';
+                      return OrganizerMatchLiveTablePage(
+                        tournamentId: tournamentId,
+                        matchId: matchId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: ':matchId/quick-score',
+                    name: AppRouteNames.organizerMatchQuickScore,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final matchId =
+                          state.pathParameters['matchId']?.trim() ?? '';
+                      return OrganizerMatchQuickScorePage(
+                        tournamentId: tournamentId,
+                        matchId: matchId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: ':matchId/validate',
+                    name: AppRouteNames.organizerMatchValidate,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final matchId =
+                          state.pathParameters['matchId']?.trim() ?? '';
+                      return OrganizerMatchValidatePage(
+                        tournamentId: tournamentId,
+                        matchId: matchId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: ':matchId/summary',
+                    name: AppRouteNames.organizerMatchSummary,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final matchId =
+                          state.pathParameters['matchId']?.trim() ?? '';
+                      return OrganizerMatchSummaryPage(
+                        tournamentId: tournamentId,
+                        matchId: matchId,
+                      );
+                    },
+                  ),
+                ],
+              ),
+              GoRoute(
                 path: 'categories/:categoryId',
                 name: AppRouteNames.organizerCategoryShell,
                 builder: (context, state) {
@@ -736,6 +889,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final teamId = state.pathParameters['teamId']?.trim() ?? '';
           return TeamPublicProfilePage(teamId: teamId);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.publicMatchLive,
+        name: AppRouteNames.publicMatchLive,
+        builder: (context, state) {
+          final tournamentId =
+              state.pathParameters['tournamentId']?.trim() ?? '';
+          final matchId = state.pathParameters['matchId']?.trim() ?? '';
+          return PublicMatchLivePage(
+            tournamentId: tournamentId,
+            matchId: matchId,
+          );
         },
       ),
       GoRoute(

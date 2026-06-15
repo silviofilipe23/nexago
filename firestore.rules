@@ -98,6 +98,81 @@ service cloud.firestore {
         'updatedAt'
       ]);
     }
+    function inscriptionParticipantUidsMatchTeam(appId, teamId) {
+      return !('participantUids' in request.resource.data) ||
+        (
+          request.resource.data.participantUids is list &&
+          request.resource.data.participantUids.size() == 2 &&
+          exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)) &&
+          (
+            (
+              request.resource.data.participantUids[0] == get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data.player1Id &&
+              request.resource.data.participantUids[1] == get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data.player2Id
+            ) ||
+            (
+              request.resource.data.participantUids[0] == get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data.player2Id &&
+              request.resource.data.participantUids[1] == get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(teamId)).data.player1Id
+            )
+          )
+        );
+    }
+    function inscriptionParticipantUidsImmutable() {
+      return !('participantUids' in request.resource.data) ||
+        request.resource.data.participantUids == resource.data.participantUids;
+    }
+    function inscriptionPaymentFieldsUnchanged() {
+      return (!('isPaid' in request.resource.data) ||
+              request.resource.data.isPaid == resource.data.isPaid) &&
+        (!('paidAmount' in request.resource.data) ||
+         request.resource.data.paidAmount == resource.data.paidAmount) &&
+        (!('sharePaidUids' in request.resource.data) ||
+         request.resource.data.sharePaidUids == resource.data.sharePaidUids) &&
+        (!('paidAt' in request.resource.data) ||
+         request.resource.data.paidAt == resource.data.paidAt);
+    }
+    function inscriptionCreatePaymentSafe() {
+      return (!('isPaid' in request.resource.data) ||
+              request.resource.data.isPaid == false) &&
+        (!('paidAmount' in request.resource.data) ||
+         request.resource.data.paidAmount == 0) &&
+        (!('sharePaidUids' in request.resource.data) ||
+         request.resource.data.sharePaidUids.size() == 0) &&
+        !('paidAt' in request.resource.data);
+    }
+    function teamPlayerIdsUnchanged() {
+      return request.resource.data.player1Id == resource.data.player1Id &&
+        request.resource.data.player2Id == resource.data.player2Id;
+    }
+    function managerCanOnlyEditMatchFields() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        'courtId',
+        'courtName',
+        'scheduleTime',
+        'scheduleEndTime',
+        'dayKey',
+        'queueOrder',
+        'queueStatus',
+        'checkIn',
+        'servingTeamId',
+        'report',
+        'liveElapsedSec',
+        'resultA',
+        'resultB',
+        'winnerId',
+        'status',
+        'sets',
+        'currentSetIndex',
+        'matchStartedAt',
+        'matchEndedAt',
+        'lastActions',
+        'pointEventSeq',
+        'updatedAt'
+      ]) &&
+        request.resource.data.teamAId == resource.data.teamAId &&
+        request.resource.data.teamBId == resource.data.teamBId &&
+        request.resource.data.tournamentId == resource.data.tournamentId &&
+        request.resource.data.categoryId == resource.data.categoryId;
+    }
     function matchDoc(appId, matchId) {
       return get(/databases/$(database)/documents/artifacts/$(appId)/public/data/matches/$(matchId));
     }
@@ -911,23 +986,25 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Gamificacao do atleta
+    // Gamificacao do atleta — somente Cloud Functions
     match /users/{userId}/gamification/{docId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
     }
 
     match /users/{userId}/gamification_badges/{badgeId} {
       allow read: if request.auth != null && request.auth.uid == userId;
-      allow create, update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if false;
+      allow write: if false;
     }
 
     match /users/{userId}/gamification_daily_missions/{dayKey} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
     }
 
     match /users/{userId}/gamification_events/{eventId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
     }
 
     match /arena_reviews/{reviewId} {
@@ -1107,9 +1184,12 @@ service cloud.firestore {
         isAdmin()
       );
       
-      // Atualizar: jogadores da equipe ou apenas super admin
+      // Atualizar: jogadores da equipe (sem trocar player IDs) ou super admin
       allow update: if request.auth != null && (
-        (resource.data.player1Id == request.auth.uid || resource.data.player2Id == request.auth.uid) ||
+        (
+          (resource.data.player1Id == request.auth.uid || resource.data.player2Id == request.auth.uid) &&
+          teamPlayerIdsUnchanged()
+        ) ||
         isSuperAdmin()
       );
       
@@ -1135,14 +1215,18 @@ service cloud.firestore {
          (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(request.resource.data.teamId)).data.player1Id == request.auth.uid ||
           get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(request.resource.data.teamId)).data.player2Id == request.auth.uid)) ||
         isAdmin()
-      );
+      ) && inscriptionCreatePaymentSafe() &&
+        inscriptionParticipantUidsMatchTeam(appId, request.resource.data.teamId);
       
-      // Atualizar inscrição: apenas o jogador que faz parte da equipe pode atualizar
-      // OU um admin pode atualizar qualquer inscrição
+      // Atualizar inscrição: jogador da dupla (sem campos de pagamento) ou admin
       allow update: if request.auth != null && (
-        (exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)) &&
-         (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player1Id == request.auth.uid ||
-          get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player2Id == request.auth.uid)) ||
+        (
+          (exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)) &&
+           (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player1Id == request.auth.uid ||
+            get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player2Id == request.auth.uid)) &&
+          inscriptionPaymentFieldsUnchanged() &&
+          inscriptionParticipantUidsImmutable()
+        ) ||
         isAdmin()
       );
       
@@ -1172,7 +1256,8 @@ service cloud.firestore {
         isTournamentOrganizer() ||
         (
           canManageTournament(resource.data.tournamentId) &&
-          request.resource.data.tournamentId == resource.data.tournamentId
+          request.resource.data.tournamentId == resource.data.tournamentId &&
+          managerCanOnlyEditMatchFields()
         ) ||
         (
           canScoreTournament(resource.data.tournamentId) &&
@@ -1188,6 +1273,19 @@ service cloud.firestore {
       match /pointEvents/{eventId} {
         allow read: if true;
         allow create: if canWriteMatchPointEvents(appId, matchId) && isValidPointEventCreate(appId, matchId);
+        allow update, delete: if false;
+      }
+
+      // Audit log operacional (I4) — append-only.
+      match /auditLog/{eventId} {
+        allow read: if true;
+        allow create: if request.auth != null && matchDoc(appId, matchId).data != null && (
+          isAdmin() ||
+          isSuperAdmin() ||
+          isTournamentOrganizer() ||
+          canManageTournament(matchDoc(appId, matchId).data.tournamentId) ||
+          canScoreTournament(matchDoc(appId, matchId).data.tournamentId)
+        );
         allow update, delete: if false;
       }
     }

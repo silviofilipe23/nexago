@@ -13,6 +13,12 @@ TournamentListingStatus? listingStatusFromRaw(String? listingStatusRaw) {
   final n = normalizeListingStatusRaw(raw);
   return switch (n) {
     'draft' || 'programado' => TournamentListingStatus.scheduled,
+    'closed' ||
+    'inscrições encerradas' ||
+    'inscricoes encerradas' =>
+      TournamentListingStatus.bracketsReady,
+    'cancelled' || 'canceled' || 'cancelado' =>
+      TournamentListingStatus.ended,
     'open' ||
     'inscrições abertas' ||
     'inscricoes abertas' =>
@@ -48,6 +54,24 @@ bool isTournamentTerminal(TournamentListingStatus status) {
 bool canRegisterForTournament(TournamentListingStatus status) {
   return status == TournamentListingStatus.open ||
       status == TournamentListingStatus.almostFull;
+}
+
+/// `listingStatus` bruto indica inscrições encerradas pelo organizador.
+bool isRegistrationListingClosed(String? listingStatusRaw) {
+  final n = normalizeListingStatusRaw(listingStatusRaw ?? '');
+  return n == 'closed' ||
+      n == 'inscrições encerradas' ||
+      n == 'inscricoes encerradas';
+}
+
+/// Torneio/liga visível no catálogo público (Competir).
+bool isPubliclyListedTournament(String? listingStatusRaw) {
+  final raw = listingStatusRaw?.trim();
+  if (raw == null || raw.isEmpty) return true;
+  final n = normalizeListingStatusRaw(raw);
+  if (n == 'draft' || n == 'programado') return false;
+  if (n == 'cancelled' || n == 'canceled' || n == 'cancelado') return false;
+  return true;
 }
 
 /// Data civil do evento (sem hora) para comparação de dia.

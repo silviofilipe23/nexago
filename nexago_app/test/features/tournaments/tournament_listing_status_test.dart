@@ -33,6 +33,14 @@ void main() {
         TournamentListingStatus.live,
       );
       expect(
+        listingStatusFromRaw('closed'),
+        TournamentListingStatus.bracketsReady,
+      );
+      expect(
+        listingStatusFromRaw('cancelled'),
+        TournamentListingStatus.ended,
+      );
+      expect(
         listingStatusFromRaw('ended'),
         TournamentListingStatus.ended,
       );
@@ -190,5 +198,22 @@ void main() {
       canRegisterForTournament(TournamentListingStatus.scheduled),
       isFalse,
     );
+    expect(
+      canRegisterForTournament(TournamentListingStatus.bracketsReady),
+      isFalse,
+    );
+  });
+
+  test('isPubliclyListedTournament hides draft and cancelled', () {
+    expect(isPubliclyListedTournament('draft'), isFalse);
+    expect(isPubliclyListedTournament('open'), isTrue);
+    expect(isPubliclyListedTournament('closed'), isTrue);
+    expect(isPubliclyListedTournament('cancelled'), isFalse);
+    expect(isPubliclyListedTournament(null), isTrue);
+  });
+
+  test('isRegistrationListingClosed detects closed status', () {
+    expect(isRegistrationListingClosed('closed'), isTrue);
+    expect(isRegistrationListingClosed('open'), isFalse);
   });
 }

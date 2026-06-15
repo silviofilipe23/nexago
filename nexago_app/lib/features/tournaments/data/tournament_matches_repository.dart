@@ -26,6 +26,20 @@ class TournamentMatchesRepository {
         .map(_mapAndSort);
   }
 
+  Stream<List<TournamentMatch>> watchByTournamentAndDay(
+    String tournamentId,
+    String dayKey,
+  ) {
+    if (tournamentId.isEmpty) return Stream.value(const []);
+    if (dayKey.trim().isEmpty) return watchByTournament(tournamentId);
+
+    return _matches
+        .where('tournamentId', isEqualTo: tournamentId)
+        .where('dayKey', isEqualTo: dayKey.trim())
+        .snapshots()
+        .map(_mapAndSort);
+  }
+
   Stream<List<TournamentMatch>> watchByCategory(
     String tournamentId,
     String categoryName,
@@ -45,6 +59,14 @@ class TournamentMatchesRepository {
     if (matchId.trim().isEmpty) return null;
     final snap = await _matches.doc(matchId).get();
     return TournamentMatchMapper.fromSnapshot(snap);
+  }
+
+  Future<List<TournamentMatch>> getByTournamentId(String tournamentId) async {
+    final tid = tournamentId.trim();
+    if (tid.isEmpty) return const [];
+
+    final snap = await _matches.where('tournamentId', isEqualTo: tid).get();
+    return _mapAndSort(snap);
   }
 
   Stream<TournamentMatch?> watchById(String matchId) {
@@ -87,6 +109,51 @@ class TournamentMatchesRepository {
         .map(TournamentMatchPointEventMapper.fromSnapshot)
         .whereType<TournamentMatchPointEvent>()
         .toList(growable: false);
+  }
+
+  /// Transação atômica: atualiza placar + append pointEvent.
+  Future<void> recordPointTransaction({
+    required String matchId,
+    required Map<String, dynamic> matchUpdate,
+    required Map<String, dynamic> pointEvent,
+  }) async {
+    final id = matchId.trim();
+    if (id.isEmpty) return;
+
+    await _firestore.runTransaction((txn) async {
+      final matchRef = _matches.doc(id);
+      final matchSnap = await txn.get(matchRef);
+      if (!matchSnap.exists) {
+        throw StateError('Partida não encontrada');
+      }
+
+      final currentSeq =
+          (matchSnap.data()?['pointEventSeq'] as num?)?.toInt() ?? 0;
+      final nextSeq = currentSeq + 1;
+
+      final eventRef = _pointEventsRef(id).doc();
+      txn.update(matchRef, {
+        ...matchUpdate,
+        'pointEventSeq': nextSeq,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      txn.set(eventRef, {
+        ...pointEvent,
+        'seq': nextSeq,
+        'ts': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  Stream<List<Map<String, dynamic>>> watchAuditLog(String matchId) {
+    final id = matchId.trim();
+    if (id.isEmpty) return Stream.value(const []);
+
+    return _firestore
+        .collection(NexagoArtifactsPaths.matchAuditLogCollection(id))
+        .orderBy('at', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs.map((d) => {'id': d.id, ...d.data()}).toList());
   }
 
   Future<List<TournamentMatch>> getByTeamId(String teamId) async {

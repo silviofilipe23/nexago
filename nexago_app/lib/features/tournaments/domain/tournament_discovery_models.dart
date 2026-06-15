@@ -193,6 +193,8 @@ class MyTournamentRegistration {
     this.endDate,
     this.listingStatus,
     this.locationLine,
+    this.listingStatusRaw,
+    this.teamId,
   });
 
   final String registrationId;
@@ -206,4 +208,6 @@ class MyTournamentRegistration {
   final DateTime? endDate;
   final TournamentListingStatus? listingStatus;
   final String? locationLine;
+  final String? listingStatusRaw;
+  final String? teamId;
 }

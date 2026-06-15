@@ -8,6 +8,7 @@ import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
 import {hasRoleInClaims} from "./auth-roles";
 import {deliverNotificationToUser} from "./notification-delivery";
+import {MatchStatus} from "./match-status";
 
 function getFirebaseProjectId(): string {
   return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
@@ -240,7 +241,7 @@ export const generateCategoryBracket = onCall(async (request) => {
       poolId: draft.poolId,
       teamAId: draft.teamAId,
       teamBId: draft.teamBId,
-      status: "scheduled",
+      status: MatchStatus.scheduled,
       resultA: "",
       resultB: "",
       isGroupMatch: draft.isGroupMatch,

@@ -462,6 +462,7 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
       teamId: teamRef.id,
       tournamentId,
       categoryId,
+      participantUids: [inviterUid, uid],
       isPaid: false,
       paidAmount: 0,
       createdAt: FieldValue.serverTimestamp(),

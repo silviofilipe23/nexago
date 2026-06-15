@@ -10,6 +10,7 @@ import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../ranking/domain/ranking_display_helpers.dart';
 import '../../ranking/domain/ranking_providers.dart';
+import '../domain/athlete_tournament_day_providers.dart';
 import '../domain/my_tournaments_logic.dart';
 import '../domain/my_tournaments_models.dart';
 import '../data/my_tournament_registrations_repository.dart';
@@ -17,6 +18,7 @@ import '../domain/my_tournaments_providers.dart';
 import 'widgets/my_tournaments/my_tournaments_app_bar.dart';
 import 'widgets/my_tournaments/my_tournaments_completed_row.dart';
 import 'widgets/my_tournaments/my_tournaments_completed_stats.dart';
+import 'widgets/my_tournaments/my_tournaments_day_match_widgets.dart';
 import 'widgets/my_tournaments/my_tournaments_empty_state.dart';
 import 'widgets/my_tournaments/my_tournaments_live_banner.dart';
 import 'widgets/my_tournaments/my_tournaments_ongoing_card.dart';
@@ -189,6 +191,16 @@ class _MyTournamentsPageState extends ConsumerState<MyTournamentsPage> {
     );
   }
 
+  void _openPublicLive(String tournamentId, String matchId) {
+    context.pushNamed(
+      AppRouteNames.publicMatchLive,
+      pathParameters: {
+        'tournamentId': tournamentId.trim(),
+        'matchId': matchId.trim(),
+      },
+    );
+  }
+
   List<Widget> _buildOngoingTab({
     required MyTournamentsPageState state,
     required List<MyTournamentEnrollment> ongoing,
@@ -199,11 +211,30 @@ class _MyTournamentsPageState extends ConsumerState<MyTournamentsPage> {
       ];
     }
 
+    final courtCall = ref.watch(athleteCourtCallMatchProvider).valueOrNull;
+    final nextMatch = ref.watch(athleteNextMatchProvider).valueOrNull;
     final live = state.firstLive;
-    final showLiveBanner =
-        live != null && ongoing.any((e) => e.tournamentId == live.tournamentId);
+    final showLiveBanner = courtCall == null &&
+        live != null &&
+        ongoing.any((e) => e.tournamentId == live.tournamentId);
 
     return [
+      if (courtCall != null)
+        MyTournamentsCourtCallBanner(
+          nextMatch: courtCall,
+          onTap: () => _openPublicLive(
+            courtCall.tournamentId,
+            courtCall.match.id,
+          ),
+        ),
+      if (courtCall == null && nextMatch != null)
+        MyTournamentsNextMatchCard(
+          nextMatch: nextMatch,
+          onTap: () => _openPublicLive(
+            nextMatch.tournamentId,
+            nextMatch.match.id,
+          ),
+        ),
       if (showLiveBanner)
         MyTournamentsLiveBanner(
           enrollment: live,

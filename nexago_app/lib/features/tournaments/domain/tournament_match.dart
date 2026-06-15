@@ -29,6 +29,20 @@ class TournamentMatch {
     this.teamBDescription,
     this.courtName,
     this.description,
+    this.courtId = '',
+    this.scheduleEndTime,
+    this.dayKey = '',
+    this.queueOrder = 0,
+    this.queueStatus = '',
+    this.checkInTeamAStatus = '',
+    this.checkInTeamBStatus = '',
+    this.servingTeamId = '',
+    this.liveElapsedSec = 0,
+    this.pointEventSeq = 0,
+    this.reportStatus = '',
+    this.reportedByUid = '',
+    this.teamAConfirmed = false,
+    this.teamBConfirmed = false,
   });
 
   final String id;
@@ -55,6 +69,32 @@ class TournamentMatch {
   final String? teamBDescription;
   final String? courtName;
   final String? description;
+  final String courtId;
+  final DateTime? scheduleEndTime;
+  final String dayKey;
+  final int queueOrder;
+  final String queueStatus;
+  final String checkInTeamAStatus;
+  final String checkInTeamBStatus;
+  final String servingTeamId;
+  final int liveElapsedSec;
+  final int pointEventSeq;
+  final String reportStatus;
+  final String reportedByUid;
+  final bool teamAConfirmed;
+  final bool teamBConfirmed;
+
+  String get effectiveCourtLabel {
+    if (courtId.isNotEmpty) return courtId;
+    final name = courtName?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    return '';
+  }
+
+  bool get isOnCourt => queueStatus == 'on_court';
+
+  bool get isWaitingQueue =>
+      queueStatus == 'waiting' || queueStatus == 'on_deck';
 
   bool get isBracketMatch {
     if (isGroupMatch) return false;

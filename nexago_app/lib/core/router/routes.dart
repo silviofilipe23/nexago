@@ -84,6 +84,44 @@ abstract final class AppRoutes {
   static const String organizerCategoryBracket =
       '/organizer/tournaments/:tournamentId/categories/:categoryId/bracket';
 
+  /// Central de partidas (G1).
+  static const String organizerMatchCenter =
+      '/organizer/tournaments/:tournamentId/matches';
+
+  static const String organizerMatchQueue =
+      '/organizer/tournaments/:tournamentId/matches/queue';
+
+  static const String organizerMatchCourts =
+      '/organizer/tournaments/:tournamentId/matches/courts';
+
+  static const String organizerMatchSchedule =
+      '/organizer/tournaments/:tournamentId/matches/schedule';
+
+  static const String organizerMatchAutoSchedule =
+      '/organizer/tournaments/:tournamentId/matches/auto-schedule';
+
+  static const String organizerMatchInsights =
+      '/organizer/tournaments/:tournamentId/matches/insights';
+
+  static const String organizerMatchCheckIn =
+      '/organizer/tournaments/:tournamentId/matches/:matchId/check-in';
+
+  static const String organizerMatchLive =
+      '/organizer/tournaments/:tournamentId/matches/:matchId/live';
+
+  static const String organizerMatchQuickScore =
+      '/organizer/tournaments/:tournamentId/matches/:matchId/quick-score';
+
+  static const String organizerMatchValidate =
+      '/organizer/tournaments/:tournamentId/matches/:matchId/validate';
+
+  static const String organizerMatchSummary =
+      '/organizer/tournaments/:tournamentId/matches/:matchId/summary';
+
+  /// Transmissão pública (J2).
+  static const String publicMatchLive =
+      '/torneios/:tournamentId/ao-vivo/:matchId';
+
   /// Reservas do atleta (`arenaBookings`).
   static const String myBookings = '/my-bookings';
 
@@ -365,6 +403,18 @@ abstract final class AppRouteNames {
   static const String organizerCategoryCommunicate =
       'organizerCategoryCommunicate';
   static const String organizerCategoryBracket = 'organizerCategoryBracket';
+  static const String organizerMatchCenter = 'organizerMatchCenter';
+  static const String organizerMatchQueue = 'organizerMatchQueue';
+  static const String organizerMatchCourts = 'organizerMatchCourts';
+  static const String organizerMatchSchedule = 'organizerMatchSchedule';
+  static const String organizerMatchAutoSchedule = 'organizerMatchAutoSchedule';
+  static const String organizerMatchInsights = 'organizerMatchInsights';
+  static const String organizerMatchCheckIn = 'organizerMatchCheckIn';
+  static const String organizerMatchLive = 'organizerMatchLive';
+  static const String organizerMatchQuickScore = 'organizerMatchQuickScore';
+  static const String organizerMatchValidate = 'organizerMatchValidate';
+  static const String organizerMatchSummary = 'organizerMatchSummary';
+  static const String publicMatchLive = 'publicMatchLive';
   static const String myBookings = 'myBookings';
   static const String favoriteArenas = 'favoriteArenas';
   static const String athleteProfile = 'athleteProfile';

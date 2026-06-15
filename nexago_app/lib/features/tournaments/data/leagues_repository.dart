@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/search/search_keywords.dart';
 import '../domain/tournament_discovery_models.dart';
+import '../domain/tournament_listing_status.dart';
 import 'league_document_mapper.dart';
 
 class LeaguesRepository {
@@ -18,6 +19,7 @@ class LeaguesRepository {
       final items = snap.docs
           .map(LeagueDocumentMapper.fromSnapshot)
           .whereType<DiscoveryLeague>()
+          .where((league) => isPubliclyListedTournament(league.listingStatus))
           .toList();
       items.sort(
         (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),

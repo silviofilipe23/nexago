@@ -73,8 +73,10 @@ abstract final class TournamentDocumentMapper {
                   ) ??
               0;
 
+    final listingStatusRaw = _str(data['listingStatus'] ?? data['status']);
+
     final status = resolveListingStatus(
-      listingStatusRaw: _str(data['listingStatus'] ?? data['status']),
+      listingStatusRaw: listingStatusRaw,
       startAt: startAt,
       endAt: endAt,
       spotsLeft: spotsLeft,
@@ -121,6 +123,7 @@ abstract final class TournamentDocumentMapper {
       leagueStageName: _str(data['leagueStageName']),
       tournamentPrizes: _parsePrizes(data['prizes']),
       createdAt: _timestamp(data['createdAt'] ?? data['created_at']),
+      listingStatusRaw: listingStatusRaw,
     );
   }
 

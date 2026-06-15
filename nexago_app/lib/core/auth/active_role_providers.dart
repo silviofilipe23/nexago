@@ -38,17 +38,13 @@ class ActiveMobileRoleNotifier extends Notifier<AppMobileRole?> {
     state = null;
   }
 
-  Future<void> confirmRole({
-    required AppMobileRole role,
-    required bool remember,
-  }) async {
+  Future<void> confirmRole({required AppMobileRole role}) async {
     final uid = ref.read(authProvider).valueOrNull?.uid;
     state = role;
     if (uid == null || uid.isEmpty) return;
     await ref.read(rolePreferencesRepositoryProvider).saveRoleChoice(
           uid: uid,
           role: role,
-          remember: remember,
         );
   }
 
@@ -84,10 +80,8 @@ Future<AppMobileRole?> resolveActiveMobileRole(Ref ref) async {
     return sessionRole;
   }
 
-  final repo = ref.read(rolePreferencesRepositoryProvider);
-  final saved = repo.loadRole(user.uid);
-  final remember = repo.loadRemember(user.uid);
-  if (remember && saved != null && available.contains(saved)) {
+  final saved = ref.read(rolePreferencesRepositoryProvider).loadRole(user.uid);
+  if (saved != null && available.contains(saved)) {
     ref.read(activeMobileRoleProvider.notifier).setRole(saved);
     return saved;
   }
@@ -107,11 +101,10 @@ Future<bool> needsRoleSelectionFlow(Ref ref) async {
   final active = await resolveActiveMobileRole(ref);
   if (active != null) return false;
 
-  final repo = ref.read(rolePreferencesRepositoryProvider);
+  final saved = ref.read(rolePreferencesRepositoryProvider).loadRole(user.uid);
   return userNeedsRoleSelection(
     availableRoles: available,
-    savedRole: repo.loadRole(user.uid),
-    rememberChoice: repo.loadRemember(user.uid),
+    savedRole: saved,
   );
 }
 

@@ -101,29 +101,30 @@ void main() {
         userNeedsRoleSelection(
           availableRoles: [AppMobileRole.athlete],
           savedRole: null,
-          rememberChoice: false,
         ),
         isFalse,
       );
     });
 
-    test('returns true for multiple roles without remember', () {
+    test('returns true for multiple roles without saved preference', () {
       expect(
         userNeedsRoleSelection(
           availableRoles: [AppMobileRole.athlete, AppMobileRole.arena],
-          savedRole: AppMobileRole.athlete,
-          rememberChoice: false,
+          savedRole: null,
         ),
         isTrue,
       );
     });
 
-    test('returns false when remember matches available role', () {
+    test('returns false when saved role is available', () {
       expect(
         userNeedsRoleSelection(
-          availableRoles: [AppMobileRole.athlete, AppMobileRole.arena],
-          savedRole: AppMobileRole.arena,
-          rememberChoice: true,
+          availableRoles: [
+            AppMobileRole.athlete,
+            AppMobileRole.arena,
+            AppMobileRole.organizer,
+          ],
+          savedRole: AppMobileRole.organizer,
         ),
         isFalse,
       );

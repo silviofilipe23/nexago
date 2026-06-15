@@ -25,7 +25,6 @@ class RoleSelectionPage extends ConsumerStatefulWidget {
 
 class _RoleSelectionPageState extends ConsumerState<RoleSelectionPage> {
   AppMobileRole? _selected;
-  bool _remember = false;
   bool _submitting = false;
 
   @override
@@ -41,7 +40,6 @@ class _RoleSelectionPageState extends ConsumerState<RoleSelectionPage> {
     final user = ref.read(authProvider).valueOrNull;
     if (user != null) {
       final repo = ref.read(rolePreferencesRepositoryProvider);
-      _remember = repo.loadRemember(user.uid);
       final saved = repo.loadRole(user.uid);
       if (saved != null && roles.contains(saved)) {
         _selected = saved;
@@ -58,9 +56,7 @@ class _RoleSelectionPageState extends ConsumerState<RoleSelectionPage> {
     HapticFeedback.mediumImpact();
     setState(() => _submitting = true);
     try {
-      await ref
-          .read(activeMobileRoleProvider.notifier)
-          .confirmRole(role: role, remember: _remember);
+      await ref.read(activeMobileRoleProvider.notifier).confirmRole(role: role);
       if (!mounted) return;
       context.go(role.homeRoute);
     } finally {
@@ -168,11 +164,6 @@ class _RoleSelectionPageState extends ConsumerState<RoleSelectionPage> {
                               ),
                             );
                           }),
-                          const SizedBox(height: 8),
-                          _RememberRow(
-                            value: _remember,
-                            onChanged: (v) => setState(() => _remember = v),
-                          ),
                           const SizedBox(height: 20),
                           FilledButton(
                             onPressed: _submitting ? null : _continue,
@@ -231,51 +222,6 @@ class _RoleSelectionPageState extends ConsumerState<RoleSelectionPage> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _RememberRow extends StatelessWidget {
-  const _RememberRow({required this.value, required this.onChanged});
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Lembrar minha escolha',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: context.themeColors.onSurface,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Entrar direto neste papel da próxima vez. Dá pra trocar quando quiser.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: context.themeColors.onSurfaceMuted,
-                  height: 1.4,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Switch.adaptive(
-          value: value,
-          onChanged: onChanged,
-          activeTrackColor: AppColors.brand.withValues(alpha: 0.45),
-          activeThumbColor: AppColors.brand,
-        ),
-      ],
     );
   }
 }

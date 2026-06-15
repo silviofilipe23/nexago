@@ -19,6 +19,34 @@ import '../../features/auth/register_page.dart';
 import '../../features/auth/presentation/role_selection_page.dart';
 import '../../features/auth/presentation/auth_loading_page.dart';
 import '../../features/organizer/presentation/organizer_home_page.dart';
+import '../../features/organizer/presentation/create/organizer_create_chooser_page.dart';
+import '../../features/organizer/presentation/tournament_create/steps/tournament_create_categories_page.dart';
+import '../../features/organizer/presentation/tournament_create/steps/tournament_create_format_page.dart';
+import '../../features/organizer/presentation/tournament_create/steps/tournament_create_identity_page.dart';
+import '../../features/organizer/presentation/tournament_create/steps/tournament_create_location_page.dart';
+import '../../features/organizer/presentation/tournament_create/steps/tournament_create_prizes_page.dart';
+import '../../features/organizer/presentation/tournament_create/steps/tournament_create_registration_page.dart';
+import '../../features/organizer/presentation/tournament_create/steps/tournament_create_review_page.dart';
+import '../../features/organizer/presentation/tournament_create/steps/tournament_create_rules_page.dart';
+import '../../features/organizer/presentation/tournament_create/tournament_published_page.dart';
+import '../../features/organizer/presentation/league_create/steps/league_create_identity_page.dart';
+import '../../features/organizer/presentation/league_create/steps/league_create_season_page.dart';
+import '../../features/organizer/presentation/league_create/steps/league_create_categories_page.dart';
+import '../../features/organizer/presentation/league_create/steps/league_create_ranking_page.dart';
+import '../../features/organizer/presentation/league_create/steps/league_create_stages_page.dart';
+import '../../features/organizer/presentation/league_create/steps/league_create_review_page.dart';
+import '../../features/organizer/presentation/league_create/league_published_page.dart';
+import '../../features/organizer/presentation/league_stage_create/steps/league_stage_create_location_page.dart';
+import '../../features/organizer/presentation/league_stage_create/steps/league_stage_create_categories_page.dart';
+import '../../features/organizer/presentation/league_stage_create/steps/league_stage_create_review_page.dart';
+import '../../features/organizer/presentation/league_stage_create/league_stage_published_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_tournament_detail_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_category_shell_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_category_seeding_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_category_generate_bracket_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_category_format_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_category_communicate_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_category_bracket_page.dart';
 import '../../features/arena/domain/arena_manager_booking.dart';
 import '../../features/arena/domain/arena_booking_canceled_args.dart';
 import '../../features/arena/presentation/arena_booking_canceled_page.dart';
@@ -226,6 +254,244 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.organizerHome,
         name: AppRouteNames.organizerHome,
         builder: (context, state) => const OrganizerHomePage(),
+        routes: [
+          GoRoute(
+            path: 'create',
+            name: AppRouteNames.organizerCreate,
+            builder: (context, state) => const OrganizerCreateChooserPage(),
+          ),
+          GoRoute(
+            path: 'tournaments/new/identity',
+            name: AppRouteNames.organizerTournamentCreateIdentity,
+            builder: (context, state) => const TournamentCreateIdentityPage(),
+          ),
+          GoRoute(
+            path: 'tournaments/new/location',
+            name: AppRouteNames.organizerTournamentCreateLocation,
+            builder: (context, state) => const TournamentCreateLocationPage(),
+          ),
+          GoRoute(
+            path: 'tournaments/new/categories',
+            name: AppRouteNames.organizerTournamentCreateCategories,
+            builder: (context, state) => const TournamentCreateCategoriesPage(),
+          ),
+          GoRoute(
+            path: 'tournaments/new/format',
+            name: AppRouteNames.organizerTournamentCreateFormat,
+            builder: (context, state) => const TournamentCreateFormatPage(),
+          ),
+          GoRoute(
+            path: 'tournaments/new/registration',
+            name: AppRouteNames.organizerTournamentCreateRegistration,
+            builder: (context, state) =>
+                const TournamentCreateRegistrationPage(),
+          ),
+          GoRoute(
+            path: 'tournaments/new/prizes',
+            name: AppRouteNames.organizerTournamentCreatePrizes,
+            builder: (context, state) => const TournamentCreatePrizesPage(),
+          ),
+          GoRoute(
+            path: 'tournaments/new/rules',
+            name: AppRouteNames.organizerTournamentCreateRules,
+            builder: (context, state) => const TournamentCreateRulesPage(),
+          ),
+          GoRoute(
+            path: 'tournaments/new/review',
+            name: AppRouteNames.organizerTournamentCreateReview,
+            builder: (context, state) => const TournamentCreateReviewPage(),
+          ),
+          GoRoute(
+            path: 'tournaments/published',
+            name: AppRouteNames.organizerTournamentPublished,
+            builder: (context, state) {
+              final extra = state.extra;
+              if (extra is! TournamentPublishedArgs) {
+                return const Scaffold(
+                  body: Center(child: Text('Dados do torneio inválidos.')),
+                );
+              }
+              return TournamentPublishedPage(args: extra);
+            },
+          ),
+          GoRoute(
+            path: 'leagues/new/identity',
+            name: AppRouteNames.organizerLeagueCreateIdentity,
+            builder: (context, state) => const LeagueCreateIdentityPage(),
+          ),
+          GoRoute(
+            path: 'leagues/new/season',
+            name: AppRouteNames.organizerLeagueCreateSeason,
+            builder: (context, state) => const LeagueCreateSeasonPage(),
+          ),
+          GoRoute(
+            path: 'leagues/new/categories',
+            name: AppRouteNames.organizerLeagueCreateCategories,
+            builder: (context, state) => const LeagueCreateCategoriesPage(),
+          ),
+          GoRoute(
+            path: 'leagues/new/ranking',
+            name: AppRouteNames.organizerLeagueCreateRanking,
+            builder: (context, state) => const LeagueCreateRankingPage(),
+          ),
+          GoRoute(
+            path: 'leagues/new/stages',
+            name: AppRouteNames.organizerLeagueCreateStages,
+            builder: (context, state) => const LeagueCreateStagesPage(),
+          ),
+          GoRoute(
+            path: 'leagues/new/review',
+            name: AppRouteNames.organizerLeagueCreateReview,
+            builder: (context, state) => const LeagueCreateReviewPage(),
+          ),
+          GoRoute(
+            path: 'leagues/published',
+            name: AppRouteNames.organizerLeaguePublished,
+            builder: (context, state) {
+              final extra = state.extra;
+              if (extra is! LeaguePublishedArgs) {
+                return const Scaffold(
+                  body: Center(child: Text('Dados da liga inválidos.')),
+                );
+              }
+              return LeaguePublishedPage(args: extra);
+            },
+          ),
+          GoRoute(
+            path: 'leagues/:leagueId/stages/new/location',
+            name: AppRouteNames.organizerLeagueStageCreateLocation,
+            builder: (context, state) =>
+                const LeagueStageCreateLocationPage(),
+          ),
+          GoRoute(
+            path: 'leagues/:leagueId/stages/new/categories',
+            name: AppRouteNames.organizerLeagueStageCreateCategories,
+            builder: (context, state) =>
+                const LeagueStageCreateCategoriesPage(),
+          ),
+          GoRoute(
+            path: 'leagues/:leagueId/stages/new/review',
+            name: AppRouteNames.organizerLeagueStageCreateReview,
+            builder: (context, state) => const LeagueStageCreateReviewPage(),
+          ),
+          GoRoute(
+            path: 'leagues/:leagueId/stages/published',
+            name: AppRouteNames.organizerLeagueStagePublished,
+            builder: (context, state) {
+              final extra = state.extra;
+              if (extra is! LeagueStagePublishedArgs) {
+                return const Scaffold(
+                  body: Center(child: Text('Dados da etapa inválidos.')),
+                );
+              }
+              return LeagueStagePublishedPage(args: extra);
+            },
+          ),
+          GoRoute(
+            path: 'tournaments/:tournamentId',
+            name: AppRouteNames.organizerTournamentDetail,
+            builder: (context, state) {
+              final tournamentId =
+                  state.pathParameters['tournamentId']?.trim() ?? '';
+              return OrganizerTournamentDetailPage(tournamentId: tournamentId);
+            },
+            routes: [
+              GoRoute(
+                path: 'categories/:categoryId',
+                name: AppRouteNames.organizerCategoryShell,
+                builder: (context, state) {
+                  final tournamentId =
+                      state.pathParameters['tournamentId']?.trim() ?? '';
+                  final categoryId =
+                      state.pathParameters['categoryId']?.trim() ?? '';
+                  return OrganizerCategoryShellPage(
+                    tournamentId: tournamentId,
+                    categoryId: categoryId,
+                  );
+                },
+                routes: [
+                  GoRoute(
+                    path: 'seeding',
+                    name: AppRouteNames.organizerCategorySeeding,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final categoryId =
+                          state.pathParameters['categoryId']?.trim() ?? '';
+                      return OrganizerCategorySeedingPage(
+                        tournamentId: tournamentId,
+                        categoryId: categoryId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'generate-bracket',
+                    name: AppRouteNames.organizerCategoryGenerateBracket,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final categoryId =
+                          state.pathParameters['categoryId']?.trim() ?? '';
+                      final format =
+                          state.uri.queryParameters['format']?.trim() ??
+                              'groups_knockout';
+                      return OrganizerCategoryGenerateBracketPage(
+                        tournamentId: tournamentId,
+                        categoryId: categoryId,
+                        format: format,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'format',
+                    name: AppRouteNames.organizerCategoryFormat,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final categoryId =
+                          state.pathParameters['categoryId']?.trim() ?? '';
+                      return OrganizerCategoryFormatPage(
+                        tournamentId: tournamentId,
+                        categoryId: categoryId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'communicate',
+                    name: AppRouteNames.organizerCategoryCommunicate,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final categoryId =
+                          state.pathParameters['categoryId']?.trim() ?? '';
+                      return OrganizerCategoryCommunicatePage(
+                        tournamentId: tournamentId,
+                        categoryId: categoryId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'bracket',
+                    name: AppRouteNames.organizerCategoryBracket,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final categoryId =
+                          state.pathParameters['categoryId']?.trim() ?? '';
+                      final tab =
+                          state.uri.queryParameters['tab']?.trim() ?? 'winners';
+                      return OrganizerCategoryBracketPage(
+                        tournamentId: tournamentId,
+                        categoryId: categoryId,
+                        initialTab: tab,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.home,

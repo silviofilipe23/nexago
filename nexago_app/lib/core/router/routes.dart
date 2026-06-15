@@ -18,8 +18,71 @@ abstract final class AppRoutes {
   /// Loading pós-login / cold start autenticado.
   static const String authLoading = '/auth/loading';
 
-  /// Home do organizador de torneio (v1 — em breve).
+  /// Home do organizador de torneio.
   static const String organizerHome = '/organizer';
+  static const String organizerCreate = '/organizer/create';
+  static const String organizerTournamentCreateIdentity =
+      '/organizer/tournaments/new/identity';
+  static const String organizerTournamentCreateLocation =
+      '/organizer/tournaments/new/location';
+  static const String organizerTournamentCreateCategories =
+      '/organizer/tournaments/new/categories';
+  static const String organizerTournamentCreateFormat =
+      '/organizer/tournaments/new/format';
+  static const String organizerTournamentCreateRegistration =
+      '/organizer/tournaments/new/registration';
+  static const String organizerTournamentCreatePrizes =
+      '/organizer/tournaments/new/prizes';
+  static const String organizerTournamentCreateRules =
+      '/organizer/tournaments/new/rules';
+  static const String organizerTournamentCreateReview =
+      '/organizer/tournaments/new/review';
+  static const String organizerTournamentPublished =
+      '/organizer/tournaments/published';
+  static const String organizerLeagueCreateIdentity =
+      '/organizer/leagues/new/identity';
+  static const String organizerLeagueCreateSeason =
+      '/organizer/leagues/new/season';
+  static const String organizerLeagueCreateCategories =
+      '/organizer/leagues/new/categories';
+  static const String organizerLeagueCreateRanking =
+      '/organizer/leagues/new/ranking';
+  static const String organizerLeagueCreateStages =
+      '/organizer/leagues/new/stages';
+  static const String organizerLeagueCreateReview =
+      '/organizer/leagues/new/review';
+  static const String organizerLeaguePublished = '/organizer/leagues/published';
+  static const String organizerLeagueStageCreateLocation =
+      '/organizer/leagues/:leagueId/stages/new/location';
+  static const String organizerLeagueStageCreateCategories =
+      '/organizer/leagues/:leagueId/stages/new/categories';
+  static const String organizerLeagueStageCreateReview =
+      '/organizer/leagues/:leagueId/stages/new/review';
+  static const String organizerLeagueStagePublished =
+      '/organizer/leagues/:leagueId/stages/published';
+
+  /// Detalhe operacional do torneio (A3).
+  static const String organizerTournamentDetail =
+      '/organizer/tournaments/:tournamentId';
+
+  /// Shell da categoria (E1).
+  static const String organizerCategoryShell =
+      '/organizer/tournaments/:tournamentId/categories/:categoryId';
+
+  static const String organizerCategorySeeding =
+      '/organizer/tournaments/:tournamentId/categories/:categoryId/seeding';
+
+  static const String organizerCategoryGenerateBracket =
+      '/organizer/tournaments/:tournamentId/categories/:categoryId/generate-bracket';
+
+  static const String organizerCategoryFormat =
+      '/organizer/tournaments/:tournamentId/categories/:categoryId/format';
+
+  static const String organizerCategoryCommunicate =
+      '/organizer/tournaments/:tournamentId/categories/:categoryId/communicate';
+
+  static const String organizerCategoryBracket =
+      '/organizer/tournaments/:tournamentId/categories/:categoryId/bracket';
 
   /// Reservas do atleta (`arenaBookings`).
   static const String myBookings = '/my-bookings';
@@ -255,6 +318,53 @@ abstract final class AppRouteNames {
   static const String roleSelection = 'roleSelection';
   static const String authLoading = 'authLoading';
   static const String organizerHome = 'organizerHome';
+  static const String organizerCreate = 'organizerCreate';
+  static const String organizerTournamentCreateIdentity =
+      'organizerTournamentCreateIdentity';
+  static const String organizerTournamentCreateLocation =
+      'organizerTournamentCreateLocation';
+  static const String organizerTournamentCreateCategories =
+      'organizerTournamentCreateCategories';
+  static const String organizerTournamentCreateFormat =
+      'organizerTournamentCreateFormat';
+  static const String organizerTournamentCreateRegistration =
+      'organizerTournamentCreateRegistration';
+  static const String organizerTournamentCreatePrizes =
+      'organizerTournamentCreatePrizes';
+  static const String organizerTournamentCreateRules =
+      'organizerTournamentCreateRules';
+  static const String organizerTournamentCreateReview =
+      'organizerTournamentCreateReview';
+  static const String organizerTournamentPublished =
+      'organizerTournamentPublished';
+  static const String organizerLeagueCreateIdentity =
+      'organizerLeagueCreateIdentity';
+  static const String organizerLeagueCreateSeason = 'organizerLeagueCreateSeason';
+  static const String organizerLeagueCreateCategories =
+      'organizerLeagueCreateCategories';
+  static const String organizerLeagueCreateRanking =
+      'organizerLeagueCreateRanking';
+  static const String organizerLeagueCreateStages =
+      'organizerLeagueCreateStages';
+  static const String organizerLeagueCreateReview = 'organizerLeagueCreateReview';
+  static const String organizerLeaguePublished = 'organizerLeaguePublished';
+  static const String organizerLeagueStageCreateLocation =
+      'organizerLeagueStageCreateLocation';
+  static const String organizerLeagueStageCreateCategories =
+      'organizerLeagueStageCreateCategories';
+  static const String organizerLeagueStageCreateReview =
+      'organizerLeagueStageCreateReview';
+  static const String organizerLeagueStagePublished =
+      'organizerLeagueStagePublished';
+  static const String organizerTournamentDetail = 'organizerTournamentDetail';
+  static const String organizerCategoryShell = 'organizerCategoryShell';
+  static const String organizerCategorySeeding = 'organizerCategorySeeding';
+  static const String organizerCategoryGenerateBracket =
+      'organizerCategoryGenerateBracket';
+  static const String organizerCategoryFormat = 'organizerCategoryFormat';
+  static const String organizerCategoryCommunicate =
+      'organizerCategoryCommunicate';
+  static const String organizerCategoryBracket = 'organizerCategoryBracket';
   static const String myBookings = 'myBookings';
   static const String favoriteArenas = 'favoriteArenas';
   static const String athleteProfile = 'athleteProfile';

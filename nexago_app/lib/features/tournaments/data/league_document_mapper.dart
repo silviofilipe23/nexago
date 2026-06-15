@@ -46,6 +46,10 @@ abstract final class LeagueDocumentMapper {
       seasonLabel: _str(data['seasonLabel'] ?? data['season']),
       city: _str(data['city']),
       stages: stages,
+      coverUrl: _str(data['coverUrl'] ?? data['imageUrl']),
+      listingStatus: _str(data['listingStatus'] ?? data['status']),
+      seasonStartAt: _timestamp(data['seasonStartAt']),
+      seasonEndAt: _timestamp(data['seasonEndAt']),
     );
   }
 
@@ -57,6 +61,12 @@ abstract final class LeagueDocumentMapper {
   static int? _int(dynamic v) {
     if (v is int) return v;
     if (v is num) return v.toInt();
+    return null;
+  }
+
+  static DateTime? _timestamp(dynamic raw) {
+    if (raw is Timestamp) return raw.toDate();
+    if (raw is DateTime) return raw;
     return null;
   }
 }

@@ -1,0 +1,234 @@
+import 'category_ops_models.dart';
+
+String formatCategoryMoneyCents(int cents) {
+  if (cents <= 0) return 'R\$ 0';
+  final reais = cents / 100;
+  return 'R\$ ${reais.toStringAsFixed(reais.truncateToDouble() == reais ? 0 : 2)}';
+}
+
+String formatCategoryMoneyShort(int cents) {
+  if (cents <= 0) return 'R\$ 0';
+  final reais = cents / 100;
+  if (reais >= 1000) {
+    final k = reais / 1000;
+    return 'R\$ ${k.toStringAsFixed(k.truncateToDouble() == k ? 0 : 1)}K';
+  }
+  return formatCategoryMoneyCents(cents);
+}
+
+OrganizerTeamRegistrationStatus registrationStatusFromInscription(
+  Map<String, dynamic> data,
+) {
+  if (data['waitlist'] == true) {
+    return OrganizerTeamRegistrationStatus.waitlist;
+  }
+  if (data['isPaid'] == true) {
+    return OrganizerTeamRegistrationStatus.confirmed;
+  }
+  return OrganizerTeamRegistrationStatus.pending;
+}
+
+List<OrganizerCategoryTeamRow> filterCategoryTeams(
+  List<OrganizerCategoryTeamRow> teams,
+  OrganizerCategoryTeamFilter filter,
+  String searchQuery,
+) {
+  final query = searchQuery.trim().toLowerCase();
+  Iterable<OrganizerCategoryTeamRow> result = teams;
+
+  result = switch (filter) {
+    OrganizerCategoryTeamFilter.all => result,
+    OrganizerCategoryTeamFilter.seeds =>
+      result.where((t) => t.seedRank != null),
+    OrganizerCategoryTeamFilter.pending => result.where(
+        (t) => t.status == OrganizerTeamRegistrationStatus.pending,
+      ),
+    OrganizerCategoryTeamFilter.waitlist => result.where(
+        (t) => t.status == OrganizerTeamRegistrationStatus.waitlist,
+      ),
+  };
+
+  if (query.isNotEmpty) {
+    result = result.where(
+      (t) =>
+          t.displayName.toLowerCase().contains(query) ||
+          t.player1.name.toLowerCase().contains(query) ||
+          t.player2.name.toLowerCase().contains(query),
+    );
+  }
+
+  return result.toList(growable: false);
+}
+
+List<OrganizerCategoryTeamRow> sortCategoryTeams(
+  List<OrganizerCategoryTeamRow> teams,
+  OrganizerTeamSort sort,
+) {
+  final copy = [...teams];
+  copy.sort((a, b) {
+    return switch (sort) {
+      OrganizerTeamSort.registrationOrder =>
+        (a.registeredAt ?? DateTime(2100))
+            .compareTo(b.registeredAt ?? DateTime(2100)),
+      OrganizerTeamSort.ranking =>
+        (b.player1.rankingPoints + b.player2.rankingPoints)
+            .compareTo(a.player1.rankingPoints + a.player2.rankingPoints),
+    };
+  });
+  return copy;
+}
+
+OrganizerCategoryPaymentsSummary buildPaymentsSummary({
+  required List<OrganizerCategoryTeamRow> teams,
+  required int expectedPerTeamCents,
+  double feeRate = 0.06,
+}) {
+  var collected = 0;
+  var paid = 0;
+  var pending = 0;
+  for (final team in teams) {
+    if (team.status == OrganizerTeamRegistrationStatus.confirmed) {
+      paid++;
+      collected += team.paidAmountCents > 0
+          ? team.paidAmountCents
+          : expectedPerTeamCents;
+    } else if (team.status == OrganizerTeamRegistrationStatus.pending) {
+      pending++;
+    }
+  }
+  final expected = teams.length * expectedPerTeamCents;
+  return OrganizerCategoryPaymentsSummary(
+    collectedCents: collected,
+    expectedCents: expected,
+    paidCount: paid,
+    totalSlots: teams.length,
+    pendingCount: pending,
+    feeRate: feeRate,
+  );
+}
+
+CategoryOpsState categoryOpsFromMap(Map<String, dynamic>? raw) {
+  if (raw == null || raw.isEmpty) return const CategoryOpsState();
+
+  final seedsRaw = raw['seeds'];
+  final seeds = <String>[];
+  if (seedsRaw is List) {
+    for (final e in seedsRaw) {
+      if (e is String && e.isNotEmpty) seeds.add(e);
+    }
+  }
+
+  final groupsRaw = raw['groupsPreview'];
+  final groups = <CategoryGroupPreview>[];
+  if (groupsRaw is List) {
+    for (final g in groupsRaw) {
+      if (g is! Map) continue;
+      final map = Map<String, dynamic>.from(g);
+      final id = (map['id'] as String?) ?? '';
+      final teamIdsRaw = map['teamIds'];
+      final teamIds = <String>[];
+      if (teamIdsRaw is List) {
+        for (final t in teamIdsRaw) {
+          if (t is String && t.isNotEmpty) teamIds.add(t);
+        }
+      }
+      if (id.isNotEmpty) {
+        groups.add(CategoryGroupPreview(id: id, teamIds: teamIds));
+      }
+    }
+  }
+
+  final bracketConfig = raw['bracketConfig'];
+  Map<String, dynamic> config = {};
+  if (bracketConfig is Map) {
+    config = Map<String, dynamic>.from(bracketConfig);
+  }
+
+  return CategoryOpsState(
+    seeds: seeds,
+    seedByRanking: raw['seedByRanking'] as bool? ?? true,
+    bracketStatus: _parseBracketStatus(raw['bracketStatus'] as String?),
+    bracketFormatOverride: (raw['bracketFormatOverride'] as String?) ?? '',
+    winnersAdvantage: config['winnersAdvantage'] as bool? ?? true,
+    phaseBestOf: (config['phaseBestOf'] as String?) ?? 'md3',
+    finalBestOf5: config['finalBestOf5'] as bool? ?? true,
+    thirdPlaceEnabled: config['thirdPlaceEnabled'] as bool? ?? false,
+    groupsPreview: groups,
+  );
+}
+
+CategoryBracketStatus _parseBracketStatus(String? raw) =>
+    switch (raw?.trim().toLowerCase()) {
+      'draft' => CategoryBracketStatus.draft,
+      'published' => CategoryBracketStatus.published,
+      _ => CategoryBracketStatus.none,
+    };
+
+Map<String, dynamic> categoryOpsToMap(CategoryOpsState state) => {
+      'seeds': state.seeds,
+      'seedByRanking': state.seedByRanking,
+      'bracketStatus': state.bracketStatus.name,
+      if (state.bracketFormatOverride.isNotEmpty)
+        'bracketFormatOverride': state.bracketFormatOverride,
+      'bracketConfig': {
+        'winnersAdvantage': state.winnersAdvantage,
+        'phaseBestOf': state.phaseBestOf,
+        'finalBestOf5': state.finalBestOf5,
+        'thirdPlaceEnabled': state.thirdPlaceEnabled,
+      },
+      'groupsPreview': state.groupsPreview
+          .map((g) => {'id': g.id, 'teamIds': g.teamIds})
+          .toList(),
+    };
+
+List<OrganizerCategoryTeamRow> applySeedOrder(
+  List<OrganizerCategoryTeamRow> teams,
+  List<String> seedTeamIds,
+) {
+  if (seedTeamIds.isEmpty) return teams;
+  final byTeamId = {for (final t in teams) t.teamId: t};
+  final ordered = <OrganizerCategoryTeamRow>[];
+  for (var i = 0; i < seedTeamIds.length; i++) {
+    final team = byTeamId[seedTeamIds[i]];
+    if (team == null) continue;
+    ordered.add(
+      OrganizerCategoryTeamRow(
+        registrationId: team.registrationId,
+        teamId: team.teamId,
+        player1: team.player1,
+        player2: team.player2,
+        status: team.status,
+        seedRank: i + 1,
+        paidAmountCents: team.paidAmountCents,
+        expectedAmountCents: team.expectedAmountCents,
+        registeredAt: team.registeredAt,
+        paymentMethod: team.paymentMethod,
+      ),
+    );
+    byTeamId.remove(seedTeamIds[i]);
+  }
+  ordered.addAll(byTeamId.values);
+  return ordered;
+}
+
+List<String> defaultSeedOrderByRanking(List<OrganizerCategoryTeamRow> teams) {
+  final sorted = sortCategoryTeams(teams, OrganizerTeamSort.ranking);
+  return sorted.map((t) => t.teamId).toList(growable: false);
+}
+
+int categoryShellTabCount(OrganizerCategoryShellTab tab) => switch (tab) {
+      OrganizerCategoryShellTab.teams => 0,
+      OrganizerCategoryShellTab.payments => 0,
+      OrganizerCategoryShellTab.bracket => 0,
+      OrganizerCategoryShellTab.matches => 0,
+    };
+
+String categoryShellTabLabel(OrganizerCategoryShellTab tab, {int? count}) {
+  final suffix = count != null && count > 0 ? ' $count' : '';
+  return switch (tab) {
+    OrganizerCategoryShellTab.teams => 'Duplas$suffix',
+    OrganizerCategoryShellTab.payments => 'Pagamentos$suffix',
+    OrganizerCategoryShellTab.bracket => 'Chave',
+    OrganizerCategoryShellTab.matches => 'Jogos',
+  };
+}

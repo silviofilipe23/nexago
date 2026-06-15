@@ -52,6 +52,7 @@ dependencies:
   firebase_storage: ^12.4.10
   google_sign_in: ^6.3.0
   image_picker: ^1.2.1
+  file_picker: ^8.3.7
   crop_your_image: ^2.0.0
   image: ^4.5.4
   local_auth: ^2.3.0

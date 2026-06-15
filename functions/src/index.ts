@@ -69,6 +69,16 @@ import {
   deliverNotificationToUser,
   parseStoredFcmTokens,
 } from "./notification-delivery";
+import {
+  generateCategoryBracket,
+  organizerConfirmRegistrationPayment,
+  organizerMoveToWaitlist,
+  organizerRemoveFromCategory,
+  sendCategoryCommunication,
+  resendRegistrationPayment,
+  closeTournamentRegistrations,
+  cancelTournament,
+} from "./organizer-category-ops";
 
 export {
   quoteArenaBooking,
@@ -95,6 +105,14 @@ export {
   onTeamSearchKeywordsSync,
   backfillSearchKeywords,
   onTournamentMatchCompletedAwardXp,
+  generateCategoryBracket,
+  organizerConfirmRegistrationPayment,
+  organizerMoveToWaitlist,
+  organizerRemoveFromCategory,
+  sendCategoryCommunication,
+  resendRegistrationPayment,
+  closeTournamentRegistrations,
+  cancelTournament,
 };
 
 // Initialize Firebase Admin

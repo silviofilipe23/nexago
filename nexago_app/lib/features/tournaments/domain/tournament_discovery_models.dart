@@ -20,6 +20,10 @@ class DiscoveryLeague {
     required this.stages,
     this.seasonLabel,
     this.city,
+    this.coverUrl,
+    this.listingStatus,
+    this.seasonStartAt,
+    this.seasonEndAt,
   });
 
   final String id;
@@ -27,6 +31,10 @@ class DiscoveryLeague {
   final String? seasonLabel;
   final String? city;
   final List<DiscoveryLeagueStage> stages;
+  final String? coverUrl;
+  final String? listingStatus;
+  final DateTime? seasonStartAt;
+  final DateTime? seasonEndAt;
 }
 
 class DiscoveryLeagueStage {

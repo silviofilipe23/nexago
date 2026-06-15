@@ -25,6 +25,33 @@ service cloud.firestore {
     function isTournamentOrganizer() {
       return request.auth != null && hasRoleClaim('organizer');
     }
+    function isValidTournamentListingStatus(status) {
+      return status is string && status in ['draft', 'open'];
+    }
+    function organizerCanCreateTournament() {
+      return request.auth != null &&
+        isTournamentOrganizer() &&
+        request.resource.data.managerId == request.auth.uid &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() >= 3 &&
+        request.resource.data.city is string &&
+        request.resource.data.locationName is string &&
+        request.resource.data.startAt is timestamp &&
+        request.resource.data.endAt is timestamp &&
+        request.resource.data.listingStatus is string &&
+        isValidTournamentListingStatus(request.resource.data.listingStatus) &&
+        request.resource.data.enrolledCount == 0 &&
+        request.resource.data.categories is list &&
+        request.resource.data.categories.size() >= 1;
+    }
+    function organizerCanUpdateOwnTournament() {
+      return request.auth != null &&
+        resource.data.managerId == request.auth.uid &&
+        request.resource.data.managerId == resource.data.managerId &&
+        request.resource.data.enrolledCount == resource.data.enrolledCount &&
+        request.resource.data.listingStatus is string &&
+        isValidTournamentListingStatus(request.resource.data.listingStatus);
+    }
     function isTournamentOwner(tournamentId) {
       return request.auth != null &&
         exists(/databases/$(database)/documents/tournaments/$(tournamentId)) &&
@@ -1044,13 +1071,17 @@ service cloud.firestore {
       allow read: if true;
       
       // Criar: admin da plataforma ou gestor de torneios
-      allow create: if request.auth != null && (isAdmin() || isSuperAdmin() || isTournamentOrganizer());
+      allow create: if request.auth != null && (
+        isAdmin() ||
+        isSuperAdmin() ||
+        organizerCanCreateTournament()
+      );
       
       // Atualizar/deletar: gestor do torneio, admin da plataforma ou gestor de torneios
       allow update, delete: if request.auth != null && (
         isAdmin() ||
         isSuperAdmin() ||
-        isTournamentOrganizer() ||
+        (isTournamentOrganizer() && organizerCanUpdateOwnTournament()) ||
         resource.data.managerId == request.auth.uid ||
         isTournamentStaff(tournamentId, ['manager'])
       );
@@ -1239,9 +1270,22 @@ service cloud.firestore {
       allow read: if true;
       allow create: if request.auth != null && (
         isAdmin() ||
-        request.resource.data.managerId == request.auth.uid
+        (
+          request.resource.data.managerId == request.auth.uid &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() > 0 &&
+          request.resource.data.listingStatus in ['draft', 'open']
+        )
       );
-      allow update, delete: if request.auth != null && (
+      allow update: if request.auth != null && (
+        isAdmin() ||
+        (
+          resource.data.managerId == request.auth.uid &&
+          request.resource.data.managerId == resource.data.managerId &&
+          request.resource.data.listingStatus in ['draft', 'open']
+        )
+      );
+      allow delete: if request.auth != null && (
         isAdmin() ||
         resource.data.managerId == request.auth.uid
       );

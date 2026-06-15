@@ -29,6 +29,9 @@ Não usar `torneios/` (visão operacional do backoffice).
 | `status` / `listingStatus` | string | Operacional: `Draft`, `Open`, `Brackets Ready`, `In Progress`, `Completed` (ou legado `open`, `live`, `ended`, `finalizado`, etc.) |
 | `leagueId` / `leagueStageId` | string | Liga / etapa |
 | `categories` | array | `{ categoryName, entryFee, maxTeams?, spotsLeft? (legado), level?, uniformType?, uniformNameOnShirt?, uniformNumberOnShirt?, uniformSizeOptionsTop?, uniformSizeOptionsShorts? }` |
+| `categoryOps` | map | Por `categoryId`: `seeds[]`, `seedByRanking`, `bracketStatus` (`none`/`draft`/`published`), `bracketFormatOverride`, `bracketConfig`, `groupsPreview[]`, `updatedAt` |
+
+`categoryOps` é atualizado pelo gestor do torneio (client) para seeds/rascunho; publicação de chave e partidas via callable `generateCategoryBracket` (admin SDK cria `matches`).
 
 `uniformType` (por categoria): `none` | `top_only` | `full`.
 
@@ -38,17 +41,45 @@ Mapper: `nexago_app/lib/features/tournaments/data/tournament_document_mapper.dar
 
 ## Liga (`leagues/{id}`)
 
+Campos estendidos para criação de circuito (wizard C1–C6):
+
+| Grupo | Campos |
+|-------|--------|
+| C1 | `sport`, `organizationName`, `description`, `coverUrl`/`imageUrl`, `city`, `state` |
+| C2 | `seasonStartAt`, `seasonEndAt`, `seasonLabel`, `plannedStagesCount`, `grandFinalEnabled` |
+| C3 | `categories[]` (mesmo shape do torneio) |
+| C4 | `countingStagesMode`, `rankingTableId`, `rankingPointsByPlace`, `grandFinalSpots`, `wildcardEnabled`, `wildcardSpots` |
+| C5 | `stages[]`: `status` (`defined`/`pending`), `isGrandFinal`, `locationName`, `city`, `startAt`, `endAt`, `dateLabel`, `tournamentIds[]` |
+| Meta | `listingStatus` (`draft`/`open`), `wizardStep`, `keywords`, `managerId`, `updatedAt`, `createdAt` |
+
+No **publish**, grava `leagues/{id}` e cria torneios `draft` em `tournaments/` para cada etapa `defined` (`leagueId`, `leagueStageId`, `leagueStageOrder`, categorias herdadas).
+
+### Adicionar etapa pós-publish (wizard D1–D3)
+
+Após o circuito estar `listingStatus: open`, o organizador pode publicar uma nova etapa:
+
+| Ação | Writes |
+|------|--------|
+| Publicar etapa | 1 batch: `tournaments/{id}` (`listingStatus: open`) + update `leagues/{id}.stages[]` |
+| Salvar rascunho da etapa | 1 batch: `tournaments/{id}` (`listingStatus: draft`) + stage `defined` na liga |
+
+- Reutiliza slot `pending` sem `tournamentIds`; senão faz append com `order` incrementado.
+- Categorias desabilitadas no D2 → `registrationClosed: true` no torneio.
+- Campos do torneio-etapa: `isLeagueStage: true`, `leagueStageId`, `leagueStageOrder`, datas/inscrições do wizard.
+
 ```json
 {
   "name": "Circuito Verão NexaGO",
   "seasonLabel": "Temporada 2026",
   "city": "Circuito nacional",
   "managerId": "uid",
+  "listingStatus": "open",
   "stages": [
     {
       "id": "etapa-1",
       "name": "Etapa Nordeste",
       "order": 1,
+      "status": "defined",
       "dateLabel": "Abr–mai",
       "tournamentIds": ["tournament-id-1"]
     }

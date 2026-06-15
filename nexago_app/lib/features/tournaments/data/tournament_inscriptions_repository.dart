@@ -14,6 +14,13 @@ typedef TournamentUserRegistrationsByCategory = Map<String, String>;
 /// `categoryId` → `teamId` das inscrições do atleta no torneio.
 typedef TournamentUserTeamIdsByCategory = Map<String, String>;
 
+/// Par inscrição + equipe para fluxo do organizador.
+typedef OrganizerInscriptionWithTeam = ({
+  String registrationId,
+  Map<String, dynamic> inscription,
+  Map<String, dynamic>? team,
+});
+
 /// Agrega inscrições confirmadas (`isPaid == true`) por `categoryId`.
 TournamentCategoryEnrollmentCounts countInscriptionsByCategoryData(
   Iterable<Map<String, dynamic>> rows,
@@ -136,6 +143,36 @@ class TournamentInscriptionsRepository {
         .map((snap) => countInscriptionsByCategory(snap.docs));
   }
 
+  /// Todas as inscrições do torneio com equipe resolvida.
+  Stream<List<OrganizerInscriptionWithTeam>> watchByTournament(
+    String tournamentId,
+  ) {
+    final tid = tournamentId.trim();
+    if (tid.isEmpty) return Stream.value(const []);
+
+    return _inscriptions
+        .where('tournamentId', isEqualTo: tid)
+        .snapshots()
+        .asyncMap((snap) async {
+      final rows = <OrganizerInscriptionWithTeam>[];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final teamId = (data['teamId'] as String?)?.trim() ?? '';
+        Map<String, dynamic>? team;
+        if (teamId.isNotEmpty) {
+          final teamSnap = await _teams.doc(teamId).get();
+          if (teamSnap.exists) team = teamSnap.data();
+        }
+        rows.add((
+          registrationId: doc.id,
+          inscription: data,
+          team: team,
+        ));
+      }
+      return rows;
+    });
+  }
+
   /// Inscrições do atleta no torneio: `categoryId` → `registrationId`.
   Stream<TournamentUserRegistrationsByCategory> watchUserRegistrationsByCategory({
     required String tournamentId,
@@ -181,6 +218,39 @@ class TournamentInscriptionsRepository {
       tournamentId: tournamentId,
       uid: uid,
     ).map((map) => map.keys.toSet());
+  }
+
+  /// Inscrições do torneio com equipe resolvida, filtradas por categoria.
+  Stream<List<OrganizerInscriptionWithTeam>> watchByTournamentAndCategory({
+    required String tournamentId,
+    required String categoryId,
+  }) {
+    final tid = tournamentId.trim();
+    final cid = categoryId.trim();
+    if (tid.isEmpty || cid.isEmpty) return Stream.value(const []);
+
+    return _inscriptions
+        .where('tournamentId', isEqualTo: tid)
+        .where('categoryId', isEqualTo: cid)
+        .snapshots()
+        .asyncMap((snap) async {
+      final rows = <OrganizerInscriptionWithTeam>[];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final teamId = (data['teamId'] as String?)?.trim() ?? '';
+        Map<String, dynamic>? team;
+        if (teamId.isNotEmpty) {
+          final teamSnap = await _teams.doc(teamId).get();
+          if (teamSnap.exists) team = teamSnap.data();
+        }
+        rows.add((
+          registrationId: doc.id,
+          inscription: data,
+          team: team,
+        ));
+      }
+      return rows;
+    });
   }
 
   /// Times do atleta no torneio: `categoryId` → `teamId`.

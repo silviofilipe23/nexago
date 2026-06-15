@@ -1,0 +1,182 @@
+import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+
+import '../domain/tournament_create/tournament_create_draft.dart';
+import '../domain/tournament_create/tournament_create_logic.dart';
+import 'tournament_create_mapper.dart';
+
+typedef TournamentDraftLoadResult = ({
+  TournamentCreateDraft draft,
+  TournamentCreateStep step,
+});
+
+class OrganizerTournamentsRepository {
+  OrganizerTournamentsRepository(this._firestore, this._auth);
+
+  final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
+
+  CollectionReference<Map<String, dynamic>> get _tournaments =>
+      _firestore.collection('tournaments');
+
+  Stream<List<Map<String, dynamic>>> watchManagedTournaments(String managerId) {
+    final uid = managerId.trim();
+    if (uid.isEmpty) return Stream.value(const []);
+
+    return _tournaments
+        .where('managerId', isEqualTo: uid)
+        .orderBy('updatedAt', descending: true)
+        .limit(20)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map(
+                (doc) => {
+                  'id': doc.id,
+                  ...doc.data(),
+                },
+              )
+              .toList(),
+        );
+  }
+
+  Future<TournamentDraftLoadResult?> getTournamentDraft(String tournamentId) async {
+    final id = tournamentId.trim();
+    if (id.isEmpty) return null;
+
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) {
+      throw StateError('Usuário não autenticado.');
+    }
+
+    final snap = await _tournaments.doc(id).get();
+    if (!snap.exists) return null;
+
+    final data = snap.data();
+    if (data == null) return null;
+
+    if ((data['managerId'] as String?) != uid) {
+      throw StateError('Sem permissão para acessar este rascunho.');
+    }
+
+    final listingStatus = (data['listingStatus'] as String?) ?? '';
+    if (listingStatus != 'draft') {
+      throw StateError('Este torneio não é um rascunho.');
+    }
+
+    final parsed = TournamentCreateMapper.fromFirestore(data, snap.id);
+    final step = parsed.wizardStep ?? inferResumeStep(parsed.draft);
+    return (draft: parsed.draft, step: step);
+  }
+
+  Future<({String tournamentId, bool published})> saveTournament({
+    required TournamentCreateDraft draft,
+    required bool publish,
+    TournamentCreateStep? wizardStep,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) {
+      throw StateError('Usuário não autenticado.');
+    }
+    if (!isValidForPublish(draft) && publish) {
+      throw ArgumentError('Dados do torneio incompletos.');
+    }
+    if (!canContinueFromStep(draft, TournamentCreateStep.identity)) {
+      throw ArgumentError('Identidade do torneio incompleta.');
+    }
+
+    final existingId = draft.tournamentId?.trim();
+    final isUpdate = existingId != null && existingId.isNotEmpty;
+    final docRef = isUpdate ? _tournaments.doc(existingId) : _tournaments.doc();
+
+    if (isUpdate) {
+      final existing = await docRef.get();
+      if (!existing.exists) {
+        throw StateError('Rascunho não encontrado.');
+      }
+      final managerId = existing.data()?['managerId'] as String?;
+      if (managerId != uid) {
+        throw StateError('Sem permissão para atualizar este torneio.');
+      }
+    }
+
+    final data = TournamentCreateMapper.toFirestore(
+      draft: draft.copyWith(tournamentId: isUpdate ? existingId : draft.tournamentId),
+      managerId: uid,
+      publish: publish,
+      wizardStep: wizardStep ?? TournamentCreateStep.review,
+      isUpdate: isUpdate,
+    );
+
+    if (isUpdate) {
+      await docRef.update(data);
+    } else {
+      await docRef.set(data);
+    }
+
+    var coverUrl = data['coverUrl'] as String?;
+    var regulationPdfUrl = data['regulationPdfUrl'] as String?;
+
+    if (draft.coverImagePath != null && draft.coverImagePath!.isNotEmpty) {
+      coverUrl = await uploadCover(
+        tournamentId: docRef.id,
+        localPath: draft.coverImagePath!,
+      );
+    }
+
+    if (draft.regulationPdfPath != null &&
+        draft.regulationPdfPath!.isNotEmpty) {
+      regulationPdfUrl = await uploadRegulationPdf(
+        tournamentId: docRef.id,
+        localPath: draft.regulationPdfPath!,
+      );
+    }
+
+    if (coverUrl != null || regulationPdfUrl != null) {
+      await docRef.update({
+        if (coverUrl != null) ...{
+          'coverUrl': coverUrl,
+          'imageUrl': coverUrl,
+        },
+        if (regulationPdfUrl != null)
+          'regulationPdfUrl': regulationPdfUrl,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    return (tournamentId: docRef.id, published: publish);
+  }
+
+  Future<String> uploadCover({
+    required String tournamentId,
+    required String localPath,
+  }) async {
+    final file = File(localPath);
+    if (!file.existsSync()) {
+      throw StateError('Imagem de capa não encontrada.');
+    }
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child('tournaments/$tournamentId/cover.jpg');
+    await ref.putFile(file, SettableMetadata(contentType: 'image/jpeg'));
+    return ref.getDownloadURL();
+  }
+
+  Future<String> uploadRegulationPdf({
+    required String tournamentId,
+    required String localPath,
+  }) async {
+    final file = File(localPath);
+    if (!file.existsSync()) {
+      throw StateError('PDF do regulamento não encontrado.');
+    }
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child('tournaments/$tournamentId/regulamento.pdf');
+    await ref.putFile(file, SettableMetadata(contentType: 'application/pdf'));
+    return ref.getDownloadURL();
+  }
+}

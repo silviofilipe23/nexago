@@ -74,16 +74,13 @@ List<AppMobileRole> mobileRolesFromIdToken(IdTokenResult result) {
   return roles;
 }
 
-/// Exige tela de seleção quando há múltiplos papéis e não há preferência válida.
+/// Exige tela de seleção quando há múltiplos papéis e não há preferência salva.
 bool userNeedsRoleSelection({
   required List<AppMobileRole> availableRoles,
   AppMobileRole? savedRole,
-  required bool rememberChoice,
 }) {
   if (availableRoles.length <= 1) return false;
-  if (rememberChoice &&
-      savedRole != null &&
-      availableRoles.contains(savedRole)) {
+  if (savedRole != null && availableRoles.contains(savedRole)) {
     return false;
   }
   return true;

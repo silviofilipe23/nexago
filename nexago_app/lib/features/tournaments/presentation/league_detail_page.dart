@@ -8,6 +8,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/tournament_discovery_providers.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
 import 'widgets/tournament_discovery_card.dart';
+import 'widgets/league_detail_ranking_section.dart';
 
 class LeagueDetailPage extends ConsumerStatefulWidget {
   const LeagueDetailPage({super.key, required this.leagueId});
@@ -80,6 +81,8 @@ class _LeagueDetailPageState extends ConsumerState<LeagueDetailPage> {
                   ),
                 ),
               SizedBox(height: 20),
+              LeagueDetailRankingSection(league: league),
+              SizedBox(height: 8),
               for (final stage in league.stages) ...[
                 Text(
                   stage.name,

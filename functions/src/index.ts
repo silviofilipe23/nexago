@@ -88,6 +88,7 @@ import {
   declareMatchWalkover,
   validateMatchResult,
   advanceBracketWinner,
+  applyLeagueRankingForMatch,
 } from "./organizer-match-ops";
 
 export {
@@ -131,6 +132,7 @@ export {
   declareMatchWalkover,
   validateMatchResult,
   advanceBracketWinner,
+  applyLeagueRankingForMatch,
 };
 
 // Initialize Firebase Admin

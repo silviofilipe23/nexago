@@ -7,6 +7,7 @@ import 'package:nexago_app/core/ui/app_snackbar.dart';
 
 import '../../domain/match_ops/match_ops_providers.dart';
 import '../../domain/match_ops/match_scoring_logic.dart';
+import '../../../tournaments/data/tournament_live_matches_sync.dart';
 import '../../../tournaments/domain/tournament_discovery_providers.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
@@ -82,7 +83,17 @@ class _OrganizerMatchLiveTablePageState
         await ref.read(organizerMatchScheduleServiceProvider).advanceBracketWinner(
               matchId: widget.matchId,
             );
+        final matchType = match.matchType.trim().toLowerCase();
+        if (matchType == 'final' || matchType == 'grand final') {
+          await ref
+              .read(organizerMatchScheduleServiceProvider)
+              .applyLeagueRankingForMatch(matchId: widget.matchId);
+        }
       }
+      await TournamentLiveMatchesSync.syncForTournament(
+        FirebaseFirestore.instance,
+        widget.tournamentId,
+      );
     } catch (e) {
       if (mounted) showAppSnackBar(context, 'Erro: $e');
     } finally {

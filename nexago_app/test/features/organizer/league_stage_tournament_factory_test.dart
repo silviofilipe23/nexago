@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/features/organizer/data/league_stage_tournament_factory.dart';
 import 'package:nexago_app/features/organizer/domain/league_create/league_create_draft.dart';
 import 'package:nexago_app/features/organizer/domain/league_stage_create/league_stage_create_draft.dart';
@@ -42,6 +43,47 @@ LeagueStageCreateDraft _draft() {
 }
 
 void main() {
+  setUpAll(() async {
+    await initializeDateFormatting('pt_BR');
+  });
+
+  group('LeagueStageTournamentFactory.build', () {
+    test('sets listingStatus open when publishing league stages', () {
+      final league = LeagueCreateDraft(
+        leagueId: 'league-1',
+        name: 'Circuito',
+        seasonStartAt: DateTime(2026, 2, 1),
+        seasonEndAt: DateTime(2026, 10, 1),
+        categories: const [
+          TournamentCategoryDraft(
+            id: 'c1',
+            name: 'Masc Open',
+            spots: 8,
+            priceCents: 8000,
+          ),
+        ],
+        stages: const [
+          LeagueStageDraft(
+            id: 'stage-1',
+            name: 'Etapa 1',
+            order: 1,
+            status: LeagueStageStatus.defined,
+          ),
+        ],
+      );
+
+      final map = LeagueStageTournamentFactory.build(
+        league: league,
+        stage: league.stages.first,
+        managerId: 'manager-1',
+        tournamentId: 'tournament-1',
+      );
+
+      expect(map['listingStatus'], 'open');
+      expect(map['isLeagueStage'], isTrue);
+    });
+  });
+
   group('LeagueStageTournamentFactory.buildFromStageCreate', () {
     test('publish sets listingStatus open and enabled categories only', () {
       final map = LeagueStageTournamentFactory.buildFromStageCreate(

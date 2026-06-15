@@ -9,6 +9,10 @@ import * as logger from "firebase-functions/logger";
 import {hasRoleInClaims} from "./auth-roles";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {MatchStatus} from "./match-status";
+import {
+  buildDoubleEliminationMatches,
+  buildGroupsKnockoutMatches,
+} from "./category-bracket-builders";
 
 function getFirebaseProjectId(): string {
   return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
@@ -41,11 +45,7 @@ async function assertCanManageTournament(
 
   const user = await getAuth().getUser(uid);
   const claims = user.customClaims ?? {};
-  if (
-    hasRoleInClaims(claims, "admin") ||
-    claims["superAdmin"] === true ||
-    hasRoleInClaims(claims, "organizer")
-  ) {
+  if (hasRoleInClaims(claims, "admin") || claims["superAdmin"] === true) {
     return data;
   }
 
@@ -68,116 +68,6 @@ function normalizePhoneForWhatsApp(phone: string): string {
   if (digits.startsWith("55")) return digits;
   if (digits.length >= 10) return `55${digits}`;
   return digits;
-}
-
-interface MatchDraft {
-  round: number;
-  matchType: string;
-  poolId: string;
-  teamAId: string;
-  teamBId: string;
-  isGroupMatch: boolean;
-  matchNumber: number;
-}
-
-function buildGroupsKnockoutMatches(
-  teamIds: string[],
-  groups: Array<{id: string; teamIds: string[]}>,
-): MatchDraft[] {
-  const matches: MatchDraft[] = [];
-  let matchNumber = 1;
-  for (const group of groups) {
-    const ids = group.teamIds.filter((id) => id.trim().length > 0);
-    for (let i = 0; i < ids.length; i++) {
-      for (let j = i + 1; j < ids.length; j++) {
-        matches.push({
-          round: 0,
-          matchType: "group",
-          poolId: group.id,
-          teamAId: ids[i],
-          teamBId: ids[j],
-          isGroupMatch: true,
-          matchNumber: matchNumber++,
-        });
-      }
-    }
-  }
-  if (teamIds.length >= 4) {
-    const seeds = teamIds.slice(0, 4);
-    matches.push({
-      round: 1,
-      matchType: "knockout",
-      poolId: "",
-      teamAId: seeds[0],
-      teamBId: seeds[3],
-      isGroupMatch: false,
-      matchNumber: matchNumber++,
-    });
-    matches.push({
-      round: 1,
-      matchType: "knockout",
-      poolId: "",
-      teamAId: seeds[1],
-      teamBId: seeds[2],
-      isGroupMatch: false,
-      matchNumber: matchNumber++,
-    });
-  }
-  return matches;
-}
-
-function buildDoubleEliminationMatches(teamIds: string[]): MatchDraft[] {
-  const matches: MatchDraft[] = [];
-  const n = teamIds.length;
-  if (n < 2) return matches;
-
-  const bracketSize = 1 << Math.ceil(Math.log2(n));
-  const padded = [...teamIds];
-  while (padded.length < bracketSize) padded.push("");
-
-  let matchNumber = 1;
-  const firstRoundPairs = bracketSize / 2;
-  for (let i = 0; i < firstRoundPairs; i++) {
-    matches.push({
-      round: 1,
-      matchType: "winners",
-      poolId: "",
-      teamAId: padded[i * 2] ?? "",
-      teamBId: padded[i * 2 + 1] ?? "",
-      isGroupMatch: false,
-      matchNumber: matchNumber++,
-    });
-  }
-
-  let round = 2;
-  let remaining = firstRoundPairs / 2;
-  while (remaining >= 1) {
-    for (let i = 0; i < remaining; i++) {
-      matches.push({
-        round,
-        matchType: "winners",
-        poolId: "",
-        teamAId: "",
-        teamBId: "",
-        isGroupMatch: false,
-        matchNumber: matchNumber++,
-      });
-    }
-    round++;
-    remaining = remaining / 2;
-  }
-
-  matches.push({
-    round: round,
-    matchType: "grand_final",
-    poolId: "",
-    teamAId: "",
-    teamBId: "",
-    isGroupMatch: false,
-    matchNumber: matchNumber++,
-  });
-
-  return matches;
 }
 
 export const generateCategoryBracket = onCall(async (request) => {
@@ -207,15 +97,36 @@ export const generateCategoryBracket = onCall(async (request) => {
     .where("categoryId", "==", categoryId)
     .get();
 
-  const teamIds: string[] = [];
-  if (seeds.length > 0) {
-    teamIds.push(...seeds);
-  } else {
-    for (const doc of inscriptionsSnap.docs) {
-      const teamId = (doc.data().teamId as string)?.trim();
-      if (teamId && doc.data().isPaid === true) teamIds.push(teamId);
+  const paidTeamIds = new Set<string>();
+  for (const doc of inscriptionsSnap.docs) {
+    const teamId = (doc.data().teamId as string)?.trim();
+    if (teamId && doc.data().isPaid === true) {
+      paidTeamIds.add(teamId);
     }
   }
+
+  const teamIds: string[] = [];
+  if (seeds.length > 0) {
+    for (const seed of seeds) {
+      const id = seed.trim();
+      if (id && paidTeamIds.has(id)) teamIds.push(id);
+    }
+  } else {
+    teamIds.push(...paidTeamIds);
+  }
+
+  if (teamIds.length < 2) {
+    throw new HttpsError(
+      "failed-precondition",
+      "É necessário ao menos 2 equipes pagas para publicar a chave.",
+    );
+  }
+
+  const existingMatches = await db
+    .collection(artifactsMatchesPath(projectId))
+    .where("tournamentId", "==", tournamentId)
+    .where("categoryId", "==", categoryId)
+    .get();
 
   const matchDrafts =
     format === "double_elimination"
@@ -230,6 +141,10 @@ export const generateCategoryBracket = onCall(async (request) => {
 
   const batch = db.batch();
   const matchesCol = db.collection(artifactsMatchesPath(projectId));
+
+  for (const doc of existingMatches.docs) {
+    batch.delete(doc.ref);
+  }
 
   for (const draft of matchDrafts) {
     const ref = matchesCol.doc();

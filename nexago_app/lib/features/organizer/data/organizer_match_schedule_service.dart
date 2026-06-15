@@ -102,4 +102,9 @@ class OrganizerMatchScheduleService {
     final callable = _functions.httpsCallable('advanceBracketWinner');
     await callable.call({'matchId': matchId.trim()});
   }
+
+  Future<void> applyLeagueRankingForMatch({required String matchId}) async {
+    final callable = _functions.httpsCallable('applyLeagueRankingForMatch');
+    await callable.call({'matchId': matchId.trim()});
+  }
 }

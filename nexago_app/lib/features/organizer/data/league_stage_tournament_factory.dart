@@ -56,7 +56,7 @@ abstract final class LeagueStageTournamentFactory {
       rankingTableId: league.rankingTableId,
       leagueId: league.leagueId ?? '',
       stage: stage,
-      publish: false,
+      publish: true,
       registrationOpensAt: null,
       registrationClosesAt: null,
       paymentMode: TournamentPaymentMode.appPixCard,

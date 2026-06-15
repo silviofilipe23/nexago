@@ -69,7 +69,6 @@ service cloud.firestore {
       return request.auth != null && (
         isAdmin() ||
         isSuperAdmin() ||
-        isTournamentOrganizer() ||
         isTournamentOwner(tournamentId) ||
         isTournamentStaff(tournamentId, ['manager'])
       );
@@ -78,7 +77,6 @@ service cloud.firestore {
       return request.auth != null && (
         isAdmin() ||
         isSuperAdmin() ||
-        isTournamentOrganizer() ||
         isTournamentOwner(tournamentId) ||
         isTournamentStaff(tournamentId, ['manager', 'scorer'])
       );
@@ -119,6 +117,11 @@ service cloud.firestore {
     function inscriptionParticipantUidsImmutable() {
       return !('participantUids' in request.resource.data) ||
         request.resource.data.participantUids == resource.data.participantUids;
+    }
+    function inscriptionCoreFieldsImmutable() {
+      return request.resource.data.tournamentId == resource.data.tournamentId &&
+        request.resource.data.categoryId == resource.data.categoryId &&
+        request.resource.data.teamId == resource.data.teamId;
     }
     function inscriptionPaymentFieldsUnchanged() {
       return (!('isPaid' in request.resource.data) ||
@@ -180,7 +183,6 @@ service cloud.firestore {
       return request.auth != null && matchDoc(appId, matchId).data != null && (
         isAdmin() ||
         isSuperAdmin() ||
-        isTournamentOrganizer() ||
         canManageTournament(matchDoc(appId, matchId).data.tournamentId) ||
         canScoreTournament(matchDoc(appId, matchId).data.tournamentId)
       );
@@ -1177,12 +1179,8 @@ service cloud.firestore {
     match /artifacts/{appId}/public/data/teams/{teamId} {
       allow read: if true;
       
-      // Criar: jogadores da equipe ou qualquer admin (organizadores podem criar equipes)
-      allow create: if request.auth != null && (
-        request.resource.data.player1Id == request.auth.uid ||
-        request.resource.data.player2Id == request.auth.uid ||
-        isAdmin()
-      );
+      // Criar: apenas via Cloud Functions (convite aceito).
+      allow create: if false;
       
       // Atualizar: jogadores da equipe (sem trocar player IDs) ou super admin
       allow update: if request.auth != null && (
@@ -1201,41 +1199,40 @@ service cloud.firestore {
     // Caminho: /artifacts/{appId}/public/data/inscriptions
     // IMPORTANTE: Esta regra deve vir antes da regra padrão para ter prioridade
     match /artifacts/{appId}/public/data/inscriptions/{registrationId} {
-      // Leitura pública: qualquer pessoa (autenticada ou não) pode ler inscrições
-      // Isso permite que a tela pública visualize times nas chaves
-      // Permite tanto leitura de documentos individuais quanto queries na coleção
-      allow read: if true;
-      allow list: if true;
+      // Leitura: documento individual (chaves); list exige login (evita scrape em massa).
+      allow get: if true;
+      allow list: if request.auth != null;
       
-      // Criar inscrição: usuários autenticados podem criar se forem parte da equipe
-      // OU administradores podem criar (admin override)
-      allow create: if request.auth != null && (
-        // Verifica se o usuário é um dos jogadores da equipe
-        (exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(request.resource.data.teamId)) &&
-         (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(request.resource.data.teamId)).data.player1Id == request.auth.uid ||
-          get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(request.resource.data.teamId)).data.player2Id == request.auth.uid)) ||
-        isAdmin()
-      ) && inscriptionCreatePaymentSafe() &&
+      // Criar inscrição: apenas admin (fluxo atleta via Cloud Functions).
+      allow create: if request.auth != null && isAdmin() &&
+        inscriptionCreatePaymentSafe() &&
         inscriptionParticipantUidsMatchTeam(appId, request.resource.data.teamId);
       
-      // Atualizar inscrição: jogador da dupla (sem campos de pagamento) ou admin
+      // Atualizar inscrição: jogador da dupla (sem campos sensíveis) ou admin
       allow update: if request.auth != null && (
         (
           (exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)) &&
            (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player1Id == request.auth.uid ||
             get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player2Id == request.auth.uid)) &&
           inscriptionPaymentFieldsUnchanged() &&
-          inscriptionParticipantUidsImmutable()
+          inscriptionParticipantUidsImmutable() &&
+          inscriptionCoreFieldsImmutable()
         ) ||
         isAdmin()
       );
       
-      // Deletar inscrição: jogador da dupla, gestor do torneio ou quem pode administrá-lo
+      // Deletar inscrição: atleta/gestor só se não paga; admin sempre
       allow delete: if request.auth != null && (
-        (exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)) &&
-         (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player1Id == request.auth.uid ||
-          get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player2Id == request.auth.uid)) ||
-        canManageTournament(resource.data.tournamentId)
+        isAdmin() ||
+        (
+          resource.data.isPaid != true &&
+          (
+            (exists(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)) &&
+             (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player1Id == request.auth.uid ||
+              get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player2Id == request.auth.uid)) ||
+            canManageTournament(resource.data.tournamentId)
+          )
+        )
       );
     }
 
@@ -1249,11 +1246,10 @@ service cloud.firestore {
       // Criar partida: apenas admins podem criar
       allow create: if request.auth != null && isAdmin();
       
-      // Atualizar partida: admin/global organizer ou ACL por torneio (owner/manager/scorer).
+      // Atualizar partida: admin ou ACL por torneio (owner/staff manager/scorer).
       allow update: if request.auth != null && (
         isAdmin() ||
         isSuperAdmin() ||
-        isTournamentOrganizer() ||
         (
           canManageTournament(resource.data.tournamentId) &&
           request.resource.data.tournamentId == resource.data.tournamentId &&
@@ -1282,7 +1278,6 @@ service cloud.firestore {
         allow create: if request.auth != null && matchDoc(appId, matchId).data != null && (
           isAdmin() ||
           isSuperAdmin() ||
-          isTournamentOrganizer() ||
           canManageTournament(matchDoc(appId, matchId).data.tournamentId) ||
           canScoreTournament(matchDoc(appId, matchId).data.tournamentId)
         );

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../domain/league_ranking_logic.dart';
+import '../domain/league_ranking_models.dart';
 import '../domain/tournament_discovery_models.dart';
 
 abstract final class LeagueDocumentMapper {
@@ -40,6 +42,21 @@ abstract final class LeagueDocumentMapper {
     }
     stages.sort((a, b) => a.order.compareTo(b.order));
 
+    final categories = <DiscoveryLeagueCategory>[];
+    final categoriesRaw = data['categories'];
+    if (categoriesRaw is List) {
+      for (final item in categoriesRaw) {
+        if (item is! Map) continue;
+        final map = Map<String, dynamic>.from(item);
+        final categoryId = _str(map['id']) ?? _str(map['name']);
+        final categoryName = _str(map['name']) ?? categoryId;
+        if (categoryId == null || categoryName == null) continue;
+        categories.add(
+          DiscoveryLeagueCategory(id: categoryId, name: categoryName),
+        );
+      }
+    }
+
     return DiscoveryLeague(
       id: id,
       name: _str(data['name']) ?? 'Liga',
@@ -50,6 +67,10 @@ abstract final class LeagueDocumentMapper {
       listingStatus: _str(data['listingStatus'] ?? data['status']),
       seasonStartAt: _timestamp(data['seasonStartAt']),
       seasonEndAt: _timestamp(data['seasonEndAt']),
+      categories: categories,
+      countingStagesMode: parseLeagueCountingMode(
+        data['countingStagesMode'] as String?,
+      ),
     );
   }
 

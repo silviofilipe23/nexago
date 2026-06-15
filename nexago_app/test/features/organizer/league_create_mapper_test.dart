@@ -132,7 +132,7 @@ void main() {
       expect(tournament['leagueId'], 'league-1');
       expect(tournament['leagueStageId'], 'stage-1');
       expect(tournament['leagueStageOrder'], 1);
-      expect(tournament['listingStatus'], 'draft');
+      expect(tournament['listingStatus'], 'open');
       expect(tournament['isLeagueStage'], isTrue);
       expect(tournament['categories'], isA<List>());
     });

@@ -8,6 +8,10 @@ import {
 import * as logger from "firebase-functions/logger";
 import {assertCanRegisterInTournament} from "./athlete-tournament-access";
 import {deliverNotificationToUser} from "./notification-delivery";
+import {
+  assertTournamentAcceptsRegistration,
+  loadTournamentData,
+} from "./tournament-registration-guards";
 
 const INVITES_COLLECTION = "tournamentRegistrationInvites";
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
@@ -202,17 +206,12 @@ function registrationUniformPlayer2(
   return out;
 }
 
-async function loadTournamentData(
+async function loadTournamentDataForInvite(
   db: Firestore,
   projectId: string,
   tournamentId: string,
 ): Promise<Record<string, unknown> | null> {
-  let snap = await db.doc(`tournaments/${tournamentId}`).get();
-  if (!snap.exists) {
-    snap = await db.doc(`artifacts/${projectId}/public/data/tournaments/${tournamentId}`).get();
-  }
-  if (!snap.exists) return null;
-  return snap.data() ?? null;
+  return loadTournamentData(db, projectId, tournamentId);
 }
 
 async function userHasCategoryRegistration(
@@ -289,10 +288,16 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
 
   await assertCanRegisterInTournament(db, uid);
 
-  const tournament = await loadTournamentData(db, projectId, tournamentId);
+  const tournament = await loadTournamentDataForInvite(db, projectId, tournamentId);
   if (!tournament) {
     throw new HttpsError("not-found", "Torneio não encontrado.");
   }
+  await assertTournamentAcceptsRegistration(
+    db,
+    projectId,
+    tournamentId,
+    categoryId,
+  );
   const category = findCategory(tournament, categoryId);
   if (!category) {
     throw new HttpsError("not-found", "Categoria não encontrada neste torneio.");
@@ -404,7 +409,7 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
   const invitePreviewData = invitePreview.data()!;
   const previewTournamentId = invitePreviewData.tournamentId as string;
   const previewCategoryId = invitePreviewData.categoryId as string;
-  const previewTournament = await loadTournamentData(
+  const previewTournament = await loadTournamentDataForInvite(
     db,
     projectId,
     previewTournamentId,
@@ -412,6 +417,12 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
   if (!previewTournament) {
     throw new HttpsError("not-found", "Torneio não encontrado.");
   }
+  await assertTournamentAcceptsRegistration(
+    db,
+    projectId,
+    previewTournamentId,
+    previewCategoryId,
+  );
   const previewCategory = findCategory(previewTournament, previewCategoryId);
   if (!previewCategory) {
     throw new HttpsError("not-found", "Categoria não encontrada.");

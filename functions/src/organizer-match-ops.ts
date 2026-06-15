@@ -10,6 +10,8 @@ import * as logger from "firebase-functions/logger";
 import {hasRoleInClaims} from "./auth-roles";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {MatchStatus, isMatchCompleted} from "./match-status";
+import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
+import {tryAwardLeagueStagePointsForMatch} from "./league-ranking";
 
 function getFirebaseProjectId(): string {
   return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
@@ -38,11 +40,7 @@ async function assertCanManageTournament(
 
   const user = await getAuth().getUser(uid);
   const claims = user.customClaims ?? {};
-  if (
-    hasRoleInClaims(claims, "admin") ||
-    claims["superAdmin"] === true ||
-    hasRoleInClaims(claims, "organizer")
-  ) {
+  if (hasRoleInClaims(claims, "admin") || claims["superAdmin"] === true) {
     return data;
   }
 
@@ -196,6 +194,56 @@ async function getMatchOrThrow(
   return {ref, data: snap.data()!};
 }
 
+async function advanceBracketWinnerInternal(
+  db: Firestore,
+  projectId: string,
+  data: FirebaseFirestore.DocumentData,
+): Promise<{advanced: boolean; nextMatchId?: string}> {
+  const winnerId = data.winnerId as string | undefined;
+  if (!winnerId) {
+    return {advanced: false};
+  }
+
+  const tournamentId = data.tournamentId as string;
+  const categoryId = data.categoryId as string;
+  const round = (data.round as number) ?? 0;
+  const matchNumber = (data.matchNumber as number) ?? 0;
+
+  const nextRound = round + 1;
+  const nextMatchNumber = Math.ceil(matchNumber / 2);
+
+  const nextSnap = await db
+    .collection(artifactsMatchesPath(projectId))
+    .where("tournamentId", "==", tournamentId)
+    .where("categoryId", "==", categoryId)
+    .where("round", "==", nextRound)
+    .where("matchNumber", "==", nextMatchNumber)
+    .limit(1)
+    .get();
+
+  if (nextSnap.empty) {
+    return {advanced: false};
+  }
+
+  const nextDoc = nextSnap.docs[0];
+  const slot = matchNumber % 2 === 1 ? "teamAId" : "teamBId";
+  const descSlot = matchNumber % 2 === 1 ? "teamADescription" : "teamBDescription";
+  const winnerDesc =
+    data.teamAId === winnerId ?
+      data.teamADescription :
+      data.teamBDescription;
+
+  const patch: Record<string, unknown> = {
+    [slot]: winnerId,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (winnerDesc) patch[descSlot] = winnerDesc;
+
+  await nextDoc.ref.update(patch);
+
+  return {advanced: true, nextMatchId: nextDoc.id};
+}
+
 export const scheduleMatch = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -290,6 +338,8 @@ export const callMatchToCourt = onCall(async (request) => {
 
   await ref.update(update);
 
+  await syncTournamentLiveMatchesNow(db, projectId, tournamentId);
+
   // Notificar atletas (best-effort)
   try {
     const teamIds = [data.teamAId, data.teamBId].filter(Boolean) as string[];
@@ -346,6 +396,12 @@ export const releaseMatchAfterCheckIn = onCall(async (request) => {
     updatedAt: FieldValue.serverTimestamp(),
   });
 
+  await syncTournamentLiveMatchesNow(
+    db,
+    projectId,
+    data.tournamentId as string,
+  );
+
   return {ok: true};
 });
 
@@ -387,6 +443,20 @@ export const declareMatchWalkover = onCall(async (request) => {
       },
     },
     updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  const tournamentId = data.tournamentId as string;
+  await syncTournamentLiveMatchesNow(db, projectId, tournamentId);
+  await advanceBracketWinnerInternal(db, projectId, {
+    ...data,
+    winnerId: winnerTeamId,
+    status: MatchStatus.completed,
+  });
+  await tryAwardLeagueStagePointsForMatch(db, projectId, {
+    ...data,
+    id: matchId,
+    winnerId: winnerTeamId,
+    status: MatchStatus.completed,
   });
 
   return {ok: true, winnerTeamId};
@@ -438,49 +508,13 @@ export const advanceBracketWinner = onCall(async (request) => {
   const {data} = await getMatchOrThrow(db, projectId, matchId);
   await assertCanManageTournament(db, uid, data.tournamentId as string);
 
-  const winnerId = data.winnerId as string | undefined;
-  if (!winnerId) {
+  if (!data.winnerId) {
     throw new HttpsError("failed-precondition", "Partida sem vencedor");
   }
 
-  const tournamentId = data.tournamentId as string;
-  const categoryId = data.categoryId as string;
-  const round = (data.round as number) ?? 0;
-  const matchNumber = (data.matchNumber as number) ?? 0;
+  const result = await advanceBracketWinnerInternal(db, projectId, data);
 
-  const nextRound = round + 1;
-  const nextMatchNumber = Math.ceil(matchNumber / 2);
-
-  const nextSnap = await db
-    .collection(artifactsMatchesPath(projectId))
-    .where("tournamentId", "==", tournamentId)
-    .where("categoryId", "==", categoryId)
-    .where("round", "==", nextRound)
-    .where("matchNumber", "==", nextMatchNumber)
-    .limit(1)
-    .get();
-
-  if (nextSnap.empty) {
-    return {ok: true, advanced: false};
-  }
-
-  const nextDoc = nextSnap.docs[0];
-  const slot = matchNumber % 2 === 1 ? "teamAId" : "teamBId";
-  const descSlot = matchNumber % 2 === 1 ? "teamADescription" : "teamBDescription";
-  const winnerDesc =
-    data.teamAId === winnerId ?
-      data.teamADescription :
-      data.teamBDescription;
-
-  const patch: Record<string, unknown> = {
-    [slot]: winnerId,
-    updatedAt: FieldValue.serverTimestamp(),
-  };
-  if (winnerDesc) patch[descSlot] = winnerDesc;
-
-  await nextDoc.ref.update(patch);
-
-  return {ok: true, advanced: true, nextMatchId: nextDoc.id};
+  return {ok: true, ...result};
 });
 
 export const autoScheduleTournamentDay = onCall(async (request) => {
@@ -533,6 +567,7 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
     start: string;
     end: string;
   }> = [];
+  const skipped: Array<{matchId: string; reason: string}> = [];
 
   const sorted = [...unscheduled].sort(
     (a, b) => (a.data().round ?? 0) - (b.data().round ?? 0),
@@ -564,21 +599,73 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
 
   if (!preview) {
     const batch = db.batch();
+    const matchesById = new Map(
+      allMatches.map((d) => [d.id, d] as const),
+    );
+    let applied = 0;
     for (const slot of slots) {
+      const matchDoc = matchesById.get(slot.matchId);
+      if (!matchDoc) continue;
+      const start = new Date(slot.start);
+      const end = new Date(slot.end);
+      const overlap = detectCourtOverlap(
+        slot.courtId,
+        start,
+        end,
+        allMatches,
+        slot.matchId,
+      );
+      const restWarnings = detectRestConflict(
+        matchDoc.data(),
+        start,
+        end,
+        allMatches,
+        minRest,
+        slot.matchId,
+      );
+      if (overlap || restWarnings.length > 0) {
+        skipped.push({
+          matchId: slot.matchId,
+          reason: overlap?.message ?? restWarnings[0]!.message,
+        });
+        continue;
+      }
       const ref = db.doc(
         `${artifactsMatchesPath(projectId)}/${slot.matchId}`,
       );
       batch.update(ref, {
         courtId: slot.courtId,
-        scheduleTime: Timestamp.fromDate(new Date(slot.start)),
-        scheduleEndTime: Timestamp.fromDate(new Date(slot.end)),
+        scheduleTime: Timestamp.fromDate(start),
+        scheduleEndTime: Timestamp.fromDate(end),
         dayKey,
         queueStatus: "waiting",
         updatedAt: FieldValue.serverTimestamp(),
       });
+      applied++;
     }
-    await batch.commit();
+    if (applied > 0) {
+      await batch.commit();
+    }
   }
 
-  return {ok: true, preview, slots, count: slots.length};
+  return {ok: true, preview, slots, skipped, count: slots.length};
+});
+
+export const applyLeagueRankingForMatch = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+
+  const matchId = (request.data?.matchId as string)?.trim();
+  if (!matchId) throw new HttpsError("invalid-argument", "matchId obrigatório");
+
+  const db = getFirestore();
+  const projectId = getFirebaseProjectId();
+  const {data} = await getMatchOrThrow(db, projectId, matchId);
+  await assertCanManageTournament(db, uid, data.tournamentId as string);
+
+  const result = await tryAwardLeagueStagePointsForMatch(db, projectId, {
+    ...data,
+    id: matchId,
+  });
+  return {ok: true, ...result};
 });

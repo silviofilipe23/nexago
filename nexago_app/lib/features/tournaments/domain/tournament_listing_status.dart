@@ -150,7 +150,9 @@ TournamentListingStatus resolveListingStatus({
   final onEventDay = startAt != null &&
       isTournamentEventDay(startAt: startAt, endAt: endAt, now: clock);
 
-  if (onEventDay && fromRaw != TournamentListingStatus.scheduled) {
+  if (onEventDay &&
+      (fromRaw == TournamentListingStatus.open ||
+          fromRaw == TournamentListingStatus.almostFull)) {
     return TournamentListingStatus.live;
   }
 

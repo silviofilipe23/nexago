@@ -22,6 +22,9 @@ import {
 import {PLATFORM_FEE_FIXED_BRL} from "./mercadopago-arena-helpers";
 import {assertCanRegisterInTournament} from "./athlete-tournament-access";
 import {
+  assertTournamentAcceptsRegistration,
+} from "./tournament-registration-guards";
+import {
   buildTournamentRegistrationExternalReference,
   computeTeamGenderLabel,
   computeTournamentShareAmountReais,
@@ -156,6 +159,13 @@ export const createTournamentRegistrationPixPayment = onCall({
   const teamId = registration.teamId as string;
   const tournamentId = registration.tournamentId as string;
   const categoryId = registration.categoryId as string;
+
+  await assertTournamentAcceptsRegistration(
+    db,
+    projectId,
+    tournamentId,
+    categoryId,
+  );
 
   const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
   if (!teamSnap.exists) {
@@ -488,6 +498,13 @@ export const confirmFreeTournamentRegistration = onCall({
   const teamId = registration.teamId as string;
   const tournamentId = registration.tournamentId as string;
   const categoryId = registration.categoryId as string;
+
+  await assertTournamentAcceptsRegistration(
+    db,
+    projectId,
+    tournamentId,
+    categoryId,
+  );
 
   const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
   if (!teamSnap.exists) {

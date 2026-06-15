@@ -1,4 +1,6 @@
 /// Modelos de descoberta de ligas e torneios (paridade com athlete web).
+import 'league_ranking_models.dart';
+
 enum TournamentGenderCat { m, f, mix }
 
 enum TournamentFormat { dupla, individual }
@@ -24,6 +26,8 @@ class DiscoveryLeague {
     this.listingStatus,
     this.seasonStartAt,
     this.seasonEndAt,
+    this.categories = const [],
+    this.countingStagesMode = LeaguePointsCountingMode.best4Of6,
   });
 
   final String id;
@@ -35,6 +39,8 @@ class DiscoveryLeague {
   final String? listingStatus;
   final DateTime? seasonStartAt;
   final DateTime? seasonEndAt;
+  final List<DiscoveryLeagueCategory> categories;
+  final LeaguePointsCountingMode countingStagesMode;
 }
 
 class DiscoveryLeagueStage {

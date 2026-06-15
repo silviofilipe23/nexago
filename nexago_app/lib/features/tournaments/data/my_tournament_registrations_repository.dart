@@ -29,74 +29,57 @@ class MyTournamentRegistrationsRepository {
         .snapshots()
         .asyncMap(_mapIndexedRegistrations);
 
-    final legacy = _inscriptions.snapshots().asyncMap(
-          (snap) => _mapLegacyRegistrations(snap, uid),
-        );
+    final legacyFuture = _loadLegacyRegistrations(uid);
 
-    return indexed.asyncExpand((indexedRows) {
-      return legacy.map((legacyRows) {
-        final byId = <String, MyTournamentRegistration>{
-          for (final row in indexedRows) row.registrationId: row,
-          for (final row in legacyRows) row.registrationId: row,
-        };
-        final merged = byId.values.toList()
-          ..sort((a, b) => a.tournamentName.compareTo(b.tournamentName));
-        return merged;
-      });
+    return indexed.asyncMap((indexedRows) async {
+      final legacyRows = await legacyFuture;
+      final byId = <String, MyTournamentRegistration>{
+        for (final row in indexedRows) row.registrationId: row,
+        for (final row in legacyRows) row.registrationId: row,
+      };
+      final merged = byId.values.toList()
+        ..sort((a, b) => a.tournamentName.compareTo(b.tournamentName));
+      return merged;
     });
+  }
+
+  Future<List<MyTournamentRegistration>> _loadLegacyRegistrations(
+    String uid,
+  ) async {
+    final teamIds = <String>{};
+    final player1Snap =
+        await _teams.where('player1Id', isEqualTo: uid).get();
+    final player2Snap =
+        await _teams.where('player2Id', isEqualTo: uid).get();
+    for (final doc in player1Snap.docs) {
+      teamIds.add(doc.id);
+    }
+    for (final doc in player2Snap.docs) {
+      teamIds.add(doc.id);
+    }
+    if (teamIds.isEmpty) return const [];
+
+    final legacyDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+    final ids = teamIds.toList();
+    for (var i = 0; i < ids.length; i += 30) {
+      final chunk = ids.sublist(i, min(i + 30, ids.length));
+      final snap =
+          await _inscriptions.where('teamId', whereIn: chunk).get();
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final uids = data['participantUids'];
+        if (uids is List && uids.isNotEmpty) continue;
+        legacyDocs.add(doc);
+      }
+    }
+
+    return _mapRegistrationDocs(legacyDocs);
   }
 
   Future<List<MyTournamentRegistration>> _mapIndexedRegistrations(
     QuerySnapshot<Map<String, dynamic>> snap,
   ) {
     return _mapRegistrationDocs(snap.docs);
-  }
-
-  Future<List<MyTournamentRegistration>> _mapLegacyRegistrations(
-    QuerySnapshot<Map<String, dynamic>> snap,
-    String uid,
-  ) async {
-    final legacyDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-    final teamIds = <String>{};
-
-    for (final doc in snap.docs) {
-      final data = doc.data();
-      final uids = data['participantUids'];
-      if (uids is List && uids.isNotEmpty) continue;
-      final teamId = (data['teamId'] as String?)?.trim() ?? '';
-      if (teamId.isEmpty) continue;
-      teamIds.add(teamId);
-      legacyDocs.add(doc);
-    }
-
-    final teamsById = await _batchLoadTeams(teamIds);
-    final relevant = <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-    for (final doc in legacyDocs) {
-      final teamId = (doc.data()['teamId'] as String?)?.trim() ?? '';
-      final team = teamsById[teamId];
-      if (team == null) continue;
-      final p1 = team['player1Id'] as String?;
-      final p2 = team['player2Id'] as String?;
-      if (p1 != uid && p2 != uid) continue;
-      relevant.add(doc);
-    }
-
-    return _mapRegistrationDocs(relevant);
-  }
-
-  Future<Map<String, Map<String, dynamic>>> _batchLoadTeams(
-    Set<String> teamIds,
-  ) async {
-    final teams = <String, Map<String, dynamic>>{};
-    final ids = teamIds.where((id) => id.trim().isNotEmpty).toList();
-    for (var i = 0; i < ids.length; i += 30) {
-      final chunk = ids.sublist(i, min(i + 30, ids.length));
-      final snap = await _teams.where(FieldPath.documentId, whereIn: chunk).get();
-      for (final doc in snap.docs) {
-        teams[doc.id] = doc.data();
-      }
-    }
-    return teams;
   }
 
   Future<List<MyTournamentRegistration>> _mapRegistrationDocs(

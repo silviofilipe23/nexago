@@ -46,6 +46,38 @@ void main() {
       );
       expect(result.length, 3);
     });
+
+    test('filters feminino category', () {
+      final result = filterPartnersByCategoryGender(
+        [male, female, noGender],
+        'Feminino',
+      );
+      expect(result.map((u) => u.uid), ['f']);
+    });
+
+    test('filters canonical Firestore genderType male/female/mixed', () {
+      expect(
+        filterPartnersByCategoryGender([male, female], 'male')
+            .map((u) => u.uid),
+        ['m'],
+      );
+      expect(
+        filterPartnersByCategoryGender([male, female], 'female')
+            .map((u) => u.uid),
+        ['f'],
+      );
+      expect(
+        filterPartnersByCategoryGender([male, female], 'mixed').length,
+        2,
+      );
+    });
+
+    test('excludes athletes without gender for restricted categories', () {
+      expect(
+        filterPartnersByCategoryGender([noGender], 'male'),
+        isEmpty,
+      );
+    });
   });
 
   group('appUserDisplayName', () {

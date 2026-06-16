@@ -1,5 +1,7 @@
 import '../../../tournaments/domain/tournament_match.dart';
+import '../../../tournaments/domain/tournament_match_card_view_model.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
+import '../category_ops/category_ops_models.dart';
 import 'match_ops_models.dart';
 
 /// Filtros e agrupamentos da central de partidas (G1/G2/G3/J3).
@@ -8,6 +10,33 @@ abstract final class MatchOpsLogic {
 
   static List<OrganizerMatchRow> toRows(List<TournamentMatch> matches) {
     return matches.map((m) => OrganizerMatchRow(match: m)).toList();
+  }
+
+  /// Converte time enriquecido (foto + nomes) para avatares do organizador.
+  static (OrganizerCategoryPlayerInfo, OrganizerCategoryPlayerInfo)
+      teamPlayersFromCardTeam({
+    required TournamentMatchCardTeamViewModel team,
+    required String teamId,
+  }) {
+    final names = team.displayName
+        .split('/')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    final id = teamId.trim();
+
+    OrganizerCategoryPlayerInfo at(int index) {
+      final name = index < names.length ? names[index] : '';
+      final cardPlayer =
+          index < team.players.length ? team.players[index] : null;
+      return OrganizerCategoryPlayerInfo(
+        uid: id.isEmpty ? 'match-$index' : '$id-$index',
+        name: name,
+        profilePhotoUrl: cardPlayer?.avatarUrl?.trim() ?? '',
+      );
+    }
+
+    return (at(0), at(1));
   }
 
   static List<OrganizerMatchRow> filterCenter(

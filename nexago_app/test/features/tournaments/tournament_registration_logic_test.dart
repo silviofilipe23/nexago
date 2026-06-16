@@ -114,6 +114,34 @@ void main() {
       );
     });
 
+    test('maps canonical Firestore genderType male/female/mixed', () {
+      const male = TournamentCategoryOffer(
+        id: 'm',
+        name: 'Sub 19',
+        entryFee: 160,
+        maxTeams: 8,
+        genderType: 'male',
+      );
+      const female = TournamentCategoryOffer(
+        id: 'f',
+        name: 'Sub 19',
+        entryFee: 160,
+        maxTeams: 8,
+        genderType: 'female',
+      );
+      const mixed = TournamentCategoryOffer(
+        id: 'x',
+        name: 'Open',
+        entryFee: 160,
+        maxTeams: 4,
+        genderType: 'mixed',
+      );
+
+      expect(categoryGenderDisplayLabel(male), 'Masculino');
+      expect(categoryGenderDisplayLabel(female), 'Feminino');
+      expect(categoryGenderDisplayLabel(mixed), 'Misto');
+    });
+
     test('shows Misto for mixed categories', () {
       const offer = TournamentCategoryOffer(
         id: 'mix',

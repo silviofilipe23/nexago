@@ -47,7 +47,9 @@ class _LeagueCreateReviewPageState extends ConsumerState<LeagueCreateReviewPage>
             publish: publish,
             wizardStep: step,
           );
-      await ref.read(leagueCreateWizardProvider.notifier).clearSession();
+      await ref.read(leagueCreateWizardProvider.notifier).clearSession(
+            deleteRemoteDraft: false,
+          );
       if (!mounted) return;
       context.pushReplacementNamed(
         AppRouteNames.organizerLeaguePublished,

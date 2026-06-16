@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/layout/nexa_bottom_nav_bar.dart';
+import '../../../core/layout/shell_tab_bar_collapse.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/arena_route_guard.dart';
 import '../domain/arena_shell_providers.dart';
@@ -69,24 +70,33 @@ class ArenaShellPage extends ConsumerWidget {
     final hideBottomNav = shouldHideArenaShellBottomNav(
       GoRouterState.of(context).uri.path,
     );
+    final scrollRegistry = ref.watch(arenaShellScrollRegistryProvider);
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       extendBody: true,
-      body: navigationShell,
+      body: ShellTabBarCollapseListener(
+        controller: scrollRegistry.tabBarCollapse,
+        child: navigationShell,
+      ),
       bottomNavigationBar: hideBottomNav
           ? null
-          : NexaBottomNavBar(
-              items: _navItems,
-              currentIndex: currentIndex,
-              uppercaseLabels: true,
-              onTap: (i) {
-                ref.read(arenaShellScrollRegistryProvider).scrollToTop(i);
-                navigationShell.goBranch(
-                  i,
-                  initialLocation: i == navigationShell.currentIndex,
-                );
-              },
+          : ListenableBuilder(
+              listenable: scrollRegistry.tabBarCollapse,
+              builder: (context, _) => NexaBottomNavBar(
+                items: _navItems,
+                currentIndex: currentIndex,
+                collapseProgress: scrollRegistry.tabBarCollapse.progress,
+                uppercaseLabels: true,
+                onTap: (i) {
+                  scrollRegistry.tabBarCollapse.expand();
+                  ref.read(arenaShellScrollRegistryProvider).scrollToTop(i);
+                  navigationShell.goBranch(
+                    i,
+                    initialLocation: i == navigationShell.currentIndex,
+                  );
+                },
+              ),
             ),
     );
   }

@@ -196,7 +196,7 @@ OrganizerTournamentCategorySummary buildCategorySummary({
   return OrganizerTournamentCategorySummary(
     categoryId: id,
     name: name,
-    genderLabel: (categoryMap['genderType'] as String?) ?? '',
+    genderLabel: _categoryGenderDisplayLabel(categoryMap),
     disputeLabel: _disputeLabel(categoryMap['disputeType'] as String?),
     levelLabel: (categoryMap['level'] as String?) ?? 'Open',
     bracketFormat: (categoryMap['bracketFormat'] as String?) ?? '',
@@ -208,6 +208,18 @@ OrganizerTournamentCategorySummary buildCategorySummary({
     entryFeeCents: entryFee,
     registrationClosed: categoryMap['registrationClosed'] as bool? ?? false,
     bracketStatus: bracketStatus,
+  );
+}
+
+String _categoryGenderDisplayLabel(Map<String, dynamic> categoryMap) {
+  final fromType = categoryGenderDisplayLabelFromRaw(
+    (categoryMap['genderType'] as String?) ?? '',
+  );
+  if (fromType.isNotEmpty) return fromType;
+  return categoryGenderDisplayLabelFromRaw(
+    (categoryMap['categoryName'] as String?) ??
+        (categoryMap['name'] as String?) ??
+        '',
   );
 }
 

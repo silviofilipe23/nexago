@@ -1,0 +1,58 @@
+---
+description: Exibir gênero de categoria sempre em português (Masculino, Feminino, Misto) — nunca valor bruto do Firestore
+alwaysApply: true
+---
+
+# Gênero da categoria na UI
+
+Ao mostrar o gênero de uma categoria em **qualquer tela** (atleta, organizador, histórico, cards, chips, subtítulos), use **rótulo em português**:
+
+| Exibir | Não exibir |
+|--------|------------|
+| Masculino | `male`, `MASC`, `M` |
+| Feminino | `female`, `FEM`, `F` |
+| Misto | `mixed`, `MISTO` (tag interna) |
+
+## Helpers canônicos (Flutter)
+
+**Wizard / draft** (`TournamentCategoryGender`):
+
+```dart
+categoryGenderLabel(category.gender)   // Masculino, Feminino, Misto
+categoryGenderShort(category.gender)   // Masc, Fem, Misto
+```
+
+**Oferta de categoria** (`TournamentCategoryOffer`):
+
+```dart
+categoryGenderDisplayLabel(offer)
+```
+
+**String bruta** (`genderType`, nome legado, etc.):
+
+```dart
+categoryGenderDisplayLabelFromRaw(raw) // tournament_detail_logic.dart
+```
+
+```dart
+// ❌ BAD — valor de persistência ou tag na UI
+Text(category.genderType)           // "male"
+Text(category.genderLabel)          // se vier direto do Firestore
+Text('MASCULINO')
+
+// ✅ GOOD
+Text(categoryGenderDisplayLabel(offer))
+Text(categoryGenderLabel(draft.gender))
+```
+
+## Persistência vs exibição
+
+- **Firestore / API / filtros:** `genderTypeFirestoreValue` → `male` | `female` | `mixed`
+- **UI:** sempre passar pelo helper de exibição acima
+- **Mocks:** preferir `'Masculino'` | `'Feminino'` | `'Misto'` (como em produção)
+
+## Ao adicionar tela nova
+
+1. Não interpolar `genderType` nem enum inglês em `Text` / `label` / `subtitle`.
+2. Reutilizar helper existente; se o modelo só tiver `String`, use `genderTagFromText` + mapa PT.
+3. Chips/tags visuais: português com capitalização de produto (`Masculino`), não ALL CAPS de tag interna.

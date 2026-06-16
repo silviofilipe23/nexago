@@ -7,6 +7,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_theme_colors.dart';
 import 'nexa_bottom_nav_models.dart';
 import 'nexa_liquid_glass_tab_bar.dart';
+import 'shell_tab_bar_collapse.dart';
 
 /// Bottom navigation Liquid Glass — nativo no iOS 26+, cápsula NexaGO nos demais.
 class NexaBottomNavBar extends StatelessWidget {
@@ -24,6 +25,7 @@ class NexaBottomNavBar extends StatelessWidget {
     this.labelTextStyle,
     this.horizontalMargin = 16,
     this.bottomMargin = 0,
+    this.collapseProgress = 0,
   });
 
   final List<NexaBottomNavItem> items;
@@ -38,6 +40,7 @@ class NexaBottomNavBar extends StatelessWidget {
   final TextStyle? labelTextStyle;
   final double horizontalMargin;
   final double bottomMargin;
+  final double collapseProgress;
 
   static const double _glassOverflow = 20;
 
@@ -55,25 +58,30 @@ class NexaBottomNavBar extends StatelessWidget {
     final glassItems = items
         .map((item) => item.toLiquidGlassItem(selectedColor: selectedItemColor))
         .toList();
-    final nativeHeight = height + 4;
+    final t = collapseProgress.clamp(0.0, 1.0);
+    final nativeHeight =
+        ShellTabBarCollapseController.collapsedHeight +
+        (height + 4 - ShellTabBarCollapseController.collapsedHeight) * (1 - t);
+    final labelsVisible = showLabels && t < 0.45;
 
     return NexaLiquidGlassNativeTabShell(
       height: nativeHeight,
       horizontalMargin: horizontalMargin,
       bottomMargin: bottomMargin,
+      collapseProgress: t,
       child: LiquidGlassTabBar(
         width: barWidth,
         items: glassItems,
         currentIndex: currentIndex.clamp(0, items.length - 1),
         onTabSelected: onTap,
         height: nativeHeight,
-        showLabels: showLabels,
+        showLabels: labelsVisible,
         selectedItemColor: selectedItemColor,
         labelTextStyle:
             labelTextStyle ??
             TextStyle(
-              fontSize: uppercaseLabels ? 10 : 11,
-              fontWeight: FontWeight.w700,
+              fontSize: uppercaseLabels ? 8 : 9,
+              fontWeight: FontWeight.w500,
               letterSpacing: uppercaseLabels ? 0.3 : 0,
             ),
         iosActionButton: centerAction?.toLiquidGlassItem(),
@@ -96,6 +104,7 @@ class NexaBottomNavBar extends StatelessWidget {
       height: height,
       horizontalMargin: horizontalMargin,
       bottomMargin: bottomMargin,
+      collapseProgress: collapseProgress,
     );
   }
 }

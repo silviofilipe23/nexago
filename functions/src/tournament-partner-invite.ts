@@ -10,7 +10,9 @@ import {assertCanRegisterInTournament} from "./athlete-tournament-access";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {
   assertTournamentAcceptsRegistration,
+  findCategory,
   loadTournamentData,
+  resolveCategoryMatchKeys,
 } from "./tournament-registration-guards";
 
 const INVITES_COLLECTION = "tournamentRegistrationInvites";
@@ -31,7 +33,10 @@ function artifactsInscriptionsPath(projectId: string): string {
 type UniformType = "none" | "top_only" | "full";
 
 type TournamentCategory = {
+  id?: string;
+  categoryId?: string;
   categoryName: string;
+  name?: string;
   entryFee?: number;
   uniformType?: UniformType;
   uniformNameOnShirt?: boolean;
@@ -50,12 +55,16 @@ type UniformPayload = {
 const DEFAULT_TOP_SIZES = ["PP", "P", "M", "G", "GG", "XGG"];
 const DEFAULT_SHORTS_SIZES = ["PP", "P", "M", "G", "GG", "XGG"];
 
-function findCategory(
-  tournament: Record<string, unknown>,
-  categoryId: string,
+function asTournamentCategory(
+  raw: Record<string, unknown> | null,
 ): TournamentCategory | null {
-  const categories = (tournament.categories || []) as TournamentCategory[];
-  return categories.find((c) => c.categoryName === categoryId) ?? null;
+  if (!raw) return null;
+  const categoryName = String(raw.categoryName ?? raw.name ?? "").trim();
+  if (!categoryName) return null;
+  return {
+    ...raw,
+    categoryName,
+  } as TournamentCategory;
 }
 
 function categoryRequiresUniform(category: TournamentCategory): boolean {
@@ -219,7 +228,7 @@ async function userHasCategoryRegistration(
   projectId: string,
   uid: string,
   tournamentId: string,
-  categoryId: string,
+  categoryKeys: Set<string>,
 ): Promise<boolean> {
   const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
   const snap = await inscriptionsRef.where("tournamentId", "==", tournamentId).get();
@@ -227,7 +236,8 @@ async function userHasCategoryRegistration(
 
   for (const doc of snap.docs) {
     const data = doc.data();
-    if ((data.categoryId as string) !== categoryId) continue;
+    const inscriptionCategoryId = String(data.categoryId ?? "").trim();
+    if (!categoryKeys.has(inscriptionCategoryId)) continue;
     const teamId = data.teamId as string | undefined;
     if (!teamId) continue;
     const teamSnap = await teamsRef.doc(teamId).get();
@@ -298,22 +308,24 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
     tournamentId,
     categoryId,
   );
-  const category = findCategory(tournament, categoryId);
+  const category = asTournamentCategory(findCategory(tournament, categoryId));
   if (!category) {
     throw new HttpsError("not-found", "Categoria não encontrada neste torneio.");
   }
+
+  const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
 
   const uniformRequired = categoryRequiresUniform(category);
   const inviterUniform = parseUniformPayload(request.data?.inviterUniform);
   validateUniformPayload(category, inviterUniform, uniformRequired);
 
-  if (await userHasCategoryRegistration(db, projectId, uid, tournamentId, categoryId)) {
+  if (await userHasCategoryRegistration(db, projectId, uid, tournamentId, categoryKeys)) {
     throw new HttpsError(
       "failed-precondition",
       "Você já possui inscrição nesta categoria."
     );
   }
-  if (await userHasCategoryRegistration(db, projectId, inviteeUid, tournamentId, categoryId)) {
+  if (await userHasCategoryRegistration(db, projectId, inviteeUid, tournamentId, categoryKeys)) {
     throw new HttpsError(
       "failed-precondition",
       "Este parceiro já está inscrito nesta categoria."
@@ -425,7 +437,9 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
   );
   const shouldWaitlist =
     (tournamentData as Record<string, unknown>).__shouldWaitlist === true;
-  const previewCategory = findCategory(previewTournament, previewCategoryId);
+  const previewCategory = asTournamentCategory(
+    findCategory(previewTournament, previewCategoryId),
+  );
   if (!previewCategory) {
     throw new HttpsError("not-found", "Categoria não encontrada.");
   }

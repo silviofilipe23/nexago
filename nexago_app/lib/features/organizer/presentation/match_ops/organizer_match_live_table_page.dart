@@ -1,18 +1,24 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
 import '../../domain/match_ops/match_ops_providers.dart';
-import '../../domain/match_ops/match_scoring_logic.dart';
 import '../../../tournaments/data/tournament_live_matches_sync.dart';
 import '../../../tournaments/domain/tournament_discovery_providers.dart';
+import '../../../tournaments/domain/tournament_match.dart';
+import '../../../tournaments/domain/tournament_match_point_event.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
+import '../../../tournaments/domain/tournament_match_display.dart';
 import 'organizer_match_navigation.dart';
+import 'widgets/organizer_match_live_table_widgets.dart';
 
 /// I1 — Mesa ao vivo ponto a ponto.
 class OrganizerMatchLiveTablePage extends ConsumerStatefulWidget {
@@ -33,15 +39,40 @@ class OrganizerMatchLiveTablePage extends ConsumerStatefulWidget {
 class _OrganizerMatchLiveTablePageState
     extends ConsumerState<OrganizerMatchLiveTablePage> {
   bool _saving = false;
+  Timer? _clockTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    super.dispose();
+  }
+
+  TournamentMatch? _currentMatch() {
+    return ref
+        .read(
+          organizerMatchByIdProvider((
+            tournamentId: widget.tournamentId,
+            matchId: widget.matchId,
+          )),
+        )
+        .valueOrNull;
+  }
+
+  String _servingTeamIdAfterPoint(TournamentMatch match, String side) {
+    return side.toUpperCase() == 'A' ? match.teamAId : match.teamBId;
+  }
 
   Future<void> _point(String side) async {
-    final match = ref
-        .read(organizerMatchByIdProvider((
-          tournamentId: widget.tournamentId,
-          matchId: widget.matchId,
-        )))
-        .valueOrNull;
-    if (match == null) return;
+    final match = _currentMatch();
+    if (match == null || match.isCompleted) return;
 
     final result = MatchScoringLogic.applyPoint(
       sets: match.sets,
@@ -56,6 +87,8 @@ class _OrganizerMatchLiveTablePageState
       final repo = ref.read(tournamentMatchesRepositoryProvider);
       final setIdx = match.currentSetIndex ?? 0;
       final current = result.sets.length > setIdx ? result.sets[setIdx] : null;
+      final servingTeamId = _servingTeamIdAfterPoint(match, side);
+
       await repo.recordPointTransaction(
         matchId: widget.matchId,
         matchUpdate: {
@@ -64,6 +97,7 @@ class _OrganizerMatchLiveTablePageState
           'status': result.winnerId != null
               ? TournamentMatchStatus.completed
               : TournamentMatchStatus.inProgress,
+          'servingTeamId': servingTeamId,
           if (result.winnerId != null) 'winnerId': result.winnerId,
           if (result.winnerId != null)
             'matchEndedAt': FieldValue.serverTimestamp(),
@@ -81,9 +115,9 @@ class _OrganizerMatchLiveTablePageState
         },
       );
       if (result.winnerId != null) {
-        await ref.read(organizerMatchScheduleServiceProvider).advanceBracketWinner(
-              matchId: widget.matchId,
-            );
+        await ref
+            .read(organizerMatchScheduleServiceProvider)
+            .advanceBracketWinner(matchId: widget.matchId);
         await ref
             .read(organizerMatchScheduleServiceProvider)
             .applyLeagueRankingForMatch(matchId: widget.matchId);
@@ -93,10 +127,114 @@ class _OrganizerMatchLiveTablePageState
         widget.tournamentId,
       );
     } catch (e) {
-      if (mounted) showAppSnackBar(context, 'Erro: $e');
+      if (mounted) showAppSnackBar(context, 'Erro: $e', isError: true);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<void> _undoLastPoint() async {
+    final match = _currentMatch();
+    if (match == null || match.isCompleted) return;
+
+    final eventsAsync = ref.read(
+      organizerMatchPointEventsProvider(widget.matchId),
+    );
+    final events = (eventsAsync.valueOrNull ?? const [])
+        .whereType<TournamentMatchPointEvent>()
+        .toList();
+    TournamentMatchPointEvent? lastPoint;
+    for (final event in events.reversed) {
+      if (event.isPoint) {
+        lastPoint = event;
+        break;
+      }
+    }
+    if (lastPoint == null) {
+      if (mounted) {
+        showAppSnackBar(context, 'Nenhum ponto para desfazer.', isError: true);
+      }
+      return;
+    }
+
+    final side = lastPoint.side ?? 'A';
+    final result = MatchScoringLogic.undoPoint(
+      sets: match.sets,
+      currentSetIndex: lastPoint.setIndex,
+      side: side,
+    );
+
+    setState(() => _saving = true);
+    try {
+      final repo = ref.read(tournamentMatchesRepositoryProvider);
+      final setIdx = result.currentSetIndex;
+      final current = result.sets.length > setIdx ? result.sets[setIdx] : null;
+
+      await repo.recordPointTransaction(
+        matchId: widget.matchId,
+        matchUpdate: {
+          'sets': result.sets.map((s) => s.toMap()).toList(),
+          'currentSetIndex': result.currentSetIndex,
+          'status': TournamentMatchStatus.inProgress,
+          'winnerId': FieldValue.delete(),
+          'matchEndedAt': FieldValue.delete(),
+          'resultA': '${result.sets.where((s) => s.a > s.b).length}',
+          'resultB': '${result.sets.where((s) => s.b > s.a).length}',
+        },
+        pointEvent: {
+          'type': 'undo-point',
+          'side': side,
+          'setIndex': setIdx,
+          'scoreA': current?.a ?? 0,
+          'scoreB': current?.b ?? 0,
+        },
+      );
+      await TournamentLiveMatchesSync.syncForTournament(
+        FirebaseFirestore.instance,
+        widget.tournamentId,
+      );
+    } catch (e) {
+      if (mounted) showAppSnackBar(context, 'Erro: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _swapServe() async {
+    final match = _currentMatch();
+    if (match == null || match.isCompleted) return;
+
+    final current = match.servingTeamId.trim();
+    final next = current.isEmpty || current == match.teamBId
+        ? match.teamAId
+        : match.teamBId;
+    if (next.trim().isEmpty) return;
+
+    setState(() => _saving = true);
+    try {
+      await ref.read(tournamentMatchesRepositoryProvider).updateMatchFields(
+            matchId: widget.matchId,
+            fields: {'servingTeamId': next},
+          );
+    } catch (e) {
+      if (mounted) showAppSnackBar(context, 'Erro: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  String _elapsedLabel(TournamentMatch match) {
+    if (match.matchStartedAt != null) {
+      final sec = MatchScoringLogic.elapsedSecondsFromStart(
+        match.matchStartedAt,
+        DateTime.now(),
+      );
+      return MatchScoringLogic.formatElapsedMmSs(sec);
+    }
+    if (match.liveElapsedSec > 0) {
+      return MatchScoringLogic.formatElapsedMmSs(match.liveElapsedSec);
+    }
+    return '00:00';
   }
 
   @override
@@ -105,95 +243,154 @@ class _OrganizerMatchLiveTablePageState
       tournamentId: widget.tournamentId,
       matchId: widget.matchId,
     )));
+    final pointEventsAsync =
+        ref.watch(organizerMatchPointEventsProvider(widget.matchId));
 
     return Scaffold(
-      appBar: NexaAppBar(
-        title: const Text('Mesa ao vivo'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.summarize_outlined),
-            onPressed: () => context.push(
-              organizerMatchSummaryPath(widget.tournamentId, widget.matchId),
-            ),
-          ),
-        ],
-      ),
-      body: matchAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('$e')),
-        data: (match) {
-          if (match == null) {
-            return const Center(child: Text('Partida não encontrada'));
-          }
-          final setIdx = match.currentSetIndex ?? 0;
-          final sets = match.sets;
-          final current = sets.length > setIdx
-              ? sets[setIdx]
-              : const TournamentMatchSet(a: 0, b: 0);
+      backgroundColor: context.themeColors.canvas,
+      body: Stack(
+        children: [
+          SafeArea(
+            child: matchAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('$e')),
+              data: (match) {
+                if (match == null) {
+                  return const Center(child: Text('Partida não encontrada'));
+                }
 
-          return Column(
-            children: [
-              const SizedBox(height: 24),
-              Text(match.teamsLabel, textAlign: TextAlign.center),
-              const SizedBox(height: 24),
-              Text(
-                '${current.a} × ${current.b}',
-                style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                      color: AppColors.brand,
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const Spacer(),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _ScoreButton(
-                    label: 'A +1',
-                    onPressed: _saving ? null : () => _point('A'),
-                  ),
-                  _ScoreButton(
-                    label: 'B +1',
-                    onPressed: _saving ? null : () => _point('B'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              if (match.isCompleted)
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: FilledButton(
-                    onPressed: () => context.push(
-                      organizerMatchValidatePath(
-                        widget.tournamentId,
-                        widget.matchId,
+                final setIdx = match.currentSetIndex ?? 0;
+                final sets = match.sets;
+                final current = sets.length > setIdx
+                    ? sets[setIdx]
+                    : const TournamentMatchSet(a: 0, b: 0);
+                final court = match.effectiveCourtLabel.trim();
+                final meta = [
+                  match.categoryId.trim(),
+                  matchRoundLabel(match),
+                ].where((s) => s.isNotEmpty).join(' · ');
+                final rules = MatchScoringLogic.setRulesLabel(setIdx);
+                final setPoint = MatchScoringLogic.setPointHint(
+                  current.a,
+                  current.b,
+                  setIndex: setIdx,
+                );
+                final teamALabel =
+                    liveTableTeamLabel(match.teamADescription, match.teamAId);
+                final teamBLabel =
+                    liveTableTeamLabel(match.teamBDescription, match.teamBId);
+                final actionsEnabled = !_saving && !match.isCompleted;
+                final events = (pointEventsAsync.valueOrNull ?? const [])
+                    .whereType<TournamentMatchPointEvent>()
+                    .toList();
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    LiveTableHeader(
+                      courtLabel: court.isNotEmpty ? court : '—',
+                      metaLabel: meta.isNotEmpty ? meta : 'Partida',
+                      elapsedLabel: _elapsedLabel(match),
+                      onBack: () => context.pop(),
+                      onMore: () => context.push(
+                        organizerMatchSummaryPath(
+                          widget.tournamentId,
+                          widget.matchId,
+                        ),
                       ),
                     ),
-                    child: const Text('Validar resultado'),
-                  ),
-                ),
-            ],
-          );
-        },
+                    LiveTableSetStrip(
+                      sets: sets,
+                      currentSetIndex: setIdx,
+                    ),
+                    const SizedBox(height: 8),
+                    LiveTableServingBanner(
+                      teamLabel: liveTableServingTeamLabel(match),
+                    ),
+                    LiveTableTeamScoreRow(
+                      teamLabel: teamALabel,
+                      currentScore:
+                          liveTableCurrentSetScore(match, sideA: true),
+                      completedSets: liveTableCompletedSetScores(
+                        match,
+                        sideA: true,
+                      ),
+                      isServing: liveTableIsServing(match, sideA: true),
+                      enabled: actionsEnabled,
+                      onTap: () => _point('A'),
+                    ),
+                    LiveTableTeamScoreRow(
+                      teamLabel: teamBLabel,
+                      currentScore:
+                          liveTableCurrentSetScore(match, sideA: false),
+                      completedSets: liveTableCompletedSetScores(
+                        match,
+                        sideA: false,
+                      ),
+                      isServing: liveTableIsServing(match, sideA: false),
+                      enabled: actionsEnabled,
+                      onTap: () => _point('B'),
+                    ),
+                    LiveTableSetRules(
+                      rulesLabel: rules,
+                      setPointHint: setPoint,
+                    ),
+                    LiveTableActionBar(
+                      enabled: actionsEnabled,
+                      onUndo: _undoLastPoint,
+                      onSwapServe: _swapServe,
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: LiveTablePointFeed(
+                          setIndex: setIdx,
+                          events: events,
+                          match: match,
+                        ),
+                      ),
+                    ),
+                    if (match.isCompleted)
+                      SafeArea(
+                        top: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                          child: FilledButton(
+                            onPressed: () => context.push(
+                              organizerMatchValidatePath(
+                                widget.tournamentId,
+                                widget.matchId,
+                              ),
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.brand,
+                              foregroundColor: AppColors.black,
+                              minimumSize: const Size.fromHeight(48),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              textStyle: AppTypography.soraRegular(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            child: const Text('Validar resultado'),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+          if (_saving)
+            const Positioned.fill(
+              child: ColoredBox(
+                color: Color(0x44000000),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
+        ],
       ),
-    );
-  }
-}
-
-class _ScoreButton extends StatelessWidget {
-  const _ScoreButton({required this.label, this.onPressed});
-
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton(
-      onPressed: onPressed,
-      style: FilledButton.styleFrom(
-        backgroundColor: AppColors.brand,
-        minimumSize: const Size(120, 56),
-      ),
-      child: Text(label),
     );
   }
 }

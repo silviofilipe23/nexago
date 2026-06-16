@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:nexago_app/core/layout/nexa_bottom_nav_bar.dart';
+import 'package:nexago_app/core/layout/shell_tab_bar_collapse.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -15,6 +16,7 @@ import 'package:nexago_app/core/ui/fade_slide_in.dart';
 import '../../../core/auth/active_role_providers.dart';
 import '../../auth/presentation/role_selection_page.dart';
 import '../domain/tournament_create/tournament_create_draft.dart';
+import '../domain/tournament_create/tournament_create_logic.dart';
 import '../domain/tournament_create/tournament_create_providers.dart';
 import '../domain/league_create/league_create_draft.dart';
 import '../domain/league_create/league_create_providers.dart';
@@ -28,6 +30,8 @@ import 'sheets/organizer_settings_sheet.dart';
 
 enum _OrganizerEventFilter { all, leagues, tournaments }
 
+bool _isFirestoreDraft(Map<String, dynamic> data) => isFirestoreDraftData(data);
+
 class OrganizerHomePage extends ConsumerStatefulWidget {
   const OrganizerHomePage({super.key});
 
@@ -38,6 +42,13 @@ class OrganizerHomePage extends ConsumerStatefulWidget {
 class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
   _OrganizerEventFilter _filter = _OrganizerEventFilter.all;
   int _bottomNavIndex = 0;
+  final _tabBarCollapse = ShellTabBarCollapseController();
+
+  @override
+  void dispose() {
+    _tabBarCollapse.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -45,7 +56,9 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(tournamentCreateWizardProvider.notifier).tryRestoreFromLocal();
       ref.read(leagueCreateWizardProvider.notifier).tryRestoreFromLocal();
-      ref.read(leagueStageCreateWizardProvider.notifier).tryRestoreAnyFromLocal();
+      ref
+          .read(leagueStageCreateWizardProvider.notifier)
+          .tryRestoreAnyFromLocal();
     });
   }
 
@@ -55,7 +68,9 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
       final startFresh = await confirmStartFreshWizard(context);
       if (!mounted || startFresh == null) return;
       if (startFresh) {
-        await ref.read(tournamentCreateWizardProvider.notifier).clearSession();
+        await ref
+            .read(tournamentCreateWizardProvider.notifier)
+            .discardSession();
       } else {
         final step = ref.read(tournamentCreateCurrentStepProvider);
         context.pushNamed(routeNameForCreateStep(step));
@@ -100,18 +115,8 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
     List<Map<String, dynamic>> leagues,
   ) {
     final merged = <Map<String, dynamic>>[
-      ...tournaments.map(
-        (t) => {
-          ...t,
-          '_kind': 'tournament',
-        },
-      ),
-      ...leagues.map(
-        (l) => {
-          ...l,
-          '_kind': 'league',
-        },
-      ),
+      ...tournaments.map((t) => {...t, '_kind': 'tournament'}),
+      ...leagues.map((l) => {...l, '_kind': 'league'}),
     ];
     merged.sort((a, b) {
       final aTs = a['updatedAt'];
@@ -129,12 +134,14 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
       _OrganizerEventFilter.all => all,
       _OrganizerEventFilter.leagues =>
         all.where((e) => e['_kind'] == 'league').toList(),
-      _OrganizerEventFilter.tournaments => all
-          .where(
-            (e) =>
-                e['_kind'] == 'tournament' && (e['leagueId'] as String?) == null,
-          )
-          .toList(),
+      _OrganizerEventFilter.tournaments =>
+        all
+            .where(
+              (e) =>
+                  e['_kind'] == 'tournament' &&
+                  (e['leagueId'] as String?) == null,
+            )
+            .toList(),
     };
   }
 
@@ -169,7 +176,8 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
       var minFeeCents = 0;
       for (final item in categories) {
         if (item is! Map) continue;
-        final fee = (item['entryFeeCents'] as num?)?.toInt() ??
+        final fee =
+            (item['entryFeeCents'] as num?)?.toInt() ??
             (((item['entryFee'] as num?)?.toDouble() ?? 0) * 100).round();
         if (fee > 0 && (minFeeCents == 0 || fee < minFeeCents)) {
           minFeeCents = fee;
@@ -182,312 +190,422 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
     return enrolled * defaultFee;
   }
 
+  Future<void> _discardTournamentDraft({String? remoteDraftId}) async {
+    try {
+      await ref
+          .read(tournamentCreateWizardProvider.notifier)
+          .discardSession(remoteDraftId: remoteDraftId);
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Erro ao descartar rascunho: $e', isError: true);
+    }
+  }
+
+  Future<void> _discardLeagueDraft({String? remoteDraftId}) async {
+    try {
+      await ref
+          .read(leagueCreateWizardProvider.notifier)
+          .discardSession(remoteDraftId: remoteDraftId);
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Erro ao descartar rascunho: $e', isError: true);
+    }
+  }
+
+  Future<void> _discardStageDraft() async {
+    try {
+      await ref.read(leagueStageCreateWizardProvider.notifier).clearSession();
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Erro ao descartar rascunho: $e', isError: true);
+    }
+  }
+
+  Future<void> _confirmDiscardFirestoreEvent({
+    required String kind,
+    required String eventId,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Descartar rascunho?'),
+        content: const Text(
+          'O rascunho será removido permanentemente do banco de dados.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Descartar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      if (kind == 'league') {
+        await ref
+            .read(leagueCreateWizardProvider.notifier)
+            .discardSession(remoteDraftId: eventId);
+      } else {
+        await ref
+            .read(tournamentCreateWizardProvider.notifier)
+            .discardSession(remoteDraftId: eventId);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, 'Erro ao descartar rascunho: $e', isError: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final canSwitch = ref.watch(hasMultipleMobileRolesProvider);
     final tournamentsAsync = ref.watch(managedOrganizerTournamentsProvider);
     final leaguesAsync = ref.watch(managedOrganizerLeaguesProvider);
-    final hasLocalTournamentDraft =
-        ref.watch(hasMeaningfulLocalWizardSessionProvider);
-    final hasLocalLeagueDraft =
-        ref.watch(hasMeaningfulLocalLeagueWizardSessionProvider);
+    final hasLocalTournamentDraft = ref.watch(
+      hasMeaningfulLocalWizardSessionProvider,
+    );
+    final hasLocalLeagueDraft = ref.watch(
+      hasMeaningfulLocalLeagueWizardSessionProvider,
+    );
     final localTournamentDraft = ref.watch(tournamentCreateDraftProvider);
     final localTournamentStep = ref.watch(tournamentCreateCurrentStepProvider);
     final localLeagueDraft = ref.watch(leagueCreateDraftProvider);
     final localLeagueStep = ref.watch(leagueCreateCurrentStepProvider);
-    final hasLocalStageDraft =
-        ref.watch(hasMeaningfulLocalStageWizardSessionProvider);
+    final hasLocalStageDraft = ref.watch(
+      hasMeaningfulLocalStageWizardSessionProvider,
+    );
     final localStageDraft = ref.watch(leagueStageCreateDraftProvider);
     final localStageStep = ref.watch(leagueStageCreateCurrentStepProvider);
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       extendBody: true,
-      body: SafeArea(
-        child: FadeSlideIn(
-          child: tournamentsAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('Erro: $e')),
-            data: (tournaments) => leaguesAsync.when(
+      body: ShellTabBarCollapseListener(
+        controller: _tabBarCollapse,
+        child: SafeArea(
+          child: FadeSlideIn(
+            child: tournamentsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('Erro: $e')),
-              data: (leagues) {
-                final allEvents = _mergeEvents(tournaments, leagues);
-                final filtered = _filteredEvents(allEvents);
-                final activeCount = _activeCount(allEvents);
-                final totalEnrolled = _totalEnrolled(tournaments);
-                final totalRevenue = tournaments.fold<int>(
-                  0,
-                  (sum, t) => sum + _estimateRevenueCents(t),
-                );
+              data: (tournaments) => leaguesAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Center(child: Text('Erro: $e')),
+                data: (leagues) {
+                  final allEvents = _mergeEvents(tournaments, leagues);
+                  final filtered = _filteredEvents(allEvents);
+                  final activeCount = _activeCount(allEvents);
+                  final totalEnrolled = _totalEnrolled(tournaments);
+                  final totalRevenue = tournaments.fold<int>(
+                    0,
+                    (sum, t) => sum + _estimateRevenueCents(t),
+                  );
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 96),
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 96),
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'MODO ORGANIZADOR',
-                                    style: AppTypography.mono(
-                                      color: AppColors.brand,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.8,
-                                      fontSize: 11,
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'MODO ORGANIZADOR',
+                                        style: AppTypography.mono(
+                                          color: AppColors.brand,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 0.8,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Seus eventos',
+                                        style: theme.textTheme.headlineMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: -0.5,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Material(
+                                  color: context.themeColors.surfaceRaised,
+                                  borderRadius: BorderRadius.circular(12),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: InkWell(
+                                    onTap: () => showOrganizerSettingsSheet(
+                                      context,
+                                      ref,
+                                    ),
+                                    child: const SizedBox(
+                                      width: 44,
+                                      height: 44,
+                                      child: Icon(
+                                        Icons.settings_outlined,
+                                        size: 22,
+                                      ),
                                     ),
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Seus eventos',
-                                    style: theme.textTheme.headlineMedium?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: -0.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                            Material(
-                              color: context.themeColors.surfaceRaised,
-                              borderRadius: BorderRadius.circular(12),
-                              clipBehavior: Clip.antiAlias,
-                              child: InkWell(
+                            if (canSwitch) ...[
+                              const SizedBox(height: 20),
+                              _RoleSwitchBanner(
                                 onTap: () =>
-                                    showOrganizerSettingsSheet(context, ref),
-                                child: const SizedBox(
-                                  width: 44,
-                                  height: 44,
-                                  child: Icon(Icons.settings_outlined, size: 22),
+                                    navigateToRoleSelection(context, ref),
+                              ),
+                            ],
+                            const SizedBox(height: 24),
+                            if (hasLocalTournamentDraft) ...[
+                              _LocalDraftBanner(
+                                label: 'Torneio em andamento',
+                                name: localTournamentDraft.name.trim(),
+                                stepLabel:
+                                    'passo ${localTournamentStep.number}/${TournamentCreateStepX.total}',
+                                onContinue: () => context.pushNamed(
+                                  routeNameForCreateStep(localTournamentStep),
+                                ),
+                                onDiscard: () => _discardTournamentDraft(
+                                  remoteDraftId:
+                                      localTournamentDraft.tournamentId,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                        if (canSwitch) ...[
-                          const SizedBox(height: 20),
-                          _RoleSwitchBanner(
-                            onTap: () => navigateToRoleSelection(context, ref),
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-                        if (hasLocalTournamentDraft) ...[
-                          _LocalDraftBanner(
-                            label: 'Torneio em andamento',
-                            name: localTournamentDraft.name.trim(),
-                            stepLabel:
-                                'passo ${localTournamentStep.number}/${TournamentCreateStepX.total}',
-                            onContinue: () => context.pushNamed(
-                              routeNameForCreateStep(localTournamentStep),
-                            ),
-                            onDiscard: () => ref
-                                .read(tournamentCreateWizardProvider.notifier)
-                                .clearSession(),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                        if (hasLocalLeagueDraft) ...[
-                          _LocalDraftBanner(
-                            label: 'Liga em andamento',
-                            name: localLeagueDraft.name.trim(),
-                            stepLabel:
-                                'passo ${localLeagueStep.number}/${LeagueCreateStepX.total}',
-                            onContinue: () => context.pushNamed(
-                              routeNameForLeagueCreateStep(localLeagueStep),
-                            ),
-                            onDiscard: () => ref
-                                .read(leagueCreateWizardProvider.notifier)
-                                .clearSession(),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                        if (hasLocalStageDraft &&
-                            localStageDraft.leagueId.isNotEmpty) ...[
-                          _LocalDraftBanner(
-                            label: 'Etapa em andamento',
-                            name: localStageDraft.stage.name.trim().isNotEmpty
-                                ? '${localStageDraft.leagueName} · ${localStageDraft.stage.name}'
-                                : localStageDraft.leagueName,
-                            stepLabel:
-                                'passo ${localStageStep.number}/${LeagueStageCreateStepX.total}',
-                            onContinue: () => context.pushNamed(
-                              routeNameForLeagueStageCreateStep(localStageStep),
-                              pathParameters: {
-                                'leagueId': localStageDraft.leagueId,
-                              },
-                            ),
-                            onDiscard: () => ref
-                                .read(leagueStageCreateWizardProvider.notifier)
-                                .clearSession(),
-                          ),
-                          const SizedBox(height: 20),
-                        ],
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _KpiCard(
-                                icon: Icons.emoji_events_outlined,
-                                value: '$activeCount',
-                                label: 'Eventos ativos',
+                              const SizedBox(height: 20),
+                            ],
+                            if (hasLocalLeagueDraft) ...[
+                              _LocalDraftBanner(
+                                label: 'Liga em andamento',
+                                name: localLeagueDraft.name.trim(),
+                                stepLabel:
+                                    'passo ${localLeagueStep.number}/${LeagueCreateStepX.total}',
+                                onContinue: () => context.pushNamed(
+                                  routeNameForLeagueCreateStep(localLeagueStep),
+                                ),
+                                onDiscard: () => _discardLeagueDraft(
+                                  remoteDraftId: localLeagueDraft.leagueId,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _KpiCard(
-                                icon: Icons.person_add_alt_1_outlined,
-                                value: '$totalEnrolled',
-                                label: 'Inscritos no total',
+                              const SizedBox(height: 20),
+                            ],
+                            if (hasLocalStageDraft &&
+                                localStageDraft.leagueId.isNotEmpty) ...[
+                              _LocalDraftBanner(
+                                label: 'Etapa em andamento',
+                                name:
+                                    localStageDraft.stage.name.trim().isNotEmpty
+                                    ? '${localStageDraft.leagueName} · ${localStageDraft.stage.name}'
+                                    : localStageDraft.leagueName,
+                                stepLabel:
+                                    'passo ${localStageStep.number}/${LeagueStageCreateStepX.total}',
+                                onContinue: () => context.pushNamed(
+                                  routeNameForLeagueStageCreateStep(
+                                    localStageStep,
+                                  ),
+                                  pathParameters: {
+                                    'leagueId': localStageDraft.leagueId,
+                                  },
+                                ),
+                                onDiscard: _discardStageDraft,
                               ),
+                              const SizedBox(height: 20),
+                            ],
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _KpiCard(
+                                    icon: Icons.emoji_events_outlined,
+                                    value: '$activeCount',
+                                    label: 'Eventos ativos',
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _KpiCard(
+                                    icon: Icons.person_add_alt_1_outlined,
+                                    value: '$totalEnrolled',
+                                    label: 'Inscritos no total',
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _KpiCard(
+                                    icon: Icons.account_balance_wallet_outlined,
+                                    value: _formatRevenue(totalRevenue),
+                                    label: 'Arrecadado',
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _KpiCard(
-                                icon: Icons.account_balance_wallet_outlined,
-                                value: _formatRevenue(totalRevenue),
-                                label: 'Arrecadado',
-                              ),
+                            const SizedBox(height: 24),
+                            _FilterTabs(
+                              selected: _filter,
+                              onChanged: (value) =>
+                                  setState(() => _filter = value),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        _FilterTabs(
-                          selected: _filter,
-                          onChanged: (value) => setState(() => _filter = value),
-                        ),
-                        const SizedBox(height: 20),
-                        if (filtered.isEmpty)
-                          Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: BoxDecoration(
-                              color: context.themeColors.surfaceCard,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: context.themeColors.onSurfaceMuted
-                                    .withValues(alpha: 0.12),
-                              ),
-                            ),
-                            child: Text(
-                              _filter == _OrganizerEventFilter.leagues
-                                  ? 'Nenhuma liga ainda. Crie um circuito para começar.'
-                                  : 'Nenhum evento ainda. Toque em criar evento para começar.',
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: context.themeColors.onSurfaceMuted,
-                                height: 1.45,
-                              ),
-                            ),
-                          )
-                        else
-                          for (final event in filtered) ...[
-                            _OrganizerEventCard(
-                              data: event,
-                              revenueLabel: _formatRevenue(
-                                _estimateRevenueCents(event),
-                              ),
-                              onAddStage: event['_kind'] == 'league' &&
-                                      (event['listingStatus'] as String?) ==
-                                          'open'
-                                  ? () {
-                                      final id =
-                                          (event['id'] as String?)?.trim();
-                                      if (id == null || id.isEmpty) return;
-                                      startLeagueStageWizard(context, ref, id);
+                            const SizedBox(height: 20),
+                            if (filtered.isEmpty)
+                              Container(
+                                padding: const EdgeInsets.all(24),
+                                decoration: BoxDecoration(
+                                  color: context.themeColors.surfaceCard,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: context.themeColors.onSurfaceMuted
+                                        .withValues(alpha: 0.12),
+                                  ),
+                                ),
+                                child: Text(
+                                  _filter == _OrganizerEventFilter.leagues
+                                      ? 'Nenhuma liga ainda. Crie um circuito para começar.'
+                                      : 'Nenhum evento ainda. Toque em criar evento para começar.',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: context.themeColors.onSurfaceMuted,
+                                    height: 1.45,
+                                  ),
+                                ),
+                              )
+                            else
+                              for (final event in filtered) ...[
+                                _OrganizerEventCard(
+                                  data: event,
+                                  revenueLabel: _formatRevenue(
+                                    _estimateRevenueCents(event),
+                                  ),
+                                  onAddStage:
+                                      event['_kind'] == 'league' &&
+                                          (event['listingStatus'] as String?) ==
+                                              'open'
+                                      ? () {
+                                          final id = (event['id'] as String?)
+                                              ?.trim();
+                                          if (id == null || id.isEmpty) return;
+                                          startLeagueStageWizard(
+                                            context,
+                                            ref,
+                                            id,
+                                          );
+                                        }
+                                      : null,
+                                  onOpen: () {
+                                    final id = (event['id'] as String?)?.trim();
+                                    if (id == null || id.isEmpty) return;
+                                    final isLeagueDoc =
+                                        event['_kind'] == 'league';
+                                    if (_isFirestoreDraft(event)) {
+                                      if (isLeagueDoc) {
+                                        _continueLeagueFirestoreDraft(id);
+                                      } else {
+                                        _continueFirestoreDraft(id);
+                                      }
+                                      return;
                                     }
-                                  : null,
-                              onOpen: () {
-                                final id = (event['id'] as String?)?.trim();
-                                if (id == null || id.isEmpty) return;
-                                final status =
-                                    (event['listingStatus'] as String?) ?? '';
-                                final isLeagueDoc = event['_kind'] == 'league';
-                                if (status == 'draft') {
-                                  if (isLeagueDoc) {
-                                    _continueLeagueFirestoreDraft(id);
-                                  } else {
-                                    _continueFirestoreDraft(id);
-                                  }
-                                  return;
-                                }
-                                if (isLeagueDoc) {
-                                  context.pushNamed(
-                                    AppRouteNames.leagueDetail,
-                                    pathParameters: {'leagueId': id},
-                                  );
-                                  return;
-                                }
-                                context.pushNamed(
-                                  AppRouteNames.organizerTournamentDetail,
-                                  pathParameters: {'tournamentId': id},
-                                );
-                              },
-                              onOpenDetail: () {
-                                final id = (event['id'] as String?)?.trim();
-                                if (id == null || id.isEmpty) return;
-                                if (event['_kind'] == 'league') {
-                                  showOrganizerLeagueActionsSheet(
-                                    context,
-                                    leagueId: id,
-                                    league: event,
-                                  );
-                                  return;
-                                }
-                                context.pushNamed(
-                                  AppRouteNames.organizerTournamentDetail,
-                                  pathParameters: {'tournamentId': id},
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 14),
+                                    if (isLeagueDoc) {
+                                      context.pushNamed(
+                                        AppRouteNames.leagueDetail,
+                                        pathParameters: {'leagueId': id},
+                                      );
+                                      return;
+                                    }
+                                    context.pushNamed(
+                                      AppRouteNames.organizerTournamentDetail,
+                                      pathParameters: {'tournamentId': id},
+                                    );
+                                  },
+                                  onDiscardDraft: _isFirestoreDraft(event)
+                                      ? () {
+                                          final id = (event['id'] as String?)
+                                              ?.trim();
+                                          if (id == null || id.isEmpty) return;
+                                          _confirmDiscardFirestoreEvent(
+                                            kind:
+                                                (event['_kind'] as String?) ??
+                                                'tournament',
+                                            eventId: id,
+                                          );
+                                        }
+                                      : null,
+                                  onOpenDetail: () {
+                                    final id = (event['id'] as String?)?.trim();
+                                    if (id == null || id.isEmpty) return;
+                                    if (event['_kind'] == 'league') {
+                                      showOrganizerLeagueActionsSheet(
+                                        context,
+                                        leagueId: id,
+                                        league: event,
+                                      );
+                                      return;
+                                    }
+                                    context.pushNamed(
+                                      AppRouteNames.organizerTournamentDetail,
+                                      pathParameters: {'tournamentId': id},
+                                    );
+                                  },
+                                ),
+                                const SizedBox(height: 14),
+                              ],
                           ],
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ),
       ),
-      bottomNavigationBar: NexaBottomNavBar(
-        currentIndex: _bottomNavIndex,
-        onTap: (index) {
-          if (index == 1) {
-            showOrganizerSettingsSheet(context, ref);
-            return;
-          }
-          setState(() => _bottomNavIndex = index);
-        },
-        centerAction: NexaBottomNavAction(
-          label: 'Criar',
-          icon: Icons.add_rounded,
-          sfSymbol: 'plus',
-          onPressed: _startCreate,
+      bottomNavigationBar: ListenableBuilder(
+        listenable: _tabBarCollapse,
+        builder: (context, _) => NexaBottomNavBar(
+          collapseProgress: _tabBarCollapse.progress,
+          currentIndex: _bottomNavIndex,
+          onTap: (index) {
+            if (index == 1) {
+              showOrganizerSettingsSheet(context, ref);
+              return;
+            }
+            setState(() => _bottomNavIndex = index);
+          },
+          centerAction: NexaBottomNavAction(
+            label: 'Criar',
+            icon: Icons.add_rounded,
+            sfSymbol: 'plus',
+            onPressed: _startCreate,
+          ),
+          items: const [
+            NexaBottomNavItem(
+              label: 'Eventos',
+              icon: Icons.emoji_events_outlined,
+              selectedIcon: Icons.emoji_events,
+              sfSymbol: 'trophy',
+              selectedSfSymbol: 'trophy.fill',
+            ),
+            NexaBottomNavItem(
+              label: 'Ajustes',
+              icon: Icons.settings_outlined,
+              selectedIcon: Icons.settings_rounded,
+              sfSymbol: 'gearshape',
+              selectedSfSymbol: 'gearshape.fill',
+            ),
+          ],
         ),
-        items: const [
-          NexaBottomNavItem(
-            label: 'Eventos',
-            icon: Icons.emoji_events_outlined,
-            selectedIcon: Icons.emoji_events,
-            sfSymbol: 'trophy',
-            selectedSfSymbol: 'trophy.fill',
-          ),
-          NexaBottomNavItem(
-            label: 'Ajustes',
-            icon: Icons.settings_outlined,
-            selectedIcon: Icons.settings_rounded,
-            sfSymbol: 'gearshape',
-            selectedSfSymbol: 'gearshape.fill',
-          ),
-        ],
       ),
     );
   }
@@ -538,15 +656,15 @@ class _RoleSwitchBanner extends StatelessWidget {
                     Text(
                       'Trocar papel',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       'Entrar como atleta ou gestor de arena',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: context.themeColors.onSurfaceMuted,
-                          ),
+                        color: context.themeColors.onSurfaceMuted,
+                      ),
                     ),
                   ],
                 ),
@@ -664,18 +782,18 @@ class _KpiCard extends StatelessWidget {
           Text(
             value,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.3,
-                ),
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: context.themeColors.onSurfaceMuted,
-                  fontWeight: FontWeight.w600,
-                  height: 1.2,
-                ),
+              color: context.themeColors.onSurfaceMuted,
+              fontWeight: FontWeight.w600,
+              height: 1.2,
+            ),
           ),
         ],
       ),
@@ -684,10 +802,7 @@ class _KpiCard extends StatelessWidget {
 }
 
 class _FilterTabs extends StatelessWidget {
-  const _FilterTabs({
-    required this.selected,
-    required this.onChanged,
-  });
+  const _FilterTabs({required this.selected, required this.onChanged});
 
   final _OrganizerEventFilter selected;
   final ValueChanged<_OrganizerEventFilter> onChanged;
@@ -749,11 +864,11 @@ class _FilterTab extends StatelessWidget {
               label,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: selected
-                        ? AppColors.black
-                        : context.themeColors.onSurfaceMuted,
-                  ),
+                fontWeight: FontWeight.w800,
+                color: selected
+                    ? AppColors.black
+                    : context.themeColors.onSurfaceMuted,
+              ),
             ),
           ),
         ),
@@ -769,6 +884,7 @@ class _OrganizerEventCard extends StatelessWidget {
     required this.onOpen,
     required this.onOpenDetail,
     this.onAddStage,
+    this.onDiscardDraft,
   });
 
   final Map<String, dynamic> data;
@@ -776,6 +892,7 @@ class _OrganizerEventCard extends StatelessWidget {
   final VoidCallback onOpen;
   final VoidCallback onOpenDetail;
   final VoidCallback? onAddStage;
+  final VoidCallback? onDiscardDraft;
 
   static const _heroHeight = 132.0;
 
@@ -783,24 +900,29 @@ class _OrganizerEventCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final name = (data['name'] as String?) ?? 'Evento';
-    final locationName = (data['locationName'] as String?) ??
+    final locationName =
+        (data['locationName'] as String?) ??
         (data['location'] as String?) ??
         '';
     final status = (data['listingStatus'] as String?) ?? 'draft';
+    final isDraft = _isFirestoreDraft(data);
     final enrolled = (data['enrolledCount'] as num?)?.toInt() ?? 0;
     final capacity = _capacity(data);
     final isLeagueDoc = data['_kind'] == 'league';
     final isLeague = isLeagueDoc || data['leagueId'] != null;
-    final dateLabel = (data['dateLabel'] as String?) ??
+    final dateLabel =
+        (data['dateLabel'] as String?) ??
         (data['seasonLabel'] as String?) ??
         '';
     final plannedStages = isLeagueDoc
         ? ((data['plannedStagesCount'] as num?)?.toInt() ??
-            ((data['stages'] is List) ? (data['stages'] as List).length : null))
+              ((data['stages'] is List)
+                  ? (data['stages'] as List).length
+                  : null))
         : (data['leagueStageOrder'] as num?)?.toInt();
     final imageUrl = _imageUrl(data);
-    final isLive = status == 'open' &&
-        _isEventSoon(data['startAt'], data['endAt']);
+    final isLive =
+        status == 'open' && _isEventSoon(data['startAt'], data['endAt']);
     final fillRatio = capacity > 0 ? enrolled / capacity : 0.0;
 
     return Container(
@@ -883,16 +1005,18 @@ class _OrganizerEventCard extends StatelessWidget {
                 const SizedBox(height: 14),
                 Divider(
                   height: 1,
-                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.12,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    _Metric(
-                      label: capacity > 0 ? '$enrolled/$capacity' : '$enrolled',
-                      caption: 'Inscritos',
-                    ),
-                    const Spacer(),
+                    // _Metric(
+                    //   label: capacity > 0 ? '$enrolled/$capacity' : '$enrolled',
+                    //   caption: 'Inscritos',
+                    // // ),
+                    // const Spacer(),
                     _Metric(
                       label: revenueLabel,
                       caption: 'Arrecadado',
@@ -900,24 +1024,24 @@ class _OrganizerEventCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (capacity > 0 && status != 'draft') ...[
-                  const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: fillRatio.clamp(0.0, 1.0),
-                      minHeight: 6,
-                      backgroundColor: context.themeColors.onSurfaceMuted
-                          .withValues(alpha: 0.15),
-                      color: AppColors.brand,
-                    ),
-                  ),
-                ],
+                // if (capacity > 0 && !isDraft) ...[
+                //   const SizedBox(height: 12),
+                //   ClipRRect(
+                //     borderRadius: BorderRadius.circular(4),
+                //     child: LinearProgressIndicator(
+                //       value: fillRatio.clamp(0.0, 1.0),
+                //       minHeight: 6,
+                //       backgroundColor: context.themeColors.onSurfaceMuted
+                //           .withValues(alpha: 0.15),
+                //       color: AppColors.brand,
+                //     ),
+                //   ),
+                // ],
                 const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
-                      child: status == 'open'
+                      child: status == 'open' && !isDraft
                           ? OutlinedButton(
                               onPressed: onOpen,
                               style: OutlinedButton.styleFrom(
@@ -926,7 +1050,9 @@ class _OrganizerEventCard extends StatelessWidget {
                                   color: context.themeColors.onSurfaceMuted
                                       .withValues(alpha: 0.25),
                                 ),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -935,7 +1061,9 @@ class _OrganizerEventCard extends StatelessWidget {
                                 isLeagueDoc
                                     ? 'Ver circuito'
                                     : 'Gerenciar inscrições',
-                                style: const TextStyle(fontWeight: FontWeight.w800),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                             )
                           : FilledButton(
@@ -943,7 +1071,9 @@ class _OrganizerEventCard extends StatelessWidget {
                               style: FilledButton.styleFrom(
                                 backgroundColor: AppColors.brand,
                                 foregroundColor: AppColors.black,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -970,6 +1100,16 @@ class _OrganizerEventCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                if (isDraft && onDiscardDraft != null) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: onDiscardDraft,
+                      child: const Text('Descartar rascunho'),
+                    ),
+                  ),
+                ],
                 if (onAddStage != null) ...[
                   const SizedBox(height: 10),
                   SizedBox(
@@ -1008,7 +1148,8 @@ class _OrganizerEventCard extends StatelessWidget {
     if (categories is List && categories.isNotEmpty) {
       return categories.fold<int>(0, (sum, item) {
         if (item is! Map) return sum;
-        final spots = (item['maxTeams'] as num?)?.toInt() ??
+        final spots =
+            (item['maxTeams'] as num?)?.toInt() ??
             (item['spotsTotal'] as num?)?.toInt() ??
             0;
         return sum + spots;
@@ -1039,7 +1180,8 @@ class _OrganizerEventCard extends StatelessWidget {
 
   Widget _statusBadge({required bool isLive, required String status}) {
     if (isLive) return const _LiveBadge(label: 'Inscrições abertas');
-    if (status == 'draft') return const _HeroBadge(label: 'Rascunho', muted: true);
+    if (status == 'draft')
+      return const _HeroBadge(label: 'Rascunho', muted: true);
     if (status == 'open') return const _LiveBadge(label: 'Publicado');
     if (status == 'closed') {
       return const _HeroBadge(label: 'Encerrada', muted: true);
@@ -1185,9 +1327,9 @@ class _LiveBadge extends StatelessWidget {
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: AppColors.live,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: AppColors.live,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),
@@ -1196,11 +1338,7 @@ class _LiveBadge extends StatelessWidget {
 }
 
 class _Metric extends StatelessWidget {
-  const _Metric({
-    required this.label,
-    required this.caption,
-    this.valueColor,
-  });
+  const _Metric({required this.label, required this.caption, this.valueColor});
 
   final String label;
   final String caption;
@@ -1214,16 +1352,16 @@ class _Metric extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: valueColor,
-              ),
+            fontWeight: FontWeight.w800,
+            color: valueColor,
+          ),
         ),
         Text(
           caption,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-                fontWeight: FontWeight.w600,
-              ),
+            color: context.themeColors.onSurfaceMuted,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );

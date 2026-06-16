@@ -206,12 +206,7 @@ String categoryBadgeLabel(TournamentCategoryOffer offer) {
 
 /// Género da categoria para exibição (Masculino, Feminino, Misto).
 String categoryGenderDisplayLabel(TournamentCategoryOffer offer) {
-  return switch (tournamentCategoryGenderTag(offer)) {
-    'MASCULINO' => 'Masculino',
-    'FEMININO' => 'Feminino',
-    'MISTO' => 'Misto',
-    _ => '',
-  };
+  return categoryGenderDisplayLabelFromTag(tournamentCategoryGenderTag(offer));
 }
 
 /// Subtítulo do card de categoria: `Masculino · 8 duplas · 5/8 inscritas`.
@@ -219,8 +214,10 @@ String categoryRegistrationSubtitle(
   TournamentCategoryOffer offer, {
   TournamentFormat format = TournamentFormat.dupla,
   int? inscriptionCount,
+  bool includeGender = true,
 }) {
-  final gender = categoryGenderDisplayLabel(offer);
+  final gender =
+      includeGender ? categoryGenderDisplayLabel(offer) : '';
   final capacity = categoryMaxTeams(offer);
   if (capacity <= 0) {
     return gender.isNotEmpty ? gender : 'Vagas a confirmar';

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/layout/nexa_bottom_nav_bar.dart';
+import '../../../core/layout/shell_tab_bar_collapse.dart';
 import '../../../core/auth/app_mobile_role.dart';
 import '../../../core/auth/active_role_providers.dart';
 import '../../arena/domain/arena_access_provider.dart';
@@ -64,6 +65,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
     final hideAppBarForImmersiveTabs =
         _index == 0 || _index == 1 || _index == 2 || _index == 4;
     final isCompeteTab = _index == 3;
+    final scrollRegistry = ref.watch(athleteShellScrollRegistryProvider);
 
     ref.listen<int>(athleteShellTabIndexProvider, (previous, next) {
       if (next != _index && next >= 0 && next < _titles.length) {
@@ -121,7 +123,9 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
                       ),
                   ],
                 ),
-      body: IndexedStack(
+      body: ShellTabBarCollapseListener(
+        controller: scrollRegistry.tabBarCollapse,
+        child: IndexedStack(
         index: _index,
         children: const [
           AthleteHomePage(),
@@ -131,11 +135,16 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
           AthleteCommunityPage(),
         ],
       ),
-      bottomNavigationBar: NexaBottomNavBar(
+      ),
+      bottomNavigationBar: ListenableBuilder(
+        listenable: scrollRegistry.tabBarCollapse,
+        builder: (context, _) => NexaBottomNavBar(
+        collapseProgress: scrollRegistry.tabBarCollapse.progress,
         currentIndex: _index,
         onTap: (i) {
           ref.read(athleteShellTabIndexProvider.notifier).state = i;
           setState(() => _index = i);
+          scrollRegistry.tabBarCollapse.expand();
           ref.read(athleteShellScrollRegistryProvider).scrollToTop(i);
         },
         items: const [
@@ -175,6 +184,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
             selectedSfSymbol: 'person.3.fill',
           ),
         ],
+        ),
       ),
     ),
     );

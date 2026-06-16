@@ -404,19 +404,54 @@ class CategoryPrizeRow {
   final bool highlight;
 }
 
-String tournamentCategoryGenderTag(TournamentCategoryOffer offer) {
-  final g = offer.genderType.trim();
-  if (g.isNotEmpty) {
-    final lower = g.toLowerCase();
-    if (lower.contains('masc')) return 'MASCULINO';
-    if (lower.contains('fem')) return 'FEMININO';
-    if (lower.contains('misto') || lower.contains('mix')) return 'MISTO';
-    return g.toUpperCase();
+String? genderTagFromText(String raw) {
+  final lower = raw.trim().toLowerCase();
+  if (lower.isEmpty) return null;
+  if (lower == 'm' ||
+      lower == 'male' ||
+      lower == 'masculino' ||
+      lower.contains('masc')) {
+    return 'MASCULINO';
   }
-  final n = offer.name.toLowerCase();
-  if (n.contains('masc')) return 'MASCULINO';
-  if (n.contains('fem')) return 'FEMININO';
-  if (n.contains('misto')) return 'MISTO';
+  if (lower == 'f' ||
+      lower == 'female' ||
+      lower == 'feminino' ||
+      lower.contains('fem')) {
+    return 'FEMININO';
+  }
+  if (lower == 'mixed' ||
+      lower == 'misto' ||
+      lower.contains('misto') ||
+      lower.contains('mix')) {
+    return 'MISTO';
+  }
+  return null;
+}
+
+/// Rótulo em português para exibição (`genderType`, nome legado, etc.).
+String categoryGenderDisplayLabelFromRaw(String raw) {
+  return switch (genderTagFromText(raw)) {
+    'MASCULINO' => 'Masculino',
+    'FEMININO' => 'Feminino',
+    'MISTO' => 'Misto',
+    _ => '',
+  };
+}
+
+String categoryGenderDisplayLabelFromTag(String tag) {
+  return switch (tag) {
+    'MASCULINO' => 'Masculino',
+    'FEMININO' => 'Feminino',
+    'MISTO' => 'Misto',
+    _ => '',
+  };
+}
+
+String tournamentCategoryGenderTag(TournamentCategoryOffer offer) {
+  final fromField = genderTagFromText(offer.genderType);
+  if (fromField != null) return fromField;
+  final fromName = genderTagFromText(offer.name);
+  if (fromName != null) return fromName;
   return 'ABERTO';
 }
 

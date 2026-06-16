@@ -32,7 +32,7 @@ function isRegistrationListingClosed(listingStatus: unknown): boolean {
   );
 }
 
-function findCategory(
+export function findCategory(
   tournament: TournamentData,
   categoryId: string,
 ): Record<string, unknown> | null {
@@ -47,6 +47,23 @@ function findCategory(
       return name === id || cid === id;
     }) ?? null
   );
+}
+
+/** Chaves equivalentes da categoria (`id`, `categoryId`, `categoryName`) para inscrições legadas. */
+export function resolveCategoryMatchKeys(
+  tournament: TournamentData,
+  categoryKey: string,
+): Set<string> {
+  const keys = new Set<string>();
+  const trimmed = categoryKey.trim();
+  if (trimmed) keys.add(trimmed);
+  const category = findCategory(tournament, trimmed);
+  if (!category) return keys;
+  for (const field of ["id", "categoryId", "categoryName", "name"] as const) {
+    const value = String(category[field] ?? "").trim();
+    if (value) keys.add(value);
+  }
+  return keys;
 }
 
 /** Bloqueia inscrição/convite/PIX quando torneio ou categoria está fechado. */

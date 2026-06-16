@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme_colors.dart';
 import 'nexa_bottom_nav_models.dart';
+import 'shell_tab_bar_collapse.dart';
 
 /// Tab bar flutuante estilo Liquid Glass (blur + cápsula + pill ativo).
 class NexaLiquidGlassTabBar extends StatelessWidget {
@@ -20,6 +21,7 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
     this.height = 64,
     this.horizontalMargin = 16,
     this.bottomMargin = 10,
+    this.collapseProgress = 0,
   });
 
   final List<NexaBottomNavItem> items;
@@ -33,59 +35,79 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
   final double horizontalMargin;
   final double bottomMargin;
 
+  /// 0 = expandida, 1 = compacta (ícones, menor altura).
+  final double collapseProgress;
+
   @override
   Widget build(BuildContext context) {
     final themeColors = context.themeColors;
     final tokens = _NexaGlassTabTokens.of(context, themeColors);
     final muted = unselectedColor ?? themeColors.onSurfaceMuted;
     final index = currentIndex.clamp(0, items.length - 1);
+    final t = collapseProgress.clamp(0.0, 1.0);
+    final barHeight = _lerp(
+      height,
+      ShellTabBarCollapseController.collapsedHeight,
+      t,
+    );
+    final sideInset = _lerp(horizontalMargin, horizontalMargin + 10, t);
+    final bottomInset = _lerp(bottomMargin, bottomMargin * 0.6, t);
+    final showTabLabels = t < 0.45;
 
     return SafeArea(
       top: false,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          horizontalMargin,
-          0,
-          horizontalMargin,
-          bottomMargin,
-        ),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(height / 2),
-            boxShadow: tokens.outerShadow,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(height / 2),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: tokens.barFill,
-                  borderRadius: BorderRadius.circular(height / 2),
-                  border: Border.all(color: tokens.outerStroke, width: 0.8),
+        padding: EdgeInsets.fromLTRB(sideInset, 0, sideInset, bottomInset),
+        child: Transform.scale(
+          scale: _lerp(1, 0.94, t),
+          alignment: Alignment.bottomCenter,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(barHeight / 2),
+              boxShadow: tokens.outerShadow,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(barHeight / 2),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(
+                  sigmaX: _lerp(28, 20, t),
+                  sigmaY: _lerp(28, 20, t),
                 ),
-                child: SizedBox(
-                  height: height,
-                  child: centerAction == null
-                      ? _TabRow(
-                          items: items,
-                          currentIndex: index,
-                          onTap: onTap,
-                          tokens: tokens,
-                          selectedColor: selectedColor,
-                          unselectedColor: muted,
-                          uppercaseLabels: uppercaseLabels,
-                        )
-                      : _TabRowWithCenterAction(
-                          items: items,
-                          currentIndex: index,
-                          onTap: onTap,
-                          centerAction: centerAction!,
-                          tokens: tokens,
-                          selectedColor: selectedColor,
-                          unselectedColor: muted,
-                          uppercaseLabels: uppercaseLabels,
-                        ),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: tokens.barFill,
+                    borderRadius: BorderRadius.circular(barHeight / 2),
+                    border: Border.all(color: tokens.outerStroke, width: 0.8),
+                  ),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    height: barHeight,
+                    child: centerAction == null
+                        ? _TabRow(
+                            items: items,
+                            currentIndex: index,
+                            onTap: onTap,
+                            tokens: tokens,
+                            selectedColor: selectedColor,
+                            unselectedColor: muted,
+                            uppercaseLabels: uppercaseLabels,
+                            showLabels: showTabLabels,
+                            collapseProgress: t,
+                          )
+                        : _TabRowWithCenterAction(
+                            items: items,
+                            currentIndex: index,
+                            onTap: onTap,
+                            centerAction: centerAction!,
+                            tokens: tokens,
+                            selectedColor: selectedColor,
+                            unselectedColor: muted,
+                            uppercaseLabels: uppercaseLabels,
+                            showLabels: showTabLabels,
+                            collapseProgress: t,
+                          ),
+                  ),
                 ),
               ),
             ),
@@ -94,6 +116,8 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
       ),
     );
   }
+
+  static double _lerp(double a, double b, double t) => a + (b - a) * t;
 }
 
 class _NexaGlassTabTokens {
@@ -152,6 +176,8 @@ class _TabRow extends StatelessWidget {
     required this.selectedColor,
     required this.unselectedColor,
     required this.uppercaseLabels,
+    required this.showLabels,
+    required this.collapseProgress,
   });
 
   final List<NexaBottomNavItem> items;
@@ -161,6 +187,8 @@ class _TabRow extends StatelessWidget {
   final Color selectedColor;
   final Color unselectedColor;
   final bool uppercaseLabels;
+  final bool showLabels;
+  final double collapseProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -196,6 +224,8 @@ class _TabRow extends StatelessWidget {
                       selectedColor: selectedColor,
                       unselectedColor: unselectedColor,
                       uppercaseLabels: uppercaseLabels,
+                      showLabel: showLabels,
+                      collapseProgress: collapseProgress,
                     ),
                   ),
               ],
@@ -217,6 +247,8 @@ class _TabRowWithCenterAction extends StatelessWidget {
     required this.selectedColor,
     required this.unselectedColor,
     required this.uppercaseLabels,
+    required this.showLabels,
+    required this.collapseProgress,
   });
 
   final List<NexaBottomNavItem> items;
@@ -227,6 +259,8 @@ class _TabRowWithCenterAction extends StatelessWidget {
   final Color selectedColor;
   final Color unselectedColor;
   final bool uppercaseLabels;
+  final bool showLabels;
+  final double collapseProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -236,6 +270,11 @@ class _TabRowWithCenterAction extends StatelessWidget {
       builder: (context, constraints) {
         final sideWidth = (constraints.maxWidth - 76) / 2;
         final pillLeft = currentIndex == 0 ? 4.0 : sideWidth + 76 + 4;
+        final centerHeight = NexaLiquidGlassTabBar._lerp(
+          52,
+          44,
+          collapseProgress,
+        );
 
         return Stack(
           children: [
@@ -264,6 +303,8 @@ class _TabRowWithCenterAction extends StatelessWidget {
                     selectedColor: selectedColor,
                     unselectedColor: unselectedColor,
                     uppercaseLabels: uppercaseLabels,
+                    showLabel: showLabels,
+                    collapseProgress: collapseProgress,
                   ),
                 ),
                 Padding(
@@ -277,24 +318,30 @@ class _TabRowWithCenterAction extends StatelessWidget {
                       onTap: centerAction.onPressed,
                       child: SizedBox(
                         width: 68,
-                        height: 52,
+                        height: centerHeight,
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
                               centerAction.icon,
                               color: AppColors.black,
-                              size: 22,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              centerAction.label,
-                              style: const TextStyle(
-                                color: AppColors.black,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 10,
+                              size: NexaLiquidGlassTabBar._lerp(
+                                22,
+                                20,
+                                collapseProgress,
                               ),
                             ),
+                            if (showLabels) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                centerAction.label,
+                                style: const TextStyle(
+                                  color: AppColors.black,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 8,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -309,6 +356,8 @@ class _TabRowWithCenterAction extends StatelessWidget {
                     selectedColor: selectedColor,
                     unselectedColor: unselectedColor,
                     uppercaseLabels: uppercaseLabels,
+                    showLabel: showLabels,
+                    collapseProgress: collapseProgress,
                   ),
                 ),
               ],
@@ -328,6 +377,8 @@ class _GlassTabItem extends StatelessWidget {
     required this.selectedColor,
     required this.unselectedColor,
     required this.uppercaseLabels,
+    required this.showLabel,
+    required this.collapseProgress,
   });
 
   final NexaBottomNavItem item;
@@ -336,11 +387,14 @@ class _GlassTabItem extends StatelessWidget {
   final Color selectedColor;
   final Color unselectedColor;
   final bool uppercaseLabels;
+  final bool showLabel;
+  final double collapseProgress;
 
   @override
   Widget build(BuildContext context) {
     final color = selected ? selectedColor : unselectedColor;
     final label = uppercaseLabels ? item.label.toUpperCase() : item.label;
+    final iconSize = NexaLiquidGlassTabBar._lerp(22, 24, collapseProgress);
 
     return Material(
       color: Colors.transparent,
@@ -352,21 +406,28 @@ class _GlassTabItem extends StatelessWidget {
           children: [
             Icon(
               selected ? (item.selectedIcon ?? item.icon) : item.icon,
-              size: 22,
+              size: iconSize,
               color: color,
             ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: uppercaseLabels ? 10 : 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: uppercaseLabels ? 0.3 : 0,
-                color: color,
+            if (showLabel) ...[
+              SizedBox(
+                height: NexaLiquidGlassTabBar._lerp(3, 0, collapseProgress),
               ),
-            ),
+              Opacity(
+                opacity: (1 - collapseProgress).clamp(0.0, 1.0),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: uppercaseLabels ? 11 : 8,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: uppercaseLabels ? 0.3 : 0,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -382,35 +443,52 @@ class NexaLiquidGlassNativeTabShell extends StatelessWidget {
     required this.horizontalMargin,
     required this.bottomMargin,
     required this.child,
+    this.collapseProgress = 0,
   });
 
   final double height;
   final double horizontalMargin;
   final double bottomMargin;
   final Widget child;
+  final double collapseProgress;
 
   @override
   Widget build(BuildContext context) {
     final tokens = _NexaGlassTabTokens.of(context, context.themeColors);
     const glassOverflow = 20.0;
+    final t = collapseProgress.clamp(0.0, 1.0);
+    final shellHeight = NexaLiquidGlassTabBar._lerp(
+      height + glassOverflow,
+      ShellTabBarCollapseController.collapsedHeight + glassOverflow * 0.6,
+      t,
+    );
+    final sideInset = NexaLiquidGlassTabBar._lerp(
+      horizontalMargin,
+      horizontalMargin + 10,
+      t,
+    );
+    final bottomInset = NexaLiquidGlassTabBar._lerp(
+      bottomMargin,
+      bottomMargin * 0.6,
+      t,
+    );
 
     return SafeArea(
       top: false,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          horizontalMargin,
-          0,
-          horizontalMargin,
-          bottomMargin,
-        ),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular((height + glassOverflow) / 2),
-            boxShadow: tokens.outerShadow,
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular((height + glassOverflow) / 2),
-            child: child,
+        padding: EdgeInsets.fromLTRB(sideInset, 0, sideInset, bottomInset),
+        child: Transform.scale(
+          scale: NexaLiquidGlassTabBar._lerp(1, 0.94, t),
+          alignment: Alignment.bottomCenter,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(shellHeight / 2),
+              boxShadow: tokens.outerShadow,
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(shellHeight / 2),
+              child: child,
+            ),
           ),
         ),
       ),

@@ -213,6 +213,7 @@ OrganizerCategoryPlayerInfo _playerFromProfile(
     city: profile.city ?? '',
     state: profile.state ?? '',
     phoneNumber: profile.phoneNumber ?? '',
+    profilePhotoUrl: profile.profilePhotoUrl ?? '',
   );
 }
 

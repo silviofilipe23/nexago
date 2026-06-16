@@ -9,6 +9,9 @@ import '../domain/tournament_create/tournament_create_session.dart';
 String tournamentCreateLocalStoreKey(String managerUid) =>
     'organizer_tournament_wizard_v1_$managerUid';
 
+String tournamentCreateDiscardedAtKey(String managerUid) =>
+    'organizer_tournament_wizard_discarded_at_v1_$managerUid';
+
 /// Persistência local do wizard (SharedPreferences).
 class TournamentCreateLocalStore {
   TournamentCreateLocalStore._(this._prefs);
@@ -28,6 +31,14 @@ class TournamentCreateLocalStore {
 
   bool get hasPersistence => _prefs != null;
 
+  Future<void> reload() async {
+    try {
+      await _prefs?.reload();
+    } on PlatformException {
+      // Canal indisponível.
+    }
+  }
+
   Future<TournamentCreateSession?> load(String managerUid) async {
     final uid = managerUid.trim();
     if (uid.isEmpty) return null;
@@ -36,6 +47,11 @@ class TournamentCreateLocalStore {
     if (prefs == null) return null;
 
     try {
+      if (prefs.getInt(tournamentCreateDiscardedAtKey(uid)) != null) {
+        await prefs.remove(tournamentCreateLocalStoreKey(uid));
+        return null;
+      }
+
       final raw = prefs.getString(tournamentCreateLocalStoreKey(uid));
       if (raw == null || raw.isEmpty) return null;
 
@@ -56,6 +72,14 @@ class TournamentCreateLocalStore {
     if (prefs == null) return;
 
     try {
+      final discardedAt =
+          prefs.getInt(tournamentCreateDiscardedAtKey(session.managerUid));
+      if (discardedAt != null &&
+          session.updatedAt.millisecondsSinceEpoch <= discardedAt) {
+        return;
+      }
+
+      await prefs.remove(tournamentCreateDiscardedAtKey(session.managerUid));
       await prefs.setString(
         tournamentCreateLocalStoreKey(session.managerUid),
         jsonEncode(session.toJson()),
@@ -72,10 +96,16 @@ class TournamentCreateLocalStore {
     final prefs = _prefs;
     if (prefs == null) return;
 
+    final discardedAt = DateTime.now().millisecondsSinceEpoch;
     try {
       await prefs.remove(tournamentCreateLocalStoreKey(uid));
+      await prefs.setInt(tournamentCreateDiscardedAtKey(uid), discardedAt);
     } on PlatformException {
-      // Canal indisponível.
+      try {
+        await prefs.remove(tournamentCreateLocalStoreKey(uid));
+      } on PlatformException {
+        // Canal indisponível.
+      }
     }
   }
 

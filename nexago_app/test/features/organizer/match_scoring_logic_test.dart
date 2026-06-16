@@ -42,5 +42,34 @@ void main() {
       );
       expect(result.sets.first.a, 4);
     });
+
+    test('formatElapsedMmSs pads minutes and seconds', () {
+      expect(MatchScoringLogic.formatElapsedMmSs(0), '00:00');
+      expect(MatchScoringLogic.formatElapsedMmSs(1450), '24:10');
+    });
+
+    test('setPointHint shows remaining points before set point', () {
+      expect(
+        MatchScoringLogic.setPointHint(18, 16, setIndex: 0),
+        'set point em 3',
+      );
+      expect(
+        MatchScoringLogic.setPointHint(20, 19, setIndex: 0),
+        'set point em 1',
+      );
+    });
+
+    test('teamLabelForSide prefers team description', () {
+      expect(
+        MatchScoringLogic.teamLabelForSide(
+          side: 'A',
+          teamADescription: 'Marcos / Victor',
+          teamBDescription: 'Igor / João',
+          teamAId: 'a',
+          teamBId: 'b',
+        ),
+        'Marcos / Victor',
+      );
+    });
   });
 }

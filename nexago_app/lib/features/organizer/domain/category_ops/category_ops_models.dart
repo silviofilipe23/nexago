@@ -34,6 +34,7 @@ class OrganizerCategoryPlayerInfo {
     this.state = '',
     this.rankingPoints = 0,
     this.phoneNumber = '',
+    this.profilePhotoUrl = '',
   });
 
   final String uid;
@@ -42,6 +43,7 @@ class OrganizerCategoryPlayerInfo {
   final String state;
   final int rankingPoints;
   final String phoneNumber;
+  final String profilePhotoUrl;
 
   String get initials {
     final parts = name.trim().split(RegExp(r'\s+'));

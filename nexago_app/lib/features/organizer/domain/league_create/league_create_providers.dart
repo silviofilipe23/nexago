@@ -60,6 +60,7 @@ class LeagueCreateWizardNotifier extends Notifier<LeagueCreateWizardState> {
 
   Timer? _persistTimer;
   LeagueCreateLocalStore? _localStore;
+  int _persistGeneration = 0;
 
   @override
   LeagueCreateWizardState build() {
@@ -68,8 +69,8 @@ class LeagueCreateWizardNotifier extends Notifier<LeagueCreateWizardState> {
   }
 
   Future<LeagueCreateLocalStore?> _ensureLocalStore() async {
-    if (_localStore != null) return _localStore;
-    _localStore = await ref.read(leagueCreateLocalStoreProvider.future);
+    if (_localStore != null && _localStore!.hasPersistence) return _localStore;
+    _localStore = await LeagueCreateLocalStore.create();
     return _localStore;
   }
 
@@ -80,12 +81,15 @@ class LeagueCreateWizardNotifier extends Notifier<LeagueCreateWizardState> {
 
   void _schedulePersist() {
     _persistTimer?.cancel();
+    final generation = _persistGeneration;
     _persistTimer = Timer(_persistDebounce, () {
-      unawaited(_persistSession());
+      unawaited(_persistSession(generation));
     });
   }
 
-  Future<void> _persistSession() async {
+  Future<void> _persistSession(int generation) async {
+    if (generation != _persistGeneration) return;
+
     if (!hasMeaningfulLocalLeagueDraft(state.draft)) {
       await _clearLocalOnly();
       return;
@@ -103,6 +107,7 @@ class LeagueCreateWizardNotifier extends Notifier<LeagueCreateWizardState> {
       updatedAt: DateTime.now(),
       managerUid: uid,
     );
+    if (generation != _persistGeneration) return;
     await store.save(session);
   }
 
@@ -125,10 +130,62 @@ class LeagueCreateWizardNotifier extends Notifier<LeagueCreateWizardState> {
     _schedulePersist();
   }
 
-  Future<void> clearSession() async {
+  Future<void> clearSession({
+    bool deleteRemoteDraft = true,
+    String? remoteDraftId,
+  }) async {
     _persistTimer?.cancel();
-    state = const LeagueCreateWizardState();
+    _persistGeneration++;
+    final leagueId = (remoteDraftId ?? state.draft.leagueId)?.trim();
+
     await _clearLocalOnly();
+    state = const LeagueCreateWizardState();
+
+    if (deleteRemoteDraft && leagueId != null && leagueId.isNotEmpty) {
+      await ref
+          .read(organizerLeaguesRepositoryProvider)
+          .deleteDraftLeague(leagueId);
+    }
+  }
+
+  /// Descarta sessão local imediatamente; limpa Firestore só se existir rascunho salvo.
+  Future<void> discardSession({String? remoteDraftId}) async {
+    final draft = state.draft;
+    final explicit = (remoteDraftId ?? draft.leagueId)?.trim();
+    final nameLower = draft.name.trim().toLowerCase();
+
+    _persistTimer?.cancel();
+    _persistGeneration++;
+    await _clearLocalOnly();
+    state = const LeagueCreateWizardState();
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+
+    try {
+      final repo = ref.read(organizerLeaguesRepositoryProvider);
+      final ids = <String>{};
+      if (explicit != null && explicit.isNotEmpty) ids.add(explicit);
+
+      final leagues = await repo.fetchManagedLeaguesFromServer(uid);
+      if (nameLower.isNotEmpty) {
+        for (final league in leagues) {
+          if (!isFirestoreLeagueDraftData(league)) continue;
+          final id = (league['id'] as String?)?.trim();
+          if (id == null || id.isEmpty) continue;
+          if (((league['name'] as String?) ?? '').trim().toLowerCase() ==
+              nameLower) {
+            ids.add(id);
+          }
+        }
+      }
+
+      for (final id in ids) {
+        await repo.deleteDraftLeague(id);
+      }
+    } catch (_) {
+      // Rascunho só no aparelho (sem doc em leagues): descarte local já feito.
+    }
   }
 
   Future<void> tryRestoreFromLocal() async {
@@ -138,6 +195,7 @@ class LeagueCreateWizardNotifier extends Notifier<LeagueCreateWizardState> {
     final store = await _ensureLocalStore();
     if (store == null) return;
 
+    await store.reload();
     final session = await store.load(uid);
     if (session == null) return;
 
@@ -173,6 +231,7 @@ class LeagueCreateWizardNotifier extends Notifier<LeagueCreateWizardState> {
       draft: loaded.draft,
       currentStep: loaded.step,
     );
+    _schedulePersist();
   }
 
   void setLeagueId(String? id) {

@@ -61,6 +61,23 @@ class OrganizerLeaguesRepository {
         );
   }
 
+  Future<List<Map<String, dynamic>>> fetchManagedLeaguesFromServer(
+    String managerId,
+  ) async {
+    final uid = managerId.trim();
+    if (uid.isEmpty) return const [];
+
+    final snap = await _leagues
+        .where('managerId', isEqualTo: uid)
+        .orderBy('updatedAt', descending: true)
+        .limit(20)
+        .get(const GetOptions(source: Source.server));
+
+    return snap.docs
+        .map((doc) => {'id': doc.id, ...doc.data()})
+        .toList(growable: false);
+  }
+
   Future<LeagueDraftLoadResult?> getLeagueDraft(String leagueId) async {
     final id = leagueId.trim();
     if (id.isEmpty) return null;
@@ -80,8 +97,7 @@ class OrganizerLeaguesRepository {
       throw StateError('Sem permissão para acessar este rascunho.');
     }
 
-    final listingStatus = (data['listingStatus'] as String?) ?? '';
-    if (listingStatus != 'draft') {
+    if (!_isDraftDocument(data)) {
       throw StateError('Esta liga não é um rascunho.');
     }
 
@@ -146,6 +162,51 @@ class OrganizerLeaguesRepository {
     );
 
     return (leagueId: docRef.id, published: false);
+  }
+
+  /// Remove liga apenas se for rascunho do gestor autenticado.
+  Future<void> deleteDraftLeague(String leagueId) async {
+    final id = leagueId.trim();
+    if (id.isEmpty) return;
+
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) {
+      throw StateError('Usuário não autenticado.');
+    }
+
+    final snap =
+        await _leagues.doc(id).get(const GetOptions(source: Source.server));
+    if (!snap.exists) return;
+
+    final data = snap.data();
+    if (data == null) return;
+
+    if ((data['managerId'] as String?) != uid) {
+      throw StateError('Sem permissão para excluir este rascunho.');
+    }
+
+    if (!_isDraftDocument(data)) {
+      throw StateError('Somente rascunhos podem ser descartados.');
+    }
+
+    await _leagues.doc(id).delete();
+    await _firestore.waitForPendingWrites();
+
+    final verify =
+        await _leagues.doc(id).get(const GetOptions(source: Source.server));
+    if (verify.exists) {
+      throw StateError(
+        'Não foi possível remover o rascunho. Verifique sua conexão e permissões.',
+      );
+    }
+  }
+
+  static bool _isDraftDocument(Map<String, dynamic> data) {
+    for (final field in ['listingStatus', 'status']) {
+      final raw = (data[field] as String?)?.trim().toLowerCase();
+      if (raw == 'draft' || raw == 'rascunho') return true;
+    }
+    return false;
   }
 
   Future<({String leagueId, bool published})> publishLeague({

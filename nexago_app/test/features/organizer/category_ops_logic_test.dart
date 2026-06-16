@@ -116,4 +116,13 @@ void main() {
       expect(withoutSeeds, isNot(equals(withSeeds)));
     });
   });
+
+  group('seedingCategoryEyebrow', () {
+    test('keeps Portuguese gender label without uppercasing', () {
+      expect(
+        seedingCategoryEyebrow(genderLabel: 'Masculino', levelLabel: 'Open'),
+        'Masculino · OPEN',
+      );
+    });
+  });
 }

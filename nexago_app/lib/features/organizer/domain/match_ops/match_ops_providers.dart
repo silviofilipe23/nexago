@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../tournaments/domain/tournament_match.dart';
+import '../../../tournaments/domain/tournament_match_card_view_model.dart';
 import '../../../tournaments/domain/tournament_discovery_providers.dart';
 import '../../data/organizer_match_ops_repository.dart';
 import '../../data/organizer_match_schedule_service.dart';
@@ -31,6 +32,20 @@ final organizerTournamentMatchesProvider = StreamProvider.autoDispose
   return ref
       .watch(tournamentMatchesRepositoryProvider)
       .watchByTournament(tournamentId.trim());
+});
+
+/// Partidas enriquecidas com fotos e nomes das duplas (por matchId).
+final organizerMatchCardsByIdProvider = StreamProvider.autoDispose
+    .family<Map<String, TournamentMatchCardViewModel>, String>(
+        (ref, tournamentId) {
+  final tid = tournamentId.trim();
+  if (tid.isEmpty) return Stream.value(const {});
+  final repo = ref.watch(tournamentMatchesRepositoryProvider);
+  final enrichment = ref.watch(tournamentMatchEnrichmentServiceProvider);
+  return repo.watchByTournament(tid).asyncMap((matches) async {
+    final cards = await enrichment.enrichMatches(matches);
+    return {for (final card in cards) card.match.id: card};
+  });
 });
 
 final organizerMatchOpsConfigProvider = StreamProvider.autoDispose

@@ -1,7 +1,10 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/organizer/domain/category_ops/category_ops_models.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/match_ops_logic.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/match_ops_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match_card_view_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
 
 TournamentMatch _match({
@@ -97,6 +100,33 @@ void main() {
         ],
       );
       expect(summaries.first.currentMatch?.id, 'live');
+    });
+
+    test('teamPlayersFromCardTeam maps avatar urls to player info', () {
+      final players = MatchOpsLogic.teamPlayersFromCardTeam(
+        teamId: 'team-1',
+        team: TournamentMatchCardTeamViewModel(
+          displayName: 'Marcos / Victor',
+          players: const [
+            TournamentMatchCardPlayerViewModel(
+              initials: 'MA',
+              avatarColor: Color(0xFF000000),
+              avatarUrl: 'https://cdn.example/ma.jpg',
+            ),
+            TournamentMatchCardPlayerViewModel(
+              initials: 'VI',
+              avatarColor: Color(0xFF000000),
+              avatarUrl: 'https://cdn.example/vi.jpg',
+            ),
+          ],
+        ),
+      );
+
+      expect(players.$1, isA<OrganizerCategoryPlayerInfo>());
+      expect(players.$1.name, 'Marcos');
+      expect(players.$1.profilePhotoUrl, 'https://cdn.example/ma.jpg');
+      expect(players.$2.name, 'Victor');
+      expect(players.$2.profilePhotoUrl, 'https://cdn.example/vi.jpg');
     });
   });
 }

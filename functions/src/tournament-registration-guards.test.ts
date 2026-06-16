@@ -144,4 +144,24 @@ describe("tournament-registration-guards", () => {
     );
     assert.equal(data.listingStatus, "open");
   });
+
+  it("matches category by id field", async () => {
+    const db = mockDb({
+      listingStatus: "open",
+      categories: [
+        {
+          id: "uuid-cat-1",
+          categoryName: "Sub 19 Masculino",
+          spotsLeft: 4,
+        },
+      ],
+    });
+    const data = await assertTournamentAcceptsRegistration(
+      db as never,
+      "proj",
+      "t1",
+      "uuid-cat-1",
+    );
+    assert.equal(data.listingStatus, "open");
+  });
 });

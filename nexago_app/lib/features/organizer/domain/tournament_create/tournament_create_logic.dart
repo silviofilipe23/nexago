@@ -331,6 +331,14 @@ bool isValidForPublish(TournamentCreateDraft draft) {
 bool hasMeaningfulLocalDraft(TournamentCreateDraft draft) =>
     draft.name.trim().isNotEmpty;
 
+bool isFirestoreDraftData(Map<String, dynamic> data) {
+  for (final field in ['listingStatus', 'status']) {
+    final raw = (data[field] as String?)?.trim().toLowerCase();
+    if (raw == 'draft' || raw == 'rascunho') return true;
+  }
+  return false;
+}
+
 TournamentCreateStep inferResumeStep(TournamentCreateDraft draft) {
   for (final step in TournamentCreateStep.values) {
     if (step == TournamentCreateStep.review) continue;

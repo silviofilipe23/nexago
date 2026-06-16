@@ -49,7 +49,9 @@ class _TournamentCreateReviewPageState
             publish: publish,
             wizardStep: step,
           );
-      await ref.read(tournamentCreateWizardProvider.notifier).clearSession();
+      await ref.read(tournamentCreateWizardProvider.notifier).clearSession(
+            deleteRemoteDraft: false,
+          );
       if (!mounted) return;
       context.pushReplacementNamed(
         AppRouteNames.organizerTournamentPublished,

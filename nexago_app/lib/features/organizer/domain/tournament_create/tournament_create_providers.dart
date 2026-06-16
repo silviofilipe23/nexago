@@ -59,6 +59,7 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
 
   Timer? _persistTimer;
   TournamentCreateLocalStore? _localStore;
+  int _persistGeneration = 0;
 
   @override
   TournamentCreateWizardState build() {
@@ -67,8 +68,8 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
   }
 
   Future<TournamentCreateLocalStore?> _ensureLocalStore() async {
-    if (_localStore != null) return _localStore;
-    _localStore = await ref.read(tournamentCreateLocalStoreProvider.future);
+    if (_localStore != null && _localStore!.hasPersistence) return _localStore;
+    _localStore = await TournamentCreateLocalStore.create();
     return _localStore;
   }
 
@@ -79,12 +80,15 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
 
   void _schedulePersist() {
     _persistTimer?.cancel();
+    final generation = _persistGeneration;
     _persistTimer = Timer(_persistDebounce, () {
-      unawaited(_persistSession());
+      unawaited(_persistSession(generation));
     });
   }
 
-  Future<void> _persistSession() async {
+  Future<void> _persistSession(int generation) async {
+    if (generation != _persistGeneration) return;
+
     if (!hasMeaningfulLocalDraft(state.draft)) {
       await _clearLocalOnly();
       return;
@@ -102,6 +106,7 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
       updatedAt: DateTime.now(),
       managerUid: uid,
     );
+    if (generation != _persistGeneration) return;
     await store.save(session);
   }
 
@@ -124,10 +129,65 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
     _schedulePersist();
   }
 
-  Future<void> clearSession() async {
+  Future<void> clearSession({
+    bool deleteRemoteDraft = true,
+    String? remoteDraftId,
+  }) async {
     _persistTimer?.cancel();
-    state = const TournamentCreateWizardState();
+    _persistGeneration++;
+    final tournamentId =
+        (remoteDraftId ?? state.draft.tournamentId)?.trim();
+
     await _clearLocalOnly();
+    state = const TournamentCreateWizardState();
+
+    if (deleteRemoteDraft &&
+        tournamentId != null &&
+        tournamentId.isNotEmpty) {
+      await ref
+          .read(organizerTournamentsRepositoryProvider)
+          .deleteDraftTournament(tournamentId);
+    }
+  }
+
+  /// Descarta sessão local imediatamente; limpa Firestore só se existir rascunho salvo.
+  Future<void> discardSession({String? remoteDraftId}) async {
+    final draft = state.draft;
+    final explicit = (remoteDraftId ?? draft.tournamentId)?.trim();
+    final nameLower = draft.name.trim().toLowerCase();
+
+    _persistTimer?.cancel();
+    _persistGeneration++;
+    await _clearLocalOnly();
+    state = const TournamentCreateWizardState();
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || uid.isEmpty) return;
+
+    try {
+      final repo = ref.read(organizerTournamentsRepositoryProvider);
+      final ids = <String>{};
+      if (explicit != null && explicit.isNotEmpty) ids.add(explicit);
+
+      final tournaments = await repo.fetchManagedTournamentsFromServer(uid);
+      if (nameLower.isNotEmpty) {
+        for (final tournament in tournaments) {
+          if (!isFirestoreDraftData(tournament)) continue;
+          final id = (tournament['id'] as String?)?.trim();
+          if (id == null || id.isEmpty) continue;
+          if (((tournament['name'] as String?) ?? '').trim().toLowerCase() ==
+              nameLower) {
+            ids.add(id);
+          }
+        }
+      }
+
+      for (final id in ids) {
+        await repo.deleteDraftTournament(id);
+      }
+    } catch (_) {
+      // Rascunho só no aparelho (sem doc em tournaments): descarte local já feito.
+    }
   }
 
   Future<void> tryRestoreFromLocal() async {
@@ -137,6 +197,7 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
     final store = await _ensureLocalStore();
     if (store == null) return;
 
+    await store.reload();
     final session = await store.load(uid);
     if (session == null) return;
 
@@ -172,6 +233,7 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
       draft: loaded.draft,
       currentStep: loaded.step,
     );
+    _schedulePersist();
   }
 
   void setTournamentId(String? id) {

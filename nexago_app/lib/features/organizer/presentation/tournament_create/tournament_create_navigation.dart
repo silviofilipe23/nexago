@@ -110,7 +110,7 @@ Future<void> handleWizardClose(BuildContext context, WidgetRef ref) async {
     case WizardCloseAction.exit:
       context.goNamed(AppRouteNames.organizerHome);
     case WizardCloseAction.discard:
-      await ref.read(tournamentCreateWizardProvider.notifier).clearSession();
+      await ref.read(tournamentCreateWizardProvider.notifier).discardSession();
       if (context.mounted) {
         context.goNamed(AppRouteNames.organizerHome);
       }

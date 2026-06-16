@@ -1,5 +1,34 @@
 import 'app_user_profile.dart';
+import 'tournament_detail_logic.dart';
+import 'tournament_discovery_models.dart';
 import 'tournament_registration_logic.dart';
+
+/// Valor de gênero usado no filtro de parceiros (`genderType` ou nome da categoria).
+String categoryGenderForPartnerFilter(TournamentCategoryOffer offer) {
+  final type = offer.genderType.trim();
+  if (type.isNotEmpty) return type;
+  return offer.name;
+}
+
+List<AppUserProfile> filterPartnersByCategoryGender(
+  List<AppUserProfile> users,
+  String? categoryGenderType,
+) {
+  final categoryTag = genderTagFromText(categoryGenderType ?? '');
+  if (categoryTag == null || categoryTag == 'MISTO') return users;
+  return users
+      .where((u) => matchesCategoryGender(u.gender, categoryGenderType))
+      .toList();
+}
+
+bool matchesCategoryGender(String? profileGender, String? categoryGenderType) {
+  final categoryTag = genderTagFromText(categoryGenderType ?? '');
+  if (categoryTag == null || categoryTag == 'MISTO') return true;
+
+  final profileTag = genderTagFromText(profileGender ?? '');
+  if (profileTag == null) return false;
+  return profileTag == categoryTag;
+}
 
 /// Prefixos para busca case-insensitive de `nickname` no Firestore.
 List<String> nicknameSearchPrefixes(String raw) {
@@ -11,26 +40,6 @@ List<String> nicknameSearchPrefixes(String raw) {
   final lower = v.toLowerCase();
   final title = '${v[0].toUpperCase()}${v.substring(1).toLowerCase()}';
   return {v, lower, v.toUpperCase(), title}.toList();
-}
-
-List<AppUserProfile> filterPartnersByCategoryGender(
-  List<AppUserProfile> users,
-  String? categoryGenderType,
-) {
-  final type = categoryGenderType?.trim().toLowerCase() ?? '';
-  if (type != 'masculino' && type != 'feminino') {
-    return users;
-  }
-  return users.where((u) => matchesCategoryGender(u.gender, categoryGenderType)).toList();
-}
-
-bool matchesCategoryGender(String? profileGender, String? categoryGenderType) {
-  final type = categoryGenderType?.trim().toLowerCase() ?? '';
-  if (type != 'masculino' && type != 'feminino') return true;
-  final gender = profileGender?.trim().toLowerCase() ?? '';
-  if (gender.isEmpty) return false;
-  if (type == 'masculino') return gender.startsWith('masc');
-  return gender.startsWith('fem');
 }
 
 TournamentRegistrationPartnerCandidate partnerCandidateFromProfile(

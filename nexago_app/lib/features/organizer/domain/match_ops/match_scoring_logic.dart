@@ -147,4 +147,76 @@ abstract final class MatchScoringLogic {
     }
     return true;
   }
+
+  static const int defaultBestOf = 3;
+
+  static String formatElapsedMmSs(int totalSec) {
+    final safe = totalSec.clamp(0, 99999);
+    final minutes = safe ~/ 60;
+    final seconds = safe % 60;
+    return '${minutes.toString().padLeft(2, '0')}:'
+        '${seconds.toString().padLeft(2, '0')}';
+  }
+
+  static int elapsedSecondsFromStart(DateTime? startedAt, DateTime now) {
+    if (startedAt == null) return 0;
+    return now.difference(startedAt).inSeconds.clamp(0, 99999);
+  }
+
+  static String setRulesLabel(int setIndex, {int bestOf = defaultBestOf}) {
+    final target = targetPointsForSet(setIndex, bestOf);
+    return 'set até $target · vantagem de $minAdvantage';
+  }
+
+  static bool isTeamAtSetPoint(
+    int scoreA,
+    int scoreB, {
+    required int setIndex,
+    int bestOf = defaultBestOf,
+  }) {
+    final target = targetPointsForSet(setIndex, bestOf);
+    return isSetWon(scoreA + 1, scoreB, target: target) ||
+        isSetWon(scoreB + 1, scoreA, target: target);
+  }
+
+  static String? setPointHint(
+    int scoreA,
+    int scoreB, {
+    required int setIndex,
+    int bestOf = defaultBestOf,
+  }) {
+    final target = targetPointsForSet(setIndex, bestOf);
+    if (isSetWon(scoreA, scoreB, target: target)) return null;
+    if (isTeamAtSetPoint(scoreA, scoreB, setIndex: setIndex, bestOf: bestOf)) {
+      return 'set point em 1';
+    }
+    final leader = scoreA > scoreB ? scoreA : scoreB;
+    if (leader < target - 5) return null;
+    final remaining = target - leader;
+    if (remaining > 1 && remaining <= 5) {
+      return 'set point em $remaining';
+    }
+    return null;
+  }
+
+  static String formatPointEventTime(DateTime ts) {
+    final h = ts.hour.toString().padLeft(2, '0');
+    final m = ts.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
+  static String teamLabelForSide({
+    required String side,
+    required String? teamADescription,
+    required String? teamBDescription,
+    required String teamAId,
+    required String teamBId,
+  }) {
+    final isA = side.trim().toUpperCase() == 'A';
+    final desc = isA ? teamADescription : teamBDescription;
+    final trimmed = desc?.trim();
+    if (trimmed != null && trimmed.isNotEmpty) return trimmed;
+    final id = isA ? teamAId : teamBId;
+    return id.trim().isNotEmpty ? id.trim() : 'Dupla';
+  }
 }

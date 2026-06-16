@@ -87,6 +87,14 @@ String formatLeagueShortSeasonRange(DateTime? start, DateTime? end) {
 bool hasMeaningfulLocalLeagueDraft(LeagueCreateDraft draft) =>
     draft.name.trim().isNotEmpty;
 
+bool isFirestoreLeagueDraftData(Map<String, dynamic> data) {
+  for (final field in ['listingStatus', 'status']) {
+    final raw = (data[field] as String?)?.trim().toLowerCase();
+    if (raw == 'draft' || raw == 'rascunho') return true;
+  }
+  return false;
+}
+
 LeagueCreateStep inferLeagueResumeStep(LeagueCreateDraft draft) {
   for (final step in LeagueCreateStep.values) {
     if (step == LeagueCreateStep.review) continue;

@@ -114,6 +114,23 @@ void main() {
     });
   });
 
+  group('buildCategorySummary', () {
+    test('maps genderType to Portuguese label', () {
+      final summary = buildCategorySummary(
+        categoryMap: const {
+          'id': 'masc',
+          'categoryName': 'Open',
+          'genderType': 'male',
+          'maxTeams': 8,
+        },
+        paidCount: 0,
+        pendingCount: 0,
+        collectedCents: 0,
+      );
+      expect(summary.genderLabel, 'Masculino');
+    });
+  });
+
   group('canGenerateCategoryBracket', () {
     test('requires at least two confirmed teams', () {
       expect(canGenerateCategoryBracket(confirmedCount: 0), isFalse);

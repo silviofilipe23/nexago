@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 import '../../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../sheets/organizer_team_actions_sheet.dart';
@@ -31,10 +30,7 @@ class OrganizerCategoryTeamsTab extends ConsumerWidget {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
       itemCount: teams.length,
-      separatorBuilder: (_, __) => Divider(
-        height: 1,
-        color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
-      ),
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final team = teams[index];
         return OrganizerTeamListTile(
@@ -45,6 +41,7 @@ class OrganizerCategoryTeamsTab extends ConsumerWidget {
             tournamentId: tournamentId,
             categoryId: categoryId,
             team: team,
+            rank: index + 1,
           ),
         );
       },

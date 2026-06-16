@@ -9,6 +9,9 @@ import '../domain/league_create/league_create_session.dart';
 String leagueCreateLocalStoreKey(String managerUid) =>
     'organizer_league_wizard_v1_$managerUid';
 
+String leagueCreateDiscardedAtKey(String managerUid) =>
+    'organizer_league_wizard_discarded_at_v1_$managerUid';
+
 /// Persistência local do wizard de liga (SharedPreferences).
 class LeagueCreateLocalStore {
   LeagueCreateLocalStore._(this._prefs);
@@ -28,6 +31,14 @@ class LeagueCreateLocalStore {
 
   bool get hasPersistence => _prefs != null;
 
+  Future<void> reload() async {
+    try {
+      await _prefs?.reload();
+    } on PlatformException {
+      // Canal indisponível.
+    }
+  }
+
   Future<LeagueCreateSession?> load(String managerUid) async {
     final uid = managerUid.trim();
     if (uid.isEmpty) return null;
@@ -36,6 +47,11 @@ class LeagueCreateLocalStore {
     if (prefs == null) return null;
 
     try {
+      if (prefs.getInt(leagueCreateDiscardedAtKey(uid)) != null) {
+        await prefs.remove(leagueCreateLocalStoreKey(uid));
+        return null;
+      }
+
       final raw = prefs.getString(leagueCreateLocalStoreKey(uid));
       if (raw == null || raw.isEmpty) return null;
 
@@ -56,6 +72,14 @@ class LeagueCreateLocalStore {
     if (prefs == null) return;
 
     try {
+      final discardedAt =
+          prefs.getInt(leagueCreateDiscardedAtKey(session.managerUid));
+      if (discardedAt != null &&
+          session.updatedAt.millisecondsSinceEpoch <= discardedAt) {
+        return;
+      }
+
+      await prefs.remove(leagueCreateDiscardedAtKey(session.managerUid));
       await prefs.setString(
         leagueCreateLocalStoreKey(session.managerUid),
         jsonEncode(session.toJson()),
@@ -72,10 +96,16 @@ class LeagueCreateLocalStore {
     final prefs = _prefs;
     if (prefs == null) return;
 
+    final discardedAt = DateTime.now().millisecondsSinceEpoch;
     try {
       await prefs.remove(leagueCreateLocalStoreKey(uid));
+      await prefs.setInt(leagueCreateDiscardedAtKey(uid), discardedAt);
     } on PlatformException {
-      // Canal indisponível.
+      try {
+        await prefs.remove(leagueCreateLocalStoreKey(uid));
+      } on PlatformException {
+        // Canal indisponível.
+      }
     }
   }
 

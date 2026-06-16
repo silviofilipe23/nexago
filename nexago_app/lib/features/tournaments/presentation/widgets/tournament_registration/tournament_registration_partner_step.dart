@@ -82,11 +82,11 @@ class _TournamentRegistrationPartnerStepState
       final recentRepo = ref.read(recentPartnersRepositoryProvider);
       final partnersFuture = service.listPartners(
         currentUserId: uid,
-        categoryGenderType: widget.category.genderType,
+        categoryGenderType: categoryGenderForPartnerFilter(widget.category),
       );
       final recentFuture = recentRepo.loadRecentPartners(
         currentUserId: uid,
-        categoryGenderType: widget.category.genderType,
+        categoryGenderType: categoryGenderForPartnerFilter(widget.category),
       );
       final partners = await partnersFuture;
       final recent = await recentFuture;
@@ -119,7 +119,7 @@ class _TournamentRegistrationPartnerStepState
       final service = ref.read(partnerSearchServiceProvider);
       final results = await service.searchPartners(
         currentUserId: uid,
-        categoryGenderType: widget.category.genderType,
+        categoryGenderType: categoryGenderForPartnerFilter(widget.category),
         query: query,
       );
       if (!mounted) return;

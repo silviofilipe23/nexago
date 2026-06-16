@@ -33,7 +33,7 @@ class _OrganizerCreateChooserPageState
       final startFresh = await confirmStartFreshWizard(context);
       if (!mounted || startFresh == null) return;
       if (startFresh) {
-        await ref.read(tournamentCreateWizardProvider.notifier).clearSession();
+        await ref.read(tournamentCreateWizardProvider.notifier).discardSession();
       } else {
         final step = ref.read(tournamentCreateCurrentStepProvider);
         context.pushNamed(routeNameForCreateStep(step));
@@ -50,7 +50,7 @@ class _OrganizerCreateChooserPageState
       final startFresh = await confirmStartFreshLeagueWizard(context);
       if (!mounted || startFresh == null) return;
       if (startFresh) {
-        await ref.read(leagueCreateWizardProvider.notifier).clearSession();
+        await ref.read(leagueCreateWizardProvider.notifier).discardSession();
       } else {
         final step = ref.read(leagueCreateCurrentStepProvider);
         context.pushNamed(routeNameForLeagueCreateStep(step));

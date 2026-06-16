@@ -1,0 +1,42 @@
+---
+description: Sempre usar foto do atleta (AthleteProfileAvatar) em avatares — nunca só iniciais com CircleAvatar cru
+globs: nexago_app/**/*.dart
+alwaysApply: false
+---
+
+# Avatar do atleta
+
+Sempre que exibir avatar de atleta ou dupla no Flutter, **usar foto quando existir** (`profilePhotoUrl` / `avatarUrl`), com fallback para iniciais.
+
+## Componente canônico
+
+`AthleteProfileAvatar` em `lib/features/athlete/presentation/widgets/athlete_profile_avatar.dart`.
+
+```dart
+// ✅ GOOD
+AthleteProfileAvatar(
+  size: 44,
+  initials: profile.initials,
+  imageUrl: profile.profilePhotoUrl,
+)
+
+// ❌ BAD — só iniciais, ignora foto
+CircleAvatar(
+  child: Text(profile.initials),
+)
+```
+
+## Duplas sobrepostas
+
+Reutilizar o padrão de `TeamDiscoverDualAvatars` — dois `AthleteProfileAvatar` em `Stack`, cada um com `imageUrl` do respectivo jogador.
+
+## Dados
+
+- Mapear `profilePhotoUrl` (ou legado `avatarUrl`) no model/repository.
+- Em listas e sheets do organizador, propagar URL do perfil até o widget (não parar nas iniciais).
+
+## Checklist antes de merge
+
+1. Widget usa `AthleteProfileAvatar` (ou wrapper que o delega)?
+2. `imageUrl` vem do Firestore/perfil quando disponível?
+3. Iniciais só como fallback quando URL vazia ou erro de carga?

@@ -145,6 +145,19 @@ class TournamentMatchesRepository {
     });
   }
 
+  Future<void> updateMatchFields({
+    required String matchId,
+    required Map<String, dynamic> fields,
+  }) async {
+    final id = matchId.trim();
+    if (id.isEmpty || fields.isEmpty) return;
+
+    await _matches.doc(id).update({
+      ...fields,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   Stream<List<Map<String, dynamic>>> watchAuditLog(String matchId) {
     final id = matchId.trim();
     if (id.isEmpty) return Stream.value(const []);

@@ -3,6 +3,7 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
 
 void main() {
   final sample = TournamentDetail(
@@ -260,8 +261,25 @@ void main() {
       spotsLeft: 5,
       spotsTotal: 10,
     );
+    const maleCanonical = TournamentCategoryOffer(
+      id: 'male',
+      name: 'Sub 19',
+      entryFee: 90,
+      genderType: 'male',
+      spotsLeft: 5,
+      spotsTotal: 10,
+    );
     expect(tournamentCategoryGenderTag(masc), 'MASCULINO');
     expect(tournamentCategoryGenderTag(misto), 'MISTO');
+    expect(tournamentCategoryGenderTag(maleCanonical), 'MASCULINO');
+    expect(categoryGenderDisplayLabel(maleCanonical), 'Masculino');
+  });
+
+  test('categoryGenderDisplayLabelFromRaw maps Firestore codes', () {
+    expect(categoryGenderDisplayLabelFromRaw('male'), 'Masculino');
+    expect(categoryGenderDisplayLabelFromRaw('female'), 'Feminino');
+    expect(categoryGenderDisplayLabelFromRaw('mixed'), 'Misto');
+    expect(categoryGenderDisplayLabelFromRaw(''), '');
   });
 
   test('tournamentCategoryVacancyUi closed full bar is red', () {

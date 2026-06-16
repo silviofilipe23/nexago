@@ -32,10 +32,12 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final badge = categoryBadgeLabel(offer);
+    final genderLabel = categoryGenderDisplayLabel(offer);
     final subtitle = categoryRegistrationSubtitle(
       offer,
       format: format,
       inscriptionCount: inscriptionCount,
+      includeGender: genderLabel.isEmpty,
     );
     final selectable = !alreadyRegistered &&
         isCategorySelectable(
@@ -99,6 +101,10 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
                             : context.themeColors.onSurfaceMuted,
                       ),
                     ),
+                    if (genderLabel.isNotEmpty) ...[
+                      SizedBox(height: 6),
+                      _CategoryGenderChip(label: genderLabel),
+                    ],
                     SizedBox(height: 4),
                     Text(
                       subtitle,
@@ -176,6 +182,35 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
       return 'INSCRIÇÕES ENCERRADAS';
     }
     return 'CATEGORIA LOTADA';
+  }
+}
+
+class _CategoryGenderChip extends StatelessWidget {
+  const _CategoryGenderChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.brand.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: AppColors.brand.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.mono(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: AppColors.brand,
+          letterSpacing: 0.4,
+        ),
+      ),
+    );
   }
 }
 

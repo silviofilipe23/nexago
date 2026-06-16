@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:intl/intl.dart';
+
 import '../../../tournaments/domain/tournament_detail_logic.dart';
 import '../tournament_create/tournament_create_logic.dart';
 import 'category_ops_models.dart';
@@ -329,3 +331,70 @@ int countTeamsByStatus(
   OrganizerTeamRegistrationStatus status,
 ) =>
     teams.where((t) => t.status == status).length;
+
+final _teamActionsDateFmt = DateFormat('dd MMM', 'pt_BR');
+
+String formatTeamRegistrationDate(DateTime date) {
+  final raw = _teamActionsDateFmt.format(date);
+  if (raw.isEmpty) return raw;
+  return '${raw[0].toUpperCase()}${raw.substring(1)}';
+}
+
+String teamSeedActionSubtitle(int? seedRank) {
+  if (seedRank == null) return 'Definir ordem no chaveamento';
+  return 'Atual: ${seedRank}º cabeça da categoria';
+}
+
+String teamPaymentActionSubtitle(OrganizerCategoryTeamRow team) {
+  final method = team.paymentMethod.trim();
+  final paymentLabel = method.isNotEmpty ? method : 'Pix';
+  final cents = team.paidAmountCents > 0
+      ? team.paidAmountCents
+      : team.expectedAmountCents;
+  final amount = formatCategoryMoneyCents(cents);
+  final registered = team.registeredAt;
+  if (registered == null) return '$paymentLabel · $amount';
+  return '$paymentLabel · $amount · ${formatTeamRegistrationDate(registered)}';
+}
+
+int teamCombinedRankingPoints(OrganizerCategoryTeamRow team) =>
+    team.player1.rankingPoints + team.player2.rankingPoints;
+
+String teamReceivedPaymentSubtitle(OrganizerCategoryTeamRow team) {
+  final method = team.paymentMethod.trim();
+  final paymentLabel = method.isNotEmpty ? method : 'Pix';
+  final registered = team.registeredAt;
+  if (registered == null) return paymentLabel;
+  return '$paymentLabel · ${formatTeamRegistrationDate(registered)}';
+}
+
+String teamPendingPaymentSubtitle(OrganizerCategoryTeamRow team) {
+  final registered = team.registeredAt;
+  if (registered == null) return 'Aguardando pagamento';
+  final due = registered.add(const Duration(days: 14));
+  return 'Vence em ${formatTeamRegistrationDate(due)}';
+}
+
+int teamDisplayAmountCents(OrganizerCategoryTeamRow team) =>
+    team.paidAmountCents > 0 ? team.paidAmountCents : team.expectedAmountCents;
+
+String teamRankingPointsLabel(OrganizerCategoryTeamRow team) {
+  final pts = teamCombinedRankingPoints(team);
+  return '$pts pts no ranking';
+}
+
+String seedingCategoryEyebrow({
+  String genderLabel = '',
+  String levelLabel = 'Open',
+}) {
+  final gender = genderLabel.trim();
+  final level = levelLabel.trim().toUpperCase();
+  if (gender.isEmpty) return level;
+  return '$gender · $level';
+}
+
+int seedingPrimaryHeadCount(CategoryOpsState? ops) {
+  final groups = ops?.groupsPreview.length ?? 0;
+  if (groups > 0) return groups.clamp(1, 8);
+  return 4;
+}

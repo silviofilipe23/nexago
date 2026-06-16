@@ -10,7 +10,6 @@ import 'package:share_plus/share_plus.dart';
 import '../../domain/category_ops/category_ops_providers.dart';
 import '../../domain/tournament_create/tournament_create_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_logic.dart';
-import '../../domain/tournament_ops/tournament_ops_models.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import 'organizer_tournament_navigation.dart';
 import 'sheets/organizer_tournament_actions_sheet.dart';
@@ -35,12 +34,12 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
     OrganizerTournamentCategorySummary category, {
     required int confirmedCount,
   }) async {
-    final canGenerate = canGenerateCategoryBracket(
-          confirmedCount: confirmedCount,
-        ) ||
+    final canGenerate =
+        canGenerateCategoryBracket(confirmedCount: confirmedCount) ||
         category.bracketStatus == OrganizerCategoryBracketStatus.published;
-    final unsupportedHint =
-        unsupportedBracketFormatHint(category.bracketFormat);
+    final unsupportedHint = unsupportedBracketFormatHint(
+      category.bracketFormat,
+    );
     if (unsupportedHint != null && unsupportedHint.isNotEmpty) {
       showAppSnackBar(context, unsupportedHint, isError: true);
       return;
@@ -112,7 +111,9 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
     final teamsAsync = ref.watch(organizerCategoryRegistrationsProvider(key));
     final selectedTab = ref.watch(organizerCategoryShellTabProvider);
     final filterState = ref.watch(organizerCategoryFilterProvider);
-    final filteredTeams = ref.watch(organizerCategoryFilteredTeamsProvider(key));
+    final filteredTeams = ref.watch(
+      organizerCategoryFilteredTeamsProvider(key),
+    );
 
     final category = detail.valueOrNull?.categories
         .where((c) => c.categoryId == categoryId)
@@ -128,14 +129,15 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
       teams,
       OrganizerTeamRegistrationStatus.confirmed,
     );
-    final pendingCount = category?.pendingCount ??
+    final pendingCount =
+        category?.pendingCount ??
         countTeamsByStatus(teams, OrganizerTeamRegistrationStatus.pending);
     final canGenerateBracket = category == null
         ? false
         : isBracketFormatSupportedRaw(category.bracketFormat) &&
-            (canGenerateCategoryBracket(confirmedCount: confirmedCount) ||
-                category.bracketStatus ==
-                    OrganizerCategoryBracketStatus.published);
+              (canGenerateCategoryBracket(confirmedCount: confirmedCount) ||
+                  category.bracketStatus ==
+                      OrganizerCategoryBracketStatus.published);
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -151,12 +153,12 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
                 onMore: detail.valueOrNull?.tournament == null
                     ? null
                     : () => showOrganizerTournamentActionsSheet(
-                          context,
-                          tournamentId: tournamentId,
-                          tournament: detail.value!.tournament!,
-                          summary: summary,
-                          categories: detail.value!.categories,
-                        ),
+                        context,
+                        tournamentId: tournamentId,
+                        tournament: detail.value!.tournament!,
+                        summary: summary,
+                        categories: detail.value!.categories,
+                      ),
               ),
             if (category != null) ...[
               OrganizerCategoryKpiRow(
@@ -166,79 +168,31 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
                 collectedCents: category.collectedCents,
               ),
               const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: canGenerateBracket
-                            ? () => _onGenerateBracket(
-                                  context,
-                                  category,
-                                  confirmedCount: confirmedCount,
-                                )
-                            : null,
-                        icon: const Icon(Icons.account_tree_outlined, size: 18),
-                        label: const Text('Gerar chave'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.brand,
-                          side: BorderSide(
-                            color: AppColors.brand.withValues(alpha: 0.55),
-                          ),
-                          minimumSize: const Size.fromHeight(44),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () => pushOrganizerCategorySeeding(
-                          GoRouter.of(context),
-                          tournamentId: tournamentId,
-                          categoryId: categoryId,
-                        ),
-                        icon: const Icon(Icons.emoji_events_outlined, size: 18),
-                        label: const Text('Cabeças de chave'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: context.themeColors.surfaceCard,
-                          foregroundColor: context.themeColors.onSurface,
-                          minimumSize: const Size.fromHeight(44),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: OutlinedButton(
-                        onPressed: () => Share.shareUri(
-                          Uri.parse(
-                            organizerTournamentRegistrationShareLink(
-                              tournamentId,
-                            ),
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: context.themeColors.onSurface,
-                          side: BorderSide(
-                            color: context.themeColors.onSurfaceMuted
-                                .withValues(alpha: 0.25),
-                          ),
-                          padding: EdgeInsets.zero,
-                        ),
-                        child: const Icon(Icons.share_rounded, size: 18),
-                      ),
-                    ),
-                  ],
+              _CategoryQuickActions(
+                canGenerateBracket: canGenerateBracket,
+                onGenerateBracket: () => _onGenerateBracket(
+                  context,
+                  category,
+                  confirmedCount: confirmedCount,
+                ),
+                onSeeding: () => pushOrganizerCategorySeeding(
+                  GoRouter.of(context),
+                  tournamentId: tournamentId,
+                  categoryId: categoryId,
+                ),
+                onShare: () => Share.shareUri(
+                  Uri.parse(
+                    organizerTournamentRegistrationShareLink(tournamentId),
+                  ),
                 ),
               ),
             ],
             const SizedBox(height: 12),
             OrganizerCategoryShellTabs(
               selected: selectedTab,
-              onSelected:
-                  ref.read(organizerCategoryShellTabProvider.notifier).select,
+              onSelected: ref
+                  .read(organizerCategoryShellTabProvider.notifier)
+                  .select,
               teamCount: teamCount,
               pendingPaymentsCount: pendingCount,
             ),
@@ -328,30 +282,94 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
           ],
         ),
       ),
-      bottomNavigationBar: category == null
-          ? null
-          : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: FilledButton.icon(
-                  onPressed: canGenerateBracket
-                      ? () => _onGenerateBracket(
-                            context,
-                            category,
-                            confirmedCount: confirmedCount,
-                          )
-                      : null,
-                  icon: const Icon(Icons.account_tree_outlined, size: 20),
-                  label: const Text('Gerar chave da categoria'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.black,
-                    minimumSize: const Size.fromHeight(52),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ),
+    );
+  }
+}
+
+class _CategoryQuickActions extends StatelessWidget {
+  const _CategoryQuickActions({
+    required this.canGenerateBracket,
+    required this.onGenerateBracket,
+    required this.onSeeding,
+    required this.onShare,
+  });
+
+  final bool canGenerateBracket;
+  final VoidCallback onGenerateBracket;
+  final VoidCallback onSeeding;
+  final VoidCallback onShare;
+
+  static const _height = 44.0;
+  static const _gap = 8.0;
+  static final _pillShape = RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(22),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final mutedBorder = context.themeColors.onSurfaceMuted.withValues(
+      alpha: 0.18,
+    );
+    final labelStyle = AppTypography.soraRegular(
+      fontSize: 13,
+      fontWeight: FontWeight.w700,
+    );
+
+    return SizedBox(
+      height: _height,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          OutlinedButton.icon(
+            onPressed: canGenerateBracket ? onGenerateBracket : null,
+            icon: const Icon(Icons.account_tree_outlined, size: 17),
+            label: const Text('Gerar chave'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.brand,
+              disabledForegroundColor: AppColors.brand.withValues(alpha: 0.35),
+              backgroundColor: AppColors.brand.withValues(alpha: 0.08),
+              side: BorderSide(
+                color: canGenerateBracket
+                    ? AppColors.brand.withValues(alpha: 0.55)
+                    : AppColors.brand.withValues(alpha: 0.2),
               ),
+              shape: _pillShape,
+              minimumSize: const Size(0, _height),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              textStyle: labelStyle,
             ),
+          ),
+          const SizedBox(width: _gap),
+          OutlinedButton.icon(
+            onPressed: onSeeding,
+            icon: const Icon(Icons.emoji_events_outlined, size: 17),
+            label: const Text('Cabeças de chave'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: context.themeColors.onSurface,
+              backgroundColor: context.themeColors.surfaceRaised,
+              side: BorderSide(color: mutedBorder),
+              shape: _pillShape,
+              minimumSize: const Size(0, _height),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              textStyle: labelStyle,
+            ),
+          ),
+          const SizedBox(width: _gap),
+          OutlinedButton(
+            onPressed: onShare,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: context.themeColors.onSurface,
+              backgroundColor: context.themeColors.surfaceRaised,
+              side: BorderSide(color: mutedBorder),
+              shape: _pillShape,
+              minimumSize: const Size(_height, _height),
+              padding: EdgeInsets.zero,
+            ),
+            child: const Icon(Icons.share_rounded, size: 18),
+          ),
+        ],
+      ),
     );
   }
 }

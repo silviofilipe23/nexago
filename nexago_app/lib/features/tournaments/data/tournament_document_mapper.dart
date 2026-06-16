@@ -306,11 +306,26 @@ abstract final class TournamentDocumentMapper {
   }
 
   static TournamentGenderCat? _parseGender(String name) {
-    final n = name.toLowerCase();
-    if (n.contains('masc') || n == 'm') return TournamentGenderCat.m;
-    if (n.contains('fem') || n == 'f') return TournamentGenderCat.f;
-    if (n.contains('misto') || n.contains('mix'))
+    final n = name.toLowerCase().trim();
+    if (n.isEmpty) return null;
+    if (n == 'm' ||
+        n == 'male' ||
+        n == 'masculino' ||
+        n.contains('masc')) {
+      return TournamentGenderCat.m;
+    }
+    if (n == 'f' ||
+        n == 'female' ||
+        n == 'feminino' ||
+        n.contains('fem')) {
+      return TournamentGenderCat.f;
+    }
+    if (n == 'mixed' ||
+        n == 'misto' ||
+        n.contains('misto') ||
+        n.contains('mix')) {
       return TournamentGenderCat.mix;
+    }
     return null;
   }
 

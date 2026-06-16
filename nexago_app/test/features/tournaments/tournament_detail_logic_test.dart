@@ -287,25 +287,79 @@ void main() {
       spotsLeft: 4,
       spotsTotal: 16,
     );
-    const full = TournamentCategoryOffer(
+    const fullWaitlist = TournamentCategoryOffer(
       id: 'f',
       name: 'Full',
       entryFee: 90,
       spotsLeft: 0,
       spotsTotal: 16,
+      waitlistEnabled: true,
+    );
+    const fullNoWaitlist = TournamentCategoryOffer(
+      id: 'n',
+      name: 'NoWait',
+      entryFee: 90,
+      spotsLeft: 0,
+      spotsTotal: 16,
+      waitlistEnabled: false,
     );
     expect(
       tournamentCategoryCtaKind(open, TournamentListingStatus.open),
       TournamentCategoryCtaKind.register,
     );
     expect(
-      tournamentCategoryCtaKind(full, TournamentListingStatus.open),
+      tournamentCategoryCtaKind(fullWaitlist, TournamentListingStatus.open),
       TournamentCategoryCtaKind.waitlist,
     );
     expect(
-      tournamentCategoryCtaLabel(TournamentCategoryCtaKind.register),
-      'Inscrever-se →',
+      tournamentCategoryCtaKind(fullNoWaitlist, TournamentListingStatus.open),
+      TournamentCategoryCtaKind.disabled,
     );
+    expect(
+      tournamentCategoryCtaKind(
+        open,
+        TournamentListingStatus.bracketsReady,
+      ),
+      TournamentCategoryCtaKind.disabled,
+    );
+    expect(
+      tournamentCategoryCtaLabel(TournamentCategoryCtaKind.waitlist),
+      'Entrar na lista de espera →',
+    );
+  });
+
+  test('athleteRegistrationStatusLabel distinguishes waitlist', () {
+    expect(
+      athleteRegistrationStatusLabel(isPaid: true, isWaitlist: true),
+      'Na fila',
+    );
+    expect(
+      athleteRegistrationStatusLabel(isPaid: true, isWaitlist: false),
+      'Confirmado',
+    );
+  });
+
+  test('bracketFormatLabel translates internal codes', () {
+    expect(
+      bracketFormatLabel('groups_knockout'),
+      'Fase de Grupos + Mata-mata',
+    );
+    expect(
+      bracketFormatLabel('single_elimination'),
+      'Eliminatória simples',
+    );
+  });
+
+  test('categoryHasGroupsPhase recognizes groups_knockout', () {
+    const offer = TournamentCategoryOffer(
+      id: 'g',
+      name: 'Misto',
+      entryFee: 90,
+      spotsLeft: 8,
+      spotsTotal: 16,
+      bracketFormat: 'groups_knockout',
+    );
+    expect(categoryHasGroupsPhase(offer), isTrue);
   });
 
   test('categoryPrizeRows orders and formats prizes', () {

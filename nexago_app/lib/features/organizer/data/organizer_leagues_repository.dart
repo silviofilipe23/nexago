@@ -162,6 +162,11 @@ class OrganizerLeaguesRepository {
 
     final definedStages =
         draft.stages.where((s) => s.status == LeagueStageStatus.defined).toList();
+    if (definedStages.isEmpty) {
+      throw ArgumentError(
+        'Defina ao menos uma etapa antes de publicar o circuito.',
+      );
+    }
     final writeCount = 1 + definedStages.length;
     if (writeCount > _maxBatchWrites) {
       throw StateError('Muitas etapas para publicar de uma vez.');

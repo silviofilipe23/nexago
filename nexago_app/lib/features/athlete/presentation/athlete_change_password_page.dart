@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -119,7 +120,7 @@ class _AthleteChangePasswordPageState
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      appBar: AppBar(
+      appBar: NexaAppBar(
         backgroundColor: context.themeColors.canvas,
         surfaceTintColor: Colors.transparent,
         elevation: 0,

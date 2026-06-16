@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import '../../../tournaments/domain/tournament_detail_logic.dart';
 import '../tournament_create/tournament_create_logic.dart';
 import 'category_ops_models.dart';
@@ -219,6 +221,53 @@ List<OrganizerCategoryTeamRow> applySeedOrder(
 List<String> defaultSeedOrderByRanking(List<OrganizerCategoryTeamRow> teams) {
   final sorted = sortCategoryTeams(teams, OrganizerTeamSort.ranking);
   return sorted.map((t) => t.teamId).toList(growable: false);
+}
+
+/// Distribui duplas em grupos (padrão A/B) com snake draft quando há seeds.
+List<CategoryGroupPreview> distributeTeamsIntoGroups({
+  required List<String> teamIds,
+  required List<String> seedTeamIds,
+  required bool respectSeeds,
+  int groupCount = 2,
+  Random? random,
+}) {
+  if (teamIds.isEmpty || groupCount < 1) return const [];
+
+  final rng = random ?? Random();
+  final groups = List.generate(
+    groupCount,
+    (index) => CategoryGroupPreview(
+      id: String.fromCharCode(65 + index),
+      teamIds: const [],
+    ),
+  );
+
+  List<String> ordered;
+  if (respectSeeds && seedTeamIds.isNotEmpty) {
+    final remaining = teamIds.toSet();
+    ordered = <String>[];
+    for (final seed in seedTeamIds) {
+      if (remaining.remove(seed)) ordered.add(seed);
+    }
+    final rest = remaining.toList()..shuffle(rng);
+    ordered.addAll(rest);
+  } else {
+    ordered = [...teamIds]..shuffle(rng);
+  }
+
+  final buckets = List<List<String>>.generate(groupCount, (_) => []);
+  for (var i = 0; i < ordered.length; i++) {
+    final round = i ~/ groupCount;
+    final posInRound = i % groupCount;
+    final groupIndex =
+        round.isEven ? posInRound : groupCount - 1 - posInRound;
+    buckets[groupIndex].add(ordered[i]);
+  }
+
+  return [
+    for (var i = 0; i < groupCount; i++)
+      CategoryGroupPreview(id: groups[i].id, teamIds: buckets[i]),
+  ];
 }
 
 int categoryShellTabCount(OrganizerCategoryShellTab tab) => switch (tab) {

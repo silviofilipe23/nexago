@@ -62,6 +62,7 @@ int bracketGroupSortOrder(TournamentMatch match) {
   if (type == 'lb') return match.round * 10 + 5;
   if (type == 'third place') return 8900;
   if (type == 'final') return 9000;
+  if (type == 'grand final' || type == 'grand_final') return 9100;
   const knownOrder = <String, int>{
     'round of 32': 10,
     'round of 16': 20,

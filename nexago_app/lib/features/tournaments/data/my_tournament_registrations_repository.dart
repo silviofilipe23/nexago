@@ -4,8 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../domain/tournament_detail_logic.dart';
 import '../domain/tournament_detail_model.dart';
-import '../domain/tournament_discovery_labels.dart';
 import '../domain/tournament_discovery_models.dart';
 import 'nexago_artifacts_paths.dart';
 import 'tournament_document_mapper.dart';
@@ -97,6 +97,7 @@ class MyTournamentRegistrationsRepository {
 
       final tournament = await _loadTournamentDetail(tournamentId);
       final isPaid = data['isPaid'] == true;
+      final isWaitlist = data['waitlist'] == true;
       final categoryId = data['categoryId'] as String? ?? '';
       final listingRaw = tournament?.listingStatusRaw;
 
@@ -106,14 +107,10 @@ class MyTournamentRegistrationsRepository {
           tournamentId: tournamentId,
           tournamentName: tournament?.name ?? 'Torneio',
           dateLabel: tournament?.dateLabel ?? '',
-          statusLabel: isPaid
-              ? 'Inscrito'
-              : tournament != null
-                  ? tournamentStatusLabelFromRaw(
-                      status: tournament.status,
-                      listingStatusRaw: listingRaw,
-                    )
-                  : 'Inscrição',
+          statusLabel: athleteRegistrationStatusLabel(
+            isPaid: isPaid,
+            isWaitlist: isWaitlist,
+          ),
           isPaid: isPaid,
           categoryId: categoryId,
           startDate: tournament?.startDate,
@@ -122,6 +119,7 @@ class MyTournamentRegistrationsRepository {
           listingStatusRaw: listingRaw,
           teamId: teamId,
           locationLine: _tournamentLocationLine(tournament),
+          isWaitlist: isWaitlist,
         ),
       );
     }

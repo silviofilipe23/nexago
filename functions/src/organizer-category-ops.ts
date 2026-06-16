@@ -2,11 +2,8 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {
   getFirestore,
   FieldValue,
-  type Firestore,
 } from "firebase-admin/firestore";
-import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
-import {hasRoleInClaims} from "./auth-roles";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {MatchStatus} from "./match-status";
 import {
@@ -14,6 +11,7 @@ import {
   buildGroupsKnockoutMatches,
   buildSingleEliminationMatches,
 } from "./category-bracket-builders";
+import {assertCanManageTournament} from "./tournament-acl";
 
 function getFirebaseProjectId(): string {
   return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
@@ -29,39 +27,6 @@ function artifactsTeamsPath(projectId: string): string {
 
 function artifactsMatchesPath(projectId: string): string {
   return `artifacts/${projectId}/public/data/matches`;
-}
-
-async function assertCanManageTournament(
-  db: Firestore,
-  uid: string,
-  tournamentId: string,
-): Promise<Record<string, unknown>> {
-  const snap = await db.doc(`tournaments/${tournamentId}`).get();
-  if (!snap.exists) {
-    throw new HttpsError("not-found", "Torneio não encontrado");
-  }
-  const data = snap.data()!;
-  const managerId = data.managerId as string | undefined;
-  if (managerId === uid) return data;
-
-  const user = await getAuth().getUser(uid);
-  const claims = user.customClaims ?? {};
-  if (hasRoleInClaims(claims, "admin") || claims["superAdmin"] === true) {
-    return data;
-  }
-
-  const staffSnap = await db
-    .doc(`tournaments/${tournamentId}/staff/${uid}`)
-    .get();
-  if (
-    staffSnap.exists &&
-    staffSnap.data()?.status === "active" &&
-    staffSnap.data()?.role === "manager"
-  ) {
-    return data;
-  }
-
-  throw new HttpsError("permission-denied", "Sem permissão para este torneio");
 }
 
 function normalizePhoneForWhatsApp(phone: string): string {
@@ -80,6 +45,18 @@ export const generateCategoryBracket = onCall(async (request) => {
   const format = (request.data?.format as string)?.trim() || "groups_knockout";
   if (!tournamentId || !categoryId) {
     throw new HttpsError("invalid-argument", "tournamentId e categoryId obrigatórios");
+  }
+
+  const supportedBracketFormats = new Set([
+    "groups_knockout",
+    "single_elimination",
+    "double_elimination",
+  ]);
+  if (!supportedBracketFormats.has(format)) {
+    throw new HttpsError(
+      "failed-precondition",
+      `Formato "${format}" ainda não é suportado para geração de chave.`,
+    );
   }
 
   const db = getFirestore();

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -106,7 +107,7 @@ class _OrganizerMatchLiveTablePageState
     )));
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: NexaAppBar(
         title: const Text('Mesa ao vivo'),
         actions: [
           IconButton(

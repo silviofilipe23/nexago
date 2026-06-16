@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
@@ -23,7 +24,7 @@ class OrganizerMatchCallQueuePage extends ConsumerWidget {
     final service = ref.watch(organizerMatchScheduleServiceProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Fila de chamada')),
+      appBar: NexaAppBar(title: const Text('Fila de chamada')),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: [
@@ -43,30 +44,44 @@ class OrganizerMatchCallQueuePage extends ConsumerWidget {
                       visualDensity: VisualDensity.compact,
                     ),
                   const Spacer(),
-                  FilledButton(
-                    onPressed: () async {
-                      try {
-                        final courtId = row.match.courtId.isNotEmpty
-                            ? row.match.courtId
-                            : state.courts.firstOrNull?.id ?? 'Q1';
-                        await service.callMatchToCourt(
-                          matchId: row.match.id,
-                          courtId: courtId,
-                        );
-                        if (context.mounted) {
-                          showAppSnackBar(context, 'Partida chamada para a quadra.');
+                  if (row.hasCheckInPending)
+                    OutlinedButton(
+                      onPressed: () => context.push(
+                        organizerMatchCheckInPath(
+                          tournamentId,
+                          row.match.id,
+                        ),
+                      ),
+                      child: const Text('Check-in'),
+                    )
+                  else
+                    FilledButton(
+                      onPressed: () async {
+                        try {
+                          final courtId = row.match.courtId.isNotEmpty
+                              ? row.match.courtId
+                              : state.courts.firstOrNull?.id ?? 'Q1';
+                          await service.callMatchToCourt(
+                            matchId: row.match.id,
+                            courtId: courtId,
+                          );
+                          if (context.mounted) {
+                            showAppSnackBar(
+                              context,
+                              'Partida chamada para a quadra.',
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            showAppSnackBar(context, 'Erro: $e', isError: true);
+                          }
                         }
-                      } catch (e) {
-                        if (context.mounted) {
-                          showAppSnackBar(context, 'Erro: $e');
-                        }
-                      }
-                    },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.brand,
+                      },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                      ),
+                      child: const Text('Chamar'),
                     ),
-                    child: const Text('Chamar'),
-                  ),
                 ],
               ),
             ),

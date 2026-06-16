@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -102,7 +103,7 @@ class _AthleteCompleteProfilePageState
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      appBar: AppBar(
+      appBar: NexaAppBar(
         backgroundColor: context.themeColors.canvas,
         elevation: 0,
         centerTitle: true,

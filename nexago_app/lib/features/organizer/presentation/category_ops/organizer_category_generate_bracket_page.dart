@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'organizer_category_generate_de_page.dart';
 import 'organizer_category_generate_groups_page.dart';
+import 'organizer_category_generate_se_page.dart';
 
 class OrganizerCategoryGenerateBracketPage extends StatelessWidget {
   const OrganizerCategoryGenerateBracketPage({
@@ -17,17 +18,22 @@ class OrganizerCategoryGenerateBracketPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (format == 'double_elimination') {
-      return OrganizerCategoryGenerateDePage(
-        tournamentId: tournamentId,
-        categoryId: categoryId,
-        format: format,
-      );
-    }
-    return OrganizerCategoryGenerateGroupsPage(
-      tournamentId: tournamentId,
-      categoryId: categoryId,
-      format: format,
-    );
+    return switch (format) {
+      'double_elimination' => OrganizerCategoryGenerateDePage(
+          tournamentId: tournamentId,
+          categoryId: categoryId,
+          format: format,
+        ),
+      'groups_knockout' => OrganizerCategoryGenerateGroupsPage(
+          tournamentId: tournamentId,
+          categoryId: categoryId,
+          format: format,
+        ),
+      _ => OrganizerCategoryGenerateSePage(
+          tournamentId: tournamentId,
+          categoryId: categoryId,
+          format: format,
+        ),
+    };
   }
 }

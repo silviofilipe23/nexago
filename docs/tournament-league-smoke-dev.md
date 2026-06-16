@@ -16,11 +16,11 @@ Use **duas contas**: organizador + atleta. Anote IDs no final.
 |---|------|------|-------|
 | A1 | Org | Publicar torneio `open` | Aparece em **Competir** (atleta) |
 | A2 | Atleta | Inscrever dupla (convite/PIX) | Só confirma após pagamento/CF |
-| A3 | Org | Gerar chave + encerrar 1 partida com placar | Match `Completed`; vencedor avança se houver próxima rodada |
-| A4 | Org | `Chamar para quadra` em outra partida | Atleta vê partida ao vivo / `liveMatchesNow` > 0 |
+| A3 | Org | Gerar chave (≥2 inscrições confirmadas) + encerrar 1 partida com placar | Botão **Gerar chave** desabilitado com &lt;2 confirmadas; match `Completed`; vencedor avança se houver próxima rodada |
+| A4 | Org | Check-in das duas equipes → `Chamar para quadra` | **Chamar** só habilitado após check-in `present` em ambas; atleta vê partida ao vivo / `liveMatchesNow` > 0 |
 | A5 | Org | Encerrar inscrições | Atleta **não** inicia nova inscrição |
 
-**Fail rápido:** draft no Competir · inscrição paga pelo app · placar sem `pointEvents` · inscrição aberta após encerrar.
+**Fail rápido:** draft no Competir · inscrição paga pelo app · placar sem `pointEvents` · inscrição aberta após encerrar · **Chamar** sem check-in · atleta altera `waitlist` na inscrição.
 
 ### B. Liga (1 etapa basta)
 
@@ -67,8 +67,8 @@ Bloqueadores: __________
 |---|-------|--------------|------|---------|
 | 1 | Publicar torneio `open` | Organizador publica; atleta abre **Competir** | ☐ | Draft visível ou ausente na lista |
 | 2 | Inscrever dupla + PIX | Fluxo convite/PIX até confirmação | ☐ | `isPaid` setado pelo cliente ou inscrição sem pagamento |
-| 3 | Gerar chave | Organizador gera bracket na categoria | ☐ | Matches não ficam `Scheduled` ou status legado inconsistente |
-| 4 | Agendar + `callMatchToCourt` | Partida na quadra; push/G1 mostra ao vivo | ☐ | `liveMatchesNow` ou status não refletem partida em quadra |
+| 3 | Gerar chave | Organizador gera bracket na categoria (mín. 2 confirmadas) | ☐ | Botão ativo com 1 pendente ou matches não ficam `Scheduled` |
+| 4 | Check-in + `callMatchToCourt` | Check-in `present` nas duas equipes; depois chamar para quadra | ☐ | Chamar sem check-in ou `liveMatchesNow` não reflete partida em quadra |
 | 5 | I1 ponto a ponto | Registrar pontos até `Completed` | ☐ | `pointEvents`, placar final ou XP não disparam |
 | 6 | J2 link público | Abrir link read-only da partida | ☐ | 404, auth indevida ou placar desatualizado |
 | 7 | Encerrar inscrições | Fechar categoria/torneio | ☐ | Atleta ainda consegue iniciar nova inscrição |
@@ -112,7 +112,7 @@ Bloqueadores encontrados:
 
 ```bash
 # Deploy rules + functions críticas (ajuste conforme diff)
-firebase deploy --only firestore:rules,functions:applyLeagueRankingForMatch,functions:generateCategoryBracket,functions:declareMatchWalkover --project volley-track-dev-4596c
+firebase deploy --only firestore:rules,functions:callMatchToCourt,functions:generateCategoryBracket,functions:applyLeagueRankingForMatch,functions:declareMatchWalkover --project volley-track-dev-4596c
 
 # Testes automatizados relacionados
 cd functions && npm test

@@ -64,16 +64,57 @@ bool isRegistrationListingClosed(String? listingStatusRaw) {
       n == 'inscricoes encerradas';
 }
 
-/// Torneio/liga visível no catálogo público (Competir).
+/// Torneio visível no catálogo público (Competir).
 bool isPubliclyListedTournament(String? listingStatusRaw) {
   final raw = listingStatusRaw?.trim();
-  if (raw == null || raw.isEmpty) return true;
+  if (raw == null || raw.isEmpty) return false;
   final n = normalizeListingStatusRaw(raw);
   if (n == 'draft' || n == 'programado') return false;
   if (n == 'cancelled' || n == 'canceled' || n == 'cancelado' || n == 'cancelada') {
     return false;
   }
   return true;
+}
+
+/// Liga visível no Competir — mais restritivo que torneio avulso.
+bool isPubliclyListedLeague(String? listingStatusRaw) {
+  final raw = listingStatusRaw?.trim();
+  if (raw == null || raw.isEmpty) return false;
+  final n = normalizeListingStatusRaw(raw);
+  if (n == 'draft' || n == 'programado') return false;
+  if (n == 'cancelled' || n == 'canceled' || n == 'cancelado' || n == 'cancelada') {
+    return false;
+  }
+  if (n == 'closed' ||
+      n == 'inscrições encerradas' ||
+      n == 'inscricoes encerradas') {
+    return false;
+  }
+  if (n == 'ended' || n == 'encerrado' || n == 'finalizado') return false;
+  if (n == 'completed' || n == 'concluido' || n == 'concluído') return false;
+  return true;
+}
+
+/// Rótulo para banner em detalhe de liga encerrada/cancelada.
+String? leagueListingBannerMessage(String? listingStatusRaw) {
+  final raw = listingStatusRaw?.trim();
+  if (raw == null || raw.isEmpty) return null;
+  final n = normalizeListingStatusRaw(raw);
+  if (n == 'cancelled' || n == 'canceled' || n == 'cancelado' || n == 'cancelada') {
+    return 'Este circuito foi cancelado.';
+  }
+  if (n == 'closed' ||
+      n == 'inscrições encerradas' ||
+      n == 'inscricoes encerradas') {
+    return 'Temporada encerrada — novas inscrições não estão disponíveis.';
+  }
+  if (n == 'ended' || n == 'encerrado' || n == 'finalizado') {
+    return 'Circuito encerrado.';
+  }
+  if (n == 'completed' || n == 'concluido' || n == 'concluído') {
+    return 'Temporada concluída.';
+  }
+  return null;
 }
 
 /// Data civil do evento (sem hora) para comparação de dia.

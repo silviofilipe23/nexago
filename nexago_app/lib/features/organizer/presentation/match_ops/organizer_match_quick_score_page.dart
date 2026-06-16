@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
@@ -113,7 +114,7 @@ class _OrganizerMatchQuickScorePageState
     )));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Lançamento rápido')),
+      appBar: NexaAppBar(title: const Text('Lançamento rápido')),
       body: matchAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),

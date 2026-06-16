@@ -180,6 +180,13 @@ TournamentCategoryRowStatus tournamentCategoryRowStatus(
   }
   if (categoryMaxTeams(offer) > 0 &&
       categorySpotsLeft(offer, inscriptionCount: inscriptionCount) <= 0) {
+    if (offer.waitlistEnabled) {
+      return const TournamentCategoryRowStatus(
+        label: 'LISTA ESP.',
+        color: AppColors.pending,
+        isClosed: false,
+      );
+    }
     return const TournamentCategoryRowStatus(
       label: 'LOTADA',
       color: AppColors.live,
@@ -202,23 +209,27 @@ TournamentCategoryRowStatus tournamentCategoryRowStatus(
 }
 
 String bracketFormatLabel(String raw) {
-  final n = raw.trim().toLowerCase();
+  final n = raw.trim().toLowerCase().replaceAll('_', ' ');
   if (n.isEmpty) return '';
   return switch (n) {
     'single elimination' => 'Eliminatória simples',
     'double elimination' => 'Dupla eliminatória',
     'pool play + se' => 'Fase de Grupos + Mata-mata',
     'group cross + play-in' => 'Grupos cruzados + Mata-mata',
+    'groups knockout' => 'Fase de Grupos + Mata-mata',
+    'groups repechage' => 'Grupos + repescagem',
+    'round robin' => 'Todos contra todos',
     _ when n.contains('pool') && n.contains('se') =>
       'Fase de Grupos + Mata-mata',
-    _ when n.contains('grupos') => 'Fase de Grupos + Mata-mata',
+    _ when n.contains('grupos') || n.contains('grupo') =>
+      'Fase de Grupos + Mata-mata',
     _ => raw,
   };
 }
 
 /// Formato de chave dupla eliminatória (sem fase de grupos).
 bool isDoubleEliminationBracketFormat(String raw) {
-  final n = raw.trim().toLowerCase();
+  final n = raw.trim().toLowerCase().replaceAll('_', ' ');
   if (n.isEmpty) return false;
   return n == 'double elimination' ||
       n.contains('double elim') ||
@@ -226,16 +237,22 @@ bool isDoubleEliminationBracketFormat(String raw) {
 }
 
 /// Categorias com fase de grupos/pools (ex.: Pool Play + SE).
-bool categoryHasGroupsPhase(TournamentCategoryOffer offer) {
-  final n = offer.bracketFormat.trim().toLowerCase();
+bool bracketFormatHasGroupsPhase(String raw) {
+  final n = raw.trim().toLowerCase().replaceAll('_', ' ');
   if (n.isEmpty) return false;
-  if (isDoubleEliminationBracketFormat(offer.bracketFormat)) return false;
+  if (isDoubleEliminationBracketFormat(raw)) return false;
   if (n == 'single elimination') return false;
   return n.contains('pool') ||
       n.contains('grupo') ||
       n.contains('group cross') ||
-      n.contains('play-in');
+      n.contains('play-in') ||
+      n.contains('groups knockout') ||
+      n.contains('groups repechage') ||
+      n == 'round robin';
 }
+
+bool categoryHasGroupsPhase(TournamentCategoryOffer offer) =>
+    bracketFormatHasGroupsPhase(offer.bracketFormat);
 
 /// Exibe a aba Grupos quando ao menos uma categoria tem fase de grupos.
 bool tournamentShouldShowGroupsTab(TournamentDetail tournament) {
@@ -439,6 +456,16 @@ TournamentCategoryVacancyUi tournamentCategoryVacancyUi(
   }
 
   if (spotsLeft <= 0 && total > 0) {
+    if (offer.waitlistEnabled) {
+      return TournamentCategoryVacancyUi(
+        enrolled: enrolled,
+        total: total,
+        fill: 1,
+        barColor: AppColors.pending,
+        caption: 'Categoria lotada — lista de espera aberta',
+        captionColor: AppColors.pending,
+      );
+    }
     return TournamentCategoryVacancyUi(
       enrolled: enrolled,
       total: total,
@@ -465,26 +492,38 @@ TournamentCategoryCtaKind tournamentCategoryCtaKind(
   TournamentListingStatus tournamentStatus, {
   int? inscriptionCount,
 }) {
-  if (offer.registrationClosed || offer.isCompleted) {
-    return TournamentCategoryCtaKind.waitlist;
+  if (offer.isCompleted) {
+    return TournamentCategoryCtaKind.disabled;
+  }
+  if (offer.registrationClosed || !canRegisterForTournament(tournamentStatus)) {
+    return TournamentCategoryCtaKind.disabled;
   }
   if (categoryMaxTeams(offer) > 0 &&
       categorySpotsLeft(offer, inscriptionCount: inscriptionCount) <= 0) {
-    return TournamentCategoryCtaKind.waitlist;
+    return offer.waitlistEnabled
+        ? TournamentCategoryCtaKind.waitlist
+        : TournamentCategoryCtaKind.disabled;
   }
-  if (canRegisterForTournament(tournamentStatus)) {
-    return TournamentCategoryCtaKind.register;
-  }
-  return TournamentCategoryCtaKind.disabled;
+  return TournamentCategoryCtaKind.register;
 }
 
 String tournamentCategoryCtaLabel(TournamentCategoryCtaKind kind) {
   return switch (kind) {
     TournamentCategoryCtaKind.register => 'Inscrever-se →',
-    TournamentCategoryCtaKind.waitlist => 'Lista de espera',
-    TournamentCategoryCtaKind.disabled => 'Inscrições fechadas',
+    TournamentCategoryCtaKind.waitlist => 'Entrar na lista de espera →',
+    TournamentCategoryCtaKind.disabled => 'Inscrições indisponíveis',
     TournamentCategoryCtaKind.viewRegistration => 'Ver inscrição',
   };
+}
+
+/// Rótulo de status da inscrição do atleta (Meus Torneios / detalhe).
+String athleteRegistrationStatusLabel({
+  required bool isPaid,
+  required bool isWaitlist,
+}) {
+  if (isWaitlist) return 'Na fila';
+  if (isPaid) return 'Confirmado';
+  return 'Pagamento pendente';
 }
 
 List<CategoryPrizeRow> categoryPrizeRows(TournamentCategoryOffer offer) {

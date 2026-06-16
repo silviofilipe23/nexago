@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:nexago_app/core/layout/nexa_bottom_nav_bar.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -36,6 +37,7 @@ class OrganizerHomePage extends ConsumerStatefulWidget {
 
 class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
   _OrganizerEventFilter _filter = _OrganizerEventFilter.all;
+  int _bottomNavIndex = 0;
 
   @override
   void initState() {
@@ -201,6 +203,7 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
+      extendBody: true,
       body: SafeArea(
         child: FadeSlideIn(
           child: tournamentsAsync.when(
@@ -224,7 +227,7 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
                 children: [
                   Expanded(
                     child: ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 96),
                       children: [
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -454,31 +457,37 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
           ),
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: FilledButton.icon(
-            onPressed: _startCreate,
-            icon: const Icon(Icons.add_rounded, color: AppColors.black),
-            label: const Text(
-              'Criar evento',
-              style: TextStyle(
-                color: AppColors.black,
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-              ),
-            ),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.brand,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-          ),
+      bottomNavigationBar: NexaBottomNavBar(
+        currentIndex: _bottomNavIndex,
+        onTap: (index) {
+          if (index == 1) {
+            showOrganizerSettingsSheet(context, ref);
+            return;
+          }
+          setState(() => _bottomNavIndex = index);
+        },
+        centerAction: NexaBottomNavAction(
+          label: 'Criar',
+          icon: Icons.add_rounded,
+          sfSymbol: 'plus',
+          onPressed: _startCreate,
         ),
+        items: const [
+          NexaBottomNavItem(
+            label: 'Eventos',
+            icon: Icons.emoji_events_outlined,
+            selectedIcon: Icons.emoji_events,
+            sfSymbol: 'trophy',
+            selectedSfSymbol: 'trophy.fill',
+          ),
+          NexaBottomNavItem(
+            label: 'Ajustes',
+            icon: Icons.settings_outlined,
+            selectedIcon: Icons.settings_rounded,
+            sfSymbol: 'gearshape',
+            selectedSfSymbol: 'gearshape.fill',
+          ),
+        ],
       ),
     );
   }

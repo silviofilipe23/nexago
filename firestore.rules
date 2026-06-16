@@ -151,6 +151,10 @@ service cloud.firestore {
         (!('paidAt' in request.resource.data) ||
          request.resource.data.paidAt == resource.data.paidAt);
     }
+    function inscriptionEnrollmentFieldsUnchanged() {
+      return (!('waitlist' in request.resource.data) ||
+              request.resource.data.waitlist == resource.data.waitlist);
+    }
     function inscriptionCreatePaymentSafe() {
       return (!('isPaid' in request.resource.data) ||
               request.resource.data.isPaid == false) &&
@@ -220,8 +224,21 @@ service cloud.firestore {
         request.resource.data.scoreB >= 0 &&
         request.resource.data.ts is timestamp;
     }
-    function canWriteOperationalTorneios() {
-      return isAdmin() || isSuperAdmin() || isTournamentOrganizer();
+    function organizerCanCreateOperationalTorneio() {
+      return request.auth != null &&
+        isTournamentOrganizer() &&
+        request.resource.data.managerId == request.auth.uid;
+    }
+    function organizerCanUpdateOwnOperationalTorneio() {
+      return request.auth != null &&
+        isTournamentOrganizer() &&
+        resource.data.managerId == request.auth.uid &&
+        request.resource.data.managerId == resource.data.managerId;
+    }
+    function organizerCanDeleteOwnOperationalTorneio() {
+      return request.auth != null &&
+        isTournamentOrganizer() &&
+        resource.data.managerId == request.auth.uid;
     }
 
     function userDocIsPublicAthlete(resource) {
@@ -1233,6 +1250,7 @@ service cloud.firestore {
            (get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player1Id == request.auth.uid ||
             get(/databases/$(database)/documents/artifacts/$(appId)/public/data/teams/$(resource.data.teamId)).data.player2Id == request.auth.uid)) &&
           inscriptionPaymentFieldsUnchanged() &&
+          inscriptionEnrollmentFieldsUnchanged() &&
           inscriptionParticipantUidsImmutable() &&
           inscriptionCoreFieldsImmutable()
         ) ||
@@ -1442,7 +1460,21 @@ service cloud.firestore {
     // NexaGO — visão operacional (documentos agregados para o backoffice; manter status no backend)
     match /torneios/{torneioId} {
       allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null && canWriteOperationalTorneios();
+      allow create: if request.auth != null && (
+        isAdmin() ||
+        isSuperAdmin() ||
+        organizerCanCreateOperationalTorneio()
+      );
+      allow update: if request.auth != null && (
+        isAdmin() ||
+        isSuperAdmin() ||
+        organizerCanUpdateOwnOperationalTorneio()
+      );
+      allow delete: if request.auth != null && (
+        isAdmin() ||
+        isSuperAdmin() ||
+        organizerCanDeleteOwnOperationalTorneio()
+      );
     }
 
     // Convites de parceiro para inscrição em torneio (escrita via Cloud Functions)

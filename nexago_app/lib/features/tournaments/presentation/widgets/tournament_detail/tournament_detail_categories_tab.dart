@@ -13,6 +13,7 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
     this.enrollmentByCategoryId = const {},
     this.enrollmentCountsResolved = false,
     this.registrationsByCategoryId = const {},
+    this.waitlistByCategoryId = const {},
     this.canAccessTournaments = true,
     this.onRegisterBlocked,
   });
@@ -21,6 +22,7 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
   final Map<String, int> enrollmentByCategoryId;
   final bool enrollmentCountsResolved;
   final Map<String, String> registrationsByCategoryId;
+  final Map<String, bool> waitlistByCategoryId;
   final bool canAccessTournaments;
   final VoidCallback? onRegisterBlocked;
 
@@ -53,6 +55,7 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
             countsResolved: enrollmentCountsResolved,
           ),
           registrationId: registrationsByCategoryId[offer.id],
+          isOnWaitlist: waitlistByCategoryId[offer.id] == true,
           onRegister: () {
             if (!canAccessTournaments) {
               onRegisterBlocked?.call();

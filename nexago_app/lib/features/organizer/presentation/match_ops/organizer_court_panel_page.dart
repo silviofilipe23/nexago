@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
@@ -24,7 +25,7 @@ class OrganizerCourtPanelPage extends ConsumerWidget {
     final state = ref.watch(organizerMatchOpsStateProvider(tournamentId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Painel de quadras')),
+      appBar: NexaAppBar(title: const Text('Painel de quadras')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

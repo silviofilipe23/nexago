@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../arena/presentation/widgets/arena_dashboard_tokens.dart';
@@ -26,7 +27,7 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return AppBar(
+    return NexaAppBar(
       centerTitle: false,
       titleSpacing: ArenaDashboardTokens.horizontalPadding,
       title: searchOpen

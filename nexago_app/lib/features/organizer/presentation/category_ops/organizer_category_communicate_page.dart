@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
@@ -84,7 +85,7 @@ class _OrganizerCategoryCommunicatePageState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      appBar: AppBar(
+      appBar: NexaAppBar(
         title: const Text('Comunicar'),
         backgroundColor: context.themeColors.canvas,
       ),

@@ -5,9 +5,7 @@ import {
   Timestamp,
   type Firestore,
 } from "firebase-admin/firestore";
-import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
-import {hasRoleInClaims} from "./auth-roles";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {MatchStatus, isMatchCompleted} from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
@@ -17,6 +15,7 @@ import {
   tryFillKnockoutFromGroupStandings,
   type GroupPreview,
 } from "./group-standings";
+import {assertCanManageTournament, assertCanScoreTournament} from "./tournament-acl";
 
 function getFirebaseProjectId(): string {
   return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
@@ -28,39 +27,6 @@ function artifactsMatchesPath(projectId: string): string {
 
 function artifactsTeamsPath(projectId: string): string {
   return `artifacts/${projectId}/public/data/teams`;
-}
-
-async function assertCanManageTournament(
-  db: Firestore,
-  uid: string,
-  tournamentId: string,
-): Promise<Record<string, unknown>> {
-  const snap = await db.doc(`tournaments/${tournamentId}`).get();
-  if (!snap.exists) {
-    throw new HttpsError("not-found", "Torneio não encontrado");
-  }
-  const data = snap.data()!;
-  const managerId = data.managerId as string | undefined;
-  if (managerId === uid) return data;
-
-  const user = await getAuth().getUser(uid);
-  const claims = user.customClaims ?? {};
-  if (hasRoleInClaims(claims, "admin") || claims["superAdmin"] === true) {
-    return data;
-  }
-
-  const staffSnap = await db
-    .doc(`tournaments/${tournamentId}/staff/${uid}`)
-    .get();
-  if (
-    staffSnap.exists &&
-    staffSnap.data()?.status === "active" &&
-    staffSnap.data()?.role === "manager"
-  ) {
-    return data;
-  }
-
-  throw new HttpsError("permission-denied", "Sem permissão para este torneio");
 }
 
 function parseIsoDate(value: unknown): Date {
@@ -393,6 +359,16 @@ export const callMatchToCourt = onCall(async (request) => {
   const tournamentId = data.tournamentId as string;
   await assertCanManageTournament(db, uid, tournamentId);
 
+  const checkIn = data.checkIn as Record<string, Record<string, string>> | undefined;
+  const a = checkIn?.teamA?.status;
+  const b = checkIn?.teamB?.status;
+  if (a !== "present" || b !== "present") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Faça check-in das duas equipes antes de chamar para a quadra",
+    );
+  }
+
   const update: Record<string, unknown> = {
     queueStatus: "on_court",
     status: MatchStatus.inProgress,
@@ -539,7 +515,7 @@ export const validateMatchResult = onCall(async (request) => {
   const db = getFirestore();
   const projectId = getFirebaseProjectId();
   const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
-  await assertCanManageTournament(db, uid, data.tournamentId as string);
+  await assertCanScoreTournament(db, uid, data.tournamentId as string);
 
   await ref.update({
     report: {

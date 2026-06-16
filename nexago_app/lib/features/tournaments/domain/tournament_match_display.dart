@@ -280,8 +280,13 @@ int compareMatchesChronologicallyDesc(TournamentMatch a, TournamentMatch b) {
 String matchTypeLabelPt(String? matchType) {
   final type = matchType?.trim() ?? '';
   if (type.isEmpty) return '';
+  final normalized = type.toLowerCase().replaceAll('_', ' ');
+  if (normalized == 'grand final') return 'Grand Final';
   return switch (type) {
     'Group' => 'Fase de Grupos',
+    'group' => 'Fase de Grupos',
+    'groups' => 'Fase de Grupos',
+    'knockout' => 'Mata-mata',
     'WB' => 'Chave Principal',
     'LB' => 'Chave de Repescagem',
     'Final' => 'Final',
@@ -306,6 +311,9 @@ String matchRoundLabel(TournamentMatch match) {
     return match.round > 0 ? 'LB${match.round}' : matchTypeLabelPt(type);
   }
   if (type == 'Final') return 'Final';
+  if (type.toLowerCase().replaceAll('_', ' ') == 'grand final') {
+    return 'Grand Final';
+  }
   if (type == 'Third Place') return '3º lugar';
 
   final typeLabel = matchTypeLabelPt(type);

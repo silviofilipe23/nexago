@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Layout base com [Scaffold] e [AppBar] alinhados ao tema do app.
+import 'nexa_app_bar.dart';
+
+/// Layout base com [Scaffold] e [NexaAppBar] alinhados ao tema do app.
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
     super.key,
@@ -30,7 +32,7 @@ class AppScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: NexaAppBar(
         title: appBarTitle ?? Text(title),
         centerTitle: centerTitle ?? (appBarTitle != null ? false : null),
         leading: leading,

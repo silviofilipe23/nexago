@@ -14,6 +14,7 @@ class TournamentDetailOverviewTab extends StatelessWidget {
     this.enrollmentByCategoryId = const {},
     this.enrollmentCountsResolved = false,
     this.registrationsByCategoryId = const {},
+    this.waitlistByCategoryId = const {},
   });
 
   final TournamentDetail tournament;
@@ -22,6 +23,7 @@ class TournamentDetailOverviewTab extends StatelessWidget {
   final Map<String, int> enrollmentByCategoryId;
   final bool enrollmentCountsResolved;
   final Map<String, String> registrationsByCategoryId;
+  final Map<String, bool> waitlistByCategoryId;
 
   @override
   Widget build(BuildContext context) {

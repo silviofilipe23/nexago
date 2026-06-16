@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
@@ -27,7 +28,7 @@ class OrganizerMatchValidatePage extends ConsumerWidget {
     final service = ref.watch(organizerMatchScheduleServiceProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Validar reporte')),
+      appBar: NexaAppBar(title: const Text('Validar reporte')),
       body: matchAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),

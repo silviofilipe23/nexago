@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
@@ -37,17 +40,32 @@ class OrganizerCategoryFormatSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasUnsupportedSelection = !isBracketSystemSupported(bracketSystem);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const OrganizerSectionLabel('SISTEMA DE DISPUTA'),
         const SizedBox(height: 12),
-        for (final system in TournamentBracketSystem.values) ...[
+        if (hasUnsupportedSelection) ...[
+          _UnsupportedFormatBanner(system: bracketSystem),
+          const SizedBox(height: 12),
+        ],
+        for (final system in supportedBracketSystems) ...[
           OrganizerRadioOptionCard(
             title: bracketSystemLabel(system),
             subtitle: bracketSystemDescription(system),
             selected: bracketSystem == system,
             onTap: () => onBracketSystemChanged(system),
+          ),
+          const SizedBox(height: 10),
+        ],
+        const OrganizerSectionLabel('EM BREVE', optional: true),
+        const SizedBox(height: 10),
+        for (final system in comingSoonBracketSystems) ...[
+          _ComingSoonFormatCard(
+            title: bracketSystemLabel(system),
+            subtitle: bracketSystemDescription(system),
           ),
           const SizedBox(height: 10),
         ],
@@ -113,6 +131,70 @@ class OrganizerCategoryFormatSection extends StatelessWidget {
           onChanged: onFinalBestOf5Changed,
         ),
       ],
+    );
+  }
+}
+
+class _UnsupportedFormatBanner extends StatelessWidget {
+  const _UnsupportedFormatBanner({required this.system});
+
+  final TournamentBracketSystem system;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: AppColors.pending.withValues(alpha: 0.12),
+        border: Border.all(color: AppColors.pending.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        unsupportedBracketSystemHint(system),
+        style: AppTypography.soraRegular(
+          fontSize: 13,
+          color: context.themeColors.onSurface,
+        ),
+      ),
+    );
+  }
+}
+
+class _ComingSoonFormatCard extends StatelessWidget {
+  const _ComingSoonFormatCard({
+    required this.title,
+    required this.subtitle,
+  });
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: 0.55,
+      child: OrganizerRadioOptionCard(
+        title: title,
+        subtitle: subtitle,
+        selected: false,
+        onTap: () {},
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+          ),
+          child: Text(
+            'EM BREVE',
+            style: AppTypography.mono(
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              color: context.themeColors.onSurfaceMuted,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

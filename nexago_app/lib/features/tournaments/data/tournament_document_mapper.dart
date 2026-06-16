@@ -44,6 +44,7 @@ abstract final class TournamentDocumentMapper {
       tournamentUniformRequired: data['uniformRequired'] == true,
       tournamentUniformNumberOnShirt: data['uniformNumberOnShirt'] == true,
       tournamentUniformNameOnShirt: data['uniformNameOnShirt'] == true,
+      tournamentWaitlistEnabled: data['waitlistEnabled'] as bool? ?? true,
     );
     final genderCats = _genderCatsFromOffers(offers);
 
@@ -138,6 +139,7 @@ abstract final class TournamentDocumentMapper {
     bool tournamentUniformRequired = false,
     bool tournamentUniformNumberOnShirt = false,
     bool tournamentUniformNameOnShirt = false,
+    bool tournamentWaitlistEnabled = true,
   }) {
     final offers = <TournamentCategoryOffer>[];
     if (raw is! List) return offers;
@@ -181,6 +183,7 @@ abstract final class TournamentDocumentMapper {
         uniformSizeOptionsTop: _stringList(map['uniformSizeOptionsTop']),
         uniformSizeOptionsShorts:
             _stringList(map['uniformSizeOptionsShorts']),
+        waitlistEnabled: tournamentWaitlistEnabled,
       );
 
       if (!categoryRequiresUniform(preliminaryOffer) &&
@@ -210,6 +213,7 @@ abstract final class TournamentDocumentMapper {
           uniformSizeOptionsTop: _stringList(map['uniformSizeOptionsTop']),
           uniformSizeOptionsShorts:
               _stringList(map['uniformSizeOptionsShorts']),
+          waitlistEnabled: tournamentWaitlistEnabled,
         ),
       );
     }

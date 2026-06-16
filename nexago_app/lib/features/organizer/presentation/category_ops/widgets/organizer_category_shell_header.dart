@@ -98,7 +98,7 @@ class OrganizerCategoryShellHeader extends StatelessWidget {
           Row(
             children: [
               Text(
-                '${category.enrolledCount}/${category.maxTeams} duplas',
+                '${category.paidCount}/${category.maxTeams} confirmadas',
                 style: AppTypography.mono(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,

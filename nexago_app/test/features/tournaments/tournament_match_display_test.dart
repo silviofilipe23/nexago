@@ -340,6 +340,42 @@ void main() {
       );
     });
   });
+
+  group('matchRoundLabel', () {
+    test('labels grand final variants', () {
+      expect(
+        matchRoundLabel(
+          _bracketMatch(matchType: 'grand_final'),
+        ),
+        'Grand Final',
+      );
+      expect(
+        matchRoundLabel(
+          _bracketMatch(matchType: 'Final'),
+        ),
+        'Final',
+      );
+    });
+  });
+}
+
+TournamentMatch _bracketMatch({required String matchType}) {
+  return TournamentMatch(
+    id: 'm-final',
+    tournamentId: 't1',
+    categoryId: 'cat-a',
+    round: 1,
+    matchType: matchType,
+    poolId: '',
+    teamAId: 'a',
+    teamBId: 'b',
+    status: TournamentMatchStatus.scheduled,
+    resultA: '',
+    resultB: '',
+    isGroupMatch: false,
+    matchNumber: 1,
+    sets: const [],
+  );
 }
 
 extension on TournamentMatch {

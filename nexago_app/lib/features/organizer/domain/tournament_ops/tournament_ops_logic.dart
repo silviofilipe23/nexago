@@ -1,4 +1,5 @@
 import '../../../tournaments/domain/tournament_detail_logic.dart';
+import '../tournament_create/tournament_create_logic.dart';
 import 'tournament_ops_models.dart';
 
 String organizerTournamentShareLink(String tournamentId) =>
@@ -98,16 +99,48 @@ String categoryReadyHint(OrganizerTournamentCategorySummary category) {
   if (category.registrationClosed) {
     return 'Inscrições encerradas';
   }
-  return '${category.enrolledCount}/${category.maxTeams} duplas';
+  return '${category.paidCount}/${category.maxTeams} confirmadas';
 }
 
 bool categoryUsesDoubleElimination(String bracketFormat) =>
     isDoubleEliminationBracketFormat(bracketFormat);
 
-String generateBracketRouteFormat(String bracketFormat) =>
-    categoryUsesDoubleElimination(bracketFormat)
-        ? 'double_elimination'
-        : 'groups_knockout';
+String generateBracketRouteFormat(String bracketFormat) {
+  if (categoryUsesDoubleElimination(bracketFormat)) {
+    return 'double_elimination';
+  }
+  if (bracketFormatHasGroupsPhase(bracketFormat)) {
+    return 'groups_knockout';
+  }
+  return 'single_elimination';
+}
+
+/// Mínimo de duplas confirmadas para publicar qualquer formato de chave.
+const int minTeamsToGenerateBracket = 2;
+
+bool canGenerateCategoryBracket({
+  required int confirmedCount,
+  int minTeams = minTeamsToGenerateBracket,
+}) =>
+    confirmedCount >= minTeams;
+
+String generateBracketBlockedHint({
+  required int confirmedCount,
+  int minTeams = minTeamsToGenerateBracket,
+  String? bracketFormat,
+}) {
+  final unsupported = bracketFormat == null
+      ? null
+      : unsupportedBracketFormatHint(bracketFormat);
+  if (unsupported != null && unsupported.isNotEmpty) return unsupported;
+
+  if (confirmedCount >= minTeams) return '';
+  if (confirmedCount == 0) {
+    return 'Precisa de pelo menos $minTeams duplas confirmadas para gerar a chave.';
+  }
+  final missing = minTeams - confirmedCount;
+  return 'Falta $missing dupla(s) confirmada(s) para gerar a chave.';
+}
 
 OrganizerTournamentSummary buildTournamentSummary({
   required String tournamentId,

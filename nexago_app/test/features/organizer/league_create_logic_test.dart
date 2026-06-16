@@ -112,6 +112,38 @@ void main() {
     });
   });
 
+  group('isValidLeagueForPublish', () {
+    test('requires at least one defined stage', () {
+      const pendingOnly = LeagueCreateDraft(
+        name: 'Copa',
+        seasonStartAt: null,
+      );
+      expect(isValidLeagueForPublish(pendingOnly), isFalse);
+
+      final withDefined = _validDraft();
+      expect(isValidLeagueForPublish(withDefined), isTrue);
+
+      final allPending = LeagueCreateDraft(
+        name: 'Copa Goiás Beach',
+        seasonStartAt: DateTime(2026, 2, 1),
+        seasonEndAt: DateTime(2026, 10, 1),
+        plannedStagesCount: 6,
+        categories: const [
+          TournamentCategoryDraft(id: 'c1', spots: 16),
+        ],
+        stages: const [
+          LeagueStageDraft(
+            id: 's1',
+            name: 'Etapa 1',
+            order: 1,
+            status: LeagueStageStatus.pending,
+          ),
+        ],
+      );
+      expect(isValidLeagueForPublish(allPending), isFalse);
+    });
+  });
+
   group('review summaries', () {
     test('stages summary counts defined only', () {
       final draft = _validDraft();

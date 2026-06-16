@@ -1,12 +1,12 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../domain/category_ops/category_ops_logic.dart';
 import '../../domain/category_ops/category_ops_models.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
 
@@ -32,16 +32,18 @@ class _OrganizerCategoryGenerateGroupsPageState
   List<CategoryGroupPreview> _groups = const [];
   bool _useSeeds = true;
   bool _publishing = false;
+  bool _initialized = false;
 
-  void _shuffleGroups(List<String> teamIds) {
-    final random = Random();
-    final shuffled = [...teamIds]..shuffle(random);
-    final half = (shuffled.length / 2).ceil();
+  void _assignGroups({
+    required List<String> teamIds,
+    required List<String> seedTeamIds,
+  }) {
     setState(() {
-      _groups = [
-        CategoryGroupPreview(id: 'A', teamIds: shuffled.take(half).toList()),
-        CategoryGroupPreview(id: 'B', teamIds: shuffled.skip(half).toList()),
-      ];
+      _groups = distributeTeamsIntoGroups(
+        teamIds: teamIds,
+        seedTeamIds: seedTeamIds,
+        respectSeeds: _useSeeds,
+      );
     });
   }
 
@@ -53,14 +55,25 @@ class _OrganizerCategoryGenerateGroupsPageState
         tournamentId: widget.tournamentId,
         categoryId: widget.categoryId,
       );
-      final teams = await ref.read(organizerCategoryRegistrationsProvider(key).future);
-      final teamIds = teams.map((t) => t.teamId).toList(growable: false);
-      final seeds = teamIds;
+      final ops = await ref
+          .read(organizerCategoryOpsRepositoryProvider)
+          .getCategoryOps(
+            tournamentId: widget.tournamentId,
+            categoryId: widget.categoryId,
+          );
+      final teams =
+          await ref.read(organizerCategoryRegistrationsProvider(key).future);
+      final seeds = _useSeeds && ops.seeds.isNotEmpty
+          ? ops.seeds
+          : (_useSeeds
+              ? defaultSeedOrderByRanking(teams)
+              : null);
+
       await ref.read(organizerCategoryOpsServiceProvider).generateCategoryBracket(
             tournamentId: widget.tournamentId,
             categoryId: widget.categoryId,
             format: widget.format,
-            seeds: _useSeeds ? seeds : null,
+            seeds: seeds,
             groupsPreview: _groups
                 .map((g) => {'id': g.id, 'teamIds': g.teamIds})
                 .toList(),
@@ -83,10 +96,11 @@ class _OrganizerCategoryGenerateGroupsPageState
       categoryId: widget.categoryId,
     );
     final teamsAsync = ref.watch(organizerCategoryRegistrationsProvider(key));
+    final opsAsync = ref.watch(organizerCategoryOpsProvider(key));
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      appBar: AppBar(
+      appBar: NexaAppBar(
         title: const Text('Gerar chave — grupos'),
         backgroundColor: context.themeColors.canvas,
       ),
@@ -94,16 +108,28 @@ class _OrganizerCategoryGenerateGroupsPageState
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),
         data: (teams) {
-          if (_groups.isEmpty) {
-            _shuffleGroups(teams.map((t) => t.teamId).toList(growable: false));
+          final ops = opsAsync.valueOrNull;
+          final seedTeamIds = ops?.seeds ?? const <String>[];
+          final teamIds = teams.map((t) => t.teamId).toList(growable: false);
+
+          if (!_initialized) {
+            _initialized = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              _assignGroups(teamIds: teamIds, seedTeamIds: seedTeamIds);
+            });
           }
+
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
               SwitchListTile(
                 title: const Text('Respeitar cabeças de chave'),
                 value: _useSeeds,
-                onChanged: (v) => setState(() => _useSeeds = v),
+                onChanged: (value) {
+                  setState(() => _useSeeds = value);
+                  _assignGroups(teamIds: teamIds, seedTeamIds: seedTeamIds);
+                },
               ),
               ..._groups.map(
                 (g) => Card(
@@ -112,14 +138,18 @@ class _OrganizerCategoryGenerateGroupsPageState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Grupo ${g.id}',
-                            style: Theme.of(context).textTheme.titleMedium),
+                        Text(
+                          'Grupo ${g.id}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                         const SizedBox(height: 8),
                         ...g.teamIds.map((id) {
-                          final team = teams
-                              .where((t) => t.teamId == id)
-                              .firstOrNull;
-                          return Text(team?.displayName ?? id);
+                          final team =
+                              teams.where((t) => t.teamId == id).firstOrNull;
+                          final seedLabel = team?.seedRank != null
+                              ? ' (#${team!.seedRank})'
+                              : '';
+                          return Text('${team?.displayName ?? id}$seedLabel');
                         }),
                       ],
                     ),
@@ -127,9 +157,8 @@ class _OrganizerCategoryGenerateGroupsPageState
                 ),
               ),
               OutlinedButton(
-                onPressed: () => _shuffleGroups(
-                  teams.map((t) => t.teamId).toList(growable: false),
-                ),
+                onPressed: () =>
+                    _assignGroups(teamIds: teamIds, seedTeamIds: seedTeamIds),
                 child: const Text('Sortear de novo'),
               ),
             ],

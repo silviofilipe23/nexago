@@ -90,8 +90,13 @@ class TournamentDetailPage extends ConsumerWidget {
           final registrationsAsync = ref.watch(
             tournamentUserRegistrationsByCategoryProvider(tournamentId),
           );
+          final waitlistAsync = ref.watch(
+            tournamentUserWaitlistByCategoryProvider(tournamentId),
+          );
           final registrationsByCategory =
               registrationsAsync.valueOrNull ?? const <String, String>{};
+          final waitlistByCategory =
+              waitlistAsync.valueOrNull ?? const <String, bool>{};
           final registrationResolved =
               authAsync.hasValue && registrationsAsync.hasValue;
 
@@ -106,6 +111,7 @@ class TournamentDetailPage extends ConsumerWidget {
             enrollmentByCategoryId: enrollment,
             enrollmentCountsResolved: enrollmentResolved,
             registrationsByCategoryId: registrationsByCategory,
+            waitlistByCategoryId: waitlistByCategory,
             registrationResolved: registrationResolved,
             canAccessTournaments: access.canAccess,
             onRegisterBlocked: () => _onTournamentRegisterBlocked(context, access),
@@ -140,6 +146,7 @@ class _TournamentDetailContent extends ConsumerStatefulWidget {
     required this.enrollmentByCategoryId,
     required this.enrollmentCountsResolved,
     required this.registrationsByCategoryId,
+    required this.waitlistByCategoryId,
     required this.registrationResolved,
     required this.canAccessTournaments,
     required this.onRegisterBlocked,
@@ -152,6 +159,7 @@ class _TournamentDetailContent extends ConsumerStatefulWidget {
   final Map<String, int> enrollmentByCategoryId;
   final bool enrollmentCountsResolved;
   final Map<String, String> registrationsByCategoryId;
+  final Map<String, bool> waitlistByCategoryId;
   final bool registrationResolved;
   final bool canAccessTournaments;
   final VoidCallback onRegisterBlocked;
@@ -198,6 +206,7 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
           enrollmentByCategoryId: widget.enrollmentByCategoryId,
           enrollmentCountsResolved: widget.enrollmentCountsResolved,
           registrationsByCategoryId: widget.registrationsByCategoryId,
+          waitlistByCategoryId: widget.waitlistByCategoryId,
         );
       case TournamentDetailTab.categories:
         return TournamentDetailCategoriesTab(
@@ -205,6 +214,7 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
           enrollmentByCategoryId: widget.enrollmentByCategoryId,
           enrollmentCountsResolved: widget.enrollmentCountsResolved,
           registrationsByCategoryId: widget.registrationsByCategoryId,
+          waitlistByCategoryId: widget.waitlistByCategoryId,
           canAccessTournaments: widget.canAccessTournaments,
           onRegisterBlocked: widget.onRegisterBlocked,
         );

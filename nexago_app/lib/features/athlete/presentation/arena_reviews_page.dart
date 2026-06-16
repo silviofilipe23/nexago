@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -893,7 +894,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
     final headerSubtitle = _reviewsHeaderSubtitle(arena);
     return Scaffold(
       backgroundColor: const Color(0xFF050506),
-      appBar: AppBar(
+      appBar: NexaAppBar(
         backgroundColor: const Color(0xFF050506),
         elevation: 0,
         scrolledUnderElevation: 0,

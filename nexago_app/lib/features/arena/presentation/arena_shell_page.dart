@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/theme/app_colors.dart';
+import '../../../core/layout/nexa_bottom_nav_bar.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/arena_route_guard.dart';
 import '../domain/arena_shell_providers.dart';
@@ -22,6 +22,44 @@ class ArenaShellPage extends ConsumerWidget {
     ArenaTab.settings,
   ];
 
+  static const _navItems = <NexaBottomNavItem>[
+    NexaBottomNavItem(
+      label: 'Painel',
+      icon: Icons.dashboard_outlined,
+      selectedIcon: Icons.dashboard_rounded,
+      sfSymbol: 'square.grid.2x2',
+      selectedSfSymbol: 'square.grid.2x2.fill',
+    ),
+    NexaBottomNavItem(
+      label: 'Agenda',
+      icon: Icons.calendar_month_outlined,
+      selectedIcon: Icons.calendar_month_rounded,
+      sfSymbol: 'calendar',
+      selectedSfSymbol: 'calendar',
+    ),
+    NexaBottomNavItem(
+      label: 'Comandas',
+      icon: Icons.receipt_long_outlined,
+      selectedIcon: Icons.receipt_long_rounded,
+      sfSymbol: 'doc.text',
+      selectedSfSymbol: 'doc.text.fill',
+    ),
+    NexaBottomNavItem(
+      label: 'Reservas',
+      icon: Icons.event_available_outlined,
+      selectedIcon: Icons.event_available_rounded,
+      sfSymbol: 'calendar.badge.clock',
+      selectedSfSymbol: 'calendar.badge.clock',
+    ),
+    NexaBottomNavItem(
+      label: 'Ajustes',
+      icon: Icons.settings_outlined,
+      selectedIcon: Icons.settings_rounded,
+      sfSymbol: 'gearshape',
+      selectedSfSymbol: 'gearshape.fill',
+    ),
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex = navigationShell.currentIndex.clamp(
@@ -34,125 +72,22 @@ class ArenaShellPage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
+      extendBody: true,
       body: navigationShell,
       bottomNavigationBar: hideBottomNav
           ? null
-          : DecoratedBox(
-              decoration: BoxDecoration(
-                color: context.themeColors.surfaceSheet,
-                border: Border(
-                  top: BorderSide(
-                    color: context.themeColors.onSurfaceMuted.withValues(
-                      alpha: 0.12,
-                    ),
-                  ),
-                ),
-              ),
-              child: SafeArea(
-                top: false,
-                child: SizedBox(
-                  height: 64,
-                  child: Row(
-                    children: [
-                      for (var i = 0; i < _tabs.length; i++)
-                        Expanded(
-                          child: _NavItem(
-                            tab: _tabs[i],
-                            selected: i == currentIndex,
-                            onTap: () {
-                              ref
-                                  .read(arenaShellScrollRegistryProvider)
-                                  .scrollToTop(i);
-                              navigationShell.goBranch(
-                                i,
-                                initialLocation:
-                                    i == navigationShell.currentIndex,
-                              );
-                            },
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
+          : NexaBottomNavBar(
+              items: _navItems,
+              currentIndex: currentIndex,
+              uppercaseLabels: true,
+              onTap: (i) {
+                ref.read(arenaShellScrollRegistryProvider).scrollToTop(i);
+                navigationShell.goBranch(
+                  i,
+                  initialLocation: i == navigationShell.currentIndex,
+                );
+              },
             ),
     );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  const _NavItem({
-    required this.tab,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final ArenaTab tab;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _iconFor(tab, selected: selected),
-              size: 22,
-              color: selected
-                  ? context.themeColors.onSurface
-                  : context.themeColors.onSurfaceMuted,
-            ),
-            SizedBox(height: 4),
-            Text(
-              tab.label.toUpperCase(),
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.3,
-                color: selected
-                    ? context.themeColors.onSurface
-                    : context.themeColors.onSurfaceMuted,
-              ),
-            ),
-            SizedBox(height: 4),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(
-                color: selected ? AppColors.brand : Colors.transparent,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  static IconData _iconFor(ArenaTab tab, {required bool selected}) {
-    switch (tab) {
-      case ArenaTab.dashboard:
-        return selected ? Icons.dashboard_rounded : Icons.dashboard_outlined;
-      case ArenaTab.schedule:
-        return selected
-            ? Icons.calendar_month_rounded
-            : Icons.calendar_month_outlined;
-      case ArenaTab.comandas:
-        return selected
-            ? Icons.receipt_long_rounded
-            : Icons.receipt_long_outlined;
-      case ArenaTab.bookings:
-        return selected
-            ? Icons.event_available_rounded
-            : Icons.event_available_outlined;
-      case ArenaTab.settings:
-        return selected ? Icons.settings_rounded : Icons.settings_outlined;
-    }
   }
 }

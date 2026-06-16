@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -43,7 +44,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
     final id = bookingId.trim();
     if (id.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: Text('Reserva')),
+        appBar: NexaAppBar(title: Text('Reserva')),
         body: const ArenaErrorState(message: 'ID da reserva inválido.'),
       );
     }
@@ -53,7 +54,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
 
     if (liveAsync.hasError && initialBooking == null) {
       return Scaffold(
-        appBar: AppBar(title: Text('Reserva')),
+        appBar: NexaAppBar(title: Text('Reserva')),
         body: ArenaErrorState(
             message: 'Erro ao carregar reserva.\n${liveAsync.error}'),
       );
@@ -65,12 +66,12 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
     if (merged == null && initialBooking == null) {
       if (liveAsync.isLoading) {
         return Scaffold(
-          appBar: AppBar(title: Text('Reserva')),
+          appBar: NexaAppBar(title: Text('Reserva')),
           body: const ArenaLoadingState(label: 'Carregando reserva...'),
         );
       }
       return Scaffold(
-        appBar: AppBar(title: Text('Reserva')),
+        appBar: NexaAppBar(title: Text('Reserva')),
         body: const ArenaEmptyState(
           title: 'Reserva não encontrada',
           message: 'Não foi possível carregar os dados desta reserva.',
@@ -83,7 +84,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
         (merged != null ? _bookingFromMerged(id, merged) : null);
     if (booking == null) {
       return Scaffold(
-        appBar: AppBar(title: Text('Reserva')),
+        appBar: NexaAppBar(title: Text('Reserva')),
         body: const ArenaLoadingState(label: 'Carregando reserva...'),
       );
     }
@@ -139,7 +140,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      appBar: AppBar(
+      appBar: NexaAppBar(
         backgroundColor: context.themeColors.canvas,
         title: Text('Reserva'),
         leading: IconButton(
@@ -547,7 +548,7 @@ class _AthleteUnblockResultPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
-      appBar: AppBar(title: Text('Desbloqueio de atleta')),
+      appBar: NexaAppBar(title: Text('Desbloqueio de atleta')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:share_plus/share_plus.dart';
@@ -26,7 +27,7 @@ class PublicMatchLivePage extends ConsumerWidget {
     )));
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: NexaAppBar(
         title: const Text('Ao vivo'),
         actions: [
           IconButton(

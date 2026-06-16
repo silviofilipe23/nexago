@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -30,7 +31,7 @@ class _BookingInvitePageState extends ConsumerState<BookingInvitePage> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-      appBar: AppBar(title: Text('Convite para jogar')),
+      appBar: NexaAppBar(title: Text('Convite para jogar')),
       body: inviteAsync.when(
         loading: () => Center(child: CircularProgressIndicator()),
         error: (e, _) => _ErrorBody(message: 'Não foi possível carregar o convite.'),

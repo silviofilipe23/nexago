@@ -53,7 +53,7 @@ void main() {
   });
 
   group('categoryReadyHint', () {
-    test('full category ready to generate', () {
+    test('full category ready to generate when paid slots reach max', () {
       const category = OrganizerTournamentCategorySummary(
         categoryId: 'fem',
         name: 'Feminino',
@@ -65,6 +65,64 @@ void main() {
       expect(category.isFull, isTrue);
       expect(category.readyToGenerateBracket, isTrue);
       expect(categoryReadyHint(category), contains('pronto'));
+    });
+
+    test('pending inscriptions do not mark category as full', () {
+      const category = OrganizerTournamentCategorySummary(
+        categoryId: 'fem',
+        name: 'Feminino',
+        maxTeams: 8,
+        enrolledCount: 8,
+        paidCount: 6,
+        pendingCount: 2,
+      );
+      expect(category.isFull, isFalse);
+      expect(category.readyToGenerateBracket, isFalse);
+    });
+  });
+
+  group('generateBracketBlockedHint', () {
+    test('returns unsupported hint before team count', () {
+      expect(
+        generateBracketBlockedHint(
+          confirmedCount: 8,
+          bracketFormat: 'round_robin',
+        ),
+        contains('em breve'),
+      );
+    });
+  });
+
+  group('generateBracketRouteFormat', () {
+    test('maps formats to generate routes', () {
+      expect(
+        generateBracketRouteFormat('double_elimination'),
+        'double_elimination',
+      );
+      expect(
+        generateBracketRouteFormat('groups_knockout'),
+        'groups_knockout',
+      );
+      expect(
+        generateBracketRouteFormat('Pool Play + SE'),
+        'groups_knockout',
+      );
+      expect(
+        generateBracketRouteFormat('single_elimination'),
+        'single_elimination',
+      );
+    });
+  });
+
+  group('canGenerateCategoryBracket', () {
+    test('requires at least two confirmed teams', () {
+      expect(canGenerateCategoryBracket(confirmedCount: 0), isFalse);
+      expect(canGenerateCategoryBracket(confirmedCount: 1), isFalse);
+      expect(canGenerateCategoryBracket(confirmedCount: 2), isTrue);
+      expect(
+        generateBracketBlockedHint(confirmedCount: 1),
+        contains('Falta 1'),
+      );
     });
   });
 }

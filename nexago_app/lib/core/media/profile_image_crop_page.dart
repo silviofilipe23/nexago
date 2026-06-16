@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 
 import 'package:crop_your_image/crop_your_image.dart';
 import 'package:flutter/material.dart';
@@ -65,7 +66,7 @@ class _ProfileImageCropPageState extends State<ProfileImageCropPage> {
       canPop: !_cropping,
       child: Scaffold(
         backgroundColor: context.themeColors.canvas,
-        appBar: AppBar(
+        appBar: NexaAppBar(
           backgroundColor: context.themeColors.canvas,
           surfaceTintColor: Colors.transparent,
           elevation: 0,

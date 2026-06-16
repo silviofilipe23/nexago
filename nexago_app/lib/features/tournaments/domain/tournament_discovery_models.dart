@@ -134,6 +134,7 @@ class TournamentCategoryOffer {
     this.uniformNumberOnShirt = false,
     this.uniformSizeOptionsTop = const [],
     this.uniformSizeOptionsShorts = const [],
+    this.waitlistEnabled = true,
   });
 
   /// Id da categoria no Firestore (`categories[].id`); legado usa `categoryName`.
@@ -158,6 +159,8 @@ class TournamentCategoryOffer {
   final bool uniformNumberOnShirt;
   final List<String> uniformSizeOptionsTop;
   final List<String> uniformSizeOptionsShorts;
+  /// Herdado do torneio (`waitlistEnabled` na raiz do documento).
+  final bool waitlistEnabled;
 }
 
 class TournamentCategoryPrize {
@@ -201,6 +204,7 @@ class MyTournamentRegistration {
     this.locationLine,
     this.listingStatusRaw,
     this.teamId,
+    this.isWaitlist = false,
   });
 
   final String registrationId;
@@ -216,4 +220,5 @@ class MyTournamentRegistration {
   final String? locationLine;
   final String? listingStatusRaw;
   final String? teamId;
+  final bool isWaitlist;
 }

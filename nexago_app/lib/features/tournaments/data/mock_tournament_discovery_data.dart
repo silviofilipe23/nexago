@@ -21,6 +21,7 @@ const mockDiscoveryLeagues = <DiscoveryLeague>[
     name: 'Circuito Verão NexaGO',
     seasonLabel: 'Temporada 2026',
     city: 'Circuito nacional',
+    listingStatus: 'open',
     stages: [
       DiscoveryLeagueStage(
         id: _etapaNordeste,

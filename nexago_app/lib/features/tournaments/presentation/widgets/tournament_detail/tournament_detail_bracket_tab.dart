@@ -93,18 +93,27 @@ class _TournamentDetailBracketTabState
 
         final matches = cards.map((c) => c.match).toList();
         final cardsById = {for (final c in cards) c.match.id: c};
-        var bracket = bracketMatchesForCategory(matches, _categoryId);
-        if (_filter == TournamentMatchesFilter.mine) {
-          bracket = filterAthleteMatches(bracket, athleteTeamIds);
-        }
-        final groups = groupBracketMatchesByRound(bracket);
         final selectedOffer = offers
             .where((o) => o.id == _categoryId)
             .cast<TournamentCategoryOffer?>()
             .firstOrNull;
+
+        var pool = poolMatchesForCategory(matches, _categoryId);
+        var bracket = bracketMatchesForCategory(matches, _categoryId);
+        if (_filter == TournamentMatchesFilter.mine) {
+          pool = filterAthleteMatches(pool, athleteTeamIds);
+          bracket = filterAthleteMatches(bracket, athleteTeamIds);
+        }
+        final poolGroups = groupMatchesByPool(pool);
+        final knockoutGroups = groupBracketMatchesByRound(bracket);
+        final showPools = selectedOffer != null &&
+            categoryHasGroupsPhase(selectedOffer) &&
+            poolGroups.isNotEmpty;
         final showInteractiveBracket = selectedOffer != null &&
             isDoubleEliminationBracketFormat(selectedOffer.bracketFormat) &&
             bracket.isNotEmpty;
+        final hasKnockoutContent = knockoutGroups.isNotEmpty;
+        final isEmpty = !showPools && !hasKnockoutContent;
 
         return ListView(
           padding: const EdgeInsets.only(bottom: 32),
@@ -167,7 +176,7 @@ class _TournamentDetailBracketTabState
                 value: _filter,
                 onChanged: (filter) => setState(() => _filter = filter),
               ),
-            if (bracket.isEmpty && _filter == TournamentMatchesFilter.mine)
+            if (isEmpty && _filter == TournamentMatchesFilter.mine)
               Padding(
                 padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
                 child: TournamentDetailMessageBody(
@@ -175,21 +184,21 @@ class _TournamentDetailBracketTabState
                   message: 'Você ainda não tem jogos nesta categoria.',
                 ),
               )
-            else if (bracket.isEmpty)
+            else if (isEmpty)
               Padding(
                 padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
                 child: TournamentDetailMessageBody(
                   title: 'Chave ainda não publicada',
                   message:
-                      'Quando o organizador gerar os jogos eliminatórios desta categoria, eles aparecerão aqui.',
+                      'Quando o organizador gerar os jogos desta categoria, eles aparecerão aqui.',
                 ),
               )
-            else
-              for (final group in groups) ...[
+            else ...[
+              if (showPools) ...[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
                   child: Text(
-                    group.roundLabel.toUpperCase(),
+                    'FASE DE GRUPOS',
                     style: AppTypography.mono(
                       fontSize: 11,
                       color: context.themeColors.onSurfaceMuted,
@@ -197,16 +206,66 @@ class _TournamentDetailBracketTabState
                     ),
                   ),
                 ),
-                for (final match in group.matches)
-                  TournamentMatchCard(
-                    viewModel: cardsById[match.id]!,
-                    isAthleteMatch: isAthleteMatchForHighlight(
-                      match,
-                      athleteTeamIds,
+                for (final group in poolGroups) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                    child: Text(
+                      group.poolLabel.toUpperCase(),
+                      style: AppTypography.soraRegular(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: context.themeColors.onSurface,
+                      ),
                     ),
-                    onTap: () => _openMatchDetail(context, match.id),
                   ),
+                  for (final match in group.matches)
+                    TournamentMatchCard(
+                      viewModel: cardsById[match.id]!,
+                      isAthleteMatch: isAthleteMatchForHighlight(
+                        match,
+                        athleteTeamIds,
+                      ),
+                      onTap: () => _openMatchDetail(context, match.id),
+                    ),
+                ],
               ],
+              if (hasKnockoutContent) ...[
+                if (showPools)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                    child: Text(
+                      'MATA-MATA',
+                      style: AppTypography.mono(
+                        fontSize: 11,
+                        color: context.themeColors.onSurfaceMuted,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                for (final group in knockoutGroups) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                    child: Text(
+                      group.roundLabel.toUpperCase(),
+                      style: AppTypography.mono(
+                        fontSize: 11,
+                        color: context.themeColors.onSurfaceMuted,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                  for (final match in group.matches)
+                    TournamentMatchCard(
+                      viewModel: cardsById[match.id]!,
+                      isAthleteMatch: isAthleteMatchForHighlight(
+                        match,
+                        athleteTeamIds,
+                      ),
+                      onTap: () => _openMatchDetail(context, match.id),
+                    ),
+                ],
+              ],
+            ],
           ],
         );
       },

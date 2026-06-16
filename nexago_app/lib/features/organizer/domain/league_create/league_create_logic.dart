@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 
+import '../tournament_create/tournament_create_logic.dart';
 import 'league_create_draft.dart';
 
 const defaultLeagueRankingPoints = <String, int>{
@@ -123,6 +124,14 @@ bool isValidLeagueForPublish(LeagueCreateDraft draft) {
   for (final step in LeagueCreateStep.values) {
     if (step == LeagueCreateStep.review) continue;
     if (!canContinueFromLeagueStep(draft, step)) return false;
+  }
+  if (!draft.stages.any((stage) => stage.status == LeagueStageStatus.defined)) {
+    return false;
+  }
+  for (final category in draft.categories) {
+    if (!isBracketSystemSupported(category.bracketSystem)) {
+      return false;
+    }
   }
   return true;
 }

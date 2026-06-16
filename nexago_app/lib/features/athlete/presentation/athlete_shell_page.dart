@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/layout/nexa_bottom_nav_bar.dart';
 import '../../../core/auth/app_mobile_role.dart';
 import '../../../core/auth/active_role_providers.dart';
 import '../../arena/domain/arena_access_provider.dart';
@@ -87,6 +88,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
 
     return TournamentInviteAcceptCoordinator(
       child: Scaffold(
+      extendBody: true,
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
       appBar: hideAppBarForImmersiveTabs
           ? null
@@ -105,7 +107,7 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
                           ]
                         : <Widget>[],
                 )
-              : AppBar(
+              : NexaAppBar(
                   title: Text(_titles[_index]),
                   actions: [
                     if (showArenaPanelShortcut)
@@ -129,54 +131,50 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
           AthleteCommunityPage(),
         ],
       ),
-      bottomNavigationBar: Theme(
-        data: theme.copyWith(
-          splashColor: AppColors.brand.withValues(alpha: 0.08),
-          highlightColor: AppColors.brand.withValues(alpha: 0.05),
-        ),
-        child: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          currentIndex: _index,
-          onTap: (i) {
-            ref.read(athleteShellTabIndexProvider.notifier).state = i;
-            setState(() => _index = i);
-            ref.read(athleteShellScrollRegistryProvider).scrollToTop(i);
-          },
-          selectedItemColor: AppColors.brand,
-          unselectedItemColor: theme.colorScheme.onSurface.withValues(
-            alpha: 0.55,
+      bottomNavigationBar: NexaBottomNavBar(
+        currentIndex: _index,
+        onTap: (i) {
+          ref.read(athleteShellTabIndexProvider.notifier).state = i;
+          setState(() => _index = i);
+          ref.read(athleteShellScrollRegistryProvider).scrollToTop(i);
+        },
+        items: const [
+          NexaBottomNavItem(
+            label: 'Início',
+            icon: Icons.home_outlined,
+            selectedIcon: Icons.home,
+            sfSymbol: 'house',
+            selectedSfSymbol: 'house.fill',
           ),
-          selectedFontSize: 12,
-          unselectedFontSize: 12,
-          showUnselectedLabels: true,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Início',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today_outlined),
-              activeIcon: Icon(Icons.calendar_today),
-              label: 'Agenda',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.add_circle_outline),
-              activeIcon: Icon(Icons.add_circle),
-              label: 'Reservar',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.emoji_events_outlined),
-              activeIcon: Icon(Icons.emoji_events),
-              label: 'Competir',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.diversity_3_outlined),
-              activeIcon: Icon(Icons.diversity_3_rounded),
-              label: 'Comunidade',
-            ),
-          ],
-        ),
+          NexaBottomNavItem(
+            label: 'Agenda',
+            icon: Icons.calendar_today_outlined,
+            selectedIcon: Icons.calendar_today,
+            sfSymbol: 'calendar',
+            selectedSfSymbol: 'calendar',
+          ),
+          NexaBottomNavItem(
+            label: 'Reservar',
+            icon: Icons.add_circle_outline,
+            selectedIcon: Icons.add_circle,
+            sfSymbol: 'plus.circle',
+            selectedSfSymbol: 'plus.circle.fill',
+          ),
+          NexaBottomNavItem(
+            label: 'Competir',
+            icon: Icons.emoji_events_outlined,
+            selectedIcon: Icons.emoji_events,
+            sfSymbol: 'trophy',
+            selectedSfSymbol: 'trophy.fill',
+          ),
+          NexaBottomNavItem(
+            label: 'Comunidade',
+            icon: Icons.diversity_3_outlined,
+            selectedIcon: Icons.diversity_3_rounded,
+            sfSymbol: 'person.3',
+            selectedSfSymbol: 'person.3.fill',
+          ),
+        ],
       ),
     ),
     );

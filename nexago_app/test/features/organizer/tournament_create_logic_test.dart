@@ -154,6 +154,42 @@ void main() {
     });
   });
 
+  group('supportedBracketSystems', () {
+    test('lists only implemented formats', () {
+      expect(supportedBracketSystems, [
+        TournamentBracketSystem.groupsThenKnockout,
+        TournamentBracketSystem.singleElimination,
+        TournamentBracketSystem.doubleElimination,
+      ]);
+    });
+
+    test('blocks publish when category uses round robin', () {
+      const draft = TournamentCreateDraft(
+        name: 'Copa',
+        categories: const [
+          TournamentCategoryDraft(
+            id: '1',
+            name: 'Open',
+            bracketSystem: TournamentBracketSystem.roundRobin,
+          ),
+        ],
+      );
+      expect(isValidForPublish(draft), isFalse);
+      expect(
+        publishBlockReasonForUnsupportedBrackets(draft),
+        contains('Todos contra todos'),
+      );
+    });
+
+    test('unsupportedBracketFormatHint for round_robin', () {
+      expect(
+        unsupportedBracketFormatHint('round_robin'),
+        contains('em breve'),
+      );
+      expect(unsupportedBracketFormatHint('groups_knockout'), isNull);
+    });
+  });
+
   group('bracketFormatLabelFromRaw', () {
     test('maps firestore values to friendly portuguese labels', () {
       expect(

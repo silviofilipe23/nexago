@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/active_role_providers.dart';
+import '../../../core/router/navigation_helpers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/theme_mode_provider.dart';
@@ -36,13 +38,7 @@ class AthleteSettingsPage extends ConsumerStatefulWidget {
 }
 
 class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
-  void _popOrDiscover() {
-    if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go(AppRoutes.discover);
-    }
-  }
+  void _popOrDiscover() => popOrGo(context, AppRoutes.discover);
 
   Future<void> _signOut() async {
     await ref.read(appSignOutProvider)();
@@ -347,7 +343,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
     ThemeData theme, {
     required VoidCallback onBack,
   }) {
-    return AppBar(
+    return NexaAppBar(
       backgroundColor: context.themeColors.canvas,
       surfaceTintColor: Colors.transparent,
       elevation: 0,

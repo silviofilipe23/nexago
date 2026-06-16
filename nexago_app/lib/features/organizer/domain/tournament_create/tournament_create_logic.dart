@@ -41,6 +41,62 @@ String bracketSystemDescription(
     'Dupla eliminatória — sem fase de grupos.',
 };
 
+/// Formatos com geração de chave e operação dia D implementados.
+const supportedBracketSystems = <TournamentBracketSystem>[
+  TournamentBracketSystem.groupsThenKnockout,
+  TournamentBracketSystem.singleElimination,
+  TournamentBracketSystem.doubleElimination,
+];
+
+/// Formatos visíveis no wizard mas ainda sem backend completo.
+const comingSoonBracketSystems = <TournamentBracketSystem>[
+  TournamentBracketSystem.roundRobin,
+  TournamentBracketSystem.groupsWithRepechage,
+];
+
+bool isBracketSystemSupported(TournamentBracketSystem system) =>
+    supportedBracketSystems.contains(system);
+
+bool isBracketFormatSupportedRaw(String raw) {
+  final system = bracketSystemFromRaw(raw);
+  return system != null && isBracketSystemSupported(system);
+}
+
+String unsupportedBracketSystemHint(TournamentBracketSystem system) =>
+    switch (system) {
+      TournamentBracketSystem.roundRobin =>
+        'Pontos corridos estará disponível em breve. '
+        'Use grupos + mata-mata, chave simples ou dupla eliminatória.',
+      TournamentBracketSystem.groupsWithRepechage =>
+        'Grupos com repescagem estará disponível em breve. '
+        'Use grupos + mata-mata ou chave simples.',
+      _ =>
+        'Este formato de chave ainda não é suportado para publicação.',
+    };
+
+String? unsupportedBracketFormatHint(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) return null;
+  if (isBracketFormatSupportedRaw(trimmed)) return null;
+  final system = bracketSystemFromRaw(trimmed);
+  if (system != null) return unsupportedBracketSystemHint(system);
+  return 'Formato de chave não suportado para geração automática.';
+}
+
+String publishBlockReasonForUnsupportedBrackets(TournamentCreateDraft draft) {
+  for (final category in draft.categories) {
+    if (!isBracketSystemSupported(category.bracketSystem)) {
+      final label = category.name.trim().isNotEmpty
+          ? category.name.trim()
+          : 'sem nome';
+      return 'A categoria "$label" usa '
+          '${bracketSystemLabel(category.bracketSystem)}, '
+          'ainda não suportado.';
+    }
+  }
+  return '';
+}
+
 String bestOfLabel(TournamentBestOf bestOf) => switch (bestOf) {
   TournamentBestOf.singleSet => 'Set único',
   TournamentBestOf.bestOf3 => 'MD3',
@@ -269,7 +325,7 @@ bool isValidForPublish(TournamentCreateDraft draft) {
     if (step == TournamentCreateStep.review) continue;
     if (!canContinueFromStep(draft, step)) return false;
   }
-  return true;
+  return publishBlockReasonForUnsupportedBrackets(draft).isEmpty;
 }
 
 bool hasMeaningfulLocalDraft(TournamentCreateDraft draft) =>

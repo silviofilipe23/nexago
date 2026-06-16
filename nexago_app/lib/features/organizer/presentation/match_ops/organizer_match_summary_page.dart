@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -25,7 +26,7 @@ class OrganizerMatchSummaryPage extends ConsumerWidget {
     final auditAsync = ref.watch(organizerMatchAuditLogProvider(matchId));
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: NexaAppBar(
         title: const Text('Súmula'),
         actions: [
           IconButton(

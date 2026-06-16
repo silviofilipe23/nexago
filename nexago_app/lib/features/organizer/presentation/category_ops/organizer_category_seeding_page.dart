@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -75,7 +76,7 @@ class _OrganizerCategorySeedingPageState
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      appBar: AppBar(
+      appBar: NexaAppBar(
         title: const Text('Cabeças de chave'),
         backgroundColor: context.themeColors.canvas,
       ),

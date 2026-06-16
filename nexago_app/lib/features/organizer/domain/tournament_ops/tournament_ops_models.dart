@@ -98,10 +98,11 @@ class OrganizerTournamentCategorySummary {
   final OrganizerCategoryBracketStatus bracketStatus;
   final int prizeTotalCents;
 
-  bool get isFull => maxTeams > 0 && enrolledCount >= maxTeams;
+  /// Lotado quando vagas confirmadas (pagas, fora da waitlist) atingem o máximo.
+  bool get isFull => maxTeams > 0 && paidCount >= maxTeams;
 
   double get fillRatio =>
-      maxTeams > 0 ? (enrolledCount / maxTeams).clamp(0.0, 1.0) : 0.0;
+      maxTeams > 0 ? (paidCount / maxTeams).clamp(0.0, 1.0) : 0.0;
 
   bool get readyToGenerateBracket =>
       isFull && bracketStatus != OrganizerCategoryBracketStatus.published;

@@ -204,12 +204,28 @@ void main() {
     );
   });
 
-  test('isPubliclyListedTournament hides draft and cancelled', () {
+  test('isPubliclyListedTournament hides draft, cancelled and missing status', () {
     expect(isPubliclyListedTournament('draft'), isFalse);
     expect(isPubliclyListedTournament('open'), isTrue);
     expect(isPubliclyListedTournament('closed'), isTrue);
     expect(isPubliclyListedTournament('cancelled'), isFalse);
-    expect(isPubliclyListedTournament(null), isTrue);
+    expect(isPubliclyListedTournament(null), isFalse);
+    expect(isPubliclyListedTournament(''), isFalse);
+  });
+
+  test('isPubliclyListedLeague hides closed and cancelled circuits', () {
+    expect(isPubliclyListedLeague('open'), isTrue);
+    expect(isPubliclyListedLeague('live'), isTrue);
+    expect(isPubliclyListedLeague('closed'), isFalse);
+    expect(isPubliclyListedLeague('cancelled'), isFalse);
+    expect(isPubliclyListedLeague('ended'), isFalse);
+    expect(isPubliclyListedLeague(null), isFalse);
+  });
+
+  test('leagueListingBannerMessage for terminal statuses', () {
+    expect(leagueListingBannerMessage('cancelled'), isNotNull);
+    expect(leagueListingBannerMessage('closed'), isNotNull);
+    expect(leagueListingBannerMessage('open'), isNull);
   });
 
   test('isRegistrationListingClosed detects closed status', () {

@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,7 +19,7 @@ class ArenaFollowersPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final followersAsync = ref.watch(arenaFollowersListProvider(arenaId));
     return Scaffold(
-      appBar: AppBar(title: const Text('Atletas interessados')),
+      appBar: NexaAppBar(title: const Text('Atletas interessados')),
       body: followersAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(

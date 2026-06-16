@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
@@ -35,7 +36,7 @@ class CompeteHubShellAppBar extends StatelessWidget
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return AppBar(
+    return NexaAppBar(
       centerTitle: false,
       titleSpacing: ArenaDashboardTokens.horizontalPadding,
       title: Align(

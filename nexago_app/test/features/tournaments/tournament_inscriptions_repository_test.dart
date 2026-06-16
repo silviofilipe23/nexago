@@ -63,6 +63,40 @@ void main() {
     });
   });
 
+  group('userWaitlistByCategoryData', () {
+    test('maps only waitlisted categories for athlete', () {
+      final rows = <({
+        String registrationId,
+        Map<String, dynamic> inscription,
+        Map<String, dynamic>? team,
+      })>[
+        (
+          registrationId: 'reg-1',
+          inscription: {
+            'categoryId': 'Misto',
+            'teamId': 't1',
+            'waitlist': true,
+          },
+          team: {'player1Id': 'uid-a', 'player2Id': 'uid-b'},
+        ),
+        (
+          registrationId: 'reg-2',
+          inscription: {
+            'categoryId': 'Masculino C',
+            'teamId': 't2',
+            'isPaid': true,
+          },
+          team: {'player1Id': 'uid-a', 'player2Id': 'uid-c'},
+        ),
+      ];
+
+      expect(
+        userWaitlistByCategoryData(rows, 'uid-a'),
+        {'Misto': true},
+      );
+    });
+  });
+
   group('userTeamIdsByCategoryData', () {
     final rows = <({
       String registrationId,

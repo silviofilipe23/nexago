@@ -19,7 +19,7 @@ class LeaguesRepository {
       final items = snap.docs
           .map(LeagueDocumentMapper.fromSnapshot)
           .whereType<DiscoveryLeague>()
-          .where((league) => isPubliclyListedTournament(league.listingStatus))
+          .where((league) => isPubliclyListedLeague(league.listingStatus))
           .toList();
       items.sort(
         (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
@@ -49,6 +49,7 @@ class LeaguesRepository {
       final items = snap.docs
           .map(LeagueDocumentMapper.fromSnapshot)
           .whereType<DiscoveryLeague>()
+          .where((league) => isPubliclyListedLeague(league.listingStatus))
           .toList();
       items.sort(
         (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),

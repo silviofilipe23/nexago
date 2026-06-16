@@ -45,6 +45,33 @@ TournamentCategoryEnrollmentCounts countInscriptionsByCategory(
   return countInscriptionsByCategoryData(docs.map((d) => d.data()));
 }
 
+/// Mapeia inscrições do atleta em fila de espera por `categoryId`.
+Map<String, bool> userWaitlistByCategoryData(
+  Iterable<({
+    String registrationId,
+    Map<String, dynamic> inscription,
+    Map<String, dynamic>? team,
+  })> rows,
+  String uid,
+) {
+  final id = uid.trim();
+  if (id.isEmpty) return const <String, bool>{};
+  final result = <String, bool>{};
+  for (final row in rows) {
+    final team = row.team;
+    if (team == null) continue;
+    final p1 = (team['player1Id'] as String?)?.trim();
+    final p2 = (team['player2Id'] as String?)?.trim();
+    if (p1 != id && p2 != id) continue;
+    if (row.inscription['waitlist'] != true) continue;
+    final categoryId =
+        (row.inscription['categoryId'] as String?)?.trim() ?? '';
+    if (categoryId.isEmpty) continue;
+    result[categoryId] = true;
+  }
+  return result;
+}
+
 /// Mapeia inscrições do atleta por `categoryId`. Pure helper para testes.
 TournamentUserRegistrationsByCategory userRegistrationsByCategoryData(
   Iterable<({
@@ -228,6 +255,42 @@ class TournamentInscriptionsRepository {
     });
   }
 
+  /// Fila de espera do atleta no torneio: `categoryId` → `true`.
+  Stream<Map<String, bool>> watchUserWaitlistByCategory({
+    required String tournamentId,
+    required String uid,
+  }) {
+    final tid = tournamentId.trim();
+    final athleteUid = uid.trim();
+    if (tid.isEmpty || athleteUid.isEmpty) {
+      return Stream.value(const <String, bool>{});
+    }
+
+    return _inscriptions
+        .where('tournamentId', isEqualTo: tid)
+        .snapshots()
+        .asyncMap((snap) async {
+      final rows = <
+          ({
+            String registrationId,
+            Map<String, dynamic> inscription,
+            Map<String, dynamic>? team,
+          })>[];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final teamId = (data['teamId'] as String?)?.trim() ?? '';
+        if (teamId.isEmpty) continue;
+        final teamSnap = await _teams.doc(teamId).get();
+        rows.add((
+          registrationId: doc.id,
+          inscription: data,
+          team: teamSnap.exists ? teamSnap.data() : null,
+        ));
+      }
+      return userWaitlistByCategoryData(rows, athleteUid);
+    });
+  }
+
   /// Conjunto de `categoryId`s do torneio em que `uid` já está inscrito.
   Stream<Set<String>> watchRegisteredCategoryIdsForUser({
     required String tournamentId,
@@ -349,6 +412,30 @@ final tournamentUserRegistrationsByCategoryProvider =
         .family<TournamentUserRegistrationsByCategory, String>(
   (ref, tournamentId) =>
       _userRegistrationsByCategoryStream(ref, tournamentId),
+);
+
+Stream<Map<String, bool>> _userWaitlistByCategoryStream(
+  Ref ref,
+  String tournamentId,
+) {
+  final auth = ref.watch(authProvider);
+  if (auth.isLoading) {
+    return const Stream<Map<String, bool>>.empty();
+  }
+  final uid = auth.valueOrNull?.uid.trim() ?? '';
+  if (uid.isEmpty) return Stream.value(const <String, bool>{});
+  return ref
+      .watch(tournamentInscriptionsRepositoryProvider)
+      .watchUserWaitlistByCategory(
+        tournamentId: tournamentId,
+        uid: uid,
+      );
+}
+
+/// Fila de espera do usuário autenticado no torneio (`categoryId` → `true`).
+final tournamentUserWaitlistByCategoryProvider = StreamProvider.autoDispose
+    .family<Map<String, bool>, String>(
+  (ref, tournamentId) => _userWaitlistByCategoryStream(ref, tournamentId),
 );
 
 /// Categorias do torneio em que o usuário autenticado já está inscrito.

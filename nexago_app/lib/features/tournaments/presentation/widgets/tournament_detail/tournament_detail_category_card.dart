@@ -19,6 +19,7 @@ class TournamentDetailCategoryCard extends StatelessWidget {
     required this.onRegister,
     this.inscriptionCount,
     this.registrationId,
+    this.isOnWaitlist = false,
   });
 
   final TournamentCategoryOffer offer;
@@ -28,6 +29,7 @@ class TournamentDetailCategoryCard extends StatelessWidget {
   final VoidCallback? onRegister;
   final int? inscriptionCount;
   final String? registrationId;
+  final bool isOnWaitlist;
 
   void _openRegistrationSuccess(BuildContext context) {
     final regId = registrationId?.trim() ?? '';
@@ -102,18 +104,20 @@ class TournamentDetailCategoryCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.win.withValues(alpha: 0.15),
+                    color: (isOnWaitlist ? AppColors.pending : AppColors.win)
+                        .withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: AppColors.win.withValues(alpha: 0.45),
+                      color: (isOnWaitlist ? AppColors.pending : AppColors.win)
+                          .withValues(alpha: 0.45),
                     ),
                   ),
                   child: Text(
-                    'INSCRITO',
+                    isOnWaitlist ? 'NA FILA' : 'INSCRITO',
                     style: AppTypography.mono(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.win,
+                      color: isOnWaitlist ? AppColors.pending : AppColors.win,
                       letterSpacing: 0.4,
                     ),
                   ),
@@ -272,6 +276,7 @@ class TournamentDetailCategoryCard extends StatelessWidget {
               kind: ctaKind,
               onPressed: switch (ctaKind) {
                 TournamentCategoryCtaKind.register => onRegister,
+                TournamentCategoryCtaKind.waitlist => onRegister,
                 TournamentCategoryCtaKind.viewRegistration =>
                   () => _openRegistrationSuccess(context),
                 _ => null,
@@ -365,7 +370,8 @@ class _CategoryCtaButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = tournamentCategoryCtaLabel(kind);
     final isPrimary = kind == TournamentCategoryCtaKind.register ||
-        kind == TournamentCategoryCtaKind.viewRegistration;
+        kind == TournamentCategoryCtaKind.viewRegistration ||
+        (kind == TournamentCategoryCtaKind.waitlist && onPressed != null);
 
     if (isPrimary) {
       final isEnrolled = kind == TournamentCategoryCtaKind.viewRegistration;

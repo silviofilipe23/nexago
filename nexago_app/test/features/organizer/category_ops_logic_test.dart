@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/organizer/domain/category_ops/category_ops_logic.dart';
 import 'package:nexago_app/features/organizer/domain/category_ops/category_ops_models.dart';
@@ -77,6 +79,41 @@ void main() {
       expect(state.seeds, ['t1', 't2']);
       expect(state.bracketStatus, CategoryBracketStatus.published);
       expect(state.winnersAdvantage, isFalse);
+    });
+  });
+
+  group('distributeTeamsIntoGroups', () {
+    test('places seeds in different groups with snake draft', () {
+      final groups = distributeTeamsIntoGroups(
+        teamIds: ['t1', 't2', 't3', 't4'],
+        seedTeamIds: ['t1', 't2'],
+        respectSeeds: true,
+        random: Random(1),
+      );
+      expect(groups, hasLength(2));
+      expect(groups[0].teamIds.first, 't1');
+      expect(groups[1].teamIds.first, 't2');
+      expect(
+        {...groups[0].teamIds, ...groups[1].teamIds},
+        {'t1', 't2', 't3', 't4'},
+      );
+    });
+
+    test('ignores seed order when respectSeeds is false', () {
+      final withSeeds = distributeTeamsIntoGroups(
+        teamIds: ['a', 'b', 'c', 'd'],
+        seedTeamIds: ['a', 'b'],
+        respectSeeds: true,
+        random: Random(42),
+      );
+      final withoutSeeds = distributeTeamsIntoGroups(
+        teamIds: ['a', 'b', 'c', 'd'],
+        seedTeamIds: ['a', 'b'],
+        respectSeeds: false,
+        random: Random(42),
+      );
+      expect(withSeeds[0].teamIds.first, 'a');
+      expect(withoutSeeds, isNot(equals(withSeeds)));
     });
   });
 }

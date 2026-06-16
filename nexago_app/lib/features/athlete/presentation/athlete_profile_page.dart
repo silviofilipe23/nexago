@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
+import '../../../core/router/navigation_helpers.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../arenas/domain/my_booking_item.dart';
@@ -249,13 +250,7 @@ class _AthleteProfileBody extends ConsumerWidget {
       badges: badges,
       achievementsState: achievementsState,
       profileCompletion: completion,
-      onBack: () {
-        if (context.canPop()) {
-          context.pop();
-        } else {
-          context.go(AppRoutes.discover);
-        }
-      },
+      onBack: () => popOrGo(context, AppRoutes.discover),
       onEdit: onEdit,
       onShare: readOnly ? () {} : () => _shareProfile(context, ref, profile),
       onOpenSettings: readOnly ? null : onOpenSettings,

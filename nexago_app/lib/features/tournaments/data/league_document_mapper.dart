@@ -48,9 +48,11 @@ abstract final class LeagueDocumentMapper {
       for (final item in categoriesRaw) {
         if (item is! Map) continue;
         final map = Map<String, dynamic>.from(item);
-        final categoryId = _str(map['id']) ?? _str(map['name']);
-        final categoryName = _str(map['name']) ?? categoryId;
-        if (categoryId == null || categoryName == null) continue;
+        final categoryName =
+            _str(map['categoryName']) ?? _str(map['name']);
+        if (categoryName == null) continue;
+        final categoryId =
+            _str(map['id'] ?? map['categoryId']) ?? categoryName;
         categories.add(
           DiscoveryLeagueCategory(id: categoryId, name: categoryName),
         );

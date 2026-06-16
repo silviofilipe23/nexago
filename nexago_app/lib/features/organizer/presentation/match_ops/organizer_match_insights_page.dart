@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 
@@ -19,7 +20,7 @@ class OrganizerMatchInsightsPage extends ConsumerWidget {
     final insights = state.insights;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Insights')),
+      appBar: NexaAppBar(title: const Text('Insights')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

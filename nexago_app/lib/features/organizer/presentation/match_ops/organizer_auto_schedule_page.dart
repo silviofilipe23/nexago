@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
@@ -60,7 +61,7 @@ class _OrganizerAutoSchedulePageState
     final count = _preview?['count'] ?? 0;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Auto-programação')),
+      appBar: NexaAppBar(title: const Text('Auto-programação')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

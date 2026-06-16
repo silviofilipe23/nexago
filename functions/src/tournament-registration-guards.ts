@@ -70,6 +70,7 @@ export async function assertTournamentAcceptsRegistration(
     statusNorm === "cancelled" ||
     statusNorm === "canceled" ||
     statusNorm === "cancelado"
+    || statusNorm === "cancelada"
   ) {
     throw new HttpsError(
       "failed-precondition",
@@ -92,6 +93,14 @@ export async function assertTournamentAcceptsRegistration(
     );
   }
 
+  const opensAt = tournament.registrationOpensAt;
+  if (opensAt instanceof Timestamp && opensAt.toMillis() > Date.now()) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Prazo de inscrição ainda não iniciado.",
+    );
+  }
+
   const categoryKey = categoryId?.trim() ?? "";
   if (categoryKey.length > 0) {
     const category = findCategory(tournament, categoryKey);
@@ -109,6 +118,33 @@ export async function assertTournamentAcceptsRegistration(
         "failed-precondition",
         "Categoria já concluída.",
       );
+    }
+
+    // Capacidade: se lotado e fila ativa, a inscrição entra na fila.
+    // (A marcação real de `waitlist` é feita pelas funções que persistem a inscrição,
+    // usando o campo interno `__shouldWaitlist` retornado aqui.)
+    const waitlistEnabled = tournament.waitlistEnabled !== false;
+    const rawSpotsLeft =
+      category.spotsLeft ??
+      category.spotsTotal ??
+      category.maxTeams ??
+      category.spots;
+    const spotsLeft =
+      typeof rawSpotsLeft === "number"
+        ? rawSpotsLeft
+        : typeof rawSpotsLeft === "string"
+          ? Number(rawSpotsLeft)
+          : Number.NaN;
+
+    if (Number.isFinite(spotsLeft) && spotsLeft <= 0) {
+      if (waitlistEnabled) {
+        (tournament as TournamentData).__shouldWaitlist = true;
+      } else {
+        throw new HttpsError(
+          "failed-precondition",
+          "Categoria lotada.",
+        );
+      }
     }
   }
 

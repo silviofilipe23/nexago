@@ -32,6 +32,23 @@ describe("tournament-registration-guards", () => {
     );
   });
 
+  it("rejects cancelada listing status", async () => {
+    const db = mockDb({listingStatus: "cancelada", categories: []});
+    await assert.rejects(
+      () =>
+        assertTournamentAcceptsRegistration(
+          db as never,
+          "proj",
+          "t1",
+          "cat-a",
+        ),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "failed-precondition");
+        return true;
+      },
+    );
+  });
+
   it("rejects category with registrationClosed", async () => {
     const db = mockDb({
       listingStatus: "open",
@@ -72,6 +89,45 @@ describe("tournament-registration-guards", () => {
         assert.equal(err.code, "failed-precondition");
         return true;
       },
+    );
+  });
+
+  it("rejects before registrationOpensAt", async () => {
+    const db = mockDb({
+      listingStatus: "open",
+      categories: [{categoryName: "cat-a"}],
+      registrationOpensAt: Timestamp.fromMillis(Date.now() + 60_000),
+    });
+    await assert.rejects(
+      () =>
+        assertTournamentAcceptsRegistration(
+          db as never,
+          "proj",
+          "t1",
+          "cat-a",
+        ),
+      (err: Error & {code?: string}) => {
+        assert.equal(err.code, "failed-precondition");
+        return true;
+      },
+    );
+  });
+
+  it("allows category lotada when waitlist is enabled", async () => {
+    const db = mockDb({
+      listingStatus: "open",
+      waitlistEnabled: true,
+      categories: [{categoryName: "cat-a", spotsLeft: 0}],
+    });
+    const data = await assertTournamentAcceptsRegistration(
+      db as never,
+      "proj",
+      "t1",
+      "cat-a",
+    );
+    assert.equal(
+      (data as Record<string, unknown>).__shouldWaitlist,
+      true,
     );
   });
 

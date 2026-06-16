@@ -21,6 +21,9 @@ final goRouterRefreshNotifierProvider = Provider<GoRouterRefreshNotifier>((ref) 
   ref.listen(activeMobileRoleProvider, (previous, next) {
     notifier.notifyAuthChanged();
   });
+  ref.listen(roleSwitchPendingProvider, (previous, next) {
+    notifier.notifyAuthChanged();
+  });
   ref.listen(sessionBootstrapProvider, (previous, next) {
     notifier.notifyAuthChanged();
   });

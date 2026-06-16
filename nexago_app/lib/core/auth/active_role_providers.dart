@@ -19,6 +19,28 @@ final activeMobileRoleProvider =
   ActiveMobileRoleNotifier.new,
 );
 
+/// Indica troca de papel iniciada (ex.: configurações) — não restaurar preferência salva.
+final roleSwitchPendingProvider =
+    NotifierProvider<RoleSwitchPendingNotifier, bool>(
+  RoleSwitchPendingNotifier.new,
+);
+
+class RoleSwitchPendingNotifier extends Notifier<bool> {
+  @override
+  bool build() {
+    ref.listen<AsyncValue<User?>>(authProvider, (previous, next) {
+      if (next.valueOrNull == null) {
+        state = false;
+      }
+    });
+    return false;
+  }
+
+  void begin() => state = true;
+
+  void end() => state = false;
+}
+
 class ActiveMobileRoleNotifier extends Notifier<AppMobileRole?> {
   @override
   AppMobileRole? build() {
@@ -39,6 +61,7 @@ class ActiveMobileRoleNotifier extends Notifier<AppMobileRole?> {
   }
 
   Future<void> confirmRole({required AppMobileRole role}) async {
+    ref.read(roleSwitchPendingProvider.notifier).end();
     final uid = ref.read(authProvider).valueOrNull?.uid;
     state = role;
     if (uid == null || uid.isEmpty) return;
@@ -49,6 +72,7 @@ class ActiveMobileRoleNotifier extends Notifier<AppMobileRole?> {
   }
 
   Future<void> prepareForRoleSwitch() async {
+    ref.read(roleSwitchPendingProvider.notifier).begin();
     state = null;
   }
 }
@@ -65,6 +89,10 @@ final availableMobileRolesProvider = FutureProvider<List<AppMobileRole>>((ref) a
 Future<AppMobileRole?> resolveActiveMobileRole(Ref ref) async {
   final user = ref.read(authProvider).valueOrNull;
   if (user == null) return null;
+
+  if (ref.read(roleSwitchPendingProvider)) {
+    return null;
+  }
 
   final sessionRole = ref.read(activeMobileRoleProvider);
   final token = await user.getIdTokenResult(true);
@@ -97,6 +125,8 @@ Future<bool> needsRoleSelectionFlow(Ref ref) async {
   final token = await user.getIdTokenResult(true);
   final available = mobileRolesFromIdToken(token);
   if (available.length <= 1) return false;
+
+  if (ref.read(roleSwitchPendingProvider)) return true;
 
   final active = await resolveActiveMobileRole(ref);
   if (active != null) return false;

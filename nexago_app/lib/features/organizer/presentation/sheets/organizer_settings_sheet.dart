@@ -83,9 +83,9 @@ class _OrganizerSettingsSheet extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(14),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
-                  onTap: () {
+                  onTap: () async {
                     Navigator.of(context).pop();
-                    navigateToRoleSelection(context, ref);
+                    await navigateToRoleSelection(context, ref);
                   },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(

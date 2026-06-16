@@ -45,6 +45,8 @@ Referência de schema: `docs/tournaments-firestore-schema.md`
 **Sugestão:** correção mínima viável
 
 **Escalar CBV?** sim/não — se sim, qual aspecto regulamentar
+
+**Escalar técnico?** sim/não — se sim, qual agent técnico (auditoria fase 2)
 ```
 
 ## Smoke manual (7 passos) — dev `volley-track-dev-4596c`
@@ -98,13 +100,35 @@ Referência de schema: `docs/tournaments-firestore-schema.md`
 
 ## Ordem de execução recomendada
 
+### Fase 1 — Regras de negócio (5 agents)
+
+Coordenador: `tournament-league-business-coordinator`  
+Skill: `.cursor/skills/tournament-league-business-coordinator/SKILL.md`
+
+| Agent | Skill | Foco negócio |
+|-------|-------|--------------|
+| `tournament-create-rules-auditor` | `tournament-create-rules-audit/SKILL.md` | Wizard → publish → leitura atleta |
+| `league-circuit-rules-auditor` | `league-circuit-rules-audit/SKILL.md` | Temporada, etapas, ranking |
+| `registration-enrollment-rules-auditor` | `registration-enrollment-rules-audit/SKILL.md` | Máquina de estados inscrição |
+| `tournament-operations-rules-auditor` | `tournament-operations-rules-audit/SKILL.md` | Acompanhamento organizador |
+| `competition-contract-rules-auditor` | `competition-contract-rules-audit/SKILL.md` | Invariantes cross-layer |
+
+Smoke negócio: seções **A**, **B**, **C** em `docs/tournament-league-smoke-dev.md`.
+
+### Fase 2 — Técnica (6 agents, opcional)
+
+Coordenador: `tournament-league-audit-coordinator`  
+Disparar após fase 1 se houver P0 segurança/ACL ou handoff técnico acumulado.
+
 1. `tournament-firestore-acl-auditor` (fundação segurança)
 2. `tournament-registration-auditor`
 3. `tournament-listing-discovery-auditor`
 4. `tournament-bracket-category-auditor`
 5. `tournament-match-ops-auditor`
 6. `league-circuit-auditor`
-7. Coordenador consolida + smoke
+7. Coordenador técnico consolida + smoke 7 passos
+
+**Nota:** `league-circuit-auditor` (técnico) ≠ `league-circuit-rules-auditor` (negócio).
 
 ## Quando escalar ao CBV
 

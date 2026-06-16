@@ -7,6 +7,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../core/auth/active_role_providers.dart';
 import '../../../../core/auth/app_mobile_role.dart';
 import '../../../../core/auth/auth_providers.dart';
+import '../../../../core/router/app_router.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -232,7 +233,5 @@ Future<void> navigateToRoleSelection(
   WidgetRef ref,
 ) async {
   await ref.read(activeMobileRoleProvider.notifier).prepareForRoleSwitch();
-  if (context.mounted) {
-    context.go(AppRoutes.roleSelection);
-  }
+  ref.read(goRouterProvider).go(AppRoutes.roleSelection);
 }

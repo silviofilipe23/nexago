@@ -160,12 +160,23 @@ export const createTournamentRegistrationPixPayment = onCall({
   const tournamentId = registration.tournamentId as string;
   const categoryId = registration.categoryId as string;
 
-  await assertTournamentAcceptsRegistration(
+  const tournamentData = await assertTournamentAcceptsRegistration(
     db,
     projectId,
     tournamentId,
     categoryId,
   );
+
+  // Se a categoria está lotada, a inscrição pode entrar na fila.
+  // O guard sinaliza isso via `__shouldWaitlist` (sem persistir no documento aqui).
+  const shouldWaitlist =
+    (tournamentData as Record<string, unknown>).__shouldWaitlist === true;
+  if (shouldWaitlist) {
+    await registrationRef.update({
+      waitlist: true,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
 
   const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
   if (!teamSnap.exists) {
@@ -499,12 +510,15 @@ export const confirmFreeTournamentRegistration = onCall({
   const tournamentId = registration.tournamentId as string;
   const categoryId = registration.categoryId as string;
 
-  await assertTournamentAcceptsRegistration(
+  const tournamentData = await assertTournamentAcceptsRegistration(
     db,
     projectId,
     tournamentId,
     categoryId,
   );
+
+  const shouldWaitlist =
+    (tournamentData as Record<string, unknown>).__shouldWaitlist === true;
 
   const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
   if (!teamSnap.exists) {
@@ -538,6 +552,7 @@ export const confirmFreeTournamentRegistration = onCall({
   await registrationRef.update({
     sharePaidUids: FieldValue.arrayUnion(callerUid),
     isPaid,
+    ...(shouldWaitlist ? {waitlist: true} : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
 

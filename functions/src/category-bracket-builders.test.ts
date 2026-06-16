@@ -1,6 +1,15 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {buildDoubleEliminationMatches} from "./category-bracket-builders";
+import {
+  buildDoubleEliminationMatches,
+  buildGroupsKnockoutMatches,
+  buildSingleEliminationMatches,
+  crossoverFirstRoundPairings,
+} from "./category-bracket-builders";
+import {
+  computePoolStandings,
+  isPoolRoundRobinComplete,
+} from "./group-standings";
 
 function matchByNumber(
   matches: ReturnType<typeof buildDoubleEliminationMatches>,
@@ -100,5 +109,122 @@ describe("buildDoubleEliminationMatches", () => {
       matchNumber: grandFinal!.matchNumber,
       teamSlot: "teamBId",
     });
+  });
+});
+
+describe("crossoverFirstRoundPairings", () => {
+  it("pairs 1A×2B and 2A×1B for two groups", () => {
+    const pairs = crossoverFirstRoundPairings(["A", "B"], 2);
+    assert.deepEqual(pairs, [
+      {a: {poolId: "A", place: 1}, b: {poolId: "B", place: 2}},
+      {a: {poolId: "A", place: 2}, b: {poolId: "B", place: 1}},
+    ]);
+  });
+});
+
+describe("buildGroupsKnockoutMatches", () => {
+  it("builds group matches plus empty knockout qualifier slots", () => {
+    const teams = ["t1", "t2", "t3", "t4"];
+    const groups = [
+      {id: "A", teamIds: ["t1", "t2"]},
+      {id: "B", teamIds: ["t3", "t4"]},
+    ];
+
+    const matches = buildGroupsKnockoutMatches(teams, groups, 2);
+
+    const group = matches.filter((m) => m.isGroupMatch);
+    assert.equal(group.length, 2);
+
+    const semis = matches.filter((m) => m.round === 1 && m.matchType === "knockout");
+    assert.equal(semis.length, 2);
+    assert.equal(semis[0].teamAId, "");
+    assert.equal(semis[0].teamBId, "");
+    assert.deepEqual(semis[0].teamAQualifier, {poolId: "A", place: 1});
+    assert.deepEqual(semis[0].teamBQualifier, {poolId: "B", place: 2});
+    assert.equal(semis[0].teamADescription, "1º Grupo A");
+    assert.equal(semis[0].teamBDescription, "2º Grupo B");
+
+    assert.deepEqual(semis[1].teamAQualifier, {poolId: "A", place: 2});
+    assert.deepEqual(semis[1].teamBQualifier, {poolId: "B", place: 1});
+
+    const finals = matches.filter((m) => m.matchType === "Final");
+    assert.equal(finals.length, 1);
+    assert.equal(finals[0].teamAId, "");
+    assert.equal(finals[0].teamBId, "");
+  });
+});
+
+describe("buildSingleEliminationMatches", () => {
+  it("seeds first knockout round with team ids", () => {
+    const matches = buildSingleEliminationMatches(["t1", "t2", "t3", "t4"]);
+    const semis = matches.filter((m) => m.round === 1 && m.matchType === "knockout");
+    assert.equal(semis[0].teamAId, "t1");
+    assert.equal(semis[0].teamBId, "t2");
+    assert.equal(semis[1].teamAId, "t3");
+    assert.equal(semis[1].teamBId, "t4");
+  });
+});
+
+describe("group standings", () => {
+  it("ranks teams by wins then set difference", () => {
+    const standings = computePoolStandings(
+      "A",
+      ["t1", "t2", "t3"],
+      [
+        {
+          poolId: "A",
+          teamAId: "t1",
+          teamBId: "t2",
+          winnerId: "t1",
+          status: "Completed",
+          isGroupMatch: true,
+          resultA: "2",
+          resultB: "0",
+        },
+        {
+          poolId: "A",
+          teamAId: "t1",
+          teamBId: "t3",
+          winnerId: "t1",
+          status: "Completed",
+          isGroupMatch: true,
+          resultA: "2",
+          resultB: "1",
+        },
+        {
+          poolId: "A",
+          teamAId: "t2",
+          teamBId: "t3",
+          winnerId: "t3",
+          status: "Completed",
+          isGroupMatch: true,
+          resultA: "0",
+          resultB: "2",
+        },
+      ],
+    );
+
+    assert.deepEqual(standings, ["t1", "t3", "t2"]);
+  });
+
+  it("detects completed pool round robin", () => {
+    const complete = isPoolRoundRobinComplete(
+      "A",
+      ["t1", "t2"],
+      [
+        {
+          poolId: "A",
+          teamAId: "t1",
+          teamBId: "t2",
+          winnerId: "t1",
+          status: "Completed",
+          isGroupMatch: true,
+        },
+      ],
+    );
+    assert.equal(complete, true);
+
+    const incomplete = isPoolRoundRobinComplete("A", ["t1", "t2"], []);
+    assert.equal(incomplete, false);
   });
 });

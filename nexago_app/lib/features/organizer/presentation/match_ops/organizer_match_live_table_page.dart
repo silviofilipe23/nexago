@@ -83,12 +83,9 @@ class _OrganizerMatchLiveTablePageState
         await ref.read(organizerMatchScheduleServiceProvider).advanceBracketWinner(
               matchId: widget.matchId,
             );
-        final matchType = match.matchType.trim().toLowerCase();
-        if (matchType == 'final' || matchType == 'grand final') {
-          await ref
-              .read(organizerMatchScheduleServiceProvider)
-              .applyLeagueRankingForMatch(matchId: widget.matchId);
-        }
+        await ref
+            .read(organizerMatchScheduleServiceProvider)
+            .applyLeagueRankingForMatch(matchId: widget.matchId);
       }
       await TournamentLiveMatchesSync.syncForTournament(
         FirebaseFirestore.instance,

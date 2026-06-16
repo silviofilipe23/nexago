@@ -11,6 +11,7 @@ void main() {
           {'categoryId': 'Masculino C', 'isPaid': true},
           {'categoryId': 'Masculino C', 'isPaid': true},
           {'categoryId': 'Misto', 'isPaid': true},
+          {'categoryId': 'Misto', 'isPaid': true, 'waitlist': true},
           {'categoryId': 'Misto', 'isPaid': false},
           {'categoryId': 'Feminino C'},
           {'tournamentId': 't1'},

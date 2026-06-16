@@ -30,6 +30,7 @@ TournamentCategoryEnrollmentCounts countInscriptionsByCategoryData(
   final counts = <String, int>{};
   for (final data in rows) {
     if (data['isPaid'] != true) continue;
+    if (data['waitlist'] == true) continue; // fila não conta como confirmada
     final categoryId = (data['categoryId'] as String?)?.trim() ?? '';
     if (categoryId.isEmpty) continue;
     counts[categoryId] = (counts[categoryId] ?? 0) + 1;

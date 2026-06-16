@@ -267,7 +267,17 @@ function upsertStageResult(
     0,
     Math.round(Number(existing?.points) || 0),
   );
-  if (existing && existingPoints >= newPoints) {
+  const existingPlace = existing?.place;
+  const existingBucket = existing?.placementBucket;
+  const newPlace = newEntry.place;
+  const newBucket = newEntry.placementBucket;
+
+  if (
+    existing &&
+    existingPoints === newPoints &&
+    existingPlace === newPlace &&
+    existingBucket === newBucket
+  ) {
     return stageResults;
   }
   const filtered = stageResults.filter(
@@ -365,6 +375,7 @@ async function loadPaidTeamIds(
   const ids = new Set<string>();
   for (const doc of snap.docs) {
     if (doc.data().isPaid !== true) continue;
+    if (doc.data().waitlist === true) continue;
     const teamId = (doc.data().teamId as string | undefined)?.trim();
     if (teamId) ids.add(teamId);
   }

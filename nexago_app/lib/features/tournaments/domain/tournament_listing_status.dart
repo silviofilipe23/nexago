@@ -17,7 +17,7 @@ TournamentListingStatus? listingStatusFromRaw(String? listingStatusRaw) {
     'inscrições encerradas' ||
     'inscricoes encerradas' =>
       TournamentListingStatus.bracketsReady,
-    'cancelled' || 'canceled' || 'cancelado' =>
+    'cancelled' || 'canceled' || 'cancelado' || 'cancelada' =>
       TournamentListingStatus.ended,
     'open' ||
     'inscrições abertas' ||
@@ -70,7 +70,9 @@ bool isPubliclyListedTournament(String? listingStatusRaw) {
   if (raw == null || raw.isEmpty) return true;
   final n = normalizeListingStatusRaw(raw);
   if (n == 'draft' || n == 'programado') return false;
-  if (n == 'cancelled' || n == 'canceled' || n == 'cancelado') return false;
+  if (n == 'cancelled' || n == 'canceled' || n == 'cancelado' || n == 'cancelada') {
+    return false;
+  }
   return true;
 }
 

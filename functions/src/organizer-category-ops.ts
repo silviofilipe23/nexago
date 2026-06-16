@@ -12,6 +12,7 @@ import {MatchStatus} from "./match-status";
 import {
   buildDoubleEliminationMatches,
   buildGroupsKnockoutMatches,
+  buildSingleEliminationMatches,
 } from "./category-bracket-builders";
 
 function getFirebaseProjectId(): string {
@@ -91,6 +92,18 @@ export const generateCategoryBracket = onCall(async (request) => {
     [];
   const bracketConfig = request.data?.bracketConfig as Record<string, unknown> | undefined;
 
+  const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
+  const tournamentData = tournamentSnap.data() ?? {};
+  const categories =
+    (tournamentData.categories as Array<Record<string, unknown>> | undefined) ?? [];
+  const categoryMeta = categories.find(
+    (entry) => String(entry.categoryName ?? "").trim() === categoryId,
+  );
+  const qualifiersPerGroup =
+    (bracketConfig?.qualifiersPerGroup as number | undefined) ??
+    (categoryMeta?.qualifiersPerGroup as number | undefined) ??
+    2;
+
   const inscriptionsSnap = await db
     .collection(artifactsInscriptionsPath(projectId))
     .where("tournamentId", "==", tournamentId)
@@ -100,7 +113,8 @@ export const generateCategoryBracket = onCall(async (request) => {
   const paidTeamIds = new Set<string>();
   for (const doc of inscriptionsSnap.docs) {
     const teamId = (doc.data().teamId as string)?.trim();
-    if (teamId && doc.data().isPaid === true) {
+    // "Confirmado" no NexaGO = pago e não está na fila de espera.
+    if (teamId && doc.data().isPaid === true && doc.data().waitlist !== true) {
       paidTeamIds.add(teamId);
     }
   }
@@ -128,16 +142,24 @@ export const generateCategoryBracket = onCall(async (request) => {
     .where("categoryId", "==", categoryId)
     .get();
 
+  const resolvedGroups =
+    groupsPreview.length > 0
+      ? groupsPreview
+      : [
+          {id: "A", teamIds: teamIds.slice(0, Math.ceil(teamIds.length / 2))},
+          {id: "B", teamIds: teamIds.slice(Math.ceil(teamIds.length / 2))},
+        ];
+
   const matchDrafts =
     format === "double_elimination"
       ? buildDoubleEliminationMatches(teamIds)
-      : buildGroupsKnockoutMatches(
-          teamIds,
-          groupsPreview.length > 0
-            ? groupsPreview
-            : [{id: "A", teamIds: teamIds.slice(0, Math.ceil(teamIds.length / 2))},
-               {id: "B", teamIds: teamIds.slice(Math.ceil(teamIds.length / 2))}],
-        );
+      : format === "single_elimination"
+        ? buildSingleEliminationMatches(teamIds)
+        : buildGroupsKnockoutMatches(
+            teamIds,
+            resolvedGroups,
+            qualifiersPerGroup,
+          );
 
   const batch = db.batch();
   const matchesCol = db.collection(artifactsMatchesPath(projectId));
@@ -163,6 +185,10 @@ export const generateCategoryBracket = onCall(async (request) => {
       matchNumber: draft.matchNumber,
       ...(draft.winnerAdvance ? {winnerAdvance: draft.winnerAdvance} : {}),
       ...(draft.loserAdvance ? {loserAdvance: draft.loserAdvance} : {}),
+      ...(draft.teamAQualifier ? {teamAQualifier: draft.teamAQualifier} : {}),
+      ...(draft.teamBQualifier ? {teamBQualifier: draft.teamBQualifier} : {}),
+      ...(draft.teamADescription ? {teamADescription: draft.teamADescription} : {}),
+      ...(draft.teamBDescription ? {teamBDescription: draft.teamBDescription} : {}),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -177,7 +203,11 @@ export const generateCategoryBracket = onCall(async (request) => {
           bracketStatus: "published",
           bracketFormatOverride: format,
           seeds: teamIds,
-          bracketConfig: bracketConfig ?? {},
+          bracketConfig: {
+            ...(bracketConfig ?? {}),
+            qualifiersPerGroup,
+          },
+          groupsPreview: resolvedGroups,
           updatedAt: FieldValue.serverTimestamp(),
         },
       },
@@ -212,6 +242,8 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
   await assertCanManageTournament(db, uid, tournamentId);
   await ref.update({
     isPaid: true,
+    // Ao confirmar o pagamento, o time deixa de ser "fila".
+    waitlist: false,
     paidAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });
@@ -337,8 +369,10 @@ export const sendCategoryCommunication = onCall(async (request) => {
 
   for (const doc of inscriptionsSnap.docs) {
     const inscription = doc.data();
-    if (audience === "paid" && inscription.isPaid !== true) continue;
-    if (audience === "pending" && inscription.isPaid === true) continue;
+    const confirmed =
+      inscription.isPaid === true && inscription.waitlist !== true;
+    if (audience === "paid" && !confirmed) continue;
+    if (audience === "pending" && confirmed) continue;
 
     const teamId = (inscription.teamId as string)?.trim();
     if (!teamId) continue;

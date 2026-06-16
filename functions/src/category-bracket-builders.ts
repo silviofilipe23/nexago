@@ -3,6 +3,11 @@ export interface BracketAdvanceSlot {
   teamSlot: "teamAId" | "teamBId";
 }
 
+export interface QualifierSlot {
+  poolId: string;
+  place: number;
+}
+
 export interface MatchDraft {
   round: number;
   matchType: string;
@@ -13,19 +18,71 @@ export interface MatchDraft {
   matchNumber: number;
   winnerAdvance?: BracketAdvanceSlot;
   loserAdvance?: BracketAdvanceSlot;
+  teamAQualifier?: QualifierSlot;
+  teamBQualifier?: QualifierSlot;
+  teamADescription?: string;
+  teamBDescription?: string;
+}
+
+export function qualifierSlotDescription(slot: QualifierSlot): string {
+  return `${slot.place}º Grupo ${slot.poolId}`;
+}
+
+/** Cruzamento padrão 2 grupos: 1A×2B, 1B×2A, 2A×1B, 2B×1A… */
+export function crossoverFirstRoundPairings(
+  groupIds: string[],
+  qualifiersPerGroup: number,
+): Array<{a: QualifierSlot; b: QualifierSlot}> {
+  const safeQ = Math.max(1, qualifiersPerGroup);
+  if (groupIds.length === 2) {
+    const [gA, gB] = groupIds;
+    const pairs: Array<{a: QualifierSlot; b: QualifierSlot}> = [];
+    for (let place = 1; place <= safeQ; place++) {
+      pairs.push({
+        a: {poolId: gA, place},
+        b: {poolId: gB, place: safeQ - place + 1},
+      });
+    }
+    return pairs;
+  }
+
+  const qualifiers: QualifierSlot[] = [];
+  for (const poolId of groupIds) {
+    for (let place = 1; place <= safeQ; place++) {
+      qualifiers.push({poolId, place});
+    }
+  }
+  const pairs: Array<{a: QualifierSlot; b: QualifierSlot}> = [];
+  for (let i = 0; i < qualifiers.length; i += 2) {
+    const b = qualifiers[i + 1];
+    if (b) pairs.push({a: qualifiers[i], b});
+  }
+  return pairs;
 }
 
 export function buildGroupsKnockoutMatches(
   teamIds: string[],
   groups: Array<{id: string; teamIds: string[]}>,
+  qualifiersPerGroup = 2,
 ): MatchDraft[] {
-  const matches: MatchDraft[] = [];
+  const safeGroups =
+    groups.length > 0
+      ? groups
+      : [
+          {
+            id: "A",
+            teamIds: teamIds.slice(0, Math.ceil(teamIds.length / 2)),
+          },
+          {id: "B", teamIds: teamIds.slice(Math.ceil(teamIds.length / 2))},
+        ];
+
+  const groupMatches: MatchDraft[] = [];
   let matchNumber = 1;
-  for (const group of groups) {
+  for (const group of safeGroups) {
     const ids = group.teamIds.filter((id) => id.trim().length > 0);
     for (let i = 0; i < ids.length; i++) {
       for (let j = i + 1; j < ids.length; j++) {
-        matches.push({
+        groupMatches.push({
           round: 0,
           matchType: "group",
           poolId: group.id,
@@ -37,28 +94,127 @@ export function buildGroupsKnockoutMatches(
       }
     }
   }
-  if (teamIds.length >= 4) {
-    const seeds = teamIds.slice(0, 4);
-    matches.push({
-      round: 1,
-      matchType: "knockout",
-      poolId: "",
-      teamAId: seeds[0],
-      teamBId: seeds[3],
-      isGroupMatch: false,
-      matchNumber: matchNumber++,
-    });
-    matches.push({
-      round: 1,
-      matchType: "knockout",
-      poolId: "",
-      teamAId: seeds[1],
-      teamBId: seeds[2],
-      isGroupMatch: false,
-      matchNumber: matchNumber++,
-    });
+
+  const groupIds = safeGroups.map((g) => g.id);
+  const pairings = crossoverFirstRoundPairings(groupIds, qualifiersPerGroup);
+  const knockoutMatches = buildSingleEliminationKnockoutMatches(
+    [],
+    1,
+    pairings.map((pair) => ({
+      teamAId: "",
+      teamBId: "",
+      teamAQualifier: pair.a,
+      teamBQualifier: pair.b,
+      teamADescription: qualifierSlotDescription(pair.a),
+      teamBDescription: qualifierSlotDescription(pair.b),
+    })),
+  );
+
+  return [...groupMatches, ...knockoutMatches];
+}
+
+/** Chave eliminatória simples (sem fase de grupos). */
+export function buildSingleEliminationMatches(teamIds: string[]): MatchDraft[] {
+  return buildSingleEliminationKnockoutMatches(teamIds, 1);
+}
+
+interface FirstRoundOverride {
+  teamAId?: string;
+  teamBId?: string;
+  teamAQualifier?: QualifierSlot;
+  teamBQualifier?: QualifierSlot;
+  teamADescription?: string;
+  teamBDescription?: string;
+}
+
+function buildSingleEliminationKnockoutMatches(
+  teamIds: string[],
+  roundStart: number,
+  firstRoundOverrides?: FirstRoundOverride[],
+): MatchDraft[] {
+  const n = firstRoundOverrides?.length
+    ? firstRoundOverrides.length * 2
+    : teamIds.length;
+  if (n < 2) return [];
+
+  const bracketSize = 1 << Math.ceil(Math.log2(n));
+  const padded = firstRoundOverrides
+    ? Array.from({length: bracketSize}, () => "")
+    : [...teamIds];
+  if (!firstRoundOverrides) {
+    while (padded.length < bracketSize) padded.push("");
   }
-  return matches;
+
+  const totalRounds = Math.log2(bracketSize);
+  const rounds: MatchDraft[][] = [];
+
+  for (let r = 0; r < totalRounds; r++) {
+    const matchesInRound = bracketSize / (1 << (r + 1));
+    const isFinal = r === totalRounds - 1;
+
+    rounds[r] = [];
+    for (let m = 0; m < matchesInRound; m++) {
+      const matchNumber = m + 1;
+      const isFirstRound = r === 0;
+      const override = firstRoundOverrides?.[m];
+      const teamAId = isFirstRound
+        ? (override?.teamAId ?? padded[m * 2] ?? "")
+        : "";
+      const teamBId = isFirstRound
+        ? (override?.teamBId ?? padded[m * 2 + 1] ?? "")
+        : "";
+
+      const draft: MatchDraft = {
+        round: roundStart + r,
+        matchType: isFinal ? "Final" : "knockout",
+        poolId: "",
+        teamAId,
+        teamBId,
+        isGroupMatch: false,
+        matchNumber,
+      };
+
+      if (isFirstRound && override) {
+        if (override.teamAQualifier) {
+          draft.teamAQualifier = override.teamAQualifier;
+        }
+        if (override.teamBQualifier) {
+          draft.teamBQualifier = override.teamBQualifier;
+        }
+        if (override.teamADescription) {
+          draft.teamADescription = override.teamADescription;
+        }
+        if (override.teamBDescription) {
+          draft.teamBDescription = override.teamBDescription;
+        }
+      }
+
+      rounds[r].push(draft);
+    }
+  }
+
+  // Propaga "byes" (slots vazios) para evitar bracket inoperável (não potência de 2).
+  for (let r = 0; r < totalRounds - 1; r++) {
+    for (const match of rounds[r]!) {
+      const a = match.teamAId.trim();
+      const b = match.teamBId.trim();
+      if (a && !b) {
+        const nextIdx = Math.ceil(match.matchNumber / 2) - 1;
+        const next = rounds[r + 1]?.[nextIdx];
+        if (!next) continue;
+        const slot = match.matchNumber % 2 === 1 ? "teamAId" : "teamBId";
+        next[slot] = a;
+      } else if (!a && b) {
+        const nextIdx = Math.ceil(match.matchNumber / 2) - 1;
+        const next = rounds[r + 1]?.[nextIdx];
+        if (!next) continue;
+        const slot = match.matchNumber % 2 === 1 ? "teamAId" : "teamBId";
+        next[slot] = b;
+      }
+    }
+  }
+
+  return rounds.flat();
 }
 
 /** Gera chave WB + LB + Final (matchType alinhado ao app: WB, LB, Final). */

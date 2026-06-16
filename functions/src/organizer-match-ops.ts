@@ -13,6 +13,10 @@ import {MatchStatus, isMatchCompleted} from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
 import {tryAwardLeagueStagePointsForMatch} from "./league-ranking";
 import {applyBracketAdvances} from "./category-bracket-advance";
+import {
+  tryFillKnockoutFromGroupStandings,
+  type GroupPreview,
+} from "./group-standings";
 
 function getFirebaseProjectId(): string {
   return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
@@ -195,6 +199,32 @@ async function getMatchOrThrow(
   return {ref, data: snap.data()!};
 }
 
+async function loadCategoryGroupsPreview(
+  db: Firestore,
+  tournamentId: string,
+  categoryId: string,
+): Promise<GroupPreview[]> {
+  const snap = await db.doc(`tournaments/${tournamentId}`).get();
+  const categoryOps = snap.data()?.categoryOps as
+    | Record<string, Record<string, unknown>>
+    | undefined;
+  const raw = categoryOps?.[categoryId]?.groupsPreview;
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const group = entry as Record<string, unknown>;
+      const id = String(group.id ?? "").trim();
+      const teamIds = Array.isArray(group.teamIds)
+        ? group.teamIds.map((teamId) => String(teamId).trim()).filter(Boolean)
+        : [];
+      if (!id || teamIds.length === 0) return null;
+      return {id, teamIds};
+    })
+    .filter((group): group is GroupPreview => group !== null);
+}
+
 async function advanceBracketWinnerInternal(
   db: Firestore,
   projectId: string,
@@ -203,6 +233,27 @@ async function advanceBracketWinnerInternal(
   const winnerId = data.winnerId as string | undefined;
   if (!winnerId) {
     return {advanced: false};
+  }
+
+  const matchTypeNorm = String(data.matchType ?? "")
+    .trim()
+    .toLowerCase();
+  if (data.isGroupMatch === true || matchTypeNorm === "group" || matchTypeNorm === "groups") {
+    const tournamentId = data.tournamentId as string;
+    const categoryId = data.categoryId as string;
+    const groups = await loadCategoryGroupsPreview(db, tournamentId, categoryId);
+    if (groups.length === 0) {
+      return {advanced: false};
+    }
+
+    const fillResult = await tryFillKnockoutFromGroupStandings(
+      db,
+      artifactsMatchesPath(projectId),
+      tournamentId,
+      categoryId,
+      groups,
+    );
+    return {advanced: fillResult.filled};
   }
 
   if (data.winnerAdvance || data.loserAdvance) {

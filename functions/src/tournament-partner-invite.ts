@@ -417,12 +417,14 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
   if (!previewTournament) {
     throw new HttpsError("not-found", "Torneio não encontrado.");
   }
-  await assertTournamentAcceptsRegistration(
+  const tournamentData = await assertTournamentAcceptsRegistration(
     db,
     projectId,
     previewTournamentId,
     previewCategoryId,
   );
+  const shouldWaitlist =
+    (tournamentData as Record<string, unknown>).__shouldWaitlist === true;
   const previewCategory = findCategory(previewTournament, previewCategoryId);
   if (!previewCategory) {
     throw new HttpsError("not-found", "Categoria não encontrada.");
@@ -477,6 +479,7 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
       isPaid: false,
       paidAmount: 0,
       createdAt: FieldValue.serverTimestamp(),
+      ...(shouldWaitlist ? {waitlist: true} : {}),
       ...registrationUniformFromInvite(invite),
     };
     if (inviteeUniform) {

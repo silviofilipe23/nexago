@@ -93,6 +93,20 @@ class OrganizerMatchScheduleService {
     });
   }
 
+  /// Grava o placar com validação autoritativa no servidor.
+  /// Retorna `{ok, completed, winnerId}`.
+  Future<Map<String, dynamic>> submitMatchResult({
+    required String matchId,
+    required List<Map<String, int>> sets,
+  }) async {
+    final callable = _functions.httpsCallable('submitMatchResult');
+    final result = await callable.call({
+      'matchId': matchId.trim(),
+      'sets': sets,
+    });
+    return Map<String, dynamic>.from(result.data as Map? ?? {});
+  }
+
   Future<void> validateMatchResult({required String matchId}) async {
     final callable = _functions.httpsCallable('validateMatchResult');
     await callable.call({'matchId': matchId.trim()});

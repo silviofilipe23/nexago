@@ -97,6 +97,12 @@ abstract final class AppRoutes {
   static const String organizerMatchSchedule =
       '/organizer/tournaments/:tournamentId/matches/schedule';
 
+  static const String organizerMatchSchedulePick =
+      '/organizer/tournaments/:tournamentId/matches/schedule/pick';
+
+  static const String organizerMatchScheduleTime =
+      '/organizer/tournaments/:tournamentId/matches/schedule/pick/:matchId/time';
+
   static const String organizerMatchAutoSchedule =
       '/organizer/tournaments/:tournamentId/matches/auto-schedule';
 
@@ -407,6 +413,8 @@ abstract final class AppRouteNames {
   static const String organizerMatchQueue = 'organizerMatchQueue';
   static const String organizerMatchCourts = 'organizerMatchCourts';
   static const String organizerMatchSchedule = 'organizerMatchSchedule';
+  static const String organizerMatchSchedulePick = 'organizerMatchSchedulePick';
+  static const String organizerMatchScheduleTime = 'organizerMatchScheduleTime';
   static const String organizerMatchAutoSchedule = 'organizerMatchAutoSchedule';
   static const String organizerMatchInsights = 'organizerMatchInsights';
   static const String organizerMatchCheckIn = 'organizerMatchCheckIn';

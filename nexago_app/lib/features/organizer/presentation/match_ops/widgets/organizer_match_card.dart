@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../domain/match_ops/match_ops_providers.dart';
+import '../../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../domain/category_ops/category_ops_models.dart';
 import '../../category_ops/widgets/organizer_team_dual_avatars.dart';
 import '../../../../tournaments/domain/tournament_match.dart';
@@ -34,14 +35,26 @@ class OrganizerMatchCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final cardVm = enriched ??
+    final cardVm =
+        enriched ??
         ref
             .watch(organizerMatchCardsByIdProvider(row.match.tournamentId))
             .valueOrNull?[row.match.id];
+    final categories =
+        ref
+            .watch(organizerTournamentDetailProvider(row.match.tournamentId))
+            .valueOrNull
+            ?.categories ??
+        const [];
+    final categoryLabel = MatchOpsLogic.categoryDisplayLabel(
+      categoryId: row.match.categoryId,
+      categories: categories,
+    );
 
     return _CenterMatchCard(
       row: row,
       enriched: cardVm,
+      categoryLabel: categoryLabel,
       onTap: onTap,
       trailing: variant == OrganizerMatchCardVariant.standard ? trailing : null,
     );
@@ -142,12 +155,14 @@ class _MatchCardPresentation {
 class _CenterMatchCard extends StatelessWidget {
   const _CenterMatchCard({
     required this.row,
+    required this.categoryLabel,
     this.enriched,
     this.onTap,
     this.trailing,
   });
 
   final OrganizerMatchRow row;
+  final String categoryLabel;
   final TournamentMatchCardViewModel? enriched;
   final VoidCallback? onTap;
   final Widget? trailing;
@@ -178,7 +193,7 @@ class _CenterMatchCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        _matchMetaLabel(match),
+                        _matchMetaLabel(match, categoryLabel: categoryLabel),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.mono(
@@ -219,7 +234,8 @@ class _CenterMatchCard extends StatelessWidget {
                     sideA: true,
                     presentation: presentation,
                   ),
-                  primaryScoreIsWin: presentation.showSetsWon &&
+                  primaryScoreIsWin:
+                      presentation.showSetsWon &&
                       _setsWon(match, sideA: true) >
                           _setsWon(match, sideA: false),
                 ),
@@ -243,15 +259,13 @@ class _CenterMatchCard extends StatelessWidget {
                     sideA: false,
                     presentation: presentation,
                   ),
-                  primaryScoreIsWin: presentation.showSetsWon &&
+                  primaryScoreIsWin:
+                      presentation.showSetsWon &&
                       _setsWon(match, sideA: false) >
                           _setsWon(match, sideA: true),
                 ),
                 const SizedBox(height: 12),
-                _MatchCardFooter(
-                  row: row,
-                  presentation: presentation,
-                ),
+                _MatchCardFooter(row: row, presentation: presentation),
                 if (trailing != null) ...[
                   const SizedBox(height: 10),
                   trailing!,
@@ -264,14 +278,18 @@ class _CenterMatchCard extends StatelessWidget {
     );
   }
 
-  String _matchMetaLabel(TournamentMatch match) {
+  String _matchMetaLabel(
+    TournamentMatch match, {
+    required String categoryLabel,
+  }) {
     final parts = <String>[];
-    final category = match.categoryId.trim().toUpperCase();
+    final category = categoryLabel.trim().toUpperCase();
     final round = matchRoundLabel(match).toUpperCase();
-    if (category.isNotEmpty) parts.add(category);
-    if (round.isNotEmpty) parts.add(round);
     final matchNumber = matchNumberLabelForCard(match).toUpperCase();
     if (matchNumber.isNotEmpty) parts.add(matchNumber);
+    if (category.isNotEmpty) parts.add(category);
+    if (round.isNotEmpty) parts.add(round);
+
     if (parts.isEmpty) return '';
     return parts.join(' · ');
   }
@@ -349,7 +367,8 @@ class _CenterMatchCard extends StatelessWidget {
   }
 
   int _currentSetScore(TournamentMatch match, {required bool sideA}) {
-    final idx = match.currentSetIndex ??
+    final idx =
+        match.currentSetIndex ??
         (match.sets.isEmpty ? 0 : match.sets.length - 1);
     if (match.sets.isEmpty || idx < 0 || idx >= match.sets.length) return 0;
     final set = match.sets[idx];
@@ -364,7 +383,8 @@ class _MatchStatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showDot = presentation.phase == _MatchCardPhase.live ||
+    final showDot =
+        presentation.phase == _MatchCardPhase.live ||
         presentation.phase == _MatchCardPhase.onCourt;
 
     return Container(
@@ -424,8 +444,7 @@ class _CenterTeamRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avatarPlayers =
-        players ?? _playersFromTeamLabel(teamLabel);
+    final avatarPlayers = players ?? _playersFromTeamLabel(teamLabel);
     final displayLabel = _displayLabel(teamLabel, avatarPlayers);
 
     return Row(
@@ -505,9 +524,8 @@ class _CenterTeamRow extends StatelessWidget {
     return fallback;
   }
 
-  (OrganizerCategoryPlayerInfo, OrganizerCategoryPlayerInfo) _playersFromTeamLabel(
-    String teamLabel,
-  ) {
+  (OrganizerCategoryPlayerInfo, OrganizerCategoryPlayerInfo)
+  _playersFromTeamLabel(String teamLabel) {
     final names = teamLabel
         .split('/')
         .map((p) => p.trim())
@@ -516,10 +534,7 @@ class _CenterTeamRow extends StatelessWidget {
     final key = teamLabel.hashCode;
 
     OrganizerCategoryPlayerInfo playerAt(int index, String name) {
-      return OrganizerCategoryPlayerInfo(
-        uid: 'match-$key-$index',
-        name: name,
-      );
+      return OrganizerCategoryPlayerInfo(uid: 'match-$key-$index', name: name);
     }
 
     if (names.isEmpty) {
@@ -533,10 +548,7 @@ class _CenterTeamRow extends StatelessWidget {
 }
 
 class _MatchCardFooter extends StatelessWidget {
-  const _MatchCardFooter({
-    required this.row,
-    required this.presentation,
-  });
+  const _MatchCardFooter({required this.row, required this.presentation});
 
   final OrganizerMatchRow row;
   final _MatchCardPresentation presentation;
@@ -577,14 +589,16 @@ class _MatchCardFooter extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: presentation.courtBadgeAccent
                           ? AppColors.brand.withValues(alpha: 0.08)
-                          : context.themeColors.onSurfaceMuted
-                              .withValues(alpha: 0.08),
+                          : context.themeColors.onSurfaceMuted.withValues(
+                              alpha: 0.08,
+                            ),
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
                         color: presentation.courtBadgeAccent
                             ? AppColors.brand.withValues(alpha: 0.45)
-                            : context.themeColors.onSurfaceMuted
-                                .withValues(alpha: 0.18),
+                            : context.themeColors.onSurfaceMuted.withValues(
+                                alpha: 0.18,
+                              ),
                       ),
                     ),
                     child: Text(
@@ -646,7 +660,8 @@ class _MatchCardFooter extends StatelessWidget {
         else if (presentation.showSetColumns && match.sets.isNotEmpty)
           _SetScoreColumns(
             match: match,
-            highlightCurrent: presentation.phase == _MatchCardPhase.live ||
+            highlightCurrent:
+                presentation.phase == _MatchCardPhase.live ||
                 presentation.phase == _MatchCardPhase.onCourt,
           ),
       ],
@@ -686,10 +701,7 @@ class _MatchCardFooter extends StatelessWidget {
 }
 
 class _SetScoreColumns extends StatelessWidget {
-  const _SetScoreColumns({
-    required this.match,
-    required this.highlightCurrent,
-  });
+  const _SetScoreColumns({required this.match, required this.highlightCurrent});
 
   final TournamentMatch match;
   final bool highlightCurrent;
@@ -756,8 +768,8 @@ class _SetColumn extends StatelessWidget {
               color: isCurrent
                   ? context.themeColors.onSurface
                   : teamAWon
-                      ? AppColors.win
-                      : context.themeColors.onSurfaceMuted,
+                  ? AppColors.win
+                  : context.themeColors.onSurfaceMuted,
             ),
           ),
           const SizedBox(height: 2),
@@ -769,8 +781,8 @@ class _SetColumn extends StatelessWidget {
               color: isCurrent
                   ? context.themeColors.onSurface
                   : !teamAWon && set.b > set.a
-                      ? AppColors.win
-                      : context.themeColors.onSurfaceMuted,
+                  ? AppColors.win
+                  : context.themeColors.onSurfaceMuted,
             ),
           ),
         ],
@@ -805,10 +817,7 @@ class OrganizerCourtStatusChip extends StatelessWidget {
         border: Border.all(color: context.themeColors.outline),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.labelSmall,
-      ),
+      child: Text(label, style: Theme.of(context).textTheme.labelSmall),
     );
   }
 }
@@ -845,15 +854,15 @@ class _KpiTile extends StatelessWidget {
           Text(
             value,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppColors.brand,
-                  fontWeight: FontWeight.bold,
-                ),
+              color: AppColors.brand,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: context.themeColors.onSurfaceMuted,
-                ),
+              color: context.themeColors.onSurfaceMuted,
+            ),
           ),
         ],
       ),

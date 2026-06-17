@@ -2,7 +2,9 @@ import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_card_view_model.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
 import '../category_ops/category_ops_models.dart';
+import '../tournament_ops/tournament_ops_models.dart';
 import 'match_ops_models.dart';
+import 'schedule_logic.dart';
 
 /// Filtros e agrupamentos da central de partidas (G1/G2/G3/J3).
 abstract final class MatchOpsLogic {
@@ -14,7 +16,7 @@ abstract final class MatchOpsLogic {
 
   /// Converte time enriquecido (foto + nomes) para avatares do organizador.
   static (OrganizerCategoryPlayerInfo, OrganizerCategoryPlayerInfo)
-      teamPlayersFromCardTeam({
+  teamPlayersFromCardTeam({
     required TournamentMatchCardTeamViewModel team,
     required String teamId,
   }) {
@@ -27,8 +29,9 @@ abstract final class MatchOpsLogic {
 
     OrganizerCategoryPlayerInfo at(int index) {
       final name = index < names.length ? names[index] : '';
-      final cardPlayer =
-          index < team.players.length ? team.players[index] : null;
+      final cardPlayer = index < team.players.length
+          ? team.players[index]
+          : null;
       return OrganizerCategoryPlayerInfo(
         uid: id.isEmpty ? 'match-$index' : '$id-$index',
         name: name,
@@ -37,6 +40,45 @@ abstract final class MatchOpsLogic {
     }
 
     return (at(0), at(1));
+  }
+
+  /// Resolve `categoryId` do match para rótulo exibível (`MASC Open`, etc.).
+  static String categoryDisplayLabel({
+    required String categoryId,
+    List<OrganizerTournamentCategorySummary> categories = const [],
+  }) {
+    final id = categoryId.trim();
+    if (id.isEmpty) return '';
+
+    for (final category in categories) {
+      if (category.categoryId.trim() != id) continue;
+      return _categoryLabelWithGender(category);
+    }
+    return id;
+  }
+
+  static String _categoryLabelWithGender(
+    OrganizerTournamentCategorySummary category,
+  ) {
+    final name = category.name.trim();
+    final genderShort = categoryGenderShortLabel(category.genderLabel);
+    final base = name.isNotEmpty ? name : category.categoryId.trim();
+    if (genderShort.isEmpty) return base;
+
+    final upperBase = base.toUpperCase();
+    if (upperBase.startsWith(genderShort) ||
+        upperBase.contains('$genderShort ')) {
+      return base;
+    }
+    return '$base · $genderShort';
+  }
+
+  static String categoryGenderShortLabel(String genderLabel) {
+    final g = genderLabel.trim().toLowerCase();
+    if (g.startsWith('masc')) return 'MASC';
+    if (g.startsWith('fem')) return 'FEM';
+    if (g.startsWith('mist')) return 'MISTO';
+    return '';
   }
 
   static List<OrganizerMatchRow> filterCenter(
@@ -59,9 +101,10 @@ abstract final class MatchOpsLogic {
         return result
             .where(
               (r) =>
-                  r.isLive ||
-                  r.queueStatus == MatchQueueStatus.onCourt ||
-                  r.match.isOnCourt,
+                  !r.isFinished &&
+                  (r.isLive ||
+                      r.queueStatus == MatchQueueStatus.onCourt ||
+                      r.match.isOnCourt),
             )
             .toList();
     }
@@ -75,10 +118,10 @@ abstract final class MatchOpsLogic {
     final finished = <OrganizerMatchRow>[];
 
     for (final row in rows) {
-      if (row.isLive || row.match.isOnCourt) {
-        live.add(row);
-      } else if (row.isFinished) {
+      if (row.isFinished) {
         finished.add(row);
+      } else if (row.isLive || row.match.isOnCourt) {
+        live.add(row);
       } else if (row.isScheduled) {
         upcoming.add(row);
       }
@@ -138,25 +181,27 @@ abstract final class MatchOpsLogic {
 
       TournamentMatch? current;
       for (final m in courtMatches) {
+        if (m.isCompleted) continue;
         if (m.isInProgress || m.isOnCourt || m.queueStatus == 'on_court') {
           current = m;
           break;
         }
       }
 
-      final scheduled = courtMatches
-          .where(
-            (m) =>
-                !m.isCompleted &&
-                m.id != current?.id &&
-                m.scheduleTime != null,
-          )
-          .toList()
-        ..sort((a, b) {
-          final ta = a.scheduleTime!;
-          final tb = b.scheduleTime!;
-          return ta.compareTo(tb);
-        });
+      final scheduled =
+          courtMatches
+              .where(
+                (m) =>
+                    !m.isCompleted &&
+                    m.id != current?.id &&
+                    m.scheduleTime != null,
+              )
+              .toList()
+            ..sort((a, b) {
+              final ta = a.scheduleTime!;
+              final tb = b.scheduleTime!;
+              return ta.compareTo(tb);
+            });
 
       final next = scheduled.isNotEmpty ? scheduled.first : null;
       final upcoming = scheduled.length > (next != null ? 1 : 0)
@@ -274,8 +319,30 @@ abstract final class MatchOpsLogic {
     List<TournamentMatch> matches,
     String dayKey,
   ) {
-    if (dayKey.trim().isEmpty) return matches;
-    return matches.where((m) => m.dayKey == dayKey).toList();
+    final key = dayKey.trim();
+    if (key.isEmpty) return matches;
+    return matches.where((m) => _matchBelongsToDay(m, key)).toList();
+  }
+
+  /// Partidas sem horário/quadra ainda não têm `dayKey` — entram no dia ativo.
+  static bool _matchBelongsToDay(TournamentMatch match, String dayKey) {
+    final matchDayKey = match.dayKey.trim();
+    if (matchDayKey.isNotEmpty) return matchDayKey == dayKey;
+
+    if (_isUnscheduledMatch(match)) return true;
+
+    final scheduleTime = match.scheduleTime;
+    if (scheduleTime != null) {
+      return ScheduleLogic.dayKeyFromDate(scheduleTime) == dayKey;
+    }
+
+    return false;
+  }
+
+  static bool _isUnscheduledMatch(TournamentMatch match) {
+    if (TournamentMatchStatus.isCompleted(match.status)) return false;
+    return match.scheduleTime == null ||
+        (match.courtId.isEmpty && match.effectiveCourtLabel.isEmpty);
   }
 
   static int _compareBySchedule(OrganizerMatchRow a, OrganizerMatchRow b) {

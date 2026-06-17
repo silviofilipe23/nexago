@@ -7,6 +7,28 @@ export interface BracketAdvanceResult {
   nextMatchIds: string[];
 }
 
+/**
+ * Idempotência/segurança do preenchimento de um slot da próxima partida:
+ * - Não toca em partida seguinte que já começou ou terminou (evita
+ *   sobrescrever uma partida em andamento ao corrigir um placar anterior).
+ * - É no-op se o slot já contém exatamente o mesmo time (reexecução segura).
+ * - Permite preencher/corrigir quando a partida ainda não começou.
+ */
+export function canFillBracketSlot(
+  target: Record<string, unknown>,
+  teamSlot: "teamAId" | "teamBId",
+  teamId: string,
+): boolean {
+  const status = String(target.status ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, " ");
+  if (status === "in progress" || status === "completed") return false;
+  const existing = String(target[teamSlot] ?? "").trim();
+  if (existing === teamId.trim()) return false;
+  return true;
+}
+
 function parseAdvanceSlot(raw: unknown): BracketAdvanceSlot | null {
   if (!raw || typeof raw !== "object") return null;
   const slot = raw as Record<string, unknown>;
@@ -97,6 +119,9 @@ export async function applyBracketAdvances(
       update.advance.matchNumber,
     );
     if (!target) continue;
+    if (!canFillBracketSlot(target.data(), update.advance.teamSlot, update.teamId)) {
+      continue;
+    }
 
     const patch: Record<string, unknown> = {
       [update.advance.teamSlot]: update.teamId,

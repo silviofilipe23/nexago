@@ -112,6 +112,8 @@ class _OrganizerMatchCenterPageState
                 const SizedBox(height: 8),
                 _CategoryFilterRow(
                   categories: state.categories,
+                  categorySummaries:
+                      detail.valueOrNull?.categories ?? const [],
                   selected: category,
                   onSelected: (id) => ref
                       .read(
@@ -504,11 +506,13 @@ class _FilterChip extends StatelessWidget {
 class _CategoryFilterRow extends StatelessWidget {
   const _CategoryFilterRow({
     required this.categories,
+    required this.categorySummaries,
     required this.selected,
     required this.onSelected,
   });
 
   final List<String> categories;
+  final List<OrganizerTournamentCategorySummary> categorySummaries;
   final String selected;
   final ValueChanged<String> onSelected;
 
@@ -525,12 +529,15 @@ class _CategoryFilterRow extends StatelessWidget {
             selected: selected.isEmpty,
             onTap: () => onSelected(''),
           ),
-          for (final cat in categories) ...[
+          for (final catId in categories) ...[
             const SizedBox(width: 8),
             _CategoryChip(
-              label: cat,
-              selected: selected == cat,
-              onTap: () => onSelected(cat),
+              label: MatchOpsLogic.categoryDisplayLabel(
+                categoryId: catId,
+                categories: categorySummaries,
+              ),
+              selected: selected == catId,
+              onTap: () => onSelected(catId),
             ),
           ],
         ],

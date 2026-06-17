@@ -12,6 +12,14 @@ String organizerMatchCourtsPath(String tournamentId) =>
 String organizerMatchSchedulePath(String tournamentId) =>
     AppRoutes.organizerMatchSchedule.replaceAll(':tournamentId', tournamentId);
 
+String organizerMatchSchedulePickPath(String tournamentId) =>
+    AppRoutes.organizerMatchSchedulePick.replaceAll(':tournamentId', tournamentId);
+
+String organizerMatchScheduleTimePath(String tournamentId, String matchId) =>
+    AppRoutes.organizerMatchScheduleTime
+        .replaceAll(':tournamentId', tournamentId)
+        .replaceAll(':matchId', matchId);
+
 String organizerMatchAutoSchedulePath(String tournamentId) =>
     AppRoutes.organizerMatchAutoSchedule.replaceAll(':tournamentId', tournamentId);
 

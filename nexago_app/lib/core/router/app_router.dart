@@ -50,6 +50,8 @@ import '../../features/organizer/presentation/match_ops/organizer_match_center_p
 import '../../features/organizer/presentation/match_ops/organizer_match_call_queue_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_court_panel_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_court_schedule_grid_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_schedule_pick_page.dart';
+import '../../features/organizer/presentation/match_ops/organizer_schedule_time_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_auto_schedule_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_check_in_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_live_table_page.dart';
@@ -454,6 +456,38 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                         tournamentId: tournamentId,
                       );
                     },
+                    routes: [
+                      GoRoute(
+                        path: 'pick',
+                        name: AppRouteNames.organizerMatchSchedulePick,
+                        builder: (context, state) {
+                          final tournamentId =
+                              state.pathParameters['tournamentId']?.trim() ??
+                                  '';
+                          return OrganizerSchedulePickPage(
+                            tournamentId: tournamentId,
+                          );
+                        },
+                        routes: [
+                          GoRoute(
+                            path: ':matchId/time',
+                            name: AppRouteNames.organizerMatchScheduleTime,
+                            builder: (context, state) {
+                              final tournamentId =
+                                  state.pathParameters['tournamentId']
+                                          ?.trim() ??
+                                      '';
+                              final matchId =
+                                  state.pathParameters['matchId']?.trim() ?? '';
+                              return OrganizerScheduleTimePage(
+                                tournamentId: tournamentId,
+                                matchId: matchId,
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'auto-schedule',

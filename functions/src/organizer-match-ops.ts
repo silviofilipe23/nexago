@@ -1,4 +1,5 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {onDocumentUpdated} from "firebase-functions/v2/firestore";
 import {
   getFirestore,
   FieldValue,
@@ -10,12 +11,13 @@ import {deliverNotificationToUser} from "./notification-delivery";
 import {MatchStatus, isMatchCompleted} from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
 import {tryAwardLeagueStagePointsForMatch} from "./league-ranking";
-import {applyBracketAdvances} from "./category-bracket-advance";
+import {applyBracketAdvances, canFillBracketSlot} from "./category-bracket-advance";
 import {
   tryFillKnockoutFromGroupStandings,
   type GroupPreview,
 } from "./group-standings";
 import {assertCanManageTournament, assertCanScoreTournament} from "./tournament-acl";
+import {matchWinnerId, parseAndValidateSets, setsWon} from "./match-scoring";
 
 function getFirebaseProjectId(): string {
   return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
@@ -260,6 +262,11 @@ async function advanceBracketWinnerInternal(
 
   const nextDoc = nextSnap.docs[0];
   const slot = matchNumber % 2 === 1 ? "teamAId" : "teamBId";
+  // Não sobrescreve uma próxima partida já iniciada e é no-op se o slot já
+  // estiver correto (reexecução/correção segura — item #2 da auditoria).
+  if (!canFillBracketSlot(nextDoc.data(), slot, winnerId)) {
+    return {advanced: false, nextMatchId: nextDoc.id};
+  }
   const descSlot = matchNumber % 2 === 1 ? "teamADescription" : "teamBDescription";
   const winnerDesc =
     data.teamAId === winnerId ?
@@ -505,6 +512,58 @@ export const declareMatchWalkover = onCall(async (request) => {
   return {ok: true, winnerTeamId};
 });
 
+/**
+ * Grava o resultado de uma partida validando o placar de forma AUTORITATIVA no
+ * servidor (item #5): rejeita sets ilegais/empatados e calcula o vencedor pelas
+ * regras (target por set + vantagem), em vez de confiar no que o cliente enviar.
+ * O avanço de chave e o ranking são propagados pelo trigger de conclusão.
+ */
+export const submitMatchResult = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+
+  const matchId = (request.data?.matchId as string)?.trim();
+  if (!matchId) throw new HttpsError("invalid-argument", "matchId obrigatório");
+
+  let sets;
+  try {
+    sets = parseAndValidateSets(request.data?.sets);
+  } catch (e) {
+    throw new HttpsError(
+      "invalid-argument",
+      e instanceof Error ? e.message : "Placar inválido.",
+    );
+  }
+
+  const db = getFirestore();
+  const projectId = getFirebaseProjectId();
+  const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
+  await assertCanScoreTournament(db, uid, data.tournamentId as string);
+
+  const teamAId = (data.teamAId as string | undefined)?.trim() ?? "";
+  const teamBId = (data.teamBId as string | undefined)?.trim() ?? "";
+  const winnerId = matchWinnerId(sets, teamAId, teamBId);
+  const wins = setsWon(sets);
+  const completed = winnerId !== null;
+
+  const update: Record<string, unknown> = {
+    sets: sets.map((s) => ({a: s.a, b: s.b})),
+    status: completed ? MatchStatus.completed : MatchStatus.inProgress,
+    resultA: `${wins.a}`,
+    resultB: `${wins.b}`,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (completed) {
+    update.winnerId = winnerId;
+    update.matchEndedAt = FieldValue.serverTimestamp();
+  }
+
+  await ref.update(update);
+  await syncTournamentLiveMatchesNow(db, projectId, data.tournamentId as string);
+
+  return {ok: true, completed, winnerId};
+});
+
 export const validateMatchResult = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -712,3 +771,67 @@ export const applyLeagueRankingForMatch = onCall(async (request) => {
   });
   return {ok: true, ...result};
 });
+
+/**
+ * Decide se uma partida recém-atualizada deve propagar (avanço de chave +
+ * ranking de liga): precisa estar concluída com vencedor, e só quando o
+ * resultado acabou de ser definido ou o vencedor mudou (correção).
+ */
+export function shouldPropagateMatchAdvance(
+  before: Record<string, unknown> | undefined,
+  after: Record<string, unknown> | undefined,
+): boolean {
+  if (!after) return false;
+  if (!isMatchCompleted(after.status)) return false;
+  const winnerId = String(after.winnerId ?? "").trim();
+  if (!winnerId) return false;
+  if (!before || !isMatchCompleted(before.status)) return true;
+  return String(before.winnerId ?? "").trim() !== winnerId;
+}
+
+/**
+ * Propaga avanço de chave e ranking quando a partida é concluída — de forma
+ * atômica do ponto de vista do cliente e idempotente. Isso substitui as duas
+ * chamadas HTTPS sequenciais que o app fazia após gravar o placar (item #1):
+ * mesmo que o app caia/perca rede logo após salvar, a chave continua avançando.
+ */
+export const onTournamentMatchCompletedAdvance = onDocumentUpdated(
+  "artifacts/{appId}/public/data/matches/{matchId}",
+  async (event) => {
+    const before = event.data?.before.data() as
+      | Record<string, unknown>
+      | undefined;
+    const after = event.data?.after.data() as
+      | Record<string, unknown>
+      | undefined;
+
+    if (!shouldPropagateMatchAdvance(before, after) || !after) return;
+
+    const db = getFirestore();
+    const projectId = event.params.appId;
+    const matchId = event.params.matchId;
+
+    try {
+      await advanceBracketWinnerInternal(db, projectId, after);
+    } catch (e) {
+      logger.error("onTournamentMatchCompletedAdvance: avanço falhou", {matchId, e});
+    }
+    try {
+      await tryAwardLeagueStagePointsForMatch(db, projectId, {
+        ...after,
+        id: matchId,
+      });
+    } catch (e) {
+      logger.error("onTournamentMatchCompletedAdvance: ranking falhou", {matchId, e});
+    }
+    try {
+      await syncTournamentLiveMatchesNow(
+        db,
+        projectId,
+        String(after.tournamentId ?? ""),
+      );
+    } catch (e) {
+      logger.warn("onTournamentMatchCompletedAdvance: sync falhou", {matchId, e});
+    }
+  },
+);

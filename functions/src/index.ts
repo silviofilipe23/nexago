@@ -86,9 +86,11 @@ import {
   callMatchToCourt,
   releaseMatchAfterCheckIn,
   declareMatchWalkover,
+  submitMatchResult,
   validateMatchResult,
   advanceBracketWinner,
   applyLeagueRankingForMatch,
+  onTournamentMatchCompletedAdvance,
 } from "./organizer-match-ops";
 
 export {
@@ -130,9 +132,11 @@ export {
   callMatchToCourt,
   releaseMatchAfterCheckIn,
   declareMatchWalkover,
+  submitMatchResult,
   validateMatchResult,
   advanceBracketWinner,
   applyLeagueRankingForMatch,
+  onTournamentMatchCompletedAdvance,
 };
 
 // Initialize Firebase Admin

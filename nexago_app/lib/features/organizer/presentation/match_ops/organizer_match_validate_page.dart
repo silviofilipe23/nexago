@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:nexago_app/core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../domain/match_ops/match_ops_logic.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
+import '../../domain/tournament_ops/tournament_ops_providers.dart';
+import '../../../tournaments/domain/tournament_match_display.dart';
 import 'organizer_match_navigation.dart';
+import 'widgets/organizer_match_live_table_widgets.dart';
+import 'widgets/organizer_match_validate_widgets.dart';
 
 /// I3 — Validar reporte.
-class OrganizerMatchValidatePage extends ConsumerWidget {
+class OrganizerMatchValidatePage extends ConsumerStatefulWidget {
   const OrganizerMatchValidatePage({
     super.key,
     required this.tournamentId,
@@ -20,15 +24,34 @@ class OrganizerMatchValidatePage extends ConsumerWidget {
   final String matchId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final matchAsync = ref.watch(organizerMatchByIdProvider((
-      tournamentId: tournamentId,
-      matchId: matchId,
-    )));
-    final service = ref.watch(organizerMatchScheduleServiceProvider);
+  ConsumerState<OrganizerMatchValidatePage> createState() =>
+      _OrganizerMatchValidatePageState();
+}
+
+class _OrganizerMatchValidatePageState
+    extends ConsumerState<OrganizerMatchValidatePage> {
+  bool _validating = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final matchAsync = ref.watch(
+      organizerMatchByIdProvider((
+        tournamentId: widget.tournamentId,
+        matchId: widget.matchId,
+      )),
+    );
+    final enrichedMap = ref.watch(
+      organizerMatchCardsByIdProvider(widget.tournamentId),
+    );
+    final categories =
+        ref
+            .watch(organizerTournamentDetailProvider(widget.tournamentId))
+            .valueOrNull
+            ?.categories ??
+        const [];
 
     return Scaffold(
-      appBar: NexaAppBar(title: const Text('Validar reporte')),
+      backgroundColor: context.themeColors.canvas,
       body: matchAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),
@@ -36,55 +59,110 @@ class OrganizerMatchValidatePage extends ConsumerWidget {
           if (match == null) {
             return const Center(child: Text('Partida não encontrada'));
           }
-          return Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(match.teamsLabel,
-                    style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 8),
-                Text('Placar: ${match.scoreLabel}'),
-                const SizedBox(height: 8),
-                Text('Status reporte: ${match.reportStatus.isEmpty ? 'none' : match.reportStatus}'),
-                const SizedBox(height: 8),
-                Text(
-                  'Confirmações: A ${match.teamAConfirmed ? '✓' : '—'} · B ${match.teamBConfirmed ? '✓' : '—'}',
-                ),
-                const Spacer(),
-                FilledButton(
-                  onPressed: () async {
-                    try {
-                      await service.validateMatchResult(matchId: matchId);
-                      if (context.mounted) {
-                        showAppSnackBar(context, 'Resultado validado.');
-                        context.pushReplacement(
-                          organizerMatchSummaryPath(tournamentId, matchId),
-                        );
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        showAppSnackBar(context, 'Erro: $e');
-                      }
-                    }
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.brand,
+
+          final enriched = enrichedMap.valueOrNull?[match.id];
+          final categoryLabel = MatchOpsLogic.categoryDisplayLabel(
+            categoryId: match.categoryId,
+            categories: categories,
+          );
+          final sets = setsForMatch(match);
+          final counts = setsWonCountForMatch(match);
+          final teamA = liveTableTeamData(
+            match: match,
+            sideA: true,
+            enrichedTeam: enriched?.teamA,
+          );
+          final teamB = liveTableTeamData(
+            match: match,
+            sideA: false,
+            enrichedTeam: enriched?.teamB,
+          );
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SafeArea(
+                bottom: false,
+                child: ValidatePageHeader(
+                  onBack: () => context.pop(),
+                  onMore: () => context.push(
+                    organizerMatchSummaryPath(
+                      widget.tournamentId,
+                      widget.matchId,
+                    ),
                   ),
-                  child: const Text('Validar resultado'),
                 ),
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  onPressed: () => context.push(
-                    organizerMatchQuickScorePath(tournamentId, matchId),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  children: [
+                    // ValidateReporterCard(
+                    //   reporterName: validateReporterName(
+                    //     match: match,
+                    //     enriched: enriched,
+                    //   ),
+                    //   subtitle: validateReporterSubtitle(match),
+                    //   badgeLabel: validateReportBadgeLabel(match),
+                    // ),
+                    // const SizedBox(height: 16),
+                    ValidateScoreCard(
+                      match: match,
+                      categoryMeta: validateCategoryMeta(
+                        match: match,
+                        categoryLabel: categoryLabel,
+                      ),
+                      teamA: teamA,
+                      teamB: teamB,
+                      setsWonA: counts.$1,
+                      setsWonB: counts.$2,
+                      sets: sets,
+                    ),
+                    // const SizedBox(height: 16),
+                    // ValidateTeamConfirmationRow(
+                    //   teamALabel: teamA.label,
+                    //   teamBLabel: teamB.label,
+                    //   teamAConfirmed: match.teamAConfirmed,
+                    //   teamBConfirmed: match.teamBConfirmed,
+                    // ),
+                  ],
+                ),
+              ),
+              ValidateActionBar(
+                validating: _validating,
+                onCorrect: () => context.push(
+                  organizerMatchQuickScorePath(
+                    widget.tournamentId,
+                    widget.matchId,
                   ),
-                  child: const Text('Corrigir placar'),
                 ),
-              ],
-            ),
+                onValidate: () => _validate(match.id),
+              ),
+            ],
           );
         },
       ),
     );
+  }
+
+  Future<void> _validate(String matchId) async {
+    if (_validating) return;
+    setState(() => _validating = true);
+    try {
+      await ref
+          .read(organizerMatchScheduleServiceProvider)
+          .validateMatchResult(matchId: matchId);
+      if (!mounted) return;
+      showAppSnackBar(context, 'Resultado validado.');
+      context.pushReplacement(
+        organizerMatchSummaryPath(widget.tournamentId, matchId),
+      );
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, 'Erro: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _validating = false);
+    }
   }
 }

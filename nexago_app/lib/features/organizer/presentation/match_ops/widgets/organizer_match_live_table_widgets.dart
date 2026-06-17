@@ -4,31 +4,47 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../tournaments/domain/tournament_match.dart';
+import '../../../../tournaments/domain/tournament_match_card_view_model.dart';
+import '../../../../tournaments/domain/tournament_match_display.dart';
 import '../../../../tournaments/domain/tournament_match_point_event.dart';
 import '../../../../tournaments/domain/tournament_match_set.dart';
+import '../../../domain/category_ops/category_ops_models.dart';
+import '../../../domain/match_ops/match_ops_logic.dart';
 import '../../../domain/match_ops/match_scoring_logic.dart';
+import '../../category_ops/widgets/organizer_team_dual_avatars.dart';
+
+/// Dados de exibição de uma dupla na mesa ao vivo.
+class LiveTableTeamData {
+  const LiveTableTeamData({
+    required this.label,
+    required this.player1,
+    required this.player2,
+  });
+
+  final String label;
+  final OrganizerCategoryPlayerInfo player1;
+  final OrganizerCategoryPlayerInfo player2;
+}
 
 class LiveTableHeader extends StatelessWidget {
   const LiveTableHeader({
     super.key,
     required this.courtLabel,
-    required this.metaLabel,
+    required this.titleLabel,
     required this.elapsedLabel,
     required this.onBack,
-    this.onMore,
   });
 
   final String courtLabel;
-  final String metaLabel;
+  final String titleLabel;
   final String elapsedLabel;
   final VoidCallback onBack;
-  final VoidCallback? onMore;
 
   @override
   Widget build(BuildContext context) {
     final court = courtLabel.trim().isNotEmpty ? courtLabel.trim() : '—';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -36,80 +52,79 @@ class LiveTableHeader extends StatelessWidget {
             icon: Icons.arrow_back_ios_new_rounded,
             onPressed: onBack,
           ),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Mesa ao vivo · $court',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.mono(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.brand,
-                    letterSpacing: 0.5,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _LiveDot(color: AppColors.live),
+                    const SizedBox(width: 6),
+                    Text(
+                      'MESA AO VIVO',
+                      style: AppTypography.mono(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.live,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    _LiveDot(color: AppColors.live),
+                    const SizedBox(width: 6),
+                    Text(
+                      court,
+                      style: AppTypography.mono(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.live,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 6),
                 Text(
-                  metaLabel,
+                  titleLabel,
+                  textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.soraRegular(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: context.themeColors.onSurfaceMuted,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: context.themeColors.onSurface,
+                    height: 1.2,
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: context.themeColors.surfaceRaised,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: context.themeColors.onSurfaceMuted.withValues(
-                  alpha: 0.14,
-                ),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: const BoxDecoration(
-                    color: AppColors.live,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  elapsedLabel,
-                  style: AppTypography.mono(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: context.themeColors.onSurface,
-                  ),
-                ),
-              ],
+          Text(
+            elapsedLabel,
+            style: AppTypography.mono(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppColors.live,
             ),
           ),
-          if (onMore != null) ...[
-            const SizedBox(width: 8),
-            _LiveTableIconButton(
-              icon: Icons.more_horiz_rounded,
-              onPressed: onMore!,
-            ),
-          ],
         ],
       ),
+    );
+  }
+}
+
+class _LiveDot extends StatelessWidget {
+  const _LiveDot({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 5,
+      height: 5,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }
@@ -152,229 +167,365 @@ class LiveTableSetStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 56,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: bestOf,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final isActive = index == currentSetIndex;
-          final set = index < sets.length ? sets[index] : null;
-          final hasStarted = set != null && (set.a > 0 || set.b > 0);
-          final scoreA = hasStarted ? '${set.a}' : '–';
-          final scoreB = hasStarted ? '${set.b}' : '–';
-
-          return Container(
-            width: 88,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: isActive
-                  ? AppColors.brand.withValues(alpha: 0.12)
-                  : context.themeColors.surfaceRaised,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isActive
-                    ? AppColors.brand.withValues(alpha: 0.45)
-                    : context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          for (var index = 0; index < bestOf; index++) ...[
+            if (index > 0) const SizedBox(width: 8),
+            Expanded(
+              child: _SetStripCard(
+                index: index,
+                set: index < sets.length ? sets[index] : null,
+                isActive: index == currentSetIndex,
               ),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'SET ${index + 1}',
-                  style: AppTypography.mono(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: isActive
-                        ? AppColors.brand
-                        : context.themeColors.onSurfaceMuted,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$scoreA · $scoreB',
-                  style: AppTypography.mono(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: context.themeColors.onSurface,
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+          ],
+        ],
       ),
     );
   }
 }
 
-class LiveTableServingBanner extends StatelessWidget {
-  const LiveTableServingBanner({super.key, required this.teamLabel});
+class _SetStripCard extends StatelessWidget {
+  const _SetStripCard({
+    required this.index,
+    required this.set,
+    required this.isActive,
+  });
 
-  final String teamLabel;
+  final int index;
+  final TournamentMatchSet? set;
+  final bool isActive;
 
   @override
   Widget build(BuildContext context) {
-    final players = _splitPlayers(teamLabel);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Row(
+    final hasStarted = set != null && (set!.a > 0 || set!.b > 0);
+    final scoreA = hasStarted ? set!.a : null;
+    final scoreB = hasStarted ? set!.b : null;
+    final aWins = hasStarted && scoreA! > scoreB!;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      decoration: BoxDecoration(
+        color: context.themeColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isActive
+              ? AppColors.live.withValues(alpha: 0.55)
+              : context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Column(
         children: [
           Text(
-            'SAQUE',
+            'SET ${index + 1}',
             style: AppTypography.mono(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: context.themeColors.onSurfaceMuted,
-              letterSpacing: 0.6,
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: isActive ? AppColors.live : context.themeColors.onSurfaceMuted,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 6),
+          if (!hasStarted)
+            Text(
+              '– · –',
+              style: AppTypography.mono(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: context.themeColors.onSurfaceMuted,
+              ),
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '$scoreA',
+                  style: AppTypography.mono(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: aWins ? AppColors.win : context.themeColors.onSurface,
+                  ),
+                ),
+                Text(
+                  ' – ',
+                  style: AppTypography.mono(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
+                ),
+                Text(
+                  '$scoreB',
+                  style: AppTypography.mono(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: !aWins && scoreB! > scoreA!
+                        ? AppColors.win
+                        : context.themeColors.onSurface,
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class LiveTableTeamScoreBoard extends StatelessWidget {
+  const LiveTableTeamScoreBoard({
+    super.key,
+    required this.teamA,
+    required this.teamB,
+    required this.scoreA,
+    required this.scoreB,
+    required this.isServingA,
+    required this.isServingB,
+    required this.onAddPointA,
+    required this.onAddPointB,
+    this.onSubtractA,
+    this.onSubtractB,
+    this.seedA,
+    this.seedB,
+    this.enabled = true,
+  });
+
+  final LiveTableTeamData teamA;
+  final LiveTableTeamData teamB;
+  final int scoreA;
+  final int scoreB;
+  final bool isServingA;
+  final bool isServingB;
+  final VoidCallback? onAddPointA;
+  final VoidCallback? onAddPointB;
+  final VoidCallback? onSubtractA;
+  final VoidCallback? onSubtractB;
+  final int? seedA;
+  final int? seedB;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: LiveTableTeamScoreCard(
+              team: teamA,
+              score: scoreA,
+              isServing: isServingA,
+              seed: seedA,
+              enabled: enabled,
+              onAddPoint: onAddPointA,
+              onSubtract: onSubtractA,
             ),
           ),
           const SizedBox(width: 10),
-          _DualInitialsAvatars(players: players, size: 24),
-          const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              teamLabel,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.soraRegular(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: context.themeColors.onSurface,
-              ),
+            child: LiveTableTeamScoreCard(
+              team: teamB,
+              score: scoreB,
+              isServing: isServingB,
+              seed: seedB,
+              enabled: enabled,
+              onAddPoint: onAddPointB,
+              onSubtract: onSubtractB,
             ),
           ),
         ],
       ),
     );
   }
-
-  List<String> _splitPlayers(String label) {
-    return label
-        .split('/')
-        .map((p) => p.trim())
-        .where((p) => p.isNotEmpty)
-        .toList();
-  }
 }
 
-class LiveTableTeamScoreRow extends StatelessWidget {
-  const LiveTableTeamScoreRow({
+class LiveTableTeamScoreCard extends StatelessWidget {
+  const LiveTableTeamScoreCard({
     super.key,
-    required this.teamLabel,
-    required this.currentScore,
+    required this.team,
+    required this.score,
     required this.isServing,
-    required this.onTap,
+    this.seed,
+    this.onAddPoint,
+    this.onSubtract,
     this.enabled = true,
-    this.completedSets = const [],
   });
 
-  final String teamLabel;
-  final int currentScore;
+  final LiveTableTeamData team;
+  final int score;
   final bool isServing;
-  final VoidCallback? onTap;
+  final int? seed;
+  final VoidCallback? onAddPoint;
+  final VoidCallback? onSubtract;
   final bool enabled;
-  final List<int> completedSets;
 
   @override
   Widget build(BuildContext context) {
-    final players = _splitPlayers(teamLabel);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Material(
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+      decoration: BoxDecoration(
         color: context.themeColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(14),
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: isServing
-                    ? AppColors.brand.withValues(alpha: 0.35)
-                    : context.themeColors.onSurfaceMuted.withValues(
-                        alpha: 0.1,
-                      ),
-              ),
-            ),
-            child: Row(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isServing
+              ? AppColors.brand.withValues(alpha: 0.55)
+              : context.themeColors.onSurfaceMuted.withValues(alpha: 0.14),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (isServing)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _DualInitialsAvatars(
-                  players: players,
-                  overlapRingColor: context.themeColors.surfaceRaised,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          teamLabel,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.soraRegular(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: context.themeColors.onSurface,
-                          ),
-                        ),
-                      ),
-                      if (isServing) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                            color: AppColors.brand,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
-                    ],
+                Container(
+                  width: 5,
+                  height: 5,
+                  decoration: const BoxDecoration(
+                    color: AppColors.brand,
+                    shape: BoxShape.circle,
                   ),
                 ),
-                if (completedSets.isNotEmpty) ...[
-                  for (final score in completedSets) ...[
-                    Text(
-                      '$score',
-                      style: AppTypography.mono(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.win,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                  ],
-                ],
+                const SizedBox(width: 5),
                 Text(
-                  '$currentScore',
+                  'SAQUE',
                   style: AppTypography.mono(
-                    fontSize: 32,
+                    fontSize: 9,
                     fontWeight: FontWeight.w800,
-                    color: context.themeColors.onSurface,
-                    height: 1,
+                    color: AppColors.brand,
+                    letterSpacing: 0.6,
                   ),
                 ),
               ],
+            )
+          else
+            const SizedBox(height: 14),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              OrganizerTeamDualAvatars(
+                player1: team.player1,
+                player2: team.player2,
+                avatarSize: 26,
+                overlapRingColor: context.themeColors.surfaceRaised,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  team.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.soraRegular(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: context.themeColors.onSurface,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (seed != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'cabeça #$seed',
+              style: AppTypography.mono(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: AppColors.brand,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Text(
+            '$score',
+            textAlign: TextAlign.center,
+            style: AppTypography.mono(
+              fontSize: 44,
+              fontWeight: FontWeight.w800,
+              color: context.themeColors.onSurface,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _ScoreControlButton(
+                icon: Icons.remove_rounded,
+                filled: false,
+                enabled: enabled,
+                onPressed: onSubtract,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ScoreControlButton(
+                  icon: Icons.add_rounded,
+                  filled: true,
+                  enabled: enabled,
+                  onPressed: onAddPoint,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScoreControlButton extends StatelessWidget {
+  const _ScoreControlButton({
+    required this.icon,
+    required this.filled,
+    required this.enabled,
+    this.onPressed,
+  });
+
+  final IconData icon;
+  final bool filled;
+  final bool enabled;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final height = filled ? 44.0 : 36.0;
+    final width = filled ? null : 36.0;
+
+    return SizedBox(
+      width: width,
+      height: height,
+      child: Material(
+        color: filled
+            ? (enabled ? AppColors.brand : AppColors.brand.withValues(alpha: 0.35))
+            : context.themeColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: enabled ? onPressed : null,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: filled
+                  ? null
+                  : Border.all(
+                      color: context.themeColors.onSurfaceMuted.withValues(
+                        alpha: 0.22,
+                      ),
+                    ),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              icon,
+              size: filled ? 22 : 18,
+              color: filled ? AppColors.black : context.themeColors.onSurface,
             ),
           ),
         ),
       ),
     );
-  }
-
-  List<String> _splitPlayers(String label) {
-    return label
-        .split('/')
-        .map((p) => p.trim())
-        .where((p) => p.isNotEmpty)
-        .toList();
   }
 }
 
@@ -391,29 +542,29 @@ class LiveTableSetRules extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Row(
-        children: [
-          Text(
-            rulesLabel,
-            style: AppTypography.mono(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: context.themeColors.onSurfaceMuted,
-            ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+      child: Text.rich(
+        TextSpan(
+          style: AppTypography.mono(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: context.themeColors.onSurfaceMuted,
           ),
-          if (setPointHint != null) ...[
-            const SizedBox(width: 12),
-            Text(
-              setPointHint!,
-              style: AppTypography.mono(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: AppColors.brand,
+          children: [
+            TextSpan(text: rulesLabel),
+            if (setPointHint != null) ...[
+              const TextSpan(text: ' · '),
+              TextSpan(
+                text: setPointHint,
+                style: const TextStyle(
+                  color: AppColors.brand,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
+        textAlign: TextAlign.center,
       ),
     );
   }
@@ -424,11 +575,13 @@ class LiveTableActionBar extends StatelessWidget {
     super.key,
     required this.onUndo,
     required this.onSwapServe,
+    this.onHistory,
     this.enabled = true,
   });
 
   final VoidCallback? onUndo;
   final VoidCallback? onSwapServe;
+  final VoidCallback? onHistory;
   final bool enabled;
 
   @override
@@ -436,38 +589,98 @@ class LiveTableActionBar extends StatelessWidget {
     final mutedBorder = context.themeColors.onSurfaceMuted.withValues(
       alpha: 0.14,
     );
-    final style = OutlinedButton.styleFrom(
-      foregroundColor: context.themeColors.onSurface,
-      backgroundColor: context.themeColors.surfaceRaised,
-      side: BorderSide(color: mutedBorder),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      textStyle: AppTypography.soraRegular(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-      ),
-    );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Row(
         children: [
           Expanded(
-            child: OutlinedButton(
-              onPressed: enabled ? onUndo : null,
-              style: style,
-              child: const Text('Desfazer'),
+            child: _ActionBarButton(
+              label: 'Desfazer',
+              icon: Icons.undo_rounded,
+              enabled: enabled,
+              onPressed: onUndo,
+              borderColor: mutedBorder,
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
-            child: OutlinedButton(
-              onPressed: enabled ? onSwapServe : null,
-              style: style,
-              child: const Text('Trocar saque'),
+            child: _ActionBarButton(
+              label: 'Trocar saque',
+              icon: Icons.circle,
+              iconColor: AppColors.brand,
+              enabled: enabled,
+              onPressed: onSwapServe,
+              borderColor: mutedBorder,
             ),
+          ),
+          const SizedBox(width: 8),
+          _LiveTableIconButton(
+            icon: Icons.schedule_rounded,
+            onPressed: enabled ? (onHistory ?? () {}) : () {},
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ActionBarButton extends StatelessWidget {
+  const _ActionBarButton({
+    required this.label,
+    required this.icon,
+    required this.enabled,
+    required this.onPressed,
+    required this.borderColor,
+    this.iconColor,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback? onPressed;
+  final Color borderColor;
+  final Color? iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.themeColors.surfaceRaised,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: enabled ? onPressed : null,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: icon == Icons.circle ? 8 : 16,
+                color: iconColor ?? context.themeColors.onSurfaceMuted,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.soraRegular(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: context.themeColors.onSurface,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -478,12 +691,14 @@ class LiveTablePointFeed extends StatelessWidget {
     super.key,
     required this.setIndex,
     required this.events,
-    required this.match,
+    required this.teamA,
+    required this.teamB,
   });
 
   final int setIndex;
   final List<TournamentMatchPointEvent> events;
-  final TournamentMatch match;
+  final LiveTableTeamData teamA;
+  final LiveTableTeamData teamB;
 
   @override
   Widget build(BuildContext context) {
@@ -492,7 +707,7 @@ class LiveTablePointFeed extends StatelessWidget {
         .where((e) => e.isPoint || e.isUndoPoint)
         .toList()
         .reversed
-        .take(5)
+        .take(8)
         .toList();
 
     return Padding(
@@ -521,38 +736,61 @@ class LiveTablePointFeed extends StatelessWidget {
             )
           else
             for (final event in filtered)
-              _PointFeedRow(event: event, match: match),
+              _PointFeedRow(
+                event: event,
+                team: _teamForEvent(event),
+                isSideA: event.side?.trim().toUpperCase() != 'B',
+              ),
         ],
       ),
     );
   }
+
+  LiveTableTeamData _teamForEvent(TournamentMatchPointEvent event) {
+    final side = event.side?.trim().toUpperCase();
+    if (side == 'B') return teamB;
+    return teamA;
+  }
 }
 
 class _PointFeedRow extends StatelessWidget {
-  const _PointFeedRow({required this.event, required this.match});
+  const _PointFeedRow({
+    required this.event,
+    required this.team,
+    required this.isSideA,
+  });
 
   final TournamentMatchPointEvent event;
-  final TournamentMatch match;
+  final LiveTableTeamData team;
+  final bool isSideA;
 
   @override
   Widget build(BuildContext context) {
-    final side = event.side ?? 'A';
-    final teamLabel = MatchScoringLogic.teamLabelForSide(
-      side: side,
-      teamADescription: match.teamADescription,
-      teamBDescription: match.teamBDescription,
-      teamAId: match.teamAId,
-      teamBId: match.teamBId,
-    );
-    final firstName = teamLabel.split('/').first.trim();
+    final playerName = team.player1.name.trim().isNotEmpty
+        ? team.player1.name.trim().split(' ').first
+        : team.label.split('/').first.trim();
     final actionLabel = event.isUndoPoint ? 'Desfeito' : 'Ponto';
+    final description = playerName.isNotEmpty
+        ? '$actionLabel · $playerName'
+        : actionLabel;
+    final dotColor =
+        isSideA ? AppColors.brand : context.themeColors.onSurfaceMuted;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: dotColor,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 10),
           Text(
-            '${event.scoreA}–${event.scoreB}',
+            '${event.scoreA}-${event.scoreB}',
             style: AppTypography.mono(
               fontSize: 12,
               fontWeight: FontWeight.w800,
@@ -562,7 +800,7 @@ class _PointFeedRow extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              '$actionLabel · $firstName',
+              description,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.soraRegular(
@@ -586,99 +824,121 @@ class _PointFeedRow extends StatelessWidget {
   }
 }
 
-class _DualInitialsAvatars extends StatelessWidget {
-  const _DualInitialsAvatars({
-    required this.players,
-    this.size = 28,
-    this.overlapRingColor,
-  });
-
-  final List<String> players;
-  final double size;
-  final Color? overlapRingColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final p1 = players.isNotEmpty ? players.first : '?';
-    final p2 = players.length > 1 ? players[1] : '';
-    return SizedBox(
-      width: size + (p2.isNotEmpty ? size * 0.55 : 0),
-      height: size,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          _InitialAvatar(label: p1, size: size),
-          if (p2.isNotEmpty)
-            Positioned(
-              left: size * 0.55,
-              child: _InitialAvatar(
-                label: p2,
-                size: size,
-                ringColor: overlapRingColor,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InitialAvatar extends StatelessWidget {
-  const _InitialAvatar({
-    required this.label,
-    required this.size,
-    this.ringColor,
-  });
-
-  final String label;
-  final double size;
-  final Color? ringColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final initials = _initials(label);
-    final avatar = CircleAvatar(
-      radius: size / 2,
-      backgroundColor: context.themeColors.onSurfaceMuted.withValues(
-        alpha: 0.18,
-      ),
-      child: Text(
-        initials,
-        style: AppTypography.mono(
-          fontSize: size * 0.32,
-          fontWeight: FontWeight.w800,
-          color: context.themeColors.onSurface,
-        ),
-      ),
-    );
-    final ring = ringColor;
-    if (ring == null) return avatar;
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: ring, width: 2),
-      ),
-      child: avatar,
-    );
-  }
-
-  String _initials(String name) {
-    final parts = name.trim().split(' ').where((p) => p.isNotEmpty).toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) {
-      final w = parts.first;
-      return w.length >= 2 ? w.substring(0, 2).toUpperCase() : w.toUpperCase();
-    }
-    return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-  }
-}
-
 /// Helpers para montar labels da mesa ao vivo.
 String liveTableTeamLabel(String? description, String teamId) {
   final desc = description?.trim();
   if (desc != null && desc.isNotEmpty) return desc;
   final id = teamId.trim();
   return id.isNotEmpty ? id : 'A definir';
+}
+
+LiveTableTeamData liveTableTeamData({
+  required TournamentMatch match,
+  required bool sideA,
+  TournamentMatchCardTeamViewModel? enrichedTeam,
+}) {
+  final teamId = sideA ? match.teamAId : match.teamBId;
+  final fallbackLabel = liveTableTeamLabel(
+    sideA ? match.teamADescription : match.teamBDescription,
+    teamId,
+  );
+  final label = _liveTableEnrichedTeamLabel(enrichedTeam, fallbackLabel);
+  final players = enrichedTeam != null
+      ? MatchOpsLogic.teamPlayersFromCardTeam(
+          team: enrichedTeam,
+          teamId: teamId,
+        )
+      : _liveTablePlayersFromLabel(fallbackLabel, teamId);
+
+  return LiveTableTeamData(
+    label: label,
+    player1: players.$1,
+    player2: players.$2,
+  );
+}
+
+LiveTableTeamData liveTableServingTeamData(
+  TournamentMatch match,
+  TournamentMatchCardViewModel? enriched,
+) {
+  final servingId = match.servingTeamId.trim();
+  if (servingId.isNotEmpty && servingId == match.teamBId) {
+    return liveTableTeamData(
+      match: match,
+      sideA: false,
+      enrichedTeam: enriched?.teamB,
+    );
+  }
+  return liveTableTeamData(
+    match: match,
+    sideA: true,
+    enrichedTeam: enriched?.teamA,
+  );
+}
+
+String liveTableTitleLabel({
+  required TournamentMatch match,
+  required String categoryLabel,
+}) {
+  final parts = <String>[];
+  final category = categoryLabel.trim();
+  if (category.isNotEmpty) parts.add(category);
+  final round = matchRoundLabel(match);
+  if (round.isNotEmpty) parts.add(round);
+  return parts.isNotEmpty ? parts.join(' · ') : 'Partida';
+}
+
+String liveTableMetaLabel({
+  required TournamentMatch match,
+  required String categoryLabel,
+}) {
+  final parts = <String>[];
+  final matchNumber = matchNumberLabelForCard(match);
+  if (matchNumber.isNotEmpty) parts.add(matchNumber);
+  final category = categoryLabel.trim();
+  if (category.isNotEmpty) parts.add(category);
+  final round = matchRoundLabel(match);
+  if (round.isNotEmpty) parts.add(round);
+  return parts.isNotEmpty ? parts.join(' · ') : 'Partida';
+}
+
+String _liveTableEnrichedTeamLabel(
+  TournamentMatchCardTeamViewModel? enrichedTeam,
+  String fallback,
+) {
+  final enrichedName = enrichedTeam?.displayName.trim() ?? '';
+  if (enrichedName.isNotEmpty &&
+      enrichedName != 'Equipe A' &&
+      enrichedName != 'Equipe B') {
+    return enrichedName;
+  }
+  return fallback;
+}
+
+(OrganizerCategoryPlayerInfo, OrganizerCategoryPlayerInfo)
+    _liveTablePlayersFromLabel(String teamLabel, String teamId) {
+  final names = teamLabel
+      .split('/')
+      .map((p) => p.trim())
+      .where((p) => p.isNotEmpty)
+      .toList();
+  final key = teamLabel.hashCode;
+  final id = teamId.trim();
+
+  OrganizerCategoryPlayerInfo at(int index, String name) {
+    return OrganizerCategoryPlayerInfo(
+      uid: id.isEmpty ? 'live-$key-$index' : '$id-$index',
+      name: name,
+    );
+  }
+
+  if (names.isEmpty) {
+    return (at(0, '?'), at(1, ''));
+  }
+  if (names.length == 1) {
+    return (at(0, names.first), at(1, ''));
+  }
+  return (at(0, names[0]), at(1, names[1]));
 }
 
 String liveTableServingTeamLabel(TournamentMatch match) {
@@ -699,6 +959,21 @@ bool liveTableIsServing(TournamentMatch match, {required bool sideA}) {
   final servingId = match.servingTeamId.trim();
   if (servingId.isEmpty) return sideA;
   return sideA ? servingId == match.teamAId : servingId == match.teamBId;
+}
+
+int? liveTableTeamSeed(TournamentMatch match, {required bool sideA}) {
+  final desc = sideA ? match.teamADescription : match.teamBDescription;
+  return _seedFromDescription(desc);
+}
+
+int? _seedFromDescription(String? description) {
+  final d = description?.trim() ?? '';
+  if (d.isEmpty) return null;
+  final leading = RegExp(r'^(\d+)').firstMatch(d);
+  if (leading != null) return int.tryParse(leading.group(1)!);
+  final hash = RegExp(r'#\s*(\d+)').firstMatch(d);
+  if (hash != null) return int.tryParse(hash.group(1)!);
+  return null;
 }
 
 List<int> liveTableCompletedSetScores(

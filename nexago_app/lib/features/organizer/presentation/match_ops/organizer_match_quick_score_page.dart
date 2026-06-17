@@ -1,16 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
 import '../../domain/match_ops/match_ops_providers.dart';
-import '../../domain/match_ops/match_scoring_logic.dart';
-import '../../../tournaments/data/nexago_artifacts_paths.dart';
+import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/data/tournament_live_matches_sync.dart';
+import '../../../tournaments/domain/tournament_match.dart';
+import '../../../tournaments/domain/tournament_match_display.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
-import '../../../tournaments/domain/tournament_match_status.dart';
+import 'widgets/organizer_match_live_table_widgets.dart';
+import '../../presentation/category_ops/widgets/organizer_team_dual_avatars.dart';
 
 /// I2 — Lançamento rápido de placar.
 class OrganizerMatchQuickScorePage extends ConsumerStatefulWidget {
@@ -34,70 +38,83 @@ class _OrganizerMatchQuickScorePageState
     const TournamentMatchSet(a: 0, b: 0),
   ];
   bool _saving = false;
+  bool _initialized = false;
+
+  static const int _bestOf = MatchScoringLogic.defaultBestOf;
+
+  void _initSetsFromMatch(TournamentMatch match) {
+    final existing = setsForMatch(match);
+    if (existing.isNotEmpty) {
+      _sets.clear();
+      _sets.addAll(existing);
+    }
+    _initialized = true;
+  }
 
   void _updateSet(int index, {int? a, int? b}) {
     setState(() {
       final current = _sets[index];
       _sets[index] = TournamentMatchSet(
-        a: a ?? current.a,
-        b: b ?? current.b,
+        a: (a ?? current.a).clamp(0, 99),
+        b: (b ?? current.b).clamp(0, 99),
       );
     });
   }
 
-  Future<void> _save({String? winnerId}) async {
+  void _addSet() {
+    if (_sets.length >= _bestOf) return;
+    setState(() => _sets.add(const TournamentMatchSet(a: 0, b: 0)));
+  }
+
+  Future<void> _save() async {
+    // Pré-validação local para feedback rápido; a validação autoritativa
+    // (placar legal + cálculo do vencedor pelas regras) ocorre no servidor.
     if (!MatchScoringLogic.validateQuickScoreSets(_sets)) {
       showAppSnackBar(context, 'Informe placar válido.');
       return;
     }
     setState(() => _saving = true);
     try {
-      final match = ref
-          .read(organizerMatchByIdProvider((
-            tournamentId: widget.tournamentId,
+      await ref.read(organizerMatchScheduleServiceProvider).submitMatchResult(
             matchId: widget.matchId,
-          )))
-          .valueOrNull;
-      if (match == null) return;
-
-      final computedWinner = winnerId ??
-          MatchScoringLogic.matchWinnerId(
-            sets: _sets,
-            teamAId: match.teamAId,
-            teamBId: match.teamBId,
+            sets: _sets.map((s) => {'a': s.a, 'b': s.b}).toList(),
           );
-
-      await FirebaseFirestore.instance
-          .collection(NexagoArtifactsPaths.matchesCollection())
-          .doc(widget.matchId)
-          .update({
-        'sets': _sets.map((s) => s.toMap()).toList(),
-        'status': computedWinner != null
-            ? TournamentMatchStatus.completed
-            : TournamentMatchStatus.inProgress,
-        if (computedWinner != null) 'winnerId': computedWinner,
-        'resultA': '${_sets.where((s) => s.a > s.b).length}',
-        'resultB': '${_sets.where((s) => s.b > s.a).length}',
-        'matchEndedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      if (computedWinner != null) {
-        await ref
-            .read(organizerMatchScheduleServiceProvider)
-            .advanceBracketWinner(matchId: widget.matchId);
-        await ref
-            .read(organizerMatchScheduleServiceProvider)
-            .applyLeagueRankingForMatch(matchId: widget.matchId);
-      }
-
+      // Avanço de chave + ranking são propagados pelo trigger
+      // onTournamentMatchCompletedAdvance ao concluir a partida — de forma
+      // atômica e idempotente, sem depender de o app continuar aberto.
       await TournamentLiveMatchesSync.syncForTournament(
         FirebaseFirestore.instance,
         widget.tournamentId,
       );
       if (mounted) {
         showAppSnackBar(context, 'Placar salvo.');
-        Navigator.of(context).pop();
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) showAppSnackBar(context, 'Erro: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// W.O. / abandono passa pela Cloud Function dedicada, que grava o resultado
+  /// no formato correto (resultA/resultB "W.O.", check-in, queue) e já avança
+  /// chave + ranking de forma consistente.
+  Future<void> _declareWalkover(String winnerTeamId) async {
+    if (winnerTeamId.trim().isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(organizerMatchScheduleServiceProvider).declareMatchWalkover(
+            matchId: widget.matchId,
+            winnerTeamId: winnerTeamId,
+          );
+      await TournamentLiveMatchesSync.syncForTournament(
+        FirebaseFirestore.instance,
+        widget.tournamentId,
+      );
+      if (mounted) {
+        showAppSnackBar(context, 'W.O. registrado.');
+        context.pop();
       }
     } catch (e) {
       if (mounted) showAppSnackBar(context, 'Erro: $e');
@@ -112,9 +129,16 @@ class _OrganizerMatchQuickScorePageState
       tournamentId: widget.tournamentId,
       matchId: widget.matchId,
     )));
+    final enrichedMap =
+        ref.watch(organizerMatchCardsByIdProvider(widget.tournamentId));
+    final categories = ref
+            .watch(organizerTournamentDetailProvider(widget.tournamentId))
+            .valueOrNull
+            ?.categories ??
+        const [];
 
     return Scaffold(
-      appBar: NexaAppBar(title: const Text('Lançamento rápido')),
+      backgroundColor: context.themeColors.canvas,
       body: matchAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),
@@ -122,56 +146,117 @@ class _OrganizerMatchQuickScorePageState
           if (match == null) {
             return const Center(child: Text('Partida não encontrada'));
           }
-          return ListView(
-            padding: const EdgeInsets.all(20),
+
+          if (!_initialized) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) setState(() => _initSetsFromMatch(match));
+            });
+          }
+
+          final enriched = enrichedMap.valueOrNull?[match.id];
+          final categoryLabel = MatchOpsLogic.categoryDisplayLabel(
+            categoryId: match.categoryId,
+            categories: categories,
+          );
+          final teamA = liveTableTeamData(
+            match: match,
+            sideA: true,
+            enrichedTeam: enriched?.teamA,
+          );
+          final teamB = liveTableTeamData(
+            match: match,
+            sideA: false,
+            enrichedTeam: enriched?.teamB,
+          );
+
+          final wins = MatchScoringLogic.setsWon(_sets);
+          final setsWonA = wins.a;
+          final setsWonB = wins.b;
+          final winnerId = MatchScoringLogic.matchWinnerId(
+            sets: _sets,
+            teamAId: match.teamAId,
+            teamBId: match.teamBId,
+          );
+          final winnerLabel = winnerId == match.teamAId
+              ? teamA.label
+              : winnerId == match.teamBId
+                  ? teamB.label
+                  : null;
+
+          final court = match.courtName?.trim() ?? '';
+          final supertitle = court.isNotEmpty
+              ? 'LANÇAMENTO RÁPIDO · $court'
+              : 'LANÇAMENTO RÁPIDO';
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(match.teamsLabel,
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 16),
-              for (var i = 0; i < _sets.length; i++) ...[
-                Text('Set ${i + 1}'),
-                Row(
+              SafeArea(
+                bottom: false,
+                child: _QuickScoreHeader(
+                  supertitle: supertitle,
+                  onBack: () => context.pop(),
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                   children: [
-                    _Stepper(
-                      value: _sets[i].a,
-                      onChanged: (v) => _updateSet(i, a: v),
+                    _MatchSummaryCard(
+                      match: match,
+                      categoryLabel: categoryLabel,
+                      teamA: teamA,
+                      teamB: teamB,
+                      setsWonA: setsWonA,
+                      setsWonB: setsWonB,
                     ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: Text('×'),
+                    const SizedBox(height: 24),
+                    _SectionHeader(
+                      title: 'GAMES POR SET',
+                      trailing:
+                          'até ${MatchScoringLogic.defaultSetPoints} pts',
                     ),
-                    _Stepper(
-                      value: _sets[i].b,
-                      onChanged: (v) => _updateSet(i, b: v),
+                    const SizedBox(height: 12),
+                    for (var i = 0; i < _sets.length; i++) ...[
+                      _SetInputRow(
+                        index: i,
+                        set: _sets[i],
+                        onChangeA: (v) => _updateSet(i, a: v),
+                        onChangeB: (v) => _updateSet(i, b: v),
+                      ),
+                      if (i < _sets.length - 1)
+                        Divider(
+                          height: 1,
+                          color: context.themeColors.onSurfaceMuted
+                              .withValues(alpha: 0.1),
+                        ),
+                    ],
+                    if (_sets.length < _bestOf) ...[
+                      const SizedBox(height: 4),
+                      _AddSetButton(
+                        label: _sets.length == _bestOf - 1
+                            ? 'Adicionar set decisivo'
+                            : 'Adicionar set',
+                        onPressed: _addSet,
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    _WoRow(
+                      onPressed: _saving
+                          ? null
+                          : () => _showWoSheet(
+                                match,
+                                teamA.label,
+                                teamB.label,
+                              ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-              ],
-              OutlinedButton(
-                onPressed: () => setState(() {
-                  _sets.add(const TournamentMatchSet(a: 0, b: 0));
-                }),
-                child: const Text('Adicionar set'),
               ),
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: _saving ? null : _save,
-                style: FilledButton.styleFrom(backgroundColor: AppColors.brand),
-                child: const Text('Confirmar vencedor'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton(
-                onPressed: _saving
-                    ? null
-                    : () => _save(winnerId: match.teamAId),
-                child: const Text('W.O. equipe A'),
-              ),
-              OutlinedButton(
-                onPressed: _saving
-                    ? null
-                    : () => _save(winnerId: match.teamBId),
-                child: const Text('W.O. equipe B'),
+              _ConfirmBottomBar(
+                saving: _saving,
+                winnerLabel: winnerLabel,
+                onConfirm: _save,
               ),
             ],
           );
@@ -179,28 +264,651 @@ class _OrganizerMatchQuickScorePageState
       ),
     );
   }
+
+  void _showWoSheet(
+    TournamentMatch match,
+    String teamALabel,
+    String teamBLabel,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: context.themeColors.surfaceSheet,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Qual equipe não compareceu?',
+                style: AppTypography.soraRegular(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _declareWalkover(match.teamBId);
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.live,
+                  side: BorderSide(
+                    color: AppColors.live.withValues(alpha: 0.4),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: Text('$teamALabel — W.O.'),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _declareWalkover(match.teamAId);
+                },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.live,
+                  side: BorderSide(
+                    color: AppColors.live.withValues(alpha: 0.4),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: Text('$teamBLabel — W.O.'),
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Cancelar',
+                  style: AppTypography.soraRegular(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _Stepper extends StatelessWidget {
-  const _Stepper({required this.value, required this.onChanged});
+// ── Header ────────────────────────────────────────────────────────────────────
 
-  final int value;
-  final ValueChanged<int> onChanged;
+class _QuickScoreHeader extends StatelessWidget {
+  const _QuickScoreHeader({
+    required this.supertitle,
+    required this.onBack,
+  });
+
+  final String supertitle;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _QuickScoreIconButton(
+            icon: Icons.arrow_back_ios_new_rounded,
+            onPressed: onBack,
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    supertitle,
+                    style: AppTypography.mono(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.brand,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Resultado da partida',
+                    style: AppTypography.soraRegular(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: context.themeColors.onSurface,
+                      height: 1.15,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          _QuickScoreIconButton(
+            icon: Icons.more_horiz_rounded,
+            onPressed: () {},
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Match summary card ─────────────────────────────────────────────────────────
+
+class _MatchSummaryCard extends StatelessWidget {
+  const _MatchSummaryCard({
+    required this.match,
+    required this.categoryLabel,
+    required this.teamA,
+    required this.teamB,
+    required this.setsWonA,
+    required this.setsWonB,
+  });
+
+  final TournamentMatch match;
+  final String categoryLabel;
+  final LiveTableTeamData teamA;
+  final LiveTableTeamData teamB;
+  final int setsWonA;
+  final int setsWonB;
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = <String>[];
+    final cat = categoryLabel.trim().toUpperCase();
+    final round = matchRoundLabel(match).toUpperCase();
+    if (cat.isNotEmpty) parts.add(cat);
+    if (round.isNotEmpty) parts.add(round);
+    final categoryMeta = parts.isNotEmpty ? parts.join(' · ') : 'PARTIDA';
+
+    final aWins = setsWonA > setsWonB;
+    final bWins = setsWonB > setsWonA;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.themeColors.surfaceCard,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        children: [
+          Text(
+            categoryMeta,
+            style: AppTypography.mono(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: context.themeColors.onSurfaceMuted,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              // Team A
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        OrganizerTeamDualAvatars(
+                          player1: teamA.player1,
+                          player2: teamA.player2,
+                          avatarSize: 28,
+                          overlapRingColor: context.themeColors.surfaceCard,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          '$setsWonA',
+                          style: AppTypography.mono(
+                            fontSize: 36,
+                            fontWeight: FontWeight.w800,
+                            color: aWins
+                                ? AppColors.win
+                                : context.themeColors.onSurface,
+                            height: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      teamA.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.soraRegular(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: context.themeColors.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Center "sets" label
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  'sets',
+                  style: AppTypography.mono(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
+                ),
+              ),
+              // Team B
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(
+                          '$setsWonB',
+                          style: AppTypography.mono(
+                            fontSize: 36,
+                            fontWeight: FontWeight.w800,
+                            color: bWins
+                                ? AppColors.win
+                                : context.themeColors.onSurface,
+                            height: 1,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        OrganizerTeamDualAvatars(
+                          player1: teamB.player1,
+                          player2: teamB.player2,
+                          avatarSize: 28,
+                          overlapRingColor: context.themeColors.surfaceCard,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      teamB.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: AppTypography.soraRegular(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: context.themeColors.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Section header ─────────────────────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, this.trailing});
+
+  final String title;
+  final String? trailing;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        IconButton(
-          onPressed: value > 0 ? () => onChanged(value - 1) : null,
-          icon: const Icon(Icons.remove_rounded),
+        Text(
+          title,
+          style: AppTypography.mono(
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+            color: context.themeColors.onSurfaceMuted,
+            letterSpacing: 0.6,
+          ),
         ),
-        Text('$value', style: Theme.of(context).textTheme.headlineSmall),
-        IconButton(
-          onPressed: () => onChanged(value + 1),
-          icon: const Icon(Icons.add_rounded),
+        if (trailing != null) ...[
+          const Spacer(),
+          Text(
+            trailing!,
+            style: AppTypography.mono(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: context.themeColors.onSurfaceMuted,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ── Set input row ──────────────────────────────────────────────────────────────
+
+class _SetInputRow extends StatelessWidget {
+  const _SetInputRow({
+    required this.index,
+    required this.set,
+    required this.onChangeA,
+    required this.onChangeB,
+  });
+
+  final int index;
+  final TournamentMatchSet set;
+  final ValueChanged<int> onChangeA;
+  final ValueChanged<int> onChangeB;
+
+  @override
+  Widget build(BuildContext context) {
+    final aWins = set.a > set.b;
+    final bWins = set.b > set.a;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Row(
+        children: [
+          Text(
+            'SET ${index + 1}',
+            style: AppTypography.mono(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: context.themeColors.onSurfaceMuted,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const Spacer(),
+          _ScoreControl(
+            value: set.a,
+            isWinning: aWins,
+            onDecrement: set.a > 0 ? () => onChangeA(set.a - 1) : null,
+            onIncrement: () => onChangeA(set.a + 1),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              '×',
+              style: AppTypography.mono(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: context.themeColors.onSurfaceMuted,
+              ),
+            ),
+          ),
+          _ScoreControl(
+            value: set.b,
+            isWinning: bWins,
+            onDecrement: set.b > 0 ? () => onChangeB(set.b - 1) : null,
+            onIncrement: () => onChangeB(set.b + 1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScoreControl extends StatelessWidget {
+  const _ScoreControl({
+    required this.value,
+    required this.isWinning,
+    required this.onIncrement,
+    this.onDecrement,
+  });
+
+  final int value;
+  final bool isWinning;
+  final VoidCallback? onDecrement;
+  final VoidCallback onIncrement;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _ScoreButton(
+          icon: Icons.remove_rounded,
+          onPressed: onDecrement,
+        ),
+        SizedBox(
+          width: 48,
+          child: Text(
+            '$value',
+            textAlign: TextAlign.center,
+            style: AppTypography.mono(
+              fontSize: 30,
+              fontWeight: FontWeight.w800,
+              color: isWinning ? AppColors.win : context.themeColors.onSurface,
+              height: 1,
+            ),
+          ),
+        ),
+        _ScoreButton(
+          icon: Icons.add_rounded,
+          onPressed: onIncrement,
         ),
       ],
+    );
+  }
+}
+
+class _ScoreButton extends StatelessWidget {
+  const _ScoreButton({required this.icon, this.onPressed});
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+    return Material(
+      color: enabled
+          ? AppColors.brand
+          : AppColors.brand.withValues(alpha: 0.3),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(
+            icon,
+            size: 20,
+            color: enabled ? Colors.black : Colors.black54,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Add set button ─────────────────────────────────────────────────────────────
+
+class _AddSetButton extends StatelessWidget {
+  const _AddSetButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.add_rounded,
+              size: 16,
+              color: context.themeColors.onSurfaceMuted,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: AppTypography.soraRegular(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: context.themeColors.onSurfaceMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── W.O. row ──────────────────────────────────────────────────────────────────
+
+class _WoRow extends StatelessWidget {
+  const _WoRow({this.onPressed});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.flag_rounded,
+              size: 16,
+              color: context.themeColors.onSurfaceMuted,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Encerrar por W.O. ou abandono',
+                style: AppTypography.soraRegular(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: context.themeColors.onSurfaceMuted,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: context.themeColors.onSurfaceMuted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Confirm bottom bar ─────────────────────────────────────────────────────────
+
+class _ConfirmBottomBar extends StatelessWidget {
+  const _ConfirmBottomBar({
+    required this.onConfirm,
+    this.saving = false,
+    this.winnerLabel,
+  });
+
+  final VoidCallback onConfirm;
+  final bool saving;
+  final String? winnerLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasWinner = winnerLabel != null;
+    final label =
+        hasWinner ? 'Confirmar · $winnerLabel venceu' : 'Confirmar placar';
+    final bgColor = hasWinner ? AppColors.win : AppColors.brand;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+        color: context.themeColors.canvas,
+        border: Border(
+          top: BorderSide(
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+          ),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: FilledButton.icon(
+          onPressed: saving ? null : onConfirm,
+          icon: saving
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.black,
+                  ),
+                )
+              : const Icon(Icons.check_rounded, size: 18, color: Colors.black),
+          label: Text(saving ? 'Salvando…' : label),
+          style: FilledButton.styleFrom(
+            backgroundColor: bgColor,
+            foregroundColor: Colors.black,
+            minimumSize: const Size.fromHeight(52),
+            textStyle: AppTypography.soraRegular(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Icon button ───────────────────────────────────────────────────────────────
+
+class _QuickScoreIconButton extends StatelessWidget {
+  const _QuickScoreIconButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.themeColors.surfaceRaised,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(icon, size: 18, color: context.themeColors.onSurface),
+        ),
+      ),
     );
   }
 }

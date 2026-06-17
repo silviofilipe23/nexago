@@ -10,13 +10,13 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
 import '../../domain/match_ops/match_ops_providers.dart';
+import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/data/tournament_live_matches_sync.dart';
 import '../../../tournaments/domain/tournament_discovery_providers.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_point_event.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
-import '../../../tournaments/domain/tournament_match_display.dart';
 import 'organizer_match_navigation.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
 
@@ -103,8 +103,8 @@ class _OrganizerMatchLiveTablePageState
             'matchEndedAt': FieldValue.serverTimestamp(),
           if (match.matchStartedAt == null)
             'matchStartedAt': FieldValue.serverTimestamp(),
-          'resultA': '${result.sets.where((s) => s.a > s.b).length}',
-          'resultB': '${result.sets.where((s) => s.b > s.a).length}',
+          'resultA': '${MatchScoringLogic.setsWon(result.sets).a}',
+          'resultB': '${MatchScoringLogic.setsWon(result.sets).b}',
         },
         pointEvent: {
           'type': 'point',
@@ -114,14 +114,9 @@ class _OrganizerMatchLiveTablePageState
           'scoreB': current?.b ?? 0,
         },
       );
-      if (result.winnerId != null) {
-        await ref
-            .read(organizerMatchScheduleServiceProvider)
-            .advanceBracketWinner(matchId: widget.matchId);
-        await ref
-            .read(organizerMatchScheduleServiceProvider)
-            .applyLeagueRankingForMatch(matchId: widget.matchId);
-      }
+      // Avanço de chave + ranking são propagados pelo trigger
+      // onTournamentMatchCompletedAdvance ao concluir a partida (atômico +
+      // idempotente), substituindo as chamadas HTTPS sequenciais por ponto.
       await TournamentLiveMatchesSync.syncForTournament(
         FirebaseFirestore.instance,
         widget.tournamentId,
@@ -178,8 +173,8 @@ class _OrganizerMatchLiveTablePageState
           'status': TournamentMatchStatus.inProgress,
           'winnerId': FieldValue.delete(),
           'matchEndedAt': FieldValue.delete(),
-          'resultA': '${result.sets.where((s) => s.a > s.b).length}',
-          'resultB': '${result.sets.where((s) => s.b > s.a).length}',
+          'resultA': '${MatchScoringLogic.setsWon(result.sets).a}',
+          'resultB': '${MatchScoringLogic.setsWon(result.sets).b}',
         },
         pointEvent: {
           'type': 'undo-point',
@@ -223,6 +218,39 @@ class _OrganizerMatchLiveTablePageState
     }
   }
 
+  Future<void> _undoIfSide(String side) async {
+    final eventsAsync = ref.read(
+      organizerMatchPointEventsProvider(widget.matchId),
+    );
+    final events = (eventsAsync.valueOrNull ?? const [])
+        .whereType<TournamentMatchPointEvent>()
+        .toList();
+    TournamentMatchPointEvent? lastPoint;
+    for (final event in events.reversed) {
+      if (event.isPoint) {
+        lastPoint = event;
+        break;
+      }
+    }
+    if (lastPoint == null) {
+      if (mounted) {
+        showAppSnackBar(context, 'Nenhum ponto para desfazer.', isError: true);
+      }
+      return;
+    }
+    if ((lastPoint.side ?? 'A').toUpperCase() != side.toUpperCase()) {
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          'O último ponto não foi desta dupla.',
+          isError: true,
+        );
+      }
+      return;
+    }
+    await _undoLastPoint();
+  }
+
   String _elapsedLabel(TournamentMatch match) {
     if (match.matchStartedAt != null) {
       final sec = MatchScoringLogic.elapsedSecondsFromStart(
@@ -245,6 +273,15 @@ class _OrganizerMatchLiveTablePageState
     )));
     final pointEventsAsync =
         ref.watch(organizerMatchPointEventsProvider(widget.matchId));
+    final enrichedCard = ref
+        .watch(organizerMatchCardsByIdProvider(widget.tournamentId))
+        .valueOrNull?[widget.matchId];
+    final tournamentCategories =
+        ref
+            .watch(organizerTournamentDetailProvider(widget.tournamentId))
+            .valueOrNull
+            ?.categories ??
+        const [];
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -265,20 +302,30 @@ class _OrganizerMatchLiveTablePageState
                     ? sets[setIdx]
                     : const TournamentMatchSet(a: 0, b: 0);
                 final court = match.effectiveCourtLabel.trim();
-                final meta = [
-                  match.categoryId.trim(),
-                  matchRoundLabel(match),
-                ].where((s) => s.isNotEmpty).join(' · ');
+                final categoryLabel = MatchOpsLogic.categoryDisplayLabel(
+                  categoryId: match.categoryId,
+                  categories: tournamentCategories,
+                );
+                final title = liveTableTitleLabel(
+                  match: match,
+                  categoryLabel: categoryLabel,
+                );
                 final rules = MatchScoringLogic.setRulesLabel(setIdx);
                 final setPoint = MatchScoringLogic.setPointHint(
                   current.a,
                   current.b,
                   setIndex: setIdx,
                 );
-                final teamALabel =
-                    liveTableTeamLabel(match.teamADescription, match.teamAId);
-                final teamBLabel =
-                    liveTableTeamLabel(match.teamBDescription, match.teamBId);
+                final teamA = liveTableTeamData(
+                  match: match,
+                  sideA: true,
+                  enrichedTeam: enrichedCard?.teamA,
+                );
+                final teamB = liveTableTeamData(
+                  match: match,
+                  sideA: false,
+                  enrichedTeam: enrichedCard?.teamB,
+                );
                 final actionsEnabled = !_saving && !match.isCompleted;
                 final events = (pointEventsAsync.valueOrNull ?? const [])
                     .whereType<TournamentMatchPointEvent>()
@@ -289,47 +336,28 @@ class _OrganizerMatchLiveTablePageState
                   children: [
                     LiveTableHeader(
                       courtLabel: court.isNotEmpty ? court : '—',
-                      metaLabel: meta.isNotEmpty ? meta : 'Partida',
+                      titleLabel: title.isNotEmpty ? title : 'Partida',
                       elapsedLabel: _elapsedLabel(match),
                       onBack: () => context.pop(),
-                      onMore: () => context.push(
-                        organizerMatchSummaryPath(
-                          widget.tournamentId,
-                          widget.matchId,
-                        ),
-                      ),
                     ),
                     LiveTableSetStrip(
                       sets: sets,
                       currentSetIndex: setIdx,
                     ),
-                    const SizedBox(height: 8),
-                    LiveTableServingBanner(
-                      teamLabel: liveTableServingTeamLabel(match),
-                    ),
-                    LiveTableTeamScoreRow(
-                      teamLabel: teamALabel,
-                      currentScore:
-                          liveTableCurrentSetScore(match, sideA: true),
-                      completedSets: liveTableCompletedSetScores(
-                        match,
-                        sideA: true,
-                      ),
-                      isServing: liveTableIsServing(match, sideA: true),
+                    LiveTableTeamScoreBoard(
+                      teamA: teamA,
+                      teamB: teamB,
+                      scoreA: liveTableCurrentSetScore(match, sideA: true),
+                      scoreB: liveTableCurrentSetScore(match, sideA: false),
+                      isServingA: liveTableIsServing(match, sideA: true),
+                      isServingB: liveTableIsServing(match, sideA: false),
+                      seedA: liveTableTeamSeed(match, sideA: true),
+                      seedB: liveTableTeamSeed(match, sideA: false),
                       enabled: actionsEnabled,
-                      onTap: () => _point('A'),
-                    ),
-                    LiveTableTeamScoreRow(
-                      teamLabel: teamBLabel,
-                      currentScore:
-                          liveTableCurrentSetScore(match, sideA: false),
-                      completedSets: liveTableCompletedSetScores(
-                        match,
-                        sideA: false,
-                      ),
-                      isServing: liveTableIsServing(match, sideA: false),
-                      enabled: actionsEnabled,
-                      onTap: () => _point('B'),
+                      onAddPointA: () => _point('A'),
+                      onAddPointB: () => _point('B'),
+                      onSubtractA: () => _undoIfSide('A'),
+                      onSubtractB: () => _undoIfSide('B'),
                     ),
                     LiveTableSetRules(
                       rulesLabel: rules,
@@ -339,13 +367,20 @@ class _OrganizerMatchLiveTablePageState
                       enabled: actionsEnabled,
                       onUndo: _undoLastPoint,
                       onSwapServe: _swapServe,
+                      onHistory: () => context.push(
+                        organizerMatchSummaryPath(
+                          widget.tournamentId,
+                          widget.matchId,
+                        ),
+                      ),
                     ),
                     Expanded(
                       child: SingleChildScrollView(
                         child: LiveTablePointFeed(
                           setIndex: setIdx,
                           events: events,
-                          match: match,
+                          teamA: teamA,
+                          teamB: teamB,
                         ),
                       ),
                     ),

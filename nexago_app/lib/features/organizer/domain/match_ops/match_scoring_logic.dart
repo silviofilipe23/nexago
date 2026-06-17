@@ -15,18 +15,43 @@ abstract final class MatchScoringLogic {
     return false;
   }
 
-  static bool isMatchWon(List<TournamentMatchSet> sets, {int bestOf = 3}) {
-    final needed = (bestOf / 2).ceil();
-    var winsA = 0;
-    var winsB = 0;
-    for (final s in sets) {
-      if (s.a > s.b) {
-        winsA++;
-      } else if (s.b > s.a) {
-        winsB++;
+  /// Vencedor de um set conforme as regras (target por índice + vantagem):
+  /// `'A'`, `'B'` ou `null` se o set ainda não foi vencido por ninguém.
+  static String? setWinnerSide(
+    List<TournamentMatchSet> sets,
+    int index, {
+    int bestOf = defaultBestOf,
+  }) {
+    if (index < 0 || index >= sets.length) return null;
+    final s = sets[index];
+    final target = targetPointsForSet(index, bestOf);
+    if (!isSetWon(s.a, s.b, target: target)) return null;
+    return s.a > s.b ? 'A' : 'B';
+  }
+
+  /// Quantos sets cada lado venceu DE FATO (respeitando target/vantagem).
+  /// Um set incompleto (ex.: 5×2) NÃO conta como vitória de set.
+  static ({int a, int b}) setsWon(
+    List<TournamentMatchSet> sets, {
+    int bestOf = defaultBestOf,
+  }) {
+    var a = 0;
+    var b = 0;
+    for (var i = 0; i < sets.length; i++) {
+      final side = setWinnerSide(sets, i, bestOf: bestOf);
+      if (side == 'A') {
+        a++;
+      } else if (side == 'B') {
+        b++;
       }
     }
-    return winsA >= needed || winsB >= needed;
+    return (a: a, b: b);
+  }
+
+  static bool isMatchWon(List<TournamentMatchSet> sets, {int bestOf = 3}) {
+    final needed = (bestOf / 2).ceil();
+    final wins = setsWon(sets, bestOf: bestOf);
+    return wins.a >= needed || wins.b >= needed;
   }
 
   static String? matchWinnerId({
@@ -36,17 +61,9 @@ abstract final class MatchScoringLogic {
     int bestOf = 3,
   }) {
     if (!isMatchWon(sets, bestOf: bestOf)) return null;
-    var winsA = 0;
-    var winsB = 0;
-    for (final s in sets) {
-      if (s.a > s.b) {
-        winsA++;
-      } else if (s.b > s.a) {
-        winsB++;
-      }
-    }
-    if (winsA > winsB) return teamAId;
-    if (winsB > winsA) return teamBId;
+    final wins = setsWon(sets, bestOf: bestOf);
+    if (wins.a > wins.b) return teamAId;
+    if (wins.b > wins.a) return teamBId;
     return null;
   }
 
@@ -134,16 +151,16 @@ abstract final class MatchScoringLogic {
 
   static String setsScoreLabel(TournamentMatch match) {
     if (match.sets.isEmpty) return match.scoreLabel;
-    final aWins = match.sets.where((s) => s.a > s.b).length;
-    final bWins = match.sets.where((s) => s.b > s.a).length;
-    return '$aWins × $bWins';
+    final wins = setsWon(match.sets);
+    return '${wins.a} × ${wins.b}';
   }
 
   static bool validateQuickScoreSets(List<TournamentMatchSet> sets) {
     if (sets.isEmpty) return false;
     for (final s in sets) {
       if (s.a < 0 || s.b < 0) return false;
-      if (s.a == 0 && s.b == 0) return false;
+      // Um set registrado não pode terminar empatado (inclui 0×0).
+      if (s.a == s.b) return false;
     }
     return true;
   }

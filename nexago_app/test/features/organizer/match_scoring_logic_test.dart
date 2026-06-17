@@ -34,6 +34,86 @@ void main() {
       expect(matchWin.winnerId, 'teamA');
     });
 
+    test('setsWon ignores incomplete sets', () {
+      // 21×3 vence; 5×2 NÃO é set vencido (não atingiu 21).
+      final wins = MatchScoringLogic.setsWon(const [
+        TournamentMatchSet(a: 21, b: 3),
+        TournamentMatchSet(a: 5, b: 2),
+      ]);
+      expect(wins.a, 1);
+      expect(wins.b, 0);
+    });
+
+    test('matchWinnerId requires legally-won sets', () {
+      // Placar ilegal "2×0" com segundo set incompleto não fecha a partida.
+      final winner = MatchScoringLogic.matchWinnerId(
+        sets: const [
+          TournamentMatchSet(a: 21, b: 3),
+          TournamentMatchSet(a: 5, b: 2),
+        ],
+        teamAId: 'a',
+        teamBId: 'b',
+      );
+      expect(winner, isNull);
+
+      final legit = MatchScoringLogic.matchWinnerId(
+        sets: const [
+          TournamentMatchSet(a: 21, b: 3),
+          TournamentMatchSet(a: 21, b: 18),
+        ],
+        teamAId: 'a',
+        teamBId: 'b',
+      );
+      expect(legit, 'a');
+    });
+
+    test('decisive set uses tiebreak target of 15', () {
+      final winner = MatchScoringLogic.matchWinnerId(
+        sets: const [
+          TournamentMatchSet(a: 21, b: 18),
+          TournamentMatchSet(a: 19, b: 21),
+          TournamentMatchSet(a: 15, b: 12),
+        ],
+        teamAId: 'a',
+        teamBId: 'b',
+      );
+      expect(winner, 'a');
+
+      // 13×11 no 3º set ainda não fecha (não atingiu 15).
+      final notYet = MatchScoringLogic.matchWinnerId(
+        sets: const [
+          TournamentMatchSet(a: 21, b: 18),
+          TournamentMatchSet(a: 19, b: 21),
+          TournamentMatchSet(a: 13, b: 11),
+        ],
+        teamAId: 'a',
+        teamBId: 'b',
+      );
+      expect(notYet, isNull);
+    });
+
+    test('validateQuickScoreSets rejects tied and empty sets', () {
+      expect(
+        MatchScoringLogic.validateQuickScoreSets(const [
+          TournamentMatchSet(a: 0, b: 0),
+        ]),
+        isFalse,
+      );
+      expect(
+        MatchScoringLogic.validateQuickScoreSets(const [
+          TournamentMatchSet(a: 21, b: 19),
+          TournamentMatchSet(a: 10, b: 10),
+        ]),
+        isFalse,
+      );
+      expect(
+        MatchScoringLogic.validateQuickScoreSets(const [
+          TournamentMatchSet(a: 21, b: 19),
+        ]),
+        isTrue,
+      );
+    });
+
     test('undoPoint decrements score', () {
       final result = MatchScoringLogic.undoPoint(
         sets: const [TournamentMatchSet(a: 5, b: 3)],

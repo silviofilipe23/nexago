@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/organizer/domain/category_ops/category_ops_models.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/match_ops_logic.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/match_ops_models.dart';
+import 'package:nexago_app/features/organizer/domain/tournament_ops/tournament_ops_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_card_view_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';
@@ -50,6 +51,19 @@ void main() {
       final sections = MatchOpsLogic.groupCenterSections(rows);
       expect(sections.live.map((r) => r.match.id), ['live']);
       expect(sections.upcoming.map((r) => r.match.id), ['up']);
+      expect(sections.finished.map((r) => r.match.id), ['done']);
+    });
+
+    test('groupCenterSections puts completed on_court match in finished', () {
+      final rows = MatchOpsLogic.toRows([
+        _match(
+          id: 'done',
+          status: TournamentMatchStatus.completed,
+          queueStatus: 'on_court',
+        ),
+      ]);
+      final sections = MatchOpsLogic.groupCenterSections(rows);
+      expect(sections.live, isEmpty);
       expect(sections.finished.map((r) => r.match.id), ['done']);
     });
 
@@ -127,6 +141,46 @@ void main() {
       expect(players.$1.profilePhotoUrl, 'https://cdn.example/ma.jpg');
       expect(players.$2.name, 'Victor');
       expect(players.$2.profilePhotoUrl, 'https://cdn.example/vi.jpg');
+    });
+
+    test('categoryDisplayLabel resolves category name from tournament summary', () {
+      expect(
+        MatchOpsLogic.categoryDisplayLabel(
+          categoryId: 'cat-masc-open',
+          categories: const [
+            OrganizerTournamentCategorySummary(
+              categoryId: 'cat-masc-open',
+              name: 'Open',
+              genderLabel: 'Masculino',
+            ),
+          ],
+        ),
+        'MASC Open',
+      );
+      expect(
+        MatchOpsLogic.categoryDisplayLabel(
+          categoryId: 'cat-misto-b',
+          categories: const [
+            OrganizerTournamentCategorySummary(
+              categoryId: 'cat-misto-b',
+              name: 'Misto B',
+              genderLabel: 'Misto',
+            ),
+          ],
+        ),
+        'Misto B',
+      );
+      expect(
+        MatchOpsLogic.categoryGenderShortLabel('Feminino'),
+        'FEM',
+      );
+      expect(
+        MatchOpsLogic.categoryDisplayLabel(
+          categoryId: 'unknown-id',
+          categories: const [],
+        ),
+        'unknown-id',
+      );
     });
   });
 }

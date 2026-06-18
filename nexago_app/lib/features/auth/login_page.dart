@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_providers.dart';
 import '../../core/auth/firebase_auth_error_mapper.dart';
+import '../../core/observability/analytics_service.dart';
 import '../../core/router/routes.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -27,8 +29,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _obscurePassword = true;
   bool _submitting = false;
   bool _googleSubmitting = false;
+  bool _appleSubmitting = false;
   String? _emailError;
   String? _passwordError;
+
+  /// Apple Sign-In só é exigido/oferecido no iOS/macOS (firebase_auth nativo).
+  bool get _showAppleButton =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
 
   @override
   void dispose() {
@@ -68,6 +77,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             email: email,
             password: password,
           );
+      ref.read(analyticsServiceProvider).logLogin('password');
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       final classified = classifyFirebaseAuthError(e);
@@ -94,13 +104,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _signInWithGoogle() async {
-    if (_submitting || _googleSubmitting) return;
+    if (_submitting || _googleSubmitting || _appleSubmitting) return;
     HapticFeedback.mediumImpact();
     setState(() => _googleSubmitting = true);
     try {
       final cred = await ref.read(authServiceProvider).signInWithGoogle();
       if (!mounted) return;
       if (cred == null) return;
+      ref.read(analyticsServiceProvider).logLogin('google');
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, mapFirebaseAuthException(e), isError: true);
@@ -116,11 +127,35 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
+  Future<void> _signInWithApple() async {
+    if (_submitting || _googleSubmitting || _appleSubmitting) return;
+    HapticFeedback.mediumImpact();
+    setState(() => _appleSubmitting = true);
+    try {
+      final cred = await ref.read(authServiceProvider).signInWithApple();
+      if (!mounted) return;
+      if (cred == null) return;
+      ref.read(analyticsServiceProvider).logLogin('apple');
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, mapFirebaseAuthException(e), isError: true);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Não foi possível entrar com Apple. Tente novamente.',
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _appleSubmitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final busy = _submitting || _googleSubmitting;
+    final busy = _submitting || _googleSubmitting || _appleSubmitting;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -254,9 +289,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           icon: const AuthGoogleGlyph(),
                           label: 'Continuar com Google',
                         ),
-                        // Apple Sign-In ainda não implementado: ocultado para
-                        // não expor uma ação inerte (e evitar rejeição na App
-                        // Store por botão social desabilitado).
+                        if (_showAppleButton) ...[
+                          SizedBox(height: 10),
+                          AuthSocialButton(
+                            onPressed: busy ? null : _signInWithApple,
+                            loading: _appleSubmitting,
+                            icon: Icon(
+                              Icons.apple,
+                              size: 22,
+                              color: context.themeColors.onSurface,
+                            ),
+                            label: 'Continuar com Apple',
+                          ),
+                        ],
                         SizedBox(height: 28),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,

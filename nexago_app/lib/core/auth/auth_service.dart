@@ -87,6 +87,25 @@ class AuthService {
     return _auth.signInWithCredential(credential);
   }
 
+  /// Login com Apple (iOS/macOS). Usa o provider nativo do firebase_auth, sem
+  /// dependência extra. Retorna `null` se o usuário cancelar o fluxo.
+  Future<UserCredential?> signInWithApple() async {
+    final provider = AppleAuthProvider()
+      ..addScope('email')
+      ..addScope('name');
+    try {
+      return await _auth.signInWithProvider(provider);
+    } on FirebaseAuthException catch (e) {
+      // Cancelamento do usuário não é erro — devolve null como o Google.
+      if (e.code == 'canceled' ||
+          e.code == 'web-context-canceled' ||
+          e.code == 'user-canceled') {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
   Future<void> sendPasswordResetEmail({
     required String email,
   }) {

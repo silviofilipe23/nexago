@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/auth/account_deletion_service.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/active_role_providers.dart';
 import '../../../core/router/navigation_helpers.dart';
@@ -42,6 +43,55 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
 
   Future<void> _signOut() async {
     await ref.read(appSignOutProvider)();
+  }
+
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir conta?'),
+        content: const Text(
+          'Esta ação é permanente. Seus dados de perfil, preferências e '
+          'notificações serão apagados e você perderá o acesso à conta. '
+          'Registros de torneios e pagamentos podem ser retidos por exigência '
+          'legal. Não é possível desfazer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Excluir minha conta'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    // Bloqueia a tela durante a exclusão (ação irreversível).
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await ref.read(accountDeletionServiceProvider).deleteOwnAccount();
+      // Conta de auth já removida no servidor; limpa a sessão local.
+      await ref.read(appSignOutProvider)();
+      // O guard de auth redireciona para o login ao detectar a sessão nula.
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop(); // fecha o progresso
+      showAppSnackBar(
+        context,
+        'Não foi possível excluir a conta agora. Tente novamente.',
+        isError: true,
+      );
+    }
   }
 
   Future<void> _openLegalSheet() async {
@@ -312,9 +362,9 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                 AthleteSettingsTile(
                   icon: Icons.delete_outline_rounded,
                   title: 'Excluir conta',
-                  subtitle: 'Solicitar exclusão dos seus dados',
+                  subtitle: 'Apagar seus dados e a conta',
                   variant: AthleteSettingsIconVariant.neutral,
-                  onTap: () => _launchUrl(AuthLegalUrls.accountDeletionUrl),
+                  onTap: _deleteAccount,
                   showDivider: false,
                 ),
               ],

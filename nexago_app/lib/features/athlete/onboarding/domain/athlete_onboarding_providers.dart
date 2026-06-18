@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/auth/auth_providers.dart';
+import '../../../../core/observability/analytics_service.dart';
 import '../../domain/athlete_profile_providers.dart';
 import 'athlete_onboarding_draft.dart';
 
@@ -78,6 +79,7 @@ class AthleteOnboardingDraftNotifier extends Notifier<AthleteOnboardingDraft> {
     await repo.saveProfile(profile);
 
     ref.read(athleteOnboardingJustCompletedProvider.notifier).state = true;
+    ref.read(analyticsServiceProvider).logOnboardingComplete();
     ref.invalidate(athleteProfileProvider);
 
     final bytes = state.avatarBytes;

@@ -12,6 +12,10 @@ import {
   buildSingleEliminationMatches,
 } from "./category-bracket-builders";
 import {assertCanManageTournament} from "./tournament-acl";
+import {
+  canCancelTournament,
+  countPaidRegistrations,
+} from "./tournament-cancellation";
 
 function getFirebaseProjectId(): string {
   return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
@@ -455,10 +459,40 @@ export const cancelTournament = onCall(async (request) => {
 
   const db = getFirestore();
   await assertCanManageTournament(db, uid, tournamentId);
+
+  // Integridade financeira: não cancelar silenciosamente um torneio com
+  // inscrições pagas — não há estorno automático, então o organizador precisa
+  // confirmar (force) que vai reembolsar manualmente.
+  const projectId = getFirebaseProjectId();
+  const inscriptionsSnap = await db
+    .collection(artifactsInscriptionsPath(projectId))
+    .where("tournamentId", "==", tournamentId)
+    .get();
+  const paidCount = countPaidRegistrations(
+    inscriptionsSnap.docs.map((d) => d.data()),
+  );
+  const force = request.data?.force === true;
+  if (!canCancelTournament({paidCount, force})) {
+    throw new HttpsError(
+      "failed-precondition",
+      `${paidCount} dupla(s) já pagaram a inscrição. Cancelar exige reembolso ` +
+        "manual — confirme para prosseguir.",
+      {reason: "has_paid_registrations", paidCount},
+    );
+  }
+
   await db.doc(`tournaments/${tournamentId}`).update({
     listingStatus: "cancelled",
+    cancelledAt: FieldValue.serverTimestamp(),
+    refundsPending: paidCount > 0,
+    paidRegistrationsAtCancel: paidCount,
     updatedAt: FieldValue.serverTimestamp(),
   });
-  logger.info("Torneio cancelado pelo organizador", {tournamentId, uid});
-  return {ok: true};
+  logger.info("Torneio cancelado pelo organizador", {
+    tournamentId,
+    uid,
+    paidCount,
+    force,
+  });
+  return {ok: true, paidCount};
 });

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth/auth_providers.dart';
+import '../../core/observability/analytics_service.dart';
 import '../../features/athlete/onboarding/domain/athlete_onboarding_providers.dart';
 import '../../core/auth/firebase_auth_error_mapper.dart';
 import '../../core/router/routes.dart';
@@ -206,6 +207,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
             password: password,
           );
       await ref.read(authServiceProvider).sendEmailVerification();
+      ref.read(analyticsServiceProvider).logSignUp('password');
       if (!mounted) return;
       setState(() => _pendingSuccess = true);
       _goToSuccessScreen();

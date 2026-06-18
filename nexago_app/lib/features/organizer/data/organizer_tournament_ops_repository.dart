@@ -40,9 +40,15 @@ class OrganizerTournamentOpsRepository {
     await callable.call({'tournamentId': tournamentId.trim()});
   }
 
-  Future<void> cancelTournament(String tournamentId) async {
+  Future<void> cancelTournament(
+    String tournamentId, {
+    bool force = false,
+  }) async {
     final callable = _functions.httpsCallable('cancelTournament');
-    await callable.call({'tournamentId': tournamentId.trim()});
+    await callable.call({
+      'tournamentId': tournamentId.trim(),
+      if (force) 'force': true,
+    });
   }
 
   Future<void> patchListingStatus({

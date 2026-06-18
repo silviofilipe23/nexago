@@ -7,8 +7,10 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../data/organizer_tournament_ops_repository.dart';
 import '../../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_providers.dart';
 
@@ -216,22 +218,7 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
                   ),
                 );
                 if (confirm != true || !context.mounted) return;
-                try {
-                  await repo.cancelTournament(tournamentId);
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    context.pop();
-                    showAppSnackBar(context, 'Torneio cancelado.');
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    showAppSnackBar(
-                      context,
-                      _opsError(e, 'cancelar o torneio'),
-                      isError: true,
-                    );
-                  }
-                }
+                await _cancelWithRefundGuard(context, repo, tournamentId);
               },
             ),
           ],
@@ -252,6 +239,75 @@ String _opsError(Object error, String action) {
     );
   }
   return friendlyTournamentOpsError(action: action);
+}
+
+/// Se o servidor bloqueou o cancelamento por haver inscrições pagas, devolve
+/// quantas pagaram; caso contrário, `null`.
+int? _paidRegistrationsBlocked(Object error) {
+  if (error is! FirebaseFunctionsException) return null;
+  final details = error.details;
+  if (details is Map && details['reason'] == 'has_paid_registrations') {
+    final raw = details['paidCount'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return 0;
+  }
+  return null;
+}
+
+/// Cancela o torneio; se houver pagamentos, exige confirmação do reembolso
+/// manual antes de reenviar com `force`.
+Future<void> _cancelWithRefundGuard(
+  BuildContext context,
+  OrganizerTournamentOpsRepository repo,
+  String tournamentId, {
+  bool force = false,
+}) async {
+  try {
+    await repo.cancelTournament(tournamentId, force: force);
+    if (context.mounted) {
+      Navigator.pop(context);
+      context.pop();
+      showAppSnackBar(context, 'Torneio cancelado.');
+    }
+  } catch (e) {
+    final paidCount = _paidRegistrationsBlocked(e);
+    if (paidCount != null && context.mounted) {
+      final go = await _confirmForceCancel(context, paidCount);
+      if (go == true && context.mounted) {
+        await _cancelWithRefundGuard(context, repo, tournamentId, force: true);
+      }
+      return;
+    }
+    if (context.mounted) {
+      showAppSnackBar(context, _opsError(e, 'cancelar o torneio'), isError: true);
+    }
+  }
+}
+
+Future<bool?> _confirmForceCancel(BuildContext context, int paidCount) {
+  final duplas = paidCount == 1 ? '1 dupla já pagou' : '$paidCount duplas já pagaram';
+  return showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Reembolso manual necessário'),
+      content: Text(
+        '$duplas a inscrição. Não há estorno automático: você precisará '
+        'reembolsá-las manualmente. Confirma o cancelamento mesmo assim?',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Voltar'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Cancelar e reembolsar'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ActionTile extends StatelessWidget {

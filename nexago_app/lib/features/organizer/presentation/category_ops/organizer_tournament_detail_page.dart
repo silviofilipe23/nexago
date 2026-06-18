@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,11 +13,12 @@ import '../match_ops/organizer_match_navigation.dart';
 import 'sheets/organizer_tournament_actions_sheet.dart';
 import 'tabs/organizer_tournament_categories_tab.dart';
 import 'tabs/organizer_tournament_financial_tab.dart';
+import 'tabs/organizer_tournament_matches_tab.dart';
 import 'tabs/organizer_tournament_overview_tab.dart';
 import 'widgets/organizer_tournament_detail_tabs.dart';
 import 'widgets/organizer_tournament_header.dart';
 
-class OrganizerTournamentDetailPage extends ConsumerWidget {
+class OrganizerTournamentDetailPage extends ConsumerStatefulWidget {
   const OrganizerTournamentDetailPage({
     super.key,
     required this.tournamentId,
@@ -25,7 +27,41 @@ class OrganizerTournamentDetailPage extends ConsumerWidget {
   final String tournamentId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OrganizerTournamentDetailPage> createState() =>
+      _OrganizerTournamentDetailPageState();
+}
+
+class _OrganizerTournamentDetailPageState
+    extends ConsumerState<OrganizerTournamentDetailPage> {
+  /// Garante que o "modo dia do evento" (aba inicial inteligente) seja aplicado
+  /// uma única vez — depois disso, respeita a escolha do organizador.
+  bool _appliedSmartDefaultTab = false;
+
+  static DateTime? _toDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return null;
+  }
+
+  void _maybeApplySmartDefaultTab(Map<String, dynamic> tournament) {
+    if (_appliedSmartDefaultTab) return;
+    _appliedSmartDefaultTab = true;
+    final tab = defaultOrganizerDetailTab(
+      listingStatus: (tournament['listingStatus'] as String?) ?? '',
+      startAt: _toDate(tournament['startAt']),
+      endAt: _toDate(tournament['endAt']),
+      now: DateTime.now(),
+    );
+    if (tab == OrganizerTournamentDetailTab.categories) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(organizerTournamentDetailTabProvider.notifier).select(tab);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tournamentId = widget.tournamentId;
     final detailAsync = ref.watch(organizerTournamentDetailProvider(tournamentId));
     final selectedTab = ref.watch(organizerTournamentDetailTabProvider);
 
@@ -63,6 +99,7 @@ class OrganizerTournamentDetailPage extends ConsumerWidget {
           }
           final summary = state.summary!;
           final tournament = state.tournament!;
+          _maybeApplySmartDefaultTab(tournament);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -106,8 +143,11 @@ class OrganizerTournamentDetailPage extends ConsumerWidget {
                         onPressed: () => context.push(
                           organizerMatchCenterPath(tournamentId),
                         ),
-                        icon: const Icon(Icons.qr_code_scanner_rounded, size: 18),
-                        label: const Text('Check-in'),
+                        icon: const Icon(
+                          Icons.sports_volleyball_rounded,
+                          size: 18,
+                        ),
+                        label: const Text('Dia do jogo'),
                         style: FilledButton.styleFrom(
                           backgroundColor: context.themeColors.surfaceRaised,
                           foregroundColor: context.themeColors.onSurface,
@@ -145,6 +185,9 @@ class OrganizerTournamentDetailPage extends ConsumerWidget {
                       summary: summary,
                       categories: state.categories,
                     ),
+                    OrganizerTournamentMatchesTab(
+                      tournamentId: tournamentId,
+                    ),
                   ],
                 ),
               ),
@@ -158,16 +201,18 @@ class OrganizerTournamentDetailPage extends ConsumerWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           child: FilledButton.icon(
-            onPressed: () => Share.shareUri(
-              Uri.parse(organizerTournamentRegistrationShareLink(tournamentId)),
-            ),
-            icon: const Icon(Icons.share_rounded, size: 18),
+            // Atalho direto para a grade de agendamento (1 toque do detalhe),
+            // sem passar pela Central. O "Compartilhar" duplicado saiu daqui —
+            // já existe no topo.
+            onPressed: () =>
+                context.push(organizerMatchSchedulePath(tournamentId)),
+            icon: const Icon(Icons.calendar_month_rounded, size: 18),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.brand,
               foregroundColor: AppColors.black,
               minimumSize: const Size.fromHeight(48),
             ),
-            label: const Text('Compartilhar link de inscrição'),
+            label: const Text('Programação do dia'),
           ),
         ),
       ),

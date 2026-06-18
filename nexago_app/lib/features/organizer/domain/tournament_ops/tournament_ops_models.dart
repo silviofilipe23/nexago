@@ -9,7 +9,7 @@ enum OrganizerTournamentListingBadge {
 
 enum OrganizerCategoryBracketStatus { none, draft, published }
 
-enum OrganizerTournamentDetailTab { categories, overview }
+enum OrganizerTournamentDetailTab { categories, overview, financial, matches }
 
 @immutable
 class OrganizerTournamentSummary {

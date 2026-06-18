@@ -265,6 +265,11 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Folga inferior da lista = barra flutuante + inset da home indicator, para
+    // o último card não ficar cortado atrás da bottom nav (que sobrepõe o
+    // conteúdo via extendBody).
+    final bottomNavClearance =
+        nexaBottomNavBarHeight() + MediaQuery.viewPaddingOf(context).bottom + 8;
     final canSwitch = ref.watch(hasMultipleMobileRolesProvider);
     final tournamentsAsync = ref.watch(managedOrganizerTournamentsProvider);
     final leaguesAsync = ref.watch(managedOrganizerLeaguesProvider);
@@ -290,6 +295,7 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
       body: ShellTabBarCollapseListener(
         controller: _tabBarCollapse,
         child: SafeArea(
+          bottom: false,
           child: FadeSlideIn(
             child: tournamentsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -312,7 +318,12 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
                     children: [
                       Expanded(
                         child: ListView(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 96),
+                          padding: EdgeInsets.fromLTRB(
+                            20,
+                            12,
+                            20,
+                            bottomNavClearance,
+                          ),
                           children: [
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -364,13 +375,13 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
                                 ),
                               ],
                             ),
-                            if (canSwitch) ...[
-                              const SizedBox(height: 20),
-                              _RoleSwitchBanner(
-                                onTap: () =>
-                                    navigateToRoleSelection(context, ref),
-                              ),
-                            ],
+                            // if (canSwitch) ...[
+                            //   const SizedBox(height: 20),
+                            //   _RoleSwitchBanner(
+                            //     onTap: () =>
+                            //         navigateToRoleSelection(context, ref),
+                            //   ),
+                            // ],
                             const SizedBox(height: 24),
                             if (hasLocalTournamentDraft) ...[
                               _LocalDraftBanner(

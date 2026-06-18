@@ -5,6 +5,31 @@ import 'tournament_ops_models.dart';
 String organizerTournamentShareLink(String tournamentId) =>
     'https://nexago.app/torneios/$tournamentId';
 
+/// Aba inicial do detalhe do organizador conforme a fase do torneio: dentro da
+/// janela do evento (publicado + entre o início e o fim do dia), abre direto em
+/// **Partidas** (operação do dia); fora disso, em **Categorias** (montagem).
+OrganizerTournamentDetailTab defaultOrganizerDetailTab({
+  required String listingStatus,
+  DateTime? startAt,
+  DateTime? endAt,
+  required DateTime now,
+}) {
+  if (listingStatus.trim().toLowerCase() != 'open') {
+    return OrganizerTournamentDetailTab.categories;
+  }
+  final start = startAt;
+  if (start == null) return OrganizerTournamentDetailTab.categories;
+
+  final windowStart = DateTime(start.year, start.month, start.day);
+  final endBase = endAt ?? start;
+  final windowEnd =
+      DateTime(endBase.year, endBase.month, endBase.day, 23, 59, 59);
+  final inWindow = !now.isBefore(windowStart) && !now.isAfter(windowEnd);
+  return inWindow
+      ? OrganizerTournamentDetailTab.matches
+      : OrganizerTournamentDetailTab.categories;
+}
+
 String organizerTournamentRegistrationShareLink(String tournamentId) =>
     'nexago:///torneios/$tournamentId/inscricao';
 

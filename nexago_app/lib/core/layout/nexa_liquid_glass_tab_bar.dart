@@ -7,6 +7,14 @@ import '../theme/app_theme_colors.dart';
 import 'nexa_bottom_nav_models.dart';
 import 'shell_tab_bar_collapse.dart';
 
+/// Reserva apenas parte do inset da home indicator, para a cápsula flutuante
+/// ficar perto da borda inferior (com folga mínima) em vez de flutuar alta.
+double _groundedBottomInset(BuildContext context) {
+  final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
+  if (safeBottom <= 0) return 6;
+  return (safeBottom * 0);
+}
+
 /// Tab bar flutuante estilo Liquid Glass (blur + cápsula + pill ativo).
 class NexaLiquidGlassTabBar extends StatelessWidget {
   const NexaLiquidGlassTabBar({
@@ -51,63 +59,62 @@ class NexaLiquidGlassTabBar extends StatelessWidget {
       t,
     );
     final sideInset = _lerp(horizontalMargin, horizontalMargin + 10, t);
-    final bottomInset = _lerp(bottomMargin, bottomMargin * 0.6, t);
+    final bottomInset =
+        _lerp(bottomMargin, bottomMargin * 0.6, t) +
+        _groundedBottomInset(context);
     final showTabLabels = t < 0.45;
 
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(sideInset, 0, sideInset, bottomInset),
-        child: Transform.scale(
-          scale: _lerp(1, 0.94, t),
-          alignment: Alignment.bottomCenter,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(barHeight / 2),
-              boxShadow: tokens.outerShadow,
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(barHeight / 2),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(
-                  sigmaX: _lerp(28, 20, t),
-                  sigmaY: _lerp(28, 20, t),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(sideInset, 0, sideInset, bottomInset),
+      child: Transform.scale(
+        scale: _lerp(1, 0.94, t),
+        alignment: Alignment.bottomCenter,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(barHeight / 2),
+            boxShadow: tokens.outerShadow,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(barHeight / 2),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(
+                sigmaX: _lerp(28, 20, t),
+                sigmaY: _lerp(28, 20, t),
+              ),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: tokens.barFill,
+                  borderRadius: BorderRadius.circular(barHeight / 2),
+                  border: Border.all(color: tokens.outerStroke, width: 0.8),
                 ),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: tokens.barFill,
-                    borderRadius: BorderRadius.circular(barHeight / 2),
-                    border: Border.all(color: tokens.outerStroke, width: 0.8),
-                  ),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOutCubic,
-                    height: barHeight,
-                    child: centerAction == null
-                        ? _TabRow(
-                            items: items,
-                            currentIndex: index,
-                            onTap: onTap,
-                            tokens: tokens,
-                            selectedColor: selectedColor,
-                            unselectedColor: muted,
-                            uppercaseLabels: uppercaseLabels,
-                            showLabels: showTabLabels,
-                            collapseProgress: t,
-                          )
-                        : _TabRowWithCenterAction(
-                            items: items,
-                            currentIndex: index,
-                            onTap: onTap,
-                            centerAction: centerAction!,
-                            tokens: tokens,
-                            selectedColor: selectedColor,
-                            unselectedColor: muted,
-                            uppercaseLabels: uppercaseLabels,
-                            showLabels: showTabLabels,
-                            collapseProgress: t,
-                          ),
-                  ),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  height: barHeight,
+                  child: centerAction == null
+                      ? _TabRow(
+                          items: items,
+                          currentIndex: index,
+                          onTap: onTap,
+                          tokens: tokens,
+                          selectedColor: selectedColor,
+                          unselectedColor: muted,
+                          uppercaseLabels: uppercaseLabels,
+                          showLabels: showTabLabels,
+                          collapseProgress: t,
+                        )
+                      : _TabRowWithCenterAction(
+                          items: items,
+                          currentIndex: index,
+                          onTap: onTap,
+                          centerAction: centerAction!,
+                          tokens: tokens,
+                          selectedColor: selectedColor,
+                          unselectedColor: muted,
+                          uppercaseLabels: uppercaseLabels,
+                          showLabels: showTabLabels,
+                          collapseProgress: t,
+                        ),
                 ),
               ),
             ),
@@ -472,23 +479,23 @@ class NexaLiquidGlassNativeTabShell extends StatelessWidget {
       bottomMargin * 0.6,
       t,
     );
+    // Reserva só parte do inset da home indicator para a cápsula não flutuar
+    // alta demais — fica próxima da borda inferior, com folga mínima.
+    final groundedBottom = bottomInset + _groundedBottomInset(context);
 
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(sideInset, 0, sideInset, bottomInset),
-        child: Transform.scale(
-          scale: NexaLiquidGlassTabBar._lerp(1, 0.94, t),
-          alignment: Alignment.bottomCenter,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(shellHeight / 2),
-              boxShadow: tokens.outerShadow,
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(shellHeight / 2),
-              child: child,
-            ),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(sideInset, 0, sideInset, groundedBottom),
+      child: Transform.scale(
+        scale: NexaLiquidGlassTabBar._lerp(1, 0.94, t),
+        alignment: Alignment.bottomCenter,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(shellHeight / 2),
+            boxShadow: tokens.outerShadow,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(shellHeight / 2),
+            child: child,
           ),
         ),
       ),

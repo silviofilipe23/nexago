@@ -143,6 +143,72 @@ void main() {
     });
   });
 
+  group('defaultOrganizerDetailTab', () {
+    final start = DateTime(2026, 10, 24, 8);
+    final end = DateTime(2026, 10, 25, 20);
+
+    test('opens on Partidas during the event window (open status)', () {
+      expect(
+        defaultOrganizerDetailTab(
+          listingStatus: 'open',
+          startAt: start,
+          endAt: end,
+          now: DateTime(2026, 10, 24, 14),
+        ),
+        OrganizerTournamentDetailTab.matches,
+      );
+      expect(
+        defaultOrganizerDetailTab(
+          listingStatus: 'open',
+          startAt: start,
+          endAt: end,
+          now: DateTime(2026, 10, 25, 22),
+        ),
+        OrganizerTournamentDetailTab.matches,
+      );
+    });
+
+    test('opens on Categorias before and after the event', () {
+      expect(
+        defaultOrganizerDetailTab(
+          listingStatus: 'open',
+          startAt: start,
+          endAt: end,
+          now: DateTime(2026, 10, 20, 10),
+        ),
+        OrganizerTournamentDetailTab.categories,
+      );
+      expect(
+        defaultOrganizerDetailTab(
+          listingStatus: 'open',
+          startAt: start,
+          endAt: end,
+          now: DateTime(2026, 10, 27, 10),
+        ),
+        OrganizerTournamentDetailTab.categories,
+      );
+    });
+
+    test('non-open status or missing date stays on Categorias', () {
+      expect(
+        defaultOrganizerDetailTab(
+          listingStatus: 'draft',
+          startAt: start,
+          now: DateTime(2026, 10, 24, 14),
+        ),
+        OrganizerTournamentDetailTab.categories,
+      );
+      expect(
+        defaultOrganizerDetailTab(
+          listingStatus: 'open',
+          startAt: null,
+          now: DateTime(2026, 10, 24, 14),
+        ),
+        OrganizerTournamentDetailTab.categories,
+      );
+    });
+  });
+
   group('friendlyTournamentOpsError', () {
     test('interpolates the action into auth/permission messages', () {
       expect(

@@ -18,6 +18,8 @@ class OrganizerTournamentDetailTabs extends StatelessWidget {
   static const _labels = {
     OrganizerTournamentDetailTab.categories: 'Categorias',
     OrganizerTournamentDetailTab.overview: 'Visão geral',
+    OrganizerTournamentDetailTab.financial: 'Financeiro',
+    OrganizerTournamentDetailTab.matches: 'Partidas',
   };
 
   @override
@@ -45,15 +47,19 @@ class OrganizerTournamentDetailTabs extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 alignment: Alignment.center,
-                child: Text(
-                  _labels[tab]!,
-                  style: AppTypography.mono(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: isSelected
-                        ? AppColors.black
-                        : context.themeColors.onSurfaceMuted,
-                    letterSpacing: 0.2,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    _labels[tab]!,
+                    maxLines: 1,
+                    style: AppTypography.mono(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected
+                          ? AppColors.black
+                          : context.themeColors.onSurfaceMuted,
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ),
               ),

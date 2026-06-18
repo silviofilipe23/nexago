@@ -59,7 +59,7 @@ class AthleteOnboardingPrimarySportStep extends ConsumerWidget {
       ),
       primaryLabel: 'Continuar',
       primaryEnabled: draft.canContinueFrom(step),
-      onPrimary: () => context.go(AppRoutes.athleteOnboardingOtherSports),
+      onPrimary: () => context.go(AppRoutes.athleteOnboardingLevel),
     );
   }
 }

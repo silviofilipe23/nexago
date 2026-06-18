@@ -41,7 +41,7 @@ class OnboardingLevelOption {
 abstract final class AthleteOnboardingOptions {
   AthleteOnboardingOptions._();
 
-  static const int totalSteps = 5;
+  static const int totalSteps = 3;
 
   static const List<OnboardingSportOption> sports = [
     OnboardingSportOption(

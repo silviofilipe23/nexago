@@ -5,13 +5,13 @@ import '../../domain/athlete_firestore_codes.dart';
 import '../../domain/athlete_profile.dart';
 import 'athlete_onboarding_options.dart';
 
-/// Passos do fluxo de onboarding (1–5; welcome é rota separada).
+/// Passos obrigatórios do onboarding (1–3; welcome é rota separada).
+/// "Outros esportes" e "metas" saíram do caminho obrigatório — são opcionais e
+/// editáveis depois (perfil / metas), encurtando o funil até o primeiro acesso.
 enum AthleteOnboardingStep {
   primarySport(1),
-  otherSports(2),
-  level(3),
-  goals(4),
-  profile(5);
+  level(2),
+  profile(3);
 
   const AthleteOnboardingStep(this.stepIndex);
   final int stepIndex;
@@ -60,21 +60,22 @@ class AthleteOnboardingDraft {
     return switch (step) {
       AthleteOnboardingStep.primarySport =>
         primarySportId != null && primarySportId!.isNotEmpty,
-      AthleteOnboardingStep.otherSports => true,
       AthleteOnboardingStep.level => level != null && level!.isNotEmpty,
-      AthleteOnboardingStep.goals => true,
       AthleteOnboardingStep.profile => isProfileValid,
     };
   }
 
-  bool get isProfileValid {
-    final digits = phoneDigits.replaceAll(RegExp(r'\D'), '');
-    return name.trim().isNotEmpty &&
-        digits.length >= 10 &&
-        _isBirthDateValid(birthDate) &&
-        gender != null &&
-        gender!.isNotEmpty;
-  }
+  bool get isNameValid => name.trim().isNotEmpty;
+
+  bool get isPhoneValid =>
+      phoneDigits.replaceAll(RegExp(r'\D'), '').length >= 10;
+
+  bool get isBirthDateValid => _isBirthDateValid(birthDate);
+
+  bool get isGenderValid => gender != null && gender!.isNotEmpty;
+
+  bool get isProfileValid =>
+      isNameValid && isPhoneValid && isBirthDateValid && isGenderValid;
 
   static bool _isBirthDateValid(String raw) {
     final m = RegExp(r'^(\d{2})/(\d{2})/(\d{4})$').firstMatch(raw.trim());

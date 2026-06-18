@@ -17,10 +17,16 @@ void main() {
       );
     });
 
-    test('otherSports step is always continuable', () {
-      const draft = AthleteOnboardingDraft();
+    test('primarySport step requires a selected sport', () {
+      const empty = AthleteOnboardingDraft();
       expect(
-        draft.canContinueFrom(AthleteOnboardingStep.otherSports),
+        empty.canContinueFrom(AthleteOnboardingStep.primarySport),
+        isFalse,
+      );
+      const withSport =
+          AthleteOnboardingDraft(primarySportId: 'beach_volleyball');
+      expect(
+        withSport.canContinueFrom(AthleteOnboardingStep.primarySport),
         isTrue,
       );
     });
@@ -45,6 +51,30 @@ void main() {
         gender: 'Masculino',
       );
       expect(valid.isProfileValid, isTrue);
+    });
+
+    test('per-field validators isolate what is missing', () {
+      const empty = AthleteOnboardingDraft();
+      expect(empty.isNameValid, isFalse);
+      expect(empty.isPhoneValid, isFalse);
+      expect(empty.isBirthDateValid, isFalse);
+      expect(empty.isGenderValid, isFalse);
+
+      const onlyName = AthleteOnboardingDraft(name: '  Ana  ');
+      expect(onlyName.isNameValid, isTrue);
+      expect(onlyName.isPhoneValid, isFalse);
+
+      // Telefone curto e data fora do formato continuam inválidos.
+      const partial = AthleteOnboardingDraft(
+        name: 'Ana',
+        phoneDigits: '1198',
+        birthDate: '31/13/2050',
+        gender: 'Feminino',
+      );
+      expect(partial.isPhoneValid, isFalse);
+      expect(partial.isBirthDateValid, isFalse);
+      expect(partial.isGenderValid, isTrue);
+      expect(partial.isProfileValid, isFalse);
     });
 
     test('toAthleteProfile maps fields for Firestore', () {

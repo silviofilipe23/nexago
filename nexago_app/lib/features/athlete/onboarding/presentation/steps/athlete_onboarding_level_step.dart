@@ -25,13 +25,13 @@ class AthleteOnboardingLevelStep extends ConsumerWidget {
       topBar: OnboardingProgressHeader(
         currentStep: step.stepIndex,
         totalSteps: AthleteOnboardingOptions.totalSteps,
-        onBack: () => context.go(AppRoutes.athleteOnboardingOtherSports),
+        onBack: () => context.go(AppRoutes.athleteOnboardingPrimarySport),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           OnboardingStepHeader(
-            stepIndex: 3,
+            stepIndex: 2,
             totalSteps: AthleteOnboardingOptions.totalSteps,
             title: 'Seu nível no $sportLabel?',
             titleHighlight: sportLabel,
@@ -52,7 +52,7 @@ class AthleteOnboardingLevelStep extends ConsumerWidget {
       ),
       primaryLabel: 'Continuar',
       primaryEnabled: draft.canContinueFrom(step),
-      onPrimary: () => context.go(AppRoutes.athleteOnboardingGoals),
+      onPrimary: () => context.go(AppRoutes.athleteOnboardingProfile),
     );
   }
 }

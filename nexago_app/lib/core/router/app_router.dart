@@ -102,9 +102,7 @@ import '../../features/arena/presentation/products/arena_stock_alerts_page.dart'
 import '../../features/arena/domain/arena_slot_detail_args.dart';
 import '../../features/arenas/presentation/my_bookings_page.dart';
 import '../../features/athlete/onboarding/presentation/athlete_onboarding_welcome_page.dart';
-import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_goals_step.dart';
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_level_step.dart';
-import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_other_sports_step.dart';
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_primary_sport_step.dart';
 import '../../features/athlete/onboarding/presentation/steps/athlete_onboarding_profile_step.dart';
 import '../../features/athlete/presentation/athlete_complete_profile_page.dart';
@@ -869,19 +867,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 const AthleteOnboardingPrimarySportStep(),
           ),
           GoRoute(
-            path: 'other-sports',
-            name: AppRouteNames.athleteOnboardingOtherSports,
-            builder: (context, state) => const AthleteOnboardingOtherSportsStep(),
-          ),
-          GoRoute(
             path: 'level',
             name: AppRouteNames.athleteOnboardingLevel,
             builder: (context, state) => const AthleteOnboardingLevelStep(),
-          ),
-          GoRoute(
-            path: 'goals',
-            name: AppRouteNames.athleteOnboardingGoals,
-            builder: (context, state) => const AthleteOnboardingGoalsStep(),
           ),
           GoRoute(
             path: 'profile',

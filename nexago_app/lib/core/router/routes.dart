@@ -200,10 +200,7 @@ abstract final class AppRoutes {
   static const String athleteOnboardingWelcome = '/athlete/onboarding/welcome';
   static const String athleteOnboardingPrimarySport =
       '/athlete/onboarding/primary-sport';
-  static const String athleteOnboardingOtherSports =
-      '/athlete/onboarding/other-sports';
   static const String athleteOnboardingLevel = '/athlete/onboarding/level';
-  static const String athleteOnboardingGoals = '/athlete/onboarding/goals';
   static const String athleteOnboardingProfile = '/athlete/onboarding/profile';
 
   // --- Painel da arena (gestor) — literais antes de [arenaDetail] no router ---
@@ -452,10 +449,7 @@ abstract final class AppRouteNames {
   static const String athleteOnboardingWelcome = 'athleteOnboardingWelcome';
   static const String athleteOnboardingPrimarySport =
       'athleteOnboardingPrimarySport';
-  static const String athleteOnboardingOtherSports =
-      'athleteOnboardingOtherSports';
   static const String athleteOnboardingLevel = 'athleteOnboardingLevel';
-  static const String athleteOnboardingGoals = 'athleteOnboardingGoals';
   static const String athleteOnboardingProfile = 'athleteOnboardingProfile';
 
   static const String arenaDashboard = 'arenaDashboard';

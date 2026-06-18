@@ -36,6 +36,10 @@ class _AthleteOnboardingProfileStepState
   final _phoneCtrl = TextEditingController();
   final _birthCtrl = TextEditingController();
   bool _submitting = false;
+  String? _nameError;
+  String? _phoneError;
+  String? _birthError;
+  bool _genderMissing = false;
 
   @override
   void initState() {
@@ -77,15 +81,18 @@ class _AthleteOnboardingProfileStepState
   }
 
   Future<void> _submit() async {
+    if (_submitting) return;
     _syncDraftFromControllers();
     final draft = ref.read(athleteOnboardingDraftProvider);
-    if (_submitting) return;
     if (!draft.isProfileValid) {
-      showAppSnackBar(
-        context,
-        'Preencha nome, WhatsApp, data de nascimento e gênero.',
-        isError: true,
-      );
+      // Erro inline por campo: o usuário vê exatamente o que falta, em vez de
+      // um botão desabilitado mudo ou um aviso genérico.
+      setState(() {
+        _nameError = draft.isNameValid ? null : 'Informe seu nome';
+        _phoneError = draft.isPhoneValid ? null : 'WhatsApp inválido';
+        _birthError = draft.isBirthDateValid ? null : 'Data inválida (dd/mm/aaaa)';
+        _genderMissing = !draft.isGenderValid;
+      });
       return;
     }
 
@@ -141,13 +148,13 @@ class _AthleteOnboardingProfileStepState
       topBar: OnboardingProgressHeader(
         currentStep: step.stepIndex,
         totalSteps: AthleteOnboardingOptions.totalSteps,
-        onBack: () => context.go(AppRoutes.athleteOnboardingGoals),
+        onBack: () => context.go(AppRoutes.athleteOnboardingLevel),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const OnboardingStepHeader(
-            stepIndex: 5,
+            stepIndex: 3,
             totalSteps: AthleteOnboardingOptions.totalSteps,
             title: 'Perfil básico',
             subtitle: 'Preenche o essencial pra liberar sua conta.',
@@ -163,7 +170,11 @@ class _AthleteOnboardingProfileStepState
             controller: _nameCtrl,
             hintText: 'Seu nome completo',
             textInputAction: TextInputAction.next,
-            onChanged: notifier.setName,
+            errorText: _nameError,
+            onChanged: (v) {
+              notifier.setName(v);
+              if (_nameError != null) setState(() => _nameError = null);
+            },
           ),
           SizedBox(height: 16),
           const AuthFieldLabel(label: 'APELIDO (OPCIONAL)'),
@@ -180,12 +191,16 @@ class _AthleteOnboardingProfileStepState
             hintText: '(00) 00000-0000',
             keyboardType: TextInputType.phone,
             inputFormatters: [BrPhoneInputFormatter()],
+            errorText: _phoneError,
             prefixIcon: Icon(
               Icons.chat_bubble_outline_rounded,
               size: 20,
               color: context.themeColors.onSurfaceMuted,
             ),
-            onChanged: notifier.setPhoneDigits,
+            onChanged: (v) {
+              notifier.setPhoneDigits(v);
+              if (_phoneError != null) setState(() => _phoneError = null);
+            },
           ),
           SizedBox(height: 16),
           const AuthFieldLabel(label: 'DATA DE NASCIMENTO *'),
@@ -194,12 +209,16 @@ class _AthleteOnboardingProfileStepState
             hintText: 'dd/mm/aaaa',
             keyboardType: TextInputType.number,
             inputFormatters: [BrDateInputFormatter()],
+            errorText: _birthError,
             prefixIcon: Icon(
               Icons.calendar_today_outlined,
               size: 20,
               color: context.themeColors.onSurfaceMuted,
             ),
-            onChanged: notifier.setBirthDate,
+            onChanged: (v) {
+              notifier.setBirthDate(v);
+              if (_birthError != null) setState(() => _birthError = null);
+            },
           ),
           SizedBox(height: 16),
           const AuthFieldLabel(label: 'GÊNERO *'),
@@ -213,7 +232,10 @@ class _AthleteOnboardingProfileStepState
                     right: g != AthleteProfileOptions.genders.last ? 8 : 0,
                   ),
                   child: OutlinedButton(
-                    onPressed: () => notifier.setGender(g),
+                    onPressed: () {
+                      notifier.setGender(g);
+                      if (_genderMissing) setState(() => _genderMissing = false);
+                    },
                     style: OutlinedButton.styleFrom(
                       foregroundColor:
                           selected ? AppColors.brand : context.themeColors.onSurface,
@@ -239,10 +261,16 @@ class _AthleteOnboardingProfileStepState
               );
             }).toList(),
           ),
+          if (_genderMissing) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Selecione o gênero',
+              style: theme.textTheme.bodySmall?.copyWith(color: AppColors.live),
+            ),
+          ],
         ],
       ),
       primaryLabel: 'Concluir cadastro',
-      primaryEnabled: draft.canContinueFrom(step),
       primaryLoading: _submitting,
       onPrimary: _submit,
     );

@@ -7,10 +7,14 @@ import 'package:nexago_app/features/athlete/onboarding/domain/athlete_onboarding
 
 void main() {
   group('AthleteProfileOptions', () {
-    test('normalizeLevel maps legacy federado label', () {
+    test('normalizeLevel maps legacy labels and preserves unmapped ones', () {
       expect(AthleteProfileOptions.normalizeLevel('Open / federado'), 'Open');
       expect(AthleteProfileOptions.normalizeLevel('Básico'), 'Iniciante');
-      expect(AthleteProfileOptions.normalizeLevel('Avançado'), 'Iniciante');
+      // Valor legado sem alvo canônico (o nível 'Pro' foi removido) passa
+      // adiante inalterado em vez de virar um nível errado.
+      expect(AthleteProfileOptions.normalizeLevel('Avançado'), 'Avançado');
+      // Vazio normaliza para vazio.
+      expect(AthleteProfileOptions.normalizeLevel(''), '');
     });
 
     test('normalizeSport maps legacy labels', () {

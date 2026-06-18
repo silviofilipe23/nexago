@@ -142,4 +142,42 @@ void main() {
       );
     });
   });
+
+  group('friendlyTournamentOpsError', () {
+    test('interpolates the action into auth/permission messages', () {
+      expect(
+        friendlyTournamentOpsError(
+            action: 'cancelar o torneio', code: 'permission-denied'),
+        'Você não tem permissão para cancelar o torneio.',
+      );
+      expect(
+        friendlyTournamentOpsError(
+            action: 'encerrar as inscrições', code: 'unauthenticated'),
+        contains('encerrar as inscrições'),
+      );
+    });
+
+    test('passes through server PT message on failed-precondition', () {
+      expect(
+        friendlyTournamentOpsError(
+          action: 'cancelar o torneio',
+          code: 'failed-precondition',
+          message: 'O torneio já começou.',
+        ),
+        'O torneio já começou.',
+      );
+    });
+
+    test('maps network codes and falls back for unknown/null', () {
+      expect(
+        friendlyTournamentOpsError(
+            action: 'cancelar o torneio', code: 'unavailable'),
+        contains('conexão'),
+      );
+      expect(
+        friendlyTournamentOpsError(action: 'cancelar o torneio'),
+        'Não foi possível cancelar o torneio. Tente novamente.',
+      );
+    });
+  });
 }

@@ -13,6 +13,7 @@ import '../../../tournaments/data/tournament_live_matches_sync.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
+import 'organizer_match_error.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
 import '../../presentation/category_ops/widgets/organizer_team_dual_avatars.dart';
 
@@ -66,11 +67,20 @@ class _OrganizerMatchQuickScorePageState
     setState(() => _sets.add(const TournamentMatchSet(a: 0, b: 0)));
   }
 
-  Future<void> _save() async {
+  Future<void> _save(String? winnerId) async {
     // Pré-validação local para feedback rápido; a validação autoritativa
     // (placar legal + cálculo do vencedor pelas regras) ocorre no servidor.
     if (!MatchScoringLogic.validateQuickScoreSets(_sets)) {
       showAppSnackBar(context, 'Informe placar válido.');
+      return;
+    }
+    // Lançamento rápido finaliza a partida: exige um vencedor definido pelas
+    // regras (evita submit incompleto que só falharia no servidor).
+    if (winnerId == null) {
+      showAppSnackBar(
+        context,
+        'Complete o placar: nenhuma dupla venceu ainda.',
+      );
       return;
     }
     setState(() => _saving = true);
@@ -91,7 +101,9 @@ class _OrganizerMatchQuickScorePageState
         context.pop();
       }
     } catch (e) {
-      if (mounted) showAppSnackBar(context, 'Erro: $e');
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -117,7 +129,9 @@ class _OrganizerMatchQuickScorePageState
         context.pop();
       }
     } catch (e) {
-      if (mounted) showAppSnackBar(context, 'Erro: $e');
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -213,8 +227,8 @@ class _OrganizerMatchQuickScorePageState
                     const SizedBox(height: 24),
                     _SectionHeader(
                       title: 'GAMES POR SET',
-                      trailing:
-                          'até ${MatchScoringLogic.defaultSetPoints} pts',
+                      trailing: 'set até ${MatchScoringLogic.defaultSetPoints}'
+                          ' · decisivo até ${MatchScoringLogic.tiebreakSetPoints}',
                     ),
                     const SizedBox(height: 12),
                     for (var i = 0; i < _sets.length; i++) ...[
@@ -256,7 +270,7 @@ class _OrganizerMatchQuickScorePageState
               _ConfirmBottomBar(
                 saving: _saving,
                 winnerLabel: winnerLabel,
-                onConfirm: _save,
+                onConfirm: () => _save(winnerId),
               ),
             ],
           );
@@ -392,10 +406,8 @@ class _QuickScoreHeader extends StatelessWidget {
               ),
             ),
           ),
-          _QuickScoreIconButton(
-            icon: Icons.more_horiz_rounded,
-            onPressed: () {},
-          ),
+          // Mantém a simetria do header sem expor uma ação inexistente.
+          const SizedBox(width: 40),
         ],
       ),
     );

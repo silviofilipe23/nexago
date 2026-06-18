@@ -4,8 +4,10 @@ import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite
 import 'package:nexago_app/features/tournaments/domain/tournament_partner_invite_home_logic.dart';
 
 void main() {
-  final createdAt = DateTime.utc(2026, 4, 1);
-  final expiresAt = DateTime.utc(2026, 6, 1);
+  // Relativo ao agora para o teste não "apodrecer" quando a data real passa
+  // do prazo fixo (isExpired usa DateTime.now()).
+  final createdAt = DateTime.now().subtract(const Duration(days: 1));
+  final expiresAt = DateTime.now().add(const Duration(days: 30));
 
   final invitePending = TournamentPartnerInvite(
     id: 'i1',

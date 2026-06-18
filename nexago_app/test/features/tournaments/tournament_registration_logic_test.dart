@@ -226,6 +226,16 @@ void main() {
     });
   });
 
+  group('registration steps', () {
+    test('has 5 steps after folding the summary step', () {
+      expect(TournamentRegistrationStep.values, hasLength(5));
+      expect(
+        TournamentRegistrationStep.values.map((s) => s.name),
+        isNot(contains('summary')),
+      );
+    });
+  });
+
   group('registrationHeaderTitle', () {
     test('partner step uses Convidar parceiro', () {
       expect(
@@ -233,17 +243,18 @@ void main() {
         'Convidar parceiro',
       );
       expect(
-        registrationHeaderTitle(TournamentRegistrationStep.summary),
+        registrationHeaderTitle(TournamentRegistrationStep.category),
         'Inscrição',
       );
     });
   });
 
   group('registrationStepShowsHero', () {
-    test('hides hero on partner and waiting', () {
+    test('hides hero on partner, waiting and uniform; shows on category', () {
       expect(registrationStepShowsHero(TournamentRegistrationStep.partner), isFalse);
       expect(registrationStepShowsHero(TournamentRegistrationStep.waiting), isFalse);
-      expect(registrationStepShowsHero(TournamentRegistrationStep.summary), isTrue);
+      expect(registrationStepShowsHero(TournamentRegistrationStep.uniform), isFalse);
+      expect(registrationStepShowsHero(TournamentRegistrationStep.category), isTrue);
     });
   });
 
@@ -420,14 +431,14 @@ void main() {
       );
     });
 
-    test('partner back goes to uniform or summary', () {
+    test('partner back goes to uniform or category', () {
       expect(
         previousStepFromPartner(withUniform),
         TournamentRegistrationStep.uniform,
       );
       expect(
         previousStepFromPartner(withoutUniform),
-        TournamentRegistrationStep.summary,
+        TournamentRegistrationStep.category,
       );
     });
   });

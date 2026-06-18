@@ -41,6 +41,53 @@ export function computeTournamentShareAmountReais(entryFee: number): number {
   return roundMoney(entryFee / TEAM_SIZE);
 }
 
+export type TournamentChargeAmountType = "share" | "full";
+
+/**
+ * Valor a cobrar de um atleta conforme o tipo:
+ * - "share": parcela (metade da taxa).
+ * - "full": a dupla inteira (um atleta paga por ambos).
+ */
+export function resolveTournamentChargeReais(
+  entryFee: number,
+  amountType: TournamentChargeAmountType,
+): number {
+  if (!Number.isFinite(entryFee) || entryFee <= 0) return 0;
+  if (amountType === "full") return roundMoney(entryFee);
+  return computeTournamentShareAmountReais(entryFee);
+}
+
+/**
+ * 'full' só é permitido quando ainda não há pagamento parcial, para não cobrar
+ * a mais (parceiro já pagou parcela + alguém paga a dupla = cobrança dupla).
+ */
+export function canChargeTournamentFull(params: {
+  paidAmount: number;
+  sharePaidUids: string[];
+}): boolean {
+  return (params.paidAmount || 0) <= 0.001 && params.sharePaidUids.length === 0;
+}
+
+/**
+ * Crédito a aplicar e se a dupla fica confirmada após um pagamento.
+ * 'full' topa o valor até a taxa cheia e confirma a inscrição;
+ * 'share' credita uma parcela.
+ */
+export function resolveTournamentRegistrationCredit(params: {
+  entryFee: number;
+  amountType: TournamentChargeAmountType;
+  currentPaidAmount: number;
+}): {credit: number; newPaidAmount: number; isPaid: boolean} {
+  const entryFee = Math.max(0, Number(params.entryFee) || 0);
+  const current = Math.max(0, Number(params.currentPaidAmount) || 0);
+  const credit = params.amountType === "full" ?
+    roundMoney(Math.max(0, entryFee - current)) :
+    computeTournamentShareAmountReais(entryFee);
+  const newPaidAmount = roundMoney(current + credit);
+  const isPaid = entryFee > 0 && newPaidAmount >= entryFee - 0.01;
+  return {credit, newPaidAmount, isPaid};
+}
+
 export function sharePaidUidsFromRegistration(
   data: Record<string, unknown>,
 ): string[] {

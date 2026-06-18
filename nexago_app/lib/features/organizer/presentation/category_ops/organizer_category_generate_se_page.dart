@@ -6,7 +6,10 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../domain/category_ops/category_ops_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
+import 'organizer_generate_bracket_helpers.dart';
+import 'widgets/organizer_bracket_seed_preview.dart';
 
 class OrganizerCategoryGenerateSePage extends ConsumerStatefulWidget {
   const OrganizerCategoryGenerateSePage({
@@ -29,7 +32,7 @@ class _OrganizerCategoryGenerateSePageState
     extends ConsumerState<OrganizerCategoryGenerateSePage> {
   bool _publishing = false;
 
-  Future<void> _publish() async {
+  Future<void> _publish({bool force = false}) async {
     if (_publishing) return;
     setState(() => _publishing = true);
     try {
@@ -54,6 +57,7 @@ class _OrganizerCategoryGenerateSePageState
             categoryId: widget.categoryId,
             format: widget.format,
             seeds: seeds,
+            force: force,
             bracketConfig: {
               'winnersAdvantage': ops.winnersAdvantage,
               'phaseBestOf': ops.phaseBestOf,
@@ -66,7 +70,15 @@ class _OrganizerCategoryGenerateSePageState
         context.pop();
       }
     } catch (e) {
-      if (mounted) showAppSnackBar(context, '$e', isError: true);
+      if (!mounted) return;
+      if (isBracketHasResultsError(e)) {
+        setState(() => _publishing = false);
+        if (await confirmRegenerateBracket(context) && mounted) {
+          await _publish(force: true);
+        }
+        return;
+      }
+      showAppSnackBar(context, '$e', isError: true);
     } finally {
       if (mounted) setState(() => _publishing = false);
     }
@@ -79,6 +91,7 @@ class _OrganizerCategoryGenerateSePageState
       categoryId: widget.categoryId,
     );
     final teamsAsync = ref.watch(organizerCategoryRegistrationsProvider(key));
+    final opsAsync = ref.watch(organizerCategoryOpsProvider(key));
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -90,18 +103,13 @@ class _OrganizerCategoryGenerateSePageState
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),
         data: (teams) {
+          final seeds = opsAsync.valueOrNull?.seeds ?? const <String>[];
+          final ordered =
+              seeds.isNotEmpty ? applySeedOrder(teams, seeds) : teams;
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              Text(
-                'Prévia',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '${teams.length} duplas confirmadas serão distribuídas na chave mata-mata.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              OrganizerBracketSeedPreview(teams: ordered),
             ],
           );
         },

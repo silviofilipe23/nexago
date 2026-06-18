@@ -76,6 +76,44 @@ class TournamentPartnerInviteService {
     }
   }
 
+  /// Inscrição solo: garante a vaga sem parceiro confirmado.
+  /// Retorna o `registrationId` criado.
+  Future<String> registerSolo({
+    required String tournamentId,
+    required String categoryId,
+    TournamentUniformSelection? uniform,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) {
+      throw TournamentPartnerInviteException('Faça login para se inscrever.');
+    }
+    try {
+      final callable = _functions.httpsCallable('registerSoloTournament');
+      final payload = <String, dynamic>{
+        'tournamentId': tournamentId,
+        'categoryId': categoryId,
+      };
+      if (uniform != null) {
+        final uniformMap = uniform.toCallableMap();
+        if (uniformMap.isNotEmpty) payload['uniform'] = uniformMap;
+      }
+      final raw = await callable.call(payload);
+      final data = raw.data;
+      if (data is! Map) {
+        throw TournamentPartnerInviteException('Resposta inválida do servidor.');
+      }
+      final registrationId = data['registrationId'] as String?;
+      if (registrationId == null || registrationId.isEmpty) {
+        throw TournamentPartnerInviteException('Inscrição não foi criada.');
+      }
+      return registrationId;
+    } on FirebaseFunctionsException catch (e) {
+      throw TournamentPartnerInviteException(
+        e.message ?? 'Não foi possível garantir a vaga.',
+      );
+    }
+  }
+
   Future<TournamentPartnerInviteAcceptResult> acceptInvite(
     String inviteId, {
     TournamentUniformSelection? inviteeUniform,

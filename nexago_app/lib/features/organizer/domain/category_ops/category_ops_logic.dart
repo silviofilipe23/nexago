@@ -225,6 +225,32 @@ List<String> defaultSeedOrderByRanking(List<OrganizerCategoryTeamRow> teams) {
   return sorted.map((t) => t.teamId).toList(growable: false);
 }
 
+/// Estrutura de uma chave eliminatória para N duplas: tamanho (potência de 2),
+/// byes (vagas vazias) e nº de rodadas.
+({int bracketSize, int byes, int rounds}) bracketStructure(int teamCount) {
+  if (teamCount < 2) return (bracketSize: 0, byes: 0, rounds: 0);
+  var size = 1;
+  var rounds = 0;
+  while (size < teamCount) {
+    size *= 2;
+    rounds++;
+  }
+  return (bracketSize: size, byes: size - teamCount, rounds: rounds);
+}
+
+/// Resumo legível da estrutura da chave (para a prévia da geração).
+String bracketStructureSummary(int teamCount) {
+  if (teamCount < 2) return 'Mínimo de 2 duplas para gerar a chave.';
+  final s = bracketStructure(teamCount);
+  if (s.byes == 0) {
+    return '$teamCount duplas · chave de ${s.bracketSize} · sem byes';
+  }
+  final byeWord = s.byes == 1 ? 'bye' : 'byes';
+  final advWord = s.byes == 1 ? 'avança' : 'avançam';
+  return '$teamCount duplas · chave de ${s.bracketSize} · '
+      '${s.byes} $byeWord (top ${s.byes} $advWord direto)';
+}
+
 /// Distribui duplas em grupos (padrão A/B) com snake draft quando há seeds.
 List<CategoryGroupPreview> distributeTeamsIntoGroups({
   required List<String> teamIds,

@@ -125,4 +125,46 @@ void main() {
       );
     });
   });
+
+  group('bracketStructure', () {
+    test('returns zeros below the 2-team minimum', () {
+      expect(bracketStructure(0), (bracketSize: 0, byes: 0, rounds: 0));
+      expect(bracketStructure(1), (bracketSize: 0, byes: 0, rounds: 0));
+    });
+
+    test('exact power of two has no byes', () {
+      expect(bracketStructure(8), (bracketSize: 8, byes: 0, rounds: 3));
+      expect(bracketStructure(16), (bracketSize: 16, byes: 0, rounds: 4));
+    });
+
+    test('rounds up to the next power of two and counts byes', () {
+      expect(bracketStructure(5), (bracketSize: 8, byes: 3, rounds: 3));
+      expect(bracketStructure(6), (bracketSize: 8, byes: 2, rounds: 3));
+      expect(bracketStructure(12), (bracketSize: 16, byes: 4, rounds: 4));
+    });
+  });
+
+  group('bracketStructureSummary', () {
+    test('asks for the minimum below 2 teams', () {
+      expect(bracketStructureSummary(1), 'Mínimo de 2 duplas para gerar a chave.');
+    });
+
+    test('no-bye summary omits the bye clause', () {
+      expect(bracketStructureSummary(8), '8 duplas · chave de 8 · sem byes');
+    });
+
+    test('singular bye uses singular wording', () {
+      expect(
+        bracketStructureSummary(3),
+        '3 duplas · chave de 4 · 1 bye (top 1 avança direto)',
+      );
+    });
+
+    test('plural byes use plural wording', () {
+      expect(
+        bracketStructureSummary(5),
+        '5 duplas · chave de 8 · 3 byes (top 3 avançam direto)',
+      );
+    });
+  });
 }

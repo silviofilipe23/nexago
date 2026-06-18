@@ -27,9 +27,11 @@ import {
 import {
   buildTournamentRegistrationExternalReference,
   computeTeamGenderLabel,
+  canChargeTournamentFull,
   computeTournamentShareAmountReais,
   isFreeRegistrationFullyConfirmed,
   normalizeAthleteGenderBucket,
+  resolveTournamentChargeReais,
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
 import {deliverNotificationToUser} from "./notification-delivery";
@@ -123,7 +125,10 @@ export const createTournamentRegistrationPixPayment = onCall({
     registrationId?: string;
     cpf?: string;
     cpfCnpj?: string;
+    amountType?: string;
   };
+  const amountType: "share" | "full" =
+    data.amountType === "full" ? "full" : "share";
   const registrationId =
     typeof data.registrationId === "string" ? data.registrationId.trim() : "";
   const cpfFromRequest =
@@ -154,6 +159,26 @@ export const createTournamentRegistrationPixPayment = onCall({
   const sharePaidUids = sharePaidUidsFromRegistration(registration);
   if (sharePaidUids.includes(callerUid)) {
     throw new HttpsError("failed-precondition", "Sua parcela já foi paga.");
+  }
+
+  // "Pagar pela dupla" exige uma dupla completa e nenhum pagamento parcial.
+  if (amountType === "full" && registration.partnerPending === true) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Confirme um parceiro antes de pagar pela dupla.",
+    );
+  }
+  if (
+    amountType === "full" &&
+    !canChargeTournamentFull({
+      paidAmount: Number(registration.paidAmount) || 0,
+      sharePaidUids,
+    })
+  ) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Já há pagamento parcial nesta inscrição; conclua a parcela restante.",
+    );
   }
 
   const teamId = registration.teamId as string;
@@ -201,6 +226,8 @@ export const createTournamentRegistrationPixPayment = onCall({
   if (shareAmount <= 0) {
     throw new HttpsError("failed-precondition", "Valor da parcela inválido");
   }
+  // Valor efetivo: parcela ou a dupla inteira ("pagar pela dupla").
+  const chargeAmount = resolveTournamentChargeReais(entryFee, amountType);
 
   await cancelExistingPixPending(db, projectId, registrationId, callerUid);
 
@@ -258,7 +285,8 @@ export const createTournamentRegistrationPixPayment = onCall({
     Date.now() + TOURNAMENT_REGISTRATION_PIX_EXPIRY_MINUTES * 60 * 1000,
   );
   const description =
-    `Inscrição ${tournamentName} — ${categoryId} (sua parcela)`;
+    `Inscrição ${tournamentName} — ${categoryId} ` +
+    (amountType === "full" ? "(dupla inteira)" : "(sua parcela)");
 
   const externalReference = buildTournamentRegistrationExternalReference(
     registrationId,
@@ -269,7 +297,7 @@ export const createTournamentRegistrationPixPayment = onCall({
   try {
     charge = await createAsaasPixCharge({
       customerId,
-      valueReais: shareAmount,
+      valueReais: chargeAmount,
       dueDate: expiresAtDate,
       description,
       externalReference,
@@ -307,7 +335,8 @@ export const createTournamentRegistrationPixPayment = onCall({
 
   await pixPendingRef(db, projectId, registrationId, callerUid).set({
     asaasPaymentId: charge.paymentId,
-    amountReais: shareAmount,
+    amountReais: chargeAmount,
+    amountType,
     status: "pending",
     payerUid: callerUid,
     paymentExpiresAt: Timestamp.fromDate(expiresAtDate),
@@ -319,7 +348,7 @@ export const createTournamentRegistrationPixPayment = onCall({
     qrCode: charge.qrCode,
     qrCodeBase64: charge.qrCodeBase64,
     expiresAt: expiresAtDate.toISOString(),
-    amountReais: shareAmount,
+    amountReais: chargeAmount,
   };
 });
 

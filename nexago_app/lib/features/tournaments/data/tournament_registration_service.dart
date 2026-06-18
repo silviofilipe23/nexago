@@ -30,12 +30,16 @@ class TournamentRegistrationSnapshot {
     required this.isPaid,
     required this.paidAmount,
     this.sharePaidUids = const [],
+    this.partnerPending = false,
   });
 
   final String registrationId;
   final bool isPaid;
   final double paidAmount;
   final List<String> sharePaidUids;
+
+  /// Inscrição solo com vaga de parceiro em aberto.
+  final bool partnerPending;
 
   factory TournamentRegistrationSnapshot.fromDoc(
     String registrationId,
@@ -54,6 +58,7 @@ class TournamentRegistrationSnapshot {
       isPaid: data['isPaid'] == true,
       paidAmount: (data['paidAmount'] as num?)?.toDouble() ?? 0,
       sharePaidUids: uids,
+      partnerPending: data['partnerPending'] == true,
     );
   }
 

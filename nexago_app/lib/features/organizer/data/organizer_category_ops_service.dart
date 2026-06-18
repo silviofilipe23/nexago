@@ -13,6 +13,7 @@ class OrganizerCategoryOpsService {
     List<String>? seeds,
     List<Map<String, dynamic>>? groupsPreview,
     Map<String, dynamic>? bracketConfig,
+    bool force = false,
   }) async {
     final callable = _functions.httpsCallable('generateCategoryBracket');
     await callable.call({
@@ -22,6 +23,7 @@ class OrganizerCategoryOpsService {
       if (seeds != null) 'seeds': seeds,
       if (groupsPreview != null) 'groupsPreview': groupsPreview,
       if (bracketConfig != null) 'bracketConfig': bracketConfig,
+      if (force) 'force': true,
     });
   }
 

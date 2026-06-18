@@ -122,6 +122,7 @@ class PaymentService {
   Future<ArenaBookingPixPaymentResult> createTournamentRegistrationPixPayment({
     required String registrationId,
     String? cpfCnpj,
+    String amountType = 'share',
   }) async {
     if (registrationId.isEmpty) {
       throw PaymentException('Inscrição inválida.');
@@ -131,7 +132,10 @@ class PaymentService {
       final callable = _functions.httpsCallable(
         _callableCreateTournamentRegistrationPixPayment,
       );
-      final payload = <String, dynamic>{'registrationId': registrationId};
+      final payload = <String, dynamic>{
+        'registrationId': registrationId,
+        if (amountType == 'full') 'amountType': 'full',
+      };
       final cpf = cpfCnpj?.replaceAll(RegExp(r'\D'), '') ?? '';
       if (cpf.length == 11 || cpf.length == 14) {
         payload['cpfCnpj'] = cpf;

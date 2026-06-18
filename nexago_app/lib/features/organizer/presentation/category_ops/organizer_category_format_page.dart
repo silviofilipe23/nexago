@@ -28,8 +28,7 @@ class OrganizerCategoryFormatPage extends ConsumerStatefulWidget {
 class _OrganizerCategoryFormatPageState
     extends ConsumerState<OrganizerCategoryFormatPage> {
   bool _winnersAdvantage = true;
-  String _phaseBestOf = 'md3';
-  bool _finalBestOf5 = true;
+  final String _phaseBestOf = 'md3';
   bool _thirdPlace = false;
 
   Future<void> _saveAndContinue() async {
@@ -49,7 +48,9 @@ class _OrganizerCategoryFormatPageState
             bracketFormatOverride: 'double_elimination',
             winnersAdvantage: _winnersAdvantage,
             phaseBestOf: _phaseBestOf,
-            finalBestOf5: _finalBestOf5,
+            // Pontuação é sempre melhor-de-3 (3º set decisivo até 15);
+            // MD5 não é suportado pelo motor de placar.
+            finalBestOf5: false,
             thirdPlaceEnabled: _thirdPlace,
             groupsPreview: ops.groupsPreview,
           ),
@@ -87,11 +88,6 @@ class _OrganizerCategoryFormatPageState
             title: const Text('Vantagem na grande final'),
             value: _winnersAdvantage,
             onChanged: (v) => setState(() => _winnersAdvantage = v),
-          ),
-          SwitchListTile(
-            title: const Text('Final em MD5'),
-            value: _finalBestOf5,
-            onChanged: (v) => setState(() => _finalBestOf5 = v),
           ),
           SwitchListTile(
             title: const Text('Disputa de 3º lugar'),

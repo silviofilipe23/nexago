@@ -66,6 +66,8 @@ class _TournamentRegistrationPageState
   TournamentRegistrationPartnerCandidate? _selectedPartner;
   String? _inviteId;
   String? _registrationId;
+  String _paymentType = 'share';
+  bool _canPayFull = true;
   bool _submitting = false;
   bool _appliedInitialCategory = false;
   bool _appliedInitialRegistration = false;
@@ -119,9 +121,8 @@ class _TournamentRegistrationPageState
       setState(() {
         _appliedInitialCategory = true;
         _category = match;
-        if (_registrationId == null) {
-          _step = TournamentRegistrationStep.summary;
-        }
+        // Mantém no passo de categoria (com a categoria já selecionada e o
+        // resumo de preço visível); o passo "Resumo" foi fundido.
       });
     });
   }
@@ -290,10 +291,8 @@ class _TournamentRegistrationPageState
     switch (_step) {
       case TournamentRegistrationStep.category:
         _exitRegistration();
-      case TournamentRegistrationStep.summary:
-        _goToStep(TournamentRegistrationStep.category);
       case TournamentRegistrationStep.uniform:
-        _goToStep(TournamentRegistrationStep.summary);
+        _goToStep(TournamentRegistrationStep.category);
       case TournamentRegistrationStep.partner:
         _goToStep(previousStepFromPartner(_category));
       case TournamentRegistrationStep.waiting:
@@ -362,6 +361,50 @@ class _TournamentRegistrationPageState
     }
   }
 
+  /// Inscrição solo: garante a vaga sem parceiro e vai para o pagamento.
+  Future<void> _registerSolo(TournamentDetail tournament) async {
+    final cat = _category;
+    if (cat == null || _submitting) return;
+    if (!ref.read(tournamentAccessStateProvider).canAccess) {
+      _showProfileAccessBlocked();
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      final registrationId = await ref
+          .read(tournamentPartnerInviteServiceProvider)
+          .registerSolo(
+            tournamentId: tournament.id,
+            categoryId: cat.id,
+            uniform: categoryRequiresUniform(cat) ? _titularUniform : null,
+          );
+      if (!mounted) return;
+      setState(() {
+        _registrationId = registrationId;
+        _partnerUserId = null;
+        _selectedPartner = null;
+        _inviteId = null;
+        _step = TournamentRegistrationStep.payment;
+      });
+      showAppSnackBar(
+        context,
+        'Vaga garantida! Pague sua parcela e convide um parceiro quando quiser.',
+      );
+    } on TournamentPartnerInviteException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } catch (_) {
+      if (!mounted) return;
+      showAppSnackBar(
+        context,
+        'Não foi possível garantir a vaga. Tente novamente.',
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   Future<void> _cancelInvite() async {
     final id = _inviteId;
     if (id == null || id.isEmpty) return;
@@ -396,10 +439,8 @@ class _TournamentRegistrationPageState
     switch (_step) {
       case TournamentRegistrationStep.category:
         if (_category != null) {
-          _goToStep(TournamentRegistrationStep.summary);
+          _goToStep(nextStepAfterSummary(_category));
         }
-      case TournamentRegistrationStep.summary:
-        _goToStep(nextStepAfterSummary(_category));
       case TournamentRegistrationStep.uniform:
         final cat = _category;
         if (cat != null &&
@@ -446,20 +487,16 @@ class _TournamentRegistrationPageState
   }) {
     switch (_step) {
       case TournamentRegistrationStep.category:
+        final hasCategory = _category != null;
         return (
-          enabled: _category != null,
-          ctaLabel: 'Continuar',
-          metaLabel: null,
-          totalLabel: null,
-        );
-      case TournamentRegistrationStep.summary:
-        return (
-          enabled: _category != null,
-          ctaLabel: _category != null && categoryRequiresUniform(_category!)
+          enabled: hasCategory,
+          ctaLabel: hasCategory && categoryRequiresUniform(_category!)
               ? 'Escolher uniforme'
-              : 'Escolher parceiro',
+              : hasCategory
+                  ? 'Escolher parceiro'
+                  : 'Escolha a categoria',
           metaLabel: null,
-          totalLabel: quote != null
+          totalLabel: hasCategory && quote != null
               ? formatRegistrationMoney(quote.displayTotal)
               : null,
         );
@@ -693,6 +730,10 @@ class _TournamentRegistrationPageState
             sharePaidUids: sharePaidUids,
             athleteUid: currentUid,
           );
+          // "Pagar pela dupla" exige dupla completa e nenhuma parcela paga.
+          _canPayFull = sharePaidUids.isEmpty &&
+              !isFullyPaid &&
+              !(registrationSnap?.partnerPending ?? false);
           final progressLabel = quote != null
               ? registrationDualPaymentProgressLabel(
                   quote: quote,
@@ -837,30 +878,12 @@ class _TournamentRegistrationPageState
             ),
             SizedBox(height: 10),
           ],
-        ];
-      case TournamentRegistrationStep.summary:
-        final category = _category;
-        if (category == null || quote == null) {
-          return const [Text('Selecione uma categoria para continuar.')];
-        }
-        return [
-          TournamentRegistrationCategorySection(
-            label: 'SUA CATEGORIA',
-            child: TournamentRegistrationCategoryCard(
-              offer: category,
-              format: tournament.format,
-              inscriptionCount: resolveInscriptionCountForOffer(
-                enrollmentByCategoryId,
-                category,
-                countsResolved: enrollmentCountsResolved,
-              ),
-              selected: true,
-              showChangeAction: true,
-              onChange: () => _goToStep(TournamentRegistrationStep.category),
-            ),
-          ),
-          SizedBox(height: 24),
-          TournamentRegistrationPriceSummary(quote: quote),
+          // Resumo de preço aparece assim que uma categoria é escolhida
+          // (passo "Resumo" fundido aqui — menos um toque).
+          if (_category != null && quote != null) ...[
+            const SizedBox(height: 14),
+            TournamentRegistrationPriceSummary(quote: quote),
+          ],
         ];
       case TournamentRegistrationStep.uniform:
         final uniformCategory = _category;
@@ -894,6 +917,7 @@ class _TournamentRegistrationPageState
             onInviteByPhone: () {
               showAppSnackBar(context, 'Convite por celular em breve.');
             },
+            onRegisterSolo: () => _registerSolo(tournament),
           ),
         ];
       case TournamentRegistrationStep.waiting:
@@ -909,8 +933,12 @@ class _TournamentRegistrationPageState
             : null;
         final invite = inviteAsync?.valueOrNull;
         final inviteLoading = inviteAsync?.isLoading ?? false;
+        final inviteExpired =
+            invite != null && invite.expiresAt.isBefore(DateTime.now());
         final partnerSubtitle = inviteAccepted
             ? '${partner.name.split(' ').first} · confirmado'
+            : inviteExpired
+            ? 'Convite expirou · reenvie para o parceiro'
             : invite != null
             ? 'Pendente · ${tournamentInviteExpiryLabel(invite.expiresAt)}'
             : 'Pendente';
@@ -958,9 +986,10 @@ class _TournamentRegistrationPageState
           TournamentRegistrationPaymentStep(
             category: category,
             quote: quote,
-            paymentType: 'share',
-            onPaymentTypeChanged: (_) {},
-            dualPaymentOnly: true,
+            paymentType: _canPayFull ? _paymentType : 'share',
+            onPaymentTypeChanged: (value) =>
+                setState(() => _paymentType = value),
+            dualPaymentOnly: !_canPayFull,
             progressLabel: progressLabel,
             isFullyPaid: isFullyPaid,
             isFreeRegistration: !registrationRequiresPayment(quote),
@@ -1013,6 +1042,10 @@ class _TournamentRegistrationPageState
         return;
       }
 
+      final amountType =
+          (_canPayFull && _paymentType == 'full') ? 'full' : 'share';
+      final amountReais =
+          amountType == 'full' ? quote.displayTotal : quote.shareAmount;
       await context.pushNamed(
         AppRouteNames.tournamentRegistrationPix,
         pathParameters: <String, String>{'tournamentId': widget.tournamentId},
@@ -1021,14 +1054,16 @@ class _TournamentRegistrationPageState
           'categoryId': category.id,
           'tournamentName': tournament.name,
           'categoryName': category.name,
-          'shareAmountReais': quote.shareAmount.toString(),
+          'shareAmountReais': amountReais.toString(),
+          'amountType': amountType,
         },
         extra: TournamentRegistrationPixArgs(
           registrationId: regId,
           tournamentId: widget.tournamentId,
           tournamentName: tournament.name,
           categoryName: category.name,
-          shareAmountReais: quote.shareAmount,
+          shareAmountReais: amountReais,
+          amountType: amountType,
         ),
       );
     } on PaymentException catch (e) {

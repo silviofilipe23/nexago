@@ -160,8 +160,6 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
               bracketSystem: _category.bracketSystem,
               teamsPerGroup: _category.teamsPerGroup,
               qualifiersPerGroup: _category.qualifiersPerGroup,
-              bestOf: _category.bestOf,
-              finalBestOf5: _category.finalBestOf5,
               onBracketSystemChanged: (system) => setState(
                 () => _category = _category.copyWith(bracketSystem: system),
               ),
@@ -175,12 +173,6 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
                   () => _category = _category.copyWith(qualifiersPerGroup: value),
                 );
               },
-              onBestOfChanged: (value) => setState(
-                () => _category = _category.copyWith(bestOf: value),
-              ),
-              onFinalBestOf5Changed: (value) => setState(
-                () => _category = _category.copyWith(finalBestOf5: value),
-              ),
             ),
             const SizedBox(height: 20),
             const OrganizerSectionLabel('VAGAS & PREÇO'),

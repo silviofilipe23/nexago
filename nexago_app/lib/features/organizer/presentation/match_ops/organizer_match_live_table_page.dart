@@ -17,6 +17,7 @@ import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_point_event.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
+import 'organizer_match_error.dart';
 import 'organizer_match_navigation.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
 
@@ -122,7 +123,9 @@ class _OrganizerMatchLiveTablePageState
         widget.tournamentId,
       );
     } catch (e) {
-      if (mounted) showAppSnackBar(context, 'Erro: $e', isError: true);
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -189,7 +192,9 @@ class _OrganizerMatchLiveTablePageState
         widget.tournamentId,
       );
     } catch (e) {
-      if (mounted) showAppSnackBar(context, 'Erro: $e', isError: true);
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -212,7 +217,9 @@ class _OrganizerMatchLiveTablePageState
             fields: {'servingTeamId': next},
           );
     } catch (e) {
-      if (mounted) showAppSnackBar(context, 'Erro: $e', isError: true);
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

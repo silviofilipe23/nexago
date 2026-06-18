@@ -25,12 +25,14 @@ class TournamentRegistrationPartnerStep extends ConsumerStatefulWidget {
     required this.selectedUserId,
     required this.onSelected,
     required this.onInviteByPhone,
+    this.onRegisterSolo,
   });
 
   final TournamentCategoryOffer category;
   final String? selectedUserId;
   final ValueChanged<TournamentRegistrationPartnerCandidate> onSelected;
   final VoidCallback onInviteByPhone;
+  final VoidCallback? onRegisterSolo;
 
   @override
   ConsumerState<TournamentRegistrationPartnerStep> createState() =>
@@ -270,6 +272,23 @@ class _TournamentRegistrationPartnerStepState
           ),
         SizedBox(height: 8),
         TournamentRegistrationPartnerPhoneCard(onTap: widget.onInviteByPhone),
+        if (widget.onRegisterSolo != null) ...[
+          const SizedBox(height: 16),
+          Center(
+            child: TextButton.icon(
+              onPressed: widget.onRegisterSolo,
+              icon: const Icon(Icons.bookmark_added_outlined,
+                  size: 18, color: AppColors.brand),
+              label: const Text(
+                'Garantir vaga e achar dupla depois',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.brand,
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }

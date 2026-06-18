@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -130,6 +132,7 @@ class _OrganizerMatchCheckInPageState
                       checkInStatus: checkInA,
                       isUpdating: _updatingTeam == 'teamA',
                       onCheckIn: () => _setCheckIn(match.id, team: 'teamA'),
+                      onUndo: () => _undoCheckIn(match.id, team: 'teamA'),
                       onWo: () => _declareWo(
                         match.id,
                         losingTeamKey: 'teamA',
@@ -143,6 +146,7 @@ class _OrganizerMatchCheckInPageState
                       checkInStatus: checkInB,
                       isUpdating: _updatingTeam == 'teamB',
                       onCheckIn: () => _setCheckIn(match.id, team: 'teamB'),
+                      onUndo: () => _undoCheckIn(match.id, team: 'teamB'),
                       onWo: () => _declareWo(
                         match.id,
                         losingTeamKey: 'teamB',
@@ -169,11 +173,8 @@ class _OrganizerMatchCheckInPageState
               ),
               _CheckInBottomBar(
                 releasing: _releasingMatch,
-                onDeclareWo: () => _showWoSheet(
-                  match,
-                  teamALabel: teamA.label,
-                  teamBLabel: teamB.label,
-                ),
+                canRelease:
+                    MatchOpsLogic.canReleaseAfterCheckIn(checkInA, checkInB),
                 onRelease: () => _releaseMatch(match.id),
               ),
             ],
@@ -198,6 +199,28 @@ class _OrganizerMatchCheckInPageState
         'updatedAt': FieldValue.serverTimestamp(),
       });
       if (mounted) showAppSnackBar(context, 'Check-in atualizado.');
+    } catch (e) {
+      if (mounted) showAppSnackBar(context, 'Erro: $e');
+    } finally {
+      if (mounted) setState(() => _updatingTeam = null);
+    }
+  }
+
+  Future<void> _undoCheckIn(String matchId, {required String team}) async {
+    if (_updatingTeam != null) return;
+    setState(() => _updatingTeam = team);
+    try {
+      await FirebaseFirestore.instance
+          .collection(NexagoArtifactsPaths.matchesCollection())
+          .doc(matchId)
+          .update({
+        'checkIn.$team': {
+          'status': 'pending',
+          'at': FieldValue.serverTimestamp(),
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      if (mounted) showAppSnackBar(context, 'Check-in desfeito.');
     } catch (e) {
       if (mounted) showAppSnackBar(context, 'Erro: $e');
     } finally {
@@ -245,88 +268,6 @@ class _OrganizerMatchCheckInPageState
     }
   }
 
-  void _showWoSheet(
-    TournamentMatch match, {
-    required String teamALabel,
-    required String teamBLabel,
-  }) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: context.themeColors.surfaceSheet,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Qual equipe não compareceu?',
-                style: AppTypography.soraRegular(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: context.themeColors.onSurface,
-                ),
-              ),
-              const SizedBox(height: 16),
-              OutlinedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _declareWo(
-                    match.id,
-                    losingTeamKey: 'teamA',
-                    winnerTeamId: match.teamBId,
-                  );
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.live,
-                  side: BorderSide(
-                    color: AppColors.live.withValues(alpha: 0.4),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: Text(teamALabel),
-              ),
-              const SizedBox(height: 10),
-              OutlinedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _declareWo(
-                    match.id,
-                    losingTeamKey: 'teamB',
-                    winnerTeamId: match.teamAId,
-                  );
-                },
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.live,
-                  side: BorderSide(
-                    color: AppColors.live.withValues(alpha: 0.4),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: Text(teamBLabel),
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'Cancelar',
-                  style: AppTypography.soraRegular(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: context.themeColors.onSurfaceMuted,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ── Header ────────────────────────────────────────────────────────────────────
@@ -406,7 +347,7 @@ class _CheckInHeader extends StatelessWidget {
 
 // ── Tolerance card ─────────────────────────────────────────────────────────────
 
-class _ToleranceCard extends StatelessWidget {
+class _ToleranceCard extends StatefulWidget {
   const _ToleranceCard({
     required this.toleranceMin,
     this.scheduleTime,
@@ -416,24 +357,66 @@ class _ToleranceCard extends StatelessWidget {
   final DateTime? scheduleTime;
 
   @override
+  State<_ToleranceCard> createState() => _ToleranceCardState();
+}
+
+class _ToleranceCardState extends State<_ToleranceCard> {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.scheduleTime != null) {
+      // Atualiza a contagem ao vivo (granularidade de minutos → 20s basta).
+      _ticker = Timer.periodic(const Duration(seconds: 20), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final remaining = _remainingMinutes();
-    final label = remaining != null
-        ? 'Tolerância: $remaining min restantes'
-        : 'Tolerância: $toleranceMin min';
+    final schedule = widget.scheduleTime;
+    final remaining = schedule != null
+        ? schedule
+            .add(Duration(minutes: widget.toleranceMin))
+            .difference(DateTime.now())
+        : null;
+    final expired = remaining != null && remaining.inSeconds <= 0;
+
+    final String label;
+    if (schedule == null) {
+      label = 'Tolerância: ${widget.toleranceMin} min';
+    } else if (expired) {
+      label = 'Prazo de tolerância esgotado';
+    } else if (remaining!.inMinutes >= 1) {
+      label = 'Tolerância: ${remaining.inMinutes} min restantes';
+    } else {
+      label = 'Tolerância: menos de 1 min';
+    }
+
+    final accent = expired ? AppColors.live : AppColors.pending;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.pending.withValues(alpha: 0.08),
+        color: accent.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: AppColors.pending.withValues(alpha: 0.28),
-        ),
+        border: Border.all(color: accent.withValues(alpha: 0.28)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.schedule_rounded, size: 20, color: AppColors.pending),
+          Icon(
+            expired ? Icons.flag_rounded : Icons.schedule_rounded,
+            size: 20,
+            color: accent,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -444,12 +427,14 @@ class _ToleranceCard extends StatelessWidget {
                   style: AppTypography.soraRegular(
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.pending,
+                    color: accent,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Após $toleranceMin min sem comparecimento → W.O. automático',
+                  expired
+                      ? 'Sem comparecimento? Você já pode declarar W.O.'
+                      : 'Após ${widget.toleranceMin} min sem comparecimento → W.O.',
                   style: AppTypography.mono(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
@@ -462,13 +447,6 @@ class _ToleranceCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  int? _remainingMinutes() {
-    if (scheduleTime == null) return null;
-    final deadline = scheduleTime!.add(Duration(minutes: toleranceMin));
-    final remaining = deadline.difference(DateTime.now()).inMinutes;
-    return remaining > 0 ? remaining : null;
   }
 }
 
@@ -518,6 +496,7 @@ class _TeamCheckInCard extends StatelessWidget {
     required this.checkInStatus,
     required this.onCheckIn,
     required this.onWo,
+    this.onUndo,
     this.seed,
     this.isUpdating = false,
   });
@@ -526,6 +505,9 @@ class _TeamCheckInCard extends StatelessWidget {
   final MatchCheckInStatus checkInStatus;
   final VoidCallback onCheckIn;
   final VoidCallback onWo;
+
+  /// Reverte um check-in "Presente" feito por engano.
+  final VoidCallback? onUndo;
   final int? seed;
   final bool isUpdating;
 
@@ -607,10 +589,14 @@ class _TeamCheckInCard extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           else if (isPresent)
-            _StatusPill(
-              label: 'Presente',
-              icon: Icons.check_rounded,
-              color: AppColors.win,
+            InkWell(
+              onTap: onUndo,
+              borderRadius: BorderRadius.circular(999),
+              child: _StatusPill(
+                label: onUndo != null ? 'Presente · desfazer' : 'Presente',
+                icon: Icons.check_rounded,
+                color: AppColors.win,
+              ),
             )
           else if (isWo)
             _StatusPill(
@@ -773,14 +759,16 @@ class _UpcomingCallRow extends StatelessWidget {
 
 class _CheckInBottomBar extends StatelessWidget {
   const _CheckInBottomBar({
-    required this.onDeclareWo,
     required this.onRelease,
     this.releasing = false,
+    this.canRelease = false,
   });
 
-  final VoidCallback onDeclareWo;
   final VoidCallback onRelease;
   final bool releasing;
+
+  /// Só libera a partida quando as duas duplas fizeram check-in.
+  final bool canRelease;
 
   @override
   Widget build(BuildContext context) {
@@ -798,23 +786,9 @@ class _CheckInBottomBar extends StatelessWidget {
         top: false,
         child: Row(
           children: [
-            OutlinedButton.icon(
-              onPressed: releasing ? null : onDeclareWo,
-              icon: const Icon(Icons.flag_rounded, size: 18),
-              label: const Text('Declarar W.O.'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.live,
-                side: BorderSide(
-                  color: AppColors.live.withValues(alpha: 0.4),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              ),
-            ),
-            const SizedBox(width: 10),
             Expanded(
               child: FilledButton.icon(
-                onPressed: releasing ? null : onRelease,
+                onPressed: (releasing || !canRelease) ? null : onRelease,
                 icon: releasing
                     ? const SizedBox(
                         width: 18,
@@ -829,7 +803,13 @@ class _CheckInBottomBar extends StatelessWidget {
                         size: 18,
                         color: Colors.black,
                       ),
-                label: Text(releasing ? 'Liberando…' : 'Liberar partida'),
+                label: Text(
+                  releasing
+                      ? 'Liberando…'
+                      : canRelease
+                          ? 'Liberar partida'
+                          : 'Aguardando check-in',
+                ),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.brand,
                   foregroundColor: Colors.black,

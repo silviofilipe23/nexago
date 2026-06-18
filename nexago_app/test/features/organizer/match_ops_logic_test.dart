@@ -183,4 +183,76 @@ void main() {
       );
     });
   });
+
+  group('canReleaseAfterCheckIn', () {
+    test('only when both teams are present', () {
+      expect(
+        MatchOpsLogic.canReleaseAfterCheckIn(
+          MatchCheckInStatus.present,
+          MatchCheckInStatus.present,
+        ),
+        isTrue,
+      );
+      expect(
+        MatchOpsLogic.canReleaseAfterCheckIn(
+          MatchCheckInStatus.present,
+          MatchCheckInStatus.pending,
+        ),
+        isFalse,
+      );
+      expect(
+        MatchOpsLogic.canReleaseAfterCheckIn(
+          MatchCheckInStatus.present,
+          MatchCheckInStatus.wo,
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('friendlyScoreError', () {
+    test('passes through the server PT message on failed-precondition', () {
+      expect(
+        MatchOpsLogic.friendlyScoreError(
+          code: 'failed-precondition',
+          message: 'A chave já tem partidas em andamento.',
+        ),
+        'A chave já tem partidas em andamento.',
+      );
+    });
+
+    test('falls back to generic text when message is empty', () {
+      expect(
+        MatchOpsLogic.friendlyScoreError(
+            code: 'failed-precondition', message: ''),
+        'A partida não está pronta para receber este placar.',
+      );
+    });
+
+    test('maps auth/permission/network codes to friendly PT', () {
+      expect(
+        MatchOpsLogic.friendlyScoreError(code: 'unauthenticated'),
+        startsWith('Sua sessão expirou'),
+      );
+      expect(
+        MatchOpsLogic.friendlyScoreError(code: 'permission-denied'),
+        contains('permissão'),
+      );
+      expect(
+        MatchOpsLogic.friendlyScoreError(code: 'unavailable'),
+        contains('conexão'),
+      );
+    });
+
+    test('unknown/null code yields the safe default', () {
+      expect(
+        MatchOpsLogic.friendlyScoreError(code: null),
+        'Não foi possível salvar o placar. Tente novamente.',
+      );
+      expect(
+        MatchOpsLogic.friendlyScoreError(code: 'internal'),
+        'Não foi possível salvar o placar. Tente novamente.',
+      );
+    });
+  });
 }

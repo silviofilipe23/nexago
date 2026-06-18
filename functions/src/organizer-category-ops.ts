@@ -5,7 +5,7 @@ import {
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {deliverNotificationToUser} from "./notification-delivery";
-import {MatchStatus} from "./match-status";
+import {MatchStatus, isMatchCompleted, isMatchInProgress} from "./match-status";
 import {
   buildDoubleEliminationMatches,
   buildGroupsKnockoutMatches,
@@ -89,9 +89,16 @@ export const generateCategoryBracket = onCall(async (request) => {
 
   const paidTeamIds = new Set<string>();
   for (const doc of inscriptionsSnap.docs) {
-    const teamId = (doc.data().teamId as string)?.trim();
-    // "Confirmado" no NexaGO = pago e não está na fila de espera.
-    if (teamId && doc.data().isPaid === true && doc.data().waitlist !== true) {
+    const data = doc.data();
+    const teamId = (data.teamId as string)?.trim();
+    // "Confirmado" no NexaGO = pago, fora da fila e com dupla completa.
+    // Inscrições solo (partnerPending) não entram na chave.
+    if (
+      teamId &&
+      data.isPaid === true &&
+      data.waitlist !== true &&
+      data.partnerPending !== true
+    ) {
       paidTeamIds.add(teamId);
     }
   }
@@ -118,6 +125,30 @@ export const generateCategoryBracket = onCall(async (request) => {
     .where("tournamentId", "==", tournamentId)
     .where("categoryId", "==", categoryId)
     .get();
+
+  // Regerar a chave APAGA as partidas existentes. Se alguma já foi jogada
+  // (em andamento/concluída ou com vencedor), exige confirmação explícita
+  // (`force`) para não perder resultados silenciosamente.
+  const force = request.data?.force === true;
+  if (!force) {
+    const hasPlayedMatches = existingMatches.docs.some((doc) => {
+      const m = doc.data();
+      const winnerId = typeof m.winnerId === "string" ? m.winnerId.trim() : "";
+      return (
+        isMatchCompleted(m.status) ||
+        isMatchInProgress(m.status) ||
+        winnerId.length > 0
+      );
+    });
+    if (hasPlayedMatches) {
+      throw new HttpsError(
+        "failed-precondition",
+        "A chave já tem partidas em andamento ou concluídas. " +
+          "Regerar vai apagar os resultados atuais.",
+        {reason: "bracket_has_results"},
+      );
+    }
+  }
 
   const resolvedGroups =
     groupsPreview.length > 0

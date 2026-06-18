@@ -15,6 +15,7 @@ import {
   computeTournamentShareAmountReais,
   normalizeAthleteGenderBucket,
   parseTournamentRegistrationExternalReference,
+  resolveTournamentRegistrationCredit,
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
 import {deliverNotificationToUser} from "./notification-delivery";
@@ -203,7 +204,16 @@ export async function processTournamentRegistrationAsaasNotification(
       return;
     }
 
-    if (expectedShare > 0 && Math.abs(paidOnline - expectedShare) > 0.02) {
+    // Tipo de cobrança gravado no doc pendente (parcela ou dupla inteira).
+    const pendingSnap = await pendingRef.get();
+    const amountType: "share" | "full" =
+      pendingSnap.data()?.amountType === "full" ? "full" : "share";
+
+    if (
+      amountType === "share" &&
+      expectedShare > 0 &&
+      Math.abs(paidOnline - expectedShare) > 0.02
+    ) {
       logger.warn(
         `Asaas tournament registration ${registrationId}: valor ${paidOnline} diverge da parcela ${expectedShare}`,
       );
@@ -221,18 +231,33 @@ export async function processTournamentRegistrationAsaasNotification(
       return;
     }
 
-    const creditAmount = expectedShare > 0 ? expectedShare : paidOnline;
+    // Credita o valor real (parcela ou dupla inteira) e decide a confirmação.
     const currentPaid = Number(regData.paidAmount) || 0;
-    const newPaidAmount = roundMoney(currentPaid + creditAmount);
-    const reachedFullAmount = entryFee > 0 && newPaidAmount >= entryFee - 0.01;
+    const credit = resolveTournamentRegistrationCredit({
+      entryFee,
+      amountType,
+      currentPaidAmount: currentPaid,
+    });
+    const newPaidAmount = credit.newPaidAmount;
     const wasPaidBefore = regData.isPaid === true;
-    const isPaid = reachedFullAmount ? true : wasPaidBefore;
+    const isPaid = credit.isPaid || wasPaidBefore;
+
+    // "Dupla inteira": confirma os dois atletas (o parceiro não paga de novo).
+    const participantUids = Array.isArray(regData.participantUids) ?
+      (regData.participantUids as unknown[]).filter(
+        (u): u is string => typeof u === "string" && u.trim().length > 0,
+      ) :
+      [];
+    const uidsToConfirm =
+      amountType === "full" && participantUids.length > 0 ?
+        participantUids :
+        [payerUid];
 
     const batch = db.batch();
     batch.update(registrationRef, {
       paidAmount: newPaidAmount,
       isPaid,
-      sharePaidUids: FieldValue.arrayUnion(payerUid),
+      sharePaidUids: FieldValue.arrayUnion(...uidsToConfirm),
       updatedAt: FieldValue.serverTimestamp(),
     });
     batch.set(pendingRef, {

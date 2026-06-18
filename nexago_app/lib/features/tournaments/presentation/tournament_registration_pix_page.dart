@@ -126,6 +126,7 @@ class _TournamentRegistrationPixPageState
           .createTournamentRegistrationPixPayment(
             registrationId: widget.args.registrationId,
             cpfCnpj: _cpfDigits,
+            amountType: widget.args.amountType,
           );
       if (!mounted) return;
       setState(() {

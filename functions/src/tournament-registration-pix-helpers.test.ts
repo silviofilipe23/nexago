@@ -2,11 +2,14 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
   buildTournamentRegistrationExternalReference,
+  canChargeTournamentFull,
   computeTeamGenderLabel,
   computeTournamentShareAmountReais,
   isFreeRegistrationFullyConfirmed,
   normalizeAthleteGenderBucket,
   parseTournamentRegistrationExternalReference,
+  resolveTournamentChargeReais,
+  resolveTournamentRegistrationCredit,
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
 
@@ -66,5 +69,56 @@ describe("tournament-registration-pix-helpers", () => {
       true,
     );
     assert.equal(isFreeRegistrationFullyConfirmed(["a"], ["a"]), false);
+  });
+
+  it("resolves charge amount by type (share vs full)", () => {
+    assert.equal(resolveTournamentChargeReais(100, "share"), 50);
+    assert.equal(resolveTournamentChargeReais(100, "full"), 100);
+    assert.equal(resolveTournamentChargeReais(0, "full"), 0);
+    assert.equal(resolveTournamentChargeReais(-10, "share"), 0);
+  });
+
+  it("blocks full charge when there is a partial payment", () => {
+    assert.equal(
+      canChargeTournamentFull({paidAmount: 0, sharePaidUids: []}),
+      true,
+    );
+    assert.equal(
+      canChargeTournamentFull({paidAmount: 50, sharePaidUids: ["a"]}),
+      false,
+    );
+    assert.equal(
+      canChargeTournamentFull({paidAmount: 0, sharePaidUids: ["a"]}),
+      false,
+    );
+  });
+
+  it("credits full payment and confirms the pair", () => {
+    const full = resolveTournamentRegistrationCredit({
+      entryFee: 100,
+      amountType: "full",
+      currentPaidAmount: 0,
+    });
+    assert.equal(full.credit, 100);
+    assert.equal(full.newPaidAmount, 100);
+    assert.equal(full.isPaid, true);
+  });
+
+  it("credits a single share and confirms only when both paid", () => {
+    const first = resolveTournamentRegistrationCredit({
+      entryFee: 100,
+      amountType: "share",
+      currentPaidAmount: 0,
+    });
+    assert.equal(first.credit, 50);
+    assert.equal(first.isPaid, false);
+
+    const second = resolveTournamentRegistrationCredit({
+      entryFee: 100,
+      amountType: "share",
+      currentPaidAmount: 50,
+    });
+    assert.equal(second.newPaidAmount, 100);
+    assert.equal(second.isPaid, true);
   });
 });

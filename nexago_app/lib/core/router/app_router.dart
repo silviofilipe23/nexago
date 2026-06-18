@@ -1011,6 +1011,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final shareAmountRaw =
               state.uri.queryParameters['shareAmountReais']?.trim() ?? '';
           final shareAmount = double.tryParse(shareAmountRaw);
+          final amountType =
+              state.uri.queryParameters['amountType']?.trim() == 'full'
+                  ? 'full'
+                  : 'share';
 
           if (tournamentId.isNotEmpty &&
               registrationId.isNotEmpty &&
@@ -1025,6 +1029,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 tournamentName: tournamentName,
                 categoryName: categoryName,
                 shareAmountReais: shareAmount,
+                amountType: amountType,
               ),
             );
           }

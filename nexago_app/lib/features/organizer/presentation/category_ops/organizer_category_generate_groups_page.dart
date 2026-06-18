@@ -9,6 +9,7 @@ import 'package:nexago_app/core/ui/app_snackbar.dart';
 import '../../domain/category_ops/category_ops_logic.dart';
 import '../../domain/category_ops/category_ops_models.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
+import 'organizer_generate_bracket_helpers.dart';
 
 class OrganizerCategoryGenerateGroupsPage extends ConsumerStatefulWidget {
   const OrganizerCategoryGenerateGroupsPage({
@@ -47,7 +48,7 @@ class _OrganizerCategoryGenerateGroupsPageState
     });
   }
 
-  Future<void> _publish() async {
+  Future<void> _publish({bool force = false}) async {
     if (_publishing) return;
     setState(() => _publishing = true);
     try {
@@ -74,6 +75,7 @@ class _OrganizerCategoryGenerateGroupsPageState
             categoryId: widget.categoryId,
             format: widget.format,
             seeds: seeds,
+            force: force,
             groupsPreview: _groups
                 .map((g) => {'id': g.id, 'teamIds': g.teamIds})
                 .toList(),
@@ -83,7 +85,15 @@ class _OrganizerCategoryGenerateGroupsPageState
         context.pop();
       }
     } catch (e) {
-      if (mounted) showAppSnackBar(context, '$e', isError: true);
+      if (!mounted) return;
+      if (isBracketHasResultsError(e)) {
+        setState(() => _publishing = false);
+        if (await confirmRegenerateBracket(context) && mounted) {
+          await _publish(force: true);
+        }
+        return;
+      }
+      showAppSnackBar(context, '$e', isError: true);
     } finally {
       if (mounted) setState(() => _publishing = false);
     }

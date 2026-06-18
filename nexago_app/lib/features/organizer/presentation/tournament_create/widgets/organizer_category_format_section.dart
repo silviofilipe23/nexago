@@ -14,25 +14,17 @@ class OrganizerCategoryFormatSection extends StatelessWidget {
     required this.bracketSystem,
     required this.teamsPerGroup,
     required this.qualifiersPerGroup,
-    required this.bestOf,
-    required this.finalBestOf5,
     required this.onBracketSystemChanged,
     required this.onTeamsPerGroupChanged,
     required this.onQualifiersPerGroupChanged,
-    required this.onBestOfChanged,
-    required this.onFinalBestOf5Changed,
   });
 
   final TournamentBracketSystem bracketSystem;
   final int teamsPerGroup;
   final int qualifiersPerGroup;
-  final TournamentBestOf bestOf;
-  final bool finalBestOf5;
   final ValueChanged<TournamentBracketSystem> onBracketSystemChanged;
   final ValueChanged<int> onTeamsPerGroupChanged;
   final ValueChanged<int> onQualifiersPerGroupChanged;
-  final ValueChanged<TournamentBestOf> onBestOfChanged;
-  final ValueChanged<bool> onFinalBestOf5Changed;
 
   bool get _showGroups =>
       bracketSystem == TournamentBracketSystem.groupsThenKnockout ||
@@ -105,21 +97,10 @@ class OrganizerCategoryFormatSection extends StatelessWidget {
         const SizedBox(height: 20),
         const OrganizerSectionLabel('SETS'),
         const SizedBox(height: 8),
-        const OrganizerSectionLabel('MELHOR DE'),
-        const SizedBox(height: 8),
-        OrganizerSegmentedControl(
-          options: TournamentBestOf.values,
-          selected: bestOf,
-          labelBuilder: bestOfLabel,
-          onSelected: onBestOfChanged,
-        ),
-        const SizedBox(height: 12),
-        OrganizerToggleSettingRow(
-          icon: Icons.flag_outlined,
-          title: 'Final em MD5',
-          subtitle: 'A decisão do título usa melhor de 5 sets.',
-          value: finalBestOf5,
-          onChanged: onFinalBestOf5Changed,
+        const OrganizerInfoRow(
+          icon: Icons.sports_volleyball_outlined,
+          title: 'Melhor de 3 sets',
+          subtitle: 'Sets até 21; 3º set decisivo até 15 (vantagem de 2).',
         ),
       ],
     );

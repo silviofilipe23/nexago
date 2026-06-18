@@ -42,6 +42,7 @@ import {
   sendTournamentPartnerInvite,
   acceptTournamentPartnerInvite,
   cancelTournamentPartnerInvite,
+  registerSoloTournament,
 } from "./tournament-partner-invite";
 import {
   createTournamentRegistrationPixPayment,
@@ -107,6 +108,7 @@ export {
   sendTournamentPartnerInvite,
   acceptTournamentPartnerInvite,
   cancelTournamentPartnerInvite,
+  registerSoloTournament,
   createTournamentRegistrationPixPayment,
   cancelPendingTournamentRegistrationPix,
   confirmFreeTournamentRegistration,

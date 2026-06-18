@@ -70,7 +70,16 @@ abstract final class MatchOpsLogic {
         upperBase.contains('$genderShort ')) {
       return base;
     }
-    return '$base · $genderShort';
+    return '$genderShort $base';
+  }
+
+  /// A partida só pode ser liberada quando as DUAS duplas fizeram check-in.
+  static bool canReleaseAfterCheckIn(
+    MatchCheckInStatus teamA,
+    MatchCheckInStatus teamB,
+  ) {
+    return teamA == MatchCheckInStatus.present &&
+        teamB == MatchCheckInStatus.present;
   }
 
   static String categoryGenderShortLabel(String genderLabel) {
@@ -356,5 +365,29 @@ abstract final class MatchOpsLogic {
     final q = a.match.queueOrder.compareTo(b.match.queueOrder);
     if (q != 0) return q;
     return _compareBySchedule(a, b);
+  }
+
+  /// Mensagem amigável (PT) para erros ao salvar/lançar placar, a partir do
+  /// `code`/`message` de uma exceção do Firebase (Functions ou Firestore).
+  /// Mantida pura para teste; a extração de code/message fica na camada de UI.
+  static String friendlyScoreError({String? code, String? message}) {
+    final msg = message?.trim() ?? '';
+    switch (code) {
+      case 'unauthenticated':
+        return 'Sua sessão expirou. Entre novamente para lançar o placar.';
+      case 'permission-denied':
+        return 'Você não tem permissão para lançar o placar desta partida.';
+      case 'failed-precondition':
+        // O servidor já devolve mensagem em PT e específica.
+        return msg.isNotEmpty
+            ? msg
+            : 'A partida não está pronta para receber este placar.';
+      case 'invalid-argument':
+        return msg.isNotEmpty ? msg : 'Placar inválido.';
+      case 'unavailable':
+      case 'deadline-exceeded':
+        return 'Sem conexão. Verifique a internet e tente de novo.';
+    }
+    return 'Não foi possível salvar o placar. Tente novamente.';
   }
 }

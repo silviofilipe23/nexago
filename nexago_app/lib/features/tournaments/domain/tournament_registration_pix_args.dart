@@ -6,6 +6,7 @@ class TournamentRegistrationPixArgs {
     required this.tournamentName,
     required this.categoryName,
     required this.shareAmountReais,
+    this.amountType = 'share',
     this.paymentExpiresAt,
   });
 
@@ -14,5 +15,8 @@ class TournamentRegistrationPixArgs {
   final String tournamentName;
   final String categoryName;
   final double shareAmountReais;
+
+  /// 'share' (parcela do atleta) ou 'full' (paga a dupla inteira).
+  final String amountType;
   final DateTime? paymentExpiresAt;
 }

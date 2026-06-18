@@ -420,6 +420,75 @@ class OrganizerToggleSettingRow extends StatelessWidget {
   }
 }
 
+/// Linha informativa estática (ícone + título + subtítulo), sem ação.
+/// Usada para comunicar uma regra fixa do sistema em vez de um controle
+/// que sugere uma escolha inexistente.
+class OrganizerInfoRow extends StatelessWidget {
+  const OrganizerInfoRow({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.themeColors.surfaceCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: context.themeColors.surfaceRaised,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              icon,
+              color: context.themeColors.onSurfaceMuted,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.themeColors.onSurfaceMuted,
+                        height: 1.35,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class OrganizerAddDashedCard extends StatelessWidget {
   const OrganizerAddDashedCard({
     super.key,

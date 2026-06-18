@@ -24,7 +24,6 @@ const double kTournamentPlatformFeeBrl = 2.0;
 
 enum TournamentRegistrationStep {
   category,
-  summary,
   uniform,
   partner,
   waiting,
@@ -88,11 +87,11 @@ TournamentRegistrationStep previousStepFromPartner(
   if (category != null && categoryRequiresUniform(category)) {
     return TournamentRegistrationStep.uniform;
   }
-  return TournamentRegistrationStep.summary;
+  return TournamentRegistrationStep.category;
 }
 
 TournamentRegistrationStep previousStepFromUniform() =>
-    TournamentRegistrationStep.summary;
+    TournamentRegistrationStep.category;
 
 class TournamentRegistrationQuote {
   const TournamentRegistrationQuote({

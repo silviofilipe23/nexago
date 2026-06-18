@@ -7,9 +7,12 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 import '../../domain/match_ops/match_ops_models.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
+import '../../../tournaments/domain/tournament_discovery_models.dart';
+import '../../../tournaments/domain/tournament_discovery_providers.dart';
 import '../../../tournaments/domain/tournament_matches_logic.dart';
 import '../match_ops/organizer_match_navigation.dart';
 import '../match_ops/widgets/organizer_match_card.dart';
+import 'widgets/organizer_category_podium_card.dart';
 
 class OrganizerCategoryBracketListPage extends ConsumerWidget {
   const OrganizerCategoryBracketListPage({
@@ -27,6 +30,14 @@ class OrganizerCategoryBracketListPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final matchesAsync =
         ref.watch(organizerTournamentMatchesProvider(tournamentId));
+    final prizes = ref
+            .watch(tournamentDetailProvider(tournamentId))
+            .valueOrNull
+            ?.categoryOffers
+            .where((o) => o.id == categoryId)
+            .firstOrNull
+            ?.prizes ??
+        const <TournamentCategoryPrize>[];
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -43,9 +54,8 @@ class OrganizerCategoryBracketListPage extends ConsumerWidget {
           final pools = groupMatchesByPool(
             poolMatchesForCategory(all, categoryId),
           );
-          final bracket = groupBracketMatchesByRound(
-            bracketMatchesForCategory(all, categoryId),
-          );
+          final bracketMatches = bracketMatchesForCategory(all, categoryId);
+          final bracket = groupBracketMatchesByRound(bracketMatches);
 
           if (pools.isEmpty && bracket.isEmpty) {
             return const Center(
@@ -62,6 +72,10 @@ class OrganizerCategoryBracketListPage extends ConsumerWidget {
           return ListView(
             padding: const EdgeInsets.only(bottom: 32),
             children: [
+              OrganizerCategoryPodiumCard(
+                categoryMatches: bracketMatches,
+                prizes: prizes,
+              ),
               for (final pool in pools) ...[
                 _SectionHeader(pool.poolLabel),
                 for (final match in pool.matches)

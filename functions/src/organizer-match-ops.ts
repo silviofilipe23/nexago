@@ -18,6 +18,12 @@ import {
 } from "./group-standings";
 import {assertCanManageTournament, assertCanScoreTournament} from "./tournament-acl";
 import {matchWinnerId, parseAndValidateSets, setsWon} from "./match-scoring";
+import {
+  allCategoryFinalsComplete,
+  isFinalMatchType,
+  isTerminalListingStatus,
+  type CompletionMatch,
+} from "./tournament-completion";
 
 function getFirebaseProjectId(): string {
   return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
@@ -282,6 +288,75 @@ async function advanceBracketWinnerInternal(
   await nextDoc.ref.update(patch);
 
   return {advanced: true, nextMatchId: nextDoc.id};
+}
+
+/**
+ * Ao concluir a grande final de uma categoria: registra o campeão na categoria
+ * e, se TODAS as categorias já decidiram suas finais, marca o torneio como
+ * concluído. Idempotente: não sobrescreve status terminal já gravado.
+ */
+async function tryCompleteTournamentAfterFinal(
+  db: Firestore,
+  projectId: string,
+  after: FirebaseFirestore.DocumentData,
+): Promise<void> {
+  if (!isFinalMatchType(String(after.matchType ?? ""))) return;
+  const tournamentId = String(after.tournamentId ?? "").trim();
+  const categoryId = String(after.categoryId ?? "").trim();
+  const championTeamId = String(after.winnerId ?? "").trim();
+  if (!tournamentId || !categoryId || !championTeamId) return;
+
+  const tournamentRef = db.doc(`tournaments/${tournamentId}`);
+
+  // Registra o campeão e marca a chave da categoria como concluída.
+  await tournamentRef.set(
+    {
+      categoryOps: {
+        [categoryId]: {
+          bracketStatus: "completed",
+          championTeamId,
+          completedAt: FieldValue.serverTimestamp(),
+        },
+      },
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    {merge: true},
+  );
+
+  const tournamentSnap = await tournamentRef.get();
+  const tournamentData = tournamentSnap.data() ?? {};
+  if (isTerminalListingStatus(tournamentData.listingStatus ?? tournamentData.status)) {
+    return;
+  }
+
+  const categoriesRaw = Array.isArray(tournamentData.categories) ?
+    (tournamentData.categories as Array<Record<string, unknown>>) :
+    [];
+  const categoryIds = categoriesRaw
+    .map((c) => String(c?.id ?? "").trim())
+    .filter((id) => id.length > 0);
+
+  const matchDocs = await loadTournamentMatches(db, projectId, tournamentId);
+  const matches: CompletionMatch[] = matchDocs.map((d) => {
+    const m = d.data();
+    return {
+      categoryId: String(m.categoryId ?? ""),
+      matchType: String(m.matchType ?? ""),
+      status: m.status,
+    };
+  });
+
+  if (!allCategoryFinalsComplete(categoryIds, matches)) return;
+
+  await tournamentRef.set(
+    {
+      listingStatus: "completed",
+      status: "completed",
+      completedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    {merge: true},
+  );
 }
 
 export const scheduleMatch = onCall(async (request) => {
@@ -815,6 +890,11 @@ export const onTournamentMatchCompletedAdvance = onDocumentUpdated(
       await advanceBracketWinnerInternal(db, projectId, after);
     } catch (e) {
       logger.error("onTournamentMatchCompletedAdvance: avanço falhou", {matchId, e});
+    }
+    try {
+      await tryCompleteTournamentAfterFinal(db, projectId, after);
+    } catch (e) {
+      logger.error("onTournamentMatchCompletedAdvance: conclusão falhou", {matchId, e});
     }
     try {
       await tryAwardLeagueStagePointsForMatch(db, projectId, {

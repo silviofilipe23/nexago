@@ -16,6 +16,30 @@ String organizerTournamentRegistrationShareMessage({
   return 'Inscreva-se no $tournamentName no NexaGO:\n$link';
 }
 
+/// Mensagem amigável (PT) para erros ao gerenciar o torneio, a partir do
+/// `code`/`message` de uma exceção do Firebase. [action] descreve a operação
+/// no infinitivo (ex.: "encerrar as inscrições"). Pura para teste; a extração
+/// de code/message fica na camada de UI.
+String friendlyTournamentOpsError({
+  required String action,
+  String? code,
+  String? message,
+}) {
+  final msg = message?.trim() ?? '';
+  switch (code) {
+    case 'unauthenticated':
+      return 'Sua sessão expirou. Entre novamente para $action.';
+    case 'permission-denied':
+      return 'Você não tem permissão para $action.';
+    case 'failed-precondition':
+      return msg.isNotEmpty ? msg : 'Não foi possível $action agora.';
+    case 'unavailable':
+    case 'deadline-exceeded':
+      return 'Sem conexão. Verifique a internet e tente de novo.';
+  }
+  return 'Não foi possível $action. Tente novamente.';
+}
+
 OrganizerTournamentListingBadge tournamentListingBadge(String listingStatus) {
   return switch (listingStatus.trim().toLowerCase()) {
     'open' => OrganizerTournamentListingBadge.registrationsOpen,

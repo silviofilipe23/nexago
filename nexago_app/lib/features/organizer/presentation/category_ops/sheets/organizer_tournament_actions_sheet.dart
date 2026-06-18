@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -177,7 +178,11 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
                   }
                 } catch (e) {
                   if (context.mounted) {
-                    showAppSnackBar(context, '$e', isError: true);
+                    showAppSnackBar(
+                      context,
+                      _opsError(e, 'encerrar as inscrições'),
+                      isError: true,
+                    );
                   }
                 }
               },
@@ -185,7 +190,7 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
             _ActionTile(
               icon: Icons.delete_outline_rounded,
               label: 'Cancelar torneio',
-              subtitle: 'Reembolsa todas as duplas inscritas',
+              subtitle: 'Marca o torneio como cancelado',
               destructive: true,
               onTap: () async {
                 final confirm = await showDialog<bool>(
@@ -220,7 +225,11 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
                   }
                 } catch (e) {
                   if (context.mounted) {
-                    showAppSnackBar(context, '$e', isError: true);
+                    showAppSnackBar(
+                      context,
+                      _opsError(e, 'cancelar o torneio'),
+                      isError: true,
+                    );
                   }
                 }
               },
@@ -231,6 +240,18 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Traduz exceções de gerenciamento de torneio em mensagem PT amigável.
+String _opsError(Object error, String action) {
+  if (error is FirebaseException) {
+    return friendlyTournamentOpsError(
+      action: action,
+      code: error.code,
+      message: error.message,
+    );
+  }
+  return friendlyTournamentOpsError(action: action);
 }
 
 class _ActionTile extends StatelessWidget {

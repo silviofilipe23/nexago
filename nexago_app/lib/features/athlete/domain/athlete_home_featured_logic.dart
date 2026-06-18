@@ -42,7 +42,7 @@ AthleteHomeFeatured? resolveAthleteHomeFeatured({
     }
   }
 
-  final nextBooking = findNextAthleteBooking(bookings);
+  final nextBooking = findNextAthleteBooking(bookings, now: clock);
   final bookingInstant =
       nextBooking != null ? parseBookingStart(nextBooking) : null;
 

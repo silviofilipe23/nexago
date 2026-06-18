@@ -11,8 +11,7 @@ class ShellTabBarCollapseController extends ChangeNotifier {
 
   double get progress => _progress;
 
-  double get height =>
-      _lerp(expandedHeight, collapsedHeight, _progress);
+  double get height => _lerp(expandedHeight, collapsedHeight, _progress);
 
   bool get showLabels => _progress < 0.45;
 

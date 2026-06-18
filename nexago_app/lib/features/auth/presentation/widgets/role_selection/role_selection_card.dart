@@ -56,53 +56,51 @@ class RoleSelectionCard extends StatelessWidget {
               _RoleIcon(role: role, selected: selected),
               const SizedBox(width: 14),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      role.categoryLabel,
-                      style: AppTypography.mono(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.brand,
-                        letterSpacing: 0.9,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      role.title,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: context.themeColors.onSurface,
-                        letterSpacing: -0.4,
-                        fontSize: 20,
-                        height: 1.1,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      role.description,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: context.themeColors.onSurfaceMuted,
-                        height: 1.45,
-                        fontSize: 12,
-                      ),
-                    ),
-                    if (footer != null && footer!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 12),
+                child: AnimatedSize(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  alignment: Alignment.topLeft,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        footer!.toUpperCase(),
-                        style: AppTypography.mono(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: context.themeColors.onSurfaceMuted.withValues(
-                            alpha: 0.9,
-                          ),
-                          letterSpacing: 0.35,
+                        role.title,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: context.themeColors.onSurface,
+                          letterSpacing: -0.4,
+                          fontSize: 20,
+                          height: 1.1,
                         ),
                       ),
+                      // Detalhe (descrição + footer) só no card selecionado:
+                      // os demais ficam compactos (progressive disclosure).
+                      if (selected) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          role.description,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: context.themeColors.onSurfaceMuted,
+                            height: 1.4,
+                            fontSize: 12,
+                          ),
+                        ),
+                        if (footer != null && footer!.trim().isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            footer!.toUpperCase(),
+                            style: AppTypography.mono(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: context.themeColors.onSurfaceMuted
+                                  .withValues(alpha: 0.9),
+                              letterSpacing: 0.35,
+                            ),
+                          ),
+                        ],
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
               const SizedBox(width: 12),

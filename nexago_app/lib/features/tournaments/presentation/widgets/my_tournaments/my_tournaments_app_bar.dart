@@ -4,7 +4,8 @@ import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import '../../../../../core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
-class MyTournamentsAppBar extends StatelessWidget implements PreferredSizeWidget {
+class MyTournamentsAppBar extends StatelessWidget
+    implements PreferredSizeWidget {
   const MyTournamentsAppBar({
     super.key,
     required this.subtitle,

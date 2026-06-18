@@ -4,13 +4,14 @@ import 'package:nexago_app/features/athlete/domain/daily_mission_catalog.dart';
 import 'package:nexago_app/features/athlete/domain/gamification_models.dart';
 
 void main() {
-  test('catalog has six missions', () {
-    expect(DailyMissionCatalog.all.length, 6);
+  test('catalog has five missions', () {
+    expect(DailyMissionCatalog.all.length, 5);
   });
 
   test('total XP matches sum of rewards', () {
-    expect(dailyMissionsTotalXp(), 160);
-    expect(DailyMissionCatalog.totalXpReward(), 160);
+    // 40 + 35 + 15 + 20 + 20 (INVITE_ONE_PLAYER foi removida do catálogo).
+    expect(dailyMissionsTotalXp(), 130);
+    expect(DailyMissionCatalog.totalXpReward(), 130);
   });
 
   test('missionXpReward returns catalog values', () {

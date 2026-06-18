@@ -59,9 +59,15 @@ class NexaBottomNavBar extends StatelessWidget {
         .map((item) => item.toLiquidGlassItem(selectedColor: selectedItemColor))
         .toList();
     final t = collapseProgress.clamp(0.0, 1.0);
-    final nativeHeight =
+    final rawHeight =
         ShellTabBarCollapseController.collapsedHeight +
-        (height + 4 - ShellTabBarCollapseController.collapsedHeight) * (1 - t);
+        (height + 0 - ShellTabBarCollapseController.collapsedHeight) * (1 - t);
+    // O LiquidGlassTabBar nativo exige height >= 56 (alvo de toque). O estado
+    // colapsado (50) fica abaixo disso, então aplicamos um piso de 56.
+    const minNativeHeight = 64.0;
+    final nativeHeight = rawHeight < minNativeHeight
+        ? minNativeHeight
+        : rawHeight;
     final labelsVisible = showLabels && t < 0.45;
 
     return NexaLiquidGlassNativeTabShell(

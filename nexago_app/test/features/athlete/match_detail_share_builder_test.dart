@@ -97,7 +97,7 @@ void main() {
       final share = buildMatchDetailShareInfo(detail)!;
 
       expect(share.variant, MatchDetailShareVariant.spectator);
-      expect(share.heroTitle, 'FIM DE JOGO');
+      expect(share.heroTitle, 'FIM DE\nJOGO');
       expect(share.emphasizeTopRow, isTrue);
       expect(share.emphasizeBottomRow, isTrue);
     });

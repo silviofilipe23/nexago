@@ -1,15 +1,19 @@
 import '../../arenas/domain/my_booking_item.dart';
 
 /// Próxima reserva confirmada (não cancelada) com início no futuro.
-MyBookingItem? findNextAthleteBooking(List<MyBookingItem> bookings) {
-  final now = DateTime.now();
+/// [now] pode ser injetado para tornar a seleção determinística (testes).
+MyBookingItem? findNextAthleteBooking(
+  List<MyBookingItem> bookings, {
+  DateTime? now,
+}) {
+  final clock = now ?? DateTime.now();
   MyBookingItem? next;
   DateTime? nextStart;
   for (final booking in bookings) {
     final status = booking.rawStatus.trim().toLowerCase();
     if (status == 'canceled' || status == 'cancelled') continue;
     final start = parseBookingStart(booking);
-    if (start == null || !start.isAfter(now)) continue;
+    if (start == null || !start.isAfter(clock)) continue;
     if (nextStart == null || start.isBefore(nextStart)) {
       nextStart = start;
       next = booking;

@@ -159,56 +159,56 @@ class _AthleteChip extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  AthleteProfileAvatar(
-                    size: _hubAthleteAvatarSize,
-                    initials: athlete.initials,
-                    imageUrl: athlete.avatarUrl,
-                  ),
-                  if (athlete.isOnline)
-                    Positioned(
-                      right: 2,
-                      top: 2,
-                      child: Container(
-                        width: 12,
-                        height: 12,
-                        decoration: BoxDecoration(
-                          color: AppColors.win,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: context.themeColors.canvas,
-                            width: 2,
-                          ),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AthleteProfileAvatar(
+                  size: _hubAthleteAvatarSize,
+                  initials: athlete.initials,
+                  imageUrl: athlete.avatarUrl,
+                ),
+                if (athlete.isOnline)
+                  Positioned(
+                    right: 2,
+                    top: 2,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: AppColors.win,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: context.themeColors.canvas,
+                          width: 2,
                         ),
                       ),
                     ),
-                ],
+                  ),
+              ],
+            ),
+            SizedBox(height: 6),
+            Text(
+              athlete.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.soraRegular(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                height: 1.1,
+                color: context.themeColors.onSurface,
               ),
-              SizedBox(height: 6),
-              Text(
-                athlete.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.soraRegular(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  height: 1.1,
-                  color: context.themeColors.onSurface,
-                ),
+            ),
+            Text(
+              athlete.categoryLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.mono(
+                fontSize: 8,
+                fontWeight: FontWeight.w500,
+                height: 1.1,
+                color: context.themeColors.onSurfaceMuted,
               ),
-              Text(
-                athlete.categoryLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.mono(
-                  fontSize: 8,
-                  fontWeight: FontWeight.w500,
-                  height: 1.1,
-                  color: context.themeColors.onSurfaceMuted,
-                ),
-              ),
+            ),
           ],
         ),
       ),

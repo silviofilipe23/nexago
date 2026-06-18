@@ -90,7 +90,7 @@ void main() {
           profile: _profile(id: '1', level: 'Básico'),
         ),
         _entry(
-          profile: _profile(id: '2', level: 'Iniciante'),
+          profile: _profile(id: '2', level: 'Open'),
         ),
       ];
       final result = applyDiscoverFilters(
@@ -225,13 +225,14 @@ void main() {
           profile: _profile(id: '1', level: 'Iniciante'),
         ),
         _entry(
-          profile: _profile(id: '2', level: 'Iniciante'),
+          profile: _profile(id: '2', level: 'Open'),
         ),
       ];
       final sorted = sortDiscoverEntries(
         entries: entries,
         sort: AthleteDiscoverSort.level,
       );
+      // Sort por nível é decrescente: Open (3) vem antes de Iniciante (1).
       expect(sorted.first.userId, '2');
     });
   });

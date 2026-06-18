@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/auth/active_role_providers.dart';
 import '../../../../core/auth/app_mobile_role.dart';
@@ -94,9 +93,6 @@ class _RoleSelectionPageState extends ConsumerState<RoleSelectionPage> {
                     );
                   }
                   final selected = _selected ?? roles.first;
-                  final roleCountLabel = roles.length == 1
-                      ? '1 papel'
-                      : '${roles.length} papéis';
 
                   return FadeSlideIn(
                     child: SingleChildScrollView(
@@ -110,16 +106,6 @@ class _RoleSelectionPageState extends ConsumerState<RoleSelectionPage> {
                           ),
                           const SizedBox(height: 28),
                           Text(
-                            'BEM-VINDO DE VOLTA',
-                            style: AppTypography.mono(
-                              color: AppColors.brand,
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
                             'Olá, $firstName.',
                             style: theme.textTheme.headlineMedium?.copyWith(
                               fontWeight: FontWeight.w800,
@@ -128,26 +114,12 @@ class _RoleSelectionPageState extends ConsumerState<RoleSelectionPage> {
                               height: 1.15,
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          RichText(
-                            text: TextSpan(
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: context.themeColors.onSurfaceMuted,
-                                height: 1.45,
-                              ),
-                              children: [
-                                const TextSpan(text: 'Você tem '),
-                                TextSpan(
-                                  text: roleCountLabel,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.brand,
-                                  ),
-                                ),
-                                const TextSpan(
-                                  text: ' no NexaGO. Como quer entrar agora?',
-                                ),
-                              ],
+                          const SizedBox(height: 8),
+                          Text(
+                            'Como você quer entrar?',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: context.themeColors.onSurfaceMuted,
+                              height: 1.45,
                             ),
                           ),
                           const SizedBox(height: 24),
@@ -185,32 +157,37 @@ class _RoleSelectionPageState extends ConsumerState<RoleSelectionPage> {
                                       color: AppColors.black,
                                     ),
                                   )
-                                : Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'Continuar como ',
-                                        style: theme.textTheme.titleSmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w700,
-                                              color: AppColors.black,
-                                            ),
-                                      ),
-                                      Text(
-                                        selected.continueLabel,
-                                        style: theme.textTheme.titleSmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w900,
-                                              color: AppColors.black,
-                                            ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      const Icon(
-                                        Icons.arrow_forward_rounded,
-                                        size: 18,
-                                        color: AppColors.black,
-                                      ),
-                                    ],
+                                : FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          'Continuar como ',
+                                          style: theme.textTheme.titleSmall
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                                color: AppColors.black,
+                                              ),
+                                        ),
+                                        Text(
+                                          selected.continueLabel,
+                                          style: theme.textTheme.titleSmall
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w900,
+                                                color: AppColors.black,
+                                              ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        const Icon(
+                                          Icons.arrow_forward_rounded,
+                                          size: 18,
+                                          color: AppColors.black,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                           ),
                         ],

@@ -70,7 +70,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, mapFirebaseAuthException(e), isError: true);
+      final classified = classifyFirebaseAuthError(e);
+      switch (classified.field) {
+        case AuthErrorField.email:
+          setState(() => _emailError = classified.message);
+        case AuthErrorField.password:
+          setState(() => _passwordError = classified.message);
+        case AuthErrorField.form:
+          showAppSnackBar(context, classified.message, isError: true);
+      }
     } catch (e) {
       if (!mounted) return;
       showAppSnackBar(
@@ -210,10 +218,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           child: FilledButton(
                             onPressed: busy ? null : _submit,
                             style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.brandPressed,
+                              backgroundColor: AppColors.brand,
                               foregroundColor: AppColors.black,
                               disabledBackgroundColor:
-                                  AppColors.brandPressed.withValues(alpha: 0.35),
+                                  AppColors.brand.withValues(alpha: 0.35),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
@@ -246,16 +254,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                           icon: const AuthGoogleGlyph(),
                           label: 'Continuar com Google',
                         ),
-                        SizedBox(height: 10),
-                        AuthSocialButton(
-                          onPressed: null,
-                          icon: Icon(
-                            Icons.apple,
-                            size: 22,
-                            color: context.themeColors.onSurface,
-                          ),
-                          label: 'Continuar com Apple',
-                        ),
+                        // Apple Sign-In ainda não implementado: ocultado para
+                        // não expor uma ação inerte (e evitar rejeição na App
+                        // Store por botão social desabilitado).
                         SizedBox(height: 28),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,

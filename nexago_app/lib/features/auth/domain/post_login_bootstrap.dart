@@ -11,13 +11,30 @@ import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/domain/athlete_public_profile_models.dart';
 import '../../athlete/domain/athlete_public_profile_providers.dart';
 
-/// Duração mínima da tela de loading pós-login.
-const kPostLoginBootstrapMinDuration = Duration(seconds: 3);
+/// Piso mínimo da tela de loading pós-login — um breve "flash" de marca, não
+/// uma espera. O destino é liberado assim que o bootstrap essencial conclui;
+/// este piso só evita um flicker quando os dados voltam quase instantâneos.
+const kPostLoginBootstrapMinDuration = Duration(milliseconds: 600);
 
 /// Timeout generoso para não travar a navegação.
 const kPostLoginBootstrapTimeout = Duration(seconds: 15);
 
 enum SessionBootstrapState { pending, complete }
+
+/// Decide se uma transição do estado de auth deve disparar o bootstrap em tela
+/// cheia (a tela de marca). A PRIMEIRA resolução do auth no processo é o cold
+/// start (sessão restaurada ou ausência de sessão) e vai direto ao destino —
+/// só logins/logouts com o app já em execução é que mostram a tela.
+bool shouldBootstrapForAuthTransition({
+  required bool sawFirstAuthState,
+  required bool hadUser,
+  required bool hasUser,
+}) {
+  if (!sawFirstAuthState) return false;
+  if (!hadUser && hasUser) return true; // login dentro do app
+  if (!hasUser) return true; // logout (próximo login mostra a tela)
+  return false;
+}
 
 final sessionBootstrapProvider =
     NotifierProvider<SessionBootstrapNotifier, SessionBootstrapState>(
@@ -25,19 +42,27 @@ final sessionBootstrapProvider =
 );
 
 class SessionBootstrapNotifier extends Notifier<SessionBootstrapState> {
+  bool _sawFirstAuthState = false;
+
   @override
   SessionBootstrapState build() {
     ref.listen<AsyncValue<User?>>(authProvider, (previous, next) {
-      final prevUser = previous?.valueOrNull;
-      final nextUser = next.valueOrNull;
-      if (prevUser == null && nextUser != null) {
-        state = SessionBootstrapState.pending;
-      }
-      if (nextUser == null) {
+      if (next.isLoading) return;
+      final hadUser = previous?.valueOrNull != null;
+      final hasUser = next.valueOrNull != null;
+      final sawFirst = _sawFirstAuthState;
+      _sawFirstAuthState = true;
+      if (shouldBootstrapForAuthTransition(
+        sawFirstAuthState: sawFirst,
+        hadUser: hadUser,
+        hasUser: hasUser,
+      )) {
         state = SessionBootstrapState.pending;
       }
     });
-    return SessionBootstrapState.pending;
+    // Cold start assume sessão pronta: navega direto e os dados carregam sob
+    // demanda nas telas. Login dentro do app reverte para pending (acima).
+    return SessionBootstrapState.complete;
   }
 
   void markComplete() {

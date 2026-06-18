@@ -1,5 +1,28 @@
 import 'package:firebase_auth/firebase_auth.dart';
 
+/// Campo de destino para feedback de erro de autenticação.
+enum AuthErrorField { email, password, form }
+
+/// Classifica um [FirebaseAuthException] para exibir o erro no campo certo
+/// (inline e persistente) ou, quando sistêmico, em nível de formulário.
+({AuthErrorField field, String message}) classifyFirebaseAuthError(
+  FirebaseAuthException e,
+) {
+  final message = mapFirebaseAuthException(e);
+  switch (e.code) {
+    case 'invalid-email':
+    case 'user-not-found':
+      return (field: AuthErrorField.email, message: message);
+    case 'wrong-password':
+    case 'invalid-credential':
+    case 'invalid-verification-code':
+    case 'invalid-verification-id':
+      return (field: AuthErrorField.password, message: message);
+    default:
+      return (field: AuthErrorField.form, message: message);
+  }
+}
+
 /// Mensagens amigáveis para [FirebaseAuthException] (PT-BR).
 String mapFirebaseAuthException(FirebaseAuthException e) {
   switch (e.code) {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexago_app/core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
@@ -77,6 +79,10 @@ class TournamentCreateRegistrationPage extends ConsumerWidget {
               ),
             ],
           ),
+          if (registrationWindowError(draft) case final error?) ...[
+            const SizedBox(height: 10),
+            _RegistrationWarning(message: error),
+          ],
           const SizedBox(height: 24),
           const OrganizerSectionLabel('PAGAMENTO'),
           const SizedBox(height: 12),
@@ -139,6 +145,42 @@ class TournamentCreateRegistrationPage extends ConsumerWidget {
           ref,
           TournamentCreateStep.registration,
         ),
+      ),
+    );
+  }
+}
+
+class _RegistrationWarning extends StatelessWidget {
+  const _RegistrationWarning({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.pending.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.pending.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.warning_amber_rounded,
+              color: AppColors.pending, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.themeColors.onSurface,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
+            ),
+          ),
+        ],
       ),
     );
   }

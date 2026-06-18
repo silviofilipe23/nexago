@@ -7,17 +7,9 @@ enum OrganizerTournamentListingBadge {
   cancelled,
 }
 
-enum OrganizerCategoryBracketStatus {
-  none,
-  draft,
-  published,
-}
+enum OrganizerCategoryBracketStatus { none, draft, published }
 
-enum OrganizerTournamentDetailTab {
-  categories,
-  overview,
-  financial,
-}
+enum OrganizerTournamentDetailTab { categories, overview }
 
 @immutable
 class OrganizerTournamentSummary {

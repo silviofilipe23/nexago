@@ -23,10 +23,10 @@ import '../../features/organizer/presentation/create/organizer_create_chooser_pa
 import '../../features/organizer/presentation/tournament_create/steps/tournament_create_categories_page.dart';
 import '../../features/organizer/presentation/tournament_create/steps/tournament_create_identity_page.dart';
 import '../../features/organizer/presentation/tournament_create/steps/tournament_create_location_page.dart';
-import '../../features/organizer/presentation/tournament_create/steps/tournament_create_prizes_page.dart';
 import '../../features/organizer/presentation/tournament_create/steps/tournament_create_registration_page.dart';
 import '../../features/organizer/presentation/tournament_create/steps/tournament_create_review_page.dart';
 import '../../features/organizer/presentation/tournament_create/steps/tournament_create_rules_page.dart';
+import '../../features/organizer/presentation/tournament_create/tournament_express_create_page.dart';
 import '../../features/organizer/presentation/tournament_create/tournament_published_page.dart';
 import '../../features/organizer/presentation/league_create/steps/league_create_identity_page.dart';
 import '../../features/organizer/presentation/league_create/steps/league_create_season_page.dart';
@@ -274,6 +274,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const OrganizerCreateChooserPage(),
           ),
           GoRoute(
+            path: 'tournaments/new/express',
+            name: AppRouteNames.organizerTournamentCreateExpress,
+            builder: (context, state) => const TournamentExpressCreatePage(),
+          ),
+          GoRoute(
             path: 'tournaments/new/identity',
             name: AppRouteNames.organizerTournamentCreateIdentity,
             builder: (context, state) => const TournamentCreateIdentityPage(),
@@ -303,7 +308,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'tournaments/new/prizes',
             name: AppRouteNames.organizerTournamentCreatePrizes,
-            builder: (context, state) => const TournamentCreatePrizesPage(),
+            redirect: (context, state) =>
+                state.namedLocation(AppRouteNames.organizerTournamentCreateRules),
           ),
           GoRoute(
             path: 'tournaments/new/rules',

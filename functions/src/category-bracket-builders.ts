@@ -1,3 +1,11 @@
+import {
+  BRACKET_DEFINITIONS,
+  bracketToMatchType,
+  validateBracketDefinition,
+  type MatchDefinition,
+  type MatchInputSource,
+} from "./bracket-definitions/bracket-definitions";
+
 export interface BracketAdvanceSlot {
   matchNumber: number;
   teamSlot: "teamAId" | "teamBId";
@@ -217,70 +225,6 @@ function buildSingleEliminationKnockoutMatches(
   return rounds.flat();
 }
 
-/** Gera chave WB + LB + Final (matchType alinhado ao app: WB, LB, Final). */
-export function buildDoubleEliminationMatches(teamIds: string[]): MatchDraft[] {
-  const matches: MatchDraft[] = [];
-  const n = teamIds.length;
-  if (n < 2) return matches;
-
-  const bracketSize = 1 << Math.ceil(Math.log2(n));
-  const padded = [...teamIds];
-  while (padded.length < bracketSize) padded.push("");
-
-  let matchNumber = 1;
-  const wbRounds = Math.log2(bracketSize);
-
-  let wbMatchesInRound = bracketSize / 2;
-  for (let round = 1; round <= wbRounds; round++) {
-    for (let i = 0; i < wbMatchesInRound; i++) {
-      matches.push({
-        round,
-        matchType: "WB",
-        poolId: "",
-        teamAId: round === 1 ? (padded[i * 2] ?? "") : "",
-        teamBId: round === 1 ? (padded[i * 2 + 1] ?? "") : "",
-        isGroupMatch: false,
-        matchNumber: matchNumber++,
-      });
-    }
-    wbMatchesInRound = wbMatchesInRound / 2;
-  }
-
-  if (bracketSize >= 4) {
-    const lbRounds = 2 * (wbRounds - 1);
-    let lbMatchesInRound = bracketSize / 4;
-    for (let lbRound = 1; lbRound <= lbRounds; lbRound++) {
-      for (let i = 0; i < lbMatchesInRound; i++) {
-        matches.push({
-          round: lbRound,
-          matchType: "LB",
-          poolId: "",
-          teamAId: "",
-          teamBId: "",
-          isGroupMatch: false,
-          matchNumber: matchNumber++,
-        });
-      }
-      if (lbRound % 2 === 0 && lbMatchesInRound > 1) {
-        lbMatchesInRound = lbMatchesInRound / 2;
-      }
-    }
-  }
-
-  matches.push({
-    round: 0,
-    matchType: "Final",
-    poolId: "",
-    teamAId: "",
-    teamBId: "",
-    isGroupMatch: false,
-    matchNumber: matchNumber++,
-  });
-
-  wireDoubleEliminationAdvances(matches);
-  return matches;
-}
-
 function slotForIndex(index: number): "teamAId" | "teamBId" {
   return index % 2 === 0 ? "teamAId" : "teamBId";
 }
@@ -292,99 +236,258 @@ function advanceTo(
   return {matchNumber: target.matchNumber, teamSlot};
 }
 
-/** Liga vencedores/perdedores WB/LB/Final após gerar a chave DE. */
-export function wireDoubleEliminationAdvances(matches: MatchDraft[]): void {
-  const finalMatch = matches.find((m) => m.matchType === "Final");
-  if (!finalMatch) return;
+/**
+ * Gera a chave de dupla eliminação no modelo de SEMIFINAIS PARALELAS:
+ *
+ * - WB (winners) é uma eliminatória simples → produz campeão WB + vice WB
+ *   (os dois finalistas da WB).
+ * - LB (losers) recebe os perdedores das rodadas da WB EXCETO a final da WB e
+ *   se resolve sozinha → produz campeão LB + vice LB.
+ * - Grande Final: campeão WB × campeão LB.
+ * - 3º lugar: vice WB (perdedor da final WB) × vice LB (perdedor da final LB).
+ *   O perdedor da final da WB NÃO cai mais na LB (sem "reset").
+ *
+ * Os `matchNumber` seguem a ordem cronológica de jogo, intercalando WB e LB por
+ * rodada (WB R1, LB R1, WB R2, LB R2, LB R3, WB R3, …, final WB, final LB,
+ * 3º lugar, grande final).
+ *
+ * NOTA: a estrutura é exata para potências de 2 (4, 8, 16, 32…). Para outras
+ * contagens usa-se preenchimento com BYE (slots vazios) que precisam ser
+ * resolvidos no seeding/walkover — passo ainda não automatizado para a DE.
+ */
+/** Texto de placeholder ("Vencedor Jogo #N" / "Perdedor Jogo #N"). */
+function sourceDescription(src: MatchInputSource): string {
+  switch (src.type) {
+    case "WINNER":
+      return `Vencedor Jogo #${src.matchNumber}`;
+    case "LOSER":
+      return `Perdedor Jogo #${src.matchNumber}`;
+    case "BYE":
+      return "BYE";
+    case "SEED":
+      return "";
+  }
+}
 
-  const wbRounds: MatchDraft[][] = [];
-  const lbRounds: MatchDraft[][] = [];
+/**
+ * Materializa uma planta declarativa (`MatchDefinition[]`) em `MatchDraft[]`:
+ * resolve SEED → teamId (pelo seeding), preenche placeholders para WINNER/LOSER
+ * e conecta os avanços (`winnerAdvance`/`loserAdvance`) da partida de ORIGEM
+ * para o slot da partida de DESTINO.
+ */
+export function buildMatchesFromDefinition(
+  definition: MatchDefinition[],
+  teamIds: string[],
+): MatchDraft[] {
+  validateBracketDefinition(definition);
 
-  for (const match of matches) {
-    if (match.matchType === "WB") {
-      const idx = match.round - 1;
-      if (!wbRounds[idx]) wbRounds[idx] = [];
-      wbRounds[idx].push(match);
-    } else if (match.matchType === "LB") {
-      const idx = match.round - 1;
-      if (!lbRounds[idx]) lbRounds[idx] = [];
-      lbRounds[idx].push(match);
+  const drafts = new Map<number, MatchDraft>();
+
+  const applySource = (
+    draft: MatchDraft,
+    slot: "teamAId" | "teamBId",
+    src: MatchInputSource,
+  ): void => {
+    if (src.type === "SEED") {
+      draft[slot] = teamIds[src.seed - 1] ?? "";
+      return;
     }
+    const descSlot = slot === "teamAId" ? "teamADescription" : "teamBDescription";
+    const desc = sourceDescription(src);
+    if (desc) draft[descSlot] = desc;
+  };
+
+  for (const def of definition) {
+    const draft: MatchDraft = {
+      round: def.round,
+      matchType: bracketToMatchType(def.bracket),
+      poolId: "",
+      teamAId: "",
+      teamBId: "",
+      isGroupMatch: false,
+      matchNumber: def.matchNumber,
+    };
+    applySource(draft, "teamAId", def.teamA);
+    applySource(draft, "teamBId", def.teamB);
+    drafts.set(def.matchNumber, draft);
   }
 
-  for (const round of wbRounds) {
-    round.sort((a, b) => a.matchNumber - b.matchNumber);
-  }
-  for (const round of lbRounds) {
-    round.sort((a, b) => a.matchNumber - b.matchNumber);
-  }
-
-  const wbRoundCount = wbRounds.length;
-  if (wbRoundCount === 0) return;
-
-  for (let r = 0; r < wbRoundCount - 1; r++) {
-    const current = wbRounds[r];
-    const next = wbRounds[r + 1];
-    for (let i = 0; i < current.length; i++) {
-      const target = next[Math.floor(i / 2)];
-      if (!target) continue;
-      current[i].winnerAdvance = advanceTo(target, slotForIndex(i));
+  const wire = (
+    destMatchNumber: number,
+    slot: "teamAId" | "teamBId",
+    src: MatchInputSource,
+  ): void => {
+    if (src.type !== "WINNER" && src.type !== "LOSER") return;
+    const source = drafts.get(src.matchNumber);
+    if (!source) return;
+    const advance: BracketAdvanceSlot = {matchNumber: destMatchNumber, teamSlot: slot};
+    if (src.type === "WINNER") {
+      source.winnerAdvance = advance;
+    } else {
+      source.loserAdvance = advance;
     }
+  };
+
+  for (const def of definition) {
+    wire(def.matchNumber, "teamAId", def.teamA);
+    wire(def.matchNumber, "teamBId", def.teamB);
   }
 
-  const wbFinal = wbRounds[wbRoundCount - 1][0];
-  if (wbFinal) {
-    wbFinal.winnerAdvance = advanceTo(finalMatch, "teamAId");
-    const lbFinalRound = lbRounds[lbRounds.length - 1];
-    const lbFinal = lbFinalRound?.[0];
-    if (lbFinal) {
-      wbFinal.loserAdvance = advanceTo(lbFinal, "teamBId");
+  return definition.map((def) => drafts.get(def.matchNumber)!);
+}
+
+export function buildDoubleEliminationMatches(teamIds: string[]): MatchDraft[] {
+  const n = teamIds.length;
+  if (n < 2) return [];
+
+  // Quando existe uma planta estática para esse nº de equipes, usa-a (estrutura
+  // desenhada à mão, com 3º lugar). Senão, cai no gerador algorítmico.
+  const definition = BRACKET_DEFINITIONS[n];
+  if (definition) return buildMatchesFromDefinition(definition, teamIds);
+
+  const bracketSize = 1 << Math.ceil(Math.log2(n));
+  const padded = [...teamIds];
+  while (padded.length < bracketSize) padded.push("");
+
+  const wbRoundCount = Math.log2(bracketSize);
+
+  // ── Winners bracket ──
+  const wb: MatchDraft[][] = [];
+  let wbCount = bracketSize / 2;
+  for (let j = 0; j < wbRoundCount; j++) {
+    const bucket: MatchDraft[] = [];
+    for (let i = 0; i < wbCount; i++) {
+      bucket.push({
+        round: j + 1,
+        matchType: "WB",
+        poolId: "",
+        teamAId: j === 0 ? (padded[i * 2] ?? "") : "",
+        teamBId: j === 0 ? (padded[i * 2 + 1] ?? "") : "",
+        isGroupMatch: false,
+        matchNumber: 0,
+      });
     }
+    wb.push(bucket);
+    wbCount = wbCount / 2;
   }
 
-  const wbFirst = wbRounds[0];
-  const lbFirst = lbRounds[0];
-  if (wbFirst && lbFirst) {
-    for (let i = 0; i < wbFirst.length; i++) {
-      const target = lbFirst[Math.floor(i / 2)];
-      if (!target) continue;
-      wbFirst[i].loserAdvance = advanceTo(target, slotForIndex(i));
-    }
-  }
-
-  for (let r = 1; r < wbRoundCount - 1; r++) {
-    const wbRound = wbRounds[r];
-    const lbRound = lbRounds[2 * r];
-    if (!wbRound || !lbRound) continue;
-    for (let i = 0; i < wbRound.length; i++) {
-      const target = lbRound[Math.min(i, lbRound.length - 1)];
-      if (!target) continue;
-      wbRound[i].loserAdvance = advanceTo(target, "teamBId");
-    }
-  }
-
-  for (let r = 0; r < lbRounds.length - 1; r++) {
-    const current = lbRounds[r];
-    const next = lbRounds[r + 1];
-    if (!current || !next) continue;
-
-    if (current.length === next.length) {
-      for (let i = 0; i < current.length; i++) {
-        current[i].winnerAdvance = advanceTo(next[i], "teamAId");
+  // ── Losers bracket (auto-contida; não recebe o perdedor da final da WB) ──
+  // Tamanhos: B/4, B/4, B/8, B/8, … até 1. Rodadas pares (0-based) são "minor"
+  // (sobreviventes da LB se enfrentam); ímpares são "major" (sobrevivente da LB
+  // × perdedor que desce da WB). L = 2k-3 rodadas.
+  const lb: MatchDraft[][] = [];
+  if (bracketSize >= 4) {
+    const lbRoundCount = 2 * wbRoundCount - 3;
+    let count = bracketSize / 4;
+    for (let r = 0; r < lbRoundCount; r++) {
+      const bucket: MatchDraft[] = [];
+      for (let i = 0; i < count; i++) {
+        bucket.push({
+          round: r + 1,
+          matchType: "LB",
+          poolId: "",
+          teamAId: "",
+          teamBId: "",
+          isGroupMatch: false,
+          matchNumber: 0,
+        });
       }
-      continue;
-    }
-
-    for (let i = 0; i < current.length; i++) {
-      const target = next[Math.floor(i / 2)];
-      if (!target) continue;
-      current[i].winnerAdvance = advanceTo(target, slotForIndex(i));
+      lb.push(bucket);
+      if (r % 2 === 1 && count > 1) count = count / 2;
     }
   }
 
-  const lbFinalRound = lbRounds[lbRounds.length - 1];
-  const lbFinal = lbFinalRound?.[0];
-  if (lbFinal) {
-    lbFinal.winnerAdvance = advanceTo(finalMatch, "teamBId");
+  const hasLosers = lb.length > 0;
+  const thirdPlace: MatchDraft = {
+    round: 1,
+    matchType: "Third Place",
+    poolId: "",
+    teamAId: "",
+    teamBId: "",
+    isGroupMatch: false,
+    matchNumber: 0,
+  };
+  const grandFinal: MatchDraft = {
+    round: 1,
+    matchType: "Final",
+    poolId: "",
+    teamAId: "",
+    teamBId: "",
+    isGroupMatch: false,
+    matchNumber: 0,
+  };
+
+  // ── Numeração cronológica (intercalada por rodada) ──
+  const ordered: MatchDraft[] = [];
+  let matchNumber = 1;
+  const emit = (bucket?: MatchDraft[]): void => {
+    if (!bucket) return;
+    for (const match of bucket) {
+      match.matchNumber = matchNumber++;
+      ordered.push(match);
+    }
+  };
+
+  emit(wb[0]); // WB R1
+  if (hasLosers) emit(lb[0]); // LB R1 (perdedores da WB R1)
+  let nextLb = 1;
+  for (let j = 1; j <= wbRoundCount - 2; j++) {
+    emit(wb[j]); // WB R(j+1) intermediária
+    if (nextLb < lb.length) emit(lb[nextLb++]); // major (recebe perdedores)
+    if (nextLb < lb.length - 1) emit(lb[nextLb++]); // minor seguinte (não a final)
   }
+  emit(wb[wbRoundCount - 1]); // final da WB
+  while (nextLb < lb.length) emit(lb[nextLb++]); // final da LB (e restantes)
+  if (hasLosers) emit([thirdPlace]);
+  emit([grandFinal]);
+
+  // ── Fiação de avanço (vencedor/perdedor), já com matchNumber atribuído ──
+  // WB: vencedores avançam na WB.
+  for (let j = 0; j < wbRoundCount - 1; j++) {
+    for (let i = 0; i < wb[j].length; i++) {
+      wb[j][i].winnerAdvance = advanceTo(wb[j + 1][Math.floor(i / 2)], slotForIndex(i));
+    }
+  }
+  const wbFinal = wb[wbRoundCount - 1][0];
+  wbFinal.winnerAdvance = advanceTo(grandFinal, "teamAId");
+  if (hasLosers) wbFinal.loserAdvance = advanceTo(thirdPlace, "teamAId");
+
+  if (hasLosers) {
+    // Perdedores da WB R1 → primeira rodada (minor) da LB.
+    for (let i = 0; i < wb[0].length; i++) {
+      wb[0][i].loserAdvance = advanceTo(lb[0][Math.floor(i / 2)], slotForIndex(i));
+    }
+    // Perdedores das WB intermediárias R(j+1) → rodada "major" lb[2j-1] (teamB).
+    for (let j = 1; j <= wbRoundCount - 2; j++) {
+      const major = lb[2 * j - 1];
+      if (!major) continue;
+      for (let i = 0; i < wb[j].length; i++) {
+        if (!major[i]) continue;
+        wb[j][i].loserAdvance = advanceTo(major[i], "teamBId");
+      }
+    }
+
+    // LB → LB: minor→major (mesma contagem, vencedor ocupa teamA) ou
+    // major→minor (metade da contagem).
+    for (let r = 0; r < lb.length - 1; r++) {
+      const cur = lb[r];
+      const nxt = lb[r + 1];
+      if (cur.length === nxt.length) {
+        for (let i = 0; i < cur.length; i++) {
+          cur[i].winnerAdvance = advanceTo(nxt[i], "teamAId");
+        }
+      } else {
+        for (let i = 0; i < cur.length; i++) {
+          cur[i].winnerAdvance = advanceTo(nxt[Math.floor(i / 2)], slotForIndex(i));
+        }
+      }
+    }
+
+    // Final da LB: vencedor → grande final; perdedor → 3º lugar.
+    const lbFinal = lb[lb.length - 1][0];
+    lbFinal.winnerAdvance = advanceTo(grandFinal, "teamBId");
+    lbFinal.loserAdvance = advanceTo(thirdPlace, "teamBId");
+  }
+
+  return ordered;
 }

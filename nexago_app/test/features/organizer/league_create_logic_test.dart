@@ -69,6 +69,33 @@ void main() {
       );
     });
 
+    test('season rejects fewer than 2 planned stages and bad range', () {
+      const onlyOne = LeagueCreateDraft(
+        name: 'Copa',
+        plannedStagesCount: 1,
+      );
+      expect(
+        canContinueFromLeagueStep(
+          onlyOne.copyWith(
+            seasonStartAt: DateTime(2026, 2, 1),
+            seasonEndAt: DateTime(2026, 10, 1),
+          ),
+          LeagueCreateStep.season,
+        ),
+        isFalse,
+      );
+
+      final endBeforeStart = const LeagueCreateDraft(name: 'Copa').copyWith(
+        seasonStartAt: DateTime(2026, 10, 1),
+        seasonEndAt: DateTime(2026, 2, 1),
+        plannedStagesCount: 6,
+      );
+      expect(
+        canContinueFromLeagueStep(endBeforeStart, LeagueCreateStep.season),
+        isFalse,
+      );
+    });
+
     test('stages requires at least one stage', () {
       const draft = LeagueCreateDraft(name: 'Copa');
       expect(
@@ -84,6 +111,47 @@ void main() {
       );
       expect(
         canContinueFromLeagueStep(withStages, LeagueCreateStep.stages),
+        isTrue,
+      );
+    });
+
+    test('ranking requires grand final spots and valid wildcard', () {
+      const noSpots = LeagueCreateDraft(grandFinalSpots: 0);
+      expect(
+        canContinueFromLeagueStep(noSpots, LeagueCreateStep.ranking),
+        isFalse,
+      );
+
+      const wildcardOnNoSpots = LeagueCreateDraft(
+        grandFinalSpots: 8,
+        wildcardEnabled: true,
+        wildcardSpots: 0,
+      );
+      expect(
+        canContinueFromLeagueStep(wildcardOnNoSpots, LeagueCreateStep.ranking),
+        isFalse,
+      );
+
+      const wildcardOff = LeagueCreateDraft(
+        grandFinalSpots: 8,
+        wildcardEnabled: false,
+        wildcardSpots: 0,
+      );
+      expect(
+        canContinueFromLeagueStep(wildcardOff, LeagueCreateStep.ranking),
+        isTrue,
+      );
+
+      const wildcardOnWithSpots = LeagueCreateDraft(
+        grandFinalSpots: 8,
+        wildcardEnabled: true,
+        wildcardSpots: 2,
+      );
+      expect(
+        canContinueFromLeagueStep(
+          wildcardOnWithSpots,
+          LeagueCreateStep.ranking,
+        ),
         isTrue,
       );
     });
@@ -109,6 +177,43 @@ void main() {
       final stages = buildDefaultLeagueStages(draft);
       expect(stages, hasLength(5));
       expect(stages.last.isGrandFinal, isTrue);
+      expect(stages.last.order, 5);
+    });
+
+    test('omits grand final when disabled', () {
+      const draft = LeagueCreateDraft(
+        plannedStagesCount: 4,
+        grandFinalEnabled: false,
+      );
+      final stages = buildDefaultLeagueStages(draft);
+      expect(stages, hasLength(4));
+      expect(stages.any((s) => s.isGrandFinal), isFalse);
+    });
+
+    test('clamps planned stages between 2 and 12', () {
+      final tooMany = buildDefaultLeagueStages(
+        const LeagueCreateDraft(plannedStagesCount: 20, grandFinalEnabled: false),
+      );
+      expect(tooMany, hasLength(12));
+
+      final tooFew = buildDefaultLeagueStages(
+        const LeagueCreateDraft(plannedStagesCount: 1, grandFinalEnabled: false),
+      );
+      expect(tooFew, hasLength(2));
+    });
+  });
+
+  group('effectiveRankingPoints', () {
+    test('uses custom points when provided', () {
+      const draft = LeagueCreateDraft(
+        rankingPointsByPlace: {'1': 1000, '2': 600},
+      );
+      expect(effectiveRankingPoints(draft), {'1': 1000, '2': 600});
+    });
+
+    test('falls back to default when empty', () {
+      const draft = LeagueCreateDraft();
+      expect(effectiveRankingPoints(draft), defaultLeagueRankingPoints);
     });
   });
 
@@ -141,6 +246,19 @@ void main() {
         ],
       );
       expect(isValidLeagueForPublish(allPending), isFalse);
+    });
+
+    test('rejects category with unsupported bracket system', () {
+      final draft = _validDraft().copyWith(
+        categories: const [
+          TournamentCategoryDraft(
+            id: 'c1',
+            spots: 16,
+            bracketSystem: TournamentBracketSystem.roundRobin,
+          ),
+        ],
+      );
+      expect(isValidLeagueForPublish(draft), isFalse);
     });
   });
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -495,6 +496,9 @@ class OrganizerTextField extends StatelessWidget {
     this.maxLines = 1,
     this.keyboardType,
     this.onChanged,
+    this.textCapitalization = TextCapitalization.none,
+    this.maxLength,
+    this.inputFormatters,
   });
 
   final TextEditingController controller;
@@ -502,6 +506,9 @@ class OrganizerTextField extends StatelessWidget {
   final int maxLines;
   final TextInputType? keyboardType;
   final ValueChanged<String>? onChanged;
+  final TextCapitalization textCapitalization;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -510,6 +517,12 @@ class OrganizerTextField extends StatelessWidget {
       maxLines: maxLines,
       keyboardType: keyboardType,
       onChanged: onChanged,
+      textCapitalization: textCapitalization,
+      maxLength: maxLength,
+      inputFormatters: inputFormatters,
+      buildCounter: maxLength != null
+          ? (_, {required currentLength, required isFocused, maxLength}) => null
+          : null,
       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             fontWeight: FontWeight.w600,
           ),

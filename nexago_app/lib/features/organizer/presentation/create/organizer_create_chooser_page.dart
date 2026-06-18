@@ -5,7 +5,6 @@ import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
-import 'package:nexago_app/core/ui/app_snackbar.dart';
 
 import '../../domain/league_create/league_create_providers.dart';
 import '../../domain/tournament_create/tournament_create_providers.dart';
@@ -257,34 +256,56 @@ class _OrganizerCreateChooserPageState
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: SizedBox(
-                height: 52,
-                child: FilledButton(
-                  onPressed: _continue,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        _selected == _CreateEventType.tournament
-                            ? 'Criar torneio avulso'
-                            : 'Criar liga',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: 52,
+                    child: FilledButton(
+                      onPressed: _continue,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                        foregroundColor: AppColors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      const Icon(Icons.add_rounded, size: 18),
-                    ],
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _selected == _CreateEventType.tournament
+                                ? 'Configuração completa'
+                                : 'Criar liga',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(Icons.add_rounded, size: 18),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                  if (_selected == _CreateEventType.tournament) ...[
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () => context.pushNamed(
+                        AppRouteNames.organizerTournamentCreateExpress,
+                      ),
+                      icon: const Icon(Icons.bolt_rounded,
+                          size: 18, color: AppColors.brand),
+                      label: const Text(
+                        'Criação expressa · publique em 1 minuto',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.brand,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],

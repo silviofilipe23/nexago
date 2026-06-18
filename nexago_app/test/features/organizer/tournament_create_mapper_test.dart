@@ -190,11 +190,11 @@ void main() {
       draft: draft,
       managerId: 'uid',
       publish: false,
-      wizardStep: TournamentCreateStep.prizes,
+      wizardStep: TournamentCreateStep.rules,
       isUpdate: true,
     );
 
-    expect(map['wizardStep'], 'prizes');
+    expect(map['wizardStep'], 'rules');
     expect(map.containsKey('createdAt'), isFalse);
     expect(map.containsKey('enrolledCount'), isFalse);
   });
@@ -255,5 +255,136 @@ void main() {
     expect(category['uniformType'], 'none');
     expect(category['uniformNumberOnShirt'], isFalse);
     expect(category['uniformNameOnShirt'], isFalse);
+  });
+
+  TournamentCreateDraft draftWith({
+    List<TournamentCategoryDraft> categories = const [
+      TournamentCategoryDraft(id: 'c1', spots: 16),
+    ],
+    bool rankingEnabled = true,
+    String rankingTableId = 'nexago_standalone',
+  }) {
+    return TournamentCreateDraft(
+      name: 'Open',
+      city: 'Goiânia',
+      locationName: 'Arena',
+      startAt: DateTime(2026, 4, 1),
+      endAt: DateTime(2026, 4, 2),
+      categories: categories,
+      rankingEnabled: rankingEnabled,
+      rankingTableId: rankingTableId,
+    );
+  }
+
+  test('toFirestore capacity is the sum of category spots', () {
+    final map = TournamentCreateMapper.toFirestore(
+      draft: draftWith(
+        categories: const [
+          TournamentCategoryDraft(id: 'c1', spots: 16),
+          TournamentCategoryDraft(id: 'c2', spots: 12),
+        ],
+      ),
+      managerId: 'uid',
+      publish: true,
+    );
+    expect(map['capacity'], 28);
+  });
+
+  test('toFirestore format is dupla by default and individual when present', () {
+    final dupla = TournamentCreateMapper.toFirestore(
+      draft: draftWith(),
+      managerId: 'uid',
+      publish: true,
+    );
+    expect(dupla['format'], 'dupla');
+
+    final individual = TournamentCreateMapper.toFirestore(
+      draft: draftWith(
+        categories: const [
+          TournamentCategoryDraft(id: 'c1'),
+          TournamentCategoryDraft(
+            id: 'c2',
+            dispute: TournamentCategoryDispute.individual,
+          ),
+        ],
+      ),
+      managerId: 'uid',
+      publish: true,
+    );
+    expect(individual['format'], 'individual');
+  });
+
+  test('toFirestore nulls rankingTableId when ranking disabled', () {
+    final on = TournamentCreateMapper.toFirestore(
+      draft: draftWith(rankingEnabled: true),
+      managerId: 'uid',
+      publish: true,
+    );
+    expect(on['rankingEnabled'], isTrue);
+    expect(on['rankingTableId'], 'nexago_standalone');
+
+    final off = TournamentCreateMapper.toFirestore(
+      draft: draftWith(rankingEnabled: false),
+      managerId: 'uid',
+      publish: true,
+    );
+    expect(off['rankingEnabled'], isFalse);
+    expect(off['rankingTableId'], isNull);
+  });
+
+  test('fromFirestore parses legacy prize "value" (reais) to cents', () {
+    final parsed = TournamentCreateMapper.fromFirestore(
+      {
+        'name': 'Legacy Prizes',
+        'city': 'Goiânia',
+        'locationName': 'Arena',
+        'startAt': Timestamp.fromDate(DateTime(2026, 3, 28)),
+        'endAt': Timestamp.fromDate(DateTime(2026, 3, 30)),
+        'categories': [
+          {
+            'id': 'cat-1',
+            'maxTeams': 16,
+            'prizes': [
+              {'position': '1', 'value': 150},
+              {'position': '2', 'valueCents': 8000},
+            ],
+          },
+        ],
+      },
+      'legacy-prizes',
+    );
+
+    final prizes = parsed.draft.categories.first.prizes;
+    expect(prizes, hasLength(2));
+    expect(prizes[0].valueCents, 15000);
+    expect(prizes[1].valueCents, 8000);
+  });
+
+  test('fromFirestore tolerates legacy prize "value" as a string (no crash)', () {
+    final parsed = TournamentCreateMapper.fromFirestore(
+      {
+        'name': 'Legacy String Prizes',
+        'city': 'Goiânia',
+        'locationName': 'Arena',
+        'startAt': Timestamp.fromDate(DateTime(2026, 3, 28)),
+        'endAt': Timestamp.fromDate(DateTime(2026, 3, 30)),
+        'categories': [
+          {
+            'id': 'cat-1',
+            'maxTeams': 16,
+            'prizes': [
+              {'position': '1', 'value': '150'},
+              {'position': '2', 'value': 'abc'},
+            ],
+          },
+        ],
+      },
+      'legacy-string-prizes',
+    );
+
+    final prizes = parsed.draft.categories.first.prizes;
+    expect(prizes, hasLength(2));
+    expect(prizes[0].valueCents, 15000);
+    expect(prizes[1].valueCents, 0); // não numérico → 0, sem estourar
   });
 }

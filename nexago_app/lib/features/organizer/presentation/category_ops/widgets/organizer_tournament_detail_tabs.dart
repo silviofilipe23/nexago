@@ -18,7 +18,6 @@ class OrganizerTournamentDetailTabs extends StatelessWidget {
   static const _labels = {
     OrganizerTournamentDetailTab.categories: 'Categorias',
     OrganizerTournamentDetailTab.overview: 'Visão geral',
-    OrganizerTournamentDetailTab.financial: 'Financeiro',
   };
 
   @override

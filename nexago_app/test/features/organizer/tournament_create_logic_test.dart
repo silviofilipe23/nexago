@@ -41,6 +41,229 @@ void main() {
     });
   });
 
+  group('canContinueFromStep location', () {
+    TournamentCreateDraft draft({
+      String city = 'Goiânia',
+      String location = 'Arena',
+      DateTime? start,
+      DateTime? end,
+      int courts = 4,
+    }) {
+      return TournamentCreateDraft(
+        name: 'Open',
+        city: city,
+        locationName: location,
+        startAt: start ?? DateTime(2026, 3, 28),
+        endAt: end ?? DateTime(2026, 3, 30),
+        courtsCount: courts,
+      );
+    }
+
+    test('valid location passes', () {
+      expect(
+        canContinueFromStep(draft(), TournamentCreateStep.location),
+        isTrue,
+      );
+    });
+
+    test('allows same-day start and end', () {
+      final d = draft(start: DateTime(2026, 3, 28), end: DateTime(2026, 3, 28));
+      expect(canContinueFromStep(d, TournamentCreateStep.location), isTrue);
+    });
+
+    test('rejects end before start', () {
+      final d = draft(start: DateTime(2026, 3, 30), end: DateTime(2026, 3, 28));
+      expect(canContinueFromStep(d, TournamentCreateStep.location), isFalse);
+    });
+
+    test('rejects blank city or location', () {
+      expect(
+        canContinueFromStep(draft(city: '   '), TournamentCreateStep.location),
+        isFalse,
+      );
+      expect(
+        canContinueFromStep(
+          draft(location: ''),
+          TournamentCreateStep.location,
+        ),
+        isFalse,
+      );
+    });
+
+    test('rejects zero courts', () {
+      expect(
+        canContinueFromStep(draft(courts: 0), TournamentCreateStep.location),
+        isFalse,
+      );
+    });
+  });
+
+  group('canContinueFromStep registration', () {
+    test('valid window passes', () {
+      final d = TournamentCreateDraft(
+        registrationOpensAt: DateTime(2026, 3, 1),
+        registrationClosesAt: DateTime(2026, 3, 20),
+      );
+      expect(canContinueFromStep(d, TournamentCreateStep.registration), isTrue);
+    });
+
+    test('allows opens == closes', () {
+      final d = TournamentCreateDraft(
+        registrationOpensAt: DateTime(2026, 3, 1),
+        registrationClosesAt: DateTime(2026, 3, 1),
+      );
+      expect(canContinueFromStep(d, TournamentCreateStep.registration), isTrue);
+    });
+
+    test('rejects closes before opens', () {
+      final d = TournamentCreateDraft(
+        registrationOpensAt: DateTime(2026, 3, 20),
+        registrationClosesAt: DateTime(2026, 3, 1),
+      );
+      expect(
+        canContinueFromStep(d, TournamentCreateStep.registration),
+        isFalse,
+      );
+    });
+
+    test('rejects missing dates', () {
+      expect(
+        canContinueFromStep(
+          const TournamentCreateDraft(),
+          TournamentCreateStep.registration,
+        ),
+        isFalse,
+      );
+    });
+
+    test('rejects registration closing after the tournament start', () {
+      final d = TournamentCreateDraft(
+        startAt: DateTime(2026, 5, 10),
+        endAt: DateTime(2026, 5, 12),
+        registrationOpensAt: DateTime(2026, 5, 1),
+        registrationClosesAt: DateTime(2026, 5, 11), // depois do início
+      );
+      expect(
+        canContinueFromStep(d, TournamentCreateStep.registration),
+        isFalse,
+      );
+      expect(
+        registrationWindowError(d),
+        contains('depois do início'),
+      );
+    });
+
+    test('allows registration closing on the start day', () {
+      final d = TournamentCreateDraft(
+        startAt: DateTime(2026, 5, 10),
+        registrationOpensAt: DateTime(2026, 5, 1),
+        registrationClosesAt: DateTime(2026, 5, 10),
+      );
+      expect(registrationWindowError(d), isNull);
+      expect(
+        canContinueFromStep(d, TournamentCreateStep.registration),
+        isTrue,
+      );
+    });
+  });
+
+  group('buildExpressTournamentDraft', () {
+    final now = DateTime(2026, 5, 1);
+
+    test('produces a draft valid for immediate publish', () {
+      final draft = buildExpressTournamentDraft(
+        name: '  Open Goiânia  ',
+        locationName: 'Arena Beach',
+        city: 'Goiânia',
+        state: 'GO',
+        startAt: DateTime(2026, 6, 6),
+        now: now,
+      );
+
+      expect(isValidForPublish(draft), isTrue);
+      expect(draft.name, 'Open Goiânia');
+      expect(draft.cashPrizesEnabled, isFalse);
+      expect(draft.categories, hasLength(1));
+      expect(draft.courtsCount, 4);
+      // Inscrições abrem hoje e fecham no início.
+      expect(draft.registrationOpensAt, DateTime(2026, 5, 1));
+      expect(draft.registrationClosesAt, DateTime(2026, 6, 6));
+      // Fim padrão = início quando não informado.
+      expect(draft.endAt, DateTime(2026, 6, 6));
+    });
+
+    test('keeps a valid multi-day range and clamps inverted end', () {
+      final ok = buildExpressTournamentDraft(
+        name: 'X',
+        locationName: 'Arena',
+        city: 'Goiânia',
+        startAt: DateTime(2026, 6, 6),
+        endAt: DateTime(2026, 6, 8),
+        now: now,
+      );
+      expect(ok.endAt, DateTime(2026, 6, 8));
+
+      final clamped = buildExpressTournamentDraft(
+        name: 'X',
+        locationName: 'Arena',
+        city: 'Goiânia',
+        startAt: DateTime(2026, 6, 6),
+        endAt: DateTime(2026, 6, 1), // antes do início → vira início
+        now: now,
+      );
+      expect(clamped.endAt, DateTime(2026, 6, 6));
+    });
+  });
+
+  group('registrationWindowError', () {
+    test('is null when dates are incomplete', () {
+      expect(registrationWindowError(const TournamentCreateDraft()), isNull);
+    });
+
+    test('flags close before open', () {
+      final d = TournamentCreateDraft(
+        registrationOpensAt: DateTime(2026, 5, 10),
+        registrationClosesAt: DateTime(2026, 5, 1),
+      );
+      expect(registrationWindowError(d), contains('antes da abertura'));
+    });
+  });
+
+  group('canContinueFromStep rules (premiação fundida)', () {
+    test('cash prizes disabled always passes', () {
+      const d = TournamentCreateDraft(
+        cashPrizesEnabled: false,
+        categories: [TournamentCategoryDraft(id: 'c1')],
+      );
+      expect(canContinueFromStep(d, TournamentCreateStep.rules), isTrue);
+    });
+
+    test('cash enabled requires every category to have prizes', () {
+      const withPrize = TournamentCreateDraft(
+        cashPrizesEnabled: true,
+        categories: [
+          TournamentCategoryDraft(
+            id: 'c1',
+            prizes: [TournamentCategoryPrizeDraft(position: '1', valueCents: 1)],
+          ),
+        ],
+      );
+      expect(
+        canContinueFromStep(withPrize, TournamentCreateStep.rules),
+        isTrue,
+      );
+
+      const missingPrize = TournamentCreateDraft(
+        cashPrizesEnabled: true,
+        categories: [TournamentCategoryDraft(id: 'c1')],
+      );
+      expect(
+        canContinueFromStep(missingPrize, TournamentCreateStep.rules),
+        isFalse,
+      );
+    });
+  });
+
   group('defaultCategoryPrizes', () {
     test('sums to total cents', () {
       const total = 800000;
@@ -48,6 +271,72 @@ void main() {
       final sum = prizes.fold<int>(0, (s, p) => s + p.valueCents);
       expect(sum, total);
       expect(prizes, hasLength(3));
+    });
+
+    test('splits 50/31.25 with remainder to third', () {
+      final prizes = defaultCategoryPrizes(100000);
+      expect(prizes[0].valueCents, 50000);
+      expect(prizes[1].valueCents, 31250);
+      expect(prizes[2].valueCents, 18750);
+    });
+
+    test('odd total still sums exactly to total', () {
+      final prizes = defaultCategoryPrizes(99999);
+      final sum = prizes.fold<int>(0, (s, p) => s + p.valueCents);
+      expect(sum, 99999);
+    });
+
+    test('returns empty for zero or negative total', () {
+      expect(defaultCategoryPrizes(0), isEmpty);
+      expect(defaultCategoryPrizes(-100), isEmpty);
+    });
+  });
+
+  group('bracketSystemFromRaw', () {
+    test('parses enum names', () {
+      for (final system in TournamentBracketSystem.values) {
+        expect(bracketSystemFromRaw(system.name), system);
+      }
+    });
+
+    test('returns null for empty or junk', () {
+      expect(bracketSystemFromRaw(''), isNull);
+      expect(bracketSystemFromRaw('   '), isNull);
+      expect(bracketSystemFromRaw('xpto'), isNull);
+    });
+
+    test('maps firestore and legacy aliases', () {
+      expect(
+        bracketSystemFromRaw('groups_then_knockout'),
+        TournamentBracketSystem.groupsThenKnockout,
+      );
+      expect(
+        bracketSystemFromRaw('pool play+se'),
+        TournamentBracketSystem.groupsThenKnockout,
+      );
+      expect(
+        bracketSystemFromRaw('single elimination'),
+        TournamentBracketSystem.singleElimination,
+      );
+      expect(
+        bracketSystemFromRaw('double elimination'),
+        TournamentBracketSystem.doubleElimination,
+      );
+    });
+
+    test('uses heuristics for free-form strings', () {
+      expect(
+        bracketSystemFromRaw('Grupos + mata-mata'),
+        TournamentBracketSystem.groupsThenKnockout,
+      );
+      expect(
+        bracketSystemFromRaw('play-in'),
+        TournamentBracketSystem.groupsThenKnockout,
+      );
+      expect(
+        bracketSystemFromRaw('Dupla eliminatória'),
+        TournamentBracketSystem.doubleElimination,
+      );
     });
   });
 
@@ -107,6 +396,24 @@ void main() {
   group('parseWizardStep', () {
     test('maps legacy format step to categories', () {
       expect(parseWizardStep('format'), TournamentCreateStep.categories);
+    });
+
+    test('maps legacy prizes step to rules (merged step)', () {
+      expect(parseWizardStep('prizes'), TournamentCreateStep.rules);
+    });
+  });
+
+  group('wizard steps', () {
+    test('has 6 steps after merging prizes into rules', () {
+      expect(TournamentCreateStepX.total, 6);
+      expect(
+        TournamentCreateStep.values,
+        isNot(contains(isA<TournamentCreateStep>().having(
+          (s) => s.name,
+          'name',
+          'prizes',
+        ))),
+      );
     });
   });
 

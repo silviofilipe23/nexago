@@ -284,7 +284,6 @@ enum TournamentCreateStep {
   location,
   categories,
   registration,
-  prizes,
   rules,
   review,
 }
@@ -292,5 +291,5 @@ enum TournamentCreateStep {
 extension TournamentCreateStepX on TournamentCreateStep {
   int get index => TournamentCreateStep.values.indexOf(this);
   int get number => index + 1;
-  static const total = 7;
+  static int get total => TournamentCreateStep.values.length;
 }

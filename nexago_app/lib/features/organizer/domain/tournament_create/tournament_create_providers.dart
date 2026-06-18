@@ -364,22 +364,6 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
 
   void setCashPrizesEnabled(bool value) {
     _updateDraft(state.draft.copyWith(cashPrizesEnabled: value));
-    if (value) {
-      ensureDefaultPrizesForAllCategories();
-    }
-  }
-
-  void ensureDefaultPrizesForAllCategories() {
-    final next = state.draft.categories.map((category) {
-      if (category.prizes.isNotEmpty) return category;
-      final total = categoryPrizeTotalCents(category) > 0
-          ? categoryPrizeTotalCents(category)
-          : category.spots * category.priceCents ~/ 4;
-      return category.copyWith(
-        prizes: defaultCategoryPrizes(total > 0 ? total : 800000),
-      );
-    }).toList(growable: false);
-    _updateDraft(state.draft.copyWith(categories: next));
   }
 
   void updateCategoryPrizes(

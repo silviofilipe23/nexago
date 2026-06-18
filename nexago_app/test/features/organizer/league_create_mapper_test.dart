@@ -50,6 +50,94 @@ void main() {
       expect(stage['tournamentIds'], ['t1']);
     });
 
+    test('zeroes wildcardSpots when wildcard disabled', () {
+      LeagueCreateDraft base({
+        required bool wildcardEnabled,
+        int wildcardSpots = 5,
+      }) {
+        return LeagueCreateDraft(
+          name: 'Copa',
+          seasonStartAt: DateTime(2026, 2, 1),
+          seasonEndAt: DateTime(2026, 10, 1),
+          wildcardEnabled: wildcardEnabled,
+          wildcardSpots: wildcardSpots,
+        );
+      }
+
+      final off = LeagueCreateMapper.toFirestore(
+        draft: base(wildcardEnabled: false),
+        managerId: 'm',
+        publish: true,
+      );
+      expect(off['wildcardEnabled'], isFalse);
+      expect(off['wildcardSpots'], 0);
+
+      final on = LeagueCreateMapper.toFirestore(
+        draft: base(wildcardEnabled: true, wildcardSpots: 3),
+        managerId: 'm',
+        publish: true,
+      );
+      expect(on['wildcardSpots'], 3);
+    });
+
+    test('counting mode round-trips through firestore', () {
+      final data = LeagueCreateMapper.toFirestore(
+        draft: LeagueCreateDraft(
+          name: 'Copa',
+          seasonStartAt: DateTime(2026, 2, 1),
+          seasonEndAt: DateTime(2026, 10, 1),
+          countingStagesMode: LeagueCountingStagesMode.allStages,
+        ),
+        managerId: 'm',
+        publish: true,
+      );
+      expect(data['countingStagesMode'], 'all_stages');
+
+      final loaded = LeagueCreateMapper.fromFirestore(
+        {...data, 'countingStagesMode': 'all_stages'},
+        'league-x',
+      );
+      expect(
+        loaded.draft.countingStagesMode,
+        LeagueCountingStagesMode.allStages,
+      );
+    });
+
+    test('counting mode defaults to best4Of6 when missing/unknown', () {
+      final loaded = LeagueCreateMapper.fromFirestore(
+        {
+          'name': 'Copa',
+          'seasonStartAt': Timestamp.fromDate(DateTime(2026, 2, 1)),
+          'seasonEndAt': Timestamp.fromDate(DateTime(2026, 10, 1)),
+          'countingStagesMode': 'mystery',
+        },
+        'league-x',
+      );
+      expect(
+        loaded.draft.countingStagesMode,
+        LeagueCountingStagesMode.best4Of6,
+      );
+    });
+
+    test('fromFirestore tolerates legacy prize "value" as string', () {
+      final loaded = LeagueCreateMapper.fromFirestore(
+        {
+          'name': 'Copa',
+          'categories': [
+            {
+              'id': 'c1',
+              'maxTeams': 16,
+              'prizes': [
+                {'position': '1', 'value': '90'},
+              ],
+            },
+          ],
+        },
+        'league-x',
+      );
+      expect(loaded.draft.categories.first.prizes.first.valueCents, 9000);
+    });
+
     test('fromFirestore restores draft and step', () {
       final data = {
         'name': 'Circuito Verão',

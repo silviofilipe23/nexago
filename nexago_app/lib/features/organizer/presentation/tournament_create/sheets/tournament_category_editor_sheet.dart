@@ -49,7 +49,6 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
           id: DateTime.now().microsecondsSinceEpoch.toString(),
           priceCents: draft.defaultPriceCents,
           useDefaultPrice: true,
-          prizes: defaultCategoryPrizes(800000),
         );
     _nameController = TextEditingController(text: _category.name);
     _priceController = TextEditingController(
@@ -134,36 +133,6 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
               labelBuilder: categoryGenderLabel,
               onSelected: (value) =>
                   setState(() => _category = _category.copyWith(gender: value)),
-            ),
-            const SizedBox(height: 16),
-            const OrganizerSectionLabel('DISPUTA'),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: BoxDecoration(
-                color: context.themeColors.surfaceRaised,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    categoryDisputeLabel(TournamentCategoryDispute.dupla),
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    'Por enquanto só duplas',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: context.themeColors.onSurfaceMuted,
-                        ),
-                  ),
-                ],
-              ),
             ),
             const SizedBox(height: 16),
             const OrganizerSectionLabel('FAIXA ETÁRIA'),

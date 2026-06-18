@@ -8,8 +8,10 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
 import '../../../domain/tournament_create/tournament_create_providers.dart';
+import '../sheets/tournament_prize_editor_sheet.dart';
 import '../tournament_create_navigation.dart';
 import '../tournament_create_wizard_scaffold.dart';
+import '../widgets/organizer_category_cards.dart';
 import '../widgets/organizer_form_widgets.dart';
 
 class TournamentCreateRulesPage extends ConsumerStatefulWidget {
@@ -65,13 +67,50 @@ class _TournamentCreateRulesPageState
     return TournamentCreateWizardScaffold(
       step: TournamentCreateStep.rules,
       onBack: () {
-        syncWizardStep(ref, TournamentCreateStep.prizes);
+        syncWizardStep(ref, TournamentCreateStep.registration);
         Navigator.of(context).maybePop();
       },
       onClose: _handleClose,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          OrganizerToggleSettingRow(
+            icon: Icons.card_giftcard_outlined,
+            title: 'Premiação em dinheiro',
+            subtitle: 'Desligue para premiar só com troféus/brindes.',
+            value: draft.cashPrizesEnabled,
+            onChanged: (value) => ref
+                .read(tournamentCreateWizardProvider.notifier)
+                .setCashPrizesEnabled(value),
+          ),
+          if (draft.cashPrizesEnabled) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Expanded(child: OrganizerSectionLabel('PREMIAÇÃO POR CATEGORIA')),
+                Text(
+                  '${formatCents(draft.totalPrizeCents)} no total',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: AppColors.win,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            for (final category in draft.categories) ...[
+              OrganizerPrizeCategoryCard(
+                category: category,
+                onEdit: () => showTournamentPrizeEditorSheet(
+                  context,
+                  ref,
+                  category: category,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ],
+          const SizedBox(height: 12),
           const OrganizerSectionLabel('REGULAMENTO'),
           const SizedBox(height: 8),
           Material(
@@ -202,27 +241,31 @@ class _TournamentCreateRulesPageState
             const SizedBox(height: 12),
             const OrganizerSectionLabel('TABELA DE PONTUAÇÃO'),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: draft.rankingTableId,
-              decoration: InputDecoration(
-                filled: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: context.themeColors.surfaceCard,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color:
+                      context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
                 ),
               ),
-              items: const [
-                DropdownMenuItem(
-                  value: 'nexago_standalone',
-                  child: Text('Padrão nexaGO · Etapa avulsa'),
-                ),
-              ],
-              onChanged: (value) {
-                if (value != null) {
-                  ref
-                      .read(tournamentCreateWizardProvider.notifier)
-                      .setRankingTableId(value);
-                }
-              },
+              child: Row(
+                children: [
+                  const Icon(Icons.emoji_events_outlined,
+                      color: AppColors.brand, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Padrão nexaGO · Etapa avulsa',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             const _RankingPointsPreviewGrid(),

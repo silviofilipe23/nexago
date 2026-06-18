@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/features/organizer/data/league_stage_tournament_factory.dart';
@@ -81,6 +82,68 @@ void main() {
 
       expect(map['listingStatus'], 'open');
       expect(map['isLeagueStage'], isTrue);
+    });
+
+    test('falls back to season dates and inherits league city/state', () {
+      final league = LeagueCreateDraft(
+        leagueId: 'league-1',
+        name: 'Circuito',
+        city: 'Goiânia',
+        state: 'GO',
+        seasonStartAt: DateTime(2026, 5, 1),
+        seasonEndAt: DateTime(2026, 11, 1),
+        categories: const [TournamentCategoryDraft(id: 'c1', spots: 16)],
+        stages: const [
+          LeagueStageDraft(
+            id: 'stage-1',
+            name: 'Etapa 1',
+            order: 1,
+            status: LeagueStageStatus.defined,
+          ),
+        ],
+      );
+
+      final map = LeagueStageTournamentFactory.build(
+        league: league,
+        stage: league.stages.first, // sem datas e sem city/state próprios
+        managerId: 'm',
+        tournamentId: 't1',
+      );
+
+      expect(map['startAt'], Timestamp.fromDate(DateTime(2026, 5, 1)));
+      expect(map['city'], 'Goiânia');
+      expect(map['state'], 'GO');
+      expect(map['isGrandFinalStage'], isFalse);
+    });
+
+    test('capacity falls back to 16 when league has no categories', () {
+      final league = LeagueCreateDraft(
+        leagueId: 'league-1',
+        name: 'Circuito',
+        seasonStartAt: DateTime(2026, 5, 1),
+        seasonEndAt: DateTime(2026, 11, 1),
+        categories: const [],
+        stages: const [
+          LeagueStageDraft(
+            id: 'gf',
+            name: 'Grande Final',
+            order: 9,
+            status: LeagueStageStatus.defined,
+            isGrandFinal: true,
+          ),
+        ],
+      );
+
+      final map = LeagueStageTournamentFactory.build(
+        league: league,
+        stage: league.stages.first,
+        managerId: 'm',
+        tournamentId: 't1',
+      );
+
+      expect(map['capacity'], 16);
+      expect(map['isGrandFinalStage'], isTrue);
+      expect(map['leagueStageOrder'], 9);
     });
   });
 

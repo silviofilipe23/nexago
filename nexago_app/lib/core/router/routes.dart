@@ -21,6 +21,8 @@ abstract final class AppRoutes {
   /// Home do organizador de torneio.
   static const String organizerHome = '/organizer';
   static const String organizerCreate = '/organizer/create';
+  static const String organizerTournamentCreateExpress =
+      '/organizer/tournaments/new/express';
   static const String organizerTournamentCreateIdentity =
       '/organizer/tournaments/new/identity';
   static const String organizerTournamentCreateLocation =
@@ -363,6 +365,8 @@ abstract final class AppRouteNames {
   static const String authLoading = 'authLoading';
   static const String organizerHome = 'organizerHome';
   static const String organizerCreate = 'organizerCreate';
+  static const String organizerTournamentCreateExpress =
+      'organizerTournamentCreateExpress';
   static const String organizerTournamentCreateIdentity =
       'organizerTournamentCreateIdentity';
   static const String organizerTournamentCreateLocation =

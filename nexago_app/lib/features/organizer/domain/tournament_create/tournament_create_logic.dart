@@ -233,8 +233,7 @@ String stepTitle(TournamentCreateStep step) => switch (step) {
   TournamentCreateStep.location => 'Local e datas',
   TournamentCreateStep.categories => 'Categorias',
   TournamentCreateStep.registration => 'Inscrições',
-  TournamentCreateStep.prizes => 'Premiação',
-  TournamentCreateStep.rules => 'Regulamento & ranking',
+  TournamentCreateStep.rules => 'Premiação, regulamento & ranking',
   TournamentCreateStep.review => 'Tudo pronto?',
 };
 
@@ -246,9 +245,8 @@ String stepSubtitle(TournamentCreateStep step) => switch (step) {
     'Cada categoria roda sua própria chave, formato, vagas e preço.',
   TournamentCreateStep.registration =>
     'Janela de inscrição e como você recebe.',
-  TournamentCreateStep.prizes =>
-    'Cada categoria tem sua própria premiação — ajuste uma a uma.',
-  TournamentCreateStep.rules => 'Regras oficiais e quanto vale no ranking.',
+  TournamentCreateStep.rules =>
+    'Premiação, regras oficiais e quanto vale no ranking.',
   TournamentCreateStep.review =>
     'Revise antes de publicar. Dá pra editar qualquer parte depois.',
 };
@@ -309,15 +307,70 @@ bool canContinueFromStep(
     TournamentCreateStep.registration =>
       draft.registrationOpensAt != null &&
           draft.registrationClosesAt != null &&
-          !draft.registrationClosesAt!.isBefore(draft.registrationOpensAt!),
-    TournamentCreateStep.prizes =>
+          registrationWindowError(draft) == null,
+    // Premiação foi fundida em "rules": se houver premiação em dinheiro,
+    // toda categoria precisa ter os valores definidos.
+    TournamentCreateStep.rules =>
       !draft.cashPrizesEnabled ||
-          draft.categories.every(
-            (c) => !draft.cashPrizesEnabled || c.prizes.isNotEmpty,
-          ),
-    TournamentCreateStep.rules => true,
+          draft.categories.every((c) => c.prizes.isNotEmpty),
     TournamentCreateStep.review => isValidForPublish(draft),
   };
+}
+
+/// Monta um rascunho de torneio "express" (1 tela) já válido para publicação:
+/// inscrições abrem hoje e fecham no início, sem premiação em dinheiro, com
+/// uma única categoria de duplas em grupos+mata-mata. O organizador ajusta o
+/// resto depois no torneio.
+TournamentCreateDraft buildExpressTournamentDraft({
+  required String name,
+  required String locationName,
+  required String city,
+  String state = '',
+  required DateTime startAt,
+  DateTime? endAt,
+  TournamentCategoryGender gender = TournamentCategoryGender.male,
+  int spots = 16,
+  DateTime? now,
+}) {
+  final reference = now ?? DateTime.now();
+  final end = (endAt == null || endAt.isBefore(startAt)) ? startAt : endAt;
+  return TournamentCreateDraft(
+    name: name.trim(),
+    locationName: locationName.trim(),
+    city: city.trim(),
+    state: state.trim(),
+    startAt: startAt,
+    endAt: end,
+    courtsCount: 4,
+    cashPrizesEnabled: false,
+    registrationOpensAt:
+        DateTime(reference.year, reference.month, reference.day),
+    registrationClosesAt: startAt,
+    categories: [
+      TournamentCategoryDraft(
+        id: reference.microsecondsSinceEpoch.toString(),
+        gender: gender,
+        spots: spots,
+        bracketSystem: TournamentBracketSystem.groupsThenKnockout,
+      ),
+    ],
+  );
+}
+
+/// Valida a janela de inscrição contra ela mesma e contra a data do torneio.
+/// Retorna a mensagem de erro (para exibir na UI) ou `null` se estiver ok.
+String? registrationWindowError(TournamentCreateDraft draft) {
+  final opens = draft.registrationOpensAt;
+  final closes = draft.registrationClosesAt;
+  if (opens == null || closes == null) return null;
+  if (closes.isBefore(opens)) {
+    return 'O fechamento das inscrições não pode ser antes da abertura.';
+  }
+  final start = draft.startAt;
+  if (start != null && closes.isAfter(start)) {
+    return 'As inscrições não podem fechar depois do início do torneio.';
+  }
+  return null;
 }
 
 bool isValidForPublish(TournamentCreateDraft draft) {
@@ -350,6 +403,8 @@ TournamentCreateStep inferResumeStep(TournamentCreateDraft draft) {
 TournamentCreateStep? parseWizardStep(String? raw) {
   if (raw == null || raw.isEmpty) return null;
   if (raw == 'format') return TournamentCreateStep.categories;
+  // 'prizes' foi fundido em 'rules' (compat. com rascunhos antigos).
+  if (raw == 'prizes') return TournamentCreateStep.rules;
   for (final step in TournamentCreateStep.values) {
     if (step.name == raw) return step;
   }

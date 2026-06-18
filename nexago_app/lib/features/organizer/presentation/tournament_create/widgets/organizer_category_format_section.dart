@@ -60,15 +60,6 @@ class OrganizerCategoryFormatSection extends StatelessWidget {
           ),
           const SizedBox(height: 10),
         ],
-        const OrganizerSectionLabel('EM BREVE', optional: true),
-        const SizedBox(height: 10),
-        for (final system in comingSoonBracketSystems) ...[
-          _ComingSoonFormatCard(
-            title: bracketSystemLabel(system),
-            subtitle: bracketSystemDescription(system),
-          ),
-          const SizedBox(height: 10),
-        ],
         if (_showGroups) ...[
           const SizedBox(height: 8),
           const OrganizerSectionLabel('CONFIGURAÇÃO DOS GRUPOS'),
@@ -160,41 +151,3 @@ class _UnsupportedFormatBanner extends StatelessWidget {
   }
 }
 
-class _ComingSoonFormatCard extends StatelessWidget {
-  const _ComingSoonFormatCard({
-    required this.title,
-    required this.subtitle,
-  });
-
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: 0.55,
-      child: OrganizerRadioOptionCard(
-        title: title,
-        subtitle: subtitle,
-        selected: false,
-        onTap: () {},
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
-          ),
-          child: Text(
-            'EM BREVE',
-            style: AppTypography.mono(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              color: context.themeColors.onSurfaceMuted,
-              letterSpacing: 0.4,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

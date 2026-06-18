@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/tournament_create/organizer_arenas_provider.dart';
@@ -9,14 +10,64 @@ import '../tournament_create_navigation.dart';
 import '../tournament_create_wizard_scaffold.dart';
 import '../widgets/organizer_form_widgets.dart';
 
-class TournamentCreateLocationPage extends ConsumerWidget {
+class TournamentCreateLocationPage extends ConsumerStatefulWidget {
   const TournamentCreateLocationPage({super.key});
 
-  Future<void> _pickDate(
-    BuildContext context,
-    WidgetRef ref, {
-    required bool isStart,
-  }) async {
+  @override
+  ConsumerState<TournamentCreateLocationPage> createState() =>
+      _TournamentCreateLocationPageState();
+}
+
+class _TournamentCreateLocationPageState
+    extends ConsumerState<TournamentCreateLocationPage> {
+  late final TextEditingController _venueController;
+  late final TextEditingController _cityController;
+  late final TextEditingController _stateController;
+  late final TextEditingController _addressController;
+
+  @override
+  void initState() {
+    super.initState();
+    final draft = ref.read(tournamentCreateDraftProvider);
+    _venueController = TextEditingController(text: draft.locationName);
+    _cityController = TextEditingController(text: draft.city);
+    _stateController = TextEditingController(text: draft.state);
+    _addressController = TextEditingController(text: draft.locationAddress);
+  }
+
+  @override
+  void dispose() {
+    _venueController.dispose();
+    _cityController.dispose();
+    _stateController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  void _applyManual() {
+    ref.read(tournamentCreateWizardProvider.notifier).setLocationManual(
+          locationName: _venueController.text.trim(),
+          address: _addressController.text.trim(),
+          city: _cityController.text.trim(),
+          stateCode: _stateController.text.trim(),
+        );
+  }
+
+  void _applyArena(OrganizerArenaOption arena) {
+    _venueController.text = arena.name;
+    _cityController.text = arena.city;
+    _stateController.text = arena.state;
+    _addressController.text = arena.address;
+    ref.read(tournamentCreateWizardProvider.notifier).setArena(
+          arenaId: arena.id,
+          locationName: arena.name,
+          address: arena.address,
+          city: arena.city,
+          stateCode: arena.state,
+        );
+  }
+
+  Future<void> _pickDate(BuildContext context, {required bool isStart}) async {
     final draft = ref.read(tournamentCreateDraftProvider);
     final initial = isStart
         ? (draft.startAt ?? DateTime.now())
@@ -28,32 +79,37 @@ class TournamentCreateLocationPage extends ConsumerWidget {
       lastDate: DateTime.now().add(const Duration(days: 730)),
     );
     if (picked == null) return;
+    final notifier = ref.read(tournamentCreateWizardProvider.notifier);
     if (isStart) {
-      ref.read(tournamentCreateWizardProvider.notifier).setStartAt(picked);
+      notifier.setStartAt(picked);
     } else {
-      ref.read(tournamentCreateWizardProvider.notifier).setEndAt(picked);
+      notifier.setEndAt(picked);
     }
   }
 
-  Future<void> _pickFirstMatch(BuildContext context, WidgetRef ref) async {
+  Future<void> _pickFirstMatch(BuildContext context) async {
     final draft = ref.read(tournamentCreateDraftProvider);
     final base = draft.firstMatchAt ?? draft.startAt ?? DateTime.now();
-    final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(base));
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(base),
+    );
     if (time == null) return;
     final date = draft.startAt ?? DateTime.now();
-    final combined = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    final combined =
+        DateTime(date.year, date.month, date.day, time.hour, time.minute);
     ref.read(tournamentCreateWizardProvider.notifier).setFirstMatchAt(combined);
   }
 
-  Future<void> _handleClose(BuildContext context, WidgetRef ref) =>
-      handleWizardClose(context, ref);
+  Future<void> _handleClose() => handleWizardClose(context, ref);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final draft = ref.watch(tournamentCreateDraftProvider);
     final arenasAsync = ref.watch(organizerArenaOptionsProvider);
-    final canContinue =
-        ref.watch(tournamentCreateCanContinueProvider(TournamentCreateStep.location));
+    final canContinue = ref.watch(
+      tournamentCreateCanContinueProvider(TournamentCreateStep.location),
+    );
 
     return TournamentCreateWizardScaffold(
       step: TournamentCreateStep.location,
@@ -61,63 +117,111 @@ class TournamentCreateLocationPage extends ConsumerWidget {
         syncWizardStep(ref, TournamentCreateStep.identity);
         Navigator.of(context).maybePop();
       },
-      onClose: () => _handleClose(context, ref),
+      onClose: _handleClose,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const OrganizerSectionLabel('LOCAL'),
-          const SizedBox(height: 8),
-          arenasAsync.when(
-            loading: () => const LinearProgressIndicator(),
-            error: (_, __) => const Text('Erro ao carregar arenas'),
-            data: (arenas) {
-              OrganizerArenaOption? selected;
-              for (final arena in arenas) {
-                if (arena.id == draft.arenaId) {
-                  selected = arena;
-                  break;
-                }
-              }
-              return DropdownButtonFormField<OrganizerArenaOption?>(
-                value: selected,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Theme.of(context).colorScheme.surface,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                ),
-                hint: const Text('Selecione a arena'),
-                items: [
-                  for (final arena in arenas)
-                    DropdownMenuItem(
-                      value: arena,
-                      child: Text(arena.name),
+          // Atalho opcional: arena cadastrada autopreenche os campos abaixo.
+          arenasAsync.maybeWhen(
+            data: (arenas) => arenas.isEmpty
+                ? const SizedBox.shrink()
+                : Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const OrganizerSectionLabel(
+                          'ARENA CADASTRADA',
+                          optional: true,
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<OrganizerArenaOption>(
+                          initialValue: _selectedArena(arenas, draft.arenaId),
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: Theme.of(context).colorScheme.surface,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          hint: const Text('Selecione para autopreencher'),
+                          items: [
+                            for (final arena in arenas)
+                              DropdownMenuItem(
+                                value: arena,
+                                child: Text(
+                                  arena.name,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                          onChanged: (arena) {
+                            if (arena != null) _applyArena(arena);
+                          },
+                        ),
+                      ],
                     ),
-                ],
-                onChanged: (arena) {
-                  if (arena == null) return;
-                  ref.read(tournamentCreateWizardProvider.notifier).setArena(
-                        arenaId: arena.id,
-                        locationName: arena.name,
-                        address: arena.address,
-                        city: arena.city,
-                        stateCode: arena.state,
-                      );
-                },
-              );
-            },
+                  ),
+            orElse: () => const SizedBox.shrink(),
           ),
-          const SizedBox(height: 12),
+          const OrganizerSectionLabel('NOME DO LOCAL'),
+          const SizedBox(height: 8),
           OrganizerTextField(
-            controller: TextEditingController(text: draft.locationAddress),
-            hintText: 'Endereço',
-            onChanged: (value) => ref
-                .read(tournamentCreateWizardProvider.notifier)
-                .setLocationManual(
-                  locationName: draft.locationName,
-                  address: value,
-                  city: draft.city,
-                  stateCode: draft.state,
+            controller: _venueController,
+            hintText: 'Arena, clube ou praia',
+            onChanged: (_) => _applyManual(),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const OrganizerSectionLabel('CIDADE'),
+                    const SizedBox(height: 8),
+                    OrganizerTextField(
+                      controller: _cityController,
+                      hintText: 'Goiânia',
+                      onChanged: (_) => _applyManual(),
+                    ),
+                  ],
                 ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 1,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const OrganizerSectionLabel('UF'),
+                    const SizedBox(height: 8),
+                    OrganizerTextField(
+                      controller: _stateController,
+                      hintText: 'GO',
+                      textCapitalization: TextCapitalization.characters,
+                      maxLength: 2,
+                      inputFormatters: [
+                        UpperCaseTextFormatter(),
+                        FilteringTextInputFormatter.allow(RegExp('[A-Za-z]')),
+                      ],
+                      onChanged: (_) => _applyManual(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const OrganizerSectionLabel('ENDEREÇO', optional: true),
+          const SizedBox(height: 8),
+          OrganizerTextField(
+            controller: _addressController,
+            hintText: 'Rua, número, bairro',
+            onChanged: (_) => _applyManual(),
           ),
           const SizedBox(height: 20),
           const OrganizerSectionLabel('QUADRAS DISPONÍVEIS'),
@@ -143,7 +247,7 @@ class TournamentCreateLocationPage extends ConsumerWidget {
                 child: OrganizerDateField(
                   label: 'INÍCIO',
                   value: formatShortDate(draft.startAt),
-                  onTap: () => _pickDate(context, ref, isStart: true),
+                  onTap: () => _pickDate(context, isStart: true),
                 ),
               ),
               const SizedBox(width: 12),
@@ -151,7 +255,7 @@ class TournamentCreateLocationPage extends ConsumerWidget {
                 child: OrganizerDateField(
                   label: 'FIM',
                   value: formatShortDate(draft.endAt),
-                  onTap: () => _pickDate(context, ref, isStart: false),
+                  onTap: () => _pickDate(context, isStart: false),
                 ),
               ),
             ],
@@ -160,7 +264,7 @@ class TournamentCreateLocationPage extends ConsumerWidget {
           OrganizerDateField(
             label: 'HORÁRIO DO 1º JOGO',
             value: formatFirstMatchLabel(draft.firstMatchAt),
-            onTap: () => _pickFirstMatch(context, ref),
+            onTap: () => _pickFirstMatch(context),
           ),
         ],
       ),
@@ -174,5 +278,27 @@ class TournamentCreateLocationPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  OrganizerArenaOption? _selectedArena(
+    List<OrganizerArenaOption> arenas,
+    String? arenaId,
+  ) {
+    if (arenaId == null) return null;
+    for (final arena in arenas) {
+      if (arena.id == arenaId) return arena;
+    }
+    return null;
+  }
+}
+
+/// Formata o texto digitado em maiúsculas (usado na UF).
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return newValue.copyWith(text: newValue.text.toUpperCase());
   }
 }

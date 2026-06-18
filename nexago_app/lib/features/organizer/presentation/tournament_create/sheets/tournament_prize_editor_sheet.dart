@@ -42,11 +42,15 @@ class _PrizeEditorSheetState extends ConsumerState<_PrizeEditorSheet> {
   void initState() {
     super.initState();
     _prizes = List<TournamentCategoryPrizeDraft>.from(widget.category.prizes);
-    if (_prizes.isEmpty) {
-      _prizes = defaultCategoryPrizes(800000);
-    }
     final total = _prizes.fold<int>(0, (sum, p) => sum + p.valueCents);
-    _totalController = TextEditingController(text: formatCents(total));
+    _totalController = TextEditingController(
+      text: total > 0 ? (total ~/ 100).toString() : '',
+    );
+  }
+
+  void _onTotalChanged(String value) {
+    final reais = int.tryParse(value.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+    setState(() => _prizes = defaultCategoryPrizes(reais * 100));
   }
 
   @override
@@ -98,10 +102,11 @@ class _PrizeEditorSheetState extends ConsumerState<_PrizeEditorSheet> {
               controller: _totalController,
               hintText: 'R\$ 8.000',
               keyboardType: TextInputType.number,
+              onChanged: _onTotalChanged,
             ),
             const SizedBox(height: 8),
             Text(
-              'Deve bater com a soma das colocações.',
+              'Dividimos em 1º, 2º e 3º automaticamente.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: context.themeColors.onSurfaceMuted,
                   ),

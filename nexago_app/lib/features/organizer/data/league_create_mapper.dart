@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/search/search_keywords.dart';
 import '../domain/league_create/league_create_draft.dart';
@@ -293,8 +292,12 @@ abstract final class LeagueCreateMapper {
     if (raw is! List) return const [];
     return raw.whereType<Map>().map((item) {
       final map = Map<String, dynamic>.from(item);
-      final valueCents = (map['valueCents'] as num?)?.toInt() ??
-          (((map['value'] as num?)?.toDouble() ?? 0) * 100).round();
+      final rawValue = map['value'];
+      final valueReais = rawValue is num
+          ? rawValue.toDouble()
+          : double.tryParse(rawValue?.toString() ?? '') ?? 0;
+      final valueCents =
+          (map['valueCents'] as num?)?.toInt() ?? (valueReais * 100).round();
       return TournamentCategoryPrizeDraft(
         position: (map['position'] as String?) ?? '',
         valueCents: valueCents,

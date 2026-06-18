@@ -217,12 +217,12 @@ abstract final class TournamentCreateMapper {
     if (raw is! List) return const [];
     return raw.whereType<Map>().map((item) {
       final map = Map<String, dynamic>.from(item);
-      final valueCents = (map['valueCents'] as num?)?.toInt() ??
-          (((map['value'] as num?)?.toDouble() ??
-                  double.tryParse(map['value']?.toString() ?? '') ??
-                  0) *
-              100)
-              .round();
+      final rawValue = map['value'];
+      final valueReais = rawValue is num
+          ? rawValue.toDouble()
+          : double.tryParse(rawValue?.toString() ?? '') ?? 0;
+      final valueCents =
+          (map['valueCents'] as num?)?.toInt() ?? (valueReais * 100).round();
       return TournamentCategoryPrizeDraft(
         position: (map['position'] as String?) ?? '',
         valueCents: valueCents,

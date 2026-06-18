@@ -2,6 +2,7 @@ import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {
   getFirestore,
   FieldValue,
+  type Firestore,
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {deliverNotificationToUser} from "./notification-delivery";
@@ -15,6 +16,7 @@ import {assertCanManageTournament} from "./tournament-acl";
 import {
   canCancelTournament,
   countPaidRegistrations,
+  paidTeamIdsForCancellation,
 } from "./tournament-cancellation";
 
 function getFirebaseProjectId(): string {
@@ -448,6 +450,45 @@ export const closeTournamentRegistrations = onCall(async (request) => {
   return {ok: true};
 });
 
+/**
+ * Avisa as duplas pagas de que o torneio foi cancelado (para buscarem o
+ * reembolso). Resolve os times pagos -> uids dos atletas e entrega push+inbox.
+ * Best-effort: falhas aqui não revertem o cancelamento já efetivado.
+ */
+async function notifyPaidTeamsOfCancellation(
+  db: Firestore,
+  projectId: string,
+  tournamentId: string,
+  tournamentName: string,
+  paidTeamIds: string[],
+): Promise<void> {
+  const uids = new Set<string>();
+  for (const teamId of paidTeamIds) {
+    const teamSnap = await db
+      .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
+      .get();
+    const team = teamSnap.data() ?? {};
+    for (const id of [team.player1Id, team.player2Id]) {
+      if (typeof id === "string" && id.trim()) uids.add(id.trim());
+    }
+  }
+
+  const body =
+    `${tournamentName} foi cancelado pelo organizador. ` +
+    "Procure o organizador para tratar do reembolso.";
+  await Promise.all(
+    [...uids].map((uid) =>
+      deliverNotificationToUser({
+        userId: uid,
+        title: "Torneio cancelado",
+        body,
+        type: "tournament_cancelled",
+        data: {tournamentId, url: `/torneios/${tournamentId}`},
+      }),
+    ),
+  );
+}
+
 export const cancelTournament = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -481,7 +522,8 @@ export const cancelTournament = onCall(async (request) => {
     );
   }
 
-  await db.doc(`tournaments/${tournamentId}`).update({
+  const tournamentRef = db.doc(`tournaments/${tournamentId}`);
+  await tournamentRef.update({
     listingStatus: "cancelled",
     cancelledAt: FieldValue.serverTimestamp(),
     refundsPending: paidCount > 0,
@@ -494,5 +536,32 @@ export const cancelTournament = onCall(async (request) => {
     paidCount,
     force,
   });
+
+  // Avisa as duplas pagas para buscarem o reembolso (best-effort).
+  if (paidCount > 0) {
+    try {
+      const tournamentSnap = await tournamentRef.get();
+      const tournamentName =
+        typeof tournamentSnap.data()?.name === "string" ?
+          (tournamentSnap.data()?.name as string) :
+          "O torneio";
+      const paidTeamIds = paidTeamIdsForCancellation(
+        inscriptionsSnap.docs.map((d) => d.data()),
+      );
+      await notifyPaidTeamsOfCancellation(
+        db,
+        projectId,
+        tournamentId,
+        tournamentName,
+        paidTeamIds,
+      );
+    } catch (e) {
+      logger.error("cancelTournament: falha ao notificar duplas pagas", {
+        tournamentId,
+        e,
+      });
+    }
+  }
+
   return {ok: true, paidCount};
 });

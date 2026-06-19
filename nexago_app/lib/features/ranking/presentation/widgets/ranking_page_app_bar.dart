@@ -12,12 +12,14 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.searchController,
     required this.onSearchToggle,
     required this.onFilterTap,
+    required this.onInfoTap,
   });
 
   final bool searchOpen;
   final TextEditingController searchController;
   final VoidCallback onSearchToggle;
   final VoidCallback onFilterTap;
+  final VoidCallback onInfoTap;
 
   @override
   Size get preferredSize =>
@@ -56,6 +58,13 @@ class RankingPageAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
       actions: [
+        if (!searchOpen) ...[
+          CompeteHubAppBarIconButton(
+            icon: Icons.help_outline_rounded,
+            onTap: onInfoTap,
+          ),
+          SizedBox(width: 10),
+        ],
         CompeteHubAppBarIconButton(
           icon: searchOpen ? Icons.close_rounded : Icons.search_rounded,
           onTap: onSearchToggle,

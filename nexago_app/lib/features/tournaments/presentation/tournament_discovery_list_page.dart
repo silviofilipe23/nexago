@@ -87,135 +87,6 @@ class _TournamentDiscoveryListPageState
     });
   }
 
-  void _openFilterSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        var tempCategory = _category;
-        var tempOpenOnly = _openOnly;
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return SafeArea(
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(
-                  ArenaDashboardTokens.horizontalPadding,
-                  0,
-                  ArenaDashboardTokens.horizontalPadding,
-                  16,
-                ),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceCard,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: AppColors.onSurfaceMuted.withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Filtros',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.onSurface,
-                      ),
-                    ),
-                    SizedBox(height: 14),
-                    Text(
-                      'Categoria',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppColors.onSurfaceMuted,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    for (final f in TournamentDiscoveryCategoryFilter.values)
-                      DiscoveryListRadioRow(
-                        label: tournamentDiscoveryCategoryFilterLabel(f),
-                        selected: tempCategory == f,
-                        onTap: () => setSheetState(() => tempCategory = f),
-                      ),
-                    SizedBox(height: 8),
-                    SwitchListTile(
-                      value: tempOpenOnly,
-                      onChanged: (v) => setSheetState(() {
-                        tempOpenOnly = v;
-                      }),
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        'Só com inscrição aberta',
-                        style: TextStyle(
-                          color: AppColors.onSurface,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              setState(() {
-                                _category =
-                                    TournamentDiscoveryCategoryFilter.all;
-                                _openOnly = false;
-                              });
-                              Navigator.of(sheetContext).pop();
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.onSurface,
-                              side: BorderSide(
-                                color: AppColors.onSurfaceMuted.withValues(
-                                  alpha: 0.25,
-                                ),
-                              ),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text('Limpar'),
-                          ),
-                        ),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: () {
-                              setState(() {
-                                _category = tempCategory;
-                                _openOnly = tempOpenOnly;
-                              });
-                              Navigator.of(sheetContext).pop();
-                            },
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.brand,
-                              foregroundColor: AppColors.black,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: Text('Aplicar'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -346,7 +217,6 @@ class _TournamentDiscoveryListPageState
                           _searchFocus.requestFocus();
                         }
                       },
-                      onOpenFilters: _openFilterSheet,
                     ),
                     SizedBox(height: 14),
                     DiscoveryListStatsRow(stats: stats),
@@ -505,7 +375,6 @@ class DiscoveryListHeader extends StatelessWidget {
     required this.focusNode,
     required this.onBack,
     required this.onToggleSearch,
-    required this.onOpenFilters,
   });
 
   final bool searching;
@@ -513,7 +382,6 @@ class DiscoveryListHeader extends StatelessWidget {
   final FocusNode focusNode;
   final VoidCallback onBack;
   final VoidCallback onToggleSearch;
-  final VoidCallback onOpenFilters;
 
   @override
   Widget build(BuildContext context) {
@@ -541,11 +409,6 @@ class DiscoveryListHeader extends StatelessWidget {
             DiscoveryListIconSquare(
               icon: Icons.search_rounded,
               onTap: onToggleSearch,
-            ),
-            SizedBox(width: 10),
-            DiscoveryListIconSquare(
-              icon: Icons.tune_rounded,
-              onTap: onOpenFilters,
             ),
           ],
         ),
@@ -610,75 +473,6 @@ class DiscoveryListIconSquare extends StatelessWidget {
           width: 40,
           height: 40,
           child: Icon(icon, color: AppColors.onSurface),
-        ),
-      ),
-    );
-  }
-}
-
-class DiscoveryListRadioRow extends StatelessWidget {
-  const DiscoveryListRadioRow({
-    super.key,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              children: [
-                Container(
-                  width: 18,
-                  height: 18,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: selected
-                          ? AppColors.brand
-                          : AppColors.onSurfaceMuted.withValues(alpha: 0.35),
-                      width: 2,
-                    ),
-                  ),
-                  child: selected
-                      ? Center(
-                          child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.brand,
-                            ),
-                          ),
-                        )
-                      : null,
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      color: AppColors.onSurface,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );

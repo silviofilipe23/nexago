@@ -292,15 +292,15 @@ List<DurationOption> buildDurationOptions({
   required double? hourlyPrice,
   required int slotDurationMinutes,
 }) {
-  const presets = [60, 90, 120, 180];
+    // Apenas blocos de 1 hora: 1h, 2h e 3h.
+  const presets = [60, 120, 180];
   return presets.map((minutes) {
     final slots = durationSlotCount(minutes, slotDurationMinutes);
     final label = switch (minutes) {
       60 => '1h',
-      90 => '1h30',
-      120 => '2 h',
-      180 => '3 h',
-      _ => '${minutes}min',
+      120 => '2h',
+      180 => '3h',
+      _ => '${minutes ~/ 60}h',
     };
     double? price;
     if (hourlyPrice != null && hourlyPrice > 0) {

@@ -13,6 +13,7 @@ import 'widgets/arena_dashboard_header.dart';
 import 'widgets/arena_dashboard_insights_section.dart';
 import 'widgets/arena_dashboard_kpi_grid.dart';
 import 'widgets/arena_dashboard_period_chips.dart';
+import 'widgets/arena_dashboard_quick_actions.dart';
 import 'widgets/arena_dashboard_reputation_section.dart';
 import 'widgets/arena_dashboard_revenue_chart_card.dart';
 import 'widgets/arena_dashboard_tokens.dart';
@@ -64,6 +65,12 @@ class ArenaDashboardPage extends ConsumerWidget {
                         duration: Duration(milliseconds: 420),
                         offsetY: 14,
                         child: ArenaDashboardHeader(),
+                      ),
+                      SizedBox(height: ArenaDashboardTokens.sectionGap),
+                      const FadeSlideIn(
+                        duration: Duration(milliseconds: 440),
+                        offsetY: 14,
+                        child: ArenaDashboardQuickActions(),
                       ),
                       SizedBox(height: ArenaDashboardTokens.sectionGap),
                       const FadeSlideIn(

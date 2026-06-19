@@ -32,6 +32,7 @@ import 'widgets/slots/slots_bottom_bar.dart';
 import 'widgets/slots/slots_fully_booked_body.dart';
 import 'widgets/slots/slots_court_carousel.dart';
 import 'widgets/slots/slots_day_strip.dart';
+import 'widgets/slots/slots_duration_picker.dart';
 import 'widgets/slots/slots_list_section.dart';
 import 'widgets/slots/slots_page_header.dart';
 
@@ -830,7 +831,6 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
       hourlyPrice: hourly,
       slotDurationMinutes: slotDurationMinutes,
     );
-    final periodCountsMap = periodCounts(slots, _selectedDay);
     final popularIdx = slotsLoading
         ? null
         : mostPopularSlotIndex(slots, _selectedDay);
@@ -1017,15 +1017,15 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                             ),
                     ),
                     if (!showFullyBookedBody) ...[
-                      // SlotsDurationPicker(
-                      //   options: durationOptions,
-                      //   selectedMinutes: _selectedDurationMinutes,
-                      //   onSelected: (minutes) => _applyDurationMinutes(
-                      //     minutes,
-                      //     slots,
-                      //     slotDurationMinutes,
-                      //   ),
-                      // ),
+                      SlotsDurationPicker(
+                        options: durationOptions,
+                        selectedMinutes: _selectedDurationMinutes,
+                        onSelected: (minutes) => _applyDurationMinutes(
+                          minutes,
+                          slots,
+                          slotDurationMinutes,
+                        ),
+                      ),
                       SlotsBottomBar(
                         enabled: canContinue,
                         metaLabel: slotsLoading ? null : barLabels.meta,

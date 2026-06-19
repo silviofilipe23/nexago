@@ -67,9 +67,9 @@ class OrganizerTournamentMatchesTab extends ConsumerWidget {
             ),
             const SizedBox(height: 10),
             _ActionTile(
-              icon: Icons.sports_volleyball_rounded,
-              title: 'Central de partidas',
-              subtitle: 'Check-in, fila e operação ao vivo',
+              icon: Icons.sensors_rounded,
+              title: 'Ao vivo',
+              subtitle: 'Partidas em andamento, fila e chamadas pra quadra',
               onTap: () => context.push(organizerMatchCenterPath(tournamentId)),
             ),
           ],

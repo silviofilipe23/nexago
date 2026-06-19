@@ -226,8 +226,8 @@ class _OrganizerMatchCenterPageState
                   onPressed: () => context.push(
                     organizerMatchSchedulePath(widget.tournamentId),
                   ),
-                  icon: const Icon(Icons.schedule_rounded, size: 18),
-                  label: const Text('Abrir grade do dia'),
+                  icon: const Icon(Icons.calendar_month_rounded, size: 18),
+                  label: const Text('Programação'),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.brand,
                     foregroundColor: AppColors.black,

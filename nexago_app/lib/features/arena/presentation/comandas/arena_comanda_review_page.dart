@@ -68,13 +68,13 @@ class _ArenaComandaReviewPageState extends ConsumerState<ArenaComandaReviewPage>
     final location = comandaReviewLocationLabel(draft);
 
     return ArenaComandaWizardScaffold(
-      stepLabel: 'NOVA COMANDA · PASSO 4 DE 4',
+      stepLabel: 'NOVA COMANDA · PASSO 3 DE 3',
       title: 'Revisar e abrir',
-      currentStep: 3,
+      currentStep: 2,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const ArenaComandaStepper(currentStep: 3),
+          const ArenaComandaStepper(currentStep: 2),
           const SizedBox(height: 24),
           Container(
             padding: const EdgeInsets.all(16),

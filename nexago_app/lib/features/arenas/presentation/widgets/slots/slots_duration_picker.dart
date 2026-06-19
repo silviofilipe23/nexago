@@ -25,88 +25,97 @@ class SlotsDurationPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      child: Row(
+        children: [
+          for (var i = 0; i < options.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            Expanded(
+              child: _DurationSegment(
+                option: options[i],
+                selected: selectedMinutes == options[i].minutes,
+                priceLabel: options[i].priceReais != null
+                    ? _priceFmt.format(options[i].priceReais)
+                    : null,
+                onTap: () => onSelected(options[i].minutes),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-          child: Text(
-            'DURAÇÃO',
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
-              color: context.themeColors.onSurfaceMuted,
+/// Segmento compacto de duração (1h · 2h · 3h) — ocupa pouca altura.
+class _DurationSegment extends StatelessWidget {
+  const _DurationSegment({
+    required this.option,
+    required this.selected,
+    required this.priceLabel,
+    required this.onTap,
+  });
+
+  final DurationOption option;
+  final bool selected;
+  final String? priceLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: selected
+          ? AppColors.brand.withValues(alpha: 0.1)
+          : context.themeColors.surfaceCard,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected
+                  ? AppColors.brand
+                  : context.themeColors.onSurfaceMuted.withValues(alpha: 0.18),
+              width: selected ? 1.6 : 1,
             ),
           ),
-        ),
-        SizedBox(
-          height: 72,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: options.length,
-            separatorBuilder: (_, __) => SizedBox(width: 8),
-            itemBuilder: (context, index) {
-              final opt = options[index];
-              final isSelected = selectedMinutes == opt.minutes;
-              final price = opt.priceReais != null
-                  ? _priceFmt.format(opt.priceReais)
-                  : '—';
-
-              return Material(
-                color: context.themeColors.surfaceCard,
-                borderRadius: BorderRadius.circular(12),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: () => onSelected(opt.minutes),
-                  child: Container(
-                    width: 72,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppColors.brand
-                            : context.themeColors.surfaceRaised,
-                        width: isSelected ? 2 : 1,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          opt.label,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: isSelected
-                                ? AppColors.brand
-                                : context.themeColors.onSurface,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          price,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: isSelected
-                                ? AppColors.brand
-                                : context.themeColors.onSurfaceMuted,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                option.label,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: selected
+                      ? AppColors.brand
+                      : context.themeColors.onSurface,
+                ),
+              ),
+              if (priceLabel != null) ...[
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    priceLabel!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: selected
+                          ? AppColors.brand
+                          : context.themeColors.onSurfaceMuted,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
-              );
-            },
+              ],
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }

@@ -112,15 +112,20 @@ class ScheduleGridCourtHeaders extends StatelessWidget {
     required this.courts,
     required this.timeColumnWidth,
     required this.courtColumnWidth,
+    this.horizontalScrollController,
   });
 
   final List<TournamentCourt> courts;
   final double timeColumnWidth;
   final double courtColumnWidth;
+  final ScrollController? horizontalScrollController;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
+      controller: horizontalScrollController,
+      scrollDirection: Axis.horizontal,
+      physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.only(left: 8, right: 8, bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,6 +138,9 @@ class ScheduleGridCourtHeaders extends StatelessWidget {
                 children: [
                   Text(
                     court.id,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                     style: AppTypography.mono(
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
@@ -176,6 +184,7 @@ class ScheduleGridBody extends StatelessWidget {
     required this.onDropMatch,
     required this.onDragStarted,
     required this.onDragEnded,
+    this.horizontalScrollController,
   });
 
   final List<TournamentCourt> courts;
@@ -190,6 +199,7 @@ class ScheduleGridBody extends StatelessWidget {
       onDropMatch;
   final ValueChanged<TournamentMatch> onDragStarted;
   final VoidCallback onDragEnded;
+  final ScrollController? horizontalScrollController;
 
   @override
   Widget build(BuildContext context) {
@@ -206,6 +216,7 @@ class ScheduleGridBody extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 16),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
+        controller: horizontalScrollController,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: SizedBox(
           height: gridHeight,

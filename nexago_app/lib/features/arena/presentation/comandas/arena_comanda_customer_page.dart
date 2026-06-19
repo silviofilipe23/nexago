@@ -76,13 +76,13 @@ class _ArenaComandaCustomerPageState
     final draft = ref.watch(arenaComandaDraftProvider);
 
     return ArenaComandaWizardScaffold(
-      stepLabel: 'NOVA COMANDA · INDIVIDUAL',
+      stepLabel: 'NOVA COMANDA · PASSO 2 DE 3',
       title: 'Dados do cliente',
-      currentStep: 2,
+      currentStep: 1,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const ArenaComandaStepper(currentStep: 2),
+          const ArenaComandaStepper(currentStep: 1),
           const SizedBox(height: 20),
           Row(
             children: [

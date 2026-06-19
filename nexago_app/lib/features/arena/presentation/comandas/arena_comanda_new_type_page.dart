@@ -12,13 +12,48 @@ import '../../domain/comandas/arena_comanda_providers.dart';
 import 'widgets/arena_comanda_stepper.dart';
 import 'widgets/arena_comanda_wizard_scaffold.dart';
 
-class ArenaComandaNewTypePage extends ConsumerWidget {
+/// Tipos de comanda já disponíveis no app. Os demais aparecem como "Em breve".
+const _availableComandaTypes = <ArenaComandaType>[ArenaComandaType.individual];
+
+class ArenaComandaNewTypePage extends ConsumerStatefulWidget {
   const ArenaComandaNewTypePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final draft = ref.watch(arenaComandaDraftProvider);
+  ConsumerState<ArenaComandaNewTypePage> createState() =>
+      _ArenaComandaNewTypePageState();
+}
 
+class _ArenaComandaNewTypePageState
+    extends ConsumerState<ArenaComandaNewTypePage> {
+  // Enquanto só um tipo está disponível, "Que tipo?" é uma escolha falsa —
+  // pula a etapa automaticamente. Volta a aparecer quando houver >1 tipo.
+  bool get _shouldAutoSkip => _availableComandaTypes.length == 1;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_shouldAutoSkip) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref
+            .read(arenaComandaDraftProvider.notifier)
+            .setType(_availableComandaTypes.first);
+        context.pushReplacementNamed(AppRouteNames.arenaComandaNewLink);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_shouldAutoSkip) {
+      // Etapa pulada: tela em branco por um frame até o redirect.
+      return Scaffold(
+        backgroundColor: context.themeColors.canvas,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final draft = ref.watch(arenaComandaDraftProvider);
     return ArenaComandaWizardScaffold(
       stepLabel: 'NOVA COMANDA · PASSO 1 DE 4',
       title: 'Que tipo?',
@@ -33,7 +68,7 @@ class ArenaComandaNewTypePage extends ConsumerWidget {
               type: type,
               selected: draft.type == type,
               onTap: () {
-                if (type != ArenaComandaType.individual) {
+                if (!_availableComandaTypes.contains(type)) {
                   showAppSnackBar(context, 'Em breve.');
                   return;
                 }

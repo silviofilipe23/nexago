@@ -11,7 +11,7 @@ class ArenaComandaStepper extends StatelessWidget {
 
   final int currentStep;
 
-  static const _labels = ['Tipo', 'Origem', 'Atletas', 'Revisão'];
+  static const _labels = ['Origem', 'Atletas', 'Revisão'];
 
   @override
   Widget build(BuildContext context) {

@@ -35,17 +35,36 @@ class _OrganizerCourtScheduleGridPageState
     extends ConsumerState<OrganizerCourtScheduleGridPage> {
   String? _draggingMatchId;
   Timer? _clockTimer;
+  late final ScrollController _gridHorizontalScrollController;
+  late final ScrollController _headerHorizontalScrollController;
 
   @override
   void initState() {
     super.initState();
+    _gridHorizontalScrollController = ScrollController();
+    _headerHorizontalScrollController = ScrollController();
+    _gridHorizontalScrollController.addListener(_syncHeaderHorizontalScroll);
     _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
   }
 
+  void _syncHeaderHorizontalScroll() {
+    if (!_headerHorizontalScrollController.hasClients ||
+        !_gridHorizontalScrollController.hasClients) {
+      return;
+    }
+    final offset = _gridHorizontalScrollController.offset;
+    if (_headerHorizontalScrollController.offset != offset) {
+      _headerHorizontalScrollController.jumpTo(offset);
+    }
+  }
+
   @override
   void dispose() {
+    _gridHorizontalScrollController.removeListener(_syncHeaderHorizontalScroll);
+    _gridHorizontalScrollController.dispose();
+    _headerHorizontalScrollController.dispose();
     _clockTimer?.cancel();
     super.dispose();
   }
@@ -154,6 +173,7 @@ class _OrganizerCourtScheduleGridPageState
                   courts: courts,
                   timeColumnWidth: ScheduleGridLogic.timeColumnWidth,
                   courtColumnWidth: ScheduleGridLogic.courtColumnWidth,
+                  horizontalScrollController: _headerHorizontalScrollController,
                 ),
                 Expanded(
                   child: ScheduleGridBody(
@@ -164,6 +184,7 @@ class _OrganizerCourtScheduleGridPageState
                     categoryLabelsByMatchId: categoryLabels,
                     defaultDurationMin: config.defaultMatchDurationMin,
                     draggingMatchId: _draggingMatchId,
+                    horizontalScrollController: _gridHorizontalScrollController,
                     onMatchTap: (match) => showOrganizerScheduleMatchSheet(
                       context,
                       tournamentId: widget.tournamentId,

@@ -17,6 +17,7 @@ import '../../../domain/tournament_registration_logic.dart';
 import 'tournament_registration_partner_candidate_tile.dart';
 import 'tournament_registration_partner_phone_card.dart';
 import 'tournament_registration_recent_partners_chips.dart';
+import 'tournament_registration_solo_card.dart';
 
 class TournamentRegistrationPartnerStep extends ConsumerStatefulWidget {
   const TournamentRegistrationPartnerStep({
@@ -274,20 +275,7 @@ class _TournamentRegistrationPartnerStepState
         TournamentRegistrationPartnerPhoneCard(onTap: widget.onInviteByPhone),
         if (widget.onRegisterSolo != null) ...[
           const SizedBox(height: 16),
-          Center(
-            child: TextButton.icon(
-              onPressed: widget.onRegisterSolo,
-              icon: const Icon(Icons.bookmark_added_outlined,
-                  size: 18, color: AppColors.brand),
-              label: const Text(
-                'Garantir vaga e achar dupla depois',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.brand,
-                ),
-              ),
-            ),
-          ),
+          TournamentRegistrationSoloCard(onTap: widget.onRegisterSolo!),
         ],
       ],
     );

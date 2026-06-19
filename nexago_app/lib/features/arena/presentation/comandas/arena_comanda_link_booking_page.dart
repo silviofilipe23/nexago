@@ -60,13 +60,13 @@ class _ArenaComandaLinkBookingPageState
             : 'Selecione uma reserva';
 
     return ArenaComandaWizardScaffold(
-      stepLabel: 'NOVA COMANDA · PASSO 2 DE 4',
+      stepLabel: 'NOVA COMANDA · PASSO 1 DE 3',
       title: 'Vincular reserva',
-      currentStep: 1,
+      currentStep: 0,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const ArenaComandaStepper(currentStep: 1),
+          const ArenaComandaStepper(currentStep: 0),
           const SizedBox(height: 20),
           TextField(
             controller: _searchController,

@@ -7,6 +7,7 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
 import '../../athlete/domain/tournament_access_providers.dart';
@@ -62,68 +63,70 @@ class TournamentDetailPage extends ConsumerWidget {
             onBack: () => _handleTournamentDetailBack(context),
           ),
           data: (tournament) {
-          if (tournament == null) {
-            return _ErrorBody(
-              message: 'Torneio não encontrado.',
-              onBack: () => _handleTournamentDetailBack(context),
+            if (tournament == null) {
+              return _ErrorBody(
+                message: 'Torneio não encontrado.',
+                onBack: () => _handleTournamentDetailBack(context),
+              );
+            }
+
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              tryAwardExploreTournamentMission(
+                ref,
+                listingId: 'tournament_$tournamentId',
+              );
+            });
+
+            final leagues = leaguesAsync.valueOrNull ?? [];
+            final leagueCtx = resolveLeagueContext(leagues, tournament.id);
+            final enrollmentAsync = ref.watch(
+              tournamentCategoryEnrollmentCountsProvider(tournamentId),
             );
-          }
-
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            tryAwardExploreTournamentMission(
-              ref,
-              listingId: 'tournament_$tournamentId',
+            final enrollmentResolved = enrollmentAsync.hasValue;
+            final enrollment =
+                enrollmentAsync.valueOrNull ?? const <String, int>{};
+            final stats = tournamentDetailStats(
+              tournament,
+              enrollmentByCategoryId: enrollment,
+              enrollmentCountsResolved: enrollmentResolved,
             );
-          });
+            final organizerName = ref.watch(
+              tournamentOrganizerDisplayProvider(tournament.managerId ?? ''),
+            );
 
-          final leagues = leaguesAsync.valueOrNull ?? [];
-          final leagueCtx = resolveLeagueContext(leagues, tournament.id);
-          final enrollmentAsync = ref.watch(
-            tournamentCategoryEnrollmentCountsProvider(tournamentId),
-          );
-          final enrollmentResolved = enrollmentAsync.hasValue;
-          final enrollment =
-              enrollmentAsync.valueOrNull ?? const <String, int>{};
-          final stats = tournamentDetailStats(
-            tournament,
-            enrollmentByCategoryId: enrollment,
-            enrollmentCountsResolved: enrollmentResolved,
-          );
-          final organizerName = ref.watch(
-            tournamentOrganizerDisplayProvider(tournament.managerId ?? ''),
-          );
+            final authAsync = ref.watch(authProvider);
+            final registrationsAsync = ref.watch(
+              tournamentUserRegistrationsByCategoryProvider(tournamentId),
+            );
+            final waitlistAsync = ref.watch(
+              tournamentUserWaitlistByCategoryProvider(tournamentId),
+            );
+            final registrationsByCategory =
+                registrationsAsync.valueOrNull ?? const <String, String>{};
+            final waitlistByCategory =
+                waitlistAsync.valueOrNull ?? const <String, bool>{};
+            final registrationResolved =
+                authAsync.hasValue && registrationsAsync.hasValue;
 
-          final authAsync = ref.watch(authProvider);
-          final registrationsAsync = ref.watch(
-            tournamentUserRegistrationsByCategoryProvider(tournamentId),
-          );
-          final waitlistAsync = ref.watch(
-            tournamentUserWaitlistByCategoryProvider(tournamentId),
-          );
-          final registrationsByCategory =
-              registrationsAsync.valueOrNull ?? const <String, String>{};
-          final waitlistByCategory =
-              waitlistAsync.valueOrNull ?? const <String, bool>{};
-          final registrationResolved =
-              authAsync.hasValue && registrationsAsync.hasValue;
+            final access = ref.watch(tournamentAccessStateProvider);
 
-          final access = ref.watch(tournamentAccessStateProvider);
-
-          return _TournamentDetailContent(
-            tournament: tournament,
-            stats: stats,
-            organizerName: organizerName,
-            leagueContextLabel:
-                leagueCtx != null ? leagueContextLabel(leagueCtx) : null,
-            enrollmentByCategoryId: enrollment,
-            enrollmentCountsResolved: enrollmentResolved,
-            registrationsByCategoryId: registrationsByCategory,
-            waitlistByCategoryId: waitlistByCategory,
-            registrationResolved: registrationResolved,
-            canAccessTournaments: access.canAccess,
-            onRegisterBlocked: () => _onTournamentRegisterBlocked(context, access),
-          );
-        },
+            return _TournamentDetailContent(
+              tournament: tournament,
+              stats: stats,
+              organizerName: organizerName,
+              leagueContextLabel: leagueCtx != null
+                  ? leagueContextLabel(leagueCtx)
+                  : null,
+              enrollmentByCategoryId: enrollment,
+              enrollmentCountsResolved: enrollmentResolved,
+              registrationsByCategoryId: registrationsByCategory,
+              waitlistByCategoryId: waitlistByCategory,
+              registrationResolved: registrationResolved,
+              canAccessTournaments: access.canAccess,
+              onRegisterBlocked: () =>
+                  _onTournamentRegisterBlocked(context, access),
+            );
+          },
         ),
       ),
     );
@@ -177,7 +180,8 @@ class _TournamentDetailContent extends ConsumerStatefulWidget {
       _TournamentDetailContentState();
 }
 
-class _TournamentDetailContentState extends ConsumerState<_TournamentDetailContent>
+class _TournamentDetailContentState
+    extends ConsumerState<_TournamentDetailContent>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   late final List<TournamentDetailTab> _visibleTabs;
@@ -239,7 +243,8 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
   Widget build(BuildContext context) {
     final canRegister = canRegisterForTournament(widget.tournament.status);
     final isAthleteRegistered = widget.registrationsByCategoryId.isNotEmpty;
-    final showBottomBar = canRegister &&
+    final showBottomBar =
+        canRegister &&
         _currentTab == TournamentDetailTab.overview &&
         widget.registrationResolved &&
         !isAthleteRegistered;
@@ -254,6 +259,7 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
                 SliverToBoxAdapter(
                   child: _TournamentDetailToolbar(
                     topInset: topInset,
+                    tournamentName: widget.tournament.name,
                     onBack: () => _handleTournamentDetailBack(context),
                     onBookmark: () {
                       showAppSnackBar(context, 'Favoritos em breve.');
@@ -281,9 +287,7 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
             },
             body: TabBarView(
               controller: _tabController,
-              children: [
-                for (final tab in _visibleTabs) _buildTab(tab),
-              ],
+              children: [for (final tab in _visibleTabs) _buildTab(tab)],
             ),
           ),
         ),
@@ -310,12 +314,14 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
 class _TournamentDetailToolbar extends StatelessWidget {
   const _TournamentDetailToolbar({
     required this.topInset,
+    required this.tournamentName,
     required this.onBack,
     required this.onBookmark,
     required this.onShare,
   });
 
   final double topInset;
+  final String tournamentName;
   final VoidCallback onBack;
   final VoidCallback onBookmark;
   final VoidCallback onShare;
@@ -325,14 +331,41 @@ class _TournamentDetailToolbar extends StatelessWidget {
     final iconColor = context.themeColors.onSurface;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(4, topInset + 8, 4, 0),
+      padding: EdgeInsets.fromLTRB(4, topInset + 8, 4, 8),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           IconButton(
             icon: Icon(Icons.arrow_back_rounded, color: iconColor),
             onPressed: onBack,
           ),
-          const Spacer(),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'TORNEIO',
+                  style: AppTypography.soraRegular(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.brand,
+                    letterSpacing: 1,
+                  ),
+                ),
+                Text(
+                  tournamentName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: context.themeColors.onSurface,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
           IconButton(
             icon: Icon(Icons.bookmark_border_rounded, color: iconColor),
             onPressed: onBookmark,

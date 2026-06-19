@@ -33,14 +33,12 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
     if (offers.isEmpty) {
       return ListView(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-        children: const [
-          _EmptyCategories(),
-        ],
+        children: const [_EmptyCategories()],
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      // padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       itemCount: offers.length,
       itemBuilder: (context, index) {
         final offer = offers[index];
@@ -81,8 +79,8 @@ class _EmptyCategories extends StatelessWidget {
     return Text(
       'Categorias serão publicadas em breve pelo organizador.',
       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }

@@ -106,17 +106,7 @@ class _HeroTopSection extends StatelessWidget {
                   letterSpacing: 1.1,
                 ),
               ),
-              SizedBox(height: 10),
-              Text(
-                tournament.name,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  color: context.themeColors.onSurface,
-                  fontWeight: FontWeight.w800,
-                  height: 1.15,
-                  letterSpacing: -0.4,
-                ),
-              ),
-              SizedBox(height: 14),
+              SizedBox(height: 100),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [

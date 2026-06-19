@@ -26,12 +26,14 @@ const _locationFallback = 'Aparecida de Goiânia · GO';
 
 class _PlayPartner {
   const _PlayPartner({
+    required this.userId,
     required this.initials,
     required this.name,
     required this.games,
     required this.color,
   });
 
+  final String userId;
   final String initials;
   final String name;
   final String games;
@@ -72,7 +74,7 @@ class AthleteProfileMainView extends StatelessWidget {
     required this.onOpenAgenda,
     required this.onOpenAchievements,
     this.onOpenMatchHistory,
-    required this.onOpenPlaysWith,
+    required this.onOpenPartner,
   });
 
   final AthleteProfile profile;
@@ -93,7 +95,7 @@ class AthleteProfileMainView extends StatelessWidget {
   final VoidCallback onOpenAgenda;
   final VoidCallback onOpenAchievements;
   final VoidCallback? onOpenMatchHistory;
-  final VoidCallback onOpenPlaysWith;
+  final ValueChanged<String> onOpenPartner;
 
   @override
   Widget build(BuildContext context) {
@@ -214,14 +216,10 @@ class AthleteProfileMainView extends StatelessWidget {
                         ),
                       ],
                       SizedBox(height: 20),
-                      _SectionHeader(
-                        title: 'Joga com',
-                        trailing: 'VER TODOS',
-                        onTrailingTap: onOpenPlaysWith,
-                      ),
+                      const _SectionHeader(title: 'Joga com'),
                       SizedBox(height: 10),
                       _AthleteProfilePlaysWithSection(
-                        onInvite: onOpenPlaysWith,
+                        onOpenPartner: onOpenPartner,
                       ),
                       SizedBox(height: 8),
                     ],
@@ -979,9 +977,9 @@ class _AthleteProfileStatsSection extends ConsumerWidget {
 }
 
 class _AthleteProfilePlaysWithSection extends ConsumerWidget {
-  const _AthleteProfilePlaysWithSection({required this.onInvite});
+  const _AthleteProfilePlaysWithSection({required this.onOpenPartner});
 
-  final VoidCallback onInvite;
+  final ValueChanged<String> onOpenPartner;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -992,11 +990,13 @@ class _AthleteProfilePlaysWithSection extends ConsumerWidget {
 
     return partnersAsync.when(
       loading: () => const AthleteProfilePlaysWithSkeleton(),
-      error: (_, __) => _PlaysWithStrip(partners: const [], onInvite: onInvite),
+      error: (_, __) =>
+          _PlaysWithStrip(partners: const [], onOpenPartner: onOpenPartner),
       data: (partners) {
         final tiles = partners
             .map(
               (partner) => _PlayPartner(
+                userId: partner.userId,
                 initials: partner.initials,
                 name: _shortPartnerName(partner.name),
                 games: formatPartnerGamesLabel(
@@ -1006,7 +1006,7 @@ class _AthleteProfilePlaysWithSection extends ConsumerWidget {
               ),
             )
             .toList(growable: false);
-        return _PlaysWithStrip(partners: tiles, onInvite: onInvite);
+        return _PlaysWithStrip(partners: tiles, onOpenPartner: onOpenPartner);
       },
     );
   }
@@ -1439,17 +1439,18 @@ class _StatusPill extends StatelessWidget {
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader({
     required this.title,
-    required this.trailing,
-    required this.onTrailingTap,
+    this.trailing,
+    this.onTrailingTap,
   });
 
   final String title;
-  final String trailing;
-  final VoidCallback onTrailingTap;
+  final String? trailing;
+  final VoidCallback? onTrailingTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasTrailing = trailing != null && onTrailingTap != null;
 
     return Row(
       children: [
@@ -1460,36 +1461,38 @@ class _SectionHeader extends StatelessWidget {
             color: context.themeColors.onSurface,
           ),
         ),
-        Spacer(),
-        TextButton(
-          onPressed: onTrailingTap,
-          style: TextButton.styleFrom(
-            foregroundColor: title == 'Conquistas'
-                ? AppColors.brand
-                : context.themeColors.onSurfaceMuted,
-            padding: EdgeInsets.zero,
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$trailing ',
-                style: theme.textTheme.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
+        if (hasTrailing) ...[
+          const Spacer(),
+          TextButton(
+            onPressed: onTrailingTap,
+            style: TextButton.styleFrom(
+              foregroundColor: title == 'Conquistas'
+                  ? AppColors.brand
+                  : context.themeColors.onSurfaceMuted,
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${trailing!} ',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 18,
-                color: title == 'Conquistas'
-                    ? AppColors.brand
-                    : context.themeColors.onSurfaceMuted,
-              ),
-            ],
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: title == 'Conquistas'
+                      ? AppColors.brand
+                      : context.themeColors.onSurfaceMuted,
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -1596,10 +1599,10 @@ class _AchievementTile extends StatelessWidget {
 }
 
 class _PlaysWithStrip extends StatelessWidget {
-  const _PlaysWithStrip({required this.partners, required this.onInvite});
+  const _PlaysWithStrip({required this.partners, required this.onOpenPartner});
 
   final List<_PlayPartner> partners;
-  final VoidCallback onInvite;
+  final ValueChanged<String> onOpenPartner;
 
   @override
   Widget build(BuildContext context) {
@@ -1607,14 +1610,14 @@ class _PlaysWithStrip extends StatelessWidget {
       height: 100,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: partners.length + 1,
+        itemCount: partners.length,
         separatorBuilder: (_, __) => SizedBox(width: 14),
         itemBuilder: (context, index) {
-          if (index == partners.length) {
-            return _InvitePartnerTile(onTap: onInvite);
-          }
           final p = partners[index];
-          return _PartnerTile(partner: p);
+          return _PartnerTile(
+            partner: p,
+            onTap: () => onOpenPartner(p.userId),
+          );
         },
       ),
     );
@@ -1622,101 +1625,57 @@ class _PlaysWithStrip extends StatelessWidget {
 }
 
 class _PartnerTile extends StatelessWidget {
-  const _PartnerTile({required this.partner});
+  const _PartnerTile({required this.partner, required this.onTap});
 
   final _PlayPartner partner;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return SizedBox(
-      width: 64,
-      child: Column(
-        children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: partner.color.withValues(alpha: 0.25),
-            child: Text(
-              partner.initials,
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w900,
-                color: partner.color,
-              ),
-            ),
-          ),
-          SizedBox(height: 6),
-          Text(
-            partner.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: context.themeColors.onSurface,
-            ),
-          ),
-          Text(
-            partner.games,
-            style: theme.textTheme.labelSmall?.copyWith(
-              fontSize: 9,
-              color: context.themeColors.onSurfaceMuted,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InvitePartnerTile extends StatelessWidget {
-  const _InvitePartnerTile({required this.onTap});
-
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: 64,
-          child: Column(
-            children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: context.themeColors.surfaceRaised,
-                  border: Border.all(
-                    color: context.themeColors.onSurfaceMuted.withValues(
-                      alpha: 0.25,
-                    ),
-                  ),
-                ),
-                child: Icon(
-                  Icons.person_add_alt_1_rounded,
-                  color: AppColors.brand,
-                  size: 24,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 64,
+        child: Column(
+          children: [
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: partner.color.withValues(alpha: 0.25),
+              child: Text(
+                partner.initials,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: partner.color,
                 ),
               ),
-              SizedBox(height: 8),
-              Text(
-                'Convidar',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: context.themeColors.onSurfaceMuted,
-                ),
+            ),
+            SizedBox(height: 6),
+            Text(
+              partner.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: context.themeColors.onSurface,
               ),
-            ],
-          ),
+            ),
+            Text(
+              partner.games,
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontSize: 9,
+                color: context.themeColors.onSurfaceMuted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
+
+// "Joga com": tocar num parceiro abre o perfil público dele. O tile de
+// "+Convidar" foi removido (a ação era "Em breve").

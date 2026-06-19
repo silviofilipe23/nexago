@@ -148,39 +148,6 @@ class AthleteProfilePage extends ConsumerWidget {
   }
 }
 
-void _showBriefAlert(
-  BuildContext context,
-  String title,
-  String message,
-) {
-  showDialog<void>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: context.themeColors.surfaceSheet,
-      title: Text(
-        title,
-        style: TextStyle(color: context.themeColors.onSurface),
-      ),
-      content: Text(
-        message,
-        style: TextStyle(color: context.themeColors.onSurfaceMuted),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(),
-          child: Text(
-            'OK',
-            style: TextStyle(
-              color: AppColors.brand,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
 class _AthleteProfileBody extends ConsumerWidget {
   const _AthleteProfileBody({
     required this.embedded,
@@ -207,14 +174,6 @@ class _AthleteProfileBody extends ConsumerWidget {
   final VoidCallback onEdit;
   final VoidCallback onOpenAgenda;
   final VoidCallback onOpenSettings;
-
-  void _comingSoon(BuildContext context, String title) {
-    _showBriefAlert(
-      context,
-      'Em breve',
-      '$title estará disponível em breve.',
-    );
-  }
 
   Future<void> _shareProfile(
     BuildContext context,
@@ -264,57 +223,11 @@ class _AthleteProfileBody extends ConsumerWidget {
       onOpenMatchHistory: readOnly
           ? null
           : () => context.pushNamed(AppRouteNames.athleteMatchHistory),
-      onOpenPlaysWith: () => _comingSoon(context, 'Parceiros de jogo'),
-    );
-  }
-}
-
-class _PrivateProfileBlockedView extends StatelessWidget {
-  const _PrivateProfileBlockedView({required this.embedded});
-
-  final bool embedded;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final body = Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.visibility_off_outlined,
-              size: 48,
-              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.7),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Este perfil é privado',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: context.themeColors.onSurface,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'O atleta limitou a visibilidade do perfil.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-                height: 1.4,
-              ),
-            ),
-          ],
-        ),
+      onOpenPartner: (userId) => context.pushNamed(
+        AppRouteNames.athleteProfile,
+        queryParameters: {'userId': userId},
       ),
     );
-
-    if (embedded) {
-      return ColoredBox(color: context.themeColors.canvas, child: body);
-    }
-    return body;
   }
 }
 

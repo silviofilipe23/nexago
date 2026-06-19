@@ -317,13 +317,6 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                                   ),
                                 );
                             },
-                            onJoinDropInTap: () {
-                              ScaffoldMessenger.of(context)
-                                ..hideCurrentSnackBar()
-                                ..showSnackBar(
-                                  const SnackBar(content: Text('Em breve.')),
-                                );
-                            },
                             onRestDayTap: () {
                               ScaffoldMessenger.of(context)
                                 ..hideCurrentSnackBar()

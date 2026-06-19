@@ -9,6 +9,7 @@ import '../../../../../core/theme/app_typography.dart';
 import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
 import '../../../domain/compete_hub_models.dart';
 import '../../../domain/compete_hub_providers.dart';
+import '../competition_carousel/competition_carousel_strip.dart';
 import 'compete_hub_section_header.dart';
 
 const _hubAthletesRowHeight = 120.0;
@@ -25,53 +26,45 @@ class CompeteHubAthletesSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        CompeteHubSectionHeader(
-          title: 'Atletas',
-          actionLabel: 'DESCOBRIR',
-          onActionTap: () => context.pushNamed(AppRouteNames.athleteDiscover),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: competitionCarouselHorizontalPadding,
+          ),
+          child: CompeteHubSectionHeader(
+            title: 'Atletas',
+            actionLabel: 'DESCOBRIR',
+            onActionTap: () => context.pushNamed(AppRouteNames.athleteDiscover),
+          ),
         ),
         SizedBox(height: 10),
         athletesAsync.when(
-          loading: () => const _AthletesLoading(),
-          error: (_, __) =>
-              const _AthletesMessage('Não foi possível carregar os atletas.'),
+          loading: () => CompetitionCarouselStrip(
+            height: _hubAthletesRowHeight,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 5,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (_, __) => const _AthleteChipSkeleton(),
+          ),
+          error: (_, __) => const _AthletesMessage(
+            'Não foi possível carregar os atletas.',
+          ),
           data: (athletes) {
             if (athletes.isEmpty) {
               return const _AthletesMessage(
                 'Nenhum atleta para descobrir ainda.',
               );
             }
-            return SizedBox(
+            return CompetitionCarouselStrip(
               height: _hubAthletesRowHeight,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: athletes.length,
-                separatorBuilder: (_, __) => SizedBox(width: 14),
-                itemBuilder: (context, index) {
-                  return _AthleteChip(athlete: athletes[index]);
-                },
-              ),
+              itemCount: athletes.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 14),
+              itemBuilder: (context, index) {
+                return _AthleteChip(athlete: athletes[index]);
+              },
             );
           },
         ),
       ],
-    );
-  }
-}
-
-class _AthletesLoading extends StatelessWidget {
-  const _AthletesLoading();
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: _hubAthletesRowHeight,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: 5,
-        separatorBuilder: (_, __) => SizedBox(width: 14),
-        itemBuilder: (_, __) => const _AthleteChipSkeleton(),
-      ),
     );
   }
 }
@@ -123,7 +116,10 @@ class _AthletesMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(
+        horizontal: competitionCarouselHorizontalPadding,
+        vertical: 16,
+      ),
       child: Text(
         message,
         style: TextStyle(color: context.themeColors.onSurfaceMuted),
@@ -132,13 +128,25 @@ class _AthletesMessage extends StatelessWidget {
   }
 }
 
-class _AthleteChip extends StatelessWidget {
+class _AthleteChip extends StatefulWidget {
   const _AthleteChip({required this.athlete});
 
   final CompeteHubAthletePreview athlete;
 
+  @override
+  State<_AthleteChip> createState() => _AthleteChipState();
+}
+
+class _AthleteChipState extends State<_AthleteChip> {
+  var _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
   void _openProfile(BuildContext context) {
-    final userId = athlete.userId?.trim();
+    final userId = widget.athlete.userId?.trim();
     if (userId == null || userId.isEmpty) return;
     context.pushNamed(
       AppRouteNames.athleteProfile,
@@ -148,6 +156,7 @@ class _AthleteChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final athlete = widget.athlete;
     final userId = athlete.userId?.trim();
     final canOpenProfile = userId != null && userId.isNotEmpty;
 
@@ -155,61 +164,70 @@ class _AthleteChip extends StatelessWidget {
       width: _hubAthleteChipWidth,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
+        onTapDown: canOpenProfile ? (_) => _setPressed(true) : null,
+        onTapUp: canOpenProfile ? (_) => _setPressed(false) : null,
+        onTapCancel: canOpenProfile ? () => _setPressed(false) : null,
         onTap: canOpenProfile ? () => _openProfile(context) : null,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                AthleteProfileAvatar(
-                  size: _hubAthleteAvatarSize,
-                  initials: athlete.initials,
-                  imageUrl: athlete.avatarUrl,
-                ),
-                if (athlete.isOnline)
-                  Positioned(
-                    right: 2,
-                    top: 2,
-                    child: Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: AppColors.win,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: context.themeColors.canvas,
-                          width: 2,
+        child: AnimatedScale(
+          scale: _pressed ? 0.94 : 1,
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  AthleteProfileAvatar(
+                    size: _hubAthleteAvatarSize,
+                    initials: athlete.initials,
+                    imageUrl: athlete.avatarUrl,
+                  ),
+                  if (athlete.isOnline)
+                    Positioned(
+                      right: 2,
+                      top: 2,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: AppColors.win,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: context.themeColors.canvas,
+                            width: 2,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            SizedBox(height: 6),
-            Text(
-              athlete.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.soraRegular(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                height: 1.1,
-                color: context.themeColors.onSurface,
+                ],
               ),
-            ),
-            Text(
-              athlete.categoryLabel,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.mono(
-                fontSize: 8,
-                fontWeight: FontWeight.w500,
-                height: 1.1,
-                color: context.themeColors.onSurfaceMuted,
+              SizedBox(height: 6),
+              Text(
+                athlete.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.soraRegular(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  height: 1.1,
+                  color: context.themeColors.onSurface,
+                ),
               ),
-            ),
-          ],
+              Text(
+                athlete.categoryLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.mono(
+                  fontSize: 8,
+                  fontWeight: FontWeight.w500,
+                  height: 1.1,
+                  color: context.themeColors.onSurfaceMuted,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -292,18 +292,26 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
 
     final resultsAsync = ref.watch(arenaSearchResultsProvider(_filters.slot));
     final filtered = ref.watch(arenaSearchFilteredProvider(_filters));
+    final topInset = MediaQuery.paddingOf(context).top;
 
     return SafeArea(
+      top: false,
       bottom: false,
       child: ColoredBox(
         color: context.themeColors.canvas,
         child: resultsAsync.when(
-          loading: () => const AppLoadingView(message: 'Carregando arenas...'),
-          error: (e, _) => AppErrorView(
-            title: 'Não foi possível carregar horários',
-            message: e.toString().replaceFirst('Exception: ', ''),
-            onRetry: () =>
-                ref.invalidate(arenaSearchResultsProvider(_filters.slot)),
+          loading: () => Padding(
+            padding: EdgeInsets.only(top: topInset),
+            child: const AppLoadingView(message: 'Carregando arenas...'),
+          ),
+          error: (e, _) => Padding(
+            padding: EdgeInsets.only(top: topInset),
+            child: AppErrorView(
+              title: 'Não foi possível carregar horários',
+              message: e.toString().replaceFirst('Exception: ', ''),
+              onRetry: () =>
+                  ref.invalidate(arenaSearchResultsProvider(_filters.slot)),
+            ),
           ),
           data: (_) {
             final items = filtered;
@@ -322,7 +330,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                 controller: scrollController,
                 slivers: [
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+                    padding: EdgeInsets.fromLTRB(20, topInset + 16, 20, 28),
                     sliver: SliverToBoxAdapter(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -364,7 +372,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
               physics: const BouncingScrollPhysics(),
               slivers: [
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+                  padding: EdgeInsets.fromLTRB(20, topInset + 16, 20, 10),
                   sliver: SliverToBoxAdapter(child: _buildHeaderControls()),
                 ),
                 // if (favoriteItems.isNotEmpty)

@@ -60,10 +60,7 @@ class CompeteHubSectionHeader extends StatelessWidget {
 }
 
 class _ScalePressAction extends StatefulWidget {
-  const _ScalePressAction({
-    required this.onTap,
-    required this.child,
-  });
+  const _ScalePressAction({required this.onTap, required this.child});
 
   final VoidCallback onTap;
   final Widget child;

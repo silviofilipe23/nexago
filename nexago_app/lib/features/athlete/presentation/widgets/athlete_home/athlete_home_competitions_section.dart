@@ -5,13 +5,15 @@ import 'package:go_router/go_router.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_theme_colors.dart';
 import '../../../../tournaments/presentation/widgets/compete_hub/compete_hub_section_header.dart';
+import '../../../../tournaments/presentation/widgets/competition_carousel/competition_carousel_strip.dart';
+import '../../../../tournaments/presentation/widgets/competition_carousel/competition_carousel_tile.dart';
 import '../../../domain/athlete_home_competitions_logic.dart';
 import '../../../domain/athlete_home_competitions_providers.dart';
 import '../../../domain/athlete_shell_providers.dart';
 import '../../../../tournaments/domain/tournament_discovery_providers.dart';
-import 'athlete_home_competition_carousel_tile.dart';
 
-const _carouselHeight = 188.0;
+/// Alias para compatibilidade com [`athlete_home_page.dart`].
+const athleteHomeHorizontalPadding = competitionCarouselHorizontalPadding;
 
 class AthleteHomeCompetitionsSection extends ConsumerWidget {
   const AthleteHomeCompetitionsSection({super.key});
@@ -31,7 +33,12 @@ class AthleteHomeCompetitionsSection extends ConsumerWidget {
 
     if (hasError) {
       return Padding(
-        padding: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.fromLTRB(
+          athleteHomeHorizontalPadding,
+          0,
+          athleteHomeHorizontalPadding,
+          8,
+        ),
         child: Text(
           'Não foi possível carregar torneios e ligas.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -46,32 +53,32 @@ class AthleteHomeCompetitionsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        CompeteHubSectionHeader(
-          title: 'Torneios e ligas',
-          actionLabel: 'VER TODOS',
-          onActionTap: () {
-            ref.read(athleteShellTabIndexProvider.notifier).state =
-                athleteShellCompeteTabIndex;
-          },
-        ),
-        SizedBox(height: 10),
-        SizedBox(
-          height: _carouselHeight,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: preview.length,
-            separatorBuilder: (_, __) => SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final item = preview[index];
-              return AthleteHomeCompetitionCarouselTile(
-                title: item.title,
-                subtitle: item.subtitle,
-                sortDate: item.sortDate,
-                imageUrl: item.imageUrl,
-                onTap: () => _openItem(context, item),
-              );
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: athleteHomeHorizontalPadding,
+          ),
+          child: CompeteHubSectionHeader(
+            title: 'Torneios e ligas',
+            actionLabel: 'VER TODOS',
+            onActionTap: () {
+              ref.read(athleteShellTabIndexProvider.notifier).state =
+                  athleteShellCompeteTabIndex;
             },
           ),
+        ),
+        SizedBox(height: 10),
+        CompetitionCarouselStrip(
+          itemCount: preview.length,
+          itemBuilder: (context, index) {
+            final item = preview[index];
+            return CompetitionCarouselTile(
+              title: item.title,
+              subtitle: item.subtitle,
+              sortDate: item.sortDate,
+              imageUrl: item.imageUrl,
+              onTap: () => _openItem(context, item),
+            );
+          },
         ),
       ],
     );
@@ -130,21 +137,20 @@ class _AthleteHomeCompetitionsSectionSkeletonState
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const CompeteHubSectionHeader(
-              title: 'Torneios e ligas',
-              actionLabel: 'VER TODOS',
+            const Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: athleteHomeHorizontalPadding,
+              ),
+              child: CompeteHubSectionHeader(
+                title: 'Torneios e ligas',
+                actionLabel: 'VER TODOS',
+              ),
             ),
             SizedBox(height: 10),
-            SizedBox(
-              height: _carouselHeight,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: 3,
-                separatorBuilder: (_, __) => SizedBox(width: 12),
-                itemBuilder: (_, __) =>
-                    AthleteHomeCompetitionCarouselTileSkeleton(pulse: t),
-              ),
+            CompetitionCarouselStrip(
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: 3,
+              itemBuilder: (_, __) => CompetitionCarouselTileSkeleton(pulse: t),
             ),
           ],
         );

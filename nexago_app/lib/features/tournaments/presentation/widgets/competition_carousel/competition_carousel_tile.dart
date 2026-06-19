@@ -6,11 +6,11 @@ import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 
-const athleteHomeCompetitionCarouselTileWidth = 188.0;
-const athleteHomeCompetitionCarouselImageHeight = 120.0;
+const competitionCarouselTileWidth = 250.0;
+const competitionCarouselImageHeight = 120.0;
 
-class AthleteHomeCompetitionCarouselTile extends StatefulWidget {
-  const AthleteHomeCompetitionCarouselTile({
+class CompetitionCarouselTile extends StatefulWidget {
+  const CompetitionCarouselTile({
     super.key,
     required this.title,
     required this.subtitle,
@@ -26,12 +26,11 @@ class AthleteHomeCompetitionCarouselTile extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<AthleteHomeCompetitionCarouselTile> createState() =>
-      _AthleteHomeCompetitionCarouselTileState();
+  State<CompetitionCarouselTile> createState() =>
+      _CompetitionCarouselTileState();
 }
 
-class _AthleteHomeCompetitionCarouselTileState
-    extends State<AthleteHomeCompetitionCarouselTile> {
+class _CompetitionCarouselTileState extends State<CompetitionCarouselTile> {
   var _pressed = false;
 
   void _setPressed(bool value) {
@@ -41,14 +40,14 @@ class _AthleteHomeCompetitionCarouselTileState
 
   @override
   Widget build(BuildContext context) {
-    final monthLabel = DateFormat('MMM', 'pt_BR')
-        .format(widget.sortDate)
-        .replaceAll('.', '')
-        .toUpperCase();
+    final monthLabel = DateFormat(
+      'MMM',
+      'pt_BR',
+    ).format(widget.sortDate).replaceAll('.', '').toUpperCase();
     final dayLabel = DateFormat('d').format(widget.sortDate);
 
     return SizedBox(
-      width: athleteHomeCompetitionCarouselTileWidth,
+      width: competitionCarouselTileWidth,
       child: GestureDetector(
         onTapDown: (_) => _setPressed(true),
         onTapUp: (_) => _setPressed(false),
@@ -66,7 +65,7 @@ class _AthleteHomeCompetitionCarouselTileState
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: SizedBox(
-                  height: athleteHomeCompetitionCarouselImageHeight,
+                  height: competitionCarouselImageHeight,
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -116,25 +115,26 @@ class _AthleteHomeCompetitionCarouselTileState
   }
 }
 
-class AthleteHomeCompetitionCarouselTileSkeleton extends StatelessWidget {
-  const AthleteHomeCompetitionCarouselTileSkeleton({super.key, this.pulse = 0});
+class CompetitionCarouselTileSkeleton extends StatelessWidget {
+  const CompetitionCarouselTileSkeleton({super.key, this.pulse = 0});
 
   final double pulse;
 
   @override
   Widget build(BuildContext context) {
     final base = context.themeColors.onSurfaceMuted.withValues(alpha: 0.12);
-    final highlight =
-        context.themeColors.onSurfaceMuted.withValues(alpha: 0.22);
+    final highlight = context.themeColors.onSurfaceMuted.withValues(
+      alpha: 0.22,
+    );
     final color = Color.lerp(base, highlight, pulse) ?? base;
 
     return SizedBox(
-      width: athleteHomeCompetitionCarouselTileWidth,
+      width: competitionCarouselTileWidth,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            height: athleteHomeCompetitionCarouselImageHeight,
+            height: competitionCarouselImageHeight,
             decoration: BoxDecoration(
               color: color,
               borderRadius: BorderRadius.circular(14),
@@ -165,10 +165,7 @@ class AthleteHomeCompetitionCarouselTileSkeleton extends StatelessWidget {
 }
 
 class _DateBadge extends StatelessWidget {
-  const _DateBadge({
-    required this.monthLabel,
-    required this.dayLabel,
-  });
+  const _DateBadge({required this.monthLabel, required this.dayLabel});
 
   final String monthLabel;
   final String dayLabel;

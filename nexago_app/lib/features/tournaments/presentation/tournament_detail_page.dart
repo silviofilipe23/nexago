@@ -43,18 +43,25 @@ class TournamentDetailPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tournamentAsync = ref.watch(tournamentDetailProvider(tournamentId));
     final leaguesAsync = ref.watch(discoveryLeaguesProvider);
+    final topInset = MediaQuery.paddingOf(context).top;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      body: tournamentAsync.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
-        ),
-        error: (e, _) => _ErrorBody(
-          message: 'Não foi possível carregar o torneio.\n$e',
-          onBack: () => _handleTournamentDetailBack(context),
-        ),
-        data: (tournament) {
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: tournamentAsync.when(
+          loading: () => Padding(
+            padding: EdgeInsets.only(top: topInset),
+            child: Center(
+              child: CircularProgressIndicator(color: AppColors.brand),
+            ),
+          ),
+          error: (e, _) => _ErrorBody(
+            message: 'Não foi possível carregar o torneio.\n$e',
+            onBack: () => _handleTournamentDetailBack(context),
+          ),
+          data: (tournament) {
           if (tournament == null) {
             return _ErrorBody(
               message: 'Torneio não encontrado.',
@@ -117,6 +124,7 @@ class TournamentDetailPage extends ConsumerWidget {
             onRegisterBlocked: () => _onTournamentRegisterBlocked(context, access),
           );
         },
+        ),
       ),
     );
   }
@@ -235,6 +243,7 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
         _currentTab == TournamentDetailTab.overview &&
         widget.registrationResolved &&
         !isAthleteRegistered;
+    final topInset = MediaQuery.paddingOf(context).top;
 
     return Column(
       children: [
@@ -242,37 +251,15 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
           child: NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) {
               return [
-                SliverAppBar(
-                  pinned: true,
-                  backgroundColor: context.themeColors.canvas,
-                  elevation: 0,
-                  scrolledUnderElevation: 0,
-                  leading: IconButton(
-                    icon: Icon(
-                      Icons.arrow_back_rounded,
-                      color: context.themeColors.onSurface,
-                    ),
-                    onPressed: () => _handleTournamentDetailBack(context),
+                SliverToBoxAdapter(
+                  child: _TournamentDetailToolbar(
+                    topInset: topInset,
+                    onBack: () => _handleTournamentDetailBack(context),
+                    onBookmark: () {
+                      showAppSnackBar(context, 'Favoritos em breve.');
+                    },
+                    onShare: () => _shareTournament(widget.tournament.name),
                   ),
-                  actions: [
-                    IconButton(
-                      icon: Icon(
-                        Icons.bookmark_border_rounded,
-                        color: context.themeColors.onSurface,
-                      ),
-                      onPressed: () {
-                        showAppSnackBar(context, 'Favoritos em breve.');
-                      },
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.ios_share_rounded,
-                        color: context.themeColors.onSurface,
-                      ),
-                      onPressed: () =>
-                          _shareTournament(widget.tournament.name),
-                    ),
-                  ],
                 ),
                 SliverToBoxAdapter(
                   child: TournamentDetailHero(
@@ -320,6 +307,46 @@ class _TournamentDetailContentState extends ConsumerState<_TournamentDetailConte
   }
 }
 
+class _TournamentDetailToolbar extends StatelessWidget {
+  const _TournamentDetailToolbar({
+    required this.topInset,
+    required this.onBack,
+    required this.onBookmark,
+    required this.onShare,
+  });
+
+  final double topInset;
+  final VoidCallback onBack;
+  final VoidCallback onBookmark;
+  final VoidCallback onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconColor = context.themeColors.onSurface;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(4, topInset + 8, 4, 0),
+      child: Row(
+        children: [
+          IconButton(
+            icon: Icon(Icons.arrow_back_rounded, color: iconColor),
+            onPressed: onBack,
+          ),
+          const Spacer(),
+          IconButton(
+            icon: Icon(Icons.bookmark_border_rounded, color: iconColor),
+            onPressed: onBookmark,
+          ),
+          IconButton(
+            icon: Icon(Icons.ios_share_rounded, color: iconColor),
+            onPressed: onShare,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ErrorBody extends StatelessWidget {
   const _ErrorBody({required this.message, required this.onBack});
 
@@ -329,14 +356,21 @@ class _ErrorBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final topInset = MediaQuery.paddingOf(context).top;
+
     return SafeArea(
+      top: false,
+      bottom: false,
       child: Column(
         children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: IconButton(
-              onPressed: onBack,
-              icon: Icon(Icons.arrow_back_rounded),
+          Padding(
+            padding: EdgeInsets.only(top: topInset),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: IconButton(
+                onPressed: onBack,
+                icon: Icon(Icons.arrow_back_rounded),
+              ),
             ),
           ),
           Expanded(

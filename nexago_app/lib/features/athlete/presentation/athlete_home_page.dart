@@ -35,12 +35,17 @@ class AthleteHomePage extends ConsumerWidget {
     final registrationsAsync = ref.watch(myTournamentRegistrationsProvider);
 
     return SafeArea(
+      top: false,
       bottom: false,
       child: ColoredBox(
         color: context.themeColors.canvas,
         child: summaryAsync.when(
-          loading: () =>
-              Center(child: CircularProgressIndicator(color: AppColors.brand)),
+          loading: () => Padding(
+            padding: EdgeInsets.only(top: MediaQuery.paddingOf(context).top),
+            child: Center(
+              child: CircularProgressIndicator(color: AppColors.brand),
+            ),
+          ),
           error: (_, __) => _ErrorState(),
           data: (summary) {
             final bookings = bookingsAsync.valueOrNull ?? [];
@@ -56,43 +61,59 @@ class AthleteHomePage extends ConsumerWidget {
               athleteUnreadNotificationsCountProvider,
             );
 
+            final topInset = MediaQuery.paddingOf(context).top;
+
             return ListView(
               controller: ref
                   .watch(athleteShellScrollRegistryProvider)
                   .controllerFor(0),
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              padding: const EdgeInsets.fromLTRB(0, 0, 0, 28),
               children: [
-                AthleteHomeHeader(
-                  displayName: name,
-                  avatarUrl: profile?.avatarUrl,
-                  summary: summary,
-                  onAvatarTap: () =>
-                      context.pushNamed(AppRouteNames.athleteProfile),
-                  onXpTap: () => context.pushNamed(AppRouteNames.athleteQuest),
-                  unreadNotificationCount: unreadNotifications,
-                  onNotificationsTap: () =>
-                      context.pushNamed(AppRouteNames.athleteNotifications),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    athleteHomeHorizontalPadding,
+                    topInset + 16,
+                    athleteHomeHorizontalPadding,
+                    0,
+                  ),
+                  child: AthleteHomeHeader(
+                    displayName: name,
+                    avatarUrl: profile?.avatarUrl,
+                    summary: summary,
+                    onAvatarTap: () =>
+                        context.pushNamed(AppRouteNames.athleteProfile),
+                    onXpTap: () =>
+                        context.pushNamed(AppRouteNames.athleteQuest),
+                    unreadNotificationCount: unreadNotifications,
+                    onNotificationsTap: () =>
+                        context.pushNamed(AppRouteNames.athleteNotifications),
+                  ),
                 ),
                 SizedBox(height: 8),
-                AthleteHomeFeaturedCard(
-                  featured: featured,
-                  onReserveTap: () =>
-                      _goToTab(ref, athleteShellReservarTabIndex),
-                  onBookingTap: () =>
-                      context.pushNamed(AppRouteNames.myBookings),
-                  onTournamentTap: () {
-                    final tournament = switch (featured) {
-                      AthleteHomeFeaturedTournament(:final registration) =>
-                        registration,
-                      _ => null,
-                    };
-                    final id = tournament?.tournamentId.trim() ?? '';
-                    if (id.isEmpty) return;
-                    context.pushNamed(
-                      AppRouteNames.tournamentDetail,
-                      pathParameters: {'tournamentId': id},
-                    );
-                  },
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: athleteHomeHorizontalPadding,
+                  ),
+                  child: AthleteHomeFeaturedCard(
+                    featured: featured,
+                    onReserveTap: () =>
+                        _goToTab(ref, athleteShellReservarTabIndex),
+                    onBookingTap: () =>
+                        context.pushNamed(AppRouteNames.myBookings),
+                    onTournamentTap: () {
+                      final tournament = switch (featured) {
+                        AthleteHomeFeaturedTournament(:final registration) =>
+                          registration,
+                        _ => null,
+                      };
+                      final id = tournament?.tournamentId.trim() ?? '';
+                      if (id.isEmpty) return;
+                      context.pushNamed(
+                        AppRouteNames.tournamentDetail,
+                        pathParameters: {'tournamentId': id},
+                      );
+                    },
+                  ),
                 ),
                 // SizedBox(height: 8),
                 // AthleteHomeQuickActions(
@@ -121,18 +142,33 @@ class AthleteHomePage extends ConsumerWidget {
                 //   ],
                 // ),
                 SizedBox(height: 8),
-                const PendingTournamentInviterInvitesSection(),
+                const Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: athleteHomeHorizontalPadding,
+                  ),
+                  child: PendingTournamentInviterInvitesSection(),
+                ),
                 SizedBox(height: 8),
                 const AthleteHomeCompetitionsSection(),
                 SizedBox(height: 8),
-                const MyTournamentsHomeSection(),
+                const Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: athleteHomeHorizontalPadding,
+                  ),
+                  child: MyTournamentsHomeSection(),
+                ),
                 SizedBox(height: 8),
-                AthleteHomeDailyMissionsSection(
-                  missions: missionsAsync.valueOrNull,
-                  onViewAll: () =>
-                      context.pushNamed(AppRouteNames.athleteQuest),
-                  onMissionTap: (mission) =>
-                      navigateForDailyMission(context, ref, mission),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: athleteHomeHorizontalPadding,
+                  ),
+                  child: AthleteHomeDailyMissionsSection(
+                    missions: missionsAsync.valueOrNull,
+                    onViewAll: () =>
+                        context.pushNamed(AppRouteNames.athleteQuest),
+                    onMissionTap: (mission) =>
+                        navigateForDailyMission(context, ref, mission),
+                  ),
                 ),
                 // SizedBox(height: 24),
                 // AthleteHomeSlotsSection(

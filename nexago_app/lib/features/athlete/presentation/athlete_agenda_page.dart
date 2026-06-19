@@ -208,17 +208,25 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
         ? formatAgendaMonthEyebrow(_visibleMonth)
         : formatAgendaHeaderEyebrow(_selectedDay);
     final headerTitle = isMonthMode ? formatAgendaMonthTitle() : 'Agenda';
+    final topInset = MediaQuery.paddingOf(context).top;
 
     return SafeArea(
+      top: false,
       bottom: false,
       child: ColoredBox(
         color: context.themeColors.canvas,
         child: bookingsAsync.when(
-          loading: () => const AppLoadingView(message: 'Carregando agenda...'),
-          error: (e, _) => AppErrorView(
-            title: 'Não foi possível carregar agenda',
-            message: e.toString().replaceFirst('Exception: ', ''),
-            onRetry: () => ref.invalidate(myBookingsStreamProvider),
+          loading: () => Padding(
+            padding: EdgeInsets.only(top: topInset),
+            child: const AppLoadingView(message: 'Carregando agenda...'),
+          ),
+          error: (e, _) => Padding(
+            padding: EdgeInsets.only(top: topInset),
+            child: AppErrorView(
+              title: 'Não foi possível carregar agenda',
+              message: e.toString().replaceFirst('Exception: ', ''),
+              onRetry: () => ref.invalidate(myBookingsStreamProvider),
+            ),
           ),
           data: (_) {
             final timelineChildren = isMonthMode
@@ -255,16 +263,19 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                     ),
                     slivers: [
                       SliverToBoxAdapter(
-                        child: AgendaHeader(
-                          eyebrow: headerEyebrow,
-                          title: headerTitle,
-                          monthModeActive: isMonthMode,
-                          unreadNotificationCount: unreadNotifications,
-                          searchVisible: _searchVisible,
-                          onSearchTap: _toggleSearch,
-                          onCalendarTap: _toggleViewMode,
-                          onNotificationsTap: () => context.pushNamed(
-                            AppRouteNames.athleteNotifications,
+                        child: Padding(
+                          padding: EdgeInsets.only(top: topInset + 8),
+                          child: AgendaHeader(
+                            eyebrow: headerEyebrow,
+                            title: headerTitle,
+                            monthModeActive: isMonthMode,
+                            unreadNotificationCount: unreadNotifications,
+                            searchVisible: _searchVisible,
+                            onSearchTap: _toggleSearch,
+                            onCalendarTap: _toggleViewMode,
+                            onNotificationsTap: () => context.pushNamed(
+                              AppRouteNames.athleteNotifications,
+                            ),
                           ),
                         ),
                       ),

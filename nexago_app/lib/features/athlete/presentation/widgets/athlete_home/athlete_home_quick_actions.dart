@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -72,7 +73,6 @@ class _ActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final highlight = action.highlighted;
     final color = highlight ? AppColors.brand : context.themeColors.onSurface;
 
@@ -94,12 +94,13 @@ class _ActionTile extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Icon(action.icon, color: color, size: 22),
-              SizedBox(height: 6),
+              Icon(action.icon, color: color, size: 16),
+              SizedBox(height: 0),
               Text(
                 action.label,
-                style: theme.textTheme.labelSmall?.copyWith(
+                style: AppTypography.soraRegular(
                   fontWeight: FontWeight.w800,
+                  fontSize: 10,
                   color: color,
                 ),
               ),

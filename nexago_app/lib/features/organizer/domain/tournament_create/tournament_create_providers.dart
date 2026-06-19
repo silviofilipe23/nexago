@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/organizer_tournaments_repository.dart';
 import '../../data/tournament_create_local_store.dart';
+import '../../data/tournament_create_mapper.dart';
 import 'tournament_create_draft.dart';
 import 'tournament_create_logic.dart';
 import 'tournament_create_session.dart';
@@ -38,18 +39,22 @@ class TournamentCreateWizardState {
   const TournamentCreateWizardState({
     this.draft = const TournamentCreateDraft(),
     this.currentStep = TournamentCreateStep.identity,
+    this.isEditingPublished = false,
   });
 
   final TournamentCreateDraft draft;
   final TournamentCreateStep currentStep;
+  final bool isEditingPublished;
 
   TournamentCreateWizardState copyWith({
     TournamentCreateDraft? draft,
     TournamentCreateStep? currentStep,
+    bool? isEditingPublished,
   }) {
     return TournamentCreateWizardState(
       draft: draft ?? this.draft,
       currentStep: currentStep ?? this.currentStep,
+      isEditingPublished: isEditingPublished ?? this.isEditingPublished,
     );
   }
 }
@@ -105,6 +110,7 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
       currentStep: state.currentStep,
       updatedAt: DateTime.now(),
       managerUid: uid,
+      isEditingPublished: state.isEditingPublished,
     );
     if (generation != _persistGeneration) return;
     await store.save(session);
@@ -204,6 +210,7 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
     state = TournamentCreateWizardState(
       draft: session.draft,
       currentStep: session.currentStep,
+      isEditingPublished: session.isEditingPublished,
     );
   }
 
@@ -211,6 +218,7 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
     state = TournamentCreateWizardState(
       draft: session.draft,
       currentStep: session.currentStep,
+      isEditingPublished: session.isEditingPublished,
     );
     _schedulePersist();
   }
@@ -232,6 +240,32 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
     state = TournamentCreateWizardState(
       draft: loaded.draft,
       currentStep: loaded.step,
+      isEditingPublished: false,
+    );
+    _schedulePersist();
+  }
+
+  /// Hidrata o wizard a partir de um documento Firestore (rascunho ou publicado).
+  Future<void> loadTournamentFromFirestore(
+    Map<String, dynamic> data,
+    String tournamentId, {
+    required TournamentCreateStep step,
+  }) async {
+    final id = tournamentId.trim();
+    if (id.isEmpty) {
+      throw ArgumentError('ID do torneio inválido.');
+    }
+
+    final parsed = TournamentCreateMapper.fromFirestore(
+      Map<String, dynamic>.from(data),
+      id,
+    );
+
+    await _clearLocalOnly();
+    state = TournamentCreateWizardState(
+      draft: parsed.draft,
+      currentStep: step,
+      isEditingPublished: !isFirestoreDraftData(data),
     );
     _schedulePersist();
   }
@@ -252,7 +286,12 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
     if (path == null || path.isEmpty) {
       _updateDraft(state.draft.copyWith(clearCoverImagePath: true));
     } else {
-      _updateDraft(state.draft.copyWith(coverImagePath: path));
+      _updateDraft(
+        state.draft.copyWith(
+          coverImagePath: path,
+          clearCoverImageUrl: true,
+        ),
+      );
     }
   }
 
@@ -432,6 +471,10 @@ final tournamentCreateDraftProvider = Provider<TournamentCreateDraft>((ref) {
 
 final tournamentCreateCurrentStepProvider = Provider<TournamentCreateStep>((ref) {
   return ref.watch(tournamentCreateWizardProvider).currentStep;
+});
+
+final tournamentCreateIsEditingPublishedProvider = Provider<bool>((ref) {
+  return ref.watch(tournamentCreateWizardProvider).isEditingPublished;
 });
 
 final hasMeaningfulLocalWizardSessionProvider = Provider<bool>((ref) {

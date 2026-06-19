@@ -387,4 +387,93 @@ void main() {
     expect(prizes[0].valueCents, 15000);
     expect(prizes[1].valueCents, 0); // não numérico → 0, sem estourar
   });
+
+  test('fromFirestore maps coverUrl to coverImageUrl', () {
+    final parsed = TournamentCreateMapper.fromFirestore(
+      {
+        'name': 'Torneio com capa',
+        'city': 'Goiânia',
+        'locationName': 'Arena',
+        'startAt': Timestamp.fromDate(DateTime(2026, 3, 28)),
+        'endAt': Timestamp.fromDate(DateTime(2026, 3, 30)),
+        'coverUrl': 'https://cdn.example.com/cover.jpg',
+        'categories': const [],
+      },
+      'tournament-cover',
+    );
+
+    expect(parsed.draft.coverImageUrl, 'https://cdn.example.com/cover.jpg');
+  });
+
+  test('fromFirestore falls back to imageUrl for cover', () {
+    final parsed = TournamentCreateMapper.fromFirestore(
+      {
+        'name': 'Torneio legado',
+        'city': 'Goiânia',
+        'locationName': 'Arena',
+        'startAt': Timestamp.fromDate(DateTime(2026, 3, 28)),
+        'endAt': Timestamp.fromDate(DateTime(2026, 3, 30)),
+        'imageUrl': 'https://cdn.example.com/legacy.jpg',
+        'categories': const [],
+      },
+      'tournament-legacy-cover',
+    );
+
+    expect(parsed.draft.coverImageUrl, 'https://cdn.example.com/legacy.jpg');
+  });
+
+  test('fromFirestore maps published tournament with tournamentId', () {
+    final parsed = TournamentCreateMapper.fromFirestore(
+      {
+        'name': 'Open Publicado',
+        'sport': 'beachVolleyball',
+        'city': 'Goiânia',
+        'state': 'GO',
+        'locationName': 'Arena ErreJota',
+        'startAt': Timestamp.fromDate(DateTime(2026, 3, 28)),
+        'endAt': Timestamp.fromDate(DateTime(2026, 3, 30)),
+        'listingStatus': 'open',
+        'paymentMode': 'appPixCard',
+        'visibility': 'publicListing',
+        'categories': [
+          {
+            'id': 'cat-1',
+            'categoryName': 'Masculino Open',
+            'genderType': 'male',
+            'disputeType': 'dupla',
+            'maxTeams': 16,
+            'entryFeeCents': 18000,
+          },
+        ],
+      },
+      'published-tournament-1',
+    );
+
+    expect(parsed.draft.tournamentId, 'published-tournament-1');
+    expect(parsed.draft.name, 'Open Publicado');
+    expect(parsed.draft.categories, hasLength(1));
+  });
+
+  test('toFirestore preserves existing listing status on update without publish', () {
+    final draft = TournamentCreateDraft(
+      tournamentId: 'published-1',
+      name: 'Open Publicado',
+      city: 'Goiânia',
+      locationName: 'Arena',
+      startAt: DateTime(2026, 4, 1),
+      endAt: DateTime(2026, 4, 2),
+      categories: const [TournamentCategoryDraft(id: '1')],
+    );
+
+    final map = TournamentCreateMapper.toFirestore(
+      draft: draft,
+      managerId: 'uid',
+      publish: false,
+      isUpdate: true,
+      existingListingStatus: 'open',
+    );
+
+    expect(map['listingStatus'], 'open');
+    expect(map['status'], 'open');
+  });
 }

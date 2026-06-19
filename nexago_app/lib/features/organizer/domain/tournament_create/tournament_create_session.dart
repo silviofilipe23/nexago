@@ -10,24 +10,28 @@ class TournamentCreateSession {
     required this.currentStep,
     required this.updatedAt,
     required this.managerUid,
+    this.isEditingPublished = false,
   });
 
   final TournamentCreateDraft draft;
   final TournamentCreateStep currentStep;
   final DateTime updatedAt;
   final String managerUid;
+  final bool isEditingPublished;
 
   TournamentCreateSession copyWith({
     TournamentCreateDraft? draft,
     TournamentCreateStep? currentStep,
     DateTime? updatedAt,
     String? managerUid,
+    bool? isEditingPublished,
   }) {
     return TournamentCreateSession(
       draft: draft ?? this.draft,
       currentStep: currentStep ?? this.currentStep,
       updatedAt: updatedAt ?? this.updatedAt,
       managerUid: managerUid ?? this.managerUid,
+      isEditingPublished: isEditingPublished ?? this.isEditingPublished,
     );
   }
 
@@ -36,6 +40,7 @@ class TournamentCreateSession {
         'managerUid': managerUid,
         'updatedAt': updatedAt.toIso8601String(),
         'currentStep': currentStep.name,
+        'isEditingPublished': isEditingPublished,
         'draft': _draftToJson(draft),
       };
 
@@ -66,6 +71,7 @@ class TournamentCreateSession {
         currentStep: currentStep,
         updatedAt: updatedAt,
         managerUid: managerUid,
+        isEditingPublished: json['isEditingPublished'] as bool? ?? false,
       );
     } catch (_) {
       return null;
@@ -78,6 +84,7 @@ Map<String, dynamic> _draftToJson(TournamentCreateDraft draft) => {
       'sport': draft.sport.name,
       'name': draft.name,
       'coverImagePath': draft.coverImagePath,
+      'coverImageUrl': draft.coverImageUrl,
       'description': draft.description,
       'arenaId': draft.arenaId,
       'locationName': draft.locationName,
@@ -156,6 +163,7 @@ TournamentCreateDraft? _draftFromJson(
       ),
       name: json['name'] as String? ?? '',
       coverImagePath: json['coverImagePath'] as String?,
+      coverImageUrl: json['coverImageUrl'] as String?,
       description: json['description'] as String? ?? '',
       arenaId: json['arenaId'] as String?,
       locationName: json['locationName'] as String? ?? '',

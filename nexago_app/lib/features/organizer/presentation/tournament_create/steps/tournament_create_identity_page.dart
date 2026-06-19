@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -122,16 +123,7 @@ class _TournamentCreateIdentityPageState
                         .withValues(alpha: 0.2),
                   ),
                 ),
-                child: draft.coverImagePath != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: Image.file(
-                          File(draft.coverImagePath!),
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                        ),
-                      )
-                    : _coverPlaceholder(context),
+                child: _buildCoverPreview(context, draft),
               ),
             ),
           ),
@@ -158,6 +150,37 @@ class _TournamentCreateIdentityPageState
         ),
       ),
     );
+  }
+
+  Widget _buildCoverPreview(BuildContext context, TournamentCreateDraft draft) {
+    if (draft.coverImagePath != null && draft.coverImagePath!.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Image.file(
+          File(draft.coverImagePath!),
+          fit: BoxFit.cover,
+          width: double.infinity,
+        ),
+      );
+    }
+
+    final coverUrl = draft.coverImageUrl?.trim();
+    if (coverUrl != null && coverUrl.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: CachedNetworkImage(
+          imageUrl: coverUrl,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          placeholder: (_, __) => const Center(
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          errorWidget: (_, __, ___) => _coverPlaceholder(context),
+        ),
+      );
+    }
+
+    return _coverPlaceholder(context);
   }
 
   Widget _coverPlaceholder(BuildContext context) {

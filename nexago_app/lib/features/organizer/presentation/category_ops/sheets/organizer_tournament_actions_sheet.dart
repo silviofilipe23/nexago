@@ -2,7 +2,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -11,8 +10,10 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../data/organizer_tournament_ops_repository.dart';
+import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_providers.dart';
+import '../../tournament_create/tournament_create_navigation.dart';
 
 Future<void> showOrganizerTournamentActionsSheet(
   BuildContext context, {
@@ -113,7 +114,13 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
               accent: true,
               onTap: () {
                 Navigator.pop(context);
-                context.pushNamed(AppRouteNames.organizerTournamentCreateIdentity);
+                openTournamentWizardForEdit(
+                  context,
+                  ref,
+                  tournament: tournament,
+                  tournamentId: tournamentId,
+                  step: TournamentCreateStep.identity,
+                );
               },
             ),
             _ActionTile(
@@ -122,7 +129,13 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
               subtitle: locationLine.isEmpty ? 'Arena e período do torneio' : locationLine,
               onTap: () {
                 Navigator.pop(context);
-                context.pushNamed(AppRouteNames.organizerTournamentCreateLocation);
+                openTournamentWizardForEdit(
+                  context,
+                  ref,
+                  tournament: tournament,
+                  tournamentId: tournamentId,
+                  step: TournamentCreateStep.location,
+                );
               },
             ),
             _ActionTile(
@@ -131,7 +144,13 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
               subtitle: categorySubtitle,
               onTap: () {
                 Navigator.pop(context);
-                context.pushNamed(AppRouteNames.organizerTournamentCreateCategories);
+                openTournamentWizardForEdit(
+                  context,
+                  ref,
+                  tournament: tournament,
+                  tournamentId: tournamentId,
+                  step: TournamentCreateStep.categories,
+                );
               },
             ),
             _ActionTile(

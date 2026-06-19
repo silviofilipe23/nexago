@@ -66,12 +66,11 @@ String unsupportedBracketSystemHint(TournamentBracketSystem system) =>
     switch (system) {
       TournamentBracketSystem.roundRobin =>
         'Pontos corridos estará disponível em breve. '
-        'Use grupos + mata-mata, chave simples ou dupla eliminatória.',
+            'Use grupos + mata-mata, chave simples ou dupla eliminatória.',
       TournamentBracketSystem.groupsWithRepechage =>
         'Grupos com repescagem estará disponível em breve. '
-        'Use grupos + mata-mata ou chave simples.',
-      _ =>
-        'Este formato de chave ainda não é suportado para publicação.',
+            'Use grupos + mata-mata ou chave simples.',
+      _ => 'Este formato de chave ainda não é suportado para publicação.',
     };
 
 String? unsupportedBracketFormatHint(String raw) {
@@ -159,7 +158,6 @@ String ageBandLabel(TournamentAgeBand band) => switch (band) {
 String skillLevelLabel(TournamentSkillLevel level) => switch (level) {
   TournamentSkillLevel.beginner => 'Iniciante',
   TournamentSkillLevel.intermediate => 'Intermediário',
-  TournamentSkillLevel.advanced => 'Avançado',
   TournamentSkillLevel.open => 'Open',
 };
 
@@ -343,8 +341,11 @@ TournamentCreateDraft buildExpressTournamentDraft({
     endAt: end,
     courtsCount: 4,
     cashPrizesEnabled: false,
-    registrationOpensAt:
-        DateTime(reference.year, reference.month, reference.day),
+    registrationOpensAt: DateTime(
+      reference.year,
+      reference.month,
+      reference.day,
+    ),
     registrationClosesAt: startAt,
     categories: [
       TournamentCategoryDraft(
@@ -458,18 +459,17 @@ TournamentBracketSystem? bracketSystemFromRaw(String raw) {
     'groups_knockout' ||
     'groups_then_knockout' ||
     'pool play + se' ||
-    'pool play+se' =>
-      TournamentBracketSystem.groupsThenKnockout,
-    'single_elimination' || 'single elimination' =>
-      TournamentBracketSystem.singleElimination,
+    'pool play+se' => TournamentBracketSystem.groupsThenKnockout,
+    'single_elimination' ||
+    'single elimination' => TournamentBracketSystem.singleElimination,
     'round_robin' || 'round robin' => TournamentBracketSystem.roundRobin,
     'groups_repechage' ||
     'groups_with_repechage' ||
-    'groups with repechage' =>
-      TournamentBracketSystem.groupsWithRepechage,
-    'double_elimination' || 'double elimination' =>
-      TournamentBracketSystem.doubleElimination,
-    _ when n.contains('pool') &&
+    'groups with repechage' => TournamentBracketSystem.groupsWithRepechage,
+    'double_elimination' ||
+    'double elimination' => TournamentBracketSystem.doubleElimination,
+    _
+        when n.contains('pool') &&
             (n.contains('se') || n.contains('mata') || n.contains('elim')) =>
       TournamentBracketSystem.groupsThenKnockout,
     _ when n.contains('grupos') && n.contains('mata') =>
@@ -512,7 +512,9 @@ String reviewCategoriesDetailSummary(TournamentCreateDraft draft) {
   if (draft.categories.isEmpty) return 'Nenhuma categoria';
   return draft.categories
       .map((c) {
-        final name = c.name.trim().isEmpty ? suggestCategoryName(c) : c.name.trim();
+        final name = c.name.trim().isEmpty
+            ? suggestCategoryName(c)
+            : c.name.trim();
         return '$name · ${categoryFormatSummary(c)}';
       })
       .join('\n');

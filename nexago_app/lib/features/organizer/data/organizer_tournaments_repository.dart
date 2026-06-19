@@ -109,15 +109,18 @@ class OrganizerTournamentsRepository {
     final isUpdate = existingId != null && existingId.isNotEmpty;
     final docRef = isUpdate ? _tournaments.doc(existingId) : _tournaments.doc();
 
+    String? existingListingStatus;
     if (isUpdate) {
       final existing = await docRef.get();
       if (!existing.exists) {
         throw StateError('Rascunho não encontrado.');
       }
-      final managerId = existing.data()?['managerId'] as String?;
+      final existingData = existing.data();
+      final managerId = existingData?['managerId'] as String?;
       if (managerId != uid) {
         throw StateError('Sem permissão para atualizar este torneio.');
       }
+      existingListingStatus = existingData?['listingStatus'] as String?;
     }
 
     final data = TournamentCreateMapper.toFirestore(
@@ -126,6 +129,7 @@ class OrganizerTournamentsRepository {
       publish: publish,
       wizardStep: wizardStep ?? TournamentCreateStep.review,
       isUpdate: isUpdate,
+      existingListingStatus: existingListingStatus,
     );
 
     if (isUpdate) {
@@ -142,6 +146,8 @@ class OrganizerTournamentsRepository {
         tournamentId: docRef.id,
         localPath: draft.coverImagePath!,
       );
+    } else if (draft.coverImageUrl != null && draft.coverImageUrl!.isNotEmpty) {
+      coverUrl = draft.coverImageUrl;
     }
 
     if (draft.regulationPdfPath != null &&
@@ -164,7 +170,11 @@ class OrganizerTournamentsRepository {
       });
     }
 
-    return (tournamentId: docRef.id, published: publish);
+    final listingStatus = data['listingStatus'] as String? ?? 'draft';
+    return (
+      tournamentId: docRef.id,
+      published: listingStatus == 'open',
+    );
   }
 
   /// Remove torneio apenas se for rascunho do gestor autenticado.

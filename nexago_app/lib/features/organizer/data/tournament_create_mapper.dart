@@ -16,6 +16,7 @@ abstract final class TournamentCreateMapper {
     required bool publish,
     TournamentCreateStep? wizardStep,
     bool isUpdate = false,
+    String? existingListingStatus,
   }) {
     final categories = draft.categories
         .map((c) => _categoryToMap(c, draft: draft))
@@ -23,7 +24,11 @@ abstract final class TournamentCreateMapper {
     final capacity = draft.totalSpots;
     final startAt = draft.startAt!;
     final endAt = draft.endAt!;
-    final listingStatus = publish ? 'open' : 'draft';
+    final listingStatus = _resolveListingStatus(
+      publish: publish,
+      isUpdate: isUpdate,
+      existingListingStatus: existingListingStatus,
+    );
     final name = draft.name.trim();
 
     return {
@@ -74,11 +79,9 @@ abstract final class TournamentCreateMapper {
       'uniformRequired': draft.uniformRequired,
       'uniformNumberOnShirt':
           draft.uniformRequired && draft.uniformNumberOnShirt,
-      'uniformNameOnShirt':
-          draft.uniformRequired && draft.uniformNameOnShirt,
+      'uniformNameOnShirt': draft.uniformRequired && draft.uniformNameOnShirt,
       'rankingEnabled': draft.rankingEnabled,
-      'rankingTableId':
-          draft.rankingEnabled ? draft.rankingTableId : null,
+      'rankingTableId': draft.rankingEnabled ? draft.rankingTableId : null,
       'keywords': generateKeywords([
         name,
         draft.locationName,
@@ -93,15 +96,13 @@ abstract final class TournamentCreateMapper {
   }
 
   static ({TournamentCreateDraft draft, TournamentCreateStep? wizardStep})
-      fromFirestore(
-    Map<String, dynamic> data,
-    String id,
-  ) {
+  fromFirestore(Map<String, dynamic> data, String id) {
     final categoriesRaw = data['categories'];
     final tournamentBracketSystem = _parseBracketSystem(
       data['bracketSystem'] as String? ?? data['bracketFormat'] as String?,
     );
-    final tournamentTeamsPerGroup = (data['teamsPerGroup'] as num?)?.toInt() ?? 4;
+    final tournamentTeamsPerGroup =
+        (data['teamsPerGroup'] as num?)?.toInt() ?? 4;
     final tournamentQualifiersPerGroup =
         (data['qualifiersPerGroup'] as num?)?.toInt() ?? 2;
     final tournamentBestOf = _parseBestOf(data['bestOf'] as String?);
@@ -109,28 +110,30 @@ abstract final class TournamentCreateMapper {
 
     final categories = categoriesRaw is List
         ? categoriesRaw
-            .whereType<Map>()
-            .map(
-              (raw) => _categoryFromMap(
-                Map<String, dynamic>.from(raw),
-                fallbackBracketSystem: tournamentBracketSystem,
-                fallbackTeamsPerGroup: tournamentTeamsPerGroup,
-                fallbackQualifiersPerGroup: tournamentQualifiersPerGroup,
-                fallbackBestOf: tournamentBestOf,
-                fallbackFinalBestOf5: tournamentFinalBestOf5,
-              ),
-            )
-            .whereType<TournamentCategoryDraft>()
-            .toList()
+              .whereType<Map>()
+              .map(
+                (raw) => _categoryFromMap(
+                  Map<String, dynamic>.from(raw),
+                  fallbackBracketSystem: tournamentBracketSystem,
+                  fallbackTeamsPerGroup: tournamentTeamsPerGroup,
+                  fallbackQualifiersPerGroup: tournamentQualifiersPerGroup,
+                  fallbackBestOf: tournamentBestOf,
+                  fallbackFinalBestOf5: tournamentFinalBestOf5,
+                ),
+              )
+              .whereType<TournamentCategoryDraft>()
+              .toList()
         : <TournamentCategoryDraft>[];
 
     final draft = TournamentCreateDraft(
       tournamentId: id,
       sport: _parseSport(data['sport'] as String?),
       name: (data['name'] as String?) ?? '',
+      coverImageUrl: _parseCoverImageUrl(data),
       description: (data['description'] as String?) ?? '',
       arenaId: data['arenaId'] as String?,
-      locationName: (data['locationName'] as String?) ??
+      locationName:
+          (data['locationName'] as String?) ??
           (data['location'] as String?) ??
           '',
       locationAddress: (data['locationAddress'] as String?) ?? '',
@@ -177,7 +180,8 @@ abstract final class TournamentCreateMapper {
     final id = map['id'] as String?;
     if (id == null || id.isEmpty) return null;
 
-    final entryFeeCents = (map['entryFeeCents'] as num?)?.toInt() ??
+    final entryFeeCents =
+        (map['entryFeeCents'] as num?)?.toInt() ??
         (((map['entryFee'] as num?)?.toDouble() ?? 0) * 100).round();
 
     final bracketRaw = map['bracketFormat'] as String?;
@@ -187,11 +191,16 @@ abstract final class TournamentCreateMapper {
     return TournamentCategoryDraft(
       id: id,
       name: (map['categoryName'] as String?) ?? (map['name'] as String?) ?? '',
-      gender: _parseGender(map['genderType'] as String? ?? map['gender'] as String?),
-      dispute: _parseDispute(map['disputeType'] as String? ?? map['dispute'] as String?),
+      gender: _parseGender(
+        map['genderType'] as String? ?? map['gender'] as String?,
+      ),
+      dispute: _parseDispute(
+        map['disputeType'] as String? ?? map['dispute'] as String?,
+      ),
       ageBand: _parseAgeBand(map['ageBand'] as String?),
       skillLevel: _parseSkillLevel(map['level'] as String?),
-      spots: (map['maxTeams'] as num?)?.toInt() ??
+      spots:
+          (map['maxTeams'] as num?)?.toInt() ??
           (map['spotsTotal'] as num?)?.toInt() ??
           16,
       useDefaultPrice: map['useDefaultPrice'] as bool? ?? true,
@@ -201,7 +210,8 @@ abstract final class TournamentCreateMapper {
           : fallbackBracketSystem,
       teamsPerGroup:
           (map['teamsPerGroup'] as num?)?.toInt() ?? fallbackTeamsPerGroup,
-      qualifiersPerGroup: (map['qualifiersPerGroup'] as num?)?.toInt() ??
+      qualifiersPerGroup:
+          (map['qualifiersPerGroup'] as num?)?.toInt() ??
           fallbackQualifiersPerGroup,
       bestOf: map['bestOf'] != null
           ? _parseBestOf(map['bestOf'] as String?)
@@ -308,9 +318,7 @@ abstract final class TournamentCreateMapper {
       'iniciante' || 'beginner' => TournamentSkillLevel.beginner,
       'intermediário' ||
       'intermediario' ||
-      'intermediate' =>
-        TournamentSkillLevel.intermediate,
-      'avançado' || 'avancado' || 'advanced' => TournamentSkillLevel.advanced,
+      'intermediate' => TournamentSkillLevel.intermediate,
       'open' || 'livre' => TournamentSkillLevel.open,
       _ => TournamentSkillLevel.open,
     };
@@ -354,15 +362,16 @@ abstract final class TournamentCreateMapper {
           )
           .toList(),
       'uniformType': draft.uniformRequired ? 'top_only' : 'none',
-      'uniformNameOnShirt':
-          draft.uniformRequired && draft.uniformNameOnShirt,
+      'uniformNameOnShirt': draft.uniformRequired && draft.uniformNameOnShirt,
       'uniformNumberOnShirt':
           draft.uniformRequired && draft.uniformNumberOnShirt,
     };
   }
 
   static String _disputeFormatValue(List<TournamentCategoryDraft> categories) {
-    if (categories.any((c) => c.dispute == TournamentCategoryDispute.individual)) {
+    if (categories.any(
+      (c) => c.dispute == TournamentCategoryDispute.individual,
+    )) {
       return 'individual';
     }
     return 'dupla';
@@ -375,5 +384,32 @@ abstract final class TournamentCreateMapper {
       return _dateFmt.format(start);
     }
     return '${_dateFmt.format(start)} – ${_dateFmt.format(end)}';
+  }
+
+  static String _resolveListingStatus({
+    required bool publish,
+    required bool isUpdate,
+    String? existingListingStatus,
+  }) {
+    if (publish) return 'open';
+
+    final existing = existingListingStatus?.trim().toLowerCase();
+    if (isUpdate &&
+        existing != null &&
+        existing.isNotEmpty &&
+        existing != 'draft' &&
+        existing != 'rascunho') {
+      return existingListingStatus!.trim();
+    }
+
+    return 'draft';
+  }
+
+  static String? _parseCoverImageUrl(Map<String, dynamic> data) {
+    final coverUrl = (data['coverUrl'] as String?)?.trim();
+    if (coverUrl != null && coverUrl.isNotEmpty) return coverUrl;
+    final imageUrl = (data['imageUrl'] as String?)?.trim();
+    if (imageUrl != null && imageUrl.isNotEmpty) return imageUrl;
+    return null;
   }
 }

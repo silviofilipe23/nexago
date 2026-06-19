@@ -12,6 +12,7 @@ import '../domain/athlete_profile_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/athlete_notifications_providers.dart';
 import '../domain/gamification_providers.dart';
+import 'widgets/athlete_home/athlete_home_competitions_section.dart';
 import 'widgets/athlete_home/athlete_home_daily_missions_section.dart';
 import 'widgets/athlete_home/athlete_home_header.dart';
 import 'widgets/athlete_home/athlete_home_next_booking_card.dart';
@@ -72,7 +73,7 @@ class AthleteHomePage extends ConsumerWidget {
                   onNotificationsTap: () =>
                       context.pushNamed(AppRouteNames.athleteNotifications),
                 ),
-                SizedBox(height: 20),
+                SizedBox(height: 8),
                 AthleteHomeFeaturedCard(
                   featured: featured,
                   onReserveTap: () =>
@@ -93,37 +94,39 @@ class AthleteHomePage extends ConsumerWidget {
                     );
                   },
                 ),
-                SizedBox(height: 16),
-                AthleteHomeQuickActions(
-                  actions: [
-                    AthleteHomeQuickAction(
-                      icon: Icons.add_rounded,
-                      label: 'Reservar',
-                      onTap: () => _goToTab(ref, athleteShellReservarTabIndex),
-                      highlighted: true,
-                    ),
-                    AthleteHomeQuickAction(
-                      icon: Icons.person_add_outlined,
-                      label: 'Convidar',
-                      onTap: () => openInviteFromHome(context, ref),
-                    ),
-                    AthleteHomeQuickAction(
-                      icon: Icons.emoji_events_outlined,
-                      label: 'Torneios',
-                      onTap: () => _goToTab(ref, athleteShellCompeteTabIndex),
-                    ),
-                    // AthleteHomeQuickAction(
-                    //   icon: Icons.sports_tennis_rounded,
-                    //   label: 'Play Match',
-                    //   onTap: () => showAppSnackBar(context, 'Em breve.'),
-                    // ),
-                  ],
-                ),
-                SizedBox(height: 24),
+                // SizedBox(height: 8),
+                // AthleteHomeQuickActions(
+                //   actions: [
+                //     AthleteHomeQuickAction(
+                //       icon: Icons.add_rounded,
+                //       label: 'Reservar',
+                //       onTap: () => _goToTab(ref, athleteShellReservarTabIndex),
+                //       highlighted: true,
+                //     ),
+                //     AthleteHomeQuickAction(
+                //       icon: Icons.person_add_outlined,
+                //       label: 'Convidar',
+                //       onTap: () => openInviteFromHome(context, ref),
+                //     ),
+                //     AthleteHomeQuickAction(
+                //       icon: Icons.emoji_events_outlined,
+                //       label: 'Torneios',
+                //       onTap: () => _goToTab(ref, athleteShellCompeteTabIndex),
+                //     ),
+                //     // AthleteHomeQuickAction(
+                //     //   icon: Icons.sports_tennis_rounded,
+                //     //   label: 'Play Match',
+                //     //   onTap: () => showAppSnackBar(context, 'Em breve.'),
+                //     // ),
+                //   ],
+                // ),
+                SizedBox(height: 8),
                 const PendingTournamentInviterInvitesSection(),
-                SizedBox(height: 24),
+                SizedBox(height: 8),
+                const AthleteHomeCompetitionsSection(),
+                SizedBox(height: 8),
                 const MyTournamentsHomeSection(),
-                SizedBox(height: 24),
+                SizedBox(height: 8),
                 AthleteHomeDailyMissionsSection(
                   missions: missionsAsync.valueOrNull,
                   onViewAll: () =>

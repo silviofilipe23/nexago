@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
+import '../../../../core/ui/app_snackbar.dart';
 import '../../domain/tournament_create/tournament_create_draft.dart';
 import '../../domain/tournament_create/tournament_create_providers.dart';
 
@@ -138,4 +139,36 @@ Future<bool?> confirmStartFreshWizard(BuildContext context) {
       ],
     ),
   );
+}
+
+Future<void> openTournamentWizardForEdit(
+  BuildContext context,
+  WidgetRef ref, {
+  required Map<String, dynamic> tournament,
+  required String tournamentId,
+  required TournamentCreateStep step,
+}) async {
+  if (!context.mounted) return;
+
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const Center(child: CircularProgressIndicator()),
+  );
+
+  try {
+    await ref.read(tournamentCreateWizardProvider.notifier).loadTournamentFromFirestore(
+          tournament,
+          tournamentId,
+          step: step,
+        );
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+    context.pushNamed(routeNameForCreateStep(step));
+  } catch (e) {
+    if (context.mounted) {
+      Navigator.of(context).pop();
+      showAppSnackBar(context, 'Erro ao carregar torneio: $e', isError: true);
+    }
+  }
 }

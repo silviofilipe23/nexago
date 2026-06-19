@@ -31,14 +31,8 @@ class CompeteHubSectionHeader extends StatelessWidget {
         ),
         Spacer(),
         if (onActionTap != null)
-          TextButton(
-            onPressed: onActionTap,
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.brand,
-              padding: EdgeInsets.zero,
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
+          _ScalePressAction(
+            onTap: onActionTap!,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -61,6 +55,45 @@ class CompeteHubSectionHeader extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _ScalePressAction extends StatefulWidget {
+  const _ScalePressAction({
+    required this.onTap,
+    required this.child,
+  });
+
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  State<_ScalePressAction> createState() => _ScalePressActionState();
+}
+
+class _ScalePressActionState extends State<_ScalePressAction> {
+  var _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      onTap: widget.onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedScale(
+        scale: _pressed ? 0.94 : 1,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
+      ),
     );
   }
 }

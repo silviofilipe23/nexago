@@ -75,6 +75,7 @@ class _TournamentCreateReviewPageState
     final draft = ref.watch(tournamentCreateDraftProvider);
     final canContinue =
         ref.watch(tournamentCreateCanContinueProvider(TournamentCreateStep.review));
+    final isEditingPublished = ref.watch(tournamentCreateIsEditingPublishedProvider);
 
     return TournamentCreateWizardScaffold(
       step: TournamentCreateStep.review,
@@ -209,16 +210,19 @@ class _TournamentCreateReviewPageState
         mainAxisSize: MainAxisSize.min,
         children: [
           OrganizerWizardContinueButton(
-            label: 'Publicar torneio',
+            label: isEditingPublished ? 'Salvar alterações' : 'Publicar torneio',
             enabled: canContinue,
             loading: _submitting,
-            onPressed: () => _submit(publish: true),
+            onPressed: () => _submit(
+              publish: isEditingPublished ? false : true,
+            ),
           ),
-          OrganizerSecondaryButton(
-            label: 'Salvar como rascunho',
-            loading: _submitting,
-            onPressed: canContinue ? () => _submit(publish: false) : null,
-          ),
+          if (!isEditingPublished)
+            OrganizerSecondaryButton(
+              label: 'Salvar como rascunho',
+              loading: _submitting,
+              onPressed: canContinue ? () => _submit(publish: false) : null,
+            ),
         ],
       ),
     );

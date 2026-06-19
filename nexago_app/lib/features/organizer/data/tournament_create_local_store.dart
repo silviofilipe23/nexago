@@ -112,12 +112,18 @@ class TournamentCreateLocalStore {
   TournamentCreateSession _sanitizeSession(TournamentCreateSession session) {
     final draft = session.draft;
     var coverPath = draft.coverImagePath;
-    if (coverPath != null && coverPath.isNotEmpty && !File(coverPath).existsSync()) {
+    if (coverPath != null &&
+        coverPath.isNotEmpty &&
+        !_isRemoteUrl(coverPath) &&
+        !File(coverPath).existsSync()) {
       coverPath = null;
     }
 
     var pdfPath = draft.regulationPdfPath;
-    if (pdfPath != null && pdfPath.isNotEmpty && !File(pdfPath).existsSync()) {
+    if (pdfPath != null &&
+        pdfPath.isNotEmpty &&
+        !_isRemoteUrl(pdfPath) &&
+        !File(pdfPath).existsSync()) {
       pdfPath = null;
     }
 
@@ -134,5 +140,9 @@ class TournamentCreateLocalStore {
         clearRegulationPdfPath: pdfPath == null && draft.regulationPdfPath != null,
       ),
     );
+  }
+
+  static bool _isRemoteUrl(String path) {
+    return path.startsWith('http://') || path.startsWith('https://');
   }
 }

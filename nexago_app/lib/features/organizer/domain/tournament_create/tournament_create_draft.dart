@@ -22,7 +22,7 @@ enum TournamentCategoryDispute { individual, dupla, team }
 
 enum TournamentAgeBand { open, sub19, sub23, plus30, plus35, plus40 }
 
-enum TournamentSkillLevel { beginner, intermediate, advanced, open }
+enum TournamentSkillLevel { beginner, intermediate, open }
 
 /// Prêmio de uma colocação dentro de uma categoria.
 @immutable
@@ -137,6 +137,7 @@ class TournamentCreateDraft {
     this.sport = TournamentSport.beachVolleyball,
     this.name = '',
     this.coverImagePath,
+    this.coverImageUrl,
     this.description = '',
     this.arenaId,
     this.locationName = '',
@@ -169,6 +170,7 @@ class TournamentCreateDraft {
   final TournamentSport sport;
   final String name;
   final String? coverImagePath;
+  final String? coverImageUrl;
   final String description;
   final String? arenaId;
   final String locationName;
@@ -210,6 +212,8 @@ class TournamentCreateDraft {
     String? name,
     String? coverImagePath,
     bool clearCoverImagePath = false,
+    String? coverImageUrl,
+    bool clearCoverImageUrl = false,
     String? description,
     String? arenaId,
     bool clearArenaId = false,
@@ -240,13 +244,17 @@ class TournamentCreateDraft {
     TournamentVisibility? visibility,
   }) {
     return TournamentCreateDraft(
-      tournamentId:
-          clearTournamentId ? null : (tournamentId ?? this.tournamentId),
+      tournamentId: clearTournamentId
+          ? null
+          : (tournamentId ?? this.tournamentId),
       sport: sport ?? this.sport,
       name: name ?? this.name,
       coverImagePath: clearCoverImagePath
           ? null
           : (coverImagePath ?? this.coverImagePath),
+      coverImageUrl: clearCoverImageUrl
+          ? null
+          : (coverImageUrl ?? this.coverImageUrl),
       description: description ?? this.description,
       arenaId: clearArenaId ? null : (arenaId ?? this.arenaId),
       locationName: locationName ?? this.locationName,

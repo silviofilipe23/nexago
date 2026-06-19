@@ -1,29 +1,12 @@
 import 'package:flutter/foundation.dart';
 
-enum OrganizerCategoryShellTab {
-  teams,
-  payments,
-  bracket,
-  matches,
-}
+enum OrganizerCategoryShellTab { teams, payments, bracket, matches }
 
-enum OrganizerTeamRegistrationStatus {
-  confirmed,
-  pending,
-  waitlist,
-}
+enum OrganizerTeamRegistrationStatus { confirmed, pending, waitlist }
 
-enum OrganizerCategoryTeamFilter {
-  all,
-  seeds,
-  pending,
-  waitlist,
-}
+enum OrganizerCategoryTeamFilter { all, seeds, pending, waitlist }
 
-enum OrganizerTeamSort {
-  registrationOrder,
-  ranking,
-}
+enum OrganizerTeamSort { registrationOrder, ranking }
 
 @immutable
 class OrganizerCategoryPlayerInfo {
@@ -90,7 +73,7 @@ class OrganizerCategoryTeamRow {
   }
 
   String get subtitle {
-    final level = 'Avançado';
+    final level = 'Open';
     final city = player1.city.trim().isNotEmpty
         ? player1.city.trim()
         : player2.city.trim();
@@ -132,8 +115,7 @@ class OrganizerCategoryPaymentsSummary {
   int get outstandingCents =>
       (expectedCents - collectedCents).clamp(0, expectedCents);
 
-  int get netTransferCents =>
-      (collectedCents * (1 - feeRate)).round();
+  int get netTransferCents => (collectedCents * (1 - feeRate)).round();
 
   double get progress =>
       expectedCents > 0 ? collectedCents / expectedCents : 0.0;
@@ -168,10 +150,7 @@ class CategoryOpsState {
 
 @immutable
 class CategoryGroupPreview {
-  const CategoryGroupPreview({
-    required this.id,
-    required this.teamIds,
-  });
+  const CategoryGroupPreview({required this.id, required this.teamIds});
 
   final String id;
   final List<String> teamIds;

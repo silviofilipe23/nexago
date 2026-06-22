@@ -27,6 +27,12 @@ export interface LeaguePlacementContext {
   categoryThirdPlaceEnabled: boolean;
   isDoubleElimination?: boolean;
   maxLbRound?: number;
+  /**
+   * Rodada da FINAL do mata-mata (eliminatória simples / grupos+mata-mata).
+   * Usada para descobrir a semifinal (= final − 1). Sem ela, assume-se chave
+   * de 4 (round 1 = semifinal), comportamento legado.
+   */
+  knockoutFinalRound?: number;
 }
 
 function leagueTeamRankingsPath(projectId: string): string {
@@ -224,11 +230,18 @@ export function resolveLeaguePlacementsFromMatch(
 
   if (matchType === "knockout") {
     const round = (match.round as number | undefined) ?? 0;
-    if (round === 1) {
+    const finalRound = context.knockoutFinalRound ?? 0;
+    // Semifinal = rodada imediatamente anterior à final. Numa chave de 4 a
+    // 1ª rodada já é a semifinal; numa de 8/16 a semifinal é a 2ª/3ª rodada —
+    // por isso NÃO dá para fixar "round 1 = semifinal".
+    const semifinalRound = finalRound > 1 ? finalRound - 1 : 1;
+    if (round === semifinalRound) {
       if (context.categoryThirdPlaceEnabled) return [];
       return [{teamId: loserId, place: 3}];
     }
-    if (round > 1) {
+    if (round > 0) {
+      // Qualquer outra rodada do mata-mata (1ª rodada, oitavas, quartas…):
+      // eliminado antes da semifinal.
       return [{teamId: loserId, bucket: "quarters"}];
     }
   }
@@ -322,7 +335,11 @@ async function loadCategoryBracketContext(
   projectId: string,
   tournamentId: string,
   categoryId: string,
-): Promise<{isDoubleElimination: boolean; maxLbRound: number}> {
+): Promise<{
+  isDoubleElimination: boolean;
+  maxLbRound: number;
+  knockoutFinalRound: number;
+}> {
   const snap = await db
     .collection(artifactsMatchesPath(projectId))
     .where("tournamentId", "==", tournamentId)
@@ -331,6 +348,7 @@ async function loadCategoryBracketContext(
 
   let maxLbRound = 0;
   let isDoubleElimination = false;
+  let knockoutFinalRound = 0;
   for (const doc of snap.docs) {
     const matchType = normalizeMatchType(doc.data().matchType);
     if (matchType === "wb" || matchType === "lb") {
@@ -340,8 +358,14 @@ async function loadCategoryBracketContext(
       const round = (doc.data().round as number | undefined) ?? 0;
       if (round > maxLbRound) maxLbRound = round;
     }
+    // Rodada da final do mata-mata SE/grupos (Final está sempre na última
+    // rodada da cadeia "knockout"→"Final"). Ignora a fase de grupos (round 0).
+    if (matchType === "knockout" || isFinalMatchType(matchType)) {
+      const round = (doc.data().round as number | undefined) ?? 0;
+      if (round > knockoutFinalRound) knockoutFinalRound = round;
+    }
   }
-  return {isDoubleElimination, maxLbRound};
+  return {isDoubleElimination, maxLbRound, knockoutFinalRound};
 }
 
 async function loadTeamAthleteIds(
@@ -593,6 +617,7 @@ export async function tryAwardLeagueStagePointsForMatch(
     categoryThirdPlaceEnabled: thirdPlaceEnabled,
     isDoubleElimination: bracketContext.isDoubleElimination,
     maxLbRound: bracketContext.maxLbRound,
+    knockoutFinalRound: bracketContext.knockoutFinalRound,
   });
 
   let teamsUpdated = 0;

@@ -49,6 +49,8 @@ class PaymentService {
       'createTournamentRegistrationPixPayment';
   static const String _callableConfirmFreeTournamentRegistration =
       'confirmFreeTournamentRegistration';
+  static const String _callableReserveDirectOrganizerRegistration =
+      'reserveDirectOrganizerRegistration';
   static const String _callableCancelPendingTournamentRegistrationPix =
       'cancelPendingTournamentRegistrationPix';
 
@@ -212,6 +214,50 @@ class PaymentService {
     } catch (e) {
       if (e is PaymentException) rethrow;
       throw PaymentException('Não foi possível confirmar a inscrição: $e');
+    }
+  }
+
+  /// Reserva vaga em torneio com pagamento direto ao organizador (sem PIX).
+  Future<
+    ({
+      String registrationId,
+      bool reserved,
+      bool bothAthletesReserved,
+    })
+  >
+  reserveDirectOrganizerRegistration({
+    required String registrationId,
+  }) async {
+    if (registrationId.isEmpty) {
+      throw PaymentException('Inscrição inválida.');
+    }
+
+    try {
+      final callable = _functions.httpsCallable(
+        _callableReserveDirectOrganizerRegistration,
+      );
+      final raw = await callable.call(
+        <String, dynamic>{'registrationId': registrationId},
+      );
+      final data = raw.data;
+      if (data is! Map) {
+        throw PaymentException('Resposta inválida do servidor.');
+      }
+      final map = Map<String, dynamic>.from(data);
+      final id = map['registrationId'] as String?;
+      if (id == null || id.isEmpty) {
+        throw PaymentException('Resposta inválida do servidor.');
+      }
+      return (
+        registrationId: id,
+        reserved: map['reserved'] == true,
+        bothAthletesReserved: map['bothAthletesReserved'] == true,
+      );
+    } on FirebaseFunctionsException catch (e) {
+      throw PaymentException(_mapFunctionsMessage(e));
+    } catch (e) {
+      if (e is PaymentException) rethrow;
+      throw PaymentException('Não foi possível reservar sua vaga: $e');
     }
   }
 

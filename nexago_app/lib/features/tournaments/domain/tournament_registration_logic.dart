@@ -1,10 +1,12 @@
 import 'package:intl/intl.dart';
 
+import '../data/tournament_registration_service.dart';
 import 'tournament_category_spots.dart';
 import 'tournament_detail_logic.dart';
 import 'tournament_detail_model.dart';
 import 'tournament_discovery_helpers.dart';
 import 'tournament_discovery_models.dart';
+import 'tournament_payment_mode.dart';
 import 'tournament_uniform_selection.dart';
 
 export 'tournament_uniform_selection.dart'
@@ -22,13 +24,14 @@ export 'tournament_uniform_selection.dart'
 /// Taxa fixa da plataforma (espelha `PLATFORM_FEE_FIXED_BRL` no backend MP).
 const double kTournamentPlatformFeeBrl = 2.0;
 
-enum TournamentRegistrationStep {
-  category,
-  uniform,
-  partner,
-  waiting,
-  payment,
-}
+/// Inscrição solo com vaga de parceiro em aberto e pagamento pendente.
+bool registrationAwaitingSoloPartner({
+  required TournamentRegistrationSnapshot? snap,
+  required bool isFullyPaid,
+}) =>
+    snap?.partnerPending == true && !isFullyPaid;
+
+enum TournamentRegistrationStep { category, uniform, partner, waiting, payment }
 
 class TournamentRegistrationPartnerCandidate {
   const TournamentRegistrationPartnerCandidate({
@@ -123,6 +126,50 @@ TournamentRegistrationQuote buildRegistrationQuote({
 bool registrationRequiresPayment(TournamentRegistrationQuote quote) =>
     quote.entryFee > 0;
 
+bool tournamentUsesDirectOrganizerPayment(TournamentDetail tournament) =>
+    tournament.paymentMode == TournamentPaymentMode.directWithOrganizer;
+
+/// PIX no app só quando há taxa e o torneio não usa pagamento direto.
+bool registrationRequiresAppPayment(
+  TournamentRegistrationQuote quote,
+  TournamentDetail tournament,
+) =>
+    registrationRequiresPayment(quote) &&
+    !tournamentUsesDirectOrganizerPayment(tournament);
+
+/// Texto explicativo do passo de pagamento direto (valor da dupla).
+String directOrganizerPaymentBody(TournamentRegistrationQuote quote) {
+  final amount = formatRegistrationMoney(quote.displayTotal);
+  return 'A inscrição deste torneio não é cobrada pelo app. '
+      'O valor de $amount por dupla é combinado e pago diretamente com o organizador.';
+}
+
+/// Partes em negrito para [directOrganizerPaymentBody].
+(String before, String bold, String after) directOrganizerPaymentBodyParts(
+  TournamentRegistrationQuote quote,
+) {
+  final amount = formatRegistrationMoney(quote.displayTotal);
+  return (
+    'A inscrição deste torneio ',
+    'não é cobrada pelo app',
+    '. O valor de $amount por dupla é combinado e pago diretamente com o organizador.',
+  );
+}
+
+/// Alerta de pré-reserva no passo de pagamento direto.
+(String before, String bold, String after)
+directOrganizerPrereserveAlertParts() => (
+  'Ao reservar, sua vaga fica ',
+  'pré-reservada',
+  '. A inscrição só é confirmada quando o organizador registrar o pagamento.',
+);
+
+/// Subtítulo do passo 2 (valor da dupla).
+String directOrganizerPaymentStep2Subtitle(TournamentRegistrationQuote quote) {
+  final amount = formatRegistrationMoney(quote.displayTotal);
+  return '$amount por dupla, direto com o organizador (Pix, dinheiro ou maquininha).';
+}
+
 String formatRegistrationMoney(double value) => formatMoney(value);
 
 /// Badge do hero (ex.: `COPA GOIÁS 2026`).
@@ -154,8 +201,9 @@ String _compactDateRange(TournamentDetail tournament) {
   final start = tournament.startDate;
   final end = tournament.endDate;
   final month = _compactMonthFmt.format(start);
-  final capitalizedMonth =
-      month.isEmpty ? month : '${month[0].toUpperCase()}${month.substring(1)}';
+  final capitalizedMonth = month.isEmpty
+      ? month
+      : '${month[0].toUpperCase()}${month.substring(1)}';
 
   if (end != null &&
       (end.year != start.year ||
@@ -215,8 +263,7 @@ String categoryRegistrationSubtitle(
   int? inscriptionCount,
   bool includeGender = true,
 }) {
-  final gender =
-      includeGender ? categoryGenderDisplayLabel(offer) : '';
+  final gender = includeGender ? categoryGenderDisplayLabel(offer) : '';
   final capacity = categoryMaxTeams(offer);
   if (capacity <= 0) {
     return gender.isNotEmpty ? gender : 'Vagas a confirmar';
@@ -261,8 +308,7 @@ String paymentAmountLabel({
   required TournamentRegistrationQuote quote,
   required String amountType,
 }) {
-  final amount =
-      amountType == 'full' ? quote.displayTotal : quote.shareAmount;
+  final amount = amountType == 'full' ? quote.displayTotal : quote.shareAmount;
   return formatRegistrationMoney(amount);
 }
 
@@ -284,7 +330,10 @@ String tournamentInviteExpiryLabel(DateTime expiresAt, [DateTime? now]) {
 }
 
 /// Horas de reserva exibidas no texto do passo de espera.
-String tournamentInviteReservationHoursLabel(DateTime expiresAt, DateTime createdAt) {
+String tournamentInviteReservationHoursLabel(
+  DateTime expiresAt,
+  DateTime createdAt,
+) {
   final hours = expiresAt.difference(createdAt).inHours;
   if (hours <= 0) return '24 horas';
   if (hours == 1) return '1 hora';
@@ -296,9 +345,7 @@ bool registrationWaitingCanProceed({
   required bool inviteAccepted,
   required String? registrationId,
 }) {
-  return inviteAccepted &&
-      registrationId != null &&
-      registrationId.isNotEmpty;
+  return inviteAccepted && registrationId != null && registrationId.isNotEmpty;
 }
 
 /// Parcela do atleta autenticado já consta em `sharePaidUids`.
@@ -326,13 +373,23 @@ String registrationDualPaymentProgressLabel({
   required bool isPaid,
   List<String> sharePaidUids = const [],
   String? currentAthleteUid,
+  bool isDirectOrganizerPayment = false,
 }) {
   if (isPaid) return 'Inscrição confirmada — dupla inscrita no torneio.';
-  if (!registrationRequiresPayment(quote)) {
+  if (!registrationRequiresPayment(quote) || isDirectOrganizerPayment) {
     final selfConfirmed = currentAthleteSharePaid(
       sharePaidUids: sharePaidUids,
       athleteUid: currentAthleteUid,
     );
+    if (isDirectOrganizerPayment) {
+      if (selfConfirmed) {
+        return 'Vaga reservada. Aguardando seu parceiro reservar a dele.';
+      }
+      if (sharePaidUids.isNotEmpty) {
+        return 'Seu parceiro já reservou. Reserve sua vaga.';
+      }
+      return 'Cada atleta precisa reservar sua vaga.';
+    }
     if (selfConfirmed) {
       return 'Você confirmou. Aguardando seu parceiro confirmar a inscrição.';
     }
@@ -348,10 +405,11 @@ String registrationDualPaymentProgressLabel({
   if (paidAmount <= 0 && !selfPaid) {
     return 'Aguardando o pagamento de cada atleta (sua parcela + parceiro).';
   }
-  if (selfPaid || registrationSharePaid(
-    paidAmount: paidAmount,
-    shareAmount: quote.shareAmount,
-  )) {
+  if (selfPaid ||
+      registrationSharePaid(
+        paidAmount: paidAmount,
+        shareAmount: quote.shareAmount,
+      )) {
     final remaining = (quote.displayTotal - paidAmount)
         .clamp(0.0, quote.displayTotal)
         .toDouble();
@@ -369,8 +427,7 @@ String registrationDualPaymentProgressLabel({
 bool registrationStickyEnabled({
   required bool canAccess,
   required bool stepEnabled,
-}) =>
-    canAccess && stepEnabled;
+}) => canAccess && stepEnabled;
 
 /// Resultado da avaliação de auto-navegação para a tela de confirmação.
 enum RegistrationSuccessNavigationAction {

@@ -108,6 +108,13 @@ export function isFreeRegistrationFullyConfirmed(
   return uniqueTeamUids.every((uid) => sharePaidUids.includes(uid));
 }
 
+export const TOURNAMENT_PAYMENT_MODE_DIRECT_ORGANIZER = "directWithOrganizer";
+
+export function isDirectWithOrganizerPaymentMode(paymentMode: unknown): boolean {
+  return typeof paymentMode === "string" &&
+    paymentMode.trim() === TOURNAMENT_PAYMENT_MODE_DIRECT_ORGANIZER;
+}
+
 export type AthleteGenderBucket = "M" | "F";
 
 /** Normaliza `users/{uid}.gender` para comparação da dupla. */

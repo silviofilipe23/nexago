@@ -11,6 +11,9 @@ class TournamentRegistrationStickyBar extends StatelessWidget {
     this.metaLabel,
     this.totalLabel,
     this.ctaLabel = 'Continuar',
+    this.ctaSubtitle,
+    this.priceBoxLabel,
+    this.priceBoxValue,
     this.submitting = false,
   });
 
@@ -19,13 +22,21 @@ class TournamentRegistrationStickyBar extends StatelessWidget {
   final String? metaLabel;
   final String? totalLabel;
   final String ctaLabel;
+  final String? ctaSubtitle;
+  final String? priceBoxLabel;
+  final String? priceBoxValue;
   final bool submitting;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final showMeta = (metaLabel != null && metaLabel!.isNotEmpty) ||
-        (totalLabel != null && totalLabel!.isNotEmpty);
+    final showPriceBox =
+        (priceBoxLabel?.isNotEmpty == true) &&
+        (priceBoxValue?.isNotEmpty == true);
+    final showMeta =
+        !showPriceBox &&
+        ((metaLabel != null && metaLabel!.isNotEmpty) ||
+            (totalLabel != null && totalLabel!.isNotEmpty));
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -41,7 +52,48 @@ class TournamentRegistrationStickyBar extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              if (showMeta)
+              if (showPriceBox)
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: context.themeColors.surfaceRaised,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: context.themeColors.onSurfaceMuted.withValues(
+                          alpha: 0.12,
+                        ),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          priceBoxLabel!,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: context.themeColors.onSurfaceMuted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          priceBoxValue!,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.brand,
+                            height: 1,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (showMeta)
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -72,43 +124,60 @@ class TournamentRegistrationStickyBar extends StatelessWidget {
               else
                 Spacer(),
               SizedBox(width: 12),
-              SizedBox(
-                height: 48,
-                child: FilledButton(
-                  onPressed: enabled && !submitting ? onConfirm : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.black,
-                    disabledBackgroundColor: context.themeColors.surfaceRaised,
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  SizedBox(
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: enabled && !submitting ? onConfirm : null,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                        foregroundColor: AppColors.black,
+                        disabledBackgroundColor:
+                            context.themeColors.surfaceRaised,
+                        padding: const EdgeInsets.symmetric(horizontal: 18),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                      child: submitting
+                          ? SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: AppColors.black,
+                              ),
+                            )
+                          : Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  ctaLabel,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                SizedBox(width: 6),
+                                Icon(Icons.arrow_forward_rounded, size: 20),
+                              ],
+                            ),
                     ),
                   ),
-                  child: submitting
-                      ? SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: AppColors.black,
-                          ),
-                        )
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              ctaLabel,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 14,
-                              ),
-                            ),
-                            SizedBox(width: 6),
-                            Icon(Icons.arrow_forward_rounded, size: 20),
-                          ],
-                        ),
-                ),
+                  if (ctaSubtitle != null && ctaSubtitle!.isNotEmpty) ...[
+                    SizedBox(height: 4),
+                    Text(
+                      ctaSubtitle!,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: context.themeColors.onSurfaceMuted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ],
           ),

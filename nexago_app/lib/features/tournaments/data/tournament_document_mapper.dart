@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_listing_status.dart';
+import '../domain/tournament_payment_mode.dart';
 import '../domain/tournament_uniform_selection.dart';
 
 /// Mapeia `tournaments/{id}` (ou legado artifacts) → [DiscoveryTournament] / [TournamentDetail].
@@ -131,6 +132,8 @@ abstract final class TournamentDocumentMapper {
       tournamentPrizes: _parsePrizes(data['prizes']),
       createdAt: _timestamp(data['createdAt'] ?? data['created_at']),
       listingStatusRaw: listingStatusRaw,
+      sport: _str(data['sport']) ?? '',
+      paymentMode: parseTournamentPaymentMode(data['paymentMode'] as String?),
     );
   }
 

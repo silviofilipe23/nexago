@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_detail_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
-import 'package:nexago_app/features/tournaments/domain/tournament_detail_tab.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 
 TournamentDetail _tournament({required List<TournamentCategoryOffer> offers}) {
@@ -27,8 +27,8 @@ TournamentDetail _tournament({required List<TournamentCategoryOffer> offers}) {
 }
 
 void main() {
-  test('visibleTournamentDetailTabs omits groups for double elimination', () {
-    final tabs = visibleTournamentDetailTabs(
+  test('tournamentShouldShowGroupsTab is false for double elimination', () {
+    final show = tournamentShouldShowGroupsTab(
       _tournament(
         offers: const [
           TournamentCategoryOffer(
@@ -43,17 +43,11 @@ void main() {
       ),
     );
 
-    expect(tabs, isNot(contains(TournamentDetailTab.groups)));
-    expect(tabs, [
-      TournamentDetailTab.overview,
-      TournamentDetailTab.categories,
-      TournamentDetailTab.bracket,
-      TournamentDetailTab.prizes,
-    ]);
+    expect(show, isFalse);
   });
 
-  test('visibleTournamentDetailTabs includes groups for pool play', () {
-    final tabs = visibleTournamentDetailTabs(
+  test('tournamentShouldShowGroupsTab is true for pool play', () {
+    final show = tournamentShouldShowGroupsTab(
       _tournament(
         offers: const [
           TournamentCategoryOffer(
@@ -68,6 +62,6 @@ void main() {
       ),
     );
 
-    expect(tabs, contains(TournamentDetailTab.groups));
+    expect(show, isTrue);
   });
 }

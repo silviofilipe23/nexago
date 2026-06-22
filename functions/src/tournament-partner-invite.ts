@@ -7,6 +7,7 @@ import {
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {assertCanRegisterInTournament} from "./athlete-tournament-access";
+import {assertTeamLevelEligibility} from "./category-level-eligibility";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {
   assertTournamentAcceptsRegistration,
@@ -356,6 +357,13 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
     throw new HttpsError("not-found", "Categoria não encontrada neste torneio.");
   }
 
+  await assertTeamLevelEligibility({
+    db,
+    tournament,
+    category,
+    uids: [uid, inviteeUid],
+  });
+
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
 
   const uniformRequired = categoryRequiresUniform(category);
@@ -495,6 +503,13 @@ export const registerSoloTournament = onCall(async (request) => {
     throw new HttpsError("not-found", "Categoria não encontrada neste torneio.");
   }
 
+  await assertTeamLevelEligibility({
+    db,
+    tournament,
+    category,
+    uids: [uid],
+  });
+
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
   const uniform = parseUniformPayload(request.data?.uniform);
   validateUniformPayload(category, uniform, categoryRequiresUniform(category));
@@ -591,6 +606,13 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
   if (!previewCategory) {
     throw new HttpsError("not-found", "Categoria não encontrada.");
   }
+  // Conclusão da dupla: valida nível dos dois jogadores (convidador + convidado).
+  await assertTeamLevelEligibility({
+    db,
+    tournament: previewTournament,
+    category: previewCategory,
+    uids: [invitePreviewData.inviterUid as string | undefined, uid],
+  });
   validateUniformPayload(
     previewCategory,
     inviteeUniform,

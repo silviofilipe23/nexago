@@ -27,7 +27,7 @@ class MyTournamentRegistrationsRepository {
     final indexed = _inscriptions
         .where('participantUids', arrayContains: uid)
         .snapshots()
-        .asyncMap(_mapIndexedRegistrations);
+        .asyncMap((snap) => _mapIndexedRegistrations(snap, uid));
 
     final legacyFuture = _loadLegacyRegistrations(uid);
 
@@ -73,17 +73,19 @@ class MyTournamentRegistrationsRepository {
       }
     }
 
-    return _mapRegistrationDocs(legacyDocs);
+    return _mapRegistrationDocs(legacyDocs, uid);
   }
 
   Future<List<MyTournamentRegistration>> _mapIndexedRegistrations(
     QuerySnapshot<Map<String, dynamic>> snap,
+    String uid,
   ) {
-    return _mapRegistrationDocs(snap.docs);
+    return _mapRegistrationDocs(snap.docs, uid);
   }
 
   Future<List<MyTournamentRegistration>> _mapRegistrationDocs(
     Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+    String uid,
   ) async {
     final results = <MyTournamentRegistration>[];
 
@@ -100,6 +102,7 @@ class MyTournamentRegistrationsRepository {
       final isWaitlist = data['waitlist'] == true;
       final categoryId = data['categoryId'] as String? ?? '';
       final listingRaw = tournament?.listingStatusRaw;
+      final sharePaidUids = _sharePaidUidsFromData(data);
 
       results.add(
         MyTournamentRegistration(
@@ -120,11 +123,22 @@ class MyTournamentRegistrationsRepository {
           teamId: teamId,
           locationLine: _tournamentLocationLine(tournament),
           isWaitlist: isWaitlist,
+          athleteHasReserved: sharePaidUids.contains(uid),
         ),
       );
     }
 
     return results;
+  }
+
+  static List<String> _sharePaidUidsFromData(Map<String, dynamic> data) {
+    final raw = data['sharePaidUids'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<String>()
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList();
   }
 
   static String? _tournamentLocationLine(TournamentDetail? tournament) {

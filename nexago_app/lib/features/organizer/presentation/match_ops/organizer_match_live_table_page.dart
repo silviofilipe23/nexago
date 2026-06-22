@@ -81,6 +81,7 @@ class _OrganizerMatchLiveTablePageState
       side: side,
       teamAId: match.teamAId,
       teamBId: match.teamBId,
+      bestOf: match.bestOf,
     );
 
     setState(() => _saving = true);
@@ -104,8 +105,8 @@ class _OrganizerMatchLiveTablePageState
             'matchEndedAt': FieldValue.serverTimestamp(),
           if (match.matchStartedAt == null)
             'matchStartedAt': FieldValue.serverTimestamp(),
-          'resultA': '${MatchScoringLogic.setsWon(result.sets).a}',
-          'resultB': '${MatchScoringLogic.setsWon(result.sets).b}',
+          'resultA': '${MatchScoringLogic.setsWon(result.sets, bestOf: match.bestOf).a}',
+          'resultB': '${MatchScoringLogic.setsWon(result.sets, bestOf: match.bestOf).b}',
         },
         pointEvent: {
           'type': 'point',
@@ -122,6 +123,121 @@ class _OrganizerMatchLiveTablePageState
         FirebaseFirestore.instance,
         widget.tournamentId,
       );
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _showFormatSheet(TournamentMatch match) async {
+    if (match.isCompleted || _saving) return;
+    final choice = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: context.themeColors.surfaceSheet,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Quantidade de sets',
+                style: AppTypography.soraRegular(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
+              ),
+              const SizedBox(height: 16),
+              for (final option in const [1, 3])
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(sheetContext, option),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: option == match.bestOf
+                          ? AppColors.brand
+                          : context.themeColors.onSurface,
+                      side: BorderSide(
+                        color: option == match.bestOf
+                            ? AppColors.brand
+                            : context.themeColors.onSurfaceMuted
+                                .withValues(alpha: 0.3),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(matchBestOfLabel(option)),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null || choice == match.bestOf) return;
+    await _changeFormat(match, choice);
+  }
+
+  Future<void> _changeFormat(TournamentMatch match, int newBestOf) async {
+    if (match.isCompleted) return;
+    if (newBestOf < match.bestOf &&
+        !MatchScoringLogic.canReduceBestOf(match.sets, newBestOf)) {
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          'Não dá para mudar para ${matchBestOfLabel(newBestOf)}: '
+          'há sets já pontuados.',
+          isError: true,
+        );
+      }
+      return;
+    }
+
+    final result = MatchScoringLogic.applyBestOfChange(
+      sets: match.sets,
+      newBestOf: newBestOf,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+    );
+    final wins = MatchScoringLogic.setsWon(result.sets, bestOf: newBestOf);
+
+    setState(() => _saving = true);
+    try {
+      final repo = ref.read(tournamentMatchesRepositoryProvider);
+      await repo.updateMatchFields(
+        matchId: widget.matchId,
+        fields: {
+          'bestOf': newBestOf,
+          'sets': result.sets.map((s) => s.toMap()).toList(),
+          'currentSetIndex': result.currentSetIndex,
+          'status': result.completed
+              ? TournamentMatchStatus.completed
+              : TournamentMatchStatus.inProgress,
+          'resultA': '${wins.a}',
+          'resultB': '${wins.b}',
+          if (result.completed) 'winnerId': result.winnerId,
+          if (result.completed) 'matchEndedAt': FieldValue.serverTimestamp(),
+          if (!result.completed) 'winnerId': FieldValue.delete(),
+          if (!result.completed) 'matchEndedAt': FieldValue.delete(),
+        },
+      );
+      await TournamentLiveMatchesSync.syncForTournament(
+        FirebaseFirestore.instance,
+        widget.tournamentId,
+      );
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          'Formato alterado para ${matchBestOfLabel(newBestOf)}.',
+        );
+      }
     } catch (e) {
       if (mounted) {
         showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
@@ -161,6 +277,7 @@ class _OrganizerMatchLiveTablePageState
       currentSetIndex: lastPoint.setIndex,
       side: side,
     );
+    final bestOf = match.bestOf;
 
     setState(() => _saving = true);
     try {
@@ -176,8 +293,8 @@ class _OrganizerMatchLiveTablePageState
           'status': TournamentMatchStatus.inProgress,
           'winnerId': FieldValue.delete(),
           'matchEndedAt': FieldValue.delete(),
-          'resultA': '${MatchScoringLogic.setsWon(result.sets).a}',
-          'resultB': '${MatchScoringLogic.setsWon(result.sets).b}',
+          'resultA': '${MatchScoringLogic.setsWon(result.sets, bestOf: bestOf).a}',
+          'resultB': '${MatchScoringLogic.setsWon(result.sets, bestOf: bestOf).b}',
         },
         pointEvent: {
           'type': 'undo-point',
@@ -317,11 +434,15 @@ class _OrganizerMatchLiveTablePageState
                   match: match,
                   categoryLabel: categoryLabel,
                 );
-                final rules = MatchScoringLogic.setRulesLabel(setIdx);
+                final rules = MatchScoringLogic.setRulesLabel(
+                  setIdx,
+                  bestOf: match.bestOf,
+                );
                 final setPoint = MatchScoringLogic.setPointHint(
                   current.a,
                   current.b,
                   setIndex: setIdx,
+                  bestOf: match.bestOf,
                 );
                 final teamA = liveTableTeamData(
                   match: match,
@@ -369,6 +490,9 @@ class _OrganizerMatchLiveTablePageState
                     LiveTableSetRules(
                       rulesLabel: rules,
                       setPointHint: setPoint,
+                      bestOf: match.bestOf,
+                      formatEnabled: !_saving && !match.isCompleted,
+                      onChangeFormat: () => _showFormatSheet(match),
                     ),
                     LiveTableActionBar(
                       enabled: actionsEnabled,

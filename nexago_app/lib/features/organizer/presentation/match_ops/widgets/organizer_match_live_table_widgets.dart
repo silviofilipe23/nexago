@@ -529,42 +529,113 @@ class _ScoreControlButton extends StatelessWidget {
   }
 }
 
+/// Rótulo amigável do formato (nº de sets) da partida.
+String matchBestOfLabel(int bestOf) => bestOf == 1 ? '1 set' : 'Melhor de 3';
+
 class LiveTableSetRules extends StatelessWidget {
   const LiveTableSetRules({
     super.key,
     required this.rulesLabel,
     this.setPointHint,
+    this.bestOf = 3,
+    this.onChangeFormat,
+    this.formatEnabled = true,
   });
 
   final String rulesLabel;
   final String? setPointHint;
+  final int bestOf;
+
+  /// Quando não nulo, exibe um chip tocável para trocar o formato (nº de sets).
+  final VoidCallback? onChangeFormat;
+  final bool formatEnabled;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-      child: Text.rich(
-        TextSpan(
-          style: AppTypography.mono(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: context.themeColors.onSurfaceMuted,
+      child: Column(
+        children: [
+          Text.rich(
+            TextSpan(
+              style: AppTypography.mono(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: context.themeColors.onSurfaceMuted,
+              ),
+              children: [
+                TextSpan(text: rulesLabel),
+                if (setPointHint != null) ...[
+                  const TextSpan(text: ' · '),
+                  TextSpan(
+                    text: setPointHint,
+                    style: const TextStyle(
+                      color: AppColors.brand,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            textAlign: TextAlign.center,
           ),
-          children: [
-            TextSpan(text: rulesLabel),
-            if (setPointHint != null) ...[
-              const TextSpan(text: ' · '),
-              TextSpan(
-                text: setPointHint,
-                style: const TextStyle(
-                  color: AppColors.brand,
+          if (onChangeFormat != null) ...[
+            const SizedBox(height: 8),
+            _FormatChip(
+              label: matchBestOfLabel(bestOf),
+              enabled: formatEnabled,
+              onTap: onChangeFormat,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FormatChip extends StatelessWidget {
+  const _FormatChip({
+    required this.label,
+    required this.enabled,
+    this.onTap,
+  });
+
+  final String label;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = enabled
+        ? AppColors.brand
+        : context.themeColors.onSurfaceMuted;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.tune_rounded, size: 14, color: color),
+              const SizedBox(width: 6),
+              Text(
+                'Formato: $label',
+                style: AppTypography.mono(
+                  fontSize: 11,
                   fontWeight: FontWeight.w800,
+                  color: color,
                 ),
               ),
             ],
-          ],
+          ),
         ),
-        textAlign: TextAlign.center,
       ),
     );
   }

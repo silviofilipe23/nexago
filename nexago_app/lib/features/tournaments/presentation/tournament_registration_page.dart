@@ -15,13 +15,16 @@ import '../../athlete/domain/tournament_access_providers.dart';
 import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../data/tournament_inscriptions_repository.dart';
 import '../data/tournament_partner_invite_service.dart';
+import '../data/tournament_registration_service.dart';
 import '../data/users_repository.dart';
 import '../domain/app_user_profile.dart';
+import '../domain/category_level_eligibility.dart';
 import '../domain/tournament_category_spots.dart';
 import '../domain/tournament_detail_logic.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
+import '../domain/tournament_partner_invite.dart';
 import '../domain/tournament_partner_invite_providers.dart';
 import '../domain/tournament_registration_logic.dart';
 import '../domain/tournament_registration_navigation.dart';
@@ -72,6 +75,7 @@ class _TournamentRegistrationPageState
   bool _appliedInitialCategory = false;
   bool _appliedInitialRegistration = false;
   bool _appliedInitialInvite = false;
+  bool _appliedSoloInviteRestore = false;
   bool _paidPopHandled = false;
   TournamentUniformSelection _titularUniform = const TournamentUniformSelection(
     sizeTop: 'M',
@@ -102,6 +106,7 @@ class _TournamentRegistrationPageState
   void _scheduleInitialCategory(
     List<TournamentCategoryOffer> categories, {
     required Set<String> registeredCategoryIds,
+    String? tournamentSport,
   }) {
     if (_appliedInitialCategory) return;
     final id = widget.initialCategoryId?.trim();
@@ -118,6 +123,13 @@ class _TournamentRegistrationPageState
       }
       if (match == null || !isCategorySelectable(match)) return;
       if (registeredCategoryIds.contains(match.id)) return;
+      if (!CategoryLevelEligibility.isCategoryEligibleForAthlete(
+        match,
+        ref.read(athleteProfileProvider).valueOrNull,
+        tournamentSport: tournamentSport,
+      )) {
+        return;
+      }
       setState(() {
         _appliedInitialCategory = true;
         _category = match;
@@ -206,7 +218,118 @@ class _TournamentRegistrationPageState
     });
   }
 
-  void _selectCategory(TournamentCategoryOffer category) {
+  void _scheduleRestoreSoloInvite({
+    required TournamentRegistrationSnapshot? registrationSnap,
+    required List<TournamentCategoryOffer> categories,
+  }) {
+    if (_appliedSoloInviteRestore) return;
+    final regId = _registrationId?.trim();
+    if (regId == null || regId.isEmpty) return;
+    final invId = _inviteId?.trim();
+    if (invId != null && invId.isNotEmpty) return;
+    if (!registrationAwaitingSoloPartner(
+      snap: registrationSnap,
+      isFullyPaid: registrationSnap?.isPaid == true,
+    )) {
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || _appliedSoloInviteRestore) return;
+      final uid = ref.read(authServiceProvider).currentUser?.uid;
+      if (uid == null || uid.isEmpty) return;
+
+      final invites = await ref
+          .read(tournamentPartnerInviteServiceProvider)
+          .watchInvitesAsInviter(uid)
+          .first;
+      if (!mounted || _appliedSoloInviteRestore) return;
+
+      final categoryId = _category?.id ?? widget.initialCategoryId?.trim() ?? '';
+      TournamentPartnerInvite? match;
+      for (final invite in invites) {
+        if (!invite.isPending || invite.isExpired) continue;
+        if (invite.tournamentId != widget.tournamentId) continue;
+        final attachId = invite.attachRegistrationId?.trim() ?? '';
+        if (attachId.isNotEmpty) {
+          if (attachId == regId) {
+            match = invite;
+            break;
+          }
+          continue;
+        }
+        if (categoryId.isNotEmpty && invite.categoryId == categoryId) {
+          match = invite;
+          break;
+        }
+      }
+
+      if (match == null) {
+        setState(() => _appliedSoloInviteRestore = true);
+        return;
+      }
+
+      final inviteeProfile = await ref
+          .read(usersRepositoryProvider)
+          .getUserById(match.inviteeUid);
+      final inviteeName = inviteeProfile != null
+          ? appUserDisplayName(inviteeProfile)
+          : match.inviteeName;
+      final inviteeInitials = inviteeProfile != null
+          ? appUserInitials(inviteeProfile)
+          : _initialsFromName(match.inviteeName);
+      final inviteeAvatar = inviteeProfile?.profilePhotoUrl;
+
+      TournamentCategoryOffer? categoryMatch = _category;
+      if (categoryMatch == null) {
+        for (final c in categories) {
+          if (c.id == match.categoryId) {
+            categoryMatch = c;
+            break;
+          }
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _appliedSoloInviteRestore = true;
+        _inviteId = match!.id;
+        if (categoryMatch != null) _category = categoryMatch;
+        _partnerUserId = match.inviteeUid;
+        _selectedPartner = TournamentRegistrationPartnerCandidate(
+          userId: match.inviteeUid,
+          initials: inviteeInitials,
+          name: inviteeName,
+          rankLabel: '',
+          avatarUrl: inviteeAvatar,
+        );
+      });
+    });
+  }
+
+  void _openPartnerInviteFromPayment() =>
+      _goToStep(TournamentRegistrationStep.partner);
+
+  void _selectCategory(
+    TournamentCategoryOffer category, {
+    String? tournamentSport,
+  }) {
+    final profile = ref.read(athleteProfileProvider).valueOrNull;
+    if (!CategoryLevelEligibility.isCategoryEligibleForAthlete(
+      category,
+      profile,
+      tournamentSport: tournamentSport,
+    )) {
+      showAppSnackBar(
+        context,
+        CategoryLevelEligibility.blockMessage(
+          profile,
+          tournamentSport: tournamentSport,
+        ),
+        isError: true,
+      );
+      return;
+    }
     setState(() {
       _category = category;
       _titularUniform = _defaultUniformForCategory(category);
@@ -288,13 +411,26 @@ class _TournamentRegistrationPageState
   }
 
   void _handleBack() {
+    final regId = _registrationId?.trim() ?? '';
+    final partnerPending = regId.isNotEmpty
+        ? ref
+                .read(tournamentRegistrationSnapshotProvider(regId))
+                .valueOrNull
+                ?.partnerPending ==
+            true
+        : false;
+
     switch (_step) {
       case TournamentRegistrationStep.category:
         _exitRegistration();
       case TournamentRegistrationStep.uniform:
         _goToStep(TournamentRegistrationStep.category);
       case TournamentRegistrationStep.partner:
-        _goToStep(previousStepFromPartner(_category));
+        if (_registrationId != null && partnerPending) {
+          _goToStep(TournamentRegistrationStep.payment);
+        } else {
+          _goToStep(previousStepFromPartner(_category));
+        }
       case TournamentRegistrationStep.waiting:
         _exitRegistration();
       case TournamentRegistrationStep.payment:
@@ -414,10 +550,24 @@ class _TournamentRegistrationPageState
       await ref.read(tournamentPartnerInviteServiceProvider).cancelInvite(id);
       if (!mounted) return;
       showAppSnackBar(context, 'Convite cancelado.');
+      final regId = _registrationId?.trim() ?? '';
+      final partnerPending = regId.isNotEmpty
+          ? ref
+                  .read(tournamentRegistrationSnapshotProvider(regId))
+                  .valueOrNull
+                  ?.partnerPending ==
+              true
+          : false;
       setState(() {
         _inviteId = null;
-        _registrationId = null;
-        _step = TournamentRegistrationStep.partner;
+        _partnerUserId = null;
+        _selectedPartner = null;
+        if (partnerPending) {
+          _step = TournamentRegistrationStep.payment;
+        } else {
+          _registrationId = null;
+          _step = TournamentRegistrationStep.partner;
+        }
       });
     } on TournamentPartnerInviteException catch (e) {
       if (!mounted) return;
@@ -478,8 +628,17 @@ class _TournamentRegistrationPageState
     }
   }
 
-  ({bool enabled, String ctaLabel, String? metaLabel, String? totalLabel})
+  ({
+    bool enabled,
+    String ctaLabel,
+    String? metaLabel,
+    String? totalLabel,
+    String? ctaSubtitle,
+    String? priceBoxLabel,
+    String? priceBoxValue,
+  })
   _stickyConfig({
+    required TournamentDetail tournament,
     required TournamentRegistrationQuote? quote,
     required bool inviteAccepted,
     required bool isFullyPaid,
@@ -493,12 +652,15 @@ class _TournamentRegistrationPageState
           ctaLabel: hasCategory && categoryRequiresUniform(_category!)
               ? 'Escolher uniforme'
               : hasCategory
-                  ? 'Escolher parceiro'
-                  : 'Escolha a categoria',
+              ? 'Escolher parceiro'
+              : 'Escolha a categoria',
           metaLabel: null,
           totalLabel: hasCategory && quote != null
               ? formatRegistrationMoney(quote.displayTotal)
               : null,
+          ctaSubtitle: null,
+          priceBoxLabel: null,
+          priceBoxValue: null,
         );
       case TournamentRegistrationStep.uniform:
         final cat = _category;
@@ -512,6 +674,9 @@ class _TournamentRegistrationPageState
           ctaLabel: 'Próximo — escolher parceiro',
           metaLabel: null,
           totalLabel: null,
+          ctaSubtitle: null,
+          priceBoxLabel: null,
+          priceBoxValue: null,
         );
       case TournamentRegistrationStep.partner:
         return (
@@ -519,6 +684,9 @@ class _TournamentRegistrationPageState
           ctaLabel: 'Enviar convite',
           metaLabel: null,
           totalLabel: null,
+          ctaSubtitle: null,
+          priceBoxLabel: null,
+          priceBoxValue: null,
         );
       case TournamentRegistrationStep.waiting:
         final canPay = registrationWaitingCanProceed(
@@ -533,9 +701,16 @@ class _TournamentRegistrationPageState
           totalLabel: quote != null && canPay && !isFree
               ? formatRegistrationMoney(quote.shareAmount)
               : null,
+          ctaSubtitle: null,
+          priceBoxLabel: null,
+          priceBoxValue: null,
         );
       case TournamentRegistrationStep.payment:
         final isFree = quote != null && !registrationRequiresPayment(quote);
+        final isDirect =
+            quote != null &&
+            tournamentUsesDirectOrganizerPayment(tournament) &&
+            registrationRequiresPayment(quote);
         return (
           enabled:
               _registrationId != null &&
@@ -545,13 +720,26 @@ class _TournamentRegistrationPageState
           ctaLabel: isFullyPaid
               ? 'Inscrição confirmada'
               : athleteSharePaid
-              ? (isFree ? 'Confirmado' : 'Parcela paga')
-              : (isFree ? 'Confirmar inscrição' : 'Confirmar e pagar'),
+              ? (isFree || isDirect ? 'Reservado' : 'Parcela paga')
+              : isFree
+              ? 'Confirmar inscrição'
+              : isDirect
+              ? 'Reservar minha vaga'
+              : 'Confirmar e pagar',
           metaLabel: athleteSharePaid
               ? 'Aguardando parceiro'
+              : isDirect
+              ? null
               : (isFree ? 'Gratuito' : 'Sua parcela'),
-          totalLabel: quote != null && !athleteSharePaid && !isFree
+          totalLabel: quote != null && !athleteSharePaid && !isFree && !isDirect
               ? formatRegistrationMoney(quote.shareAmount)
+              : null,
+          ctaSubtitle: isDirect && !athleteSharePaid && !isFullyPaid
+              ? 'pagamento direto com o organizador'
+              : null,
+          priceBoxLabel: isDirect && !athleteSharePaid ? 'Inscrição' : null,
+          priceBoxValue: isDirect && !athleteSharePaid
+              ? formatRegistrationMoney(quote.displayTotal)
               : null,
         );
     }
@@ -620,19 +808,47 @@ class _TournamentRegistrationPageState
                   : 'Convite cancelado.',
               isError: true,
             );
+            final regId = _registrationId?.trim() ?? '';
+            final partnerPending = regId.isNotEmpty
+                ? ref
+                        .read(tournamentRegistrationSnapshotProvider(regId))
+                        .valueOrNull
+                        ?.partnerPending ==
+                    true
+                : false;
             setState(() {
               _inviteId = null;
-              _registrationId = null;
-              _step = TournamentRegistrationStep.partner;
+              _partnerUserId = null;
+              _selectedPartner = null;
+              if (partnerPending) {
+                _step = TournamentRegistrationStep.payment;
+              } else {
+                _registrationId = null;
+                _step = TournamentRegistrationStep.partner;
+              }
             });
           });
         } else if (invite.isExpired) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!mounted) return;
             showAppSnackBar(context, 'Convite expirado.', isError: true);
+            final regId = _registrationId?.trim() ?? '';
+            final partnerPending = regId.isNotEmpty
+                ? ref
+                        .read(tournamentRegistrationSnapshotProvider(regId))
+                        .valueOrNull
+                        ?.partnerPending ==
+                    true
+                : false;
             setState(() {
               _inviteId = null;
-              _step = TournamentRegistrationStep.partner;
+              _partnerUserId = null;
+              _selectedPartner = null;
+              if (partnerPending) {
+                _step = TournamentRegistrationStep.payment;
+              } else {
+                _step = TournamentRegistrationStep.partner;
+              }
             });
           });
         }
@@ -698,9 +914,14 @@ class _TournamentRegistrationPageState
           _scheduleInitialCategory(
             categories,
             registeredCategoryIds: registeredCategoryIds,
+            tournamentSport: tournament.sport,
           );
           _scheduleInitialRegistration(categories);
           _scheduleInitialInvite(categories);
+          _scheduleRestoreSoloInvite(
+            registrationSnap: registrationSnap,
+            categories: categories,
+          );
 
           final enrollmentAsync = ref.watch(
             tournamentCategoryEnrollmentCountsProvider(widget.tournamentId),
@@ -731,7 +952,8 @@ class _TournamentRegistrationPageState
             athleteUid: currentUid,
           );
           // "Pagar pela dupla" exige dupla completa e nenhuma parcela paga.
-          _canPayFull = sharePaidUids.isEmpty &&
+          _canPayFull =
+              sharePaidUids.isEmpty &&
               !isFullyPaid &&
               !(registrationSnap?.partnerPending ?? false);
           final progressLabel = quote != null
@@ -741,38 +963,57 @@ class _TournamentRegistrationPageState
                   isPaid: isFullyPaid,
                   sharePaidUids: sharePaidUids,
                   currentAthleteUid: currentUid,
+                  isDirectOrganizerPayment:
+                      tournamentUsesDirectOrganizerPayment(tournament) &&
+                      registrationRequiresPayment(quote),
                 )
               : null;
 
           final sticky = _stickyConfig(
+            tournament: tournament,
             quote: quote,
             inviteAccepted: inviteAccepted,
             isFullyPaid: isFullyPaid,
             athleteSharePaid: athleteSharePaid,
           );
+          final hidePaymentStickyBar =
+              _step == TournamentRegistrationStep.payment &&
+              quote != null &&
+              tournamentUsesDirectOrganizerPayment(tournament) &&
+              registrationRequiresPayment(quote);
           final showHero = registrationStepShowsHero(_step);
           final athlete = _athleteDisplay();
           final partner = _selectedPartner;
+          final topInset = MediaQuery.paddingOf(context).top;
+          final hasCover = tournament.imageUrl?.trim().isNotEmpty == true;
+          final showHeroSection = access.canAccess && showHero;
 
           return Column(
             children: [
-              TournamentRegistrationHeader(
-                onBack: _handleBack,
-                title: registrationHeaderTitle(_step),
-                tournamentName: tournament.name,
-                tournamentDateLabel: tournament.dateLabel,
-                categoryLabel:
-                    _step == TournamentRegistrationStep.waiting ||
-                        _step == TournamentRegistrationStep.uniform
-                    ? (_category?.name ?? _category?.id)
-                    : null,
-                showTournamentInfo:
-                    _step == TournamentRegistrationStep.waiting ||
-                    _step == TournamentRegistrationStep.uniform,
-              ),
+              if (!showHeroSection)
+                TournamentRegistrationHeader(
+                  onBack: _handleBack,
+                  title: registrationHeaderTitle(_step),
+                  tournamentName: tournament.name,
+                  tournamentDateLabel: tournament.dateLabel,
+                  categoryLabel:
+                      _step == TournamentRegistrationStep.waiting ||
+                          _step == TournamentRegistrationStep.uniform
+                      ? (_category?.name ?? _category?.id)
+                      : null,
+                  showTournamentInfo:
+                      _step == TournamentRegistrationStep.waiting ||
+                      _step == TournamentRegistrationStep.uniform,
+                ),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(0, 8, 0, 24),
+                  clipBehavior: Clip.none,
+                  padding: EdgeInsets.fromLTRB(
+                    0,
+                    showHeroSection ? 0 : 8,
+                    0,
+                    24,
+                  ),
                   children: [
                     if (!access.canAccess)
                       Padding(
@@ -783,12 +1024,19 @@ class _TournamentRegistrationPageState
                           missingStepTitles: access.missingStepTitles,
                         ),
                       ),
-                    if (access.canAccess && showHero) ...[
+                    if (showHeroSection) ...[
                       TournamentRegistrationHeroCard(
                         tournament: tournament,
                         stats: stats,
+                        topInset: topInset,
+                        toolbar: TournamentRegistrationHeader(
+                          immersive: true,
+                          onCover: hasCover,
+                          onBack: _handleBack,
+                          title: registrationHeaderTitle(_step),
+                        ),
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                     ],
                     if (access.canAccess)
                       Padding(
@@ -807,6 +1055,8 @@ class _TournamentRegistrationPageState
                             athleteAvatarUrl: athlete.avatarUrl,
                             partner: partner,
                             inviteAccepted: inviteAccepted,
+                            invite: invite,
+                            registrationSnap: registrationSnap,
                             progressLabel: progressLabel,
                             isFullyPaid: isFullyPaid,
                           ),
@@ -815,21 +1065,25 @@ class _TournamentRegistrationPageState
                   ],
                 ),
               ),
-              TournamentRegistrationStickyBar(
-                enabled: registrationStickyEnabled(
-                  canAccess: access.canAccess,
-                  stepEnabled: sticky.enabled,
+              if (!hidePaymentStickyBar)
+                TournamentRegistrationStickyBar(
+                  enabled: registrationStickyEnabled(
+                    canAccess: access.canAccess,
+                    stepEnabled: sticky.enabled,
+                  ),
+                  onConfirm: () => _handleStickyAction(
+                    tournament: tournament,
+                    canAccess: access.canAccess,
+                    inviteAccepted: inviteAccepted,
+                  ),
+                  ctaLabel: sticky.ctaLabel,
+                  metaLabel: sticky.metaLabel,
+                  totalLabel: sticky.totalLabel,
+                  ctaSubtitle: sticky.ctaSubtitle,
+                  priceBoxLabel: sticky.priceBoxLabel,
+                  priceBoxValue: sticky.priceBoxValue,
+                  submitting: _submitting,
                 ),
-                onConfirm: () => _handleStickyAction(
-                  tournament: tournament,
-                  canAccess: access.canAccess,
-                  inviteAccepted: inviteAccepted,
-                ),
-                ctaLabel: sticky.ctaLabel,
-                metaLabel: sticky.metaLabel,
-                totalLabel: sticky.totalLabel,
-                submitting: _submitting,
-              ),
             ],
           );
         },
@@ -849,11 +1103,17 @@ class _TournamentRegistrationPageState
     required String? athleteAvatarUrl,
     required TournamentRegistrationPartnerCandidate? partner,
     required bool inviteAccepted,
+    required TournamentPartnerInvite? invite,
+    required TournamentRegistrationSnapshot? registrationSnap,
     required String? progressLabel,
     required bool isFullyPaid,
   }) {
     switch (_step) {
       case TournamentRegistrationStep.category:
+        final athleteLevelRank = CategoryLevelEligibility.athleteLevelRank(
+          ref.watch(athleteProfileProvider).valueOrNull,
+          tournamentSport: tournament.sport,
+        );
         return [
           Text(
             'Escolha a categoria',
@@ -874,7 +1134,13 @@ class _TournamentRegistrationPageState
               ),
               selected: _category?.id == cat.id,
               alreadyRegistered: registeredCategoryIds.contains(cat.id),
-              onTap: () => _selectCategory(cat),
+              levelBlocked:
+                  !CategoryLevelEligibility.isCategoryEligibleForLevel(
+                    cat,
+                    athleteLevelRank,
+                  ),
+              onTap: () =>
+                  _selectCategory(cat, tournamentSport: tournament.sport),
             ),
             SizedBox(height: 10),
           ],
@@ -917,7 +1183,9 @@ class _TournamentRegistrationPageState
             onInviteByPhone: () {
               showAppSnackBar(context, 'Convite por celular em breve.');
             },
-            onRegisterSolo: () => _registerSolo(tournament),
+            onRegisterSolo: _registrationId == null
+                ? () => _registerSolo(tournament)
+                : null,
           ),
         ];
       case TournamentRegistrationStep.waiting:
@@ -982,6 +1250,20 @@ class _TournamentRegistrationPageState
             Text('Aguarde o parceiro aceitar o convite para pagar.'),
           ];
         }
+        final isDirectOrganizer =
+            tournamentUsesDirectOrganizerPayment(tournament) &&
+            registrationRequiresPayment(quote);
+        final awaitingSoloPartner = registrationAwaitingSoloPartner(
+          snap: registrationSnap,
+          isFullyPaid: isFullyPaid,
+        );
+        final hasPendingSoloInvite =
+            awaitingSoloPartner &&
+            (_inviteId?.trim().isNotEmpty ?? false) &&
+            !inviteAccepted;
+        final pendingPartnerName = hasPendingSoloInvite
+            ? (_selectedPartner?.name ?? invite?.inviteeName)
+            : null;
         return [
           TournamentRegistrationPaymentStep(
             category: category,
@@ -993,6 +1275,17 @@ class _TournamentRegistrationPageState
             progressLabel: progressLabel,
             isFullyPaid: isFullyPaid,
             isFreeRegistration: !registrationRequiresPayment(quote),
+            isDirectOrganizerPayment: isDirectOrganizer,
+            tournamentName: tournament.name,
+            organizerManagerId: tournament.managerId,
+            showSoloPartnerInvite: awaitingSoloPartner,
+            onInvitePartner: awaitingSoloPartner
+                ? _openPartnerInviteFromPayment
+                : null,
+            pendingPartnerName: pendingPartnerName,
+            onTrackInvite: hasPendingSoloInvite
+                ? () => _goToStep(TournamentRegistrationStep.waiting)
+                : null,
           ),
         ];
     }
@@ -1042,10 +1335,31 @@ class _TournamentRegistrationPageState
         return;
       }
 
-      final amountType =
-          (_canPayFull && _paymentType == 'full') ? 'full' : 'share';
-      final amountReais =
-          amountType == 'full' ? quote.displayTotal : quote.shareAmount;
+      if (tournamentUsesDirectOrganizerPayment(tournament)) {
+        final result = await ref
+            .read(paymentServiceProvider)
+            .reserveDirectOrganizerRegistration(registrationId: regId);
+        if (!mounted) return;
+        if (result.bothAthletesReserved) {
+          showAppSnackBar(
+            context,
+            'Vaga reservada! Aguarde o organizador confirmar o pagamento.',
+          );
+          return;
+        }
+        showAppSnackBar(
+          context,
+          'Vaga reservada. Aguarde seu parceiro reservar a dele.',
+        );
+        return;
+      }
+
+      final amountType = (_canPayFull && _paymentType == 'full')
+          ? 'full'
+          : 'share';
+      final amountReais = amountType == 'full'
+          ? quote.displayTotal
+          : quote.shareAmount;
       await context.pushNamed(
         AppRouteNames.tournamentRegistrationPix,
         pathParameters: <String, String>{'tournamentId': widget.tournamentId},

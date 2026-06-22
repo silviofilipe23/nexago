@@ -60,7 +60,15 @@ abstract final class TournamentMatchMapper {
       reportedByUid: _reportField(data['report'], 'reportedByUid') ?? '',
       teamAConfirmed: _reportBool(data['report'], 'teamAConfirmed'),
       teamBConfirmed: _reportBool(data['report'], 'teamBConfirmed'),
+      bestOf: _bestOf(data['bestOf']),
     );
+  }
+
+  /// Formato da partida: aceita apenas 1 (set único) ou 3 (melhor de 3);
+  /// qualquer outro valor (ou ausente) cai em 3.
+  static int _bestOf(dynamic raw) {
+    final value = _int(raw);
+    return value == 1 ? 1 : 3;
   }
 
   static String _checkInStatus(dynamic raw, String teamKey) {

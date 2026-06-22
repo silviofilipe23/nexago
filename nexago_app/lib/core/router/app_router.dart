@@ -137,6 +137,10 @@ import '../../features/tournaments/presentation/my_tournaments_page.dart';
 import '../../features/tournaments/presentation/tournament_discovery_list_page.dart';
 import '../../features/tournaments/presentation/double_elimination_bracket_page.dart';
 import '../../features/tournaments/presentation/tournament_detail_page.dart';
+import '../../features/tournaments/presentation/tournament_categories_page.dart';
+import '../../features/tournaments/presentation/tournament_bracket_page.dart';
+import '../../features/tournaments/presentation/tournament_groups_page.dart';
+import '../../features/tournaments/presentation/tournament_prizes_page.dart';
 import '../../features/tournaments/presentation/tournament_partner_invite_page.dart';
 import '../../features/tournaments/domain/tournament_registration_logic.dart';
 import '../../features/tournaments/domain/tournament_registration_pix_args.dart';
@@ -939,6 +943,40 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final id = state.pathParameters['tournamentId']?.trim() ?? '';
           return TournamentDetailPage(tournamentId: id);
         },
+        routes: [
+          GoRoute(
+            path: 'categorias',
+            name: AppRouteNames.tournamentCategories,
+            builder: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              return TournamentCategoriesPage(tournamentId: id);
+            },
+          ),
+          GoRoute(
+            path: 'chave',
+            name: AppRouteNames.tournamentBracket,
+            builder: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              return TournamentBracketPage(tournamentId: id);
+            },
+          ),
+          GoRoute(
+            path: 'grupos',
+            name: AppRouteNames.tournamentGroups,
+            builder: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              return TournamentGroupsPage(tournamentId: id);
+            },
+          ),
+          GoRoute(
+            path: 'premiacao',
+            name: AppRouteNames.tournamentPrizes,
+            builder: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              return TournamentPrizesPage(tournamentId: id);
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.tournamentDoubleEliminationBracket,

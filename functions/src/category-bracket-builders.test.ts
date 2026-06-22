@@ -10,6 +10,77 @@ import {
   computePoolStandings,
   isPoolRoundRobinComplete,
 } from "./group-standings";
+import {BRACKET_DEFINITIONS} from "./bracket-definitions/bracket-definitions";
+
+type DEMatch = ReturnType<typeof buildDoubleEliminationMatches>[number];
+
+/** Mulberry32 — RNG determinístico para playthroughs reproduzíveis. */
+function rng(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Simula um torneio inteiro escolhendo vencedores ao acaso e propagando os
+ * avanços (`winnerAdvance`/`loserAdvance`). Retorna a primeira inconsistência
+ * encontrada (slot duplo, avanço para partida inexistente, deadlock, nº de
+ * finais != 1) ou `null` se a chave foi 100% jogável até o fim.
+ */
+function simulateDoubleElimination(
+  matches: DEMatch[],
+  next: () => number,
+): string | null {
+  const byNum = new Map(
+    matches.map((m) => [
+      m.matchNumber,
+      {...m, teamAId: m.teamAId, teamBId: m.teamBId, winnerId: "", done: false},
+    ]),
+  );
+  const nums = [...byNum.keys()];
+  let played = 0;
+  let guard = 0;
+  while (played < nums.length && guard++ < 10000) {
+    let progressed = false;
+    for (const num of nums) {
+      const m = byNum.get(num)!;
+      if (m.done) continue;
+      const a = m.teamAId.trim();
+      const b = m.teamBId.trim();
+      if (!a || !b) continue;
+      m.winnerId = next() < 0.5 ? a : b;
+      m.done = true;
+      played++;
+      progressed = true;
+      const loser = m.winnerId === a ? b : a;
+      for (const [adv, team] of [
+        [m.winnerAdvance, m.winnerId] as const,
+        [m.loserAdvance, loser] as const,
+      ]) {
+        if (!adv) continue;
+        const target = byNum.get(adv.matchNumber);
+        if (!target) return `avanço para partida inexistente #${adv.matchNumber}`;
+        if (target[adv.teamSlot].trim()) {
+          return `slot ${adv.matchNumber}.${adv.teamSlot} preenchido 2x`;
+        }
+        target[adv.teamSlot] = team;
+      }
+    }
+    if (!progressed) break;
+  }
+  const unfinished = nums.filter((n) => !byNum.get(n)!.done);
+  if (unfinished.length) {
+    return `deadlock: ${unfinished.map((n) => "#" + n).join(",")}`;
+  }
+  const finals = matches.filter((m) => m.matchType === "Final");
+  if (finals.length !== 1) return `nº de finais = ${finals.length}`;
+  return null;
+}
 
 function matchByNumber(
   matches: ReturnType<typeof buildDoubleEliminationMatches>,
@@ -99,60 +170,55 @@ describe("buildDoubleEliminationMatches", () => {
     assert.equal(tr(14), "Final-R1");
   });
 
-  it("feeds parallel finals + 3rd place for 8 teams", () => {
+  it("alimenta grande final + 3º lugar com 2 partidas cada (8 teams)", () => {
     const matches = buildDoubleEliminationMatches(
       Array.from({length: 8}, (_, i) => `t${i + 1}`),
     );
 
-    const wbFinal = matches.find((m) => m.matchType === "WB" && m.round === 3);
-    const lbFinal = matches
-      .filter((m) => m.matchType === "LB")
-      .sort((a, b) => b.round - a.round || b.matchNumber - a.matchNumber)[0];
     const grandFinal = matches.find((m) => m.matchType === "Final");
     const thirdPlace = matches.find((m) => m.matchType === "Third Place");
+    assert.ok(grandFinal && thirdPlace);
 
-    assert.ok(wbFinal && lbFinal && grandFinal && thirdPlace);
-    // Vencedores das duas finais → grande final.
-    assert.deepEqual(wbFinal?.winnerAdvance, {
-      matchNumber: grandFinal!.matchNumber,
-      teamSlot: "teamAId",
-    });
-    assert.deepEqual(lbFinal?.winnerAdvance, {
-      matchNumber: grandFinal!.matchNumber,
-      teamSlot: "teamBId",
-    });
-    // Perdedores das duas finais → 3º lugar (WB não cai mais na LB).
-    assert.deepEqual(wbFinal?.loserAdvance, {
-      matchNumber: thirdPlace!.matchNumber,
-      teamSlot: "teamAId",
-    });
-    assert.deepEqual(lbFinal?.loserAdvance, {
-      matchNumber: thirdPlace!.matchNumber,
-      teamSlot: "teamBId",
-    });
+    // A grande final e o 3º lugar são cada um alimentados por exatamente duas
+    // partidas distintas (sem origem solta nem slot faltando).
+    const feedsGrandFinal = matches.filter(
+      (m) =>
+        m.winnerAdvance?.matchNumber === grandFinal!.matchNumber ||
+        m.loserAdvance?.matchNumber === grandFinal!.matchNumber,
+    );
+    assert.equal(feedsGrandFinal.length, 2);
+    const feedsThird = matches.filter(
+      (m) =>
+        m.winnerAdvance?.matchNumber === thirdPlace!.matchNumber ||
+        m.loserAdvance?.matchNumber === thirdPlace!.matchNumber,
+    );
+    assert.equal(feedsThird.length, 2);
   });
 
-  it("keeps 16-team bracket structurally consistent", () => {
-    const matches = buildDoubleEliminationMatches(
-      Array.from({length: 16}, (_, i) => `t${i + 1}`),
-    );
-    assert.equal(matches.length, 30);
-    assert.equal(matches.filter((m) => m.matchType === "WB").length, 15);
-    assert.equal(matches.filter((m) => m.matchType === "LB").length, 13);
-    assert.equal(matches.filter((m) => m.matchType === "Third Place").length, 1);
-    assert.equal(matches.filter((m) => m.matchType === "Final").length, 1);
-    assertNoDuplicateDestinations(matches);
+  // Cobertura forte: toda chave estática registrada (4–27 equipes) deve ser
+  // 100% jogável — sem slot preenchido 2x, sem avanço órfão, sem deadlock e
+  // com exatamente uma final — para QUALQUER combinação de resultados.
+  describe("chaves estáticas registradas são 100% jogáveis", () => {
+    const sizes = Object.keys(BRACKET_DEFINITIONS)
+      .map(Number)
+      .sort((a, b) => a - b);
 
-    // Todo perdedor da WB (exceto a final) tem destino na LB; a final da WB
-    // manda o perdedor para o 3º lugar.
-    const thirdPlace = matches.find((m) => m.matchType === "Third Place")!;
-    for (const m of matches.filter((x) => x.matchType === "WB")) {
-      assert.ok(m.loserAdvance, `WB #${m.matchNumber} sem destino de perdedor`);
+    for (const n of sizes) {
+      it(`${n} equipes: 300 playthroughs aleatórios sem inconsistência`, () => {
+        const teams = Array.from({length: n}, (_, i) => `t${i + 1}`);
+        const matches = buildDoubleEliminationMatches(teams);
+        assertNoDuplicateDestinations(matches);
+        assert.equal(
+          matches.filter((m) => m.matchType === "Final").length,
+          1,
+          `${n} equipes deveria ter exatamente uma final`,
+        );
+        for (let s = 0; s < 300; s++) {
+          const err = simulateDoubleElimination(matches, rng(s * 31 + 1));
+          assert.equal(err, null, `${n} equipes (seed ${s}): ${err}`);
+        }
+      });
     }
-    const wbFinal = matches
-      .filter((m) => m.matchType === "WB")
-      .sort((a, b) => b.round - a.round)[0];
-    assert.equal(wbFinal.loserAdvance?.matchNumber, thirdPlace.matchNumber);
   });
 });
 
@@ -199,13 +265,117 @@ describe("buildGroupsKnockoutMatches", () => {
 });
 
 describe("buildSingleEliminationMatches", () => {
-  it("seeds first knockout round with team ids", () => {
+  it("usa seeding padrão: seed 1×4 e 2×3 (4 equipes)", () => {
     const matches = buildSingleEliminationMatches(["t1", "t2", "t3", "t4"]);
-    const semis = matches.filter((m) => m.round === 1 && m.matchType === "knockout");
+    const semis = matches
+      .filter((m) => m.round === 1 && m.matchType === "knockout")
+      .sort((a, b) => a.matchNumber - b.matchNumber);
+    // seed 1 enfrenta o pior seed; seed 2 no lado oposto.
     assert.equal(semis[0].teamAId, "t1");
-    assert.equal(semis[0].teamBId, "t2");
-    assert.equal(semis[1].teamAId, "t3");
-    assert.equal(semis[1].teamBId, "t4");
+    assert.equal(semis[0].teamBId, "t4");
+    assert.equal(semis[1].teamAId, "t2");
+    assert.equal(semis[1].teamBId, "t3");
+  });
+
+  it("distribui byes para os melhores seeds, um por partida (não pot. de 2)", () => {
+    // 6 equipes → bracket de 8, 2 byes para os seeds 1 e 2.
+    const matches = buildSingleEliminationMatches(
+      ["t1", "t2", "t3", "t4", "t5", "t6"],
+    );
+    const firstRound = matches.filter((m) => m.round === 1);
+    // Nenhuma partida da 1ª rodada pode ser "vazia × vazia" (fantasma).
+    for (const m of firstRound) {
+      assert.ok(
+        m.teamAId.trim() || m.teamBId.trim(),
+        `partida fantasma #${m.matchNumber}`,
+      );
+    }
+    // Toda equipe aparece exatamente uma vez na 1ª rodada.
+    const seen = firstRound
+      .flatMap((m) => [m.teamAId, m.teamBId])
+      .filter((id) => id.trim().length > 0);
+    assert.equal(new Set(seen).size, 6);
+
+    // Os seeds 1 e 2 recebem bye: já estão posicionados na 2ª rodada e a
+    // partida-bye da 1ª rodada tem só um time.
+    const round2 = matches.filter((m) => m.round === 2);
+    const round2Teams = round2.flatMap((m) => [m.teamAId, m.teamBId]);
+    assert.ok(round2Teams.includes("t1"));
+    assert.ok(round2Teams.includes("t2"));
+  });
+
+  // Garante que QUALQUER nº de equipes gera uma chave 100% jogável (sem
+  // partida fantasma, byes distribuídos, campeão único) — cobre o bug antigo
+  // de byes agrupados que travava a chave para contagens fora de pot. de 2.
+  describe("é 100% jogável para qualquer nº de equipes", () => {
+    for (let n = 2; n <= 24; n++) {
+      it(`${n} equipes`, () => {
+        const teams = Array.from({length: n}, (_, i) => `t${i + 1}`);
+        const matches = buildSingleEliminationMatches(teams);
+        const rounds = [...new Set(matches.map((m) => m.round))].sort(
+          (a, b) => a - b,
+        );
+        const firstRound = matches.filter((m) => m.round === rounds[0]);
+
+        // 1ª rodada: nenhuma partida vazia×vazia, e cobre todas as equipes 1x.
+        const seen: string[] = [];
+        for (const m of firstRound) {
+          assert.ok(
+            m.teamAId.trim() || m.teamBId.trim(),
+            `${n}: partida fantasma #${m.matchNumber}`,
+          );
+          for (const id of [m.teamAId, m.teamBId]) {
+            if (id.trim()) seen.push(id.trim());
+          }
+        }
+        assert.equal(new Set(seen).size, n, `${n}: 1ª rodada não cobre todos`);
+
+        // Exatamente uma final.
+        assert.equal(
+          matches.filter((m) => m.matchType === "Final").length,
+          1,
+          `${n}: deveria ter exatamente uma final`,
+        );
+
+        // Simula: joga partidas com 2 times, byes são walkover (já propagados
+        // na construção). Ao fim, a final tem que ter sido resolvida.
+        const byKey = new Map(
+          matches.map((m) => [
+            `${m.round}:${m.matchNumber}`,
+            {...m, done: false, winnerId: ""},
+          ]),
+        );
+        let progressed = true;
+        let guard = 0;
+        while (progressed && guard++ < 5000) {
+          progressed = false;
+          for (const m of matches) {
+            const cur = byKey.get(`${m.round}:${m.matchNumber}`)!;
+            if (cur.done) continue;
+            const a = cur.teamAId.trim();
+            const b = cur.teamBId.trim();
+            if (a && b) {
+              cur.winnerId = a;
+              cur.done = true;
+              progressed = true;
+              const nr = m.round + 1;
+              if (rounds.includes(nr)) {
+                const nn = Math.ceil(m.matchNumber / 2);
+                const slot =
+                  m.matchNumber % 2 === 1 ? "teamAId" : "teamBId";
+                const t = byKey.get(`${nr}:${nn}`)!;
+                t[slot] = cur.winnerId;
+              }
+            } else if (a || b) {
+              cur.done = true; // bye / walkover
+            }
+          }
+        }
+        const finalMatch = matches.find((m) => m.matchType === "Final")!;
+        const fk = byKey.get(`${finalMatch.round}:${finalMatch.matchNumber}`)!;
+        assert.ok(fk.done && fk.winnerId, `${n}: final não resolveu`);
+      });
+    }
   });
 });
 
@@ -249,6 +419,94 @@ describe("group standings", () => {
     );
 
     assert.deepEqual(standings, ["t1", "t3", "t2"]);
+  });
+
+  it("usa confronto direto entre empatadas, mesmo com pior saldo de sets", () => {
+    // 4 duplas: t1 e t2 empatam em 2 vitórias; t3 e t4 em 1. t2 tem saldo de
+    // sets MELHOR no geral, mas t1 venceu o confronto direto → t1 fica à frente.
+    const g = (
+      teamAId: string,
+      teamBId: string,
+      winnerId: string,
+      a: number,
+      b: number,
+    ): {
+      poolId: string;
+      teamAId: string;
+      teamBId: string;
+      winnerId: string;
+      status: string;
+      isGroupMatch: boolean;
+      resultA: string;
+      resultB: string;
+    } => ({
+      poolId: "A",
+      teamAId,
+      teamBId,
+      winnerId,
+      status: "Completed",
+      isGroupMatch: true,
+      resultA: `${a}`,
+      resultB: `${b}`,
+    });
+
+    const standings = computePoolStandings(
+      "A",
+      ["t1", "t2", "t3", "t4"],
+      [
+        g("t1", "t2", "t1", 2, 1), // confronto direto: t1 vence t2
+        g("t1", "t3", "t1", 2, 1),
+        g("t4", "t1", "t4", 2, 0),
+        g("t2", "t3", "t2", 2, 0),
+        g("t2", "t4", "t2", 2, 0),
+        g("t3", "t4", "t3", 2, 0),
+      ],
+    );
+    // t2 tem saldo de sets +3 (melhor que t1, 0), mas perdeu para t1 no direto.
+    assert.deepEqual(standings, ["t1", "t2", "t3", "t4"]);
+  });
+
+  it("desempata por saldo de games quando sets empatam", () => {
+    // t1 e t2 vencem t3 por 2-0; mesmo saldo de sets. t1 vence por mais games.
+    const win20 = (
+      teamAId: string,
+      teamBId: string,
+      g1: [number, number],
+      g2: [number, number],
+    ): {
+      poolId: string;
+      teamAId: string;
+      teamBId: string;
+      winnerId: string;
+      status: string;
+      isGroupMatch: boolean;
+      resultA: string;
+      resultB: string;
+      sets: Array<{a: number; b: number}>;
+    } => ({
+      poolId: "A",
+      teamAId,
+      teamBId,
+      winnerId: teamAId,
+      status: "Completed",
+      isGroupMatch: true,
+      resultA: "2",
+      resultB: "0",
+      sets: [
+        {a: g1[0], b: g1[1]},
+        {a: g2[0], b: g2[1]},
+      ],
+    });
+
+    const standings = computePoolStandings(
+      "A",
+      ["t1", "t2", "t3"],
+      [
+        win20("t1", "t3", [21, 10], [21, 12]), // t1: +20 games
+        win20("t2", "t3", [21, 18], [21, 19]), // t2: +5 games
+      ],
+    );
+    assert.deepEqual(standings, ["t1", "t2", "t3"]);
   });
 
   it("detects completed pool round robin", () => {

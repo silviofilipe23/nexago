@@ -126,6 +126,29 @@ export function buildSingleEliminationMatches(teamIds: string[]): MatchDraft[] {
   return buildSingleEliminationKnockoutMatches(teamIds, 1);
 }
 
+/**
+ * Ordem de seeding padrão de um bracket de tamanho `size` (potência de 2).
+ * Retorna os números de seed (1-based) na ordem dos slots, de modo que seed 1
+ * fique no topo e enfrente o pior seed, seed 2 no extremo oposto, etc. Quando
+ * há menos equipes do que `size`, os seeds maiores (que não existem) viram
+ * "byes" — e por construção cada bye cai numa partida distinta, contra um dos
+ * melhores seeds, nunca dois byes na mesma partida.
+ */
+export function standardSeedSlots(size: number): number[] {
+  if (size < 2) return [1];
+  let slots = [1, 2];
+  while (slots.length < size) {
+    const sum = slots.length * 2 + 1;
+    const next: number[] = [];
+    for (const s of slots) {
+      next.push(s);
+      next.push(sum - s);
+    }
+    slots = next;
+  }
+  return slots;
+}
+
 interface FirstRoundOverride {
   teamAId?: string;
   teamBId?: string;
@@ -146,12 +169,12 @@ function buildSingleEliminationKnockoutMatches(
   if (n < 2) return [];
 
   const bracketSize = 1 << Math.ceil(Math.log2(n));
+  // Posiciona as equipes nos slots pela ordem de seeding padrão: byes (slots
+  // sem equipe) ficam distribuídos contra os melhores seeds, um por partida —
+  // nunca agrupados numa partida "vazia × vazia" injogável.
   const padded = firstRoundOverrides
     ? Array.from({length: bracketSize}, () => "")
-    : [...teamIds];
-  if (!firstRoundOverrides) {
-    while (padded.length < bracketSize) padded.push("");
-  }
+    : standardSeedSlots(bracketSize).map((seed) => teamIds[seed - 1] ?? "");
 
   const totalRounds = Math.log2(bracketSize);
   const rounds: MatchDraft[][] = [];
@@ -201,24 +224,22 @@ function buildSingleEliminationKnockoutMatches(
     }
   }
 
-  // Propaga "byes" (slots vazios) para evitar bracket inoperável (não potência de 2).
-  for (let r = 0; r < totalRounds - 1; r++) {
-    for (const match of rounds[r]!) {
+  // Propaga byes APENAS da 1ª rodada para a 2ª. Com o seeding padrão, byes só
+  // existem na 1ª rodada (cada um é uma partida "time × vazio" distinta), então
+  // um único nível basta. Propagar além disso seria errado: uma partida da 2ª
+  // rodada com um slot vazio normalmente está esperando o vencedor de um jogo
+  // futuro — não é um bye — e empurrar o time adiante "pularia" essa partida.
+  if (totalRounds > 1) {
+    for (const match of rounds[0]!) {
       const a = match.teamAId.trim();
       const b = match.teamBId.trim();
-      if (a && !b) {
-        const nextIdx = Math.ceil(match.matchNumber / 2) - 1;
-        const next = rounds[r + 1]?.[nextIdx];
-        if (!next) continue;
-        const slot = match.matchNumber % 2 === 1 ? "teamAId" : "teamBId";
-        next[slot] = a;
-      } else if (!a && b) {
-        const nextIdx = Math.ceil(match.matchNumber / 2) - 1;
-        const next = rounds[r + 1]?.[nextIdx];
-        if (!next) continue;
-        const slot = match.matchNumber % 2 === 1 ? "teamAId" : "teamBId";
-        next[slot] = b;
-      }
+      const solo = a && !b ? a : !a && b ? b : "";
+      if (!solo) continue;
+      const nextIdx = Math.ceil(match.matchNumber / 2) - 1;
+      const next = rounds[1]?.[nextIdx];
+      if (!next) continue;
+      const slot = match.matchNumber % 2 === 1 ? "teamAId" : "teamBId";
+      next[slot] = solo;
     }
   }
 

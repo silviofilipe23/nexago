@@ -3,6 +3,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../domain/category_level_eligibility.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_logic.dart';
 
@@ -15,6 +16,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
     this.selected = false,
     this.showChangeAction = false,
     this.alreadyRegistered = false,
+    this.levelBlocked = false,
     this.onTap,
     this.onChange,
   });
@@ -25,6 +27,8 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
   final bool selected;
   final bool showChangeAction;
   final bool alreadyRegistered;
+  /// Categoria abaixo do nível do atleta (anti-sandbagging): bloqueada.
+  final bool levelBlocked;
   final VoidCallback? onTap;
   final VoidCallback? onChange;
 
@@ -40,6 +44,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
       includeGender: genderLabel.isEmpty,
     );
     final selectable = !alreadyRegistered &&
+        !levelBlocked &&
         isCategorySelectable(
           offer,
           inscriptionCount: inscriptionCount,
@@ -178,6 +183,9 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
   }
 
   String _closedLabel(TournamentCategoryOffer offer) {
+    if (levelBlocked) {
+      return CategoryLevelEligibility.blockBadgeLabel();
+    }
     if (offer.registrationClosed || offer.isCompleted) {
       return 'INSCRIÇÕES ENCERRADAS';
     }

@@ -308,6 +308,19 @@ abstract final class AppRoutes {
   /// Detalhe de torneio: `/torneios/:tournamentId`
   static const String tournamentDetail = '/torneios/:tournamentId';
 
+  /// Categorias do torneio: `/torneios/:tournamentId/categorias`
+  static const String tournamentCategories =
+      '/torneios/:tournamentId/categorias';
+
+  /// Chave do torneio: `/torneios/:tournamentId/chave`
+  static const String tournamentBracket = '/torneios/:tournamentId/chave';
+
+  /// Grupos do torneio: `/torneios/:tournamentId/grupos`
+  static const String tournamentGroups = '/torneios/:tournamentId/grupos';
+
+  /// Premiação do torneio: `/torneios/:tournamentId/premiacao`
+  static const String tournamentPrizes = '/torneios/:tournamentId/premiacao';
+
   /// Chave interativa (dupla eliminatória): `/torneios/:tournamentId/chave/:categoryId`
   static const String tournamentDoubleEliminationBracket =
       '/torneios/:tournamentId/chave/:categoryId';
@@ -499,6 +512,10 @@ abstract final class AppRouteNames {
   static const String bookingSuccess = 'bookingSuccess';
   static const String bookingInvite = 'bookingInvite';
   static const String tournamentDetail = 'tournamentDetail';
+  static const String tournamentCategories = 'tournamentCategories';
+  static const String tournamentBracket = 'tournamentBracket';
+  static const String tournamentGroups = 'tournamentGroups';
+  static const String tournamentPrizes = 'tournamentPrizes';
   static const String tournamentDoubleEliminationBracket =
       'tournamentDoubleEliminationBracket';
   static const String tournamentRegistration = 'tournamentRegistration';

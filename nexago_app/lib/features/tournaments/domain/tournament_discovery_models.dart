@@ -205,6 +205,7 @@ class MyTournamentRegistration {
     this.listingStatusRaw,
     this.teamId,
     this.isWaitlist = false,
+    this.athleteHasReserved = false,
   });
 
   final String registrationId;
@@ -221,4 +222,5 @@ class MyTournamentRegistration {
   final String? listingStatusRaw;
   final String? teamId;
   final bool isWaitlist;
+  final bool athleteHasReserved;
 }

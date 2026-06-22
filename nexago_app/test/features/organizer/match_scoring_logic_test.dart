@@ -151,5 +151,71 @@ void main() {
         'Marcos / Victor',
       );
     });
+
+    test('bestOf 1: vitória em um único set conclui a partida', () {
+      final result = MatchScoringLogic.applyPoint(
+        sets: const [TournamentMatchSet(a: 20, b: 18)],
+        currentSetIndex: 0,
+        side: 'A',
+        teamAId: 'teamA',
+        teamBId: 'teamB',
+        bestOf: 1,
+      );
+      expect(result.winnerId, 'teamA');
+      expect(result.sets.length, 1);
+    });
+
+    test('bestOf 1: set único vai até 21 (sem tiebreak)', () {
+      expect(MatchScoringLogic.targetPointsForSet(0, 1),
+          MatchScoringLogic.defaultSetPoints);
+    });
+
+    group('canReduceBestOf / applyBestOfChange', () {
+      test('bloqueia reduzir quando há sets pontuados além do novo formato', () {
+        const sets = [
+          TournamentMatchSet(a: 21, b: 18),
+          TournamentMatchSet(a: 10, b: 5),
+        ];
+        expect(MatchScoringLogic.canReduceBestOf(sets, 1), isFalse);
+      });
+
+      test('permite reduzir quando sets extras estão vazios', () {
+        const sets = [
+          TournamentMatchSet(a: 21, b: 18),
+          TournamentMatchSet(a: 0, b: 0),
+        ];
+        expect(MatchScoringLogic.canReduceBestOf(sets, 1), isTrue);
+      });
+
+      test('3→1 conclui quando o set 1 já está decidido', () {
+        const sets = [
+          TournamentMatchSet(a: 21, b: 18),
+          TournamentMatchSet(a: 0, b: 0),
+        ];
+        final result = MatchScoringLogic.applyBestOfChange(
+          sets: sets,
+          newBestOf: 1,
+          teamAId: 'teamA',
+          teamBId: 'teamB',
+        );
+        expect(result.completed, isTrue);
+        expect(result.winnerId, 'teamA');
+        expect(result.sets.length, 1);
+        expect(result.currentSetIndex, 0);
+      });
+
+      test('1→3 não conclui com apenas um set vencido', () {
+        const sets = [TournamentMatchSet(a: 21, b: 18)];
+        final result = MatchScoringLogic.applyBestOfChange(
+          sets: sets,
+          newBestOf: 3,
+          teamAId: 'teamA',
+          teamBId: 'teamB',
+        );
+        expect(result.completed, isFalse);
+        expect(result.winnerId, isNull);
+        expect(result.currentSetIndex, 1);
+      });
+    });
   });
 }

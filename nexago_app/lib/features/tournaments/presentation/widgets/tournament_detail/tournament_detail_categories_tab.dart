@@ -5,6 +5,7 @@ import '../../../../../core/router/routes.dart';
 import '../../../domain/tournament_category_spots.dart';
 import '../../../domain/tournament_detail_model.dart';
 import 'tournament_detail_category_card.dart';
+import 'tournament_detail_tab_slivers.dart';
 
 class TournamentDetailCategoriesTab extends StatelessWidget {
   const TournamentDetailCategoriesTab({
@@ -26,19 +27,18 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
   final bool canAccessTournaments;
   final VoidCallback? onRegisterBlocked;
 
-  @override
-  Widget build(BuildContext context) {
+  List<Widget> buildSlivers(BuildContext context) {
     final offers = tournament.categoryOffers;
 
     if (offers.isEmpty) {
-      return ListView(
+      return tournamentDetailTabSliversFromChildren(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
         children: const [_EmptyCategories()],
       );
     }
 
-    return ListView.builder(
-      // padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+    return tournamentDetailTabSliversFromBuilder(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       itemCount: offers.length,
       itemBuilder: (context, index) {
         final offer = offers[index];
@@ -68,6 +68,11 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
         );
       },
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(slivers: buildSlivers(context));
   }
 }
 

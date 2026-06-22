@@ -1,0 +1,196 @@
+import {HttpsError} from "firebase-functions/v2/https";
+import type {Firestore} from "firebase-admin/firestore";
+import {loadUserAccessData, type UserAccessData} from "./athlete-tournament-access";
+
+/**
+ * Elegibilidade de categoria por nível do atleta (anti-sandbagging).
+ *
+ * Regra: um atleta pode disputar a sua própria categoria ou categorias ACIMA do
+ * seu nível, nunca ABAIXO. Para duplas, vale o atleta de MAIOR nível.
+ *
+ * Hierarquia: iniciante (0) < intermediario (1) < open (2).
+ */
+
+export const LEVEL_RANK: Record<string, number> = {
+  iniciante: 0,
+  intermediario: 1,
+  open: 2,
+};
+
+const HIGHEST_RANK = 2;
+
+/** Normaliza acentos/caixa para casar códigos e labels do nível. */
+function normalizeLevelKey(raw: unknown): string {
+  if (typeof raw !== "string") return "";
+  return raw
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "");
+}
+
+/**
+ * Rank do nível a partir de código (`iniciante`) ou label (`Intermediário`).
+ * Inclui legados: `basico` → iniciante. Retorna `null` quando desconhecido/ausente.
+ */
+export function levelRank(raw: unknown): number | null {
+  const key = normalizeLevelKey(raw);
+  if (!key) return null;
+  if (key in LEVEL_RANK) return LEVEL_RANK[key];
+  // Legados conhecidos.
+  if (key === "basico") return LEVEL_RANK.iniciante;
+  if (key === "livre") return LEVEL_RANK.open;
+  return null;
+}
+
+/** Label amigável (PT-BR) para um rank de nível. */
+export function levelLabelForRank(rank: number): string {
+  switch (rank) {
+    case 0:
+      return "Iniciante";
+    case 1:
+      return "Intermediário";
+    default:
+      return "Open";
+  }
+}
+
+/**
+ * Esporte do torneio (`tournaments/{id}.sport`, nome do enum) → código de esporte
+ * do perfil do atleta (`levelsBySportFirestore`). `null` quando não há equivalente.
+ */
+export function tournamentSportToLevelSportCode(sport: unknown): string | null {
+  const key = normalizeLevelKey(sport);
+  switch (key) {
+    case "beachvolleyball":
+      return "VOLEI_PRAIA";
+    case "indoorvolleyball":
+      return "VOLEI_QUADRA";
+    default:
+      // footvolley e desconhecidos não têm esporte equivalente no perfil.
+      return null;
+  }
+}
+
+/**
+ * Rank do nível do atleta para o esporte informado.
+ * Per-sport (`levelsBySportFirestore[sportCode]`) → `level` global → 0 (mais permissivo).
+ */
+export function resolveAthleteLevelRank(
+  userData: UserAccessData | null,
+  sportCode: string | null,
+): number {
+  if (!userData) return 0;
+
+  if (sportCode) {
+    const bySport = userData.levelsBySportFirestore;
+    if (bySport && typeof bySport === "object") {
+      const raw = (bySport as Record<string, unknown>)[sportCode];
+      const rank = levelRank(raw);
+      if (rank != null) return rank;
+    }
+  }
+
+  const globalRank = levelRank(userData.level);
+  return globalRank ?? 0;
+}
+
+/**
+ * Rank do nível da categoria (`categories[].level`, label ou código).
+ * Categoria sem nível definido → Open (aceita todos).
+ */
+export function categoryLevelRank(
+  category: Record<string, unknown> | null | undefined,
+): number {
+  if (!category) return HIGHEST_RANK;
+  const rank = levelRank(category.level);
+  return rank ?? HIGHEST_RANK;
+}
+
+/** Dupla é elegível sse o nível da categoria comporta o atleta mais forte. */
+export function isTeamEligible(params: {
+  categoryRank: number;
+  athleteRanks: number[];
+}): boolean {
+  const {categoryRank, athleteRanks} = params;
+  if (athleteRanks.length === 0) return true;
+  return athleteRanks.every((rank) => categoryRank >= rank);
+}
+
+function athleteDisplayName(userData: UserAccessData | null): string {
+  if (!userData) return "Atleta";
+  for (const key of ["name", "displayName", "fullName", "firstName"]) {
+    const value = userData[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "Atleta";
+}
+
+function categoryDisplayName(
+  category: Record<string, unknown> | null | undefined,
+): string {
+  if (!category) return "categoria";
+  for (const key of ["categoryName", "name", "level"]) {
+    const value = category[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return "categoria";
+}
+
+/**
+ * Bloqueia a inscrição quando algum atleta da dupla excede o nível da categoria.
+ * Lança `HttpsError("failed-precondition")` nomeando o atleta que causa o bloqueio.
+ *
+ * Carrega os docs dos usuários informados (reusa [loadUserAccessData]). uids
+ * vazios/duplicados são ignorados; o conjunto vazio é sempre elegível.
+ */
+export async function assertTeamLevelEligibility(params: {
+  db: Firestore;
+  tournament: Record<string, unknown>;
+  category: Record<string, unknown> | null | undefined;
+  uids: Array<string | undefined | null>;
+}): Promise<void> {
+  const {db, tournament, category, uids} = params;
+
+  const cleanUids = Array.from(
+    new Set(
+      uids
+        .map((uid) => (typeof uid === "string" ? uid.trim() : ""))
+        .filter((uid) => uid.length > 0),
+    ),
+  );
+  if (cleanUids.length === 0) return;
+
+  const categoryRank = categoryLevelRank(category);
+  // Categoria Open comporta qualquer nível — evita carregar usuários à toa.
+  if (categoryRank >= HIGHEST_RANK) return;
+
+  const sportCode = tournamentSportToLevelSportCode(tournament.sport);
+
+  const users = await Promise.all(
+    cleanUids.map((uid) => loadUserAccessData(db, uid)),
+  );
+
+  const offenders = users.filter(
+    (userData) => resolveAthleteLevelRank(userData, sportCode) > categoryRank,
+  );
+
+  if (offenders.length === 0) return;
+
+  const categoryName = categoryDisplayName(category);
+  const names = offenders.map((userData) => {
+    const rank = resolveAthleteLevelRank(userData, sportCode);
+    return `${athleteDisplayName(userData)} (${levelLabelForRank(rank)})`;
+  });
+
+  const subject =
+    names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
+  const verb = names.length === 1 ? "não pode" : "não podem";
+
+  throw new HttpsError(
+    "failed-precondition",
+    `${subject} ${verb} disputar a categoria ${categoryName}, ` +
+      "abaixo do nível do atleta. Escolha uma categoria igual ou superior.",
+  );
+}

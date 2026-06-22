@@ -12,6 +12,7 @@ class TournamentPartnerInvite {
     required this.status,
     this.teamId,
     this.registrationId,
+    this.attachRegistrationId,
     required this.createdAt,
     required this.expiresAt,
   });
@@ -26,6 +27,7 @@ class TournamentPartnerInvite {
   final String status;
   final String? teamId;
   final String? registrationId;
+  final String? attachRegistrationId;
   final DateTime createdAt;
   final DateTime expiresAt;
 
@@ -51,6 +53,7 @@ class TournamentPartnerInvite {
       status: d['status'] as String? ?? 'pending',
       teamId: d['teamId'] as String?,
       registrationId: d['registrationId'] as String?,
+      attachRegistrationId: d['attachRegistrationId'] as String?,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       expiresAt: (d['expiresAt'] as Timestamp?)?.toDate() ??
           DateTime.now().add(const Duration(hours: 48)),

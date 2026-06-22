@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'tournament_detail_tab_slivers.dart';
 
 class TournamentDetailMessageList extends StatelessWidget {
   const TournamentDetailMessageList({
@@ -13,12 +14,16 @@ class TournamentDetailMessageList extends StatelessWidget {
   final String title;
   final String message;
 
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
+  List<Widget> buildSlivers() {
+    return tournamentDetailTabSliversFromChildren(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
       children: [TournamentDetailMessageBody(title: title, message: message)],
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(slivers: buildSlivers());
   }
 }
 

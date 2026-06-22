@@ -22,7 +22,7 @@ void main() {
             id: 'stage-2',
             name: 'Etapa 2',
             order: 2,
-            locationName: 'Arena NexaGO',
+            locationName: 'Arena nexaGO',
             city: 'Goiânia',
           ),
           categories: const [
@@ -43,7 +43,10 @@ void main() {
 
       expect(restored, isNotNull);
       expect(restored!.managerUid, 'manager-1');
-      expect(restored.currentStep, LeagueStageCreateStep.categoriesRegistration);
+      expect(
+        restored.currentStep,
+        LeagueStageCreateStep.categoriesRegistration,
+      );
       expect(restored.draft.leagueName, 'Circuito Verão');
       expect(restored.draft.stage.name, 'Etapa 2');
     });
@@ -62,10 +65,7 @@ void main() {
 
       await store.save(session);
 
-      expect(
-        await store.findAnyLeagueIdWithDraft('manager-1'),
-        'league-xyz',
-      );
+      expect(await store.findAnyLeagueIdWithDraft('manager-1'), 'league-xyz');
     });
 
     test('clear removes stored session', () async {

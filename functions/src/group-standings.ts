@@ -17,6 +17,8 @@ export interface GroupMatchData {
   matchType?: string;
   resultA?: string;
   resultB?: string;
+  /** Placar por set (games): [{a, b}, …]. Quando ausente, usa resultA/resultB. */
+  sets?: Array<{a?: unknown; b?: unknown}>;
 }
 
 interface TeamStats {
@@ -24,14 +26,65 @@ interface TeamStats {
   wins: number;
   setsWon: number;
   setsLost: number;
+  gamesWon: number;
+  gamesLost: number;
+  /** Confronto direto contra empatados em vitórias (preenchido depois). */
+  h2hWins: number;
+  h2hSetDiff: number;
+  h2hGameDiff: number;
 }
 
-function parseSetCount(raw: unknown): number {
-  const text = String(raw ?? "").trim();
-  if (!text) return 0;
-  const asNumber = Number(text);
-  if (!Number.isNaN(asNumber)) return Math.max(0, asNumber);
-  return text.split(",").filter((part) => part.trim().length > 0).length;
+interface MatchScore {
+  setsA: number;
+  setsB: number;
+  gamesA: number;
+  gamesB: number;
+}
+
+/**
+ * Extrai sets e games de uma partida de grupo concluída. Prefere o array `sets`
+ * (placar real por set); cai para `resultA`/`resultB` (contagem de sets) e, em
+ * último caso (ex.: "W.O."), deduz 1×0 pelo vencedor. Games ficam 0 quando não
+ * há placar detalhado.
+ */
+function parseMatchScore(match: GroupMatchData): MatchScore | null {
+  const teamAId = (match.teamAId ?? "").trim();
+  const teamBId = (match.teamBId ?? "").trim();
+  const winnerId = (match.winnerId ?? "").trim();
+
+  if (Array.isArray(match.sets) && match.sets.length > 0) {
+    let setsA = 0;
+    let setsB = 0;
+    let gamesA = 0;
+    let gamesB = 0;
+    for (const set of match.sets) {
+      const a = Number(set?.a);
+      const b = Number(set?.b);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+      gamesA += Math.max(0, a);
+      gamesB += Math.max(0, b);
+      if (a > b) setsA++;
+      else if (b > a) setsB++;
+    }
+    if (setsA > 0 || setsB > 0 || gamesA > 0 || gamesB > 0) {
+      return {setsA, setsB, gamesA, gamesB};
+    }
+  }
+
+  const ra = Number(String(match.resultA ?? "").trim());
+  const rb = Number(String(match.resultB ?? "").trim());
+  if (Number.isInteger(ra) && Number.isInteger(rb) && (ra > 0 || rb > 0)) {
+    return {setsA: Math.max(0, ra), setsB: Math.max(0, rb), gamesA: 0, gamesB: 0};
+  }
+
+  // W.O. / sem placar: deduz 1×0 pelo vencedor.
+  if (winnerId && winnerId === teamAId) {
+    return {setsA: 1, setsB: 0, gamesA: 0, gamesB: 0};
+  }
+  if (winnerId && winnerId === teamBId) {
+    return {setsA: 0, setsB: 1, gamesA: 0, gamesB: 0};
+  }
+  return null;
 }
 
 export function isGroupStageMatch(match: GroupMatchData): boolean {
@@ -67,6 +120,20 @@ export function isPoolRoundRobinComplete(
   return completed.length >= expected;
 }
 
+/**
+ * Classifica as duplas de um grupo aplicando, em ordem:
+ *   1. vitórias;
+ *   2. confronto direto entre as EMPATADAS (vitórias → saldo de sets → saldo de
+ *      games só nos jogos entre elas);
+ *   3. saldo de sets geral;
+ *   4. saldo de games geral;
+ *   5. sets vencidos no total;
+ *   6. ordem de entrada (seed) — desempate determinístico final.
+ *
+ * O confronto direto só é calculado DENTRO de cada grupo de empatadas em
+ * vitórias (onde ele faz sentido) — assim 2 duplas empatadas são separadas por
+ * quem venceu o jogo entre elas, e empates triplos caem para saldos.
+ */
 export function computePoolStandings(
   poolId: string,
   teamIds: string[],
@@ -74,11 +141,31 @@ export function computePoolStandings(
 ): string[] {
   const ids = teamIds.map((id) => id.trim()).filter((id) => id.length > 0);
   if (ids.length === 0) return [];
+  const seedIndex = new Map(ids.map((id, index) => [id, index]));
 
   const stats = new Map<string, TeamStats>();
   for (const teamId of ids) {
-    stats.set(teamId, {teamId, wins: 0, setsWon: 0, setsLost: 0});
+    stats.set(teamId, {
+      teamId,
+      wins: 0,
+      setsWon: 0,
+      setsLost: 0,
+      gamesWon: 0,
+      gamesLost: 0,
+      h2hWins: 0,
+      h2hSetDiff: 0,
+      h2hGameDiff: 0,
+    });
   }
+
+  // Partidas concluídas e válidas do grupo, já com placar parseado.
+  const played: Array<{
+    winnerId: string;
+    loserId: string;
+    teamAId: string;
+    teamBId: string;
+    score: MatchScore;
+  }> = [];
 
   for (const match of matches) {
     if (!isGroupStageMatch(match)) continue;
@@ -89,30 +176,59 @@ export function computePoolStandings(
     const teamAId = (match.teamAId ?? "").trim();
     const teamBId = (match.teamBId ?? "").trim();
     if (!winnerId || !teamAId || !teamBId) continue;
+    if (!stats.has(teamAId) || !stats.has(teamBId)) continue;
+
+    const score = parseMatchScore(match);
+    if (!score) continue;
 
     const loserId = winnerId === teamAId ? teamBId : teamAId;
-    const winnerStats = stats.get(winnerId);
-    const loserStats = stats.get(loserId);
-    if (!winnerStats || !loserStats) continue;
-
+    const winnerStats = stats.get(winnerId)!;
     winnerStats.wins++;
-    loserStats.wins += 0;
 
-    const setsA = parseSetCount(match.resultA);
-    const setsB = parseSetCount(match.resultB);
-    winnerStats.setsWon += winnerId === teamAId ? setsA : setsB;
-    winnerStats.setsLost += winnerId === teamAId ? setsB : setsA;
-    loserStats.setsWon += loserId === teamAId ? setsA : setsB;
-    loserStats.setsLost += loserId === teamAId ? setsB : setsA;
+    const aStats = stats.get(teamAId)!;
+    const bStats = stats.get(teamBId)!;
+    aStats.setsWon += score.setsA;
+    aStats.setsLost += score.setsB;
+    aStats.gamesWon += score.gamesA;
+    aStats.gamesLost += score.gamesB;
+    bStats.setsWon += score.setsB;
+    bStats.setsLost += score.setsA;
+    bStats.gamesWon += score.gamesB;
+    bStats.gamesLost += score.gamesA;
+
+    played.push({winnerId, loserId, teamAId, teamBId, score});
+  }
+
+  // Confronto direto: só conta jogos entre duplas com o MESMO nº de vitórias.
+  const winsOf = (id: string): number => stats.get(id)?.wins ?? 0;
+  for (const game of played) {
+    if (winsOf(game.teamAId) !== winsOf(game.teamBId)) continue;
+    const aStats = stats.get(game.teamAId)!;
+    const bStats = stats.get(game.teamBId)!;
+    if (game.winnerId === game.teamAId) aStats.h2hWins++;
+    else bStats.h2hWins++;
+    const setDiff = game.score.setsA - game.score.setsB;
+    const gameDiff = game.score.gamesA - game.score.gamesB;
+    aStats.h2hSetDiff += setDiff;
+    bStats.h2hSetDiff -= setDiff;
+    aStats.h2hGameDiff += gameDiff;
+    bStats.h2hGameDiff -= gameDiff;
   }
 
   return [...stats.values()]
     .sort((a, b) => {
       if (b.wins !== a.wins) return b.wins - a.wins;
-      const diffA = a.setsWon - a.setsLost;
-      const diffB = b.setsWon - b.setsLost;
-      if (diffB !== diffA) return diffB - diffA;
-      return a.teamId.localeCompare(b.teamId);
+      if (b.h2hWins !== a.h2hWins) return b.h2hWins - a.h2hWins;
+      if (b.h2hSetDiff !== a.h2hSetDiff) return b.h2hSetDiff - a.h2hSetDiff;
+      if (b.h2hGameDiff !== a.h2hGameDiff) return b.h2hGameDiff - a.h2hGameDiff;
+      const setDiffA = a.setsWon - a.setsLost;
+      const setDiffB = b.setsWon - b.setsLost;
+      if (setDiffB !== setDiffA) return setDiffB - setDiffA;
+      const gameDiffA = a.gamesWon - a.gamesLost;
+      const gameDiffB = b.gamesWon - b.gamesLost;
+      if (gameDiffB !== gameDiffA) return gameDiffB - gameDiffA;
+      if (b.setsWon !== a.setsWon) return b.setsWon - a.setsWon;
+      return (seedIndex.get(a.teamId) ?? 0) - (seedIndex.get(b.teamId) ?? 0);
     })
     .map((entry) => entry.teamId);
 }

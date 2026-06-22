@@ -6,21 +6,21 @@ import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
 import '../../../domain/tournament_discovery_models.dart';
+import 'tournament_detail_tab_slivers.dart';
 
 class TournamentDetailPrizesTab extends StatelessWidget {
   const TournamentDetailPrizesTab({super.key, required this.tournament});
 
   final TournamentDetail tournament;
 
-  @override
-  Widget build(BuildContext context) {
+  List<Widget> buildSlivers(BuildContext context) {
     final offers = tournament.categoryOffers;
     final categoriesTotalValue = tournamentCategoryPrizesTotalAll(offers);
     final firstPlaceTotal = tournamentCategoryFirstPlaceTotalAll(offers);
     final eventTotalValue = tournamentEventPrizesTotalValue(tournament);
 
     if (offers.isEmpty) {
-      return ListView(
+      return tournamentDetailTabSliversFromChildren(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
         children: [
           _PrizeTotalCard(
@@ -33,7 +33,7 @@ class TournamentDetailPrizesTab extends StatelessWidget {
       );
     }
 
-    return ListView(
+    return tournamentDetailTabSliversFromChildren(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
         _PrizeTotalCard(
@@ -46,6 +46,11 @@ class TournamentDetailPrizesTab extends StatelessWidget {
         for (final offer in offers) _CategoryPrizesCard(offer: offer),
       ],
     );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomScrollView(slivers: buildSlivers(context));
   }
 }
 
@@ -78,7 +83,7 @@ class _PrizeTotalCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'PRÊMIO TOTAL DO EVENTO',
+                  'PRÊMIO TOTAL',
                   style: AppTypography.mono(
                     fontSize: 10,
                     color: AppColors.brand,
@@ -223,7 +228,9 @@ class _CategoryPrizesCard extends StatelessWidget {
                 Divider(
                   height: 24,
                   thickness: 1,
-                  color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.12,
+                  ),
                 ),
               _PrizeRow(
                 row: prizeRows[i],

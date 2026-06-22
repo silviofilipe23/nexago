@@ -43,6 +43,7 @@ class TournamentMatch {
     this.reportedByUid = '',
     this.teamAConfirmed = false,
     this.teamBConfirmed = false,
+    this.bestOf = 3,
   });
 
   final String id;
@@ -83,6 +84,9 @@ class TournamentMatch {
   final String reportedByUid;
   final bool teamAConfirmed;
   final bool teamBConfirmed;
+
+  /// Número de sets da partida (formato): 1 = set único, 3 = melhor de 3.
+  final int bestOf;
 
   String get effectiveCourtLabel {
     if (courtId.isNotEmpty) return courtId;

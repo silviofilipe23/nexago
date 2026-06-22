@@ -21,8 +21,10 @@ import {
 } from "./arena-booking-payment-constants";
 import {PLATFORM_FEE_FIXED_BRL} from "./mercadopago-arena-helpers";
 import {assertCanRegisterInTournament} from "./athlete-tournament-access";
+import {assertTeamLevelEligibility} from "./category-level-eligibility";
 import {
   assertTournamentAcceptsRegistration,
+  findCategory,
 } from "./tournament-registration-guards";
 import {
   buildTournamentRegistrationExternalReference,
@@ -30,6 +32,7 @@ import {
   canChargeTournamentFull,
   computeTournamentShareAmountReais,
   isFreeRegistrationFullyConfirmed,
+  isDirectWithOrganizerPaymentMode,
   normalizeAthleteGenderBucket,
   resolveTournamentChargeReais,
   sharePaidUidsFromRegistration,
@@ -192,6 +195,13 @@ export const createTournamentRegistrationPixPayment = onCall({
     categoryId,
   );
 
+  if (isDirectWithOrganizerPaymentMode(tournamentData.paymentMode)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Este torneio usa pagamento direto com o organizador.",
+    );
+  }
+
   // Se a categoria está lotada, a inscrição pode entrar na fila.
   // O guard sinaliza isso via `__shouldWaitlist` (sem persistir no documento aqui).
   const shouldWaitlist =
@@ -211,6 +221,13 @@ export const createTournamentRegistrationPixPayment = onCall({
   if (team.player1Id !== callerUid && team.player2Id !== callerUid) {
     throw new HttpsError("permission-denied", "Você não é um dos atletas desta inscrição");
   }
+
+  await assertTeamLevelEligibility({
+    db,
+    tournament: tournamentData,
+    category: findCategory(tournamentData, categoryId),
+    uids: [team.player1Id as string | undefined, team.player2Id as string | undefined],
+  });
 
   const {entryFee, tournamentName} = await loadTournamentEntryFee(
     db,
@@ -560,6 +577,13 @@ export const confirmFreeTournamentRegistration = onCall({
     throw new HttpsError("permission-denied", "Você não é um dos atletas desta inscrição");
   }
 
+  await assertTeamLevelEligibility({
+    db,
+    tournament: tournamentData,
+    category: findCategory(tournamentData, categoryId),
+    uids: [player1Id, player2Id],
+  });
+
   const {entryFee} = await loadTournamentEntryFee(
     db,
     projectId,
@@ -613,4 +637,116 @@ export const confirmFreeTournamentRegistration = onCall({
   }
 
   return {registrationId, isPaid, alreadyConfirmed: false};
+});
+
+/** Reserva vaga em torneio com pagamento direto ao organizador (sem PIX). */
+export const reserveDirectOrganizerRegistration = onCall({
+}, async (request) => {
+  const callerUid = request.auth?.uid;
+  if (!callerUid) {
+    throw new HttpsError("unauthenticated", "Faça login para reservar sua vaga.");
+  }
+
+  const data = (request.data ?? {}) as {registrationId?: string};
+  const registrationId =
+    typeof data.registrationId === "string" ? data.registrationId.trim() : "";
+  if (!registrationId) {
+    throw new HttpsError("invalid-argument", "registrationId é obrigatório");
+  }
+
+  const projectId = getFirebaseProjectId();
+  const db = getFirestore();
+
+  await assertCanRegisterInTournament(db, callerUid);
+
+  const registrationRef = db
+    .collection(artifactsInscriptionsPath(projectId))
+    .doc(registrationId);
+  const registrationSnap = await registrationRef.get();
+  if (!registrationSnap.exists) {
+    throw new HttpsError("not-found", "Inscrição não encontrada");
+  }
+
+  const registration = registrationSnap.data()!;
+  if (registration.isPaid === true) {
+    throw new HttpsError("failed-precondition", "Esta inscrição já foi confirmada");
+  }
+
+  const sharePaidUids = sharePaidUidsFromRegistration(registration);
+  if (sharePaidUids.includes(callerUid)) {
+    throw new HttpsError("failed-precondition", "Você já reservou sua vaga.");
+  }
+
+  const teamId = registration.teamId as string;
+  const tournamentId = registration.tournamentId as string;
+  const categoryId = registration.categoryId as string;
+
+  const tournamentData = await assertTournamentAcceptsRegistration(
+    db,
+    projectId,
+    tournamentId,
+    categoryId,
+  );
+
+  if (!isDirectWithOrganizerPaymentMode(tournamentData.paymentMode)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Este torneio não usa pagamento direto com o organizador.",
+    );
+  }
+
+  const shouldWaitlist =
+    (tournamentData as Record<string, unknown>).__shouldWaitlist === true;
+
+  const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
+  if (!teamSnap.exists) {
+    throw new HttpsError("not-found", "Equipe não encontrada");
+  }
+  const team = teamSnap.data()!;
+  const player1Id = typeof team.player1Id === "string" ? team.player1Id.trim() : "";
+  const player2Id = typeof team.player2Id === "string" ? team.player2Id.trim() : "";
+  if (player1Id !== callerUid && player2Id !== callerUid) {
+    throw new HttpsError("permission-denied", "Você não é um dos atletas desta inscrição");
+  }
+
+  await assertTeamLevelEligibility({
+    db,
+    tournament: tournamentData,
+    category: findCategory(tournamentData, categoryId),
+    uids: [player1Id, player2Id],
+  });
+
+  const {entryFee} = await loadTournamentEntryFee(
+    db,
+    projectId,
+    tournamentId,
+    categoryId,
+  );
+  if (entryFee <= 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Esta categoria é gratuita. Use a confirmação sem pagamento.",
+    );
+  }
+
+  const teamUids = [player1Id, player2Id];
+  const updatedSharePaidUids = [...sharePaidUids, callerUid];
+  const bothAthletesReserved = isFreeRegistrationFullyConfirmed(
+    teamUids,
+    updatedSharePaidUids,
+  );
+
+  await registrationRef.update({
+    sharePaidUids: FieldValue.arrayUnion(callerUid),
+    isPaid: false,
+    paymentChannel: "directOrganizer",
+    ...(shouldWaitlist ? {waitlist: true} : {}),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  return {
+    registrationId,
+    reserved: true,
+    bothAthletesReserved,
+  };
 });

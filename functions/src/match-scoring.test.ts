@@ -84,3 +84,19 @@ test("parseAndValidateSets aceita placar válido e normaliza", () => {
     {a: 18, b: 21},
   ]);
 });
+
+test("bestOf 1: vitória em um set conclui a partida", () => {
+  assert.equal(matchWinnerId([{a: 21, b: 18}], "teamA", "teamB", 1), "teamA");
+  assert.deepEqual(setsWon([{a: 21, b: 18}], 1), {a: 1, b: 0});
+});
+
+test("bestOf 1: set único vai até 21 (sem tiebreak)", () => {
+  assert.equal(targetPointsForSet(0, 1), 21);
+});
+
+test("parseAndValidateSets respeita o limite de sets do formato", () => {
+  assert.throws(() =>
+    parseAndValidateSets([{a: 21, b: 10}, {a: 21, b: 10}], 1),
+  );
+  assert.doesNotThrow(() => parseAndValidateSets([{a: 21, b: 10}], 1));
+});

@@ -44,7 +44,9 @@ class TournamentRegistrationPriceSummary extends StatelessWidget {
             children: [
               _PriceRow(
                 label: 'Inscrição da dupla',
-                value: isFree ? 'Gratuita' : formatRegistrationMoney(quote.entryFee),
+                value: isFree
+                    ? 'Gratuita'
+                    : formatRegistrationMoney(quote.entryFee),
                 valueStyle: theme.textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: isFree ? AppColors.win : context.themeColors.onSurface,
@@ -53,7 +55,7 @@ class TournamentRegistrationPriceSummary extends StatelessWidget {
               if (!isFree) ...[
                 SizedBox(height: 12),
                 _PriceRow(
-                  label: 'Taxa NexaGO',
+                  label: 'Taxa nexaGO',
                   value: formatRegistrationMoney(quote.platformFee),
                   hint: 'retida no pagamento',
                   valueStyle: theme.textTheme.bodyLarge?.copyWith(
@@ -67,7 +69,9 @@ class TournamentRegistrationPriceSummary extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Divider(
                     height: 1,
-                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
+                    color: context.themeColors.onSurfaceMuted.withValues(
+                      alpha: 0.15,
+                    ),
                   ),
                 ),
                 Row(
@@ -81,7 +85,9 @@ class TournamentRegistrationPriceSummary extends StatelessWidget {
                     ),
                     Spacer(),
                     Text(
-                      isFree ? 'Gratuita' : formatRegistrationMoney(quote.displayTotal),
+                      isFree
+                          ? 'Gratuita'
+                          : formatRegistrationMoney(quote.displayTotal),
                       style: AppTypography.mono(
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
@@ -135,7 +141,9 @@ class _PriceRow extends StatelessWidget {
                 Text(
                   hint!,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.75),
+                    color: context.themeColors.onSurfaceMuted.withValues(
+                      alpha: 0.75,
+                    ),
                     fontWeight: FontWeight.w500,
                   ),
                 ),

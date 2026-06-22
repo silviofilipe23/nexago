@@ -12,6 +12,7 @@ import {
   buildGroupsKnockoutMatches,
   buildSingleEliminationMatches,
 } from "./category-bracket-builders";
+import {BRACKET_DEFINITIONS} from "./bracket-definitions/bracket-definitions";
 import {assertCanManageTournament} from "./tournament-acl";
 import {
   canCancelTournament,
@@ -126,6 +127,24 @@ export const generateCategoryBracket = onCall(async (request) => {
     );
   }
 
+  // Dupla eliminação usa plantas de chave validadas (4–27 duplas). Fora dessa
+  // faixa não há chave garantida, então bloqueia em vez de publicar uma chave
+  // quebrada (o gerador algorítmico não resolve byes fora de potências de 2).
+  if (format === "double_elimination" && !BRACKET_DEFINITIONS[teamIds.length]) {
+    const supported = Object.keys(BRACKET_DEFINITIONS)
+      .map(Number)
+      .sort((a, b) => a - b);
+    const min = supported[0];
+    const max = supported[supported.length - 1];
+    throw new HttpsError(
+      "failed-precondition",
+      `Dupla eliminação está disponível para ${min} a ${max} duplas ` +
+        `(há ${teamIds.length}). Use grupos + mata-mata ou eliminatória ` +
+        "simples para esta quantidade.",
+      {reason: "de_unsupported_team_count", teamCount: teamIds.length, min, max},
+    );
+  }
+
   const existingMatches = await db
     .collection(artifactsMatchesPath(projectId))
     .where("tournamentId", "==", tournamentId)
@@ -163,6 +182,34 @@ export const generateCategoryBracket = onCall(async (request) => {
           {id: "A", teamIds: teamIds.slice(0, Math.ceil(teamIds.length / 2))},
           {id: "B", teamIds: teamIds.slice(Math.ceil(teamIds.length / 2))},
         ];
+
+  // Grupos + mata-mata: o nº total de classificados precisa formar um chaveamento
+  // limpo (2, 4, 8, 16… cruzamentos). Senão o mata-mata fica com partidas vazias.
+  if (format === "groups_knockout") {
+    const tooFewTeams = resolvedGroups.find(
+      (g) => g.teamIds.filter((id) => id.trim()).length < qualifiersPerGroup,
+    );
+    if (tooFewTeams) {
+      throw new HttpsError(
+        "failed-precondition",
+        `O grupo ${tooFewTeams.id} tem menos duplas do que os ` +
+          `${qualifiersPerGroup} classificados configurados.`,
+        {reason: "group_too_small"},
+      );
+    }
+    const totalQualifiers = resolvedGroups.length * qualifiersPerGroup;
+    const pairings = totalQualifiers >> 1; // cruzamentos da 1ª rodada
+    const isPowerOfTwo = pairings >= 1 && (pairings & (pairings - 1)) === 0;
+    if (!isPowerOfTwo) {
+      throw new HttpsError(
+        "failed-precondition",
+        `${totalQualifiers} classificados (${resolvedGroups.length} grupos × ` +
+          `${qualifiersPerGroup}) não formam um mata-mata equilibrado. Ajuste o ` +
+          "número de grupos ou de classificados (totais como 4, 8 ou 16).",
+        {reason: "knockout_not_balanced", totalQualifiers},
+      );
+    }
+  }
 
   const matchDrafts =
     format === "double_elimination"

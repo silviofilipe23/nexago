@@ -115,12 +115,48 @@ describe("resolveLeaguePlacementsFromMatch", () => {
     assert.deepEqual(awards, [{teamId: "team-b", place: 3}]);
   });
 
-  it("awards 3rd to knockout round 1 loser without third place", () => {
+  it("awards 3rd to knockout round 1 loser numa chave de 4 (final round 2)", () => {
+    const awards = resolveLeaguePlacementsFromMatch(
+      completedMatch({matchType: "knockout", round: 1}),
+      {...noThirdPlace, knockoutFinalRound: 2},
+    );
+    assert.deepEqual(awards, [{teamId: "team-b", place: 3}]);
+  });
+
+  it("legado: sem knockoutFinalRound, round 1 ainda é semifinal", () => {
     const awards = resolveLeaguePlacementsFromMatch(
       completedMatch({matchType: "knockout", round: 1}),
       noThirdPlace,
     );
     assert.deepEqual(awards, [{teamId: "team-b", place: 3}]);
+  });
+
+  it("chave de 8: round 1 (oitavas/quartas) perdedor vai p/ 'quarters'", () => {
+    const awards = resolveLeaguePlacementsFromMatch(
+      completedMatch({matchType: "knockout", round: 1}),
+      {...noThirdPlace, knockoutFinalRound: 3},
+    );
+    assert.deepEqual(awards, [{teamId: "team-b", bucket: "quarters"}]);
+  });
+
+  it("chave de 8: round 2 (semifinal) perdedor sem 3º lugar vira 3º", () => {
+    const awards = resolveLeaguePlacementsFromMatch(
+      completedMatch({matchType: "knockout", round: 2}),
+      {...noThirdPlace, knockoutFinalRound: 3},
+    );
+    assert.deepEqual(awards, [{teamId: "team-b", place: 3}]);
+  });
+
+  it("chave de 8: semifinal com disputa de 3º lugar é adiada", () => {
+    const awards = resolveLeaguePlacementsFromMatch(
+      completedMatch({matchType: "knockout", round: 2}),
+      {
+        ...noThirdPlace,
+        categoryThirdPlaceEnabled: true,
+        knockoutFinalRound: 3,
+      },
+    );
+    assert.deepEqual(awards, []);
   });
 
   it("ignores group matches", () => {

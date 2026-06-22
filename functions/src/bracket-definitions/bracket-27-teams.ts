@@ -23,9 +23,9 @@ export const BRACKET_27_TEAMS: MatchDefinition[] = [
     {matchNumber: 15, bracket: "WB", round: 2, teamA: {type: "SEED", seed: 4}, teamB: {type: "WINNER", matchNumber: 4}},
     {matchNumber: 16, bracket: "WB", round: 2, teamA: {type: "SEED", seed: 5}, teamB: {type: "WINNER", matchNumber: 5}},
     {matchNumber: 17, bracket: "WB", round: 2, teamA: {type: "SEED", seed: 2}, teamB: {type: "WINNER", matchNumber: 6}},
-    {matchNumber: 18, bracket: "WB", round: 2, teamA: {type: "SEED", seed: 7}, teamB: {type: "WINNER", matchNumber: 7}},
+    {matchNumber: 18, bracket: "WB", round: 2, teamA: {type: "WINNER", matchNumber: 10}, teamB: {type: "WINNER", matchNumber: 7}},
     {matchNumber: 19, bracket: "WB", round: 2, teamA: {type: "SEED", seed: 3}, teamB: {type: "WINNER", matchNumber: 9}},
-    {matchNumber: 20, bracket: "WB", round: 2, teamA: {type: "SEED", seed: 6}, teamB: {type: "WINNER", matchNumber: 8}},
+    {matchNumber: 20, bracket: "WB", round: 2, teamA: {type: "WINNER", matchNumber: 11}, teamB: {type: "WINNER", matchNumber: 8}},
     {matchNumber: 21, bracket: "WB", round: 2, teamA: {type: "WINNER", matchNumber: 2}, teamB: {type: "WINNER", matchNumber: 3}},
 
     // LB R2

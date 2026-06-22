@@ -28,7 +28,7 @@ void main() {
       final session = LeagueCreateSession(
         draft: LeagueCreateDraft(
           name: 'Copa Goiás Beach',
-          organizationName: 'NexaGO',
+          organizationName: 'nexaGO',
           seasonStartAt: DateTime(2026, 2, 1),
           seasonEndAt: DateTime(2026, 10, 1),
           categories: const [

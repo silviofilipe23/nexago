@@ -223,4 +223,75 @@ void main() {
       expect(sorted.first.registrationId, 'reg-today');
     });
   });
+
+  group('myTournamentRegistrationNeedsPayment', () {
+    test('is true when unpaid and not on waitlist', () {
+      expect(
+        myTournamentRegistrationNeedsPayment(
+          MyTournamentRegistration(
+            registrationId: 'reg-1',
+            tournamentId: 't1',
+            tournamentName: 'Torneio',
+            dateLabel: '21/04',
+            statusLabel: 'Pagamento pendente',
+            isPaid: false,
+            categoryId: 'cat1',
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('is false when paid or on waitlist', () {
+      expect(myTournamentRegistrationNeedsPayment(_reg('paid')), isFalse);
+      expect(
+        myTournamentRegistrationNeedsPayment(
+          MyTournamentRegistration(
+            registrationId: 'reg-w',
+            tournamentId: 't1',
+            tournamentName: 'Torneio',
+            dateLabel: '21/04',
+            statusLabel: 'Na fila',
+            isPaid: false,
+            categoryId: 'cat1',
+            isWaitlist: true,
+          ),
+        ),
+        isFalse,
+      );
+    });
+
+    test('is false when athlete already reserved direct organizer slot', () {
+      expect(
+        myTournamentRegistrationNeedsPayment(
+          MyTournamentRegistration(
+            registrationId: 'reg-1',
+            tournamentId: 't1',
+            tournamentName: 'Torneio',
+            dateLabel: '21/04',
+            statusLabel: 'Pagamento pendente',
+            isPaid: false,
+            categoryId: 'cat1',
+            athleteHasReserved: true,
+          ),
+        ),
+        isFalse,
+      );
+      expect(
+        myTournamentRegistrationAwaitingOrganizer(
+          MyTournamentRegistration(
+            registrationId: 'reg-1',
+            tournamentId: 't1',
+            tournamentName: 'Torneio',
+            dateLabel: '21/04',
+            statusLabel: 'Pagamento pendente',
+            isPaid: false,
+            categoryId: 'cat1',
+            athleteHasReserved: true,
+          ),
+        ),
+        isTrue,
+      );
+    });
+  });
 }

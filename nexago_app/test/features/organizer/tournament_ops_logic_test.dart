@@ -46,7 +46,7 @@ void main() {
           tournamentName: 'Open Goiânia',
           tournamentId: 'abc',
         ),
-        'Inscreva-se no Open Goiânia no NexaGO:\n'
+        'Inscreva-se no Open Goiânia no nexaGO:\n'
         'nexago:///torneios/abc/inscricao',
       );
     });
@@ -99,14 +99,8 @@ void main() {
         generateBracketRouteFormat('double_elimination'),
         'double_elimination',
       );
-      expect(
-        generateBracketRouteFormat('groups_knockout'),
-        'groups_knockout',
-      );
-      expect(
-        generateBracketRouteFormat('Pool Play + SE'),
-        'groups_knockout',
-      );
+      expect(generateBracketRouteFormat('groups_knockout'), 'groups_knockout');
+      expect(generateBracketRouteFormat('Pool Play + SE'), 'groups_knockout');
       expect(
         generateBracketRouteFormat('single_elimination'),
         'single_elimination',
@@ -213,12 +207,16 @@ void main() {
     test('interpolates the action into auth/permission messages', () {
       expect(
         friendlyTournamentOpsError(
-            action: 'cancelar o torneio', code: 'permission-denied'),
+          action: 'cancelar o torneio',
+          code: 'permission-denied',
+        ),
         'Você não tem permissão para cancelar o torneio.',
       );
       expect(
         friendlyTournamentOpsError(
-            action: 'encerrar as inscrições', code: 'unauthenticated'),
+          action: 'encerrar as inscrições',
+          code: 'unauthenticated',
+        ),
         contains('encerrar as inscrições'),
       );
     });
@@ -237,7 +235,9 @@ void main() {
     test('maps network codes and falls back for unknown/null', () {
       expect(
         friendlyTournamentOpsError(
-            action: 'cancelar o torneio', code: 'unavailable'),
+          action: 'cancelar o torneio',
+          code: 'unavailable',
+        ),
         contains('conexão'),
       );
       expect(

@@ -88,12 +88,12 @@ class TournamentRegistrationUniformStep extends StatelessWidget {
             height: 1.4,
           ),
         ),
-        SizedBox(height: 20),
-        _JerseyPreviewCard(
-          tournamentName: tournament.name,
-          jerseyNumber: category.uniformNumberOnShirt ? number : null,
-          sizeTop: sizeTop,
-        ),
+        // SizedBox(height: 20),
+        // _JerseyPreviewCard(
+        //   tournamentName: tournament.name,
+        //   jerseyNumber: category.uniformNumberOnShirt ? number : null,
+        //   sizeTop: sizeTop,
+        // ),
         SizedBox(height: 24),
         Row(
           children: [

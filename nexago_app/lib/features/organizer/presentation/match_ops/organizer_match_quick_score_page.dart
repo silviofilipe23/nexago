@@ -41,9 +41,10 @@ class _OrganizerMatchQuickScorePageState
   bool _saving = false;
   bool _initialized = false;
 
-  static const int _bestOf = MatchScoringLogic.defaultBestOf;
+  int _bestOf = MatchScoringLogic.defaultBestOf;
 
   void _initSetsFromMatch(TournamentMatch match) {
+    _bestOf = match.bestOf;
     final existing = setsForMatch(match);
     if (existing.isNotEmpty) {
       _sets.clear();
@@ -67,6 +68,79 @@ class _OrganizerMatchQuickScorePageState
     setState(() => _sets.add(const TournamentMatchSet(a: 0, b: 0)));
   }
 
+  Future<void> _showFormatSheet() async {
+    if (_saving) return;
+    final choice = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: context.themeColors.surfaceSheet,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Quantidade de sets',
+                style: AppTypography.soraRegular(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
+              ),
+              const SizedBox(height: 16),
+              for (final option in const [1, 3])
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(sheetContext, option),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: option == _bestOf
+                          ? AppColors.brand
+                          : context.themeColors.onSurface,
+                      side: BorderSide(
+                        color: option == _bestOf
+                            ? AppColors.brand
+                            : context.themeColors.onSurfaceMuted
+                                .withValues(alpha: 0.3),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(matchBestOfLabel(option)),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null || choice == _bestOf) return;
+    if (choice < _bestOf &&
+        MatchScoringLogic.playedSetsCount(_sets) > choice) {
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          'Não dá para mudar para ${matchBestOfLabel(choice)}: '
+          'há sets já pontuados.',
+          isError: true,
+        );
+      }
+      return;
+    }
+    setState(() {
+      _bestOf = choice;
+      if (_sets.length > choice) {
+        _sets.removeRange(choice, _sets.length);
+      }
+      if (_sets.isEmpty) {
+        _sets.add(const TournamentMatchSet(a: 0, b: 0));
+      }
+    });
+  }
+
   Future<void> _save(String? winnerId) async {
     // Pré-validação local para feedback rápido; a validação autoritativa
     // (placar legal + cálculo do vencedor pelas regras) ocorre no servidor.
@@ -88,6 +162,7 @@ class _OrganizerMatchQuickScorePageState
       await ref.read(organizerMatchScheduleServiceProvider).submitMatchResult(
             matchId: widget.matchId,
             sets: _sets.map((s) => {'a': s.a, 'b': s.b}).toList(),
+            bestOf: _bestOf,
           );
       // Avanço de chave + ranking são propagados pelo trigger
       // onTournamentMatchCompletedAdvance ao concluir a partida — de forma
@@ -183,13 +258,14 @@ class _OrganizerMatchQuickScorePageState
             enrichedTeam: enriched?.teamB,
           );
 
-          final wins = MatchScoringLogic.setsWon(_sets);
+          final wins = MatchScoringLogic.setsWon(_sets, bestOf: _bestOf);
           final setsWonA = wins.a;
           final setsWonB = wins.b;
           final winnerId = MatchScoringLogic.matchWinnerId(
             sets: _sets,
             teamAId: match.teamAId,
             teamBId: match.teamBId,
+            bestOf: _bestOf,
           );
           final winnerLabel = winnerId == match.teamAId
               ? teamA.label
@@ -229,6 +305,11 @@ class _OrganizerMatchQuickScorePageState
                       title: 'GAMES POR SET',
                       trailing: 'set até ${MatchScoringLogic.defaultSetPoints}'
                           ' · decisivo até ${MatchScoringLogic.tiebreakSetPoints}',
+                    ),
+                    const SizedBox(height: 12),
+                    _FormatRow(
+                      label: matchBestOfLabel(_bestOf),
+                      onTap: _saving ? null : _showFormatSheet,
                     ),
                     const SizedBox(height: 12),
                     for (var i = 0; i < _sets.length; i++) ...[
@@ -781,6 +862,65 @@ class _AddSetButton extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: context.themeColors.onSurfaceMuted,
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Format row (nº de sets) ─────────────────────────────────────────────────────
+
+class _FormatRow extends StatelessWidget {
+  const _FormatRow({required this.label, this.onTap});
+
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.tune_rounded,
+              size: 16,
+              color: context.themeColors.onSurfaceMuted,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Formato da partida',
+                style: AppTypography.soraRegular(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: context.themeColors.onSurfaceMuted,
+                ),
+              ),
+            ),
+            Text(
+              label,
+              style: AppTypography.mono(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: AppColors.brand,
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: context.themeColors.onSurfaceMuted,
             ),
           ],
         ),

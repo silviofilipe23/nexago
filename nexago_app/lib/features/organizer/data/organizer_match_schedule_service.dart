@@ -98,11 +98,13 @@ class OrganizerMatchScheduleService {
   Future<Map<String, dynamic>> submitMatchResult({
     required String matchId,
     required List<Map<String, int>> sets,
+    int? bestOf,
   }) async {
     final callable = _functions.httpsCallable('submitMatchResult');
     final result = await callable.call({
       'matchId': matchId.trim(),
       'sets': sets,
+      if (bestOf != null) 'bestOf': bestOf,
     });
     return Map<String, dynamic>.from(result.data as Map? ?? {});
   }

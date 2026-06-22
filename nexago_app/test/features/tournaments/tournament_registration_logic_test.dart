@@ -1,8 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:nexago_app/features/tournaments/data/tournament_registration_service.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_helpers.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_payment_mode.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
 
 void main() {
@@ -50,6 +52,51 @@ void main() {
       expect(
         registrationRequiresPayment(buildRegistrationQuote(entryFee: 90)),
         isTrue,
+      );
+    });
+  });
+
+  group('registrationAwaitingSoloPartner', () {
+    const soloSnap = TournamentRegistrationSnapshot(
+      registrationId: 'reg-1',
+      isPaid: false,
+      paidAmount: 0,
+      partnerPending: true,
+    );
+
+    test('true when partner pending and not fully paid', () {
+      expect(
+        registrationAwaitingSoloPartner(snap: soloSnap, isFullyPaid: false),
+        isTrue,
+      );
+    });
+
+    test('false when fully paid', () {
+      expect(
+        registrationAwaitingSoloPartner(snap: soloSnap, isFullyPaid: true),
+        isFalse,
+      );
+    });
+
+    test('false when partner is not pending', () {
+      expect(
+        registrationAwaitingSoloPartner(
+          snap: const TournamentRegistrationSnapshot(
+            registrationId: 'reg-1',
+            isPaid: false,
+            paidAmount: 0,
+            partnerPending: false,
+          ),
+          isFullyPaid: false,
+        ),
+        isFalse,
+      );
+    });
+
+    test('false when snapshot is null', () {
+      expect(
+        registrationAwaitingSoloPartner(snap: null, isFullyPaid: false),
+        isFalse,
       );
     });
   });
@@ -524,6 +571,98 @@ void main() {
 
       expect(isCategorySelectable(closed), isFalse);
       expect(isCategorySelectable(full), isFalse);
+    });
+  });
+
+  group('registrationRequiresAppPayment', () {
+    TournamentDetail tournamentWithMode(TournamentPaymentMode mode) {
+      return TournamentDetail(
+        id: 't1',
+        name: 'Open',
+        location: 'Arena',
+        city: 'Goiânia',
+        dateLabel: '21/04',
+        startDate: DateTime(2026, 4, 21),
+        endDate: DateTime(2026, 4, 21),
+        categories: const [TournamentGenderCat.m],
+        format: TournamentFormat.dupla,
+        priceLabel: r'R$ 180',
+        priceValue: 180,
+        spotsLeft: 8,
+        spotsTotal: 16,
+        status: TournamentListingStatus.open,
+        featured: false,
+        enrolledCount: 0,
+        liveMatchesNow: 0,
+        paymentMode: mode,
+      );
+    }
+
+    test('false for direct organizer with fee', () {
+      final quote = buildRegistrationQuote(entryFee: 180);
+      final tournament = tournamentWithMode(
+        TournamentPaymentMode.directWithOrganizer,
+      );
+      expect(
+        registrationRequiresAppPayment(quote, tournament),
+        isFalse,
+      );
+      expect(tournamentUsesDirectOrganizerPayment(tournament), isTrue);
+    });
+
+    test('true for app PIX with fee', () {
+      final quote = buildRegistrationQuote(entryFee: 180);
+      final tournament = tournamentWithMode(TournamentPaymentMode.appPixCard);
+      expect(registrationRequiresAppPayment(quote, tournament), isTrue);
+    });
+
+    test('false when entry fee is zero', () {
+      final quote = buildRegistrationQuote(entryFee: 0);
+      final tournament = tournamentWithMode(
+        TournamentPaymentMode.directWithOrganizer,
+      );
+      expect(registrationRequiresAppPayment(quote, tournament), isFalse);
+    });
+  });
+
+  group('directOrganizerPaymentBody', () {
+    test('includes duo amount and bold phrase parts', () {
+      final quote = buildRegistrationQuote(entryFee: 180);
+      final body = directOrganizerPaymentBody(quote);
+      expect(body, contains('não é cobrada pelo app'));
+      expect(body, contains('180'));
+
+      final parts = directOrganizerPaymentBodyParts(quote);
+      expect(parts.$2, 'não é cobrada pelo app');
+      expect(parts.$3, contains('180'));
+    });
+
+    test('step 2 subtitle includes duo amount', () {
+      final quote = buildRegistrationQuote(entryFee: 180);
+      final subtitle = directOrganizerPaymentStep2Subtitle(quote);
+      expect(subtitle, contains('180'));
+      expect(subtitle, contains('Pix, dinheiro ou maquininha'));
+    });
+
+    test('prereserve alert highlights pré-reservada', () {
+      final parts = directOrganizerPrereserveAlertParts();
+      expect(parts.$2, 'pré-reservada');
+      expect(parts.$3, contains('organizador'));
+    });
+  });
+
+  group('registrationDualPaymentProgressLabel direct organizer', () {
+    test('shows reserve copy for direct organizer flow', () {
+      final quote = buildRegistrationQuote(entryFee: 180);
+      expect(
+        registrationDualPaymentProgressLabel(
+          quote: quote,
+          paidAmount: 0,
+          isPaid: false,
+          isDirectOrganizerPayment: true,
+        ),
+        contains('reservar'),
+      );
     });
   });
 

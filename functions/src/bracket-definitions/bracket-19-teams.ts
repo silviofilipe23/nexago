@@ -11,7 +11,7 @@ export const BRACKET_19_TEAMS: MatchDefinition[] = [
     { matchNumber: 5, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 4 }, teamB: { type: 'SEED', seed: 13 } },
     { matchNumber: 6, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 5 }, teamB: { type: 'SEED', seed: 12 } },
     { matchNumber: 7, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 7 }, teamB: { type: 'SEED', seed: 10 } },
-    { matchNumber: 8, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 6 }, teamB: { type: 'SEED', seed: 14 } },
+    { matchNumber: 8, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 6 }, teamB: { type: 'SEED', seed: 11 } },
     { matchNumber: 9, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 1 }, teamB: { type: 'WINNER', matchNumber: 1 } },
     { matchNumber: 10, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 2 }, teamB: { type: 'WINNER', matchNumber: 2 } },
     { matchNumber: 11, bracket: 'WB', round: 2, teamA: { type: 'SEED', seed: 3 }, teamB: { type: 'WINNER', matchNumber: 3 } },

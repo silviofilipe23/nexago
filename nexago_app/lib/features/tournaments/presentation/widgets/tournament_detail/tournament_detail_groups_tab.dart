@@ -13,33 +13,24 @@ import '../../../domain/tournament_discovery_providers.dart';
 import '../tournament_match_card.dart';
 import 'tournament_detail_category_chips.dart';
 import 'tournament_detail_message.dart';
+import 'tournament_detail_tab_slivers.dart';
 import 'tournament_matches_filter_toggle.dart';
 
-class TournamentDetailGroupsTab extends ConsumerStatefulWidget {
+class TournamentDetailGroupsTab extends ConsumerWidget {
   const TournamentDetailGroupsTab({
     super.key,
     required this.tournament,
+    required this.categoryId,
+    required this.filter,
+    required this.onCategorySelected,
+    required this.onFilterChanged,
   });
 
   final TournamentDetail tournament;
-
-  @override
-  ConsumerState<TournamentDetailGroupsTab> createState() =>
-      _TournamentDetailGroupsTabState();
-}
-
-class _TournamentDetailGroupsTabState
-    extends ConsumerState<TournamentDetailGroupsTab> {
-  late String _categoryId;
-  TournamentMatchesFilter _filter = TournamentMatchesFilter.all;
-
-  @override
-  void initState() {
-    super.initState();
-    _categoryId = widget.tournament.categoryOffers.isNotEmpty
-        ? widget.tournament.categoryOffers.first.id
-        : '';
-  }
+  final String categoryId;
+  final TournamentMatchesFilter filter;
+  final ValueChanged<String> onCategorySelected;
+  final ValueChanged<TournamentMatchesFilter> onFilterChanged;
 
   void _openMatchDetail(BuildContext context, String matchId) {
     final id = matchId.trim();
@@ -51,19 +42,18 @@ class _TournamentDetailGroupsTabState
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final offers = widget.tournament.categoryOffers;
+  List<Widget> buildSlivers(BuildContext context, WidgetRef ref) {
+    final offers = tournament.categoryOffers;
     final cardsAsync =
-        ref.watch(tournamentMatchCardsProvider(widget.tournament.id));
+        ref.watch(tournamentMatchCardsProvider(tournament.id));
     final teamIdsByCategory = ref
-            .watch(tournamentUserTeamIdsByCategoryProvider(widget.tournament.id))
+            .watch(tournamentUserTeamIdsByCategoryProvider(tournament.id))
             .valueOrNull ??
         const <String, String>{};
     final athleteTeamIds = athleteTeamIdsForHighlight(teamIdsByCategory);
     final registrations = ref
             .watch(
-              tournamentUserRegistrationsByCategoryProvider(widget.tournament.id),
+              tournamentUserRegistrationsByCategoryProvider(tournament.id),
             )
             .valueOrNull ??
         const <String, String>{};
@@ -71,25 +61,32 @@ class _TournamentDetailGroupsTabState
         athleteTeamIds.isNotEmpty || registrations.isNotEmpty;
 
     return cardsAsync.when(
-      loading: () => Center(
-        child: CircularProgressIndicator(color: AppColors.brand),
+      loading: () => tournamentDetailTabSliversFromChildren(
+        children: [
+          SizedBox(
+            height: 240,
+            child: Center(
+              child: CircularProgressIndicator(color: AppColors.brand),
+            ),
+          ),
+        ],
       ),
       error: (e, _) => TournamentDetailMessageList(
         title: 'Não foi possível carregar os grupos',
         message: '$e',
-      ),
+      ).buildSlivers(),
       data: (cards) {
         if (offers.isEmpty) {
           return const TournamentDetailMessageList(
             title: 'Sem categorias',
             message: 'As categorias ainda não foram publicadas.',
-          );
+          ).buildSlivers();
         }
 
         final matches = cards.map((c) => c.match).toList();
         final cardsById = {for (final c in cards) c.match.id: c};
-        var pool = poolMatchesForCategory(matches, _categoryId);
-        if (_filter == TournamentMatchesFilter.mine) {
+        var pool = poolMatchesForCategory(matches, categoryId);
+        if (filter == TournamentMatchesFilter.mine) {
           pool = filterAthleteMatches(
             pool,
             athleteTeamIds,
@@ -97,20 +94,20 @@ class _TournamentDetailGroupsTabState
         }
         final groups = groupMatchesByPool(pool);
 
-        return ListView(
+        return tournamentDetailTabSliversFromChildren(
           padding: const EdgeInsets.only(bottom: 32),
           children: [
             TournamentDetailCategoryChips(
               offers: offers,
-              selectedId: _categoryId,
-              onSelected: (id) => setState(() => _categoryId = id),
+              selectedId: categoryId,
+              onSelected: onCategorySelected,
             ),
             if (isRegistered)
               TournamentMatchesFilterToggle(
-                value: _filter,
-                onChanged: (filter) => setState(() => _filter = filter),
+                value: filter,
+                onChanged: onFilterChanged,
               ),
-            if (pool.isEmpty && _filter == TournamentMatchesFilter.mine)
+            if (pool.isEmpty && filter == TournamentMatchesFilter.mine)
               Padding(
                 padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
                 child: TournamentDetailMessageBody(
@@ -182,5 +179,10 @@ class _TournamentDetailGroupsTabState
         );
       },
     );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return CustomScrollView(slivers: buildSlivers(context, ref));
   }
 }

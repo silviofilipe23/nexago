@@ -13,8 +13,10 @@ import '../../ranking/domain/ranking_providers.dart';
 import '../domain/athlete_tournament_day_providers.dart';
 import '../domain/my_tournaments_logic.dart';
 import '../domain/my_tournaments_models.dart';
+import '../domain/tournament_discovery_models.dart';
 import '../data/my_tournament_registrations_repository.dart';
 import '../domain/my_tournaments_providers.dart';
+import '../domain/tournament_registration_navigation.dart';
 import 'widgets/my_tournaments/my_tournaments_app_bar.dart';
 import 'widgets/my_tournaments/my_tournaments_completed_row.dart';
 import 'widgets/my_tournaments/my_tournaments_completed_stats.dart';
@@ -69,13 +71,8 @@ class _MyTournamentsPageState extends ConsumerState<MyTournamentsPage> {
     });
   }
 
-  void _openTournament(String tournamentId) {
-    final id = tournamentId.trim();
-    if (id.isEmpty) return;
-    context.pushNamed(
-      AppRouteNames.tournamentDetail,
-      pathParameters: {'tournamentId': id},
-    );
+  void _openRegistration(MyTournamentRegistration registration) {
+    navigateFromMyTournamentRegistration(context, registration);
   }
 
   String _headerSubtitle(WidgetRef ref) {
@@ -238,7 +235,7 @@ class _MyTournamentsPageState extends ConsumerState<MyTournamentsPage> {
       if (showLiveBanner)
         MyTournamentsLiveBanner(
           enrollment: live,
-          onTap: () => _openTournament(live.tournamentId),
+          onTap: () => _openRegistration(live.registration),
         ),
       MyTournamentsSectionHeader(
         label: '${ongoing.length} TORNEIOS • ${state.seasonLabel}',
@@ -246,7 +243,7 @@ class _MyTournamentsPageState extends ConsumerState<MyTournamentsPage> {
       for (final e in ongoing)
         MyTournamentsOngoingCard(
           enrollment: e,
-          onTap: () => _openTournament(e.tournamentId),
+          onTap: () => _openRegistration(e.registration),
         ),
     ];
   }
@@ -278,7 +275,7 @@ class _MyTournamentsPageState extends ConsumerState<MyTournamentsPage> {
       for (final e in completed)
         MyTournamentsCompletedRow(
           enrollment: e,
-          onTap: () => _openTournament(e.tournamentId),
+          onTap: () => _openRegistration(e.registration),
         ),
     ];
   }

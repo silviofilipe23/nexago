@@ -17,7 +17,12 @@ import {
   type GroupPreview,
 } from "./group-standings";
 import {assertCanManageTournament, assertCanScoreTournament} from "./tournament-acl";
-import {matchWinnerId, parseAndValidateSets, setsWon} from "./match-scoring";
+import {
+  DEFAULT_BEST_OF,
+  matchWinnerId,
+  parseAndValidateSets,
+  setsWon,
+} from "./match-scoring";
 import {
   allCategoryFinalsComplete,
   isFinalMatchType,
@@ -600,9 +605,24 @@ export const submitMatchResult = onCall(async (request) => {
   const matchId = (request.data?.matchId as string)?.trim();
   if (!matchId) throw new HttpsError("invalid-argument", "matchId obrigatório");
 
+  const db = getFirestore();
+  const projectId = getFirebaseProjectId();
+  const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
+  await assertCanScoreTournament(db, uid, data.tournamentId as string);
+
+  // Formato (nº de sets): request (lançamento rápido) → doc da partida → padrão.
+  const normalizeBestOf = (raw: unknown): number | null => {
+    const n = Number(raw);
+    return n === 1 || n === 3 ? n : null;
+  };
+  const bestOf =
+    normalizeBestOf(request.data?.bestOf) ??
+    normalizeBestOf(data.bestOf) ??
+    DEFAULT_BEST_OF;
+
   let sets;
   try {
-    sets = parseAndValidateSets(request.data?.sets);
+    sets = parseAndValidateSets(request.data?.sets, bestOf);
   } catch (e) {
     throw new HttpsError(
       "invalid-argument",
@@ -610,19 +630,15 @@ export const submitMatchResult = onCall(async (request) => {
     );
   }
 
-  const db = getFirestore();
-  const projectId = getFirebaseProjectId();
-  const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
-  await assertCanScoreTournament(db, uid, data.tournamentId as string);
-
   const teamAId = (data.teamAId as string | undefined)?.trim() ?? "";
   const teamBId = (data.teamBId as string | undefined)?.trim() ?? "";
-  const winnerId = matchWinnerId(sets, teamAId, teamBId);
-  const wins = setsWon(sets);
+  const winnerId = matchWinnerId(sets, teamAId, teamBId, bestOf);
+  const wins = setsWon(sets, bestOf);
   const completed = winnerId !== null;
 
   const update: Record<string, unknown> = {
     sets: sets.map((s) => ({a: s.a, b: s.b})),
+    bestOf,
     status: completed ? MatchStatus.completed : MatchStatus.inProgress,
     resultA: `${wins.a}`,
     resultB: `${wins.b}`,

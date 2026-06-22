@@ -15,7 +15,7 @@ LeagueStageCreateDraft _draft() {
       id: 'stage-2',
       name: 'Etapa 2',
       order: 2,
-      locationName: 'Arena NexaGO',
+      locationName: 'Arena nexaGO',
       city: 'Goiânia',
       dateLabel: '10/04 – 12/04',
       startAt: DateTime(2026, 4, 10),

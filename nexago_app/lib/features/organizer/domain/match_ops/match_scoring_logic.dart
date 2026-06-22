@@ -119,6 +119,62 @@ abstract final class MatchScoringLogic {
     );
   }
 
+  /// Sets que já têm algum ponto lançado (não contam 0×0).
+  static int playedSetsCount(List<TournamentMatchSet> sets) {
+    var count = 0;
+    for (final s in sets) {
+      if (s.a > 0 || s.b > 0) count++;
+    }
+    return count;
+  }
+
+  /// Pode reduzir o formato para [newBestOf] sem perder placar já lançado?
+  /// Bloqueia quando há mais sets pontuados do que o novo formato comporta.
+  static bool canReduceBestOf(List<TournamentMatchSet> sets, int newBestOf) {
+    return playedSetsCount(sets) <= newBestOf;
+  }
+
+  /// Aplica a troca de formato (nº de sets) e recalcula vencedor/índice/conclusão.
+  /// Trunca sets excedentes (vazios) ao novo formato. Não valida [canReduceBestOf]
+  /// — o chamador deve checar antes para não descartar placar lançado.
+  static ({
+    List<TournamentMatchSet> sets,
+    int currentSetIndex,
+    String? winnerId,
+    bool completed,
+  }) applyBestOfChange({
+    required List<TournamentMatchSet> sets,
+    required int newBestOf,
+    required String teamAId,
+    required String teamBId,
+  }) {
+    final trimmed = sets.length > newBestOf
+        ? sets.sublist(0, newBestOf)
+        : List<TournamentMatchSet>.from(sets);
+
+    final winner = matchWinnerId(
+      sets: trimmed,
+      teamAId: teamAId,
+      teamBId: teamBId,
+      bestOf: newBestOf,
+    );
+
+    // Índice do set atual: primeiro set ainda não vencido, limitado ao formato.
+    var idx = 0;
+    while (idx < trimmed.length &&
+        setWinnerSide(trimmed, idx, bestOf: newBestOf) != null &&
+        idx < newBestOf - 1) {
+      idx++;
+    }
+
+    return (
+      sets: trimmed,
+      currentSetIndex: idx,
+      winnerId: winner,
+      completed: winner != null,
+    );
+  }
+
   /// Desfaz último ponto do set atual.
   static ({List<TournamentMatchSet> sets, int currentSetIndex}) undoPoint({
     required List<TournamentMatchSet> sets,
@@ -151,7 +207,7 @@ abstract final class MatchScoringLogic {
 
   static String setsScoreLabel(TournamentMatch match) {
     if (match.sets.isEmpty) return match.scoreLabel;
-    final wins = setsWon(match.sets);
+    final wins = setsWon(match.sets, bestOf: match.bestOf);
     return '${wins.a} × ${wins.b}';
   }
 

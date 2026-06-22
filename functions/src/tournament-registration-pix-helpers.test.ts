@@ -6,6 +6,7 @@ import {
   computeTeamGenderLabel,
   computeTournamentShareAmountReais,
   isFreeRegistrationFullyConfirmed,
+  isDirectWithOrganizerPaymentMode,
   normalizeAthleteGenderBucket,
   parseTournamentRegistrationExternalReference,
   resolveTournamentChargeReais,
@@ -44,6 +45,12 @@ describe("tournament-registration-pix-helpers", () => {
       sharePaidUidsFromRegistration({sharePaidUids: ["a", "", 1, "b"]}),
       ["a", "b"],
     );
+  });
+
+  it("detects directWithOrganizer payment mode", () => {
+    assert.equal(isDirectWithOrganizerPaymentMode("directWithOrganizer"), true);
+    assert.equal(isDirectWithOrganizerPaymentMode(" appPixCard "), false);
+    assert.equal(isDirectWithOrganizerPaymentMode(null), false);
   });
 
   it("normalizes athlete gender buckets", () => {

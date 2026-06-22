@@ -9,6 +9,7 @@ import '../../data/my_tournament_registrations_repository.dart';
 import '../../../athlete/presentation/widgets/athlete_home/athlete_home_section_header.dart';
 import '../../domain/my_tournaments_logic.dart';
 import '../../domain/tournament_discovery_models.dart';
+import '../../domain/tournament_registration_navigation.dart';
 
 class MyTournamentsHomeSection extends ConsumerWidget {
   const MyTournamentsHomeSection({super.key});
@@ -35,14 +36,7 @@ class MyTournamentsHomeSection extends ConsumerWidget {
             for (final r in preview) ...[
               _RegistrationRow(
                 registration: r,
-                onTap: () {
-                  final id = r.tournamentId.trim();
-                  if (id.isEmpty) return;
-                  context.pushNamed(
-                    AppRouteNames.tournamentDetail,
-                    pathParameters: {'tournamentId': id},
-                  );
-                },
+                onTap: () => navigateFromMyTournamentRegistration(context, r),
               ),
               SizedBox(height: 8),
             ],

@@ -5,6 +5,8 @@ import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_logic.dart';
+import 'tournament_registration_direct_organizer_panel.dart';
+import 'tournament_registration_solo_invite_card.dart';
 
 class TournamentRegistrationPaymentStep extends StatelessWidget {
   const TournamentRegistrationPaymentStep({
@@ -17,6 +19,13 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
     this.progressLabel,
     this.isFullyPaid = false,
     this.isFreeRegistration = false,
+    this.isDirectOrganizerPayment = false,
+    this.tournamentName = '',
+    this.organizerManagerId,
+    this.showSoloPartnerInvite = false,
+    this.onInvitePartner,
+    this.pendingPartnerName,
+    this.onTrackInvite,
   });
 
   final TournamentCategoryOffer category;
@@ -27,6 +36,13 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
   final String? progressLabel;
   final bool isFullyPaid;
   final bool isFreeRegistration;
+  final bool isDirectOrganizerPayment;
+  final String tournamentName;
+  final String? organizerManagerId;
+  final bool showSoloPartnerInvite;
+  final VoidCallback? onInvitePartner;
+  final String? pendingPartnerName;
+  final VoidCallback? onTrackInvite;
 
   @override
   Widget build(BuildContext context) {
@@ -56,18 +72,79 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             color: context.themeColors.onSurface,
           ),
         ),
-        SizedBox(height: 4),
-        Text(
-          isFreeRegistration
-              ? 'Esta categoria é gratuita. Cada atleta confirma a inscrição e a dupla é validada quando os dois confirmarem.'
-              : dualPaymentOnly
-              ? 'Cada atleta paga sua parcela. A inscrição da dupla é confirmada quando os dois pagarem.'
-              : 'Escolha como deseja pagar a inscrição.',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: context.themeColors.onSurfaceMuted,
-            fontWeight: FontWeight.w500,
+        if (isDirectOrganizerPayment) ...[
+          SizedBox(height: 16),
+          Row(
+            children: [
+              Container(
+                width: 3,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: AppColors.brand,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              SizedBox(width: 10),
+              Icon(
+                Icons.handshake_outlined,
+                size: 20,
+                color: AppColors.pending,
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Pagamento direto com o organizador',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: context.themeColors.onSurface,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
+          SizedBox(height: 12),
+          Builder(
+            builder: (context) {
+              final parts = directOrganizerPaymentBodyParts(quote);
+              return RichText(
+                text: TextSpan(
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w500,
+                    height: 1.45,
+                  ),
+                  children: [
+                    TextSpan(text: parts.$1),
+                    TextSpan(
+                      text: parts.$2,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    TextSpan(text: parts.$3),
+                  ],
+                ),
+              );
+            },
+          ),
+          SizedBox(height: 16),
+          TournamentRegistrationDirectOrganizerPanel(
+            tournamentName: tournamentName,
+            quote: quote,
+            managerId: organizerManagerId,
+          ),
+        ] else ...[
+          SizedBox(height: 4),
+          Text(
+            isFreeRegistration
+                ? 'Esta categoria é gratuita. Cada atleta confirma a inscrição e a dupla é validada quando os dois confirmarem.'
+                : dualPaymentOnly
+                ? 'Cada atleta paga sua parcela. A inscrição da dupla é confirmada quando os dois pagarem.'
+                : 'Escolha como deseja pagar a inscrição.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: context.themeColors.onSurfaceMuted,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
         if (progressLabel != null && progressLabel!.isNotEmpty) ...[
           SizedBox(height: 12),
           Container(
@@ -91,7 +168,15 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             ),
           ),
         ],
-        if (!dualPaymentOnly) ...[
+        if (showSoloPartnerInvite && onInvitePartner != null) ...[
+          SizedBox(height: 16),
+          TournamentRegistrationSoloInviteCard(
+            onInvitePartner: onInvitePartner!,
+            pendingPartnerName: pendingPartnerName,
+            onTrackInvite: onTrackInvite,
+          ),
+        ],
+        if (!dualPaymentOnly && !isDirectOrganizerPayment) ...[
           SizedBox(height: 16),
           SegmentedButton<String>(
             segments: const [
@@ -111,7 +196,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             },
           ),
         ],
-        if (!isFreeRegistration) ...[
+        if (!isFreeRegistration && !isDirectOrganizerPayment) ...[
           SizedBox(height: 20),
           Container(
             padding: const EdgeInsets.all(16),

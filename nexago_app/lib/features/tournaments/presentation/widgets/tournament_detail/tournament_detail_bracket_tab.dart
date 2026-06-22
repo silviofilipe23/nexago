@@ -15,30 +15,24 @@ import '../../../domain/tournament_discovery_providers.dart';
 import '../tournament_match_card.dart';
 import 'tournament_detail_category_chips.dart';
 import 'tournament_detail_message.dart';
+import 'tournament_detail_tab_slivers.dart';
 import 'tournament_matches_filter_toggle.dart';
 
-class TournamentDetailBracketTab extends ConsumerStatefulWidget {
-  const TournamentDetailBracketTab({super.key, required this.tournament});
+class TournamentDetailBracketTab extends ConsumerWidget {
+  const TournamentDetailBracketTab({
+    super.key,
+    required this.tournament,
+    required this.categoryId,
+    required this.filter,
+    required this.onCategorySelected,
+    required this.onFilterChanged,
+  });
 
   final TournamentDetail tournament;
-
-  @override
-  ConsumerState<TournamentDetailBracketTab> createState() =>
-      _TournamentDetailBracketTabState();
-}
-
-class _TournamentDetailBracketTabState
-    extends ConsumerState<TournamentDetailBracketTab> {
-  late String _categoryId;
-  TournamentMatchesFilter _filter = TournamentMatchesFilter.all;
-
-  @override
-  void initState() {
-    super.initState();
-    _categoryId = widget.tournament.categoryOffers.isNotEmpty
-        ? widget.tournament.categoryOffers.first.id
-        : '';
-  }
+  final String categoryId;
+  final TournamentMatchesFilter filter;
+  final ValueChanged<String> onCategorySelected;
+  final ValueChanged<TournamentMatchesFilter> onFilterChanged;
 
   void _openMatchDetail(BuildContext context, String matchId) {
     final id = matchId.trim();
@@ -50,16 +44,15 @@ class _TournamentDetailBracketTabState
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final offers = widget.tournament.categoryOffers;
+  List<Widget> buildSlivers(BuildContext context, WidgetRef ref) {
+    final offers = tournament.categoryOffers;
     final cardsAsync = ref.watch(
-      tournamentMatchCardsProvider(widget.tournament.id),
+      tournamentMatchCardsProvider(tournament.id),
     );
     final teamIdsByCategory =
         ref
             .watch(
-              tournamentUserTeamIdsByCategoryProvider(widget.tournament.id),
+              tournamentUserTeamIdsByCategoryProvider(tournament.id),
             )
             .valueOrNull ??
         const <String, String>{};
@@ -67,40 +60,45 @@ class _TournamentDetailBracketTabState
     final registrations =
         ref
             .watch(
-              tournamentUserRegistrationsByCategoryProvider(
-                widget.tournament.id,
-              ),
+              tournamentUserRegistrationsByCategoryProvider(tournament.id),
             )
             .valueOrNull ??
         const <String, String>{};
     final isRegistered = athleteTeamIds.isNotEmpty || registrations.isNotEmpty;
 
     return cardsAsync.when(
-      loading: () => Center(
-        child: CircularProgressIndicator(color: AppColors.brand),
+      loading: () => tournamentDetailTabSliversFromChildren(
+        children: [
+          SizedBox(
+            height: 240,
+            child: Center(
+              child: CircularProgressIndicator(color: AppColors.brand),
+            ),
+          ),
+        ],
       ),
       error: (e, _) => TournamentDetailMessageList(
         title: 'Não foi possível carregar a chave',
         message: '$e',
-      ),
+      ).buildSlivers(),
       data: (cards) {
         if (offers.isEmpty) {
           return const TournamentDetailMessageList(
             title: 'Sem categorias',
             message: 'As categorias ainda não foram publicadas.',
-          );
+          ).buildSlivers();
         }
 
         final matches = cards.map((c) => c.match).toList();
         final cardsById = {for (final c in cards) c.match.id: c};
         final selectedOffer = offers
-            .where((o) => o.id == _categoryId)
+            .where((o) => o.id == categoryId)
             .cast<TournamentCategoryOffer?>()
             .firstOrNull;
 
-        var pool = poolMatchesForCategory(matches, _categoryId);
-        var bracket = bracketMatchesForCategory(matches, _categoryId);
-        if (_filter == TournamentMatchesFilter.mine) {
+        var pool = poolMatchesForCategory(matches, categoryId);
+        var bracket = bracketMatchesForCategory(matches, categoryId);
+        if (filter == TournamentMatchesFilter.mine) {
           pool = filterAthleteMatches(pool, athleteTeamIds);
           bracket = filterAthleteMatches(bracket, athleteTeamIds);
         }
@@ -115,13 +113,13 @@ class _TournamentDetailBracketTabState
         final hasKnockoutContent = knockoutGroups.isNotEmpty;
         final isEmpty = !showPools && !hasKnockoutContent;
 
-        return ListView(
+        return tournamentDetailTabSliversFromChildren(
           padding: const EdgeInsets.only(bottom: 32),
           children: [
             TournamentDetailCategoryChips(
               offers: offers,
-              selectedId: _categoryId,
-              onSelected: (id) => setState(() => _categoryId = id),
+              selectedId: categoryId,
+              onSelected: onCategorySelected,
             ),
             if (showInteractiveBracket)
               Padding(
@@ -133,8 +131,8 @@ class _TournamentDetailBracketTabState
                     onTap: () => context.pushNamed(
                       AppRouteNames.tournamentDoubleEliminationBracket,
                       pathParameters: {
-                        'tournamentId': widget.tournament.id,
-                        'categoryId': _categoryId,
+                        'tournamentId': tournament.id,
+                        'categoryId': categoryId,
                       },
                     ),
                     borderRadius: BorderRadius.circular(12),
@@ -173,10 +171,10 @@ class _TournamentDetailBracketTabState
               ),
             if (isRegistered)
               TournamentMatchesFilterToggle(
-                value: _filter,
-                onChanged: (filter) => setState(() => _filter = filter),
+                value: filter,
+                onChanged: onFilterChanged,
               ),
-            if (isEmpty && _filter == TournamentMatchesFilter.mine)
+            if (isEmpty && filter == TournamentMatchesFilter.mine)
               Padding(
                 padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
                 child: TournamentDetailMessageBody(
@@ -270,5 +268,10 @@ class _TournamentDetailBracketTabState
         );
       },
     );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return CustomScrollView(slivers: buildSlivers(context, ref));
   }
 }

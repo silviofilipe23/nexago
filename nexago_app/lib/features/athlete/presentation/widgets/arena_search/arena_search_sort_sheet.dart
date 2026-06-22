@@ -71,6 +71,6 @@ String _sortLabel(ArenaSearchSortBy sort) {
     ArenaSearchSortBy.distance => 'Distância',
     ArenaSearchSortBy.price => 'Menor preço',
     ArenaSearchSortBy.rating => 'Melhor avaliação',
-    ArenaSearchSortBy.score => 'Score NexaGO',
+    ArenaSearchSortBy.score => 'Score nexaGO',
   };
 }

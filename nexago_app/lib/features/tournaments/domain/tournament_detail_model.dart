@@ -1,4 +1,5 @@
 import 'tournament_discovery_models.dart';
+import 'tournament_payment_mode.dart';
 
 /// Prêmio do torneio ou categoria (`prizes[]` no Firestore).
 class TournamentPrize {
@@ -46,6 +47,8 @@ class TournamentDetail {
     this.tournamentPrizes = const [],
     this.createdAt,
     this.listingStatusRaw,
+    this.sport = '',
+    this.paymentMode = TournamentPaymentMode.appPixCard,
   });
 
   final String id;
@@ -78,6 +81,13 @@ class TournamentDetail {
   final List<TournamentPrize> tournamentPrizes;
   final DateTime? createdAt;
   final String? listingStatusRaw;
+
+  /// Esporte do torneio (`tournaments/{id}.sport`, nome do enum:
+  /// `beachVolleyball` | `indoorVolleyball` | `footvolley`). Usado para resolver
+  /// o nível do atleta por esporte na elegibilidade de categoria.
+  final String sport;
+
+  final TournamentPaymentMode paymentMode;
 
   DiscoveryTournament toDiscovery() {
     return DiscoveryTournament(

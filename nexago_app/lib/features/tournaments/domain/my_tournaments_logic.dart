@@ -2,6 +2,23 @@ import 'tournament_discovery_models.dart';
 import 'tournament_listing_status.dart';
 import 'my_tournaments_models.dart';
 
+/// Inscrição aguardando confirmação do organizador (vaga já reservada).
+bool myTournamentRegistrationAwaitingOrganizer(
+  MyTournamentRegistration registration,
+) {
+  if (registration.isPaid || registration.isWaitlist) return false;
+  return registration.athleteHasReserved;
+}
+
+/// Inscrição com pagamento pendente deve abrir o passo de pagamento.
+bool myTournamentRegistrationNeedsPayment(
+  MyTournamentRegistration registration,
+) {
+  if (registration.isPaid || registration.isWaitlist) return false;
+  if (registration.athleteHasReserved) return false;
+  return registration.registrationId.trim().isNotEmpty;
+}
+
 /// Badge de destaque na Home para inscrição no dia do evento ou ao vivo.
 bool registrationShowsAsLiveToday(MyTournamentRegistration registration) {
   if (registration.listingStatus == TournamentListingStatus.live) {

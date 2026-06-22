@@ -88,6 +88,12 @@ String tournamentDetailEntrySummary(TournamentDetail detail) {
   return 'A partir de ${detail.priceLabel}';
 }
 
+/// Valor da linha "Inscrição" na seção O torneio.
+String tournamentDetailInscriptionInfoValue(TournamentDetail detail) {
+  if (detail.priceValue <= 0) return 'A confirmar';
+  return 'A partir de ${detail.priceLabel} / dupla';
+}
+
 TournamentDetailStats tournamentDetailStats(
   TournamentDetail detail, {
   Map<String, int>? enrollmentByCategoryId,
@@ -600,4 +606,76 @@ String formatCategoryEntryFee(TournamentCategoryOffer offer) {
   final fee = offer.entryFee;
   if (fee <= 0) return r'R$ —';
   return _currencyFmt.format(fee);
+}
+
+int tournamentSpotsRemaining(TournamentDetailStats stats) {
+  if (stats.spotsTotal <= 0) return 0;
+  return (stats.spotsTotal - stats.spotsEnrolled).clamp(0, stats.spotsTotal);
+}
+
+String tournamentSpotsRemainingLabel(TournamentDetailStats stats) {
+  final left = tournamentSpotsRemaining(stats);
+  if (stats.spotsTotal <= 0) return 'Vagas a confirmar';
+  if (left == 1) return '1 vaga restante';
+  return '$left vagas restantes';
+}
+
+double tournamentSpotsProgress(TournamentDetailStats stats) {
+  if (stats.spotsTotal <= 0) return 0;
+  return (stats.spotsEnrolled / stats.spotsTotal).clamp(0.0, 1.0);
+}
+
+String tournamentSpotsCounterLabel(TournamentDetailStats stats) {
+  if (stats.spotsTotal <= 0) return '—';
+  return '${stats.spotsEnrolled}/${stats.spotsTotal} DUPLAS';
+}
+
+String? tournamentRecentlyOpenedBanner(
+  TournamentDetail tournament,
+  TournamentDetailStats stats,
+) {
+  if (!canRegisterForTournament(tournament.status)) return null;
+  final createdAt = tournament.createdAt;
+  final recentlyCreated = createdAt != null &&
+      DateTime.now().difference(createdAt).inDays <= 14;
+  if (recentlyCreated || stats.spotsEnrolled == 0) {
+    return 'Inscrições recém-abertas — garanta a vaga da sua dupla antes de lotar.';
+  }
+  return null;
+}
+
+String tournamentExploreCategoriesSubtitle(TournamentDetailStats stats) {
+  final count = stats.categoryCount;
+  final catLabel = count == 1 ? '1 categoria' : '$count categorias';
+  if (stats.spotsTotal <= 0) return catLabel;
+  return '$catLabel · ${stats.spotsTotal} vagas';
+}
+
+String tournamentExploreBracketSubtitle(TournamentDetail tournament) {
+  return tournamentDetailFormatSummary(tournament);
+}
+
+String tournamentExplorePrizesSubtitle(TournamentDetailStats stats) {
+  if (stats.prizeTotalLabel == '—') return 'Premiação a confirmar';
+  return '${stats.prizeTotalLabel} em disputa';
+}
+
+TournamentCategoryOffer? firstOpenCategoryOffer(TournamentDetail tournament) {
+  for (final offer in tournament.categoryOffers) {
+    if (!offer.registrationClosed && !offer.isCompleted) return offer;
+  }
+  return tournament.categoryOffers.firstOrNull;
+}
+
+String tournamentDetailCompactDate(TournamentDetail detail) {
+  final fmt = DateFormat("EEE • d MMM", 'pt_BR');
+  return fmt.format(detail.startDate);
+}
+
+String tournamentMapsQuery(TournamentDetail detail) {
+  final address = detail.locationAddress?.trim();
+  if (address != null && address.isNotEmpty) return address;
+  final city = detail.city.trim();
+  if (city.isNotEmpty) return '${detail.location}, $city';
+  return detail.location;
 }

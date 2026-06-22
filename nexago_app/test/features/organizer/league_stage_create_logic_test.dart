@@ -13,7 +13,7 @@ LeagueStageCreateDraft _validDraft() {
       id: 'stage-2',
       name: 'Etapa 2',
       order: 2,
-      locationName: 'Arena NexaGO',
+      locationName: 'Arena nexaGO',
       city: 'Goiânia',
       startAt: DateTime(2026, 4, 10),
       endAt: DateTime(2026, 4, 12),
@@ -160,21 +160,18 @@ void main() {
 
   group('categoriesFromLeagueCategories', () {
     test('parses maps, ignores empty ids and applies price fallback', () {
-      final categories = categoriesFromLeagueCategories(
-        [
-          {
-            'id': 'c1',
-            'categoryName': 'Masc Open',
-            'maxTeams': 12,
-            'entryFeeCents': 7000,
-            'bracketFormat': 'double_elimination',
-          },
-          {'id': '', 'name': 'Ignorada'},
-          {'name': 'Sem id'},
-          {'id': 'c2', 'name': 'Fem Open'},
-        ],
-        9000,
-      );
+      final categories = categoriesFromLeagueCategories([
+        {
+          'id': 'c1',
+          'categoryName': 'Masc Open',
+          'maxTeams': 12,
+          'entryFeeCents': 7000,
+          'bracketFormat': 'double_elimination',
+        },
+        {'id': '', 'name': 'Ignorada'},
+        {'name': 'Sem id'},
+        {'id': 'c2', 'name': 'Fem Open'},
+      ], 9000);
 
       expect(categories, hasLength(2));
       final first = categories.first;
@@ -206,12 +203,7 @@ void main() {
           'tournamentIds': ['t1', '', 't2'],
         },
         {'id': '', 'name': 'sem id'},
-        {
-          'id': 'gf',
-          'order': 2,
-          'status': 'pending',
-          'isGrandFinal': true,
-        },
+        {'id': 'gf', 'order': 2, 'status': 'pending', 'isGrandFinal': true},
       ]);
 
       expect(stages, hasLength(2));
@@ -259,33 +251,36 @@ void main() {
       );
     });
 
-    test('categories step requires enabled category and registration range', () {
-      final draft = _validDraft().copyWith(
-        categories: const [
-          LeagueStageCategoryDraft(
-            categoryId: 'c1',
-            name: 'Masc Open',
-            enabled: false,
-            spots: 16,
+    test(
+      'categories step requires enabled category and registration range',
+      () {
+        final draft = _validDraft().copyWith(
+          categories: const [
+            LeagueStageCategoryDraft(
+              categoryId: 'c1',
+              name: 'Masc Open',
+              enabled: false,
+              spots: 16,
+            ),
+          ],
+        );
+        expect(
+          canContinueFromStageStep(
+            draft,
+            LeagueStageCreateStep.categoriesRegistration,
           ),
-        ],
-      );
-      expect(
-        canContinueFromStageStep(
-          draft,
-          LeagueStageCreateStep.categoriesRegistration,
-        ),
-        isFalse,
-      );
+          isFalse,
+        );
 
-      expect(
-        canContinueFromStageStep(
-          _validDraft(),
-          LeagueStageCreateStep.categoriesRegistration,
-        ),
-        isTrue,
-      );
-    });
+        expect(
+          canContinueFromStageStep(
+            _validDraft(),
+            LeagueStageCreateStep.categoriesRegistration,
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test('review requires all previous steps valid', () {
       expect(
@@ -300,14 +295,8 @@ void main() {
     test('formats league, location and categories summaries', () {
       final draft = _validDraft();
 
-      expect(
-        reviewStageLeagueSummary(draft),
-        'Circuito Verão · Etapa 2 de 6',
-      );
-      expect(
-        reviewStageCategoriesSummary(draft),
-        'Masc Open · 16 vagas',
-      );
+      expect(reviewStageLeagueSummary(draft), 'Circuito Verão · Etapa 2 de 6');
+      expect(reviewStageCategoriesSummary(draft), 'Masc Open · 16 vagas');
     });
   });
 }

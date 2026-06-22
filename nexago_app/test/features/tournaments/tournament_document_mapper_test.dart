@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_document_mapper.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_payment_mode.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
 
 void main() {
@@ -144,6 +145,27 @@ void main() {
     expect(prizes[0].value, 2000);
     expect(prizes[1].value, 2000);
     expect(prizes[2].value, 500);
+  });
+
+  test('detailFromMap maps paymentMode directWithOrganizer', () {
+    final d = TournamentDocumentMapper.detailFromMap('direct', {
+      'name': 'Copa',
+      'capacity': 16,
+      'enrolledCount': 0,
+      'paymentMode': 'directWithOrganizer',
+    });
+
+    expect(d.paymentMode, TournamentPaymentMode.directWithOrganizer);
+  });
+
+  test('detailFromMap defaults paymentMode to appPixCard', () {
+    final d = TournamentDocumentMapper.detailFromMap('pix', {
+      'name': 'Copa',
+      'capacity': 16,
+      'enrolledCount': 0,
+    });
+
+    expect(d.paymentMode, TournamentPaymentMode.appPixCard);
   });
 
   test('detailFromMap falls back to tournament-level uniform flags', () {

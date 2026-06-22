@@ -110,9 +110,14 @@ class AthleteProfile {
     final data = doc.data() ?? {};
     final profilePhotoUrl = (data['profilePhotoUrl'] as String?)?.trim();
     final avatarUrl = (data['avatarUrl'] as String?)?.trim();
+    final authPhotoUrl = (data['photoURL'] as String?)?.trim();
     final resolvedPhotoUrl = (profilePhotoUrl != null && profilePhotoUrl.isNotEmpty)
         ? profilePhotoUrl
-        : ((avatarUrl != null && avatarUrl.isNotEmpty) ? avatarUrl : null);
+        : ((avatarUrl != null && avatarUrl.isNotEmpty)
+            ? avatarUrl
+            : ((authPhotoUrl != null && authPhotoUrl.isNotEmpty)
+                ? authPhotoUrl
+                : null));
     final coverPhotoUrl = (data['coverPhotoUrl'] as String?)?.trim();
 
     final name = (data['fullName'] as String?)?.trim().isNotEmpty == true

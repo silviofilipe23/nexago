@@ -1,16 +1,19 @@
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../../core/auth/auth_providers.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/ui/app_snackbar.dart';
 import '../../../../arenas/domain/arena_booking_success_actions.dart';
 import '../../../../athlete/domain/athlete_display_name.dart';
+import '../../../../athlete/domain/athlete_profile.dart';
 import '../../../../athlete/domain/athlete_profile_providers.dart';
-import '../../../domain/my_tournaments_models.dart';
+import '../../../../athlete/domain/profile_access.dart';
+import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
 import '../../../domain/tournament_discovery_providers.dart';
 import '../../../domain/tournament_registration_logic.dart';
 
@@ -36,10 +39,15 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
     final profile = organizerId.isNotEmpty
         ? ref.watch(athleteProfileByIdProvider(organizerId)).valueOrNull
         : null;
+    final authUser = ref.watch(authProvider).valueOrNull;
     final organizerInitials = profile != null
         ? athleteInitials(profile)
         : _initialsFromName(organizerName);
-    final avatarUrl = profile?.avatarUrl?.trim();
+    final avatarUrl = _organizerAvatarUrl(
+      profile: profile,
+      authUser: authUser,
+      organizerId: organizerId,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -71,6 +79,20 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
     }
     return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
   }
+
+  static String? _organizerAvatarUrl({
+    required AthleteProfile? profile,
+    required String organizerId,
+    required User? authUser,
+  }) {
+    if (profile == null) return null;
+    final effective = organizerId.isNotEmpty && organizerId == authUser?.uid
+        ? effectiveProfileForTournamentAccess(profile, authUser)
+        : profile;
+    final url = effective?.avatarUrl?.trim();
+    if (url == null || url.isEmpty) return null;
+    return url;
+  }
 }
 
 class _PrereserveAlert extends StatelessWidget {
@@ -86,12 +108,18 @@ class _PrereserveAlert extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.pending.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.pending.withValues(alpha: 0.35)),
+        border: Border.all(
+          color: AppColors.pending.withValues(alpha: 0.35),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.schedule_rounded, size: 20, color: AppColors.pending),
+          Icon(
+            Icons.schedule_rounded,
+            size: 20,
+            color: AppColors.pending,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: RichText(
@@ -122,7 +150,10 @@ class _PrereserveAlert extends StatelessWidget {
 }
 
 class _StepsCard extends StatelessWidget {
-  const _StepsCard({required this.quote, required this.theme});
+  const _StepsCard({
+    required this.quote,
+    required this.theme,
+  });
 
   final TournamentRegistrationQuote quote;
   final ThemeData theme;
@@ -204,7 +235,9 @@ class _StepRow extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.brand.withValues(alpha: 0.16),
             shape: BoxShape.circle,
-            border: Border.all(color: AppColors.brand.withValues(alpha: 0.45)),
+            border: Border.all(
+              color: AppColors.brand.withValues(alpha: 0.45),
+            ),
           ),
           child: Text(
             '$number',
@@ -275,9 +308,10 @@ class _OrganizerContactCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _StackedAvatars(
-            organizerInitials: organizerInitials,
-            avatarUrl: avatarUrl,
+          AthleteProfileAvatar(
+            size: 48,
+            initials: organizerInitials,
+            imageUrl: avatarUrl,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -357,113 +391,13 @@ class _OrganizerContactCard extends StatelessWidget {
     }
     final uri = Uri.tryParse(url);
     if (uri == null) {
-      showAppSnackBar(
-        context,
-        'Não foi possível abrir o WhatsApp.',
-        isError: true,
-      );
+      showAppSnackBar(context, 'Não foi possível abrir o WhatsApp.', isError: true);
       return;
     }
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!context.mounted) return;
     if (!launched) {
-      showAppSnackBar(
-        context,
-        'Não foi possível abrir o WhatsApp.',
-        isError: true,
-      );
+      showAppSnackBar(context, 'Não foi possível abrir o WhatsApp.', isError: true);
     }
-  }
-}
-
-class _StackedAvatars extends StatelessWidget {
-  const _StackedAvatars({
-    required this.organizerInitials,
-    required this.avatarUrl,
-  });
-
-  final String organizerInitials;
-  final String? avatarUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 52,
-      height: 36,
-      child: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            child: _AvatarBubble(
-              initials: organizerInitials,
-              avatarUrl: avatarUrl,
-              backgroundColor: AppColors.brand.withValues(alpha: 0.22),
-              borderColor: AppColors.brand.withValues(alpha: 0.5),
-              textColor: AppColors.brand,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AvatarBubble extends StatelessWidget {
-  const _AvatarBubble({
-    required this.initials,
-    this.avatarUrl,
-    required this.backgroundColor,
-    required this.borderColor,
-    required this.textColor,
-  });
-
-  final String initials;
-  final String? avatarUrl;
-  final Color backgroundColor;
-  final Color borderColor;
-  final Color textColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final url = avatarUrl?.trim();
-    return Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: backgroundColor,
-        border: Border.all(color: borderColor, width: 1.5),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: url != null && url.isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: url,
-              fit: BoxFit.cover,
-              errorWidget: (context, url, error) =>
-                  _Initials(initials: initials, color: textColor),
-            )
-          : _Initials(initials: initials, color: textColor),
-    );
-  }
-}
-
-class _Initials extends StatelessWidget {
-  const _Initials({required this.initials, required this.color});
-
-  final String initials;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        initials,
-        style: AppTypography.mono(
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-          color: color,
-        ),
-      ),
-    );
   }
 }

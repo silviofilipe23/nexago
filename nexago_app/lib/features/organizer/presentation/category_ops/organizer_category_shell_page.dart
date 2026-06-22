@@ -11,6 +11,7 @@ import '../../domain/category_ops/category_ops_providers.dart';
 import '../../domain/tournament_create/tournament_create_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
+import '../../domain/tournament_uniforms/tournament_uniforms_providers.dart';
 import 'organizer_tournament_navigation.dart';
 import 'sheets/organizer_tournament_actions_sheet.dart';
 import 'tabs/organizer_category_payments_tab.dart';
@@ -138,6 +139,9 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
               (canGenerateCategoryBracket(confirmedCount: confirmedCount) ||
                   category.bracketStatus ==
                       OrganizerCategoryBracketStatus.published);
+    final hasUniformKit = organizerTournamentHasUniformKit(
+      detail.valueOrNull?.tournament,
+    );
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -170,12 +174,18 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
               const SizedBox(height: 12),
               _CategoryQuickActions(
                 canGenerateBracket: canGenerateBracket,
+                showUniforms: hasUniformKit,
                 onGenerateBracket: () => _onGenerateBracket(
                   context,
                   category,
                   confirmedCount: confirmedCount,
                 ),
                 onSeeding: () => pushOrganizerCategorySeeding(
+                  GoRouter.of(context),
+                  tournamentId: tournamentId,
+                  categoryId: categoryId,
+                ),
+                onUniforms: () => pushOrganizerTournamentUniforms(
                   GoRouter.of(context),
                   tournamentId: tournamentId,
                   categoryId: categoryId,
@@ -289,14 +299,18 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
 class _CategoryQuickActions extends StatelessWidget {
   const _CategoryQuickActions({
     required this.canGenerateBracket,
+    required this.showUniforms,
     required this.onGenerateBracket,
     required this.onSeeding,
+    required this.onUniforms,
     required this.onShare,
   });
 
   final bool canGenerateBracket;
+  final bool showUniforms;
   final VoidCallback onGenerateBracket;
   final VoidCallback onSeeding;
+  final VoidCallback onUniforms;
   final VoidCallback onShare;
 
   static const _height = 44.0;
@@ -341,6 +355,23 @@ class _CategoryQuickActions extends StatelessWidget {
             ),
           ),
           const SizedBox(width: _gap),
+          if (showUniforms) ...[
+            OutlinedButton.icon(
+              onPressed: onUniforms,
+              icon: const Icon(Icons.checkroom_outlined, size: 17),
+              label: const Text('Uniformes'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: context.themeColors.onSurface,
+                backgroundColor: context.themeColors.surfaceRaised,
+                side: BorderSide(color: mutedBorder),
+                shape: _pillShape,
+                minimumSize: const Size(0, _height),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                textStyle: labelStyle,
+              ),
+            ),
+            const SizedBox(width: _gap),
+          ],
           OutlinedButton.icon(
             onPressed: onSeeding,
             icon: const Icon(Icons.emoji_events_outlined, size: 17),

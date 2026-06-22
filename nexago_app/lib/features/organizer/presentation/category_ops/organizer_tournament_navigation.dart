@@ -8,6 +8,21 @@ void pushOrganizerTournamentDetail(GoRouter router, String tournamentId) {
   );
 }
 
+void pushOrganizerTournamentUniforms(
+  GoRouter router, {
+  required String tournamentId,
+  String? categoryId,
+}) {
+  router.pushNamed(
+    AppRouteNames.organizerTournamentUniforms,
+    pathParameters: {'tournamentId': tournamentId.trim()},
+    queryParameters: {
+      if (categoryId != null && categoryId.trim().isNotEmpty)
+        'categoryId': categoryId.trim(),
+    },
+  );
+}
+
 void pushOrganizerCategoryShell(
   GoRouter router, {
   required String tournamentId,

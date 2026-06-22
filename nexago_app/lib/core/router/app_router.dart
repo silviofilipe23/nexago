@@ -41,6 +41,7 @@ import '../../features/organizer/presentation/league_stage_create/steps/league_s
 import '../../features/organizer/presentation/league_stage_create/league_stage_published_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_tournament_detail_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_shell_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_tournament_uniforms_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_seeding_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_generate_bracket_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_format_page.dart';
@@ -590,6 +591,23 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     },
                   ),
                 ],
+              ),
+              GoRoute(
+                path: 'uniforms',
+                name: AppRouteNames.organizerTournamentUniforms,
+                builder: (context, state) {
+                  final tournamentId =
+                      state.pathParameters['tournamentId']?.trim() ?? '';
+                  final categoryId =
+                      state.uri.queryParameters['categoryId']?.trim();
+                  return OrganizerTournamentUniformsPage(
+                    tournamentId: tournamentId,
+                    initialCategoryId:
+                        categoryId != null && categoryId.isNotEmpty
+                        ? categoryId
+                        : null,
+                  );
+                },
               ),
               GoRoute(
                 path: 'categories/:categoryId',

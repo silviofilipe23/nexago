@@ -13,7 +13,9 @@ import '../../../data/organizer_tournament_ops_repository.dart';
 import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_providers.dart';
+import '../../../domain/tournament_uniforms/tournament_uniforms_providers.dart';
 import '../../tournament_create/tournament_create_navigation.dart';
+import '../organizer_tournament_navigation.dart';
 
 Future<void> showOrganizerTournamentActionsSheet(
   BuildContext context, {
@@ -67,6 +69,7 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
     final categorySubtitle = categories.isEmpty
         ? '${summary?.categoryCount ?? 0} categorias'
         : '${categories.length} categorias · $totalSpots vagas no total';
+    final hasUniformKit = organizerTournamentHasUniformKit(tournament);
 
     return SafeArea(
       child: ConstrainedBox(
@@ -166,6 +169,19 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
                 );
               },
             ),
+            if (hasUniformKit)
+              _ActionTile(
+                icon: Icons.checkroom_outlined,
+                label: 'Uniformes',
+                subtitle: 'Tamanhos e números por atleta',
+                onTap: () {
+                  Navigator.pop(context);
+                  pushOrganizerTournamentUniforms(
+                    GoRouter.of(context),
+                    tournamentId: tournamentId,
+                  );
+                },
+              ),
             _ActionTile(
               icon: Icons.schedule_rounded,
               label: 'Encerrar inscrições',

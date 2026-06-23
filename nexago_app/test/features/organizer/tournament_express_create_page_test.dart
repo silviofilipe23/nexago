@@ -36,13 +36,13 @@ void main() {
     await pump(tester);
     expect(publishButton(tester).enabled, isFalse);
 
-    // Preenche os textos, mas ainda falta a data → continua desabilitado.
+    // Nome + local preenchidos; cidade/UF (seletor IBGE) e data ainda faltam
+    // → continua desabilitado.
     final fields = find.byType(OrganizerTextField);
     await tester.enterText(fields.at(0), 'Open Goiânia'); // nome
     await tester.enterText(fields.at(1), 'Arena Beach'); // local
-    await tester.enterText(fields.at(2), 'Goiânia'); // cidade
     await tester.pump();
 
-    expect(publishButton(tester).enabled, isFalse); // sem data ainda
+    expect(publishButton(tester).enabled, isFalse); // sem cidade/UF e data
   });
 }

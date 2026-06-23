@@ -22,8 +22,8 @@ class TournamentCreateRegistrationPage extends ConsumerWidget {
     final initial = opens
         ? (draft.registrationOpensAt ?? DateTime.now())
         : (draft.registrationClosesAt ??
-            draft.registrationOpensAt ??
-            DateTime.now());
+              draft.registrationOpensAt ??
+              DateTime.now());
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -32,9 +32,13 @@ class TournamentCreateRegistrationPage extends ConsumerWidget {
     );
     if (picked == null) return;
     if (opens) {
-      ref.read(tournamentCreateWizardProvider.notifier).setRegistrationOpensAt(picked);
+      ref
+          .read(tournamentCreateWizardProvider.notifier)
+          .setRegistrationOpensAt(picked);
     } else {
-      ref.read(tournamentCreateWizardProvider.notifier).setRegistrationClosesAt(picked);
+      ref
+          .read(tournamentCreateWizardProvider.notifier)
+          .setRegistrationClosesAt(picked);
     }
   }
 
@@ -103,14 +107,23 @@ class TournamentCreateRegistrationPage extends ConsumerWidget {
                       ),
                       child: const Text(
                         'taxa 6%',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     )
                   : null,
-              onTap: () =>
-                  ref.read(tournamentCreateWizardProvider.notifier).setPaymentMode(mode),
+              onTap: () => ref
+                  .read(tournamentCreateWizardProvider.notifier)
+                  .setPaymentMode(mode),
             ),
             const SizedBox(height: 10),
+          ],
+          if (draft.paymentMode ==
+              TournamentPaymentMode.directWithOrganizer) ...[
+            const SizedBox(height: 8),
+            const _DirectOrganizerPixFields(),
           ],
           const SizedBox(height: 8),
           const OrganizerSectionLabel('VAGAS'),
@@ -129,7 +142,8 @@ class TournamentCreateRegistrationPage extends ConsumerWidget {
           OrganizerToggleSettingRow(
             icon: Icons.mail_outline_rounded,
             title: 'Confirmar dupla por convite',
-            subtitle: 'Parceiro precisa aceitar antes de confirmar a inscrição.',
+            subtitle:
+                'Parceiro precisa aceitar antes de confirmar a inscrição.',
             value: draft.inviteConfirmEnabled,
             onChanged: (value) => ref
                 .read(tournamentCreateWizardProvider.notifier)
@@ -140,11 +154,130 @@ class TournamentCreateRegistrationPage extends ConsumerWidget {
       footer: OrganizerWizardContinueButton(
         label: 'Continuar',
         enabled: canContinue,
-        onPressed: () => goToNextCreateStep(
-          context,
-          ref,
-          TournamentCreateStep.registration,
+        onPressed: () =>
+            goToNextCreateStep(context, ref, TournamentCreateStep.registration),
+      ),
+    );
+  }
+}
+
+/// Campos PIX do organizador, exibidos quando o modo "pagar direto" é escolhido.
+class _DirectOrganizerPixFields extends ConsumerStatefulWidget {
+  const _DirectOrganizerPixFields();
+
+  @override
+  ConsumerState<_DirectOrganizerPixFields> createState() =>
+      _DirectOrganizerPixFieldsState();
+}
+
+class _DirectOrganizerPixFieldsState
+    extends ConsumerState<_DirectOrganizerPixFields> {
+  late final TextEditingController _keyController;
+  late final TextEditingController _nameController;
+  late final TextEditingController _cityController;
+
+  static const _keyTypes = <(String, String)>[
+    ('', 'Tipo de chave (opcional)'),
+    ('cpf', 'CPF'),
+    ('cnpj', 'CNPJ'),
+    ('email', 'E-mail'),
+    ('phone', 'Telefone'),
+    ('random', 'Chave aleatória'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final draft = ref.read(tournamentCreateDraftProvider);
+    _keyController = TextEditingController(text: draft.organizerPixKey);
+    _nameController =
+        TextEditingController(text: draft.organizerPixRecipientName);
+    _cityController = TextEditingController(text: draft.organizerPixCity);
+  }
+
+  @override
+  void dispose() {
+    _keyController.dispose();
+    _nameController.dispose();
+    _cityController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final notifier = ref.read(tournamentCreateWizardProvider.notifier);
+    final keyType = ref.watch(
+      tournamentCreateDraftProvider.select((d) => d.organizerPixKeyType),
+    );
+    final selectedType =
+        _keyTypes.any((t) => t.$1 == keyType) ? keyType : '';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.themeColors.surfaceCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
         ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const OrganizerSectionLabel('CHAVE PIX DO ORGANIZADOR'),
+          const SizedBox(height: 4),
+          Text(
+            'Mostramos o QR e o copia e cola para o atleta pagar direto com você.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: context.themeColors.onSurfaceMuted,
+                  fontWeight: FontWeight.w500,
+                ),
+          ),
+          const SizedBox(height: 12),
+          OrganizerTextField(
+            controller: _keyController,
+            hintText: 'Chave PIX (CPF, e-mail, telefone, aleatória…)',
+            onChanged: notifier.setOrganizerPixKey,
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: selectedType,
+            isExpanded: true,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: context.themeColors.surfaceCard,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color:
+                      context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
+                ),
+              ),
+            ),
+            items: [
+              for (final type in _keyTypes)
+                DropdownMenuItem(value: type.$1, child: Text(type.$2)),
+            ],
+            onChanged: (value) =>
+                notifier.setOrganizerPixKeyType(value ?? ''),
+          ),
+          const SizedBox(height: 10),
+          OrganizerTextField(
+            controller: _nameController,
+            hintText: 'Nome do recebedor',
+            textCapitalization: TextCapitalization.words,
+            onChanged: notifier.setOrganizerPixRecipientName,
+          ),
+          const SizedBox(height: 10),
+          OrganizerTextField(
+            controller: _cityController,
+            hintText: 'Cidade do recebedor (opcional)',
+            textCapitalization: TextCapitalization.words,
+            onChanged: notifier.setOrganizerPixCity,
+          ),
+        ],
       ),
     );
   }
@@ -167,17 +300,20 @@ class _RegistrationWarning extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.warning_amber_rounded,
-              color: AppColors.pending, size: 18),
+          const Icon(
+            Icons.warning_amber_rounded,
+            color: AppColors.pending,
+            size: 18,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               message,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: context.themeColors.onSurface,
-                    fontWeight: FontWeight.w600,
-                    height: 1.35,
-                  ),
+                color: context.themeColors.onSurface,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
             ),
           ),
         ],

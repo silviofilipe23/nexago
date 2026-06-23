@@ -18,6 +18,7 @@ class BrStateCityFields extends ConsumerStatefulWidget {
     this.stateValidator,
     this.cityValidator,
     this.useEditProfileStyle = false,
+    this.useOrganizerFormStyle = false,
   });
 
   final String? selectedState;
@@ -27,6 +28,7 @@ class BrStateCityFields extends ConsumerStatefulWidget {
   final FormFieldValidator<String>? stateValidator;
   final FormFieldValidator<String>? cityValidator;
   final bool useEditProfileStyle;
+  final bool useOrganizerFormStyle;
 
   @override
   ConsumerState<BrStateCityFields> createState() => _BrStateCityFieldsState();
@@ -54,6 +56,39 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
   void dispose() {
     _cityCtrl.dispose();
     super.dispose();
+  }
+
+  InputDecoration _organizerFormDecoration(
+    BuildContext context, {
+    String? hintText,
+    Widget? suffixIcon,
+  }) {
+    final borderColor =
+        context.themeColors.onSurfaceMuted.withValues(alpha: 0.15);
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide(color: borderColor),
+    );
+
+    return InputDecoration(
+      hintText: hintText,
+      filled: true,
+      fillColor: context.themeColors.surfaceCard,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      border: border,
+      enabledBorder: border,
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
+      ),
+      suffixIcon: suffixIcon,
+    );
+  }
+
+  TextStyle? _organizerFieldTextStyle(BuildContext context) {
+    return Theme.of(context).textTheme.bodyLarge?.copyWith(
+          fontWeight: FontWeight.w600,
+        );
   }
 
   Future<void> _openCitySearch(BrLocationsData data) async {
@@ -123,16 +158,31 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
             DropdownButtonFormField<String>(
               key: ValueKey<String>('uf_$uf'),
               initialValue: stateItem?.sigla,
+              isExpanded: true,
+              style: widget.useOrganizerFormStyle
+                  ? _organizerFieldTextStyle(context)
+                  : null,
               decoration: widget.useEditProfileStyle
                   ? editProfileInputDecoration(
                       context: context,
                       label: 'ESTADO',
                       required: true,
                     )
-                  : const InputDecoration(
-                      labelText: 'Estado',
-                      border: OutlineInputBorder(),
-                    ),
+                  : widget.useOrganizerFormStyle
+                      ? _organizerFormDecoration(context)
+                      : const InputDecoration(
+                          labelText: 'Estado',
+                          border: OutlineInputBorder(),
+                        ),
+              hint: widget.useOrganizerFormStyle
+                  ? Text(
+                      'Selecione o estado',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: context.themeColors.onSurfaceMuted,
+                          ),
+                    )
+                  : null,
               items: BrLocationsData.states
                   .map(
                     (s) => DropdownMenuItem(
@@ -157,6 +207,9 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
             TextFormField(
               controller: _cityCtrl,
               readOnly: true,
+              style: widget.useOrganizerFormStyle
+                  ? _organizerFieldTextStyle(context)
+                  : null,
               onTap: () => _openCitySearch(data),
               decoration: widget.useEditProfileStyle
                   ? editProfileInputDecoration(
@@ -169,28 +222,46 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
                         Icons.location_on_outlined,
                         size: 20,
                         color: uf == null
-                            ? context.themeColors.onSurfaceMuted.withValues(alpha: 0.4)
+                            ? context.themeColors.onSurfaceMuted
+                                .withValues(alpha: 0.4)
                             : context.themeColors.onSurfaceMuted,
                       ),
                       suffixIcon: Icon(
                         Icons.search_rounded,
                         color: uf == null
-                            ? context.themeColors.onSurfaceMuted.withValues(alpha: 0.4)
+                            ? context.themeColors.onSurfaceMuted
+                                .withValues(alpha: 0.4)
                             : AppColors.brand,
                       ),
                     )
-                  : InputDecoration(
-                      labelText: 'Cidade',
-                      hintText:
-                          uf == null ? 'Selecione o estado' : 'Buscar cidade',
-                      border: const OutlineInputBorder(),
-                      suffixIcon: Icon(
-                        Icons.search_rounded,
-                        color: uf == null
-                            ? context.themeColors.onSurfaceMuted.withValues(alpha: 0.4)
-                            : AppColors.brand,
-                      ),
-                    ),
+                  : widget.useOrganizerFormStyle
+                      ? _organizerFormDecoration(
+                          context,
+                          hintText: uf == null
+                              ? 'Selecione o estado'
+                              : 'Buscar cidade',
+                          suffixIcon: Icon(
+                            Icons.search_rounded,
+                            color: uf == null
+                                ? context.themeColors.onSurfaceMuted
+                                    .withValues(alpha: 0.4)
+                                : AppColors.brand,
+                          ),
+                        )
+                      : InputDecoration(
+                          labelText: 'Cidade',
+                          hintText: uf == null
+                              ? 'Selecione o estado'
+                              : 'Buscar cidade',
+                          border: const OutlineInputBorder(),
+                          suffixIcon: Icon(
+                            Icons.search_rounded,
+                            color: uf == null
+                                ? context.themeColors.onSurfaceMuted
+                                    .withValues(alpha: 0.4)
+                                : AppColors.brand,
+                          ),
+                        ),
               validator: widget.cityValidator ??
                   (v) {
                     if (v == null || v.trim().isEmpty) {

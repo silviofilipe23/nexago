@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../domain/tournament_ops/tournament_ops_logic.dart';
@@ -19,10 +20,7 @@ import 'widgets/organizer_tournament_detail_tabs.dart';
 import 'widgets/organizer_tournament_header.dart';
 
 class OrganizerTournamentDetailPage extends ConsumerStatefulWidget {
-  const OrganizerTournamentDetailPage({
-    super.key,
-    required this.tournamentId,
-  });
+  const OrganizerTournamentDetailPage({super.key, required this.tournamentId});
 
   final String tournamentId;
 
@@ -62,15 +60,49 @@ class _OrganizerTournamentDetailPageState
   @override
   Widget build(BuildContext context) {
     final tournamentId = widget.tournamentId;
-    final detailAsync = ref.watch(organizerTournamentDetailProvider(tournamentId));
+    final detailAsync = ref.watch(
+      organizerTournamentDetailProvider(tournamentId),
+    );
     final selectedTab = ref.watch(organizerTournamentDetailTabProvider);
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       appBar: NexaAppBar(
+        forceMaterial: true,
         backgroundColor: context.themeColors.canvas,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
+        centerTitle: false,
+        toolbarHeight: 64,
+        titleSpacing: 8,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'TORNEIO · GERENCIAR',
+              style: AppTypography.mono(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: AppColors.brand,
+                letterSpacing: 0.8,
+              ),
+            ),
+            Text(
+              detailAsync.valueOrNull?.summary?.name ?? '',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: context.themeColors.onSurface,
+                letterSpacing: -0.3,
+                height: 1.1,
+              ),
+            ),
+          ],
+        ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.pop(),
@@ -81,12 +113,12 @@ class _OrganizerTournamentDetailPageState
             onPressed: detailAsync.valueOrNull?.tournament == null
                 ? null
                 : () => showOrganizerTournamentActionsSheet(
-                      context,
-                      tournamentId: tournamentId,
-                      tournament: detailAsync.value!.tournament!,
-                      summary: detailAsync.value!.summary,
-                      categories: detailAsync.value!.categories,
-                    ),
+                    context,
+                    tournamentId: tournamentId,
+                    tournament: detailAsync.value!.tournament!,
+                    summary: detailAsync.value!.summary,
+                    categories: detailAsync.value!.categories,
+                  ),
           ),
         ],
       ),
@@ -99,6 +131,10 @@ class _OrganizerTournamentDetailPageState
           }
           final summary = state.summary!;
           final tournament = state.tournament!;
+          final tournamentStartAt = _toDate(tournament['startAt']);
+          final showMatchDayButton = organizerTournamentMatchDayVisible(
+            startAt: tournamentStartAt,
+          );
           _maybeApplySmartDefaultTab(tournament);
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -137,24 +173,26 @@ class _OrganizerTournamentDetailPageState
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () => context.push(
-                          organizerMatchCenterPath(tournamentId),
-                        ),
-                        icon: const Icon(
-                          Icons.sports_volleyball_rounded,
-                          size: 18,
-                        ),
-                        label: const Text('Dia do jogo'),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: context.themeColors.surfaceRaised,
-                          foregroundColor: context.themeColors.onSurface,
-                          minimumSize: const Size.fromHeight(44),
+                    if (showMatchDayButton) ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () => context.push(
+                            organizerMatchCenterPath(tournamentId),
+                          ),
+                          icon: const Icon(
+                            Icons.sports_volleyball_rounded,
+                            size: 18,
+                          ),
+                          label: const Text('Dia do jogo'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: context.themeColors.surfaceRaised,
+                            foregroundColor: context.themeColors.onSurface,
+                            minimumSize: const Size.fromHeight(44),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -176,6 +214,7 @@ class _OrganizerTournamentDetailPageState
                     OrganizerTournamentCategoriesTab(
                       categories: state.categories,
                       tournamentId: tournamentId,
+                      tournamentStartAt: tournamentStartAt,
                     ),
                     OrganizerTournamentOverviewTab(
                       summary: summary,
@@ -185,9 +224,7 @@ class _OrganizerTournamentDetailPageState
                       summary: summary,
                       categories: state.categories,
                     ),
-                    OrganizerTournamentMatchesTab(
-                      tournamentId: tournamentId,
-                    ),
+                    OrganizerTournamentMatchesTab(tournamentId: tournamentId),
                   ],
                 ),
               ),
@@ -198,24 +235,29 @@ class _OrganizerTournamentDetailPageState
       bottomNavigationBar: detailAsync.valueOrNull?.summary == null
           ? null
           : SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-          child: FilledButton.icon(
-            // Atalho direto para a grade de agendamento (1 toque do detalhe),
-            // sem passar pela Central. O "Compartilhar" duplicado saiu daqui —
-            // já existe no topo.
-            onPressed: () =>
-                context.push(organizerMatchSchedulePath(tournamentId)),
-            icon: const Icon(Icons.calendar_month_rounded, size: 18),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.brand,
-              foregroundColor: AppColors.black,
-              minimumSize: const Size.fromHeight(48),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: FilledButton.icon(
+                  onPressed: organizerTournamentDayScheduleEnabled(
+                    detailAsync.valueOrNull?.categories ?? const [],
+                  )
+                      ? () => context.push(
+                            organizerMatchSchedulePath(tournamentId),
+                          )
+                      : null,
+                  icon: const Icon(Icons.calendar_month_rounded, size: 18),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: AppColors.black,
+                    disabledBackgroundColor: context.themeColors.surfaceRaised,
+                    disabledForegroundColor:
+                        context.themeColors.onSurfaceMuted,
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                  label: const Text('Programação do dia'),
+                ),
+              ),
             ),
-            label: const Text('Programação do dia'),
-          ),
-        ),
-      ),
     );
   }
 }

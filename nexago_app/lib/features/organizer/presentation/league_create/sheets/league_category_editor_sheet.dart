@@ -45,7 +45,8 @@ class _LeagueCategoryEditorSheetState
   void initState() {
     super.initState();
     final draft = ref.read(leagueCreateDraftProvider);
-    _category = widget.existing ??
+    _category =
+        widget.existing ??
         TournamentCategoryDraft(
           id: DateTime.now().microsecondsSinceEpoch.toString(),
           priceCents: draft.defaultPriceCents,
@@ -98,13 +99,14 @@ class _LeagueCategoryEditorSheetState
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color:
-                      context.themeColors.onSurfaceMuted.withValues(alpha: 0.3),
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.3,
+                  ),
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 32),
             Row(
               children: [
                 Expanded(
@@ -113,8 +115,8 @@ class _LeagueCategoryEditorSheetState
                         ? 'Nova categoria'
                         : 'Editar categoria',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -127,8 +129,8 @@ class _LeagueCategoryEditorSheetState
             Text(
               'Herdada por todas as etapas do circuito.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: context.themeColors.onSurfaceMuted,
-                  ),
+                color: context.themeColors.onSurfaceMuted,
+              ),
             ),
             const SizedBox(height: 16),
             const OrganizerSectionLabel('NOME DA CATEGORIA'),
@@ -156,8 +158,9 @@ class _LeagueCategoryEditorSheetState
                 color: context.themeColors.surfaceRaised,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color:
-                      context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.15,
+                  ),
                 ),
               ),
               child: Row(
@@ -165,15 +168,15 @@ class _LeagueCategoryEditorSheetState
                   Text(
                     categoryDisputeLabel(TournamentCategoryDispute.dupla),
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const Spacer(),
                   Text(
                     'Fixo em duplas',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: context.themeColors.onSurfaceMuted,
-                        ),
+                      color: context.themeColors.onSurfaceMuted,
+                    ),
                   ),
                 ],
               ),
@@ -182,16 +185,19 @@ class _LeagueCategoryEditorSheetState
             const OrganizerSectionLabel('FAIXA ETÁRIA'),
             const SizedBox(height: 8),
             OrganizerChipSelector(
+              horizontalScroll: true,
               options: TournamentAgeBand.values,
               selected: _category.ageBand,
               labelBuilder: ageBandLabel,
-              onSelected: (value) =>
-                  setState(() => _category = _category.copyWith(ageBand: value)),
+              onSelected: (value) => setState(
+                () => _category = _category.copyWith(ageBand: value),
+              ),
             ),
             const SizedBox(height: 16),
             const OrganizerSectionLabel('NÍVEL'),
             const SizedBox(height: 8),
             OrganizerChipSelector(
+              horizontalScroll: true,
               options: TournamentSkillLevel.values,
               selected: _category.skillLevel,
               labelBuilder: skillLevelLabel,
@@ -209,12 +215,15 @@ class _LeagueCategoryEditorSheetState
               ),
               onTeamsPerGroupChanged: (value) {
                 if (value < 2) return;
-                setState(() => _category = _category.copyWith(teamsPerGroup: value));
+                setState(
+                  () => _category = _category.copyWith(teamsPerGroup: value),
+                );
               },
               onQualifiersPerGroupChanged: (value) {
                 if (value < 1) return;
                 setState(
-                  () => _category = _category.copyWith(qualifiersPerGroup: value),
+                  () =>
+                      _category = _category.copyWith(qualifiersPerGroup: value),
                 );
               },
             ),
@@ -225,10 +234,12 @@ class _LeagueCategoryEditorSheetState
               valueLabel: spotsUnitLabel(_category.dispute, _category.spots),
               minReached: _category.spots <= 2,
               onDecrement: () => setState(
-                () => _category = _category.copyWith(spots: _category.spots - 1),
+                () =>
+                    _category = _category.copyWith(spots: _category.spots - 1),
               ),
               onIncrement: () => setState(
-                () => _category = _category.copyWith(spots: _category.spots + 1),
+                () =>
+                    _category = _category.copyWith(spots: _category.spots + 1),
               ),
             ),
             const SizedBox(height: 12),
@@ -242,7 +253,9 @@ class _LeagueCategoryEditorSheetState
                 setState(
                   () => _category = _category.copyWith(
                     useDefaultPrice: value,
-                    priceCents: value ? draft.defaultPriceCents : _category.priceCents,
+                    priceCents: value
+                        ? draft.defaultPriceCents
+                        : _category.priceCents,
                   ),
                 );
               },
@@ -254,12 +267,14 @@ class _LeagueCategoryEditorSheetState
                 hintText: '180',
                 keyboardType: TextInputType.number,
                 onChanged: (value) {
-                  final parsed =
-                      int.tryParse(value.replaceAll(RegExp(r'[^0-9]'), ''));
+                  final parsed = int.tryParse(
+                    value.replaceAll(RegExp(r'[^0-9]'), ''),
+                  );
                   if (parsed != null) {
                     setState(
-                      () => _category =
-                          _category.copyWith(priceCents: parsed * 100),
+                      () => _category = _category.copyWith(
+                        priceCents: parsed * 100,
+                      ),
                     );
                   }
                 },

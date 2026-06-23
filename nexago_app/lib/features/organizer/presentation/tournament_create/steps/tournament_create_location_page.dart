@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../athlete/presentation/widgets/br_state_city_fields.dart';
 import '../../../domain/tournament_create/organizer_arenas_provider.dart';
 import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
@@ -21,8 +21,6 @@ class TournamentCreateLocationPage extends ConsumerStatefulWidget {
 class _TournamentCreateLocationPageState
     extends ConsumerState<TournamentCreateLocationPage> {
   late final TextEditingController _venueController;
-  late final TextEditingController _cityController;
-  late final TextEditingController _stateController;
   late final TextEditingController _addressController;
 
   @override
@@ -30,33 +28,49 @@ class _TournamentCreateLocationPageState
     super.initState();
     final draft = ref.read(tournamentCreateDraftProvider);
     _venueController = TextEditingController(text: draft.locationName);
-    _cityController = TextEditingController(text: draft.city);
-    _stateController = TextEditingController(text: draft.state);
     _addressController = TextEditingController(text: draft.locationAddress);
   }
 
   @override
   void dispose() {
     _venueController.dispose();
-    _cityController.dispose();
-    _stateController.dispose();
     _addressController.dispose();
     super.dispose();
   }
 
+  /// Reaplica nome/endereço mantendo cidade/UF já definidos no draft.
   void _applyManual() {
+    final draft = ref.read(tournamentCreateDraftProvider);
     ref.read(tournamentCreateWizardProvider.notifier).setLocationManual(
           locationName: _venueController.text.trim(),
           address: _addressController.text.trim(),
-          city: _cityController.text.trim(),
-          stateCode: _stateController.text.trim(),
+          city: draft.city,
+          stateCode: draft.state,
+        );
+  }
+
+  void _setStateManual(String? uf) {
+    // Trocar a UF limpa a cidade (lista muda) — espelha o BrStateCityFields.
+    ref.read(tournamentCreateWizardProvider.notifier).setLocationManual(
+          locationName: _venueController.text.trim(),
+          address: _addressController.text.trim(),
+          city: '',
+          stateCode: (uf ?? '').trim().toUpperCase(),
+        );
+  }
+
+  void _setCityManual(String? city) {
+    final draft = ref.read(tournamentCreateDraftProvider);
+    ref.read(tournamentCreateWizardProvider.notifier).setLocationManual(
+          locationName: _venueController.text.trim(),
+          address: _addressController.text.trim(),
+          city: (city ?? '').trim(),
+          stateCode: draft.state,
         );
   }
 
   void _applyArena(OrganizerArenaOption arena) {
     _venueController.text = arena.name;
-    _cityController.text = arena.city;
-    _stateController.text = arena.state;
     _addressController.text = arena.address;
     ref.read(tournamentCreateWizardProvider.notifier).setArena(
           arenaId: arena.id,
@@ -173,47 +187,14 @@ class _TournamentCreateLocationPageState
             onChanged: (_) => _applyManual(),
           ),
           const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 3,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const OrganizerSectionLabel('CIDADE'),
-                    const SizedBox(height: 8),
-                    OrganizerTextField(
-                      controller: _cityController,
-                      hintText: 'Goiânia',
-                      onChanged: (_) => _applyManual(),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 1,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const OrganizerSectionLabel('UF'),
-                    const SizedBox(height: 8),
-                    OrganizerTextField(
-                      controller: _stateController,
-                      hintText: 'GO',
-                      textCapitalization: TextCapitalization.characters,
-                      maxLength: 2,
-                      inputFormatters: [
-                        UpperCaseTextFormatter(),
-                        FilteringTextInputFormatter.allow(RegExp('[A-Za-z]')),
-                      ],
-                      onChanged: (_) => _applyManual(),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          const OrganizerSectionLabel('ESTADO E CIDADE'),
+          const SizedBox(height: 8),
+          BrStateCityFields(
+            useOrganizerFormStyle: true,
+            selectedState: draft.state.trim().isEmpty ? null : draft.state,
+            selectedCity: draft.city.trim().isEmpty ? null : draft.city,
+            onStateChanged: _setStateManual,
+            onCityChanged: _setCityManual,
           ),
           const SizedBox(height: 16),
           const OrganizerSectionLabel('ENDEREÇO', optional: true),
@@ -289,16 +270,5 @@ class _TournamentCreateLocationPageState
       if (arena.id == arenaId) return arena;
     }
     return null;
-  }
-}
-
-/// Formata o texto digitado em maiúsculas (usado na UF).
-class UpperCaseTextFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    return newValue.copyWith(text: newValue.text.toUpperCase());
   }
 }

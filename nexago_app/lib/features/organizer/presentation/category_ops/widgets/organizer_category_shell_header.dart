@@ -94,33 +94,33 @@ class OrganizerCategoryShellHeader extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Text(
-                '${category.paidCount}/${category.maxTeams} confirmadas',
-                style: AppTypography.mono(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: context.themeColors.onSurfaceMuted,
-                ),
-              ),
-              const Spacer(),
-              if (category.isFull) _LotadoBadge(),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: category.fillRatio,
-              minHeight: 6,
-              backgroundColor: context.themeColors.onSurfaceMuted.withValues(
-                alpha: 0.12,
-              ),
-              color: progressColor,
-            ),
-          ),
+          // const SizedBox(height: 14),
+          // Row(
+          //   children: [
+          //     Text(
+          //       '${category.paidCount}/${category.maxTeams} confirmadas',
+          //       style: AppTypography.mono(
+          //         fontSize: 11,
+          //         fontWeight: FontWeight.w700,
+          //         color: context.themeColors.onSurfaceMuted,
+          //       ),
+          //     ),
+          //     const Spacer(),
+          //     if (category.isFull) _LotadoBadge(),
+          //   ],
+          // ),
+          // const SizedBox(height: 8),
+          // ClipRRect(
+          //   borderRadius: BorderRadius.circular(4),
+          //   child: LinearProgressIndicator(
+          //     value: category.fillRatio,
+          //     minHeight: 6,
+          //     backgroundColor: context.themeColors.onSurfaceMuted.withValues(
+          //       alpha: 0.12,
+          //     ),
+          //     color: progressColor,
+          //   ),
+          // ),
         ],
       ),
     );

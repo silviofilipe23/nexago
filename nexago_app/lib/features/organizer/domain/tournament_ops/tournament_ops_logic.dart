@@ -30,6 +30,40 @@ OrganizerTournamentDetailTab defaultOrganizerDetailTab({
       : OrganizerTournamentDetailTab.categories;
 }
 
+/// Habilita atalhos de programação do dia quando ao menos uma categoria já
+/// iniciou (chave publicada e partidas geradas).
+bool organizerTournamentDayScheduleEnabled(
+  List<OrganizerTournamentCategorySummary> categories,
+) =>
+    categories.any(
+      (c) => c.bracketStatus == OrganizerCategoryBracketStatus.published,
+    );
+
+/// Novas categorias só podem ser criadas até o dia anterior ao início do
+/// torneio (a partir do dia de início, o prazo encerra).
+bool organizerCanAddTournamentCategory({
+  required DateTime? startAt,
+  DateTime? now,
+}) {
+  final start = startAt;
+  if (start == null) return true;
+  final clock = now ?? DateTime.now();
+  final tournamentDayStart = DateTime(start.year, start.month, start.day);
+  return clock.isBefore(tournamentDayStart);
+}
+
+/// Atalho "Dia do jogo" só aparece no dia do torneio ou depois que ele começou.
+bool organizerTournamentMatchDayVisible({
+  required DateTime? startAt,
+  DateTime? now,
+}) {
+  final start = startAt;
+  if (start == null) return false;
+  final clock = now ?? DateTime.now();
+  final tournamentDayStart = DateTime(start.year, start.month, start.day);
+  return !clock.isBefore(tournamentDayStart);
+}
+
 String organizerTournamentRegistrationShareLink(String tournamentId) =>
     'nexago:///torneios/$tournamentId/inscricao';
 

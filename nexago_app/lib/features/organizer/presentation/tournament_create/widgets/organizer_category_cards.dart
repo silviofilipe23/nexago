@@ -11,12 +11,14 @@ class OrganizerCategoryCard extends StatelessWidget {
     required this.category,
     required this.formatLabel,
     required this.onEdit,
+    this.onRemove,
     this.extraBadge,
   });
 
   final TournamentCategoryDraft category;
   final String formatLabel;
   final VoidCallback onEdit;
+  final VoidCallback? onRemove;
   final String? extraBadge;
 
   @override
@@ -107,6 +109,26 @@ class OrganizerCategoryCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onRemove != null) ...[
+                const SizedBox(width: 6),
+                Material(
+                  color: context.themeColors.surfaceRaised,
+                  borderRadius: BorderRadius.circular(10),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: onRemove,
+                    child: const SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Icon(
+                        Icons.delete_outline_rounded,
+                        size: 18,
+                        color: AppColors.live,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 14),

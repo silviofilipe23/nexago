@@ -8,6 +8,7 @@ import {
 import * as logger from "firebase-functions/logger";
 import {assertCanRegisterInTournament} from "./athlete-tournament-access";
 import {assertTeamLevelEligibility} from "./category-level-eligibility";
+import {assertTeamAgeEligibility} from "./category-age-eligibility";
 import {deliverNotificationToUser} from "./notification-delivery";
 import {
   assertTournamentAcceptsRegistration,
@@ -363,6 +364,12 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
     category,
     uids: [uid, inviteeUid],
   });
+  await assertTeamAgeEligibility({
+    db,
+    tournament,
+    category,
+    uids: [uid, inviteeUid],
+  });
 
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
 
@@ -428,15 +435,21 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
   await ref.set(inviteData);
 
   try {
+    const tournamentName = String(tournament.name ?? "").trim();
+    const categoryLabel = category.categoryName;
+    const body = `Aceite o convite para competir na categoria ${categoryLabel} da ${tournamentName}.`
+    const title = `${inviterName} quer jogar com você`
+
     await deliverNotificationToUser({
       userId: inviteeUid,
-      title: "Convite para torneio",
-      body: `${inviterName} te convidou para formar dupla · ${categoryId}`,
+      title: title,
+      body,
       type: "tournament_partner_invite",
       data: {
         inviteId: ref.id,
         tournamentId,
         categoryId,
+        categoryName: categoryLabel,
         inviterUid: uid,
       },
     });
@@ -504,6 +517,12 @@ export const registerSoloTournament = onCall(async (request) => {
   }
 
   await assertTeamLevelEligibility({
+    db,
+    tournament,
+    category,
+    uids: [uid],
+  });
+  await assertTeamAgeEligibility({
     db,
     tournament,
     category,
@@ -613,6 +632,12 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
     category: previewCategory,
     uids: [invitePreviewData.inviterUid as string | undefined, uid],
   });
+  await assertTeamAgeEligibility({
+    db,
+    tournament: previewTournament,
+    category: previewCategory,
+    uids: [invitePreviewData.inviterUid as string | undefined, uid],
+  });
   validateUniformPayload(
     previewCategory,
     inviteeUniform,
@@ -678,6 +703,11 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
         partnerPending: false,
         updatedAt: FieldValue.serverTimestamp(),
       };
+      // Inscrição já paga pelo solo (pagou o total) → parceiro entra sem taxa;
+      // registra o parceiro como quitado para manter o estado consistente.
+      if (existingRegSnap.data()?.isPaid === true) {
+        attachUpdate.sharePaidUids = FieldValue.arrayUnion(uid);
+      }
       if (inviteeUniform) {
         Object.assign(attachUpdate, registrationUniformPlayer2(inviteeUniform));
       }

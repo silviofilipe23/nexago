@@ -9,11 +9,15 @@ class TournamentRegistrationSoloInviteCard extends StatelessWidget {
     required this.onInvitePartner,
     this.pendingPartnerName,
     this.onTrackInvite,
+    this.partnerJoinsFree = false,
   });
 
   final VoidCallback onInvitePartner;
   final String? pendingPartnerName;
   final VoidCallback? onTrackInvite;
+
+  /// Inscrição já paga (total): o parceiro convidado entra sem taxa.
+  final bool partnerJoinsFree;
 
   bool get _hasPendingInvite {
     final name = pendingPartnerName?.trim() ?? '';
@@ -130,7 +134,11 @@ class TournamentRegistrationSoloInviteCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Sua vaga está garantida. Escolha quem vai jogar com você.',
+                      partnerJoinsFree
+                          ? 'Você pagou o total. Escolha seu parceiro — ele '
+                                'entra sem taxa.'
+                          : 'Sua vaga está garantida. Escolha quem vai jogar '
+                                'com você.',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colors.onSurfaceMuted,
                         height: 1.3,

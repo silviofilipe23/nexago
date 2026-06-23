@@ -5,9 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/router/routes.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../domain/tournament_create/tournament_create_draft.dart';
+import '../../domain/tournament_create/tournament_create_logic.dart';
 import '../../domain/tournament_create/tournament_create_providers.dart';
+import '../widgets/organizer_wizard_exit_dialog.dart';
 
-enum WizardCloseAction { keepEditing, exit, discard }
+export '../widgets/organizer_wizard_exit_dialog.dart' show WizardCloseAction;
 
 TournamentCreateStep? nextCreateStep(TournamentCreateStep step) {
   final index = step.index + 1;
@@ -74,35 +76,23 @@ void goToNextCreateStep(
   context.pushNamed(routeNameForCreateStep(next));
 }
 
-Future<WizardCloseAction?> confirmExitWizard(BuildContext context) {
-  return showDialog<WizardCloseAction>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Sair do cadastro?'),
-      content: const Text(
-        'Você pode continuar depois de onde parou. Para apagar tudo, escolha descartar.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () =>
-              Navigator.of(context).pop(WizardCloseAction.keepEditing),
-          child: const Text('Continuar editando'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(WizardCloseAction.exit),
-          child: const Text('Sair'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(WizardCloseAction.discard),
-          child: const Text('Descartar'),
-        ),
-      ],
-    ),
-  );
+Future<WizardCloseAction?> confirmExitWizard(
+  BuildContext context, {
+  WizardExitDialogConfig? config,
+}) {
+  return showOrganizerWizardExitDialog(context, config: config);
 }
 
 Future<void> handleWizardClose(BuildContext context, WidgetRef ref) async {
-  final action = await confirmExitWizard(context);
+  final draft = ref.read(tournamentCreateDraftProvider);
+  final categoryCount = draft.categories.length;
+  final action = await confirmExitWizard(
+    context,
+    config: WizardExitDialogConfig(
+      categoryHighlight: tournamentWizardExitCategoryHighlight(categoryCount),
+      discardSubtitle: tournamentWizardDiscardSubtitle(categoryCount),
+    ),
+  );
   if (!context.mounted) return;
 
   switch (action) {

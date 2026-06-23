@@ -110,7 +110,7 @@ class _PrizeTotalCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                '$categoriesCount ${categoriesCount == 1 ? 'categoria' : 'categorias'}',
+                '$categoriesCount ${categoriesCount == 1 ? 'CATEGORIA' : 'CATEGORIAS'}',
                 style: AppTypography.soraRegular(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,

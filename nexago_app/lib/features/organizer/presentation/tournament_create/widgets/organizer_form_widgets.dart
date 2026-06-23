@@ -250,6 +250,7 @@ class OrganizerChipSelector<T> extends StatelessWidget {
     required this.labelBuilder,
     required this.onSelected,
     this.multiSelect = false,
+    this.horizontalScroll = false,
   });
 
   final List<T> options;
@@ -257,57 +258,74 @@ class OrganizerChipSelector<T> extends StatelessWidget {
   final String Function(T value) labelBuilder;
   final ValueChanged<T> onSelected;
   final bool multiSelect;
+  final bool horizontalScroll;
+
+  Widget _buildChip(BuildContext context, T option) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onSelected(option),
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected == option
+                  ? AppColors.brand
+                  : context.themeColors.onSurfaceMuted.withValues(alpha: 0.25),
+              width: selected == option ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (selected == option) ...[
+                const Icon(
+                  Icons.check_rounded,
+                  size: 16,
+                  color: AppColors.brand,
+                ),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                labelBuilder(option),
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: selected == option
+                          ? context.themeColors.onSurface
+                          : context.themeColors.onSurfaceMuted,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (horizontalScroll) {
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        clipBehavior: Clip.none,
+        child: Row(
+          children: [
+            for (var i = 0; i < options.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              _buildChip(context, options[i]),
+            ],
+          ],
+        ),
+      );
+    }
+
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
-        for (final option in options)
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => onSelected(option),
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: selected == option
-                        ? AppColors.brand
-                        : context.themeColors.onSurfaceMuted
-                            .withValues(alpha: 0.25),
-                    width: selected == option ? 1.5 : 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (selected == option) ...[
-                      const Icon(
-                        Icons.check_rounded,
-                        size: 16,
-                        color: AppColors.brand,
-                      ),
-                      const SizedBox(width: 4),
-                    ],
-                    Text(
-                      labelBuilder(option),
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: selected == option
-                                ? context.themeColors.onSurface
-                                : context.themeColors.onSurfaceMuted,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+        for (final option in options) _buildChip(context, option),
       ],
     );
   }

@@ -16,10 +16,7 @@ void main() {
     test('formats hours and minutes remaining', () {
       final now = DateTime(2026, 5, 27, 12);
       final expires = now.add(const Duration(hours: 23, minutes: 47));
-      expect(
-        tournamentInviteExpiryLabel(expires, now),
-        'expira em 23h 47min',
-      );
+      expect(tournamentInviteExpiryLabel(expires, now), 'expira em 23h 47min');
     });
   });
 
@@ -101,6 +98,80 @@ void main() {
     });
   });
 
+  group('registrationPaidAwaitingPartner', () {
+    test('true quando pago e ainda sem parceiro (solo pagou total)', () {
+      expect(
+        registrationPaidAwaitingPartner(
+          snap: const TournamentRegistrationSnapshot(
+            registrationId: 'reg-1',
+            isPaid: true,
+            paidAmount: 160,
+            partnerPending: true,
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('false quando já tem parceiro', () {
+      expect(
+        registrationPaidAwaitingPartner(
+          snap: const TournamentRegistrationSnapshot(
+            registrationId: 'reg-1',
+            isPaid: true,
+            paidAmount: 160,
+            partnerPending: false,
+          ),
+        ),
+        isFalse,
+      );
+    });
+
+    test('false quando não pago', () {
+      expect(
+        registrationPaidAwaitingPartner(
+          snap: const TournamentRegistrationSnapshot(
+            registrationId: 'reg-1',
+            isPaid: false,
+            paidAmount: 0,
+            partnerPending: true,
+          ),
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('registrationSuccessNavigationAction — gate por partnerPending', () {
+    test('não navega para sucesso enquanto aguarda parceiro grátis', () {
+      expect(
+        registrationSuccessNavigationAction(
+          isPaid: true,
+          wasPaid: false,
+          hasPreviousSnapshot: true,
+          seenUnpaid: true,
+          alreadyHandled: false,
+          partnerPending: true,
+        ),
+        RegistrationSuccessNavigationAction.ignore,
+      );
+    });
+
+    test('navega quando pago e dupla completa', () {
+      expect(
+        registrationSuccessNavigationAction(
+          isPaid: true,
+          wasPaid: false,
+          hasPreviousSnapshot: true,
+          seenUnpaid: true,
+          alreadyHandled: false,
+          partnerPending: false,
+        ),
+        RegistrationSuccessNavigationAction.navigate,
+      );
+    });
+  });
+
   group('categoryBadgeLabel', () {
     test('uses level when available', () {
       const offer = TournamentCategoryOffer(
@@ -136,10 +207,7 @@ void main() {
       );
 
       expect(
-        categoryRegistrationSubtitle(
-          offer,
-          format: TournamentFormat.dupla,
-        ),
+        categoryRegistrationSubtitle(offer, format: TournamentFormat.dupla),
         'Masculino · 8 duplas · 5/8 inscritas',
       );
     });
@@ -298,10 +366,22 @@ void main() {
 
   group('registrationStepShowsHero', () {
     test('hides hero on partner, waiting and uniform; shows on category', () {
-      expect(registrationStepShowsHero(TournamentRegistrationStep.partner), isFalse);
-      expect(registrationStepShowsHero(TournamentRegistrationStep.waiting), isFalse);
-      expect(registrationStepShowsHero(TournamentRegistrationStep.uniform), isFalse);
-      expect(registrationStepShowsHero(TournamentRegistrationStep.category), isTrue);
+      expect(
+        registrationStepShowsHero(TournamentRegistrationStep.partner),
+        isFalse,
+      );
+      expect(
+        registrationStepShowsHero(TournamentRegistrationStep.waiting),
+        isFalse,
+      );
+      expect(
+        registrationStepShowsHero(TournamentRegistrationStep.uniform),
+        isFalse,
+      );
+      expect(
+        registrationStepShowsHero(TournamentRegistrationStep.category),
+        isTrue,
+      );
     });
   });
 
@@ -341,10 +421,7 @@ void main() {
         isTrue,
       );
       expect(
-        currentAthleteSharePaid(
-          sharePaidUids: const ['a'],
-          athleteUid: 'b',
-        ),
+        currentAthleteSharePaid(sharePaidUids: const ['a'], athleteUid: 'b'),
         isFalse,
       );
     });
@@ -528,11 +605,7 @@ void main() {
         entryFee: 90,
         genderType: 'Misto',
       );
-      const open = TournamentCategoryOffer(
-        id: 'o',
-        name: 'Open',
-        entryFee: 90,
-      );
+      const open = TournamentCategoryOffer(id: 'o', name: 'Open', entryFee: 90);
 
       expect(athleteMatchesCategoryGender(mixed, null), isTrue);
       expect(athleteMatchesCategoryGender(mixed, 'Feminino'), isTrue);
@@ -603,10 +676,7 @@ void main() {
       final tournament = tournamentWithMode(
         TournamentPaymentMode.directWithOrganizer,
       );
-      expect(
-        registrationRequiresAppPayment(quote, tournament),
-        isFalse,
-      );
+      expect(registrationRequiresAppPayment(quote, tournament), isFalse);
       expect(tournamentUsesDirectOrganizerPayment(tournament), isTrue);
     });
 

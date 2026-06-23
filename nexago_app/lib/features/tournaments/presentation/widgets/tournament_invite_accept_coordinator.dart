@@ -83,6 +83,7 @@ class _TournamentInviteAcceptCoordinatorState
           hasPreviousSnapshot: previous?.valueOrNull != null,
           seenUnpaid: _seenUnpaidRegistrationIds.contains(regId),
           alreadyHandled: false,
+          partnerPending: next.valueOrNull?.partnerPending == true,
         );
 
         switch (action) {

@@ -9,7 +9,6 @@ import 'package:nexago_app/core/ui/app_snackbar.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_models.dart';
-import '../../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../organizer_tournament_navigation.dart';
 import '../widgets/organizer_tournament_category_card.dart';
 
@@ -18,13 +17,19 @@ class OrganizerTournamentCategoriesTab extends StatelessWidget {
     super.key,
     required this.categories,
     required this.tournamentId,
+    this.tournamentStartAt,
   });
 
   final List<OrganizerTournamentCategorySummary> categories;
   final String tournamentId;
+  final DateTime? tournamentStartAt;
 
   @override
   Widget build(BuildContext context) {
+    final canAddCategory = organizerCanAddTournamentCategory(
+      startAt: tournamentStartAt,
+    );
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
       children: [
@@ -42,9 +47,11 @@ class OrganizerTournamentCategoriesTab extends StatelessWidget {
               ),
             ),
             TextButton(
-              onPressed: () => context.pushNamed(
-                AppRouteNames.organizerTournamentCreateCategories,
-              ),
+              onPressed: canAddCategory
+                  ? () => context.pushNamed(
+                        AppRouteNames.organizerTournamentCreateCategories,
+                      )
+                  : null,
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.brand,
                 padding: EdgeInsets.zero,
@@ -56,7 +63,9 @@ class OrganizerTournamentCategoriesTab extends StatelessWidget {
                 style: AppTypography.mono(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.brand,
+                  color: canAddCategory
+                      ? AppColors.brand
+                      : context.themeColors.onSurfaceMuted,
                 ),
               ),
             ),

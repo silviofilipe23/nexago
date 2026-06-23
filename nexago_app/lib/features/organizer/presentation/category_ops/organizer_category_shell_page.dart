@@ -154,15 +154,6 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
                 tournamentName: summary.name,
                 category: category,
                 onBack: () => context.pop(),
-                onMore: detail.valueOrNull?.tournament == null
-                    ? null
-                    : () => showOrganizerTournamentActionsSheet(
-                        context,
-                        tournamentId: tournamentId,
-                        tournament: detail.value!.tournament!,
-                        summary: summary,
-                        categories: detail.value!.categories,
-                      ),
               ),
             if (category != null) ...[
               OrganizerCategoryKpiRow(

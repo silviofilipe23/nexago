@@ -49,6 +49,10 @@ class TournamentDetail {
     this.listingStatusRaw,
     this.sport = '',
     this.paymentMode = TournamentPaymentMode.appPixCard,
+    this.organizerPixKey = '',
+    this.organizerPixKeyType = '',
+    this.organizerPixRecipientName = '',
+    this.organizerPixCity = '',
   });
 
   final String id;
@@ -88,6 +92,13 @@ class TournamentDetail {
   final String sport;
 
   final TournamentPaymentMode paymentMode;
+
+  /// Dados PIX do organizador (modo `directWithOrganizer`), usados para gerar o
+  /// QR/copia e cola na inscrição. Vazios quando não aplicável.
+  final String organizerPixKey;
+  final String organizerPixKeyType;
+  final String organizerPixRecipientName;
+  final String organizerPixCity;
 
   DiscoveryTournament toDiscovery() {
     return DiscoveryTournament(

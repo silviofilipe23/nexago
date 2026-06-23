@@ -3,6 +3,7 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_detail_model.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
 
 void main() {
@@ -192,6 +193,33 @@ void main() {
 
     test('tournamentShouldShowGroupsTab shows when any category has groups', () {
       expect(tournamentShouldShowGroupsTab(sample), isTrue);
+    });
+
+    test('tournamentShouldShowBracketExploreCard hides without matches', () {
+      expect(tournamentShouldShowBracketExploreCard(const []), isFalse);
+    });
+
+    test('tournamentShouldShowBracketExploreCard shows with matches', () {
+      expect(
+        tournamentShouldShowBracketExploreCard([
+          TournamentMatch(
+            id: 'm1',
+            tournamentId: 't1',
+            categoryId: 'cat',
+            round: 1,
+            matchType: 'wb',
+            poolId: '',
+            teamAId: 'a',
+            teamBId: 'b',
+            status: 'scheduled',
+            resultA: '',
+            resultB: '',
+            isGroupMatch: false,
+            matchNumber: 1,
+          ),
+        ]),
+        isTrue,
+      );
     });
   });
 

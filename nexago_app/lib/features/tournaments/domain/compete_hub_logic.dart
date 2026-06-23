@@ -87,17 +87,13 @@ List<DiscoveryTournament> pickTournamentsForHubPreview(
       return a.name.toLowerCase().compareTo(b.name.toLowerCase());
     });
 
-  return [
-    ...registerable,
-    ...fillers.take(limit - registerable.length),
-  ];
+  return [...registerable, ...fillers.take(limit - registerable.length)];
 }
 
 String hubTournamentCategoryCountLabel(DiscoveryTournament tournament) {
   final count = tournament.categoryOffers.length;
   if (count <= 0) return 'Sem categorias';
-  if (count == 1) return '1 categoria';
-  return '$count categorias';
+  return '$count ${count == 1 ? 'CATEGORIA' : 'CATEGORIAS'}';
 }
 
 /// Data no tile do hub (ex.: `28 mai`).

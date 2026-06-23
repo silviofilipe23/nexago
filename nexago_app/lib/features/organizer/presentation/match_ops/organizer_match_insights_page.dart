@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
 import '../../domain/match_ops/match_ops_providers.dart';
 
@@ -18,33 +20,62 @@ class OrganizerMatchInsightsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(organizerMatchOpsStateProvider(tournamentId));
     final insights = state.insights;
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: NexaAppBar(title: const Text('Insights')),
+      backgroundColor: context.themeColors.canvas,
+      appBar: NexaAppBar(
+        forceMaterial: true,
+        backgroundColor: context.themeColors.canvas,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleSpacing: 8,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => context.pop(),
+        ),
+        title: Text(
+          'Insights',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: context.themeColors.onSurface,
+            letterSpacing: -0.3,
+            height: 1.1,
+          ),
+        ),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        clipBehavior: Clip.hardEdge,
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: _InsightTile(
-                  label: 'Atraso médio',
-                  value: '${insights.averageDelayMin.toStringAsFixed(0)} min',
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _InsightTile(
+                    label: 'Atraso médio',
+                    value: '${insights.averageDelayMin.toStringAsFixed(0)} min',
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _InsightTile(
-                  label: 'Atrasadas',
-                  value: '${insights.delayedMatches}',
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _InsightTile(
+                    label: 'Atrasadas',
+                    value: '${insights.delayedMatches}',
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _InsightTile(
-                  label: 'No horário',
-                  value: '${insights.onTimeMatches}',
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _InsightTile(
+                    label: 'No horário',
+                    value: '${insights.onTimeMatches}',
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           if (insights.suggestion.isNotEmpty) ...[
             const SizedBox(height: 20),
@@ -56,10 +87,17 @@ class OrganizerMatchInsightsPage extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 20),
-          const Text('Ritmo por quadra',
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          Text(
+            'Ritmo por quadra',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: context.themeColors.onSurface,
+            ),
+          ),
+          const SizedBox(height: 4),
           for (final e in insights.courtPace.entries)
             ListTile(
+              contentPadding: EdgeInsets.zero,
               title: Text(e.key),
               trailing: Text('${e.value.toStringAsFixed(0)} min'),
             ),
@@ -77,17 +115,45 @@ class _InsightTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                color: AppColors.brand,
-                fontWeight: FontWeight.bold,
-              ),
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      decoration: BoxDecoration(
+        color: context.themeColors.surfaceCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
         ),
-        Text(label, textAlign: TextAlign.center),
-      ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: AppColors.brand,
+                fontWeight: FontWeight.w800,
+                height: 1.05,
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: context.themeColors.onSurfaceMuted,
+              fontWeight: FontWeight.w600,
+              height: 1.2,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

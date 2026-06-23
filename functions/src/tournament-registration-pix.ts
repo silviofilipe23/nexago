@@ -22,6 +22,7 @@ import {
 import {PLATFORM_FEE_FIXED_BRL} from "./mercadopago-arena-helpers";
 import {assertCanRegisterInTournament} from "./athlete-tournament-access";
 import {assertTeamLevelEligibility} from "./category-level-eligibility";
+import {assertTeamAgeEligibility} from "./category-age-eligibility";
 import {
   assertTournamentAcceptsRegistration,
   findCategory,
@@ -164,13 +165,9 @@ export const createTournamentRegistrationPixPayment = onCall({
     throw new HttpsError("failed-precondition", "Sua parcela já foi paga.");
   }
 
-  // "Pagar pela dupla" exige uma dupla completa e nenhum pagamento parcial.
-  if (amountType === "full" && registration.partnerPending === true) {
-    throw new HttpsError(
-      "failed-precondition",
-      "Confirme um parceiro antes de pagar pela dupla.",
-    );
-  }
+  // "Pagar o total" é permitido no solo (garante a vaga; o parceiro entra sem
+  // taxa depois). Exige apenas que não haja pagamento parcial prévio, para não
+  // cobrar a mais (parceiro pagou parcela + alguém paga a dupla = cobrança dupla).
   if (
     amountType === "full" &&
     !canChargeTournamentFull({
@@ -223,6 +220,12 @@ export const createTournamentRegistrationPixPayment = onCall({
   }
 
   await assertTeamLevelEligibility({
+    db,
+    tournament: tournamentData,
+    category: findCategory(tournamentData, categoryId),
+    uids: [team.player1Id as string | undefined, team.player2Id as string | undefined],
+  });
+  await assertTeamAgeEligibility({
     db,
     tournament: tournamentData,
     category: findCategory(tournamentData, categoryId),
@@ -583,6 +586,12 @@ export const confirmFreeTournamentRegistration = onCall({
     category: findCategory(tournamentData, categoryId),
     uids: [player1Id, player2Id],
   });
+  await assertTeamAgeEligibility({
+    db,
+    tournament: tournamentData,
+    category: findCategory(tournamentData, categoryId),
+    uids: [player1Id, player2Id],
+  });
 
   const {entryFee} = await loadTournamentEntryFee(
     db,
@@ -710,6 +719,12 @@ export const reserveDirectOrganizerRegistration = onCall({
   }
 
   await assertTeamLevelEligibility({
+    db,
+    tournament: tournamentData,
+    category: findCategory(tournamentData, categoryId),
+    uids: [player1Id, player2Id],
+  });
+  await assertTeamAgeEligibility({
     db,
     tournament: tournamentData,
     category: findCategory(tournamentData, categoryId),

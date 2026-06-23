@@ -39,13 +39,35 @@ class OrganizerCategoryBracketListPage extends ConsumerWidget {
             ?.prizes ??
         const <TournamentCategoryPrize>[];
 
+    final title =
+        categoryName.isNotEmpty ? 'Chave · $categoryName' : 'Chave';
+    final theme = Theme.of(context);
+
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       appBar: NexaAppBar(
-        title: Text(
-          categoryName.isNotEmpty ? 'Chave · $categoryName' : 'Chave',
-        ),
+        forceMaterial: true,
         backgroundColor: context.themeColors.canvas,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleSpacing: 8,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => context.pop(),
+        ),
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: context.themeColors.onSurface,
+            letterSpacing: -0.3,
+            height: 1.1,
+          ),
+        ),
       ),
       body: matchesAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -70,7 +92,8 @@ class OrganizerCategoryBracketListPage extends ConsumerWidget {
           }
 
           return ListView(
-            padding: const EdgeInsets.only(bottom: 32),
+            clipBehavior: Clip.hardEdge,
+            padding: const EdgeInsets.only(top: 8, bottom: 32),
             children: [
               OrganizerCategoryPodiumCard(
                 categoryMatches: bracketMatches,

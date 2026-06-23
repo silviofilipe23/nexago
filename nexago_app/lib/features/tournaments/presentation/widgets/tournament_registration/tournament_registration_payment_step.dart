@@ -22,7 +22,11 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
     this.isDirectOrganizerPayment = false,
     this.tournamentName = '',
     this.organizerManagerId,
+    this.organizerPixKey = '',
+    this.organizerPixRecipientName = '',
+    this.organizerPixCity = '',
     this.showSoloPartnerInvite = false,
+    this.partnerJoinsFree = false,
     this.onInvitePartner,
     this.pendingPartnerName,
     this.onTrackInvite,
@@ -39,7 +43,12 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
   final bool isDirectOrganizerPayment;
   final String tournamentName;
   final String? organizerManagerId;
+  final String organizerPixKey;
+  final String organizerPixRecipientName;
+  final String organizerPixCity;
   final bool showSoloPartnerInvite;
+  /// Inscrição já paga (total): o parceiro convidado entra sem taxa.
+  final bool partnerJoinsFree;
   final VoidCallback? onInvitePartner;
   final String? pendingPartnerName;
   final VoidCallback? onTrackInvite;
@@ -130,6 +139,9 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             tournamentName: tournamentName,
             quote: quote,
             managerId: organizerManagerId,
+            pixKey: organizerPixKey,
+            pixRecipientName: organizerPixRecipientName,
+            pixCity: organizerPixCity,
           ),
         ] else ...[
           SizedBox(height: 4),
@@ -162,7 +174,9 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             child: Text(
               progressLabel!,
               style: theme.textTheme.bodySmall?.copyWith(
-                color: isFullyPaid ? AppColors.win : context.themeColors.onSurface,
+                color: isFullyPaid
+                    ? AppColors.win
+                    : context.themeColors.onSurface,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -174,20 +188,15 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             onInvitePartner: onInvitePartner!,
             pendingPartnerName: pendingPartnerName,
             onTrackInvite: onTrackInvite,
+            partnerJoinsFree: partnerJoinsFree,
           ),
         ],
         if (!dualPaymentOnly && !isDirectOrganizerPayment) ...[
           SizedBox(height: 16),
           SegmentedButton<String>(
             segments: const [
-              ButtonSegment(
-                value: 'share',
-                label: Text('Minha parte'),
-              ),
-              ButtonSegment(
-                value: 'full',
-                label: Text('Integral'),
-              ),
+              ButtonSegment(value: 'share', label: Text('Minha parte')),
+              ButtonSegment(value: 'full', label: Text('Integral')),
             ],
             selected: {paymentType},
             onSelectionChanged: (selection) {
@@ -204,7 +213,9 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
               color: context.themeColors.surfaceRaised,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.12,
+                ),
               ),
             ),
             child: Row(

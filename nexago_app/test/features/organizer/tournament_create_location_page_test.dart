@@ -42,7 +42,8 @@ void main() {
 
     // O fix crítico: organizador sem arena cadastrada digita o local à mão.
     expect(find.text('NOME DO LOCAL'), findsOneWidget);
-    expect(find.text('CIDADE'), findsOneWidget);
+    // Cidade/UF agora usam o seletor IBGE (BrStateCityFields).
+    expect(find.text('ESTADO E CIDADE'), findsOneWidget);
 
     await tester.enterText(find.byType(OrganizerTextField).first, 'Praia Clube');
     await tester.pump();

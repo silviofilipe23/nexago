@@ -442,7 +442,7 @@ void main() {
             ],
           ),
         ),
-        '2 categorias',
+        '2 CATEGORIAS',
       );
       expect(
         hubTournamentCategoryCountLabel(
@@ -452,7 +452,7 @@ void main() {
             categoryOffers: [_openCategory(id: 'c1')],
           ),
         ),
-        '1 categoria',
+        '1 CATEGORIA',
       );
     });
   });

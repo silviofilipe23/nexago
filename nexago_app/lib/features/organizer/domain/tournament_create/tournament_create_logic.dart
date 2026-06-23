@@ -114,6 +114,16 @@ String paymentModeDescription(TournamentPaymentMode mode) => switch (mode) {
     'Você combina e recebe por fora. O app só reserva a vaga.',
 };
 
+/// Dados PIX obrigatórios apenas no modo "pagar direto com o organizador".
+/// Exige chave e nome do recebedor; cidade é opcional (default no BR Code).
+bool organizerPixComplete(TournamentCreateDraft draft) {
+  if (draft.paymentMode != TournamentPaymentMode.directWithOrganizer) {
+    return true;
+  }
+  return draft.organizerPixKey.trim().isNotEmpty &&
+      draft.organizerPixRecipientName.trim().isNotEmpty;
+}
+
 String visibilityLabel(TournamentVisibility visibility) => switch (visibility) {
   TournamentVisibility.publicListing => 'Público',
   TournamentVisibility.linkOnly => 'Por link',
@@ -148,11 +158,25 @@ String categoryDisputeShort(TournamentCategoryDispute dispute) => 'Dupla';
 
 String ageBandLabel(TournamentAgeBand band) => switch (band) {
   TournamentAgeBand.open => 'Livre',
+  TournamentAgeBand.sub13 => 'Sub-13',
+  TournamentAgeBand.sub15 => 'Sub-15',
+  TournamentAgeBand.sub17 => 'Sub-17',
   TournamentAgeBand.sub19 => 'Sub-19',
+  TournamentAgeBand.sub21 => 'Sub-21',
   TournamentAgeBand.sub23 => 'Sub-23',
   TournamentAgeBand.plus30 => '+30',
   TournamentAgeBand.plus35 => '+35',
   TournamentAgeBand.plus40 => '+40',
+  TournamentAgeBand.plus45 => '+45',
+  TournamentAgeBand.plus50 => '+50',
+  TournamentAgeBand.plus55 => '+55',
+  TournamentAgeBand.plus60 => '+60',
+};
+
+String ageReferenceLabel(TournamentAgeReference reference) => switch (reference) {
+  TournamentAgeReference.tournamentStart => 'Idade no início do torneio',
+  TournamentAgeReference.yearEnd => 'Idade completada no ano (31/dez)',
+  TournamentAgeReference.registration => 'Idade na data da inscrição',
 };
 
 String skillLevelLabel(TournamentSkillLevel level) => switch (level) {
@@ -225,6 +249,19 @@ int categoryPrizeTotalCents(TournamentCategoryDraft category) =>
 
 String formatStepLabel(TournamentCreateStep step) =>
     'PASSO ${step.number} DE ${TournamentCreateStepX.total}';
+
+String tournamentWizardExitCategoryHighlight(int categoryCount) {
+  if (categoryCount <= 0) return '';
+  return categoryCount == 1 ? '1 categoria' : '$categoryCount categorias';
+}
+
+String tournamentWizardDiscardSubtitle(int categoryCount) {
+  if (categoryCount <= 0) return 'Apaga os dados preenchidos.';
+  if (categoryCount == 1) {
+    return 'Apaga a categoria e os dados preenchidos.';
+  }
+  return 'Apaga as $categoryCount categorias e os dados preenchidos.';
+}
 
 String stepTitle(TournamentCreateStep step) => switch (step) {
   TournamentCreateStep.identity => 'Identidade do torneio',
@@ -305,7 +342,8 @@ bool canContinueFromStep(
     TournamentCreateStep.registration =>
       draft.registrationOpensAt != null &&
           draft.registrationClosesAt != null &&
-          registrationWindowError(draft) == null,
+          registrationWindowError(draft) == null &&
+          organizerPixComplete(draft),
     // Premiação foi fundida em "rules": se houver premiação em dinheiro,
     // toda categoria precisa ter os valores definidos.
     TournamentCreateStep.rules =>

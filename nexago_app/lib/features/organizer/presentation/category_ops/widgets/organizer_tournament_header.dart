@@ -7,10 +7,7 @@ import '../../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_models.dart';
 
 class OrganizerTournamentHeader extends StatelessWidget {
-  const OrganizerTournamentHeader({
-    super.key,
-    required this.summary,
-  });
+  const OrganizerTournamentHeader({super.key, required this.summary});
 
   final OrganizerTournamentSummary summary;
 
@@ -37,38 +34,6 @@ class OrganizerTournamentHeader extends StatelessWidget {
               registrationsOpen: registrationsOpen,
             ),
           ],
-        ),
-        const SizedBox(height: 10),
-        Text(
-          'TORNEIO · GERENCIAR',
-          style: AppTypography.mono(
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            color: AppColors.brand,
-            letterSpacing: 0.8,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          summary.name,
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.4,
-                height: 1.1,
-              ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          tournamentMetaLine(
-            locationName: summary.locationName,
-            city: summary.city,
-            state: summary.state,
-            dateLabel: summary.dateLabel,
-          ),
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-                height: 1.35,
-              ),
         ),
       ],
     );
@@ -104,10 +69,7 @@ class _Badge extends StatelessWidget {
 }
 
 class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({
-    required this.label,
-    required this.registrationsOpen,
-  });
+  const _StatusBadge({required this.label, required this.registrationsOpen});
 
   final String label;
   final bool registrationsOpen;
@@ -153,11 +115,11 @@ class OrganizerTournamentKpiRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      _KpiItem('Inscritos', '${summary.enrolledCount}', false),
-      _KpiItem('Pendentes', '${summary.pendingCount}', false),
-      _KpiItem('Categorias', '${summary.categoryCount}', false),
+      _KpiItem('INSCRITOS', '${summary.enrolledCount}', false),
+      _KpiItem('PENDENTES', '${summary.pendingCount}', false),
+      _KpiItem('CATEGORIAS', '${summary.categoryCount}', false),
       _KpiItem(
-        'Arrecadado',
+        'ARRECADADO',
         formatOrganizerMoneyCents(summary.collectedCents),
         true,
       ),
@@ -177,7 +139,9 @@ class OrganizerTournamentKpiRow extends StatelessWidget {
               color: context.themeColors.surfaceCard,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.12,
+                ),
               ),
             ),
             child: Column(
@@ -194,9 +158,9 @@ class OrganizerTournamentKpiRow extends StatelessWidget {
                 Text(
                   item.value,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: item.accent ? AppColors.win : null,
-                      ),
+                    fontWeight: FontWeight.w800,
+                    color: item.accent ? AppColors.win : null,
+                  ),
                 ),
               ],
             ),

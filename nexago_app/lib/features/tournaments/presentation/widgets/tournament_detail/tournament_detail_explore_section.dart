@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
@@ -7,8 +8,9 @@ import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
+import '../../../domain/tournament_discovery_providers.dart';
 
-class TournamentDetailExploreSection extends StatelessWidget {
+class TournamentDetailExploreSection extends ConsumerWidget {
   const TournamentDetailExploreSection({
     super.key,
     required this.tournament,
@@ -19,8 +21,14 @@ class TournamentDetailExploreSection extends StatelessWidget {
   final TournamentDetailStats stats;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final showGroups = tournamentShouldShowGroupsTab(tournament);
+    final showBracket = ref
+        .watch(tournamentMatchesProvider(tournament.id))
+        .maybeWhen(
+          data: tournamentShouldShowBracketExploreCard,
+          orElse: () => false,
+        );
     final tournamentId = tournament.id;
 
     return Padding(
@@ -47,15 +55,16 @@ class TournamentDetailExploreSection extends StatelessWidget {
               pathParameters: {'tournamentId': tournamentId},
             ),
           ),
-          _ExploreCard(
-            icon: Icons.account_tree_outlined,
-            title: 'Chave',
-            subtitle: tournamentExploreBracketSubtitle(tournament),
-            onTap: () => context.pushNamed(
-              AppRouteNames.tournamentBracket,
-              pathParameters: {'tournamentId': tournamentId},
+          if (showBracket)
+            _ExploreCard(
+              icon: Icons.account_tree_outlined,
+              title: 'Chave',
+              subtitle: tournamentExploreBracketSubtitle(tournament),
+              onTap: () => context.pushNamed(
+                AppRouteNames.tournamentBracket,
+                pathParameters: {'tournamentId': tournamentId},
+              ),
             ),
-          ),
           if (showGroups)
             _ExploreCard(
               icon: Icons.groups_outlined,

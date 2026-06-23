@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../core/auth/auth_providers.dart';
@@ -14,6 +16,7 @@ import '../../../../athlete/domain/athlete_profile.dart';
 import '../../../../athlete/domain/athlete_profile_providers.dart';
 import '../../../../athlete/domain/profile_access.dart';
 import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
+import '../../../domain/pix_brcode.dart';
 import '../../../domain/tournament_discovery_providers.dart';
 import '../../../domain/tournament_registration_logic.dart';
 
@@ -23,11 +26,17 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
     required this.tournamentName,
     required this.quote,
     this.managerId,
+    this.pixKey = '',
+    this.pixRecipientName = '',
+    this.pixCity = '',
   });
 
   final String tournamentName;
   final TournamentRegistrationQuote quote;
   final String? managerId;
+  final String pixKey;
+  final String pixRecipientName;
+  final String pixCity;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -53,6 +62,23 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _PrereserveAlert(theme: theme),
+        if (PixBrCode.isLikelyValidKey(pixKey)) ...[
+          const SizedBox(height: 16),
+          _PixCard(
+            brCode: PixBrCode.build(
+              key: pixKey,
+              recipientName:
+                  pixRecipientName.isNotEmpty ? pixRecipientName : organizerName,
+              city: pixCity.isNotEmpty ? pixCity : 'BRASIL',
+              amount: quote.displayTotal,
+            ),
+            pixKey: pixKey,
+            recipientName:
+                pixRecipientName.isNotEmpty ? pixRecipientName : organizerName,
+            amountLabel: formatRegistrationMoney(quote.displayTotal),
+            theme: theme,
+          ),
+        ],
         const SizedBox(height: 16),
         _StepsCard(quote: quote, theme: theme),
         const SizedBox(height: 12),
@@ -108,18 +134,12 @@ class _PrereserveAlert extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.pending.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: AppColors.pending.withValues(alpha: 0.35),
-        ),
+        border: Border.all(color: AppColors.pending.withValues(alpha: 0.35)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.schedule_rounded,
-            size: 20,
-            color: AppColors.pending,
-          ),
+          Icon(Icons.schedule_rounded, size: 20, color: AppColors.pending),
           const SizedBox(width: 10),
           Expanded(
             child: RichText(
@@ -149,11 +169,128 @@ class _PrereserveAlert extends StatelessWidget {
   }
 }
 
-class _StepsCard extends StatelessWidget {
-  const _StepsCard({
-    required this.quote,
+class _PixCard extends StatelessWidget {
+  const _PixCard({
+    required this.brCode,
+    required this.pixKey,
+    required this.recipientName,
+    required this.amountLabel,
     required this.theme,
   });
+
+  final String brCode;
+  final String pixKey;
+  final String recipientName;
+  final String amountLabel;
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.themeColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.brand.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.pix_rounded, size: 18, color: AppColors.brand),
+              const SizedBox(width: 8),
+              Text(
+                'Pague por PIX',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: context.themeColors.onSurface,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                amountLabel,
+                style: AppTypography.mono(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.brand,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Center(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: QrImageView(
+                data: brCode,
+                version: QrVersions.auto,
+                size: 200,
+                gapless: false,
+                backgroundColor: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Recebedor: $recipientName',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: context.themeColors.onSurfaceMuted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: context.themeColors.surfaceCard,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+              ),
+            ),
+            child: Text(
+              brCode,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.mono(
+                fontSize: 11,
+                color: context.themeColors.onSurfaceMuted,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => _copy(context),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.brand,
+              side: BorderSide(color: AppColors.brand.withValues(alpha: 0.45)),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            icon: const Icon(Icons.copy_rounded, size: 16),
+            label: const Text(
+              'Copiar código PIX',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _copy(BuildContext context) async {
+    await Clipboard.setData(ClipboardData(text: brCode));
+    if (!context.mounted) return;
+    showAppSnackBar(context, 'Código PIX copiado.');
+  }
+}
+
+class _StepsCard extends StatelessWidget {
+  const _StepsCard({required this.quote, required this.theme});
 
   final TournamentRegistrationQuote quote;
   final ThemeData theme;
@@ -235,9 +372,7 @@ class _StepRow extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.brand.withValues(alpha: 0.16),
             shape: BoxShape.circle,
-            border: Border.all(
-              color: AppColors.brand.withValues(alpha: 0.45),
-            ),
+            border: Border.all(color: AppColors.brand.withValues(alpha: 0.45)),
           ),
           child: Text(
             '$number',
@@ -391,13 +526,21 @@ class _OrganizerContactCard extends StatelessWidget {
     }
     final uri = Uri.tryParse(url);
     if (uri == null) {
-      showAppSnackBar(context, 'Não foi possível abrir o WhatsApp.', isError: true);
+      showAppSnackBar(
+        context,
+        'Não foi possível abrir o WhatsApp.',
+        isError: true,
+      );
       return;
     }
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!context.mounted) return;
     if (!launched) {
-      showAppSnackBar(context, 'Não foi possível abrir o WhatsApp.', isError: true);
+      showAppSnackBar(
+        context,
+        'Não foi possível abrir o WhatsApp.',
+        isError: true,
+      );
     }
   }
 }

@@ -124,6 +124,11 @@ class TournamentCategoryOffer {
     this.maxTeams = 0,
     this.spotsTotal = 0,
     this.level = '',
+    this.ageBand = '',
+    this.ageRestrictionMode = '',
+    this.ageMinYears,
+    this.ageMaxYears,
+    this.ageReference = '',
     this.genderType = '',
     this.bracketFormat = '',
     this.registrationClosed = false,
@@ -147,6 +152,14 @@ class TournamentCategoryOffer {
   /// Legado / agregação; alinhado a [maxTeams] quando o Firestore envia `maxTeams`.
   final int spotsTotal;
   final String level;
+
+  /// Restrição etária (espelha `categories[].ageRestriction`/`ageBand`).
+  final String ageBand;
+  final String ageRestrictionMode; // 'none'|'min'|'max'|'range' (vazio = derivar)
+  final int? ageMinYears;
+  final int? ageMaxYears;
+  final String ageReference; // 'tournamentStart'|'yearEnd'|'registration'
+
   final String genderType;
   final String bracketFormat;
   final bool registrationClosed;

@@ -20,9 +20,27 @@ enum TournamentCategoryGender { male, female, mixed }
 
 enum TournamentCategoryDispute { individual, dupla, team }
 
-enum TournamentAgeBand { open, sub19, sub23, plus30, plus35, plus40 }
+enum TournamentAgeBand {
+  open,
+  sub13,
+  sub15,
+  sub17,
+  sub19,
+  sub21,
+  sub23,
+  plus30,
+  plus35,
+  plus40,
+  plus45,
+  plus50,
+  plus55,
+  plus60,
+}
 
 enum TournamentSkillLevel { beginner, intermediate, open }
+
+/// Referência usada para calcular a idade do atleta nas restrições etárias.
+enum TournamentAgeReference { tournamentStart, yearEnd, registration }
 
 /// Prêmio de uma colocação dentro de uma categoria.
 @immutable
@@ -60,6 +78,10 @@ class TournamentCategoryDraft {
     this.dispute = TournamentCategoryDispute.dupla,
     this.ageBand = TournamentAgeBand.open,
     this.skillLevel = TournamentSkillLevel.open,
+    this.ageReference = TournamentAgeReference.tournamentStart,
+    this.ageCustomEnabled = false,
+    this.ageMinYears,
+    this.ageMaxYears,
     this.spots = 16,
     this.useDefaultPrice = true,
     this.priceCents = 18000,
@@ -78,6 +100,16 @@ class TournamentCategoryDraft {
   final TournamentCategoryDispute dispute;
   final TournamentAgeBand ageBand;
   final TournamentSkillLevel skillLevel;
+
+  /// Restrição etária configurável. Quando [ageCustomEnabled] é falso, a
+  /// restrição deriva de [ageBand] (Sub-N→idade máx N, +N→idade mín N, Livre→
+  /// nenhuma). Quando true, usa [ageMinYears]/[ageMaxYears] (modo inferido:
+  /// só mín, só máx, ou faixa). [ageReference] vale em ambos os casos.
+  final TournamentAgeReference ageReference;
+  final bool ageCustomEnabled;
+  final int? ageMinYears;
+  final int? ageMaxYears;
+
   final int spots;
   final bool useDefaultPrice;
   final int priceCents;
@@ -96,6 +128,12 @@ class TournamentCategoryDraft {
     TournamentCategoryDispute? dispute,
     TournamentAgeBand? ageBand,
     TournamentSkillLevel? skillLevel,
+    TournamentAgeReference? ageReference,
+    bool? ageCustomEnabled,
+    int? ageMinYears,
+    int? ageMaxYears,
+    bool clearAgeMinYears = false,
+    bool clearAgeMaxYears = false,
     int? spots,
     bool? useDefaultPrice,
     int? priceCents,
@@ -114,6 +152,10 @@ class TournamentCategoryDraft {
       dispute: dispute ?? this.dispute,
       ageBand: ageBand ?? this.ageBand,
       skillLevel: skillLevel ?? this.skillLevel,
+      ageReference: ageReference ?? this.ageReference,
+      ageCustomEnabled: ageCustomEnabled ?? this.ageCustomEnabled,
+      ageMinYears: clearAgeMinYears ? null : (ageMinYears ?? this.ageMinYears),
+      ageMaxYears: clearAgeMaxYears ? null : (ageMaxYears ?? this.ageMaxYears),
       spots: spots ?? this.spots,
       useDefaultPrice: useDefaultPrice ?? this.useDefaultPrice,
       priceCents: priceCents ?? this.priceCents,
@@ -153,6 +195,10 @@ class TournamentCreateDraft {
     this.registrationOpensAt,
     this.registrationClosesAt,
     this.paymentMode = TournamentPaymentMode.appPixCard,
+    this.organizerPixKey = '',
+    this.organizerPixKeyType = '',
+    this.organizerPixRecipientName = '',
+    this.organizerPixCity = '',
     this.waitlistEnabled = true,
     this.inviteConfirmEnabled = false,
     this.cashPrizesEnabled = true,
@@ -186,6 +232,13 @@ class TournamentCreateDraft {
   final DateTime? registrationOpensAt;
   final DateTime? registrationClosesAt;
   final TournamentPaymentMode paymentMode;
+
+  /// Dados PIX do organizador (usados quando [paymentMode] é directWithOrganizer).
+  final String organizerPixKey;
+  final String organizerPixKeyType;
+  final String organizerPixRecipientName;
+  final String organizerPixCity;
+
   final bool waitlistEnabled;
   final bool inviteConfirmEnabled;
   final bool cashPrizesEnabled;
@@ -230,6 +283,10 @@ class TournamentCreateDraft {
     DateTime? registrationOpensAt,
     DateTime? registrationClosesAt,
     TournamentPaymentMode? paymentMode,
+    String? organizerPixKey,
+    String? organizerPixKeyType,
+    String? organizerPixRecipientName,
+    String? organizerPixCity,
     bool? waitlistEnabled,
     bool? inviteConfirmEnabled,
     bool? cashPrizesEnabled,
@@ -270,6 +327,11 @@ class TournamentCreateDraft {
       registrationOpensAt: registrationOpensAt ?? this.registrationOpensAt,
       registrationClosesAt: registrationClosesAt ?? this.registrationClosesAt,
       paymentMode: paymentMode ?? this.paymentMode,
+      organizerPixKey: organizerPixKey ?? this.organizerPixKey,
+      organizerPixKeyType: organizerPixKeyType ?? this.organizerPixKeyType,
+      organizerPixRecipientName:
+          organizerPixRecipientName ?? this.organizerPixRecipientName,
+      organizerPixCity: organizerPixCity ?? this.organizerPixCity,
       waitlistEnabled: waitlistEnabled ?? this.waitlistEnabled,
       inviteConfirmEnabled: inviteConfirmEnabled ?? this.inviteConfirmEnabled,
       cashPrizesEnabled: cashPrizesEnabled ?? this.cashPrizesEnabled,

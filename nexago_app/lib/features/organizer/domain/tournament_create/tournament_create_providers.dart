@@ -395,6 +395,18 @@ class TournamentCreateWizardNotifier extends Notifier<TournamentCreateWizardStat
   void setPaymentMode(TournamentPaymentMode value) =>
       _updateDraft(state.draft.copyWith(paymentMode: value));
 
+  void setOrganizerPixKey(String value) =>
+      _updateDraft(state.draft.copyWith(organizerPixKey: value));
+
+  void setOrganizerPixKeyType(String value) =>
+      _updateDraft(state.draft.copyWith(organizerPixKeyType: value));
+
+  void setOrganizerPixRecipientName(String value) =>
+      _updateDraft(state.draft.copyWith(organizerPixRecipientName: value));
+
+  void setOrganizerPixCity(String value) =>
+      _updateDraft(state.draft.copyWith(organizerPixCity: value));
+
   void setWaitlistEnabled(bool value) =>
       _updateDraft(state.draft.copyWith(waitlistEnabled: value));
 

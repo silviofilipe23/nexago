@@ -70,6 +70,15 @@ abstract final class TournamentCreateMapper {
           ? Timestamp.fromDate(draft.registrationClosesAt!)
           : null,
       'paymentMode': draft.paymentMode.name,
+      'organizerPix':
+          draft.paymentMode == TournamentPaymentMode.directWithOrganizer
+          ? {
+              'key': draft.organizerPixKey.trim(),
+              'keyType': draft.organizerPixKeyType.trim(),
+              'recipientName': draft.organizerPixRecipientName.trim(),
+              'city': draft.organizerPixCity.trim(),
+            }
+          : null,
       'waitlistEnabled': draft.waitlistEnabled,
       'inviteConfirmEnabled': draft.inviteConfirmEnabled,
       'cashPrizesEnabled': draft.cashPrizesEnabled,
@@ -149,6 +158,10 @@ abstract final class TournamentCreateMapper {
       registrationOpensAt: _timestamp(data['registrationOpensAt']),
       registrationClosesAt: _timestamp(data['registrationClosesAt']),
       paymentMode: _parsePaymentMode(data['paymentMode'] as String?),
+      organizerPixKey: _pixField(data['organizerPix'], 'key'),
+      organizerPixKeyType: _pixField(data['organizerPix'], 'keyType'),
+      organizerPixRecipientName: _pixField(data['organizerPix'], 'recipientName'),
+      organizerPixCity: _pixField(data['organizerPix'], 'city'),
       waitlistEnabled: data['waitlistEnabled'] as bool? ?? true,
       inviteConfirmEnabled: data['inviteConfirmEnabled'] as bool? ?? false,
       cashPrizesEnabled: data['cashPrizesEnabled'] as bool? ?? true,
@@ -199,6 +212,10 @@ abstract final class TournamentCreateMapper {
       ),
       ageBand: _parseAgeBand(map['ageBand'] as String?),
       skillLevel: _parseSkillLevel(map['level'] as String?),
+      ageReference: _parseAgeReference(map['ageRestriction']),
+      ageCustomEnabled: _ageRestrictionIsCustom(map['ageRestriction']),
+      ageMinYears: _ageRestrictionInt(map['ageRestriction'], 'minAge'),
+      ageMaxYears: _ageRestrictionInt(map['ageRestriction'], 'maxAge'),
       spots:
           (map['maxTeams'] as num?)?.toInt() ??
           (map['spotsTotal'] as num?)?.toInt() ??
@@ -279,6 +296,12 @@ abstract final class TournamentCreateMapper {
     return TournamentPaymentMode.appPixCard;
   }
 
+  static String _pixField(dynamic raw, String key) {
+    if (raw is! Map) return '';
+    final value = raw[key];
+    return value is String ? value.trim() : '';
+  }
+
   static TournamentVisibility _parseVisibility(String? raw) {
     for (final value in TournamentVisibility.values) {
       if (value.name == raw) return value;
@@ -300,6 +323,68 @@ abstract final class TournamentCreateMapper {
       if (value.name == raw) return value;
     }
     return TournamentCategoryDispute.dupla;
+  }
+
+  /// Restrição etária efetiva (custom ou derivada do preset ageBand) +
+  /// referência, gravada como `categories[].ageRestriction`.
+  static Map<String, dynamic> _ageRestrictionToMap(
+    TournamentCategoryDraft category,
+  ) {
+    final reference = category.ageReference.name;
+    if (category.ageCustomEnabled) {
+      final min = category.ageMinYears;
+      final max = category.ageMaxYears;
+      final mode = min != null && max != null
+          ? 'range'
+          : min != null
+          ? 'min'
+          : max != null
+          ? 'max'
+          : 'none';
+      return {
+        'mode': mode,
+        if (min != null) 'minAge': min,
+        if (max != null) 'maxAge': max,
+        'reference': reference,
+        'custom': true,
+      };
+    }
+    // Deriva do preset ageBand.
+    final band = category.ageBand;
+    final name = band.name;
+    if (name.startsWith('sub')) {
+      return {
+        'mode': 'max',
+        'maxAge': int.tryParse(name.substring(3)),
+        'reference': reference,
+      };
+    }
+    if (name.startsWith('plus')) {
+      return {
+        'mode': 'min',
+        'minAge': int.tryParse(name.substring(4)),
+        'reference': reference,
+      };
+    }
+    return {'mode': 'none', 'reference': reference};
+  }
+
+  static TournamentAgeReference _parseAgeReference(dynamic raw) {
+    final ref = raw is Map ? raw['reference'] : null;
+    for (final value in TournamentAgeReference.values) {
+      if (value.name == ref) return value;
+    }
+    return TournamentAgeReference.tournamentStart;
+  }
+
+  static bool _ageRestrictionIsCustom(dynamic raw) {
+    return raw is Map && raw['custom'] == true;
+  }
+
+  static int? _ageRestrictionInt(dynamic raw, String key) {
+    if (raw is! Map) return null;
+    final value = raw[key];
+    return value is num ? value.toInt() : null;
   }
 
   static TournamentAgeBand _parseAgeBand(String? raw) {
@@ -336,6 +421,7 @@ abstract final class TournamentCreateMapper {
       'genderType': genderTypeFirestoreValue(category.gender),
       'disputeType': category.dispute.name,
       'ageBand': category.ageBand.name,
+      'ageRestriction': _ageRestrictionToMap(category),
       'level': skillLevelLabel(category.skillLevel),
       'maxTeams': category.spots,
       'spotsTotal': category.spots,

@@ -28,8 +28,13 @@ const double kTournamentPlatformFeeBrl = 2.0;
 bool registrationAwaitingSoloPartner({
   required TournamentRegistrationSnapshot? snap,
   required bool isFullyPaid,
-}) =>
-    snap?.partnerPending == true && !isFullyPaid;
+}) => snap?.partnerPending == true && !isFullyPaid;
+
+/// Inscrição já paga (solo pagou o total) mas ainda sem parceiro: o atleta deve
+/// convidar um parceiro, que entra SEM TAXA.
+bool registrationPaidAwaitingPartner({
+  required TournamentRegistrationSnapshot? snap,
+}) => snap?.isPaid == true && snap?.partnerPending == true;
 
 enum TournamentRegistrationStep { category, uniform, partner, waiting, payment }
 
@@ -448,8 +453,12 @@ RegistrationSuccessNavigationAction registrationSuccessNavigationAction({
   required bool hasPreviousSnapshot,
   required bool seenUnpaid,
   required bool alreadyHandled,
+  bool partnerPending = false,
 }) {
   if (!isPaid) return RegistrationSuccessNavigationAction.ignore;
+  // Pago mas ainda sem parceiro (solo pagou o total): não vai para sucesso;
+  // o atleta precisa convidar o parceiro grátis primeiro.
+  if (partnerPending) return RegistrationSuccessNavigationAction.ignore;
   if (alreadyHandled) return RegistrationSuccessNavigationAction.ignore;
   if (wasPaid) return RegistrationSuccessNavigationAction.ignore;
 

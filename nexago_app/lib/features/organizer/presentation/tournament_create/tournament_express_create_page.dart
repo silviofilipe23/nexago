@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/router/routes.dart';
@@ -7,10 +6,10 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../../athlete/presentation/widgets/br_state_city_fields.dart';
 import '../../domain/tournament_create/tournament_create_draft.dart';
 import '../../domain/tournament_create/tournament_create_logic.dart';
 import '../../domain/tournament_create/tournament_create_providers.dart';
-import 'steps/tournament_create_location_page.dart' show UpperCaseTextFormatter;
 import 'tournament_published_page.dart';
 import 'widgets/organizer_form_widgets.dart';
 
@@ -28,8 +27,8 @@ class _TournamentExpressCreatePageState
     extends ConsumerState<TournamentExpressCreatePage> {
   final _nameController = TextEditingController();
   final _venueController = TextEditingController();
-  final _cityController = TextEditingController();
-  final _stateController = TextEditingController();
+  String _city = '';
+  String _state = '';
 
   DateTime? _startAt;
   DateTime? _endAt;
@@ -41,15 +40,14 @@ class _TournamentExpressCreatePageState
   void dispose() {
     _nameController.dispose();
     _venueController.dispose();
-    _cityController.dispose();
-    _stateController.dispose();
     super.dispose();
   }
 
   bool get _canPublish =>
       _nameController.text.trim().isNotEmpty &&
       _venueController.text.trim().isNotEmpty &&
-      _cityController.text.trim().isNotEmpty &&
+      _city.trim().isNotEmpty &&
+      _state.trim().isNotEmpty &&
       _startAt != null;
 
   Future<void> _pickDate({required bool isStart}) async {
@@ -79,8 +77,8 @@ class _TournamentExpressCreatePageState
     return buildExpressTournamentDraft(
       name: _nameController.text,
       locationName: _venueController.text,
-      city: _cityController.text,
-      state: _stateController.text,
+      city: _city,
+      state: _state,
       startAt: _startAt!,
       endAt: _endAt,
       gender: _gender,
@@ -189,49 +187,18 @@ class _TournamentExpressCreatePageState
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const OrganizerSectionLabel('CIDADE'),
-                              const SizedBox(height: 8),
-                              OrganizerTextField(
-                                controller: _cityController,
-                                hintText: 'Goiânia',
-                                onChanged: (_) => setState(() {}),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 1,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const OrganizerSectionLabel('UF'),
-                              const SizedBox(height: 8),
-                              OrganizerTextField(
-                                controller: _stateController,
-                                hintText: 'GO',
-                                maxLength: 2,
-                                textCapitalization:
-                                    TextCapitalization.characters,
-                                inputFormatters: [
-                                  UpperCaseTextFormatter(),
-                                  FilteringTextInputFormatter.allow(
-                                    RegExp('[A-Za-z]'),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    const OrganizerSectionLabel('ESTADO E CIDADE'),
+                    const SizedBox(height: 8),
+                    BrStateCityFields(
+                      useOrganizerFormStyle: true,
+                      selectedState: _state.isEmpty ? null : _state,
+                      selectedCity: _city.isEmpty ? null : _city,
+                      onStateChanged: (uf) => setState(() {
+                        _state = (uf ?? '').trim().toUpperCase();
+                        _city = '';
+                      }),
+                      onCityChanged: (city) =>
+                          setState(() => _city = (city ?? '').trim()),
                     ),
                     const SizedBox(height: 20),
                     const OrganizerSectionLabel('QUANDO'),

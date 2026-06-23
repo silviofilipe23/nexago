@@ -536,4 +536,24 @@ void main() {
       );
     });
   });
+
+  group('wizard exit dialog copy', () {
+    test('tournamentWizardDiscardSubtitle adapts to category count', () {
+      expect(tournamentWizardDiscardSubtitle(0), 'Apaga os dados preenchidos.');
+      expect(
+        tournamentWizardDiscardSubtitle(1),
+        'Apaga a categoria e os dados preenchidos.',
+      );
+      expect(
+        tournamentWizardDiscardSubtitle(3),
+        'Apaga as 3 categorias e os dados preenchidos.',
+      );
+    });
+
+    test('tournamentWizardExitCategoryHighlight formats count', () {
+      expect(tournamentWizardExitCategoryHighlight(0), '');
+      expect(tournamentWizardExitCategoryHighlight(1), '1 categoria');
+      expect(tournamentWizardExitCategoryHighlight(3), '3 categorias');
+    });
+  });
 }

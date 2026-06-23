@@ -47,12 +47,14 @@ class OrganizerWizardScaffold extends StatelessWidget {
                     icon: Icons.arrow_back_rounded,
                     onTap: onBack ?? () => Navigator.of(context).maybePop(),
                   ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       title,
-                      textAlign: TextAlign.center,
+                      textAlign: TextAlign.start,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
+                        fontSize: 18,
                       ),
                     ),
                   ),
@@ -103,7 +105,7 @@ class OrganizerWizardScaffold extends StatelessWidget {
                               color: filled
                                   ? AppColors.brand
                                   : context.themeColors.onSurfaceMuted
-                                      .withValues(alpha: 0.25),
+                                        .withValues(alpha: 0.25),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),

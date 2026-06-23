@@ -108,7 +108,9 @@ class NotificationService {
     _tokenRefreshSub = _messaging.onTokenRefresh.listen((token) async {
       final uid = _activeUserId;
       if (uid == null || uid.isEmpty) return;
-      await saveUserToken(token);
+      // Passa pelo fluxo gateado (preferência + permissão) para não recriar
+      // token quando a permissão estiver negada.
+      await _syncUserTokenAttempt(uid);
     });
 
     // Depois do FCM: banner local em foreground (Android). Falha aqui não bloqueia push.
@@ -150,6 +152,18 @@ class NotificationService {
     }
   }
 
+  /// Permissão de push concedida no SO? Considera `authorized` e `provisional`
+  /// (notificações silenciosas do iOS) como válidas; `denied`/`notDetermined` não.
+  Future<bool> _pushPermissionGranted() async {
+    final settings = await _safeMessagingCall<NotificationSettings>(
+      () => _messaging.getNotificationSettings(),
+    );
+    if (settings == null) return false;
+    final status = settings.authorizationStatus;
+    return status == AuthorizationStatus.authorized ||
+        status == AuthorizationStatus.provisional;
+  }
+
   Future<void> syncUserToken(String? userId) async {
     final uid = userId?.trim();
     if (uid == null || uid.isEmpty) {
@@ -170,6 +184,16 @@ class NotificationService {
   Future<void> _syncUserTokenAttempt(String uid) async {
     if (!_pluginAvailable) return;
     if (!await _readPushChannelEnabled(uid)) return;
+
+    // Só registra o token quando a permissão de notificação está concedida.
+    // Evita "tokens fantasma": dispositivos que recebem do FCM mas o SO suprime
+    // os banners (permissão negada/não determinada), inflando falhas de entrega.
+    if (!await _pushPermissionGranted()) {
+      debugPrint('Permissão de notificação não concedida; token não registrado.');
+      cancelApnsRetry();
+      await clearCurrentDeviceToken(uid);
+      return;
+    }
 
     if (!kIsWeb && Platform.isIOS) {
       final apnsToken =

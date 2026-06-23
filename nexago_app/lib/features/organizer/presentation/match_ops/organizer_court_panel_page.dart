@@ -8,7 +8,6 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/match_ops/match_ops_models.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
 import 'organizer_match_navigation.dart';
-import 'sheets/organizer_schedule_match_sheet.dart';
 import 'widgets/organizer_match_card.dart';
 
 /// G3 — Painel de quadras.
@@ -23,11 +22,35 @@ class OrganizerCourtPanelPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(organizerMatchOpsStateProvider(tournamentId));
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: NexaAppBar(title: const Text('Painel de quadras')),
+      backgroundColor: context.themeColors.canvas,
+      appBar: NexaAppBar(
+        forceMaterial: true,
+        backgroundColor: context.themeColors.canvas,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleSpacing: 8,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => context.pop(),
+        ),
+        title: Text(
+          'Painel de quadras',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: context.themeColors.onSurface,
+            letterSpacing: -0.3,
+            height: 1.1,
+          ),
+        ),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        clipBehavior: Clip.hardEdge,
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
           OrganizerCourtKpiRow(kpis: state.courtKpis),
           const SizedBox(height: 20),

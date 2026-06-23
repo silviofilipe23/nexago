@@ -46,7 +46,7 @@ void main() {
           tournamentName: 'Open Goiânia',
           tournamentId: 'abc',
         ),
-        'Inscreva-se no Open Goiânia no nexaGO:\n'
+        'Inscreva-se no Open Goiânia no NexaGO:\n'
         'nexago:///torneios/abc/inscricao',
       );
     });
@@ -134,6 +134,113 @@ void main() {
         generateBracketBlockedHint(confirmedCount: 1),
         contains('Falta 1'),
       );
+    });
+  });
+
+  group('organizerTournamentMatchDayVisible', () {
+    final start = DateTime(2026, 10, 24, 8);
+
+    test('hidden before tournament day', () {
+      expect(
+        organizerTournamentMatchDayVisible(
+          startAt: start,
+          now: DateTime(2026, 10, 23, 23, 59),
+        ),
+        isFalse,
+      );
+    });
+
+    test('visible from tournament start day onward', () {
+      expect(
+        organizerTournamentMatchDayVisible(
+          startAt: start,
+          now: DateTime(2026, 10, 24, 0, 0),
+        ),
+        isTrue,
+      );
+      expect(
+        organizerTournamentMatchDayVisible(
+          startAt: start,
+          now: DateTime(2026, 10, 26, 12),
+        ),
+        isTrue,
+      );
+    });
+
+    test('hidden when start date is missing', () {
+      expect(organizerTournamentMatchDayVisible(startAt: null), isFalse);
+    });
+  });
+
+  group('organizerCanAddTournamentCategory', () {
+    final start = DateTime(2026, 10, 24, 8);
+
+    test('enabled through the day before tournament start', () {
+      expect(
+        organizerCanAddTournamentCategory(
+          startAt: start,
+          now: DateTime(2026, 10, 23, 23, 59),
+        ),
+        isTrue,
+      );
+      expect(
+        organizerCanAddTournamentCategory(
+          startAt: start,
+          now: DateTime(2026, 10, 20, 10),
+        ),
+        isTrue,
+      );
+    });
+
+    test('disabled from tournament start day onward', () {
+      expect(
+        organizerCanAddTournamentCategory(
+          startAt: start,
+          now: DateTime(2026, 10, 24, 0, 0),
+        ),
+        isFalse,
+      );
+      expect(
+        organizerCanAddTournamentCategory(
+          startAt: start,
+          now: DateTime(2026, 10, 25, 9),
+        ),
+        isFalse,
+      );
+    });
+
+    test('enabled when start date is missing', () {
+      expect(organizerCanAddTournamentCategory(startAt: null), isTrue);
+    });
+  });
+
+  group('organizerTournamentDayScheduleEnabled', () {
+    test('enabled when at least one category has published bracket', () {
+      const categories = [
+        OrganizerTournamentCategorySummary(
+          categoryId: 'a',
+          name: 'A',
+          bracketStatus: OrganizerCategoryBracketStatus.none,
+        ),
+        OrganizerTournamentCategorySummary(
+          categoryId: 'b',
+          name: 'B',
+          bracketStatus: OrganizerCategoryBracketStatus.published,
+        ),
+      ];
+      expect(organizerTournamentDayScheduleEnabled(categories), isTrue);
+    });
+
+    test('disabled when no category has published bracket', () {
+      const categories = [
+        OrganizerTournamentCategorySummary(
+          categoryId: 'a',
+          name: 'A',
+          bracketStatus: OrganizerCategoryBracketStatus.draft,
+        ),
+      ];
+      expect(organizerTournamentDayScheduleEnabled(categories), isFalse);
+      expect(organizerTournamentDayScheduleEnabled(const []), isFalse);
     });
   });
 

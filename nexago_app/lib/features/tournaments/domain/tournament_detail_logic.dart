@@ -6,6 +6,7 @@ import 'tournament_detail_model.dart';
 import 'tournament_category_spots.dart';
 import 'tournament_discovery_models.dart';
 import 'tournament_listing_status.dart';
+import 'tournament_match.dart';
 
 class TournamentDetailStats {
   const TournamentDetailStats({
@@ -263,6 +264,11 @@ bool categoryHasGroupsPhase(TournamentCategoryOffer offer) =>
 /// Exibe a aba Grupos quando ao menos uma categoria tem fase de grupos.
 bool tournamentShouldShowGroupsTab(TournamentDetail tournament) {
   return tournament.categoryOffers.any(categoryHasGroupsPhase);
+}
+
+/// Exibe o card Chave em Explorar quando o organizador já gerou jogos.
+bool tournamentShouldShowBracketExploreCard(List<TournamentMatch> matches) {
+  return matches.isNotEmpty;
 }
 
 String tournamentCategorySubtitle(TournamentCategoryOffer offer) {

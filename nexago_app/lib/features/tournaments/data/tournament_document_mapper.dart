@@ -134,7 +134,22 @@ abstract final class TournamentDocumentMapper {
       listingStatusRaw: listingStatusRaw,
       sport: _str(data['sport']) ?? '',
       paymentMode: parseTournamentPaymentMode(data['paymentMode'] as String?),
+      organizerPixKey: _pixField(data['organizerPix'], 'key'),
+      organizerPixKeyType: _pixField(data['organizerPix'], 'keyType'),
+      organizerPixRecipientName: _pixField(data['organizerPix'], 'recipientName'),
+      organizerPixCity: _pixField(data['organizerPix'], 'city'),
     );
+  }
+
+  static String _pixField(dynamic raw, String key) {
+    if (raw is! Map) return '';
+    return _str(raw[key]) ?? '';
+  }
+
+  static int? _ageRestrictionInt(dynamic raw, String key) {
+    if (raw is! Map) return null;
+    final value = raw[key];
+    return value is num ? value.toInt() : null;
   }
 
   static List<TournamentCategoryOffer> _parseCategoryOffers(
@@ -175,6 +190,11 @@ abstract final class TournamentDocumentMapper {
         maxTeams: capacity,
         spotsTotal: capacity,
         level: _str(map['level']) ?? '',
+        ageBand: _str(map['ageBand']) ?? '',
+        ageRestrictionMode: _pixField(map['ageRestriction'], 'mode'),
+        ageMinYears: _ageRestrictionInt(map['ageRestriction'], 'minAge'),
+        ageMaxYears: _ageRestrictionInt(map['ageRestriction'], 'maxAge'),
+        ageReference: _pixField(map['ageRestriction'], 'reference'),
         genderType: _str(map['genderType']) ?? '',
         bracketFormat: _str(map['bracketFormat']) ?? '',
         registrationClosed: map['registrationClosed'] == true,
@@ -205,6 +225,11 @@ abstract final class TournamentDocumentMapper {
           maxTeams: capacity,
           spotsTotal: capacity,
           level: _str(map['level']) ?? '',
+          ageBand: _str(map['ageBand']) ?? '',
+          ageRestrictionMode: _pixField(map['ageRestriction'], 'mode'),
+          ageMinYears: _ageRestrictionInt(map['ageRestriction'], 'minAge'),
+          ageMaxYears: _ageRestrictionInt(map['ageRestriction'], 'maxAge'),
+          ageReference: _pixField(map['ageRestriction'], 'reference'),
           genderType: _str(map['genderType']) ?? '',
           bracketFormat: _str(map['bracketFormat']) ?? '',
           registrationClosed: map['registrationClosed'] == true,

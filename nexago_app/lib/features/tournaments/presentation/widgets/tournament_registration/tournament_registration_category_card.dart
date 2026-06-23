@@ -17,6 +17,8 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
     this.showChangeAction = false,
     this.alreadyRegistered = false,
     this.levelBlocked = false,
+    this.ageBlocked = false,
+    this.ageBlockLabel = '',
     this.onTap,
     this.onChange,
   });
@@ -29,6 +31,9 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
   final bool alreadyRegistered;
   /// Categoria abaixo do nível do atleta (anti-sandbagging): bloqueada.
   final bool levelBlocked;
+  /// Categoria fora da faixa etária do atleta (ou sem data de nascimento).
+  final bool ageBlocked;
+  final String ageBlockLabel;
   final VoidCallback? onTap;
   final VoidCallback? onChange;
 
@@ -45,6 +50,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
     );
     final selectable = !alreadyRegistered &&
         !levelBlocked &&
+        !ageBlocked &&
         isCategorySelectable(
           offer,
           inscriptionCount: inscriptionCount,
@@ -183,6 +189,9 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
   }
 
   String _closedLabel(TournamentCategoryOffer offer) {
+    if (ageBlocked) {
+      return ageBlockLabel.isNotEmpty ? ageBlockLabel : 'FORA DA FAIXA ETÁRIA';
+    }
     if (levelBlocked) {
       return CategoryLevelEligibility.blockBadgeLabel();
     }

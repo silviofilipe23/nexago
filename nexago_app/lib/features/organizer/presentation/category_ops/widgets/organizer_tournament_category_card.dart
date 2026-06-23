@@ -26,8 +26,7 @@ class OrganizerTournamentCategoryCard extends StatelessWidget {
       category.levelLabel,
     ];
     final fillPercent = (category.fillRatio * 100).round();
-    final progressColor =
-        category.isFull ? AppColors.win : AppColors.brand;
+    final progressColor = category.isFull ? AppColors.win : AppColors.brand;
 
     return Material(
       color: context.themeColors.surfaceCard,
@@ -58,9 +57,7 @@ class OrganizerTournamentCategoryCard extends StatelessWidget {
                         children: [
                           Text(
                             category.name,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.w800),
                           ),
                           if (category.isFull) ...[
@@ -70,7 +67,7 @@ class OrganizerTournamentCategoryCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    _CategoryNavButton(onTap: onTap),
+                    // _CategoryNavButton(onTap: onTap),
                   ],
                 ),
                 if (tags.isNotEmpty) ...[
@@ -80,10 +77,7 @@ class OrganizerTournamentCategoryCard extends StatelessWidget {
                     runSpacing: 6,
                     children: [
                       for (var i = 0; i < tags.length; i++)
-                        _CategoryTag(
-                          label: tags[i],
-                          highlighted: i == 0,
-                        ),
+                        _CategoryTag(label: tags[i], highlighted: i == 0),
                     ],
                   ),
                 ],
@@ -154,9 +148,9 @@ class OrganizerTournamentCategoryCard extends StatelessWidget {
                   Text(
                     categoryReadyHint(category),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.win,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      color: AppColors.win,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ],
@@ -255,7 +249,9 @@ class _CategoryTag extends StatelessWidget {
         style: AppTypography.mono(
           fontSize: 10,
           fontWeight: FontWeight.w600,
-          color: highlighted ? AppColors.brand : context.themeColors.onSurfaceMuted,
+          color: highlighted
+              ? AppColors.brand
+              : context.themeColors.onSurfaceMuted,
         ),
       ),
     );
@@ -282,10 +278,10 @@ class _StatChip extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-                fontWeight: FontWeight.w600,
-              ),
+          style: AppTypography.mono(
+            color: context.themeColors.onSurfaceMuted,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -322,10 +318,10 @@ class _BracketReadyFooter extends StatelessWidget {
             child: Text(
               hint,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: context.themeColors.onSurface,
-                    fontWeight: FontWeight.w600,
-                    height: 1.3,
-                  ),
+                color: context.themeColors.onSurface,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
             ),
           ),
           const SizedBox(width: 8),

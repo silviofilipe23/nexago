@@ -19,6 +19,7 @@ import {
   countPaidRegistrations,
   paidTeamIdsForCancellation,
 } from "./tournament-cancellation";
+import {sharePaidUidsFromRegistration} from "./tournament-registration-pix-helpers";
 
 function getFirebaseProjectId(): string {
   return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
@@ -465,19 +466,46 @@ export const resendRegistrationPayment = onCall(async (request) => {
 
   const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
   const team = teamSnap.data();
-  const payerUid = (team?.player1Id as string) || (team?.player2Id as string);
-  if (!payerUid) throw new HttpsError("failed-precondition", "Atleta não encontrado");
+  if (!team) throw new HttpsError("failed-precondition", "Equipe inválida");
 
-  await deliverNotificationToUser({
-    userId: payerUid,
-    title: "Cobrança de inscrição",
-    body: "O organizador reenviou a cobrança da sua inscrição no torneio.",
-    type: "tournament_payment_reminder",
-    data: {tournamentId, registrationId},
-    requireInteraction: true,
-  });
+  const categoryId = (data.categoryId as string)?.trim() ?? "";
+  const sharePaidUids = sharePaidUidsFromRegistration(data);
+  const athleteUids = [team.player1Id, team.player2Id]
+    .map((id) => (typeof id === "string" ? id.trim() : ""))
+    .filter((id, idx, arr) => id.length > 0 && arr.indexOf(id) === idx);
+  const pendingUids = athleteUids.filter((id) => !sharePaidUids.includes(id));
+  if (pendingUids.length === 0) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Todos os atletas desta inscrição já pagaram.",
+    );
+  }
 
-  return {ok: true};
+  const paymentPath =
+    `/torneios/${tournamentId}/inscricao` +
+    `?registrationId=${encodeURIComponent(registrationId)}` +
+    (categoryId ? `&categoryId=${encodeURIComponent(categoryId)}` : "") +
+    "&step=payment";
+
+  await Promise.all(
+    pendingUids.map((athleteUid) =>
+      deliverNotificationToUser({
+        userId: athleteUid,
+        title: "Cobrança de inscrição",
+        body: "O organizador reenviou a cobrança da sua inscrição no torneio.",
+        type: "tournament_payment_reminder",
+        data: {
+          tournamentId,
+          registrationId,
+          ...(categoryId ? {categoryId} : {}),
+          url: paymentPath,
+        },
+        requireInteraction: true,
+      }),
+    ),
+  );
+
+  return {ok: true, notifiedCount: pendingUids.length};
 });
 
 export const sendCategoryCommunication = onCall(async (request) => {

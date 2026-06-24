@@ -124,7 +124,7 @@ class _StatusPill extends StatelessWidget {
         Icons.check_rounded,
       ),
       OrganizerTeamRegistrationStatus.pending => (
-        'Pendente',
+        '',
         AppColors.pending.withValues(alpha: 0.15),
         AppColors.pending,
         Icons.schedule_rounded,
@@ -147,7 +147,6 @@ class _StatusPill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 12, color: fg),
-          const SizedBox(width: 4),
           Text(
             label,
             style: AppTypography.mono(

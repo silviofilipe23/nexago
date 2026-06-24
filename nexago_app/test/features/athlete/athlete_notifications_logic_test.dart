@@ -134,6 +134,33 @@ void main() {
       );
     });
 
+    test('tournament payment reminder routes to payment', () {
+      final n = AthleteInboxNotification(
+        id: 'x',
+        title: 'Cobrança',
+        body: 'Body',
+        type: 'tournament_payment_reminder',
+        data: const {
+          'tournamentId': 't1',
+          'registrationId': 'r1',
+          'categoryId': 'catA',
+        },
+        read: false,
+        dismissed: false,
+        createdAt: now,
+      );
+      final p = notificationPresentation(n);
+      expect(p.actions.single.label, 'Pagar agora');
+      expect(p.icon, Icons.payments_outlined);
+      expect(
+        p.routePath,
+        '/torneios/t1/inscricao'
+            '?registrationId=r1'
+            '&categoryId=catA'
+            '&step=payment',
+      );
+    });
+
     test('booking reminder uses clock icon', () {
       final n = _notification(
         id: '1',

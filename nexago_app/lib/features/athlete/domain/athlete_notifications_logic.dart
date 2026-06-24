@@ -235,6 +235,31 @@ AthleteNotificationPresentation notificationPresentation(
         ],
         routePath: url.startsWith('/') ? url : null,
       );
+    case 'tournament_payment_reminder':
+      final tournamentId = data['tournamentId'] ?? '';
+      final registrationId = data['registrationId'] ?? '';
+      final categoryId = data['categoryId'] ?? '';
+      final paymentUrl = data['url'] ?? '';
+      final paymentRoutePath = paymentUrl.startsWith('/')
+          ? paymentUrl
+          : tournamentId.isNotEmpty && registrationId.isNotEmpty
+              ? '/torneios/$tournamentId/inscricao'
+                  '?registrationId=$registrationId'
+                  '&categoryId=$categoryId'
+                  '&step=payment'
+              : null;
+      return AthleteNotificationPresentation(
+        icon: Icons.payments_outlined,
+        iconColor: AppColors.pending,
+        iconBackground: AppColors.pending.withValues(alpha: 0.15),
+        actions: const [
+          AthleteNotificationAction(
+            label: 'Pagar agora',
+            kind: AthleteNotificationActionKind.primary,
+          ),
+        ],
+        routePath: paymentRoutePath,
+      );
     case 'booking_invite':
       final inviteId = data['inviteId'] ?? '';
       return AthleteNotificationPresentation(

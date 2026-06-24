@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NexaGO — O app do vôlei de praia amador</title>
+<meta name="description" content="Reserve quadras, entre em jogos abertos, dispute torneios e ligas e acompanhe seu ranking. O NexaGO chega a Goiânia e Aparecida de Goiânia em 24 de outubro.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+
+
+<!-- ═══ NAV ═══ -->
+<nav class="nav" id="nav">
+  <a href="#top" class="brand"><img src="logo.png" alt="" class="mark" width="38" height="38">Nexa<span class="go">GO</span></a>
+  <div class="nav-links">
+    <a href="#funcionalidades">Funcionalidades</a>
+    <a href="#como">Como funciona</a>
+    <a href="#torneios">Torneios</a>
+    <a href="#arenas">Arenas</a>
+    <a href="#depoimentos">Depoimentos</a>
+  </div>
+  <div class="nav-cta">
+    <a href="#baixar" class="btn btn-primary">Baixar o app</a>
+    <button class="nav-toggle" id="navToggle" aria-label="Abrir menu"><span class="material-symbols-rounded">menu</span></button>
+  </div>
+</nav>
+
+<div class="nav-scrim" id="navScrim"></div>
+<aside class="nav-panel" id="navPanel">
+  <div class="np-head">
+    <a href="#top" class="brand"><img src="logo.png" alt="" class="mark" width="38" height="38">nexa<span class="go">GO</span></a>
+    <button class="np-close" id="navClose" aria-label="Fechar menu"><span class="material-symbols-rounded">close</span></button>
+  </div>
+  <a href="#funcionalidades">Funcionalidades</a>
+  <a href="#como">Como funciona</a>
+  <a href="#torneios">Torneios e ligas</a>
+  <a href="#arenas">Arenas parceiras</a>
+  <a href="#depoimentos">Depoimentos</a>
+  <a href="#baixar" class="btn btn-primary">Baixar o app</a>
+</aside>
+
+<!-- ═══ HERO ═══ -->
+<header class="hero" id="top">
+  <div class="hero-bg">
+    <div class="court-lines"></div>
+    <div class="glow-a"></div>
+    <div class="glow-b"></div>
+  </div>
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <div class="launch-pill"><span class="chip">EM BREVE</span>Lançamento oficial · 24 OUT · Goiânia</div>
+      <h1>O vôlei de praia amador agora <span class="accent">joga na sua mão.</span></h1>
+      <p class="hero-sub">Reserve quadra, entre em jogos abertos, registre a súmula ao vivo e dispute torneios e ligas — tudo num só app. A cena amadora de Goiânia, organizada como nunca.</p>
+      <div class="hero-actions">
+        <div class="stores">
+          <a href="#baixar" class="store">
+            <span class="material-symbols-rounded">phone_iphone</span>
+            <span class="st-txt"><span class="st-top">Baixe na</span><span class="st-name">App Store</span></span>
+          </a>
+          <a href="#baixar" class="store">
+            <span class="material-symbols-rounded">android</span>
+            <span class="st-txt"><span class="st-top">Disponível no</span><span class="st-name">Google Play</span></span>
+          </a>
+        </div>
+        <div class="hero-proof">
+          <div class="avatars">
+            <span class="av" style="background:linear-gradient(135deg,hsl(140 65% 48%),hsl(170 60% 28%))">MA</span>
+            <span class="av" style="background:linear-gradient(135deg,hsl(25 65% 48%),hsl(55 60% 28%))">EN</span>
+            <span class="av" style="background:linear-gradient(135deg,hsl(280 65% 48%),hsl(310 60% 28%))">BR</span>
+            <span class="av" style="background:linear-gradient(135deg,hsl(320 65% 48%),hsl(350 60% 28%))">CA</span>
+          </div>
+          <span class="hero-proof-txt"><b>+1.200 atletas</b> já na lista de espera em GO</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- phone mockup -->
+    <div class="hero-phone">
+      <div class="float float-score">
+        <div class="fl-head"><span class="live-dot"></span><span class="fl-lbl">JOGOS AO VIVO</span></div>
+        <div class="score">
+          <span class="nm">Mari / Ju</span>
+          <span class="pt win">21</span>
+          <span class="pt">18</span>
+          <span class="nm">Paula / Bia</span>
+        </div>
+      </div>
+
+      <div class="float float-streak">
+        <div class="fl-head"><span class="live-dot orange"></span><span class="fl-lbl orange">Sequência</span></div>
+        <div class="st-num"><span class="material-symbols-rounded flame">local_fire_department</span> 7 dias</div>
+        <div class="st-sub">+25 XP de bônus hoje</div>
+      </div>
+
+      <div class="phone">
+        <div class="phone-screen">
+          <div class="phone-notch"></div>
+          <div class="app">
+            <div class="app-head">
+              <div class="app-ava">MA<span class="streak"><span class="material-symbols-rounded" style="font-size:7px">local_fire_department</span>7</span></div>
+              <div class="app-greet">
+                <div class="g1" style="letter-spacing: 0px; font-size: 7px">SEX · 24 OUT · 18:40</div>
+                <div class="g2" style="font-size: 13px">Olá, Marcelo</div>
+              </div>
+              <div class="app-xp"><span class="material-symbols-rounded">bolt</span><span>70/100</span></div>
+              <div class="app-bell"><span class="material-symbols-rounded">notifications</span><span class="badge">3</span></div>
+            </div>
+
+            <div class="app-body">
+              <div class="app-resv">
+                <div class="blob"></div>
+                <div class="top">
+                  <span class="cd">● em 2h 20min</span>
+                  <span class="tag">CONFIRMADA</span>
+                </div>
+                <div class="ttl">Arena Bueno · Quadra 2</div>
+                <div class="meta">
+                  <span style="display:inline-flex;align-items:center;gap:4px"><span class="material-symbols-rounded">calendar_today</span> Hoje · 21:00</span>
+                  <span class="sep"></span>
+                  <span>com Enzo R.</span>
+                </div>
+                <div class="cta-row">
+                  <button class="b-main"><span class="material-symbols-rounded">near_me</span> Como chegar</button>
+                  <button class="b-icon"><span class="material-symbols-rounded">ios_share</span></button>
+                  <button class="b-icon"><span class="material-symbols-rounded">more_horiz</span></button>
+                </div>
+              </div>
+
+              <div class="app-quick">
+                <div class="q accent"><span class="material-symbols-rounded">add_circle</span><span>Reservar</span></div>
+                <div class="q"><span class="material-symbols-rounded">group_add</span><span>Convidar</span></div>
+                <div class="q"><span class="material-symbols-rounded">trophy</span><span>Torneios</span></div>
+                <div class="q"><span class="material-symbols-rounded">sports_volleyball</span><span>Jogo aberto</span></div>
+              </div>
+
+              <div class="app-lbl"><b>Rolando perto</b><span class="act">● 3 jogos</span></div>
+              <div class="app-game">
+                <div class="ico"><span class="material-symbols-rounded">sports_volleyball</span></div>
+                <div class="gi">
+                  <div class="gn">Arena Sul · falta 1</div>
+                  <div class="gs">Vôlei de praia · em 40 min · 2,1 km</div>
+                </div>
+                <span class="gtag">ENTRAR</span>
+              </div>
+            </div>
+
+            <div class="app-tabs">
+              <div class="t on"><span class="material-symbols-rounded">home</span><span>Início</span></div>
+              <div class="t"><span class="material-symbols-rounded">calendar_month</span><span>Agenda</span></div>
+              <div class="t"><span class="material-symbols-rounded">add_circle</span><span>Reservar</span></div>
+              <div class="t"><span class="material-symbols-rounded">trophy</span><span>Competir</span></div>
+              <div class="t"><span class="material-symbols-rounded">person</span><span>Perfil</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ STATS ═══ -->
+<section class="stats">
+  <div class="wrap stats-inner">
+    <div class="stat reveal"><div class="num">2</div><div class="lbl">Cidades no lançamento</div></div>
+    <div class="stat reveal d1"><div class="num">18<span class="u">+</span></div><div class="lbl">Arenas parceiras</div></div>
+    <div class="stat reveal d2"><div class="num">1.2<span class="u">k</span></div><div class="lbl">Atletas na lista de espera</div></div>
+    <div class="stat reveal d3"><div class="num">24<span class="u">/10</span></div><div class="lbl">1º torneio NexaGO</div></div>
+  </div>
+</section>
+
+<!-- ═══ COMO FUNCIONA ═══ -->
+<section class="section" id="como">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow"><span class="dot"></span>Como funciona</div>
+      <h2 class="section-title">Um caminho para cada papel</h2>
+      <p class="section-lead">Atleta, organizador ou arena — escolha o seu lado da rede e veja como o nexaGO funciona para você.</p>
+    </div>
+
+    <div class="como-tabswrap">
+      <div class="como-tabs" role="tablist">
+        <button class="como-tab active" data-como="atleta"><span class="material-symbols-rounded">sports_volleyball</span> Atleta</button>
+        <button class="como-tab" data-como="organizador"><span class="material-symbols-rounded">trophy</span> Organizador</button>
+        <button class="como-tab" data-como="arena"><span class="material-symbols-rounded">storefront</span> Arena</button>
+      </div>
+    </div>
+
+    <!-- Atleta -->
+    <div class="como-panel active" data-panel="atleta">
+      <div class="steps">
+        <div class="step card">
+          <div class="n">01</div>
+          <div class="ic"><span class="material-symbols-rounded">person_add</span></div>
+          <h3>Crie seu perfil</h3>
+          <p>Baixe o app, escolha seu nível e monte seu perfil de atleta em menos de um minuto.</p>
+          <span class="ln material-symbols-rounded">arrow_forward</span>
+        </div>
+        <div class="step card">
+          <div class="n">02</div>
+          <div class="ic"><span class="material-symbols-rounded">search</span></div>
+          <h3>Quadra ou torneio?</h3>
+          <p>Reserve um horário numa arena parceira ou inscreva-se em um torneio.</p>
+          <span class="ln material-symbols-rounded">arrow_forward</span>
+        </div>
+        <div class="step card">
+          <div class="n">03</div>
+          <div class="ic"><span class="material-symbols-rounded">scoreboard</span></div>
+          <h3>Placar ao vivo</h3>
+          <p>O placar é registrado ao vivo. A galera acompanha de casa e o resultado fica no histórico.</p>
+          <span class="ln material-symbols-rounded">arrow_forward</span>
+        </div>
+        <div class="step card">
+          <div class="n">04</div>
+          <div class="ic"><span class="material-symbols-rounded">trending_up</span></div>
+          <h3>Suba no ranking</h3>
+          <p>Ganhe XP, mantenha sua sequência e dispute torneios e ligas oficiais da sua cidade.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Organizador -->
+    <div class="como-panel" data-panel="organizador">
+      <div class="steps">
+        <div class="step card">
+          <div class="n">01</div>
+          <div class="ic"><span class="material-symbols-rounded">add_circle</span></div>
+          <h3>Monte o torneio</h3>
+          <p>Crie etapa, liga ou torneio em minutos: categorias, formato, datas e valor da inscrição.</p>
+          <span class="ln material-symbols-rounded">arrow_forward</span>
+        </div>
+        <div class="step card">
+          <div class="n">02</div>
+          <div class="ic"><span class="material-symbols-rounded">how_to_reg</span></div>
+          <h3>Abra as inscrições</h3>
+          <p>Compartilhe o link e receba inscrições e pagamentos direto no app, sem PIX solto no grupo.</p>
+          <span class="ln material-symbols-rounded">arrow_forward</span>
+        </div>
+        <div class="step card">
+          <div class="n">03</div>
+          <div class="ic"><span class="material-symbols-rounded">account_tree</span></div>
+          <h3>Gere a chave</h3>
+          <p>Chaveamento automático — dupla ou eliminatória — e tabela ao vivo assim que as vagas fecham.</p>
+          <span class="ln material-symbols-rounded">arrow_forward</span>
+        </div>
+        <div class="step card">
+          <div class="n">04</div>
+          <div class="ic"><span class="material-symbols-rounded">sports_score</span></div>
+          <h3>Comande o dia</h3>
+          <p>Súmula ao vivo, resultados em tempo real e classificação que se atualiza sozinha.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arena -->
+    <div class="como-panel" data-panel="arena">
+      <div class="steps">
+        <div class="step card">
+          <div class="n">01</div>
+          <div class="ic"><span class="material-symbols-rounded">add_business</span></div>
+          <h3>Cadastre a arena</h3>
+          <p>Coloque suas quadras, fotos e horários na rede nexaGO. Cadastro gratuito no lançamento.</p>
+          <span class="ln material-symbols-rounded">arrow_forward</span>
+        </div>
+        <div class="step card">
+          <div class="n">02</div>
+          <div class="ic"><span class="material-symbols-rounded">event_available</span></div>
+          <h3>Receba reservas</h3>
+          <p>Atletas reservam e pagam pelo app. Sua agenda enche sozinha e os horários ociosos somem.</p>
+          <span class="ln material-symbols-rounded">arrow_forward</span>
+        </div>
+        <div class="step card">
+          <div class="n">03</div>
+          <div class="ic"><span class="material-symbols-rounded">trophy</span></div>
+          <h3>Seja sede de torneios</h3>
+          <p>Apareça para organizadores e receba etapas e ligas oficiais acontecendo na sua arena.</p>
+          <span class="ln material-symbols-rounded">arrow_forward</span>
+        </div>
+        <div class="step card">
+          <div class="n">04</div>
+          <div class="ic"><span class="material-symbols-rounded">insights</span></div>
+          <h3>Gerencie tudo</h3>
+          <p>Agenda, ocupação e repasses num painel só. Mais previsibilidade, menos quadra parada.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FUNCIONALIDADES ═══ -->
+<section class="section" id="funcionalidades" style="background:var(--bg-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow"><span class="dot"></span>Funcionalidades</div>
+      <h2 class="section-title">Tudo o que o esporte amador precisava</h2>
+      <p class="section-lead">Uma plataforma feita por quem joga, para quem joga de verdade.</p>
+    </div>
+    <div class="features">
+      <div class="feature card reveal">
+        <div class="ic"><span class="material-symbols-rounded">event_available</span></div>
+        <h3>Reserva de quadras</h3>
+        <p>Veja horários livres em tempo real nas arenas parceiras e reserve em poucos toques, com pagamento direto no app.</p>
+      </div>
+      <div class="feature card reveal d1">
+        <div class="ic"><span class="material-symbols-rounded">sports_volleyball</span></div>
+        <h3>Jogos abertos</h3>
+        <p>Falta gente pro seu jogo? Abra uma vaga. Procurando partida? Entre num jogo perto de você que precisa de um a mais.</p>
+      </div>
+      <div class="feature card reveal d2">
+        <div class="ic"><span class="material-symbols-rounded">scoreboard</span></div>
+        <h3>Súmula ao vivo</h3>
+        <p>Placar em tempo real na palma da mão. Todo mundo acompanha o set ponto a ponto, mesmo de longe.</p>
+      </div>
+      <div class="feature card reveal">
+        <div class="ic"><span class="material-symbols-rounded">trophy</span></div>
+        <h3>Torneios e ligas</h3>
+        <p>Inscrição, chaveamento automático, tabela e classificação. Organize ou dispute — tudo dentro do app.</p>
+      </div>
+      <div class="feature card reveal d1">
+        <div class="ic"><span class="material-symbols-rounded">military_tech</span></div>
+        <h3>Ranking &amp; XP</h3>
+        <p>Cada jogo conta. Ganhe pontos, mantenha sua sequência, suba de nível e veja onde você está entre os amigos.</p>
+      </div>
+      <div class="feature card reveal d2">
+        <div class="ic"><span class="material-symbols-rounded">groups</span></div>
+        <h3>Comunidade</h3>
+        <p>Encontre parceiros do seu nível, monte sua dupla fixa e acompanhe a atividade da rede em tempo real.</p>
+      </div>
+      <div class="feature card big reveal">
+        <div class="fb-txt">
+          <div class="ic"><span class="material-symbols-rounded">all_inclusive</span></div>
+          <h3>Começamos no vôlei de praia. O resto vem aí.</h3>
+          <p>O nexaGO nasce focado no vôlei de praia para fazer bem feito. Beach tennis, padel e futevôlei já estão no nosso roteiro — a mesma experiência, novas modalidades.</p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;min-width:190px">
+          <div style="display:flex;align-items:center;gap:10px;font-size:14px"><span class="material-symbols-rounded" style="color:var(--win);font-size:20px">check_circle</span> Vôlei de praia <b style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--win)">ATIVO</b></div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--mute)"><span class="material-symbols-rounded" style="color:var(--pend);font-size:20px">schedule</span> Beach tennis <b style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--pend)">EM BREVE</b></div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--mute)"><span class="material-symbols-rounded" style="color:var(--pend);font-size:20px">schedule</span> Padel <b style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--pend)">EM BREVE</b></div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--mute)"><span class="material-symbols-rounded" style="color:var(--pend);font-size:20px">schedule</span> Futevôlei <b style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--pend)">EM BREVE</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ TORNEIOS E LIGAS ═══ -->
+<section class="section" id="torneios">
+  <div class="wrap split">
+    <div class="split-copy reveal">
+      <div class="eyebrow" style="margin-bottom:16px"><span class="dot"></span>Torneios e ligas</div>
+      <h2>Da inscrição à final, sem dor de cabeça</h2>
+      <p>Chaveamento automático, tabela ao vivo e classificação atualizada a cada resultado. Atleta acompanha tudo pelo celular; organizador comanda o torneio inteiro de um lugar só.</p>
+      <ul class="checklist">
+        <li><span class="ck"><span class="material-symbols-rounded">account_tree</span></span><span><b>Chave dupla ou eliminatória</b> gerada automaticamente assim que as inscrições fecham.</span></li>
+        <li><span class="ck"><span class="material-symbols-rounded">leaderboard</span></span><span><b>Ligas por temporada</b> com pontuação acumulada e classificação que conta os melhores resultados.</span></li>
+        <li><span class="ck"><span class="material-symbols-rounded">payments</span></span><span><b>Inscrição com pagamento integrado</b> — confirme sua vaga sem PIX solto no grupo.</span></li>
+      </ul>
+      <a href="#baixar" class="btn btn-primary">Quero disputar <span class="material-symbols-rounded" style="font-size:18px">arrow_forward</span></a>
+    </div>
+
+    <div class="reveal d1">
+      <div class="bracket card">
+        <div class="brk-head">
+          <span class="bt">Etapa Abertura · Final</span>
+          <span class="brk-live"><span class="live-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--live)"></span> AO VIVO</span>
+        </div>
+        <div class="brk-cols">
+          <div class="brk-col r1">
+            <div class="match">
+              <div class="row w"><span class="nm">Mari / Ju</span><span class="sc">2</span></div>
+              <div class="row l"><span class="nm">Paula / Rê</span><span class="sc">0</span></div>
+            </div>
+            <div class="match">
+              <div class="row w"><span class="nm">Lara / Bia</span><span class="sc">2</span></div>
+              <div class="row l"><span class="nm">Duda / Tati</span><span class="sc">1</span></div>
+            </div>
+          </div>
+          <div class="brk-col r2">
+            <div class="match">
+              <div class="row w"><span class="nm">Mari / Ju</span><span class="sc">21</span></div>
+              <div class="row l"><span class="nm">Lara / Bia</span><span class="sc">18</span></div>
+            </div>
+          </div>
+          <div class="brk-col r3">
+            <div class="match champ">
+              <div class="row"><span class="material-symbols-rounded" style="font-size:16px">trophy</span> Mari / Ju</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="league card">
+        <div class="lg-head"><span class="material-symbols-rounded">leaderboard</span> Liga Goiânia · Feminino</div>
+        <div class="lg-row top">
+          <span class="pos">1</span>
+          <span class="player"><span class="a" style="background:linear-gradient(135deg,hsl(320 65% 48%),hsl(350 60% 28%))">MJ</span> Mari / Ju</span>
+          <span class="pts">340 pts</span>
+        </div>
+        <div class="lg-row">
+          <span class="pos">2</span>
+          <span class="player">LB
+Paula / Bia</span>
+          <span class="pts">295 pts</span>
+        </div>
+        <div class="lg-row">
+          <span class="pos">3</span>
+          <span class="player"><span class="a" style="background:linear-gradient(135deg,hsl(140 65% 48%),hsl(170 60% 28%))">DT</span> Duda / Tati</span>
+          <span class="pts">260 pts</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ ARENAS ═══ -->
+<section class="section" id="arenas" style="background:var(--bg-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow"><span class="dot"></span>Arenas parceiras</div>
+      <h2 class="section-title">As melhores quadras de Goiânia, num lugar só</h2>
+      <p class="section-lead">Areia de qualidade, iluminação e horário garantido. Reserve direto pelo app.</p>
+    </div>
+    <div class="arenas">
+      <div class="arena card reveal">
+        <image-slot id="arena-1" class="ph" shape="rect" placeholder="Foto da arena (16:9)"></image-slot>
+        <div class="ab">
+          <div class="atop">
+            <h3>Arena CFC</h3>
+            <span class="badge"><span class="d"></span>PARCEIRA</span>
+          </div>
+          <div class="ameta"><span class="material-symbols-rounded">location_on</span> Res. Solar Central Park · Aparecida de&nbsp;Goiânia</div>
+          <div class="acourts"><span class="chip">4 quadras</span><span class="chip">Iluminada</span><span class="chip">Bar</span></div>
+        </div>
+      </div>
+      <div class="arena card reveal d1">
+        <image-slot id="arena-2" class="ph" shape="rect" placeholder="Foto da arena (16:9)"></image-slot>
+        <div class="ab">
+          <div class="atop">
+            <h3>Vegeton Beach Club</h3>
+            <span class="badge"><span class="d"></span>PARCEIRA</span>
+          </div>
+          <div class="ameta"><span class="material-symbols-rounded">location_on</span> Vila Mariana · Aparecida de Goiânia</div>
+          <div class="acourts"><span class="chip">4 quadras</span><span class="chip">Iluminada</span><span class="chip">Bar</span></div>
+        </div>
+      </div>
+      <div class="arena card reveal d2">
+        <image-slot id="arena-3" class="ph" shape="rect" placeholder="Foto da arena (16:9)"></image-slot>
+        <div class="ab">
+          <div class="atop">
+            <h3>Arena Cana Brava</h3>
+            <span class="badge"><span class="d"></span>PARCEIRA</span>
+          </div>
+          <div class="ameta"><span class="material-symbols-rounded">location_on</span> Aparecida de Goiânia</div>
+          <div class="acourts"><span class="chip">5 quadras</span><span class="chip">Iluminada</span><span class="chip">Escolinha</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arena-cta reveal">
+      <div>
+        <h3>Tem uma arena? Coloque na rede nexaGO.</h3>
+        <p>Encha seus horários ociosos, gerencie reservas e seja sede de torneios. Cadastro de arena gratuito no lançamento.</p>
+      </div>
+      <a href="#baixar" class="btn btn-primary">Seja parceiro <span class="material-symbols-rounded" style="font-size:18px">arrow_forward</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ DEPOIMENTOS ═══ -->
+<section class="section" id="depoimentos">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow"><span class="dot"></span>Depoimentos</div>
+      <h2 class="section-title">Quem já jogou, aprovou</h2>
+      <p class="section-lead">Atletas e organizadores que testaram o nexaGO na pré-temporada.</p>
+    </div>
+    <div class="testimonials">
+      <div class="tst card reveal">
+        <div class="stars"><span class="material-symbols-rounded">star</span><span class="material-symbols-rounded">star</span><span class="material-symbols-rounded">star</span><span class="material-symbols-rounded">star</span><span class="material-symbols-rounded">star</span></div>
+        <p class="quote">"Acabou a bagunça de grupo de WhatsApp pra marcar jogo. Abro o app, vejo quem tá precisando de gente e já caio na quadra."</p>
+        <div class="who">
+          <image-slot id="tst-1" class="ph" shape="circle" placeholder="Foto"></image-slot>
+          <div><div class="nm">Marcelo A.</div><div class="rl">Atleta · Goiânia</div></div>
+        </div>
+      </div>
+      <div class="tst card reveal d1">
+        <div class="stars"><span class="material-symbols-rounded">star</span><span class="material-symbols-rounded">star</span><span class="material-symbols-rounded">star</span><span class="material-symbols-rounded">star</span><span class="material-symbols-rounded">star</span></div>
+        <p class="quote">"Organizei minha etapa em um dia. O chaveamento sai sozinho e a súmula ao vivo deixou a galera vidrada acompanhando os jogos."</p>
+        <div class="who">
+          <image-slot id="tst-2" class="ph" shape="circle" placeholder="Foto"></image-slot>
+          <div><div class="nm">Camila S.</div><div class="rl">Organizadora · Aparecida</div></div>
+        </div>
+      </div>
+      <div class="tst card reveal d2">
+        <div class="stars"><span class="material-symbols-rounded">star</span><span class="material-symbols-rounded">star</span><span class="material-symbols-rounded">star</span><span class="material-symbols-rounded">star</span><span class="material-symbols-rounded">star</span></div>
+        <p class="quote">"O ranking me viciou. Fico de olho na sequência e na liga — virou parte da rotina jogar pelo menos duas vezes por semana."</p>
+        <div class="who">
+          <image-slot id="tst-3" class="ph" shape="circle" placeholder="Foto"></image-slot>
+          <div><div class="nm">Bruno V.</div><div class="rl">Atleta · Goiânia</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CTA FINAL ═══ -->
+<section class="section final" id="baixar">
+  <div class="wrap">
+    <div class="final-card reveal">
+      <div class="fglow"></div>
+      <div class="content">
+        <div class="eyebrow" style="justify-content:center;margin-bottom:18px"><span class="dot"></span>Lançamento · 24 de outubro</div>
+        <h2>Seja um dos primeiros<br>a entrar em quadra.</h2>
+        <p>O nexaGO estreia oficialmente no 1º Torneio nexaGO. Baixe o app, garanta seu perfil e dispute desde a primeira etapa.</p>
+        <div class="countdown" id="countdown">
+          <div class="cd-unit"><div class="v" id="cd-d">--</div><div class="u">dias</div></div>
+          <div class="cd-unit"><div class="v" id="cd-h">--</div><div class="u">horas</div></div>
+          <div class="cd-unit"><div class="v" id="cd-m">--</div><div class="u">min</div></div>
+          <div class="cd-unit"><div class="v" id="cd-s">--</div><div class="u">seg</div></div>
+        </div>
+        <div class="stores">
+          <a href="#" class="store">
+            <span class="material-symbols-rounded">phone_iphone</span>
+            <span class="st-txt"><span class="st-top">Baixe na</span><span class="st-name">App Store</span></span>
+          </a>
+          <a href="#" class="store">
+            <span class="material-symbols-rounded">android</span>
+            <span class="st-txt"><span class="st-top">Disponível no</span><span class="st-name">Google Play</span></span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══ -->
+<footer class="footer">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="#top" class="brand"><img src="logo.png" alt="" class="mark" width="38" height="38">nexa<span class="go">GO</span></a>
+        <p>O app que organiza o esporte amador. Começando pelo vôlei de praia em Goiânia e região.</p>
+        <a class="ig-handle" href="https://www.instagram.com/nexagobr/" target="_blank" rel="noopener"><span class="material-symbols-rounded">photo_camera</span>@nexagobr</a>
+      </div>
+      <div class="foot-col">
+        <h4>Produto</h4>
+        <a href="#funcionalidades">Funcionalidades</a>
+        <a href="#como">Como funciona</a>
+        <a href="#torneios">Torneios e ligas</a>
+        <a href="#arenas">Arenas parceiras</a>
+      </div>
+      <div class="foot-col">
+        <h4>Para parceiros</h4>
+        <a href="#arenas">Seja uma arena</a>
+        <a href="#torneios">Organize um torneio</a>
+        <a href="#baixar">Modo organizador</a>
+      </div>
+      <div class="foot-col">
+        <h4>Suporte</h4>
+        <a href="#">Central de ajuda</a>
+        <a href="#">Fale conosco</a>
+        <a href="#">Privacidade</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span class="cp">© 2026 nexaGO · Goiânia, GO · Todos os direitos reservados.</span>
+      <div class="foot-social">
+        <a href="https://instagram.com/nexagobr" target="_blank" rel="noopener" aria-label="Instagram @nexagobr"><span class="material-symbols-rounded">photo_camera</span></a>
+        <a href="#" aria-label="WhatsApp"><span class="material-symbols-rounded">chat</span></a>
+        <a href="#" aria-label="E-mail"><span class="material-symbols-rounded">mail</span></a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/7cb89a9d-7238-416c-a707-9a2523328286.js"></script>
+<script>
+(function () {
+  // nav scroll state
+  var nav = document.getElementById('nav');
+  function onScroll() { nav.classList.toggle('scrolled', window.scrollY > 24); }
+  onScroll(); window.addEventListener('scroll', onScroll, { passive: true });
+
+  // mobile nav
+  var panel = document.getElementById('navPanel');
+  var scrim = document.getElementById('navScrim');
+  function openNav() { panel.classList.add('open'); scrim.classList.add('open'); }
+  function closeNav() { panel.classList.remove('open'); scrim.classList.remove('open'); }
+  document.getElementById('navToggle').addEventListener('click', openNav);
+  document.getElementById('navClose').addEventListener('click', closeNav);
+  scrim.addEventListener('click', closeNav);
+  panel.querySelectorAll('a').forEach(function (a) { a.addEventListener('click', closeNav); });
+
+  // reveal on scroll
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+
+  // countdown to 24 Oct 2026, 09:00 (1º Torneio NexaGO)
+  var target = new Date('2026-10-24T09:00:00-03:00').getTime();
+  var d = document.getElementById('cd-d'), h = document.getElementById('cd-h'),
+      m = document.getElementById('cd-m'), s = document.getElementById('cd-s');
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function tick() {
+    var diff = target - Date.now();
+    if (diff < 0) diff = 0;
+    var dd = Math.floor(diff / 86400000);
+    var hh = Math.floor((diff % 86400000) / 3600000);
+    var mm = Math.floor((diff % 3600000) / 60000);
+    var ss = Math.floor((diff % 60000) / 1000);
+    d.textContent = dd; h.textContent = pad(hh); m.textContent = pad(mm); s.textContent = pad(ss);
+  }
+  tick(); setInterval(tick, 1000);
+
+  // Como funciona — seletor de papel
+  var comoTabs = document.querySelectorAll('.como-tab');
+  var comoPanels = document.querySelectorAll('.como-panel');
+  comoTabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      var key = tab.getAttribute('data-como');
+      comoTabs.forEach(function (t) { t.classList.toggle('active', t === tab); });
+      comoPanels.forEach(function (p) { p.classList.toggle('active', p.getAttribute('data-panel') === key); });
+    });
+  });
+})();
+</script>
+
+
+</body></html>

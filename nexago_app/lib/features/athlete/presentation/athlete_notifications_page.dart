@@ -96,6 +96,7 @@ class _AthleteNotificationsPageState
     if (type == 'tournament_partner_invite' ||
         type == 'tournament_partner_invite_accepted' ||
         type == 'tournament_registration_confirmed' ||
+        type == 'tournament_payment_reminder' ||
         type == 'booking_invite') {
       _navigateForNotification(notification);
       return;

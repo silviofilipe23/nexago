@@ -145,6 +145,7 @@ Eventos que disparam push hoje:
 | `tournament_partner_invite` | Convite de dupla em torneio |
 | `tournament_partner_invite_accepted` | Parceiro aceitou convite |
 | `tournament_registration_confirmed` | Pagamento da inscrição concluído |
+| `tournament_payment_reminder` | Organizador reenviou cobrança da inscrição |
 | `booking_invite` | Convite para reserva |
 | Lembrete 15 min | `arena-booking-reminder-15m` |
 | `slot_vacancy_available` | Vaga em horário (opt-in) |

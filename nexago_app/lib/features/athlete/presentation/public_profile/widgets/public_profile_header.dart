@@ -129,7 +129,7 @@ class PublicProfileHeader extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                       style: AppTypography.soraRegular(
-                        fontSize: 26,
+                        fontSize: 20,
                         fontWeight: FontWeight.w800,
                         color: context.themeColors.onSurface,
                         letterSpacing: -0.6,
@@ -182,7 +182,9 @@ class PublicProfileHeader extends StatelessWidget {
                   style: AppTypography.soraRegular(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: context.themeColors.onSurface.withValues(alpha: 0.88),
+                    color: context.themeColors.onSurface.withValues(
+                      alpha: 0.88,
+                    ),
                     height: 1.45,
                   ),
                 ),
@@ -329,7 +331,9 @@ class _SportChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: primary ? AppColors.brand : context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(999),
-        border: primary ? null : Border.all(color: context.themeColors.surfaceRaised),
+        border: primary
+            ? null
+            : Border.all(color: context.themeColors.surfaceRaised),
       ),
       child: Text(
         label,

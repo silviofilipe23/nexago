@@ -224,6 +224,47 @@ void main() {
     });
   });
 
+  group('myTournamentRegistrationPaidAwaitingPartner', () {
+    MyTournamentRegistration reg({
+      required bool isPaid,
+      required bool partnerPending,
+    }) =>
+        MyTournamentRegistration(
+          registrationId: 'reg-1',
+          tournamentId: 't1',
+          tournamentName: 'Torneio',
+          dateLabel: '21/04',
+          statusLabel: 'x',
+          isPaid: isPaid,
+          categoryId: 'cat1',
+          partnerPending: partnerPending,
+        );
+
+    test('true quando pago e ainda sem parceiro (solo pagou total)', () {
+      expect(
+        myTournamentRegistrationPaidAwaitingPartner(
+          reg(isPaid: true, partnerPending: true),
+        ),
+        isTrue,
+      );
+    });
+
+    test('false quando já tem parceiro ou não pago', () {
+      expect(
+        myTournamentRegistrationPaidAwaitingPartner(
+          reg(isPaid: true, partnerPending: false),
+        ),
+        isFalse,
+      );
+      expect(
+        myTournamentRegistrationPaidAwaitingPartner(
+          reg(isPaid: false, partnerPending: true),
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('myTournamentRegistrationNeedsPayment', () {
     test('is true when unpaid and not on waitlist', () {
       expect(

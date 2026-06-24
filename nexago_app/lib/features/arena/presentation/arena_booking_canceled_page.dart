@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../../../core/ui/feedback/feedback_page.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../domain/arena_booking_canceled_args.dart';
 
@@ -49,94 +50,41 @@ class _ArenaBookingCanceledPageState
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final canUndo = _secondsLeft > 0 && !_restoring;
     final notificationLine = _notificationLine(widget.args.athleteNames);
+    final description =
+        '$notificationLine. O slot ${widget.args.slotHighlight} voltou pra agenda.';
 
-    return Scaffold(
-      backgroundColor: context.themeColors.canvas,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _CanceledHeroIcon(),
-                    SizedBox(height: 24),
-                    Text(
-                      'Reserva cancelada.',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: context.themeColors.onSurface,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    SizedBox(height: 12),
-                    RichText(
-                      textAlign: TextAlign.center,
-                      text: TextSpan(
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: context.themeColors.onSurfaceMuted,
-                          fontWeight: FontWeight.w500,
-                          height: 1.45,
-                        ),
-                        children: [
-                          TextSpan(text: '$notificationLine. O slot '),
-                          TextSpan(
-                            text: widget.args.slotHighlight,
-                            style: TextStyle(
-                              color: context.themeColors.onSurface,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const TextSpan(text: ' voltou pra agenda.'),
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 32),
-                    _UndoCard(
-                      secondsLeft: _secondsLeft,
-                      canUndo: canUndo,
-                      restoring: _restoring,
-                      onUndo: _restore,
-                    ),
-                    SizedBox(height: 14),
-                    _SlotReleasedCard(
-                      slotTimeRange: widget.args.slotTimeRange,
-                      onCreateBooking: () => showAppSnackBar(
-                        context,
-                        'Criar reserva em breve.',
-                      ),
-                      onPromoFlash: () => showAppSnackBar(
-                        context,
-                        'Promo flash em breve.',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+    return FeedbackPage.error(
+      title: 'Reserva cancelada.',
+      description: description,
+      extraContent: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _UndoCard(
+            secondsLeft: _secondsLeft,
+            canUndo: canUndo,
+            restoring: _restoring,
+            onUndo: _restore,
+          ),
+          SizedBox(height: 14),
+          _SlotReleasedCard(
+            slotTimeRange: widget.args.slotTimeRange,
+            onCreateBooking: () => showAppSnackBar(
+              context,
+              'Criar reserva em breve.',
             ),
-            TextButton(
-              onPressed: () => context.pop(),
-              style: TextButton.styleFrom(
-                foregroundColor: context.themeColors.onSurfaceMuted,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: Text(
-                'Voltar pra lista de reservas',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                ),
-              ),
+            onPromoFlash: () => showAppSnackBar(
+              context,
+              'Promo flash em breve.',
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
+      secondaryAction: FeedbackAction(
+        label: 'Voltar pra lista de reservas',
+        isPrimary: false,
+        onPressed: () => context.pop(),
       ),
     );
   }
@@ -167,48 +115,6 @@ class _ArenaBookingCanceledPageState
     } finally {
       if (mounted) setState(() => _restoring = false);
     }
-  }
-}
-
-class _CanceledHeroIcon extends StatelessWidget {
-  const _CanceledHeroIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.live.withValues(alpha: 0.35),
-                  blurRadius: 32,
-                  spreadRadius: 4,
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              color: AppColors.live,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.close_rounded,
-              color: AppColors.white,
-              size: 36,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

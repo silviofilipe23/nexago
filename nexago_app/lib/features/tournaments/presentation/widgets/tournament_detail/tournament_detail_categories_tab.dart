@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../../core/router/routes.dart';
+import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/tournament_category_spots.dart';
 import '../../../domain/tournament_detail_model.dart';
 import 'tournament_detail_category_card.dart';
@@ -22,7 +23,7 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
   final TournamentDetail tournament;
   final Map<String, int> enrollmentByCategoryId;
   final bool enrollmentCountsResolved;
-  final Map<String, String> registrationsByCategoryId;
+  final TournamentUserRegistrationsByCategory registrationsByCategoryId;
   final Map<String, bool> waitlistByCategoryId;
   final bool canAccessTournaments;
   final VoidCallback? onRegisterBlocked;
@@ -52,7 +53,7 @@ class TournamentDetailCategoriesTab extends StatelessWidget {
             offer,
             countsResolved: enrollmentCountsResolved,
           ),
-          registrationId: registrationsByCategoryId[offer.id],
+          registration: registrationsByCategoryId[offer.id],
           isOnWaitlist: waitlistByCategoryId[offer.id] == true,
           onRegister: () {
             if (!canAccessTournaments) {

@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/tournament_category_spots.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_detail_model.dart';
@@ -30,7 +31,7 @@ class TournamentDetailCategoryPickSection extends StatelessWidget {
   final bool enrollmentCountsResolved;
   final bool canAccessTournaments;
   final VoidCallback onRegisterBlocked;
-  final Map<String, String> registrationsByCategoryId;
+  final TournamentUserRegistrationsByCategory registrationsByCategoryId;
   final bool registrationResolved;
 
   @override
@@ -51,8 +52,10 @@ class TournamentDetailCategoryPickSection extends StatelessWidget {
     final genderLabel = categoryGenderDisplayLabel(offer);
     final formatTag = tournamentCategoryFormatTag(offer);
     final feeLabel = formatCategoryEntryFee(offer);
-    final registrationId = registrationsByCategoryId[offer.id]?.trim();
-    final isEnrolled = registrationId != null && registrationId.isNotEmpty;
+    final registration = registrationsByCategoryId[offer.id];
+    final registrationId = registration?.registrationId.trim();
+    final isRegistrationPaid = registration?.isPaid == true;
+    final isEnrolled = isRegistrationPaid;
 
     void openRegistrationSuccess() {
       if (registrationId == null || registrationId.isEmpty) return;
@@ -155,7 +158,8 @@ class TournamentDetailCategoryPickSection extends StatelessWidget {
                   children: [
                     _Chip(label: genderLabel),
                     _Chip(label: formatTag),
-                    if (offer.level.trim().isNotEmpty) _Chip(label: offer.level),
+                    if (offer.level.trim().isNotEmpty)
+                      _Chip(label: offer.level),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -246,7 +250,8 @@ class TournamentDetailCategoryPickSection extends StatelessWidget {
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.brand,
                         foregroundColor: AppColors.black,
-                        disabledBackgroundColor: context.themeColors
+                        disabledBackgroundColor: context
+                            .themeColors
                             .onSurfaceMuted
                             .withValues(alpha: 0.2),
                         shape: RoundedRectangleBorder(

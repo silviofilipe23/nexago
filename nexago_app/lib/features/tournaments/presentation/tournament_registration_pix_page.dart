@@ -8,6 +8,8 @@ import '../../../core/auth/auth_providers.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../../../core/ui/feedback/feedback_page.dart';
+import '../../../core/ui/feedback/show_feedback_page.dart';
 import '../../../core/validation/cpf_cnpj.dart';
 import '../../arenas/data/payment_service.dart';
 import '../../arenas/domain/payment_providers.dart';
@@ -136,16 +138,44 @@ class _TournamentRegistrationPixPageState
       _scheduleExpiry(pix.expiresAt);
     } on PaymentException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _pixError = e.message;
-        _loadingPix = false;
-      });
+      setState(() => _loadingPix = false);
+      await pushErrorFeedback(
+        context,
+        title: 'Não foi possível gerar a cobrança',
+        description: e.message,
+        primaryAction: FeedbackAction(
+          label: 'Tentar novamente',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        secondaryAction: FeedbackAction(
+          label: 'Voltar à inscrição',
+          isPrimary: false,
+          onPressed: () {
+            Navigator.of(context).pop();
+            _onBack();
+          },
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _pixError = 'Não foi possível gerar o PIX: $e';
-        _loadingPix = false;
-      });
+      setState(() => _loadingPix = false);
+      await pushErrorFeedback(
+        context,
+        title: 'Não foi possível gerar o PIX',
+        description: 'Tente novamente em instantes.',
+        primaryAction: FeedbackAction(
+          label: 'Tentar novamente',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        secondaryAction: FeedbackAction(
+          label: 'Voltar à inscrição',
+          isPrimary: false,
+          onPressed: () {
+            Navigator.of(context).pop();
+            _onBack();
+          },
+        ),
+      );
     }
   }
 
@@ -350,47 +380,12 @@ class _TournamentRegistrationPixPageState
   }
 
   Widget _buildFailedBody(BuildContext context) {
-    final theme = Theme.of(context);
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.timer_off_outlined,
-              size: 56,
-              color: AppColors.live.withValues(alpha: 0.9),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'PIX expirado',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Gere um novo código na tela de inscrição.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
-                height: 1.4,
-              ),
-            ),
-            SizedBox(height: 24),
-            FilledButton(
-              onPressed: _onBack,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.brand,
-                foregroundColor: AppColors.black,
-                minimumSize: const Size.fromHeight(48),
-              ),
-              child: Text('Voltar à inscrição'),
-            ),
-          ],
-        ),
+    return FeedbackPage.error(
+      title: 'PIX expirado',
+      description: 'Gere um novo código na tela de inscrição.',
+      primaryAction: FeedbackAction(
+        label: 'Voltar à inscrição',
+        onPressed: _onBack,
       ),
     );
   }

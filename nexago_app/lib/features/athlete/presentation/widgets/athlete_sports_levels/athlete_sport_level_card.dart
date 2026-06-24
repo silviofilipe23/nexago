@@ -126,10 +126,12 @@ class AthleteSportLevelCard extends StatelessWidget {
                 ),
                 Spacer(),
                 Text(
-                  '5 níveis',
+                  '3 níveis',
                   style: AppTypography.mono(
                     fontWeight: FontWeight.w600,
-                    color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.7),
+                    color: context.themeColors.onSurfaceMuted.withValues(
+                      alpha: 0.7,
+                    ),
                     letterSpacing: 0.6,
                     fontSize: 10,
                   ),
@@ -216,7 +218,9 @@ class _SportIcon extends StatelessWidget {
       ),
       child: Icon(
         icon,
-        color: isPrimary ? context.themeColors.canvas : context.themeColors.onSurfaceMuted,
+        color: isPrimary
+            ? context.themeColors.canvas
+            : context.themeColors.onSurfaceMuted,
         size: 24,
       ),
     );
@@ -251,7 +255,9 @@ class _LevelChip extends StatelessWidget {
               label,
               style: AppTypography.mono(
                 fontWeight: FontWeight.w700,
-                color: selected ? context.themeColors.canvas : context.themeColors.onSurfaceMuted,
+                color: selected
+                    ? context.themeColors.canvas
+                    : context.themeColors.onSurfaceMuted,
                 fontSize: 11,
               ),
             ),

@@ -14,6 +14,8 @@ import '../../athlete/presentation/widgets/tournament_access_banner.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../../../core/ui/feedback/feedback_page.dart';
+import '../../../core/ui/feedback/show_feedback_page.dart';
 import '../data/tournament_partner_invite_service.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
@@ -24,6 +26,7 @@ import '../domain/tournament_partner_invite_ui_logic.dart';
 import '../domain/tournament_registration_logic.dart';
 import '../domain/tournament_uniform_selection.dart';
 import 'widgets/tournament_partner_invite/partner_invite_bottom_actions.dart';
+import 'widgets/tournament_partner_invite_error_feedback.dart';
 import 'widgets/tournament_partner_invite/partner_invite_hero_card.dart';
 import 'widgets/tournament_partner_invite/partner_invite_metrics_row.dart';
 import 'widgets/tournament_partner_invite/partner_invite_tournament_card.dart';
@@ -119,7 +122,16 @@ class _TournamentPartnerInvitePageState
           );
 
       if (!mounted) return;
-      showAppSnackBar(context, 'Convite aceito! Sua dupla está formada.');
+      await pushSuccessFeedback(
+        context,
+        title: 'Convite aceito!',
+        description: 'Sua dupla está formada. Conclua o pagamento da inscrição.',
+        primaryAction: FeedbackAction(
+          label: 'Continuar inscrição',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      );
+      if (!mounted) return;
 
       context.goNamed(
         AppRouteNames.tournamentRegistration,
@@ -133,7 +145,7 @@ class _TournamentPartnerInvitePageState
       );
     } on TournamentPartnerInviteException catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, e.message, isError: true);
+      await showTournamentPartnerInviteError(context, e);
     } catch (_) {
       if (!mounted) return;
       showAppSnackBar(
@@ -190,11 +202,20 @@ class _TournamentPartnerInvitePageState
           .read(tournamentPartnerInviteServiceProvider)
           .cancelInvite(widget.inviteId, asDecline: true);
       if (!mounted) return;
-      showAppSnackBar(context, 'Convite recusado.');
+      await pushInfoFeedback(
+        context,
+        title: 'Convite recusado',
+        description: 'O organizador será notificado.',
+        primaryAction: FeedbackAction(
+          label: 'Voltar',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      );
+      if (!mounted) return;
       context.pop();
     } on TournamentPartnerInviteException catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, e.message, isError: true);
+      await showTournamentPartnerInviteError(context, e);
     } finally {
       if (mounted) setState(() => _declining = false);
     }
@@ -248,7 +269,14 @@ class _TournamentPartnerInvitePageState
             return const _MessageBody(message: 'Convite não encontrado.');
           }
           if (invite.isExpired) {
-            return const _MessageBody(message: 'Este convite expirou.');
+            return FeedbackPage.alert(
+              title: 'Convite expirado',
+              description: 'Peça um novo convite ao seu parceiro.',
+              primaryAction: FeedbackAction(
+                label: 'Voltar',
+                onPressed: () => context.pop(),
+              ),
+            );
           }
           if (invite.isAccepted) {
             return _MessageBody(
@@ -271,8 +299,13 @@ class _TournamentPartnerInvitePageState
             );
           }
           if (invite.isDeclined || invite.isCancelled) {
-            return const _MessageBody(
-              message: 'Este convite não está mais disponível.',
+            return FeedbackPage.info(
+              title: 'Convite indisponível',
+              description: 'Este convite não está mais disponível.',
+              primaryAction: FeedbackAction(
+                label: 'Voltar',
+                onPressed: () => context.pop(),
+              ),
             );
           }
 

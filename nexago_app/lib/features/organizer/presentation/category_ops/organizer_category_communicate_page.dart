@@ -3,6 +3,8 @@ import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
+import 'package:nexago_app/core/ui/feedback/feedback_page.dart';
+import 'package:nexago_app/core/ui/feedback/show_feedback_page.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
@@ -69,9 +71,15 @@ class _OrganizerCategoryCommunicatePageState
         }
       }
       if (mounted) {
-        showAppSnackBar(
+        await pushSuccessFeedback(
           context,
-          'Mensagem enviada (${result['pushCount'] ?? 0} push).',
+          title: 'Comunicado enviado',
+          description:
+              'Mensagem enviada (${result['pushCount'] ?? 0} notificações push).',
+          primaryAction: FeedbackAction(
+            label: 'Continuar',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
         );
       }
     } catch (e) {

@@ -37,10 +37,9 @@ class TournamentDiscoveryCard extends StatelessWidget {
     final statusColor = isEnrolled
         ? AppColors.brand
         : tournamentStatusColor(tournament.status);
-    final statusLabel = (isEnrolled
-            ? 'Inscrito'
-            : tournamentStatusLabel(tournament.status))
-        .toUpperCase();
+    final statusLabel =
+        (isEnrolled ? 'Inscrito' : tournamentStatusLabel(tournament.status))
+            .toUpperCase();
     final fillRatio = tournament.spotsTotal > 0
         ? 1 - (tournament.spotsLeft / tournament.spotsTotal)
         : 0.0;
@@ -50,7 +49,10 @@ class TournamentDiscoveryCard extends StatelessWidget {
     final offers = tournament.categoryOffers;
     final hasCategoryOffers = offers.isNotEmpty;
     final showSpotsSection = showCategorySpots && hasCategoryOffers;
-    final used = (tournament.spotsTotal - tournament.spotsLeft).clamp(0, 999999);
+    final used = (tournament.spotsTotal - tournament.spotsLeft).clamp(
+      0,
+      999999,
+    );
     final total = tournament.spotsTotal.clamp(0, 999999);
     final capacityLeftLabel = tournament.spotsLeft <= 0
         ? 'LOTADO'
@@ -177,9 +179,8 @@ class TournamentDiscoveryCard extends StatelessWidget {
                           runSpacing: 6,
                           children: [
                             ...tournament.categories.map(
-                              (c) => _MetaChip(
-                                label: tournamentCategoryLabel(c),
-                              ),
+                              (c) =>
+                                  _MetaChip(label: tournamentCategoryLabel(c)),
                             ),
                             _MetaChip(
                               label: tournamentFormatLabel(tournament.format),
@@ -193,9 +194,8 @@ class TournamentDiscoveryCard extends StatelessWidget {
                         child: LinearProgressIndicator(
                           value: fillRatio.clamp(0.0, 1.0),
                           minHeight: 8,
-                          backgroundColor: context.themeColors.onSurfaceMuted.withValues(
-                            alpha: 0.18,
-                          ),
+                          backgroundColor: context.themeColors.onSurfaceMuted
+                              .withValues(alpha: 0.18),
                           color: statusColor,
                         ),
                       ),
@@ -232,7 +232,8 @@ class TournamentDiscoveryCard extends StatelessWidget {
                           isEnrolled: isEnrolled,
                           status: tournament.status,
                         ),
-                        emphasizeCta: isEnrolled ||
+                        emphasizeCta:
+                            isEnrolled ||
                             canRegisterForTournament(tournament.status),
                       ),
                     ],
@@ -300,8 +301,11 @@ class _TournamentMetaRow extends StatelessWidget {
         SizedBox(height: 4),
         Row(
           children: [
-            Icon(Icons.calendar_today_outlined,
-                color: iconStyle.color, size: 14),
+            Icon(
+              Icons.calendar_today_outlined,
+              color: iconStyle.color,
+              size: 14,
+            ),
             SizedBox(width: 6),
             Text(
               dateLabel,
@@ -386,7 +390,9 @@ class _TournamentCardFooter extends StatelessWidget {
             style: AppTypography.soraRegular(
               fontSize: 14,
               fontWeight: FontWeight.w800,
-              color: emphasizeCta ? AppColors.black : context.themeColors.onSurfaceMuted,
+              color: emphasizeCta
+                  ? AppColors.black
+                  : context.themeColors.onSurfaceMuted,
             ),
           ),
         ),
@@ -433,7 +439,10 @@ class _CoverPlaceholder extends StatelessWidget {
                   AppColors.win.withValues(alpha: 0.22),
                   context.themeColors.surfaceCard,
                 ]
-              : [context.themeColors.surfaceCard, context.themeColors.surfaceRaised],
+              : [
+                  context.themeColors.surfaceCard,
+                  context.themeColors.surfaceRaised,
+                ],
         ),
       ),
       child: Center(
@@ -539,9 +548,9 @@ class _MetaChip extends StatelessWidget {
       child: Text(
         label,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: context.themeColors.onSurface,
-            ),
+          fontWeight: FontWeight.w700,
+          color: context.themeColors.onSurface,
+        ),
       ),
     );
   }

@@ -554,6 +554,23 @@ TournamentCategoryCtaKind tournamentCategoryCtaKind(
   return TournamentCategoryCtaKind.register;
 }
 
+/// CTA da categoria no detalhe do torneio, considerando inscrição paga do atleta.
+TournamentCategoryCtaKind tournamentCategoryCtaKindForAthlete({
+  required TournamentCategoryOffer offer,
+  required TournamentListingStatus tournamentStatus,
+  required bool isRegistrationPaid,
+  int? inscriptionCount,
+}) {
+  if (isRegistrationPaid && !offer.isCompleted) {
+    return TournamentCategoryCtaKind.viewRegistration;
+  }
+  return tournamentCategoryCtaKind(
+    offer,
+    tournamentStatus,
+    inscriptionCount: inscriptionCount,
+  );
+}
+
 String tournamentCategoryCtaLabel(TournamentCategoryCtaKind kind) {
   return switch (kind) {
     TournamentCategoryCtaKind.register => 'Inscrever-se →',

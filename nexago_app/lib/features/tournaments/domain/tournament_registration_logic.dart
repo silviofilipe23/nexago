@@ -14,9 +14,13 @@ export 'tournament_uniform_selection.dart'
         TournamentUniformSelection,
         categoryRequiresShorts,
         categoryRequiresUniform,
+        defaultJerseyNameForAthlete,
+        defaultUniformSelectionForCategory,
+        fillJerseyNameDefaultIfNeeded,
         isUniformSelectionComplete,
         kDefaultUniformSizeOptionsTop,
         kUniformChangeDeadlineDays,
+        uniformPayloadForPartnerInvite,
         uniformSizeOptionsShortsForCategory,
         uniformSizeOptionsTopForCategory,
         validateUniformSelection;
@@ -173,6 +177,27 @@ directOrganizerPrereserveAlertParts() => (
 String directOrganizerPaymentStep2Subtitle(TournamentRegistrationQuote quote) {
   final amount = formatRegistrationMoney(quote.displayTotal);
   return '$amount por dupla, direto com o organizador (Pix, dinheiro ou maquininha).';
+}
+
+/// Valor do PIX no painel direto (parcela ou integral).
+double directOrganizerPixAmount(
+  TournamentRegistrationQuote quote,
+  String amountType,
+) {
+  return amountType == 'full' ? quote.displayTotal : quote.shareAmount;
+}
+
+/// Aviso de coordenação entre os dois atletas no pagamento direto.
+String directOrganizerShareHint(
+  TournamentRegistrationQuote quote,
+  String amountType,
+) {
+  if (amountType == 'full') {
+    return 'Você está pagando o valor integral da dupla. '
+        'Combine com seu parceiro para ele não pagar também.';
+  }
+  return 'Cada atleta paga ${formatRegistrationMoney(quote.shareAmount)}. '
+      'Confirme com seu parceiro antes de enviar o PIX.';
 }
 
 String formatRegistrationMoney(double value) => formatMoney(value);

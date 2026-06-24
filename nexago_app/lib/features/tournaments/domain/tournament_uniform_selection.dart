@@ -120,3 +120,68 @@ bool categoryRequiresUniform(TournamentCategoryOffer category) {
 
 bool categoryRequiresShorts(TournamentCategoryOffer category) =>
     category.uniformType == 'full';
+
+/// Nome padrão na camisa: apelido, ou sobrenome quando há nome completo.
+String? defaultJerseyNameForAthlete({
+  String? fullName,
+  String? nickname,
+}) {
+  final nick = nickname?.trim();
+  if (nick != null && nick.isNotEmpty) return nick;
+  final full = fullName?.trim();
+  if (full == null || full.isEmpty) return null;
+  final parts = full.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.isEmpty) return null;
+  return parts.length > 1 ? parts.last : parts.first;
+}
+
+TournamentUniformSelection defaultUniformSelectionForCategory(
+  TournamentCategoryOffer category, {
+  String? athleteName,
+  String? athleteNickname,
+}) {
+  final tops = uniformSizeOptionsTopForCategory(category);
+  final shorts = uniformSizeOptionsShortsForCategory(category);
+  return TournamentUniformSelection(
+    sizeTop: tops.contains('M') ? 'M' : tops.first,
+    sizeShorts: categoryRequiresShorts(category)
+        ? (shorts.contains('M') ? 'M' : shorts.first)
+        : null,
+    jerseyNumber: category.uniformNumberOnShirt ? 10 : null,
+    jerseyName: category.uniformNameOnShirt
+        ? defaultJerseyNameForAthlete(
+            fullName: athleteName,
+            nickname: athleteNickname,
+          )
+        : null,
+  );
+}
+
+TournamentUniformSelection fillJerseyNameDefaultIfNeeded({
+  required TournamentCategoryOffer category,
+  required TournamentUniformSelection selection,
+  String? athleteName,
+  String? athleteNickname,
+}) {
+  if (!category.uniformNameOnShirt) return selection;
+  final existing = selection.jerseyName?.trim() ?? '';
+  if (existing.isNotEmpty) return selection;
+  final defaultName = defaultJerseyNameForAthlete(
+    fullName: athleteName,
+    nickname: athleteNickname,
+  );
+  if (defaultName == null) return selection;
+  return selection.copyWith(jerseyName: defaultName);
+}
+
+/// Evita enviar uniforme parcial ao backend (ex.: tamanho sem nome na camisa).
+TournamentUniformSelection? uniformPayloadForPartnerInvite({
+  required TournamentCategoryOffer category,
+  required TournamentUniformSelection selection,
+}) {
+  if (!categoryRequiresUniform(category)) return null;
+  if (!isUniformSelectionComplete(category: category, selection: selection)) {
+    return null;
+  }
+  return selection;
+}

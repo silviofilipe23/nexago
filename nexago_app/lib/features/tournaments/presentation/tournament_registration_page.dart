@@ -7,6 +7,8 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../../../core/ui/feedback/feedback_page.dart';
+import '../../../core/ui/feedback/show_feedback_page.dart';
 import '../../arenas/data/payment_service.dart';
 import '../../arenas/domain/payment_providers.dart';
 import '../../athlete/domain/athlete_display_name.dart';
@@ -19,6 +21,7 @@ import '../data/tournament_registration_service.dart';
 import '../data/users_repository.dart';
 import '../domain/app_user_profile.dart';
 import '../domain/category_age_eligibility.dart';
+import '../domain/category_gender_eligibility.dart';
 import '../domain/category_level_eligibility.dart';
 import '../domain/tournament_category_spots.dart';
 import '../domain/tournament_detail_logic.dart';
@@ -40,6 +43,7 @@ import 'widgets/tournament_registration/tournament_registration_price_summary.da
 import 'widgets/tournament_registration/tournament_registration_sticky_bar.dart';
 import 'widgets/tournament_registration/tournament_registration_uniform_step.dart';
 import 'widgets/tournament_registration/tournament_registration_waiting_step.dart';
+import 'widgets/tournament_partner_invite_error_feedback.dart';
 
 class TournamentRegistrationPage extends ConsumerStatefulWidget {
   const TournamentRegistrationPage({
@@ -140,11 +144,16 @@ class _TournamentRegistrationPageState
       )) {
         return;
       }
+      if (!CategoryGenderEligibility.isCategoryEligibleForAthlete(
+        match,
+        profile,
+      )) {
+        return;
+      }
       setState(() {
         _appliedInitialCategory = true;
         _category = match;
-        // Mantém no passo de categoria (com a categoria já selecionada e o
-        // resumo de preço visível); o passo "Resumo" foi fundido.
+        _titularUniform = _defaultUniformForCategory(match!);
       });
     });
   }
@@ -237,10 +246,12 @@ class _TournamentRegistrationPageState
     if (regId == null || regId.isEmpty) return;
     final invId = _inviteId?.trim();
     if (invId != null && invId.isNotEmpty) return;
-    if (!registrationAwaitingSoloPartner(
-      snap: registrationSnap,
-      isFullyPaid: registrationSnap?.isPaid == true,
-    )) {
+    final awaitingPartner = registrationAwaitingSoloPartner(
+          snap: registrationSnap,
+          isFullyPaid: registrationSnap?.isPaid == true,
+        ) ||
+        registrationPaidAwaitingPartner(snap: registrationSnap);
+    if (!awaitingPartner) {
       return;
     }
 
@@ -318,8 +329,34 @@ class _TournamentRegistrationPageState
     });
   }
 
-  void _openPartnerInviteFromPayment() =>
-      _goToStep(TournamentRegistrationStep.partner);
+  void _openPartnerInviteFromPayment() {
+    _syncTitularUniformFromProfile();
+    _goToStep(TournamentRegistrationStep.partner);
+  }
+
+  void _syncTitularUniformFromProfile() {
+    final cat = _category;
+    if (cat == null) return;
+    final profile = ref.read(athleteProfileProvider).valueOrNull;
+    final defaults = defaultUniformSelectionForCategory(
+      cat,
+      athleteName: profile?.name,
+      athleteNickname: profile?.nickname,
+    );
+    setState(() {
+      _titularUniform = fillJerseyNameDefaultIfNeeded(
+        category: cat,
+        selection: TournamentUniformSelection(
+          sizeTop: _titularUniform.sizeTop ?? defaults.sizeTop,
+          sizeShorts: _titularUniform.sizeShorts ?? defaults.sizeShorts,
+          jerseyNumber: _titularUniform.jerseyNumber ?? defaults.jerseyNumber,
+          jerseyName: _titularUniform.jerseyName ?? defaults.jerseyName,
+        ),
+        athleteName: profile?.name,
+        athleteNickname: profile?.nickname,
+      );
+    });
+  }
 
   void _selectCategory(
     TournamentCategoryOffer category, {
@@ -355,6 +392,17 @@ class _TournamentRegistrationPageState
       );
       return;
     }
+    if (!CategoryGenderEligibility.isCategoryEligibleForAthlete(
+      category,
+      profile,
+    )) {
+      showAppSnackBar(
+        context,
+        CategoryGenderEligibility.blockMessage(category, profile),
+        isError: true,
+      );
+      return;
+    }
     setState(() {
       _category = category;
       _titularUniform = _defaultUniformForCategory(category);
@@ -364,15 +412,26 @@ class _TournamentRegistrationPageState
   TournamentUniformSelection _defaultUniformForCategory(
     TournamentCategoryOffer category,
   ) {
-    final tops = uniformSizeOptionsTopForCategory(category);
-    final shorts = uniformSizeOptionsShortsForCategory(category);
-    return TournamentUniformSelection(
-      sizeTop: tops.contains('M') ? 'M' : tops.first,
-      sizeShorts: categoryRequiresShorts(category)
-          ? (shorts.contains('M') ? 'M' : shorts.first)
-          : null,
-      jerseyNumber: category.uniformNumberOnShirt ? 10 : null,
+    final profile = ref.read(athleteProfileProvider).valueOrNull;
+    return defaultUniformSelectionForCategory(
+      category,
+      athleteName: profile?.name,
+      athleteNickname: profile?.nickname,
     );
+  }
+
+  TournamentUniformSelection _uniformForInvite(TournamentCategoryOffer category) {
+    final profile = ref.read(athleteProfileProvider).valueOrNull;
+    final filled = fillJerseyNameDefaultIfNeeded(
+      category: category,
+      selection: _titularUniform,
+      athleteName: profile?.name,
+      athleteNickname: profile?.nickname,
+    );
+    if (filled != _titularUniform) {
+      setState(() => _titularUniform = filled);
+    }
+    return filled;
   }
 
   void _goToStep(TournamentRegistrationStep step) {
@@ -430,14 +489,10 @@ class _TournamentRegistrationPageState
           .read(tournamentRegistrationSnapshotProvider(regId))
           .valueOrNull;
       if (snap?.isPaid != true) return;
-      // Pago mas ainda sem parceiro (solo pagou o total): não vai para sucesso;
-      // mantém o atleta no passo de pagamento para convidar o parceiro grátis.
-      if (registrationPaidAwaitingPartner(snap: snap)) {
-        if (_step != TournamentRegistrationStep.payment) {
-          setState(() => _step = TournamentRegistrationStep.payment);
-        }
-        return;
-      }
+      // Pago mas ainda sem parceiro (solo pagou o total): não vai para sucesso —
+      // o atleta convida o parceiro grátis (passo de parceiro/pagamento). Mantém
+      // o passo atual (ex.: deep link para o passo de parceiro).
+      if (registrationPaidAwaitingPartner(snap: snap)) return;
       _navigateToRegistrationSuccess();
     });
   }
@@ -456,7 +511,12 @@ class _TournamentRegistrationPageState
       case TournamentRegistrationStep.category:
         _exitRegistration();
       case TournamentRegistrationStep.uniform:
-        _goToStep(TournamentRegistrationStep.category);
+        // Uniforme agora é pós-inscrição: volta ao pagamento se já há inscrição.
+        _goToStep(
+          _registrationId != null
+              ? TournamentRegistrationStep.payment
+              : TournamentRegistrationStep.category,
+        );
       case TournamentRegistrationStep.partner:
         if (_registrationId != null && partnerPending) {
           _goToStep(TournamentRegistrationStep.payment);
@@ -493,6 +553,20 @@ class _TournamentRegistrationPageState
     }
 
     final athlete = _athleteDisplay();
+    final uniformSelection = _uniformForInvite(cat);
+    final validationError = categoryRequiresUniform(cat)
+        ? validateUniformSelection(
+            category: cat,
+            selection: uniformSelection,
+          )
+        : null;
+    if (validationError != null) {
+      if (!mounted) return;
+      showAppSnackBar(context, validationError, isError: true);
+      _goToStep(TournamentRegistrationStep.uniform);
+      return;
+    }
+
     setState(() => _submitting = true);
 
     try {
@@ -503,7 +577,10 @@ class _TournamentRegistrationPageState
         inviteeUid: partner.userId,
         inviteeName: partner.name,
         inviterName: athlete.name,
-        inviterUniform: categoryRequiresUniform(cat) ? _titularUniform : null,
+        inviterUniform: uniformPayloadForPartnerInvite(
+          category: cat,
+          selection: uniformSelection,
+        ),
       );
       if (!mounted) return;
       setState(() {
@@ -516,7 +593,7 @@ class _TournamentRegistrationPageState
       );
     } on TournamentPartnerInviteException catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, e.message, isError: true);
+      await showTournamentPartnerInviteError(context, e);
     } catch (_) {
       if (!mounted) return;
       showAppSnackBar(
@@ -529,13 +606,32 @@ class _TournamentRegistrationPageState
     }
   }
 
-  /// Inscrição solo: garante a vaga sem parceiro e vai para o pagamento.
-  Future<void> _registerSolo(TournamentDetail tournament) async {
+  /// Caminho principal (tela única): garante a vaga (inscrição solo) e já
+  /// segue para o pagamento — sem passos de uniforme/parceiro. Uniforme e
+  /// parceiro ficam como ações opcionais pós-inscrição.
+  Future<void> _registerAndPay(TournamentDetail tournament) async {
+    if (_submitting) return;
+    // Já existe inscrição (ex.: retomada) → vai direto ao pagamento.
+    if (_registrationId != null && _registrationId!.trim().isNotEmpty) {
+      await _submitPayment();
+      return;
+    }
+    final created = await _registerSolo(tournament, showSnack: false);
+    if (!created || !mounted) return;
+    await _submitPayment();
+  }
+
+  /// Inscrição solo: garante a vaga sem parceiro. Retorna true em sucesso.
+  /// [showSnack] controla o aviso (no caminho único o pagamento vem em seguida).
+  Future<bool> _registerSolo(
+    TournamentDetail tournament, {
+    bool showSnack = true,
+  }) async {
     final cat = _category;
-    if (cat == null || _submitting) return;
+    if (cat == null || _submitting) return false;
     if (!ref.read(tournamentAccessStateProvider).canAccess) {
       _showProfileAccessBlocked();
-      return;
+      return false;
     }
     setState(() => _submitting = true);
     try {
@@ -544,9 +640,10 @@ class _TournamentRegistrationPageState
           .registerSolo(
             tournamentId: tournament.id,
             categoryId: cat.id,
-            uniform: categoryRequiresUniform(cat) ? _titularUniform : null,
+            // Uniforme é coletado depois (pós-inscrição), não bloqueia a vaga.
+            uniform: null,
           );
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         _registrationId = registrationId;
         _partnerUserId = null;
@@ -554,21 +651,63 @@ class _TournamentRegistrationPageState
         _inviteId = null;
         _step = TournamentRegistrationStep.payment;
       });
-      showAppSnackBar(
+      if (showSnack) {
+        showAppSnackBar(
+          context,
+          'Vaga garantida! Pague a metade ou o total — pagando o total, seu '
+          'parceiro entra sem taxa.',
+        );
+      }
+      return true;
+    } on TournamentPartnerInviteException catch (e) {
+      if (!mounted) return false;
+      await showTournamentPartnerInviteError(context, e);
+      return false;
+    } catch (_) {
+      if (!mounted) return false;
+      await pushErrorFeedback(
         context,
-        'Vaga garantida! Pague a metade ou o total — pagando o total, seu '
-        'parceiro entra sem taxa.',
+        title: 'Não foi possível garantir a vaga',
+        description: 'Tente novamente em instantes.',
+        primaryAction: FeedbackAction(
+          label: 'Tentar novamente',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       );
+      return false;
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  /// Salva o uniforme do atleta na inscrição (pós-inscrição) e volta ao passo
+  /// de pagamento/conclusão.
+  Future<void> _saveUniform(TournamentDetail tournament) async {
+    final regId = _registrationId?.trim();
+    final cat = _category;
+    if (regId == null || regId.isEmpty || cat == null || _submitting) return;
+    final msg = validateUniformSelection(
+      category: cat,
+      selection: _titularUniform,
+    );
+    if (msg != null) {
+      showAppSnackBar(context, msg, isError: true);
+      return;
+    }
+    setState(() => _submitting = true);
+    try {
+      await ref
+          .read(tournamentPartnerInviteServiceProvider)
+          .setRegistrationUniform(
+            registrationId: regId,
+            uniform: _titularUniform,
+          );
+      if (!mounted) return;
+      showAppSnackBar(context, 'Uniforme salvo.');
+      _goToStep(TournamentRegistrationStep.payment);
     } on TournamentPartnerInviteException catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, e.message, isError: true);
-    } catch (_) {
-      if (!mounted) return;
-      showAppSnackBar(
-        context,
-        'Não foi possível garantir a vaga. Tente novamente.',
-        isError: true,
-      );
+      await showTournamentPartnerInviteError(context, e);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -582,7 +721,15 @@ class _TournamentRegistrationPageState
     try {
       await ref.read(tournamentPartnerInviteServiceProvider).cancelInvite(id);
       if (!mounted) return;
-      showAppSnackBar(context, 'Convite cancelado.');
+      await pushInfoFeedback(
+        context,
+        title: 'Convite cancelado',
+        description: 'Você pode convidar outro parceiro.',
+        primaryAction: FeedbackAction(
+          label: 'Continuar',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      );
       final regId = _registrationId?.trim() ?? '';
       final partnerPending = regId.isNotEmpty
           ? ref
@@ -604,7 +751,7 @@ class _TournamentRegistrationPageState
       });
     } on TournamentPartnerInviteException catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, e.message, isError: true);
+      await showTournamentPartnerInviteError(context, e);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -621,8 +768,10 @@ class _TournamentRegistrationPageState
     }
     switch (_step) {
       case TournamentRegistrationStep.category:
-        if (_category != null) {
-          _goToStep(nextStepAfterSummary(_category));
+        // Caminho único: garante a vaga e já vai ao pagamento (sem passos de
+        // uniforme/parceiro — viram opcionais pós-inscrição).
+        if (_category != null && !_submitting) {
+          _registerAndPay(tournament);
         }
       case TournamentRegistrationStep.uniform:
         final cat = _category;
@@ -631,7 +780,8 @@ class _TournamentRegistrationPageState
               category: cat,
               selection: _titularUniform,
             )) {
-          _goToStep(TournamentRegistrationStep.partner);
+          // Uniforme é informado depois da inscrição: salva no registro.
+          _saveUniform(tournament);
         } else if (cat != null && mounted) {
           final msg = validateUniformSelection(
             category: cat,
@@ -645,6 +795,19 @@ class _TournamentRegistrationPageState
         }
       case TournamentRegistrationStep.partner:
         if (_partnerUserId != null && !_submitting) {
+          final cat = _category;
+          if (cat != null && categoryRequiresUniform(cat)) {
+            final uniform = _uniformForInvite(cat);
+            final msg = validateUniformSelection(
+              category: cat,
+              selection: uniform,
+            );
+            if (msg != null) {
+              showAppSnackBar(context, msg, isError: true);
+              _goToStep(TournamentRegistrationStep.uniform);
+              return;
+            }
+          }
           _sendInvite(tournament);
         }
       case TournamentRegistrationStep.waiting:
@@ -655,6 +818,23 @@ class _TournamentRegistrationPageState
           _goToStep(TournamentRegistrationStep.payment);
         }
       case TournamentRegistrationStep.payment:
+        final regId = _registrationId?.trim() ?? '';
+        final snap = regId.isNotEmpty
+            ? ref
+                  .read(tournamentRegistrationSnapshotProvider(regId))
+                  .valueOrNull
+            : null;
+        final currentUid = ref.read(authServiceProvider).currentUser?.uid;
+        final callerSettled = snap?.isPaid == true ||
+            currentAthleteSharePaid(
+              sharePaidUids: snap?.sharePaidUids ?? const [],
+              athleteUid: currentUid,
+            );
+        // Já fez a parte dele e falta parceiro → próxima ação é convidar.
+        if (snap?.partnerPending == true && callerSettled) {
+          _openPartnerInviteFromPayment();
+          return;
+        }
         if (canAccess && !_submitting && _registrationId != null) {
           _submitPayment();
         }
@@ -676,20 +856,39 @@ class _TournamentRegistrationPageState
     required bool inviteAccepted,
     required bool isFullyPaid,
     required bool athleteSharePaid,
+    bool paidAwaitingPartner = false,
   }) {
     switch (_step) {
       case TournamentRegistrationStep.category:
+        final profile = ref.read(athleteProfileProvider).valueOrNull;
         final hasCategory = _category != null;
+        final categoryEligible = hasCategory &&
+            CategoryGenderEligibility.isCategoryEligibleForAthlete(
+              _category!,
+              profile,
+            );
+        final isFree = quote != null && !registrationRequiresPayment(quote);
+        final isDirect = quote != null &&
+            tournamentUsesDirectOrganizerPayment(tournament) &&
+            registrationRequiresPayment(quote);
+        final payFull = _canPayFull && _paymentType == 'full';
+        final amount = quote == null
+            ? null
+            : (payFull ? quote.displayTotal : quote.shareAmount);
         return (
-          enabled: hasCategory,
-          ctaLabel: hasCategory && categoryRequiresUniform(_category!)
-              ? 'Escolher uniforme'
-              : hasCategory
-              ? 'Escolher parceiro'
-              : 'Escolha a categoria',
-          metaLabel: null,
-          totalLabel: hasCategory && quote != null
-              ? formatRegistrationMoney(quote.displayTotal)
+          enabled: categoryEligible && !_submitting,
+          ctaLabel: !hasCategory
+              ? 'Escolha a categoria'
+              : isFree
+              ? 'Confirmar inscrição'
+              : isDirect
+              ? 'Reservar minha vaga'
+              : 'Pagar e garantir vaga',
+          metaLabel: hasCategory && !isFree && !isDirect
+              ? (payFull ? 'Total da dupla' : 'Sua parte')
+              : null,
+          totalLabel: hasCategory && !isFree && amount != null
+              ? formatRegistrationMoney(amount)
               : null,
           ctaSubtitle: null,
           priceBoxLabel: null,
@@ -699,12 +898,13 @@ class _TournamentRegistrationPageState
         final cat = _category;
         return (
           enabled:
+              !_submitting &&
               cat != null &&
               isUniformSelectionComplete(
                 category: cat,
                 selection: _titularUniform,
               ),
-          ctaLabel: 'Próximo — escolher parceiro',
+          ctaLabel: 'Salvar uniforme',
           metaLabel: null,
           totalLabel: null,
           ctaSubtitle: null,
@@ -739,6 +939,18 @@ class _TournamentRegistrationPageState
           priceBoxValue: null,
         );
       case TournamentRegistrationStep.payment:
+        if (paidAwaitingPartner) {
+          // Solo pagou o total: a única ação é convidar o parceiro (sem taxa).
+          return (
+            enabled: !_submitting,
+            ctaLabel: 'Convidar parceiro',
+            metaLabel: 'Parceiro entra sem taxa',
+            totalLabel: null,
+            ctaSubtitle: null,
+            priceBoxLabel: null,
+            priceBoxValue: null,
+          );
+        }
         final isFree = quote != null && !registrationRequiresPayment(quote);
         final isDirect =
             quote != null &&
@@ -832,14 +1044,20 @@ class _TournamentRegistrationPageState
             });
           }
         } else if (invite.isDeclined || invite.isCancelled) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
             if (!mounted) return;
-            showAppSnackBar(
+            await pushInfoFeedback(
               context,
-              invite.isDeclined
-                  ? 'Seu parceiro recusou o convite.'
-                  : 'Convite cancelado.',
-              isError: true,
+              title: invite.isDeclined
+                  ? 'Convite recusado'
+                  : 'Convite cancelado',
+              description: invite.isDeclined
+                  ? 'Seu parceiro recusou o convite. Você pode convidar outra pessoa.'
+                  : 'O convite foi cancelado. Você pode enviar um novo.',
+              primaryAction: FeedbackAction(
+                label: 'Continuar',
+                onPressed: () => Navigator.of(context).pop(),
+              ),
             );
             final regId = _registrationId?.trim() ?? '';
             final partnerPending = regId.isNotEmpty
@@ -862,9 +1080,17 @@ class _TournamentRegistrationPageState
             });
           });
         } else if (invite.isExpired) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
+          WidgetsBinding.instance.addPostFrameCallback((_) async {
             if (!mounted) return;
-            showAppSnackBar(context, 'Convite expirado.', isError: true);
+            await pushAlertFeedback(
+              context,
+              title: 'Convite expirado',
+              description: 'Envie um novo convite para formar a dupla.',
+              primaryAction: FeedbackAction(
+                label: 'Continuar',
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            );
             final regId = _registrationId?.trim() ?? '';
             final partnerPending = regId.isNotEmpty
                 ? ref
@@ -1002,18 +1228,25 @@ class _TournamentRegistrationPageState
                 )
               : null;
 
+          // Atleta já fez a parte dele (pagou total/parte ou reservou) e ainda
+          // não tem parceiro → próxima ação é convidar (sem bloquear).
+          final settledAwaitingPartner =
+              (registrationSnap?.partnerPending == true) &&
+              (isFullyPaid || athleteSharePaid);
           final sticky = _stickyConfig(
             tournament: tournament,
             quote: quote,
             inviteAccepted: inviteAccepted,
             isFullyPaid: isFullyPaid,
             athleteSharePaid: athleteSharePaid,
+            paidAwaitingPartner: settledAwaitingPartner,
           );
           final hidePaymentStickyBar =
               _step == TournamentRegistrationStep.payment &&
               quote != null &&
               tournamentUsesDirectOrganizerPayment(tournament) &&
-              registrationRequiresPayment(quote);
+              registrationRequiresPayment(quote) &&
+              !settledAwaitingPartner;
           final showHero = registrationStepShowsHero(_step);
           final athlete = _athleteDisplay();
           final partner = _selectedPartner;
@@ -1182,6 +1415,11 @@ class _TournamentRegistrationPageState
                       ),
                   ageBlocked: ageEval != AgeEligibility.eligible,
                   ageBlockLabel: CategoryAgeEligibility.blockBadgeLabel(ageEval),
+                  genderBlocked:
+                      !CategoryGenderEligibility.isCategoryEligibleForAthlete(
+                        cat,
+                        athleteProfile,
+                      ),
                   onTap: () => _selectCategory(
                     cat,
                     tournamentSport: tournament.sport,
@@ -1197,6 +1435,36 @@ class _TournamentRegistrationPageState
           if (_category != null && quote != null) ...[
             const SizedBox(height: 14),
             TournamentRegistrationPriceSummary(quote: quote),
+          ],
+          // Escolha "minha parte" ou "total" direto na tela única (só PIX no
+          // app; no direto o valor é acertado com o organizador).
+          if (_category != null &&
+              quote != null &&
+              registrationRequiresPayment(quote) &&
+              _canPayFull &&
+              !tournamentUsesDirectOrganizerPayment(tournament)) ...[
+            const SizedBox(height: 12),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'share', label: Text('Minha parte')),
+                ButtonSegment(value: 'full', label: Text('Pagar a dupla')),
+              ],
+              selected: {_paymentType},
+              onSelectionChanged: (selection) {
+                if (selection.isEmpty) return;
+                setState(() => _paymentType = selection.first);
+              },
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _paymentType == 'full'
+                  ? 'Você paga o total agora; seu parceiro entra sem taxa.'
+                  : 'Você paga sua parte; o parceiro paga a dele ao entrar.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: context.themeColors.onSurfaceMuted,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ];
       case TournamentRegistrationStep.uniform:
@@ -1332,7 +1600,9 @@ class _TournamentRegistrationPageState
             progressLabel: effectiveProgressLabel,
             isFullyPaid: isFullyPaid,
             isFreeRegistration: !registrationRequiresPayment(quote),
-            isDirectOrganizerPayment: isDirectOrganizer,
+            // Já pago e sem parceiro: esconde o painel "pague ao organizador";
+            // mostra só o convite (parceiro entra sem taxa).
+            isDirectOrganizerPayment: isDirectOrganizer && !paidAwaitingPartner,
             tournamentName: tournament.name,
             organizerManagerId: tournament.managerId,
             organizerPixKey: tournament.organizerPixKey,
@@ -1347,6 +1617,10 @@ class _TournamentRegistrationPageState
             onTrackInvite: hasPendingSoloInvite
                 ? () => _goToStep(TournamentRegistrationStep.waiting)
                 : null,
+            // Uniforme é informado depois: a inscrição já existe neste passo.
+            showInformUniform: categoryRequiresUniform(category),
+            onInformUniform: () =>
+                _goToStep(TournamentRegistrationStep.uniform),
           ),
         ];
     }

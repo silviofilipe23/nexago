@@ -49,6 +49,22 @@ export function findCategory(
   );
 }
 
+/** Taxa de inscrição da categoria (por `id`, `categoryId` ou `categoryName`). */
+export function resolveCategoryEntryFee(
+  tournament: TournamentData,
+  categoryKey: string,
+): number {
+  const category = findCategory(tournament, categoryKey);
+  if (!category) return 0;
+  const raw = category.entryFee;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  if (typeof raw === "string") {
+    const parsed = Number.parseFloat(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
 /** Chaves equivalentes da categoria (`id`, `categoryId`, `categoryName`) para inscrições legadas. */
 export function resolveCategoryMatchKeys(
   tournament: TournamentData,

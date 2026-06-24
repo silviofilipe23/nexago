@@ -93,7 +93,8 @@ class TournamentDetailPage extends ConsumerWidget {
               tournamentUserWaitlistByCategoryProvider(tournamentId),
             );
             final registrationsByCategory =
-                registrationsAsync.valueOrNull ?? const <String, String>{};
+                registrationsAsync.valueOrNull ??
+                const <String, UserCategoryRegistration>{};
             final waitlistByCategory =
                 waitlistAsync.valueOrNull ?? const <String, bool>{};
             final registrationResolved =
@@ -155,7 +156,7 @@ class _TournamentDetailContent extends ConsumerStatefulWidget {
   final String organizerName;
   final Map<String, int> enrollmentByCategoryId;
   final bool enrollmentCountsResolved;
-  final Map<String, String> registrationsByCategoryId;
+  final TournamentUserRegistrationsByCategory registrationsByCategoryId;
   final Map<String, bool> waitlistByCategoryId;
   final bool registrationResolved;
   final bool canAccessTournaments;
@@ -188,9 +189,7 @@ class _TournamentDetailContentState
     final canRegister = canRegisterForTournament(widget.tournament.status);
     final isAthleteRegistered = widget.registrationsByCategoryId.isNotEmpty;
     final showBottomBar =
-        canRegister &&
-        widget.registrationResolved &&
-        !isAthleteRegistered;
+        canRegister && widget.registrationResolved && !isAthleteRegistered;
     final topInset = MediaQuery.paddingOf(context).top;
     final hasCover = widget.tournament.imageUrl?.trim().isNotEmpty == true;
     final spotsSubtitle =
@@ -225,26 +224,26 @@ class _TournamentDetailContentState
                   stats: widget.stats,
                 ),
               ),
-              SliverToBoxAdapter(
-                child: TournamentDetailCategoryPickSection(
-                  tournament: widget.tournament,
-                  stats: widget.stats,
-                  enrollmentByCategoryId: widget.enrollmentByCategoryId,
-                  enrollmentCountsResolved: widget.enrollmentCountsResolved,
-                  canAccessTournaments: widget.canAccessTournaments,
-                  onRegisterBlocked: widget.onRegisterBlocked,
-                  registrationsByCategoryId: widget.registrationsByCategoryId,
-                  registrationResolved: widget.registrationResolved,
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: TournamentDetailTournamentInfoSection(
-                  tournament: widget.tournament,
-                  organizerName: widget.organizerName,
-                  stats: widget.stats,
-                ),
-              ),
-              const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
+              // SliverToBoxAdapter(
+              //   child: TournamentDetailCategoryPickSection(
+              //     tournament: widget.tournament,
+              //     stats: widget.stats,
+              //     enrollmentByCategoryId: widget.enrollmentByCategoryId,
+              //     enrollmentCountsResolved: widget.enrollmentCountsResolved,
+              //     canAccessTournaments: widget.canAccessTournaments,
+              //     onRegisterBlocked: widget.onRegisterBlocked,
+              //     registrationsByCategoryId: widget.registrationsByCategoryId,
+              //     registrationResolved: widget.registrationResolved,
+              //   ),
+              // ),
+              // SliverToBoxAdapter(
+              //   child: TournamentDetailTournamentInfoSection(
+              //     tournament: widget.tournament,
+              //     organizerName: widget.organizerName,
+              //     stats: widget.stats,
+              //   ),
+              // ),
+              const SliverPadding(padding: EdgeInsets.only(bottom: 50)),
             ],
           ),
         ),

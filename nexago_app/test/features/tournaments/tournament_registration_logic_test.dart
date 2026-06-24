@@ -6,6 +6,7 @@ import 'package:nexago_app/features/tournaments/domain/tournament_discovery_help
 import 'package:nexago_app/features/tournaments/domain/tournament_discovery_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_payment_mode.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_registration_logic.dart';
+import 'package:nexago_app/features/tournaments/domain/tournament_uniform_selection.dart';
 
 void main() {
   setUpAll(() async {
@@ -595,6 +596,84 @@ void main() {
         isNotNull,
       );
     });
+
+    test('requires jersey name when uniformNameOnShirt is enabled', () {
+      const category = TournamentCategoryOffer(
+        id: 'c',
+        name: 'Cat',
+        entryFee: 100,
+        uniformType: 'top_only',
+        uniformNameOnShirt: true,
+        uniformSizeOptionsTop: ['M'],
+      );
+      expect(
+        validateUniformSelection(
+          category: category,
+          selection: const TournamentUniformSelection(sizeTop: 'M'),
+        ),
+        'Informe o nome para a camisa.',
+      );
+      expect(
+        validateUniformSelection(
+          category: category,
+          selection: const TournamentUniformSelection(
+            sizeTop: 'M',
+            jerseyName: 'Silva',
+          ),
+        ),
+        isNull,
+      );
+    });
+  });
+
+  group('defaultJerseyNameForAthlete', () {
+    test('prefers nickname then surname', () {
+      expect(
+        defaultJerseyNameForAthlete(
+          fullName: 'João Silva',
+          nickname: 'Jota',
+        ),
+        'Jota',
+      );
+      expect(
+        defaultJerseyNameForAthlete(fullName: 'João Silva'),
+        'Silva',
+      );
+      expect(
+        defaultJerseyNameForAthlete(fullName: 'Maria'),
+        'Maria',
+      );
+    });
+  });
+
+  group('uniformPayloadForPartnerInvite', () {
+    test('returns null for incomplete uniform', () {
+      const category = TournamentCategoryOffer(
+        id: 'c',
+        name: 'Cat',
+        entryFee: 100,
+        uniformType: 'top_only',
+        uniformNameOnShirt: true,
+        uniformSizeOptionsTop: ['M'],
+      );
+      expect(
+        uniformPayloadForPartnerInvite(
+          category: category,
+          selection: const TournamentUniformSelection(sizeTop: 'M'),
+        ),
+        isNull,
+      );
+      expect(
+        uniformPayloadForPartnerInvite(
+          category: category,
+          selection: const TournamentUniformSelection(
+            sizeTop: 'M',
+            jerseyName: 'Silva',
+          ),
+        ),
+        isNotNull,
+      );
+    });
   });
 
   group('athleteMatchesCategoryGender', () {
@@ -718,6 +797,32 @@ void main() {
       final parts = directOrganizerPrereserveAlertParts();
       expect(parts.$2, 'pré-reservada');
       expect(parts.$3, contains('organizador'));
+    });
+
+    test('directOrganizerPixAmount returns share or full', () {
+      final quote = buildRegistrationQuote(entryFee: 180);
+      expect(directOrganizerPixAmount(quote, 'share'), 90);
+      expect(directOrganizerPixAmount(quote, 'full'), 180);
+    });
+
+    test('directOrganizerShareHint warns about coordination', () {
+      final quote = buildRegistrationQuote(entryFee: 180);
+      expect(
+        directOrganizerShareHint(quote, 'share'),
+        contains('90'),
+      );
+      expect(
+        directOrganizerShareHint(quote, 'share'),
+        contains('parceiro'),
+      );
+      expect(
+        directOrganizerShareHint(quote, 'full'),
+        contains('integral'),
+      );
+      expect(
+        directOrganizerShareHint(quote, 'full'),
+        contains('não pagar'),
+      );
     });
   });
 

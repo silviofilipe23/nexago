@@ -159,15 +159,32 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            const AuthCanvasGlow(),
-            FadeSlideIn(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      body: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            top: -80,
+            left: 0,
+            right: 0,
+            height: 360,
+            child: const AuthCanvasGlow(),
+          ),
+          SafeArea(
+            top: false,
+            child: GestureDetector(
+              onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+              behavior: HitTestBehavior.translucent,
+              child: FadeSlideIn(
+                child: Center(
+                  child: SingleChildScrollView(
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(
+                      24,
+                      MediaQuery.paddingOf(context).top + 20,
+                      24,
+                      20,
+                    ),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 420),
                     child: Column(
@@ -326,8 +343,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+          ),
+        ],
       ),
     );
   }

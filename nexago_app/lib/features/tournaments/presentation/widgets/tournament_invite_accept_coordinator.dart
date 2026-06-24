@@ -5,8 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
-import '../../../../core/theme/app_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
+import '../../../../core/ui/feedback/feedback_page.dart';
+import '../../../../core/ui/feedback/show_feedback_page.dart';
 import '../../../athlete/domain/tournament_access_providers.dart';
 import '../../domain/tournament_detail_model.dart';
 import '../../domain/tournament_discovery_providers.dart';
@@ -201,7 +202,16 @@ class _TournamentInviteAcceptCoordinatorState
 
     final categoryName = _categoryNameFromInvite(invite, tournament);
 
-    showAppSnackBar(context, 'Dupla inscrita! Pagamento confirmado.');
+    await pushSuccessFeedback(
+      context,
+      title: 'Dupla inscrita!',
+      description: 'Pagamento confirmado. Boa competição!',
+      primaryAction: FeedbackAction(
+        label: 'Ver inscrição',
+        onPressed: () => Navigator.of(context).pop(),
+      ),
+    );
+    if (!mounted) return;
     navigateToTournamentRegistrationSuccess(
       context,
       ref: ref,
@@ -244,50 +254,51 @@ class _TournamentInviteAcceptCoordinatorState
     }
 
     final firstName = invite.inviteeName.split(' ').first;
-    _showPaymentSnackBar(invite, firstName);
+    await _showPartnerAcceptedFeedback(invite, firstName);
   }
 
-  void _showPaymentSnackBar(TournamentPartnerInvite invite, String firstName) {
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    if (messenger == null) return;
+  void _navigateToRegistrationPayment(TournamentPartnerInvite invite) {
+    if (!context.mounted) return;
+    final access = ref.read(tournamentAccessStateProvider);
+    if (!access.canAccess) {
+      final message = access.blockMessage ?? access.snackbarMessage;
+      if (message != null) {
+        showAppSnackBar(context, message, isError: true);
+      }
+      if (!access.onboardingCompleted) {
+        context.go(AppRoutes.athleteOnboardingWelcome);
+      } else {
+        context.pushNamed(AppRouteNames.athleteCompleteProfile);
+      }
+      return;
+    }
+    context.pushNamed(
+      AppRouteNames.tournamentRegistration,
+      pathParameters: {'tournamentId': invite.tournamentId},
+      queryParameters: tournamentRegistrationPaymentParams(invite),
+    );
+  }
 
-    messenger.clearSnackBars();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          '$firstName aceitou! Conclua o pagamento da inscrição.',
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        backgroundColor: AppColors.black.withValues(alpha: 0.92),
-        duration: const Duration(seconds: 8),
-        action: SnackBarAction(
-          label: 'Pagar',
-          textColor: AppColors.brand,
-          onPressed: () {
-            if (!context.mounted) return;
-            final snackAccess = ref.read(tournamentAccessStateProvider);
-            if (!snackAccess.canAccess) {
-              final message = snackAccess.blockMessage;
-              if (message != null) {
-                showAppSnackBar(context, message, isError: true);
-              }
-              if (!snackAccess.onboardingCompleted) {
-                context.go(AppRoutes.athleteOnboardingWelcome);
-              } else {
-                context.pushNamed(AppRouteNames.athleteCompleteProfile);
-              }
-              return;
-            }
-            context.pushNamed(
-              AppRouteNames.tournamentRegistration,
-              pathParameters: {'tournamentId': invite.tournamentId},
-              queryParameters: tournamentRegistrationPaymentParams(invite),
-            );
-          },
-        ),
+  Future<void> _showPartnerAcceptedFeedback(
+    TournamentPartnerInvite invite,
+    String firstName,
+  ) async {
+    if (!context.mounted) return;
+    await pushSuccessFeedback(
+      context,
+      title: '$firstName aceitou!',
+      description: 'Conclua o pagamento da inscrição.',
+      primaryAction: FeedbackAction(
+        label: 'Pagar',
+        onPressed: () {
+          Navigator.of(context).pop();
+          _navigateToRegistrationPayment(invite);
+        },
+      ),
+      secondaryAction: FeedbackAction(
+        label: 'Depois',
+        isPrimary: false,
+        onPressed: () => Navigator.of(context).pop(),
       ),
     );
   }

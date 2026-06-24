@@ -88,6 +88,33 @@ export function resolveTournamentRegistrationCredit(params: {
   return {credit, newPaidAmount, isPaid};
 }
 
+/**
+ * uids dos atletas da inscrição. Usa o time quando existir (dupla / solo
+ * legado); senão deriva da própria inscrição (solo novo, sem equipe ainda):
+ * `player1Id` + `participantUids`.
+ */
+export function registrationAthleteUids(
+  registration: Record<string, unknown>,
+  team: Record<string, unknown> | null | undefined,
+): string[] {
+  const out = new Set<string>();
+  if (team) {
+    for (const id of [team.player1Id, team.player2Id]) {
+      if (typeof id === "string" && id.trim()) out.add(id.trim());
+    }
+    return [...out];
+  }
+  const p1 = registration.player1Id;
+  if (typeof p1 === "string" && p1.trim()) out.add(p1.trim());
+  const parts = registration.participantUids;
+  if (Array.isArray(parts)) {
+    for (const p of parts) {
+      if (typeof p === "string" && p.trim()) out.add(p.trim());
+    }
+  }
+  return [...out];
+}
+
 export function sharePaidUidsFromRegistration(
   data: Record<string, unknown>,
 ): string[] {

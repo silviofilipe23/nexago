@@ -3,6 +3,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../domain/category_gender_eligibility.dart';
 import '../../../domain/category_level_eligibility.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_logic.dart';
@@ -19,6 +20,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
     this.levelBlocked = false,
     this.ageBlocked = false,
     this.ageBlockLabel = '',
+    this.genderBlocked = false,
     this.onTap,
     this.onChange,
   });
@@ -34,6 +36,8 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
   /// Categoria fora da faixa etária do atleta (ou sem data de nascimento).
   final bool ageBlocked;
   final String ageBlockLabel;
+  /// Categoria de gênero incompatível com o perfil do atleta.
+  final bool genderBlocked;
   final VoidCallback? onTap;
   final VoidCallback? onChange;
 
@@ -51,6 +55,7 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
     final selectable = !alreadyRegistered &&
         !levelBlocked &&
         !ageBlocked &&
+        !genderBlocked &&
         isCategorySelectable(
           offer,
           inscriptionCount: inscriptionCount,
@@ -194,6 +199,9 @@ class TournamentRegistrationCategoryCard extends StatelessWidget {
     }
     if (levelBlocked) {
       return CategoryLevelEligibility.blockBadgeLabel();
+    }
+    if (genderBlocked) {
+      return CategoryGenderEligibility.blockBadgeLabel();
     }
     if (offer.registrationClosed || offer.isCompleted) {
       return 'INSCRIÇÕES ENCERRADAS';

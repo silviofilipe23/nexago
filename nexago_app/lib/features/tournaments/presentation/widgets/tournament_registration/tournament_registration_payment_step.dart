@@ -30,6 +30,8 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
     this.onInvitePartner,
     this.pendingPartnerName,
     this.onTrackInvite,
+    this.showInformUniform = false,
+    this.onInformUniform,
   });
 
   final TournamentCategoryOffer category;
@@ -47,11 +49,16 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
   final String organizerPixRecipientName;
   final String organizerPixCity;
   final bool showSoloPartnerInvite;
+
   /// Inscrição já paga (total): o parceiro convidado entra sem taxa.
   final bool partnerJoinsFree;
   final VoidCallback? onInvitePartner;
   final String? pendingPartnerName;
   final VoidCallback? onTrackInvite;
+
+  /// Categoria exige uniforme: oferece informar o tamanho depois da inscrição.
+  final bool showInformUniform;
+  final VoidCallback? onInformUniform;
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +71,27 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (showSoloPartnerInvite && onInvitePartner != null) ...[
+          TournamentRegistrationSoloInviteCard(
+            onInvitePartner: onInvitePartner!,
+            pendingPartnerName: pendingPartnerName,
+            onTrackInvite: onTrackInvite,
+            partnerJoinsFree: partnerJoinsFree,
+          ),
+          SizedBox(height: 12),
+        ],
+        if (showInformUniform && onInformUniform != null) ...[
+          OutlinedButton.icon(
+            onPressed: onInformUniform,
+            icon: const Icon(Icons.checkroom_outlined, size: 18),
+            label: const Text('Informar uniforme'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+            ),
+          ),
+          SizedBox(height: 12),
+        ],
+
         Text(
           isFreeRegistration ? 'CONFIRMAÇÃO' : 'PAGAMENTO',
           style: AppTypography.mono(
@@ -112,32 +140,36 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             ],
           ),
           SizedBox(height: 12),
-          Builder(
-            builder: (context) {
-              final parts = directOrganizerPaymentBodyParts(quote);
-              return RichText(
-                text: TextSpan(
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: context.themeColors.onSurfaceMuted,
-                    fontWeight: FontWeight.w500,
-                    height: 1.45,
-                  ),
-                  children: [
-                    TextSpan(text: parts.$1),
-                    TextSpan(
-                      text: parts.$2,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    TextSpan(text: parts.$3),
-                  ],
-                ),
-              );
-            },
-          ),
+
+          // Builder(
+          //   builder: (context) {
+          //     final parts = directOrganizerPaymentBodyParts(quote);
+          //     return RichText(
+          //       text: TextSpan(
+          //         style: theme.textTheme.bodyMedium?.copyWith(
+          //           color: context.themeColors.onSurfaceMuted,
+          //           fontWeight: FontWeight.w500,
+          //           height: 1.45,
+          //         ),
+          //         children: [
+          //           TextSpan(text: parts.$1),
+          //           TextSpan(
+          //             text: parts.$2,
+          //             style: const TextStyle(fontWeight: FontWeight.w800),
+          //           ),
+          //           TextSpan(text: parts.$3),
+          //         ],
+          //       ),
+          //     );
+          //   },
+          // ),
           SizedBox(height: 16),
           TournamentRegistrationDirectOrganizerPanel(
             tournamentName: tournamentName,
             quote: quote,
+            paymentType: paymentType,
+            onPaymentTypeChanged: onPaymentTypeChanged,
+            dualPaymentOnly: dualPaymentOnly,
             managerId: organizerManagerId,
             pixKey: organizerPixKey,
             pixRecipientName: organizerPixRecipientName,
@@ -182,15 +214,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             ),
           ),
         ],
-        if (showSoloPartnerInvite && onInvitePartner != null) ...[
-          SizedBox(height: 16),
-          TournamentRegistrationSoloInviteCard(
-            onInvitePartner: onInvitePartner!,
-            pendingPartnerName: pendingPartnerName,
-            onTrackInvite: onTrackInvite,
-            partnerJoinsFree: partnerJoinsFree,
-          ),
-        ],
+
         if (!dualPaymentOnly && !isDirectOrganizerPayment) ...[
           SizedBox(height: 16),
           SegmentedButton<String>(

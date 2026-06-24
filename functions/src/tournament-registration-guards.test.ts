@@ -1,7 +1,7 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {Timestamp} from "firebase-admin/firestore";
-import {assertTournamentAcceptsRegistration} from "./tournament-registration-guards";
+import {assertTournamentAcceptsRegistration, resolveCategoryEntryFee} from "./tournament-registration-guards";
 
 function mockDb(tournament: Record<string, unknown> | null) {
   return {
@@ -163,5 +163,20 @@ describe("tournament-registration-guards", () => {
       "uuid-cat-1",
     );
     assert.equal(data.listingStatus, "open");
+  });
+
+  it("resolveCategoryEntryFee matches by category id", () => {
+    const tournament = {
+      categories: [
+        {
+          id: "uuid-cat-1",
+          categoryName: "Sub 19 Masculino",
+          entryFee: 120,
+        },
+      ],
+    };
+    assert.equal(resolveCategoryEntryFee(tournament, "uuid-cat-1"), 120);
+    assert.equal(resolveCategoryEntryFee(tournament, "Sub 19 Masculino"), 120);
+    assert.equal(resolveCategoryEntryFee(tournament, "inexistente"), 0);
   });
 });

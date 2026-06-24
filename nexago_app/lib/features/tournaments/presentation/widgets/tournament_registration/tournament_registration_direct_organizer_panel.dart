@@ -25,6 +25,9 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
     super.key,
     required this.tournamentName,
     required this.quote,
+    required this.paymentType,
+    required this.onPaymentTypeChanged,
+    this.dualPaymentOnly = false,
     this.managerId,
     this.pixKey = '',
     this.pixRecipientName = '',
@@ -33,6 +36,9 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
 
   final String tournamentName;
   final TournamentRegistrationQuote quote;
+  final String paymentType;
+  final ValueChanged<String> onPaymentTypeChanged;
+  final bool dualPaymentOnly;
   final String? managerId;
   final String pixKey;
   final String pixRecipientName;
@@ -57,31 +63,57 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
       authUser: authUser,
       organizerId: organizerId,
     );
+    final amountForPix = directOrganizerPixAmount(quote, paymentType);
+    final amountLabel = paymentAmountLabel(
+      quote: quote,
+      amountType: paymentType,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _PrereserveAlert(theme: theme),
+        _DirectOrganizerHint(
+          theme: theme,
+          quote: quote,
+          paymentType: paymentType,
+        ),
+        if (!dualPaymentOnly) ...[
+          const SizedBox(height: 16),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'share', label: Text('Minha parte')),
+              ButtonSegment(value: 'full', label: Text('Integral')),
+            ],
+            selected: {paymentType},
+            onSelectionChanged: (selection) {
+              if (selection.isEmpty) return;
+              onPaymentTypeChanged(selection.first);
+            },
+          ),
+        ],
         if (PixBrCode.isLikelyValidKey(pixKey)) ...[
           const SizedBox(height: 16),
           _PixCard(
             brCode: PixBrCode.build(
               key: pixKey,
-              recipientName:
-                  pixRecipientName.isNotEmpty ? pixRecipientName : organizerName,
+              recipientName: pixRecipientName.isNotEmpty
+                  ? pixRecipientName
+                  : organizerName,
               city: pixCity.isNotEmpty ? pixCity : 'BRASIL',
-              amount: quote.displayTotal,
+              amount: amountForPix,
             ),
             pixKey: pixKey,
-            recipientName:
-                pixRecipientName.isNotEmpty ? pixRecipientName : organizerName,
-            amountLabel: formatRegistrationMoney(quote.displayTotal),
+            recipientName: pixRecipientName.isNotEmpty
+                ? pixRecipientName
+                : organizerName,
+            amountLabel: amountLabel,
+            amountType: paymentType,
             theme: theme,
           ),
         ],
         const SizedBox(height: 16),
-        _StepsCard(quote: quote, theme: theme),
-        const SizedBox(height: 12),
+        // _StepsCard(quote: quote, theme: theme),
+        // const SizedBox(height: 12),
         _OrganizerContactCard(
           organizerName: organizerName,
           organizerInitials: organizerInitials,
@@ -121,14 +153,19 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
   }
 }
 
-class _PrereserveAlert extends StatelessWidget {
-  const _PrereserveAlert({required this.theme});
+class _DirectOrganizerHint extends StatelessWidget {
+  const _DirectOrganizerHint({
+    required this.theme,
+    required this.quote,
+    required this.paymentType,
+  });
 
   final ThemeData theme;
+  final TournamentRegistrationQuote quote;
+  final String paymentType;
 
   @override
   Widget build(BuildContext context) {
-    final parts = directOrganizerPrereserveAlertParts();
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -139,27 +176,15 @@ class _PrereserveAlert extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.schedule_rounded, size: 20, color: AppColors.pending),
+          Icon(Icons.info_outline_rounded, size: 20, color: AppColors.pending),
           const SizedBox(width: 10),
           Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: context.themeColors.onSurfaceMuted,
-                  fontWeight: FontWeight.w500,
-                  height: 1.45,
-                ),
-                children: [
-                  TextSpan(text: parts.$1),
-                  TextSpan(
-                    text: parts.$2,
-                    style: TextStyle(
-                      color: AppColors.pending,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  TextSpan(text: parts.$3),
-                ],
+            child: Text(
+              directOrganizerShareHint(quote, paymentType),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: context.themeColors.onSurfaceMuted,
+                fontWeight: FontWeight.w500,
+                height: 1.45,
               ),
             ),
           ),
@@ -175,6 +200,7 @@ class _PixCard extends StatelessWidget {
     required this.pixKey,
     required this.recipientName,
     required this.amountLabel,
+    required this.amountType,
     required this.theme,
   });
 
@@ -182,6 +208,7 @@ class _PixCard extends StatelessWidget {
   final String pixKey;
   final String recipientName;
   final String amountLabel;
+  final String amountType;
   final ThemeData theme;
 
   @override
@@ -201,7 +228,7 @@ class _PixCard extends StatelessWidget {
               Icon(Icons.pix_rounded, size: 18, color: AppColors.brand),
               const SizedBox(width: 8),
               Text(
-                'Pague por PIX',
+                amountType == 'full' ? 'PIX integral' : 'PIX — sua parcela',
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w800,
                   color: context.themeColors.onSurface,
@@ -250,7 +277,9 @@ class _PixCard extends StatelessWidget {
               color: context.themeColors.surfaceCard,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.12,
+                ),
               ),
             ),
             child: Text(

@@ -59,6 +59,8 @@ Map<String, String> tournamentRegistrationQueryParams({
     params['step'] = 'payment';
   } else if (step == TournamentRegistrationStep.waiting) {
     params['step'] = 'waiting';
+  } else if (step == TournamentRegistrationStep.partner) {
+    params['step'] = 'partner';
   }
   return params;
 }
@@ -93,6 +95,20 @@ void navigateFromMyTournamentRegistration(
 ) {
   final tournamentId = registration.tournamentId.trim();
   if (tournamentId.isEmpty) return;
+
+  // Pago sem parceiro (solo pagou o total): abre direto no passo de convite.
+  if (myTournamentRegistrationPaidAwaitingPartner(registration)) {
+    context.pushNamed(
+      AppRouteNames.tournamentRegistration,
+      pathParameters: {'tournamentId': tournamentId},
+      queryParameters: tournamentRegistrationQueryParams(
+        categoryId: registration.categoryId,
+        registrationId: registration.registrationId,
+        step: TournamentRegistrationStep.partner,
+      ),
+    );
+    return;
+  }
 
   if (myTournamentRegistrationAwaitingOrganizer(registration)) {
     context.pushNamed(

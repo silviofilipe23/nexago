@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/tournament_category_spots.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
@@ -26,7 +27,7 @@ class TournamentDetailCategoriesCard extends StatelessWidget {
   final List<TournamentCategoryOffer> offers;
   final Map<String, int> enrollmentByCategoryId;
   final bool enrollmentCountsResolved;
-  final Map<String, String> registrationsByCategoryId;
+  final TournamentUserRegistrationsByCategory registrationsByCategoryId;
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +78,7 @@ class TournamentDetailCategoriesCard extends StatelessWidget {
                   offers[i],
                   countsResolved: enrollmentCountsResolved,
                 ),
-                registrationId: registrationsByCategoryId[offers[i].id],
+                registration: registrationsByCategoryId[offers[i].id],
                 tournamentId: tournamentId,
                 tournamentName: tournamentName,
               ),
@@ -95,17 +96,17 @@ class _CategoryRow extends StatelessWidget {
     required this.tournamentId,
     required this.tournamentName,
     this.inscriptionCount,
-    this.registrationId,
+    this.registration,
   });
 
   final TournamentCategoryOffer offer;
   final String tournamentId;
   final String tournamentName;
   final int? inscriptionCount;
-  final String? registrationId;
+  final UserCategoryRegistration? registration;
 
   void _openRegistrationSuccess(BuildContext context) {
-    final regId = registrationId?.trim() ?? '';
+    final regId = registration?.registrationId.trim() ?? '';
     if (regId.isEmpty || tournamentId.isEmpty) return;
     context.pushNamed(
       AppRouteNames.tournamentRegistrationSuccess,
@@ -126,7 +127,8 @@ class _CategoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isEnrolled = registrationId != null && registrationId!.isNotEmpty;
+    final isRegistrationPaid = registration?.isPaid == true;
+    final isEnrolled = isRegistrationPaid;
     final status = tournamentCategoryRowStatus(
       offer,
       inscriptionCount: inscriptionCount,

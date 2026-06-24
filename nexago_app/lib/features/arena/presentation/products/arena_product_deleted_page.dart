@@ -8,6 +8,7 @@ import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
+import '../../../../core/ui/feedback/feedback_page.dart';
 import '../../../../core/ui/fade_slide_in.dart';
 import '../../domain/products/arena_product_delete_args.dart';
 import '../../domain/products/arena_product_providers.dart';
@@ -29,9 +30,7 @@ class ArenaProductDeletedPage extends ConsumerStatefulWidget {
 }
 
 class _ArenaProductDeletedPageState
-    extends ConsumerState<ArenaProductDeletedPage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseController;
+    extends ConsumerState<ArenaProductDeletedPage> {
   int _secondsLeft = ArenaProductDeletedPage.undoSeconds;
   Timer? _timer;
   bool _restoring = false;
@@ -39,10 +38,6 @@ class _ArenaProductDeletedPageState
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2400),
-    )..repeat();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || _secondsLeft <= 0) return;
       setState(() => _secondsLeft--);
@@ -51,7 +46,6 @@ class _ArenaProductDeletedPageState
 
   @override
   void dispose() {
-    _pulseController.dispose();
     _timer?.cancel();
     super.dispose();
   }
@@ -81,186 +75,30 @@ class _ArenaProductDeletedPageState
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final product = widget.args.product;
     final canUndo = _secondsLeft > 0 && !_restoring;
     final stockLabel = product.stockQuantity == 1
         ? '1 un em estoque'
         : '${product.stockQuantity} un em estoque';
 
-    return Scaffold(
-      backgroundColor: context.themeColors.canvas,
-      body: SafeArea(
-        child: FadeSlideIn(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 4, 20, 0),
-                child: Row(
-                  children: [
-                    Material(
-                      color: context.themeColors.surfaceRaised,
-                      borderRadius: BorderRadius.circular(12),
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: _backToCatalog,
-                        child: SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: Icon(
-                            Icons.arrow_back_rounded,
-                            color: context.themeColors.onSurface,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        'Produto excluído',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: context.themeColors.onSurface,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 44),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _DeletedHeroIcon(controller: _pulseController),
-                      const SizedBox(height: 24),
-                      Text(
-                        'Produto excluído.',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: context.themeColors.onSurface,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            color: context.themeColors.onSurfaceMuted,
-                            fontWeight: FontWeight.w500,
-                            height: 1.45,
-                          ),
-                          children: [
-                            TextSpan(
-                              text: product.name,
-                              style: TextStyle(
-                                color: context.themeColors.onSurface,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const TextSpan(
-                              text:
-                                  ' saiu do catálogo e do cardápio. O histórico de vendas foi preservado.',
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                      _UndoCard(
-                        secondsLeft: _secondsLeft,
-                        canUndo: canUndo,
-                        restoring: _restoring,
-                        stockLabel: stockLabel,
-                        onUndo: _restore,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: OutlinedButton.icon(
-                  onPressed: _backToCatalog,
-                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                  label: const Text('Voltar ao catálogo'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: context.themeColors.onSurface,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: BorderSide(
-                      color: context.themeColors.onSurfaceMuted.withValues(
-                        alpha: 0.3,
-                      ),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+    return FeedbackPage.error(
+      title: 'Produto excluído.',
+      description:
+          '${product.name} saiu do catálogo e do cardápio. O histórico de vendas foi preservado.',
+      showCloseButton: true,
+      onClose: _backToCatalog,
+      extraContent: FadeSlideIn(
+        child: _UndoCard(
+          secondsLeft: _secondsLeft,
+          canUndo: canUndo,
+          restoring: _restoring,
+          stockLabel: stockLabel,
+          onUndo: _restore,
         ),
       ),
-    );
-  }
-}
-
-class _DeletedHeroIcon extends StatelessWidget {
-  const _DeletedHeroIcon({required this.controller});
-
-  final AnimationController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: 120,
-        height: 120,
-        child: AnimatedBuilder(
-          animation: controller,
-          builder: (context, child) {
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-                for (var i = 0; i < 3; i++)
-                  Opacity(
-                    opacity: (1 - ((controller.value + i * 0.33) % 1.0))
-                        .clamp(0.0, 1.0),
-                    child: Container(
-                      width: 72 + (i * 18),
-                      height: 72 + (i * 18),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.live.withValues(alpha: 0.35),
-                          width: 1.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                child!,
-              ],
-            );
-          },
-          child: Container(
-            width: 72,
-            height: 72,
-            decoration: const BoxDecoration(
-              color: AppColors.live,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.delete_outline_rounded,
-              color: AppColors.white,
-              size: 32,
-            ),
-          ),
-        ),
+      primaryAction: FeedbackAction(
+        label: 'Voltar ao catálogo',
+        onPressed: _backToCatalog,
       ),
     );
   }

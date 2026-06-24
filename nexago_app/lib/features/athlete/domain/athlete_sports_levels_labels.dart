@@ -7,19 +7,15 @@ abstract final class AthleteSportsLevelsLabels {
   static const List<String> levelLabels = AthleteProfileOptions.levels;
 
   static const List<String> levelAbbreviations = [
-    'Inic.',
-    'Bás.',
-    'Interm.',
-    'Avanç.',
-    'Comp.',
+    'Iniciante',
+    'Intermediário',
+    'Open',
   ];
 
   static String abbreviationFor(String levelLabel) {
     final idx = levelLabels.indexOf(levelLabel);
     if (idx < 0 || idx >= levelAbbreviations.length) {
-      return levelLabel.length > 4
-          ? '${levelLabel.substring(0, 4)}.'
-          : levelLabel;
+      return levelLabel;
     }
     return levelAbbreviations[idx];
   }

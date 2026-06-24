@@ -10,6 +10,8 @@ import '../../core/router/routes.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../core/ui/app_snackbar.dart';
+import '../../core/ui/feedback/feedback_page.dart';
+import '../../core/ui/feedback/show_feedback_page.dart';
 import '../../core/ui/fade_slide_in.dart';
 import 'widgets/auth_form_widgets.dart';
 
@@ -65,26 +67,43 @@ class _ForgotPasswordPageState extends ConsumerState<ForgotPasswordPage> {
       await ref.read(authServiceProvider).sendPasswordResetEmail(email: email);
       if (!mounted) return;
       setState(() => _sent = true);
-      showAppSnackBar(
+      await pushInfoFeedback(
         context,
-        'Se o e-mail estiver cadastrado, você receberá um link em instantes.',
+        title: 'E-mail enviado',
+        description:
+            'Se o e-mail estiver cadastrado, você receberá um link em instantes.',
+        primaryAction: FeedbackAction(
+          label: 'Voltar ao login',
+          onPressed: () {
+            Navigator.of(context).pop();
+            context.go(AppRoutes.login);
+          },
+        ),
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       final mapped = mapFirebaseAuthException(e);
-      showAppSnackBar(
+      await pushErrorFeedback(
         context,
-        mapped.contains('(')
-            ? 'Não foi possível enviar o link agora. Tente novamente.'
+        title: 'Não foi possível enviar o link',
+        description: mapped.contains('(')
+            ? 'Tente novamente em instantes.'
             : mapped,
-        isError: true,
+        primaryAction: FeedbackAction(
+          label: 'Tentar novamente',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       );
     } catch (_) {
       if (!mounted) return;
-      showAppSnackBar(
+      await pushErrorFeedback(
         context,
-        'Não foi possível enviar o link agora. Tente novamente.',
-        isError: true,
+        title: 'Não foi possível enviar o link',
+        description: 'Tente novamente em instantes.',
+        primaryAction: FeedbackAction(
+          label: 'Tentar novamente',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       );
     } finally {
       if (mounted) setState(() => _submitting = false);

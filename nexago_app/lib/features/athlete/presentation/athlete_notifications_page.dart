@@ -86,7 +86,9 @@ class _AthleteNotificationsPageState
     context.push(path);
   }
 
-  Future<void> _handlePrimaryAction(AthleteInboxNotification notification) async {
+  Future<void> _handlePrimaryAction(
+    AthleteInboxNotification notification,
+  ) async {
     await _markRead(notification);
     final presentation = notificationPresentation(notification);
     final type = notification.type.toLowerCase();
@@ -160,11 +162,11 @@ class _AthleteNotificationsPageState
         title: Text(
           'Notificações',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: context.themeColors.onSurface,
-              ),
+            fontWeight: FontWeight.w800,
+            color: context.themeColors.onSurface,
+          ),
         ),
-        centerTitle: true,
+        centerTitle: false,
         actions: [
           TextButton(
             onPressed: unreadCount == 0 || _markingAll
@@ -189,12 +191,10 @@ class _AthleteNotificationsPageState
         ],
       ),
       body: notificationsAsync.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(color: AppColors.brand),
-        ),
-        error: (_, __) => _EmptyState(
-          message: 'Não foi possível carregar as notificações.',
-        ),
+        loading: () =>
+            Center(child: CircularProgressIndicator(color: AppColors.brand)),
+        error: (_, __) =>
+            _EmptyState(message: 'Não foi possível carregar as notificações.'),
         data: (_) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -233,27 +233,29 @@ class _AthleteNotificationsPageState
                             child: AbsorbPointer(
                               absorbing: isRemoving,
                               child: AthleteNotificationCard(
-                              notification: n,
-                              presentation: presentation,
-                              timeLabel: notificationRelativeTimeLabel(
-                                n.createdAt,
-                                now,
-                              ),
-                              onDismiss: isRemoving
-                                  ? () {}
-                                  : () => _animateRemoval(n),
-                              onPrimaryAction: isRemoving
-                                  ? () {}
-                                  : () => _handlePrimaryAction(n),
-                              onSecondaryAction:
-                                  presentation.actions.length > 1 && !isRemoving
-                                      ? () => _handleSecondaryAction(n)
-                                      : null,
-                              onTap: isRemoving ||
-                                      presentation.routePath == null ||
-                                      presentation.actions.isNotEmpty
-                                  ? null
-                                  : () => _navigateForNotification(n),
+                                notification: n,
+                                presentation: presentation,
+                                timeLabel: notificationRelativeTimeLabel(
+                                  n.createdAt,
+                                  now,
+                                ),
+                                onDismiss: isRemoving
+                                    ? () {}
+                                    : () => _animateRemoval(n),
+                                onPrimaryAction: isRemoving
+                                    ? () {}
+                                    : () => _handlePrimaryAction(n),
+                                onSecondaryAction:
+                                    presentation.actions.length > 1 &&
+                                        !isRemoving
+                                    ? () => _handleSecondaryAction(n)
+                                    : null,
+                                onTap:
+                                    isRemoving ||
+                                        presentation.routePath == null ||
+                                        presentation.actions.isNotEmpty
+                                    ? null
+                                    : () => _navigateForNotification(n),
                               ),
                             ),
                           );
@@ -298,7 +300,7 @@ class _AthleteNotificationsPageState
 
 class _SectionListItem {
   _SectionListItem({this.header, this.notification})
-      : assert(header != null || notification != null);
+    : assert(header != null || notification != null);
 
   final String? header;
   final AthleteInboxNotification? notification;

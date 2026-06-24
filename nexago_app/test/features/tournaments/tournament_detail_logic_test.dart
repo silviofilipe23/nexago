@@ -374,6 +374,32 @@ void main() {
     );
   });
 
+  test('tournamentCategoryCtaKindForAthlete shows view only when paid', () {
+    const offer = TournamentCategoryOffer(
+      id: 'o',
+      name: 'Open',
+      entryFee: 90,
+      spotsLeft: 4,
+      spotsTotal: 16,
+    );
+    expect(
+      tournamentCategoryCtaKindForAthlete(
+        offer: offer,
+        tournamentStatus: TournamentListingStatus.open,
+        isRegistrationPaid: true,
+      ),
+      TournamentCategoryCtaKind.viewRegistration,
+    );
+    expect(
+      tournamentCategoryCtaKindForAthlete(
+        offer: offer,
+        tournamentStatus: TournamentListingStatus.open,
+        isRegistrationPaid: false,
+      ),
+      TournamentCategoryCtaKind.register,
+    );
+  });
+
   test('athleteRegistrationStatusLabel distinguishes waitlist', () {
     expect(
       athleteRegistrationStatusLabel(isPaid: true, isWaitlist: true),

@@ -124,6 +124,7 @@ class MyTournamentRegistrationsRepository {
           locationLine: _tournamentLocationLine(tournament),
           isWaitlist: isWaitlist,
           athleteHasReserved: sharePaidUids.contains(uid),
+          partnerPending: data['partnerPending'] == true,
         ),
       );
     }

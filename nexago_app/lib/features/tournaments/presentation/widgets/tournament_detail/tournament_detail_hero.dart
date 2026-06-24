@@ -153,8 +153,8 @@ class TournamentDetailHero extends StatelessWidget {
                 prizeLabel: stats.prizeTotalLabel,
                 feeLabel: tournament.priceLabel,
               ),
-              const SizedBox(height: 10),
-              _SpotsCard(stats: stats, urgencyBanner: urgencyBanner),
+              // const SizedBox(height: 10),
+              // _SpotsCard(stats: stats, urgencyBanner: urgencyBanner),
             ],
           ),
         ),
@@ -346,95 +346,94 @@ class _PrizeFeeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final prizeAmount = _brlAmountFromLabel(prizeLabel);
 
-    return DecoratedBox(
+    return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.22),
-        ),
+        border: Border.all(color: AppColors.brand.withValues(alpha: 0.35)),
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                flex: 13,
-                child: ColoredBox(
-                  color: AppColors.canvas,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _sectionLabel(context, 'PRÊMIO TOTAL'),
-                        const SizedBox(height: 6),
-                        if (prizeAmount != null) ...[
-                          Text(
-                            'R\$ $prizeAmount',
-                            style: AppTypography.soraRegular(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              color: context.themeColors.onSurface,
-                              height: 1.05,
-                            ),
-                          ),
-                        ] else
-                          Text(
-                            prizeLabel,
-                            style: AppTypography.soraRegular(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              color: context.themeColors.onSurface,
-                            ),
-                          ),
-                      ],
-                    ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 13,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: context.themeColors.surfaceCard,
+                  borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(14),
                   ),
                 ),
-              ),
-              Container(
-                width: 1,
-                color: context.themeColors.onSurfaceMuted.withValues(
-                  alpha: 0.15,
-                ),
-              ),
-              Expanded(
-                flex: 7,
-                child: ColoredBox(
-                  color: AppColors.brand.withValues(alpha: 0.08),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _sectionLabel(context, 'INSCRIÇÃO'),
-                        const SizedBox(height: 6),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _sectionLabel(context, 'PRÊMIO TOTAL'),
+                      const SizedBox(height: 6),
+                      if (prizeAmount != null) ...[
                         Text(
-                          feeLabel,
+                          'R\$ $prizeAmount',
                           style: AppTypography.soraRegular(
-                            fontSize: 20,
+                            fontSize: 22,
                             fontWeight: FontWeight.w900,
-                            color: AppColors.brand,
+                            color: context.themeColors.onSurface,
                             height: 1.05,
                           ),
                         ),
+                      ] else
                         Text(
-                          'por dupla',
+                          prizeLabel,
                           style: AppTypography.soraRegular(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: context.themeColors.onSurfaceMuted,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            color: context.themeColors.onSurface,
                           ),
                         ),
-                      ],
-                    ),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+            Container(
+              width: 1,
+              color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
+            ),
+            Expanded(
+              flex: 7,
+              child: ColoredBox(
+                color: AppColors.brand.withValues(alpha: 0.08),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _sectionLabel(context, 'INSCRIÇÃO'),
+                      const SizedBox(height: 6),
+                      Text(
+                        feeLabel,
+                        style: AppTypography.soraRegular(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.brand,
+                          height: 1.05,
+                        ),
+                      ),
+                      Text(
+                        'por dupla',
+                        style: AppTypography.soraRegular(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: context.themeColors.onSurfaceMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

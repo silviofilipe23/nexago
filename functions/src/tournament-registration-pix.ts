@@ -26,11 +26,14 @@ import {assertTeamAgeEligibility} from "./category-age-eligibility";
 import {
   assertTournamentAcceptsRegistration,
   findCategory,
+  loadTournamentData,
+  resolveCategoryEntryFee,
 } from "./tournament-registration-guards";
 import {
   buildTournamentRegistrationExternalReference,
   computeTeamGenderLabel,
   canChargeTournamentFull,
+  registrationAthleteUids,
   computeTournamentShareAmountReais,
   isFreeRegistrationFullyConfirmed,
   isDirectWithOrganizerPaymentMode,
@@ -68,22 +71,14 @@ async function loadTournamentEntryFee(
   tournamentId: string,
   categoryId: string,
 ): Promise<{entryFee: number; tournamentName: string}> {
-  let tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
-  if (!tournamentSnap.exists) {
-    tournamentSnap = await db
-      .doc(`artifacts/${projectId}/public/data/tournaments/${tournamentId}`)
-      .get();
-  }
-  if (!tournamentSnap.exists) {
+  const tournament = await loadTournamentData(db, projectId, tournamentId);
+  if (!tournament) {
     throw new HttpsError("not-found", "Torneio não encontrado");
   }
-  const tournament = tournamentSnap.data()!;
-  const categories = (tournament.categories || []) as Array<{
-    categoryName: string;
-    entryFee?: number;
-  }>;
-  const category = categories.find((c) => c.categoryName === categoryId);
-  const entryFee = category?.entryFee ?? 0;
+  if (!findCategory(tournament, categoryId)) {
+    throw new HttpsError("not-found", "Categoria não encontrada");
+  }
+  const entryFee = resolveCategoryEntryFee(tournament, categoryId);
   const tournamentName = (tournament.name as string) || "Torneio";
   return {entryFee, tournamentName};
 }
@@ -210,12 +205,17 @@ export const createTournamentRegistrationPixPayment = onCall({
     });
   }
 
-  const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
-  if (!teamSnap.exists) {
-    throw new HttpsError("not-found", "Equipe não encontrada");
+  // Solo novo não tem equipe ainda: identifica os atletas pela inscrição.
+  let team: Record<string, unknown> | null = null;
+  if (teamId) {
+    const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
+    if (!teamSnap.exists) {
+      throw new HttpsError("not-found", "Equipe não encontrada");
+    }
+    team = teamSnap.data()!;
   }
-  const team = teamSnap.data()!;
-  if (team.player1Id !== callerUid && team.player2Id !== callerUid) {
+  const athleteUids = registrationAthleteUids(registration, team);
+  if (!athleteUids.includes(callerUid)) {
     throw new HttpsError("permission-denied", "Você não é um dos atletas desta inscrição");
   }
 
@@ -223,13 +223,13 @@ export const createTournamentRegistrationPixPayment = onCall({
     db,
     tournament: tournamentData,
     category: findCategory(tournamentData, categoryId),
-    uids: [team.player1Id as string | undefined, team.player2Id as string | undefined],
+    uids: athleteUids,
   });
   await assertTeamAgeEligibility({
     db,
     tournament: tournamentData,
     category: findCategory(tournamentData, categoryId),
-    uids: [team.player1Id as string | undefined, team.player2Id as string | undefined],
+    uids: athleteUids,
   });
 
   const {entryFee, tournamentName} = await loadTournamentEntryFee(
@@ -569,14 +569,17 @@ export const confirmFreeTournamentRegistration = onCall({
   const shouldWaitlist =
     (tournamentData as Record<string, unknown>).__shouldWaitlist === true;
 
-  const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
-  if (!teamSnap.exists) {
-    throw new HttpsError("not-found", "Equipe não encontrada");
+  // Solo novo (free) não tem equipe ainda: identifica pela inscrição.
+  let team: Record<string, unknown> | null = null;
+  if (teamId) {
+    const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
+    if (!teamSnap.exists) {
+      throw new HttpsError("not-found", "Equipe não encontrada");
+    }
+    team = teamSnap.data()!;
   }
-  const team = teamSnap.data()!;
-  const player1Id = typeof team.player1Id === "string" ? team.player1Id.trim() : "";
-  const player2Id = typeof team.player2Id === "string" ? team.player2Id.trim() : "";
-  if (player1Id !== callerUid && player2Id !== callerUid) {
+  const teamUids = registrationAthleteUids(registration, team);
+  if (!teamUids.includes(callerUid)) {
     throw new HttpsError("permission-denied", "Você não é um dos atletas desta inscrição");
   }
 
@@ -584,13 +587,13 @@ export const confirmFreeTournamentRegistration = onCall({
     db,
     tournament: tournamentData,
     category: findCategory(tournamentData, categoryId),
-    uids: [player1Id, player2Id],
+    uids: teamUids,
   });
   await assertTeamAgeEligibility({
     db,
     tournament: tournamentData,
     category: findCategory(tournamentData, categoryId),
-    uids: [player1Id, player2Id],
+    uids: teamUids,
   });
 
   const {entryFee} = await loadTournamentEntryFee(
@@ -606,9 +609,9 @@ export const confirmFreeTournamentRegistration = onCall({
     );
   }
 
-  const teamUids = [player1Id, player2Id];
   const updatedSharePaidUids = [...sharePaidUids, callerUid];
   const wasPaidBefore = registration.isPaid === true;
+  // Solo sem parceiro (1 uid) nunca conclui sozinho; só quando a dupla existir.
   const isPaid = isFreeRegistrationFullyConfirmed(teamUids, updatedSharePaidUids);
 
   await registrationRef.update({
@@ -618,7 +621,7 @@ export const confirmFreeTournamentRegistration = onCall({
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  if (!wasPaidBefore && isPaid) {
+  if (!wasPaidBefore && isPaid && teamId) {
     try {
       await setTeamGenderWhenRegistrationPaid(db, projectId, teamId);
     } catch (genderError) {
@@ -707,14 +710,17 @@ export const reserveDirectOrganizerRegistration = onCall({
   const shouldWaitlist =
     (tournamentData as Record<string, unknown>).__shouldWaitlist === true;
 
-  const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
-  if (!teamSnap.exists) {
-    throw new HttpsError("not-found", "Equipe não encontrada");
+  // Solo novo (direto) não tem equipe ainda: identifica pela inscrição.
+  let team: Record<string, unknown> | null = null;
+  if (teamId) {
+    const teamSnap = await db.doc(`${artifactsTeamsPath(projectId)}/${teamId}`).get();
+    if (!teamSnap.exists) {
+      throw new HttpsError("not-found", "Equipe não encontrada");
+    }
+    team = teamSnap.data()!;
   }
-  const team = teamSnap.data()!;
-  const player1Id = typeof team.player1Id === "string" ? team.player1Id.trim() : "";
-  const player2Id = typeof team.player2Id === "string" ? team.player2Id.trim() : "";
-  if (player1Id !== callerUid && player2Id !== callerUid) {
+  const teamUids = registrationAthleteUids(registration, team);
+  if (!teamUids.includes(callerUid)) {
     throw new HttpsError("permission-denied", "Você não é um dos atletas desta inscrição");
   }
 
@@ -722,13 +728,13 @@ export const reserveDirectOrganizerRegistration = onCall({
     db,
     tournament: tournamentData,
     category: findCategory(tournamentData, categoryId),
-    uids: [player1Id, player2Id],
+    uids: teamUids,
   });
   await assertTeamAgeEligibility({
     db,
     tournament: tournamentData,
     category: findCategory(tournamentData, categoryId),
-    uids: [player1Id, player2Id],
+    uids: teamUids,
   });
 
   const {entryFee} = await loadTournamentEntryFee(
@@ -744,7 +750,6 @@ export const reserveDirectOrganizerRegistration = onCall({
     );
   }
 
-  const teamUids = [player1Id, player2Id];
   const updatedSharePaidUids = [...sharePaidUids, callerUid];
   const bothAthletesReserved = isFreeRegistrationFullyConfirmed(
     teamUids,

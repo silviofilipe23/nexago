@@ -137,7 +137,7 @@ class TournamentRegistrationSoloInviteCard extends StatelessWidget {
                       partnerJoinsFree
                           ? 'Você pagou o total. Escolha seu parceiro — ele '
                                 'entra sem taxa.'
-                          : 'Sua vaga está garantida. Escolha quem vai jogar '
+                          : 'Sua vaga está reservada. Escolha quem vai jogar '
                                 'com você.',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: colors.onSurfaceMuted,

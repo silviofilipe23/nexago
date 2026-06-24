@@ -13,6 +13,7 @@ import '../../core/router/routes.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../core/ui/app_snackbar.dart';
+import '../../core/ui/feedback/feedback_page.dart';
 import '../../core/ui/fade_slide_in.dart';
 import 'auth_legal_urls.dart';
 import 'domain/auth_password_strength.dart';
@@ -265,6 +266,23 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     final showStrength = _passwordController.text.isNotEmpty;
     final confirmMismatch = _confirmPasswordError != null;
 
+    if (_isSuccessPhase(context)) {
+      return FeedbackPage.success(
+        title: 'Conta criada!',
+        description:
+            'Confirme seu e-mail e complete o perfil para competir nos torneios.',
+        primaryAction: FeedbackAction(
+          label: 'Completar perfil de atleta',
+          onPressed: _busy ? () {} : _completeProfile,
+        ),
+        secondaryAction: FeedbackAction(
+          label: 'Entrar depois',
+          isPrimary: false,
+          onPressed: _busy ? () {} : _signOutAndGoLogin,
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       body: SafeArea(
@@ -272,99 +290,40 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
           children: [
             const AuthCanvasGlow(),
             FadeSlideIn(
-              child: _isSuccessPhase(context)
-                  ? Column(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-                          child: Center(
-                            child: ConstrainedBox(
-                              constraints:
-                                  const BoxConstraints(maxWidth: 420),
-                              child: Row(
-                                children: [
-                                  AuthBackButton(
-                                    onPressed: _busy ? null : _goBack,
-                                  ),
-                                  Spacer(),
-                                  const AuthStepBadge(
-                                    current: 1,
-                                    total: 5,
-                                  ),
-                                ],
-                              ),
+                        Row(
+                          children: [
+                            AuthBackButton(
+                              onPressed: _busy ? null : _goBack,
                             ),
-                          ),
+                            Spacer(),
+                            const AuthStepBadge(current: 1, total: 5),
+                          ],
                         ),
-                        Expanded(
-                          child: Center(
-                            child: SingleChildScrollView(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 12,
-                              ),
-                              child: Center(
-                                child: ConstrainedBox(
-                                  constraints:
-                                      const BoxConstraints(maxWidth: 420),
-                                  child: const AuthRegisterSuccessHero(),
-                                ),
-                              ),
-                            ),
-                          ),
+                        _buildCredentialsForm(
+                          theme,
+                          scheme,
+                          strength,
+                          showStrength,
+                          confirmMismatch,
                         ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-                          child: Center(
-                            child: ConstrainedBox(
-                              constraints:
-                                  const BoxConstraints(maxWidth: 420),
-                              child: AuthContinueButton(
-                                label: 'Completar perfil de atleta',
-                                loading: _submitting,
-                                onPressed:
-                                    _busy ? null : _completeProfile,
-                              ),
-                            ),
-                          ),
-                        ),
+                        SizedBox(height: 24),
+                        _buildBottomActions(theme, scheme),
                       ],
-                    )
-                  : Center(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 12,
-                        ),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 420),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(
-                                children: [
-                                  AuthBackButton(
-                                    onPressed: _busy ? null : _goBack,
-                                  ),
-                                  Spacer(),
-                                  const AuthStepBadge(current: 1, total: 5),
-                                ],
-                              ),
-                              _buildCredentialsForm(
-                                theme,
-                                scheme,
-                                strength,
-                                showStrength,
-                                confirmMismatch,
-                              ),
-                              SizedBox(height: 24),
-                              _buildBottomActions(theme, scheme),
-                            ],
-                          ),
-                        ),
-                      ),
                     ),
+                  ),
+                ),
+              ),
             ),
           ],
         ),

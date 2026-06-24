@@ -219,6 +219,7 @@ class MyTournamentRegistration {
     this.teamId,
     this.isWaitlist = false,
     this.athleteHasReserved = false,
+    this.partnerPending = false,
   });
 
   final String registrationId;
@@ -236,4 +237,7 @@ class MyTournamentRegistration {
   final String? teamId;
   final bool isWaitlist;
   final bool athleteHasReserved;
+
+  /// Inscrição solo com vaga de parceiro em aberto (sem player2 confirmado).
+  final bool partnerPending;
 }

@@ -11,6 +11,8 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../../../core/ui/feedback/feedback_page.dart';
+import '../../../core/ui/feedback/show_feedback_page.dart';
 import '../../auth/domain/auth_password_strength.dart';
 import '../../auth/widgets/auth_form_widgets.dart' show AuthFieldLabel, AuthPasswordStrength, AuthTextField, authPasswordVisibilityIcon;
 
@@ -72,18 +74,40 @@ class _AthleteChangePasswordPageState
             newPassword: newPwd,
           );
       if (!mounted) return;
-      showAppSnackBar(context, 'Senha atualizada com sucesso.');
-      context.pop();
+      await pushSuccessFeedback(
+        context,
+        title: 'Senha atualizada',
+        description: 'Use a nova senha no próximo login.',
+        primaryAction: FeedbackAction(
+          label: 'Voltar',
+          onPressed: () {
+            Navigator.of(context).pop();
+            context.pop();
+          },
+        ),
+      );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      showAppSnackBar(
+      await pushErrorFeedback(
         context,
-        mapFirebaseAuthException(e),
-        isError: true,
+        title: 'Não foi possível alterar a senha',
+        description: mapFirebaseAuthException(e),
+        primaryAction: FeedbackAction(
+          label: 'Tentar novamente',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, 'Não foi possível alterar a senha: $e', isError: true);
+      await pushErrorFeedback(
+        context,
+        title: 'Não foi possível alterar a senha',
+        description: '$e',
+        primaryAction: FeedbackAction(
+          label: 'Tentar novamente',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

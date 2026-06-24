@@ -42,6 +42,23 @@ describe("tournament-solo-registration", () => {
     });
   });
 
+  it("attaches to a solo without team yet (team criada no aceite)", () => {
+    const action = resolveInviteRegistrationAction([
+      reg({
+        registrationId: "solo-2",
+        teamId: "",
+        isPlayer1: true,
+        isMember: true,
+        partnerPending: true,
+      }),
+    ]);
+    assert.deepEqual(action, {
+      kind: "attach",
+      registrationId: "solo-2",
+      teamId: "",
+    });
+  });
+
   it("blocks when athlete already has a complete registration", () => {
     const action = resolveInviteRegistrationAction([
       reg({isMember: true, partnerPending: false}),

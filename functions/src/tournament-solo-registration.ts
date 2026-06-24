@@ -9,10 +9,11 @@
 
 export interface InviterCategoryRegistration {
   registrationId: string;
+  /** Vazio para inscrições solo novas (equipe só é criada no aceite). */
   teamId: string;
-  /** O convidador é o player1 da equipe. */
+  /** O convidador é o player1 da inscrição. */
   isPlayer1: boolean;
-  /** O convidador participa da equipe (player1 ou player2). */
+  /** O convidador participa da inscrição (player1 ou player2). */
   isMember: boolean;
   /** Inscrição solo com vaga de parceiro em aberto. */
   partnerPending: boolean;

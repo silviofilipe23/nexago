@@ -56,7 +56,7 @@ class TournamentDetailGroupsTab extends ConsumerWidget {
               tournamentUserRegistrationsByCategoryProvider(tournament.id),
             )
             .valueOrNull ??
-        const <String, String>{};
+        const <String, UserCategoryRegistration>{};
     final isRegistered =
         athleteTeamIds.isNotEmpty || registrations.isNotEmpty;
 

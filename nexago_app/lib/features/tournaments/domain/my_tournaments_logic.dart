@@ -10,6 +10,12 @@ bool myTournamentRegistrationAwaitingOrganizer(
   return registration.athleteHasReserved;
 }
 
+/// Inscrição paga (solo pagou o total) ainda sem parceiro: deve abrir o passo
+/// de convite de parceiro (o parceiro entra sem taxa).
+bool myTournamentRegistrationPaidAwaitingPartner(
+  MyTournamentRegistration registration,
+) => registration.isPaid && registration.partnerPending;
+
 /// Inscrição com pagamento pendente deve abrir o passo de pagamento.
 bool myTournamentRegistrationNeedsPayment(
   MyTournamentRegistration registration,

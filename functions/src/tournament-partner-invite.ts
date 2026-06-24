@@ -20,6 +20,13 @@ import {
   resolveInviteRegistrationAction,
   type InviterCategoryRegistration,
 } from "./tournament-solo-registration";
+import {
+  assertNoPairConflictTx,
+  pairAlreadyRegistered,
+  parseCategoryRegistration,
+  type ParsedCategoryRegistration,
+} from "./tournament-pair-uniqueness";
+import {formatCategoryInviteNotificationLabel} from "./category-display-labels";
 
 const INVITES_COLLECTION = "tournamentRegistrationInvites";
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
@@ -259,13 +266,26 @@ async function loadAthleteCategoryRegistrations(
     const data = doc.data();
     const inscriptionCategoryId = String(data.categoryId ?? "").trim();
     if (!categoryKeys.has(inscriptionCategoryId)) continue;
-    const teamId = data.teamId as string | undefined;
-    if (!teamId) continue;
-    const teamSnap = await teamsRef.doc(teamId).get();
-    if (!teamSnap.exists) continue;
-    const team = teamSnap.data()!;
-    const isPlayer1 = team.player1Id === uid;
-    const isMember = isPlayer1 || team.player2Id === uid;
+    const teamId = (data.teamId as string | undefined)?.trim() ?? "";
+
+    let isPlayer1: boolean;
+    let isMember: boolean;
+    if (teamId) {
+      // Inscrição com equipe (dupla ou solo legado): usa o time.
+      const teamSnap = await teamsRef.doc(teamId).get();
+      if (!teamSnap.exists) continue;
+      const team = teamSnap.data()!;
+      isPlayer1 = team.player1Id === uid;
+      isMember = isPlayer1 || team.player2Id === uid;
+    } else {
+      // Inscrição solo nova (sem equipe): membresia vem da própria inscrição.
+      const player1Id = (data.player1Id as string | undefined)?.trim() ?? "";
+      const participants = Array.isArray(data.participantUids)
+        ? (data.participantUids as unknown[]).map((p) => String(p).trim())
+        : [];
+      isPlayer1 = player1Id === uid;
+      isMember = isPlayer1 || participants.includes(uid);
+    }
     if (!isMember) continue;
     out.push({
       registrationId: doc.id,
@@ -313,6 +333,124 @@ async function findPendingInvite(
     const data = d.data();
     return data.categoryId === categoryId && data.inviteeUid === inviteeUid;
   });
+}
+
+/** Inscrições parseadas na categoria (para guard de par no send). */
+async function loadCategoryRegistrationsForPairCheck(
+  db: Firestore,
+  projectId: string,
+  tournamentId: string,
+  categoryKeys: Set<string>,
+): Promise<ParsedCategoryRegistration[]> {
+  const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
+  const snap = await inscriptionsRef.where("tournamentId", "==", tournamentId).get();
+  const teamsRef = db.collection(artifactsTeamsPath(projectId));
+
+  const out: ParsedCategoryRegistration[] = [];
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    const inscriptionCategoryId = String(data.categoryId ?? "").trim();
+    if (!categoryKeys.has(inscriptionCategoryId)) continue;
+
+    const teamId = (data.teamId as string | undefined)?.trim() ?? "";
+    let team: Record<string, unknown> | null = null;
+    if (teamId) {
+      const teamSnap = await teamsRef.doc(teamId).get();
+      if (teamSnap.exists) team = teamSnap.data()!;
+    }
+    out.push(parseCategoryRegistration(doc.id, data, team));
+  }
+  return out;
+}
+
+/** Cancela convites pendentes obsoletos após aceite de dupla. */
+async function markStaleInvitesAfterAccept(
+  db: Firestore,
+  tournamentId: string,
+  categoryId: string,
+  inviterUid: string,
+  inviteeUid: string,
+  acceptedInviteId: string,
+): Promise<void> {
+  const snap = await db
+    .collection(INVITES_COLLECTION)
+    .where("tournamentId", "==", tournamentId)
+    .where("status", "==", "pending")
+    .get();
+
+  const batch = db.batch();
+  let count = 0;
+  for (const doc of snap.docs) {
+    if (doc.id === acceptedInviteId) continue;
+    const data = doc.data();
+    if (data.categoryId !== categoryId) continue;
+
+    const inviter = (data.inviterUid as string | undefined)?.trim() ?? "";
+    const invitee = (data.inviteeUid as string | undefined)?.trim() ?? "";
+    const touchesPair =
+      inviter === inviterUid ||
+      inviter === inviteeUid ||
+      invitee === inviterUid ||
+      invitee === inviteeUid;
+    if (!touchesPair) continue;
+
+    batch.update(doc.ref, {
+      status: "stale",
+      staleReason: "accepted_other_invite",
+      staleAt: FieldValue.serverTimestamp(),
+    });
+    count++;
+  }
+  if (count > 0) {
+    await batch.commit();
+    logger.info("Marked stale tournament invites after accept", {
+      tournamentId,
+      categoryId,
+      acceptedInviteId,
+      count,
+    });
+  }
+}
+
+/** Cancela convites create pendentes do convidador após inscrição solo. */
+async function markStaleCreateInvitesAfterSolo(
+  db: Firestore,
+  tournamentId: string,
+  categoryId: string,
+  inviterUid: string,
+): Promise<void> {
+  const snap = await db
+    .collection(INVITES_COLLECTION)
+    .where("tournamentId", "==", tournamentId)
+    .where("inviterUid", "==", inviterUid)
+    .where("status", "==", "pending")
+    .get();
+
+  const batch = db.batch();
+  let count = 0;
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    if (data.categoryId !== categoryId) continue;
+    const attachId =
+      (data.attachRegistrationId as string | undefined)?.trim() ?? "";
+    if (attachId) continue;
+
+    batch.update(doc.ref, {
+      status: "stale",
+      staleReason: "solo_registered",
+      staleAt: FieldValue.serverTimestamp(),
+    });
+    count++;
+  }
+  if (count > 0) {
+    await batch.commit();
+    logger.info("Marked stale create invites after solo registration", {
+      tournamentId,
+      categoryId,
+      inviterUid,
+      count,
+    });
+  }
 }
 
 export const sendTournamentPartnerInvite = onCall(async (request) => {
@@ -375,7 +513,12 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
 
   const uniformRequired = categoryRequiresUniform(category);
   const inviterUniform = parseUniformPayload(request.data?.inviterUniform);
-  validateUniformPayload(category, inviterUniform, uniformRequired);
+  // Uniforme é opcional na inscrição (coletado depois); valida só se enviado.
+  validateUniformPayload(
+    category,
+    inviterUniform,
+    inviterUniform != null && uniformRequired,
+  );
 
   // Solo: se o convidador já tem uma inscrição solo (parceiro pendente) onde é
   // player1, o convite ANEXA o convidado a ela; dupla completa bloqueia.
@@ -397,6 +540,19 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
     throw new HttpsError(
       "failed-precondition",
       "Este parceiro já está inscrito nesta categoria."
+    );
+  }
+
+  const categoryRegs = await loadCategoryRegistrationsForPairCheck(
+    db,
+    projectId,
+    tournamentId,
+    categoryKeys,
+  );
+  if (pairAlreadyRegistered(categoryRegs, uid, inviteeUid)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Já existe uma dupla com vocês dois nesta categoria.",
     );
   }
 
@@ -422,8 +578,13 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
     createdAt: FieldValue.serverTimestamp(),
     expiresAt,
     // Modo anexar: convite preenche a inscrição solo existente do convidador.
+    // attachTeamId só existe em solo legado (com equipe); no solo novo a equipe
+    // é criada no aceite.
     ...(regAction.kind === "attach"
-      ? {attachRegistrationId: regAction.registrationId, attachTeamId: regAction.teamId}
+      ? {
+          attachRegistrationId: regAction.registrationId,
+          ...(regAction.teamId ? {attachTeamId: regAction.teamId} : {}),
+        }
       : {}),
   };
   if (inviterUniform) {
@@ -436,9 +597,10 @@ export const sendTournamentPartnerInvite = onCall(async (request) => {
 
   try {
     const tournamentName = String(tournament.name ?? "").trim();
-    const categoryLabel = category.categoryName;
-    const body = `Aceite o convite para competir na categoria ${categoryLabel} da ${tournamentName}.`
-    const title = `${inviterName} quer jogar com você`
+    const categoryLabel = formatCategoryInviteNotificationLabel(category);
+    const body =
+      `Aceite o convite para competir na categoria ${categoryLabel} do ${tournamentName}.`;
+    const title = `${inviterName} quer jogar com você`;
 
     await deliverNotificationToUser({
       userId: inviteeUid,
@@ -531,7 +693,13 @@ export const registerSoloTournament = onCall(async (request) => {
 
   const categoryKeys = resolveCategoryMatchKeys(tournament, categoryId);
   const uniform = parseUniformPayload(request.data?.uniform);
-  validateUniformPayload(category, uniform, categoryRequiresUniform(category));
+  // Uniforme é coletado depois (pós-inscrição) — não bloqueia a vaga. Valida só
+  // se o cliente enviou um uniforme aqui.
+  validateUniformPayload(
+    category,
+    uniform,
+    uniform != null && categoryRequiresUniform(category),
+  );
 
   if (await userHasCategoryRegistration(db, projectId, uid, tournamentId, categoryKeys)) {
     throw new HttpsError(
@@ -540,21 +708,16 @@ export const registerSoloTournament = onCall(async (request) => {
     );
   }
 
-  const teamsRef = db.collection(artifactsTeamsPath(projectId));
   const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
-  const teamRef = teamsRef.doc();
   const regRef = inscriptionsRef.doc();
 
-  const batch = db.batch();
-  batch.set(teamRef, {
-    player1Id: uid,
-    player2Id: "",
-    createdAt: FieldValue.serverTimestamp(),
-  });
+  // A EQUIPE não é criada aqui: uma dupla com 1 atleta não deve existir. A vaga
+  // fica reservada apenas na inscrição (player1Id). O doc em `teams` é criado
+  // quando o parceiro aceita o convite (em acceptTournamentPartnerInvite).
   const regData: Record<string, unknown> = {
-    teamId: teamRef.id,
     tournamentId,
     categoryId,
+    player1Id: uid,
     participantUids: [uid],
     partnerPending: true,
     isPaid: false,
@@ -563,17 +726,18 @@ export const registerSoloTournament = onCall(async (request) => {
     ...(shouldWaitlist ? {waitlist: true} : {}),
     ...(uniform ? registrationUniformPlayer1(uniform) : {}),
   };
-  batch.set(regRef, regData);
-  await batch.commit();
+  await regRef.set(regData);
 
-  logger.info("Tournament solo registration created", {
+  await markStaleCreateInvitesAfterSolo(db, tournamentId, categoryId, uid);
+
+  logger.info("Tournament solo registration created (no team yet)", {
     registrationId: regRef.id,
     tournamentId,
     categoryId,
     uid,
   });
 
-  return {registrationId: regRef.id, teamId: teamRef.id};
+  return {registrationId: regRef.id};
 });
 
 export const acceptTournamentPartnerInvite = onCall(async (request) => {
@@ -611,6 +775,10 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
   if (!previewTournament) {
     throw new HttpsError("not-found", "Torneio não encontrado.");
   }
+  const previewCategoryKeys = resolveCategoryMatchKeys(
+    previewTournament,
+    previewCategoryId,
+  );
   const tournamentData = await assertTournamentAcceptsRegistration(
     db,
     projectId,
@@ -638,10 +806,11 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
     category: previewCategory,
     uids: [invitePreviewData.inviterUid as string | undefined, uid],
   });
+  // Uniforme do convidado é opcional (informado depois); valida só se enviado.
   validateUniformPayload(
     previewCategory,
     inviteeUniform,
-    categoryRequiresUniform(previewCategory),
+    inviteeUniform != null && categoryRequiresUniform(previewCategory),
   );
 
   const result = await db.runTransaction(async (tx) => {
@@ -670,57 +839,92 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
 
     const teamsRef = db.collection(artifactsTeamsPath(projectId));
     const inscriptionsRef = db.collection(artifactsInscriptionsPath(projectId));
+    const teamsPath = artifactsTeamsPath(projectId);
+
+    const attachRegId = (invite.attachRegistrationId as string | undefined)?.trim();
+
+    await assertNoPairConflictTx(
+      tx,
+      inscriptionsRef,
+      teamsPath,
+      tournamentId,
+      previewCategoryKeys,
+      inviterUid,
+      uid,
+      attachRegId ? {ignoreRegistrationId: attachRegId} : undefined,
+    );
 
     // Modo anexar: o convite preenche a inscrição solo existente do convidador
     // em vez de criar uma nova (vaga já estava reservada).
-    const attachRegId = (invite.attachRegistrationId as string | undefined)?.trim();
     const attachTeamId = (invite.attachTeamId as string | undefined)?.trim();
-    if (attachRegId && attachTeamId) {
+    if (attachRegId) {
       const existingRegRef = inscriptionsRef.doc(attachRegId);
-      const existingTeamRef = teamsRef.doc(attachTeamId);
       const existingRegSnap = await tx.get(existingRegRef);
-      const existingTeamSnap = await tx.get(existingTeamRef);
-      if (!existingRegSnap.exists || !existingTeamSnap.exists) {
+      if (!existingRegSnap.exists) {
         throw new HttpsError(
           "failed-precondition",
           "Inscrição solo não encontrada.",
         );
       }
-      const existingTeam = existingTeamSnap.data()!;
-      const existingP2 =
-        typeof existingTeam.player2Id === "string" ?
-          existingTeam.player2Id.trim() : "";
-      if (existingP2.length > 0) {
+      const existingReg = existingRegSnap.data()!;
+      if (existingReg.partnerPending !== true) {
         throw new HttpsError(
           "failed-precondition",
           "Esta inscrição já tem parceiro.",
         );
       }
+      const inviterId =
+        (existingReg.player1Id as string | undefined)?.trim() ||
+        (invite.inviterUid as string | undefined)?.trim() ||
+        "";
 
-      tx.update(existingTeamRef, {player2Id: uid});
       const attachUpdate: Record<string, unknown> = {
         participantUids: FieldValue.arrayUnion(uid),
         partnerPending: false,
         updatedAt: FieldValue.serverTimestamp(),
       };
-      // Inscrição já paga pelo solo (pagou o total) → parceiro entra sem taxa;
-      // registra o parceiro como quitado para manter o estado consistente.
-      if (existingRegSnap.data()?.isPaid === true) {
+      // Inscrição já paga pelo solo (pagou o total) → parceiro entra sem taxa.
+      if (existingReg.isPaid === true) {
         attachUpdate.sharePaidUids = FieldValue.arrayUnion(uid);
       }
       if (inviteeUniform) {
         Object.assign(attachUpdate, registrationUniformPlayer2(inviteeUniform));
       }
+
+      let teamId = attachTeamId ?? "";
+      if (attachTeamId) {
+        // Solo legado: já existe equipe de 1 atleta → preenche o player2.
+        const existingTeamRef = teamsRef.doc(attachTeamId);
+        const existingTeamSnap = await tx.get(existingTeamRef);
+        if (!existingTeamSnap.exists) {
+          throw new HttpsError(
+            "failed-precondition",
+            "Equipe da inscrição não encontrada.",
+          );
+        }
+        tx.update(existingTeamRef, {player2Id: uid});
+      } else {
+        // Solo novo: CRIA a equipe agora (player1 + player2) — "criar equipe".
+        const teamRef = teamsRef.doc();
+        tx.set(teamRef, {
+          player1Id: inviterId,
+          player2Id: uid,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        teamId = teamRef.id;
+        attachUpdate.teamId = teamId;
+      }
+
       tx.update(existingRegRef, attachUpdate);
       tx.update(inviteRef, {
         status: "accepted",
-        teamId: attachTeamId,
+        teamId,
         registrationId: attachRegId,
         acceptedAt: FieldValue.serverTimestamp(),
       });
       return {
         registrationId: attachRegId,
-        teamId: attachTeamId,
+        teamId,
         tournamentId,
         categoryId,
       };
@@ -768,6 +972,15 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
       categoryId,
     };
   });
+
+  await markStaleInvitesAfterAccept(
+    db,
+    result.tournamentId,
+    result.categoryId,
+    (invitePreviewData.inviterUid as string | undefined)?.trim() ?? "",
+    uid,
+    inviteId,
+  );
 
   logger.info("Tournament partner invite accepted", {inviteId, ...result});
 
@@ -855,4 +1068,85 @@ export const cancelTournamentPartnerInvite = onCall(async (request) => {
 
   await inviteRef.update({status: "cancelled"});
   return {success: true, status: "cancelled"};
+});
+
+/**
+ * Define/atualiza o uniforme do atleta na sua inscrição APÓS a inscrição
+ * (modelo "informar uniforme depois"). O caller só altera o próprio slot
+ * (player1/player2). Valida o tamanho contra a categoria.
+ */
+export const setRegistrationUniform = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Usuário não autenticado.");
+  }
+
+  const registrationId =
+    (request.data?.registrationId as string | undefined)?.trim() ?? "";
+  if (!registrationId) {
+    throw new HttpsError("invalid-argument", "registrationId é obrigatório.");
+  }
+
+  const uniform = parseUniformPayload(request.data?.uniform);
+  if (!uniform) {
+    throw new HttpsError("invalid-argument", "Informe o uniforme.");
+  }
+
+  const projectId = getFirebaseProjectId();
+  const db = getFirestore();
+
+  const regRef = db
+    .collection(artifactsInscriptionsPath(projectId))
+    .doc(registrationId);
+  const regSnap = await regRef.get();
+  if (!regSnap.exists) {
+    throw new HttpsError("not-found", "Inscrição não encontrada.");
+  }
+  const registration = regSnap.data()!;
+
+  const teamId = (registration.teamId as string | undefined)?.trim() ?? "";
+  if (!teamId) {
+    throw new HttpsError("failed-precondition", "Equipe inválida.");
+  }
+  const teamSnap = await db
+    .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
+    .get();
+  const team = teamSnap.data() ?? {};
+  const player1Id =
+    typeof team.player1Id === "string" ? team.player1Id.trim() : "";
+  const player2Id =
+    typeof team.player2Id === "string" ? team.player2Id.trim() : "";
+  const isPlayer1 = player1Id === uid;
+  const isPlayer2 = player2Id === uid;
+  if (!isPlayer1 && !isPlayer2) {
+    throw new HttpsError(
+      "permission-denied",
+      "Você não é um dos atletas desta inscrição.",
+    );
+  }
+
+  const tournamentId = (registration.tournamentId as string | undefined)?.trim() ?? "";
+  const categoryId = (registration.categoryId as string | undefined)?.trim() ?? "";
+  const tournament = await loadTournamentDataForInvite(db, projectId, tournamentId);
+  if (!tournament) {
+    throw new HttpsError("not-found", "Torneio não encontrado.");
+  }
+  const category = asTournamentCategory(findCategory(tournament, categoryId));
+  if (!category) {
+    throw new HttpsError("not-found", "Categoria não encontrada.");
+  }
+
+  // Valida o tamanho contra a categoria (se ela exige uniforme).
+  validateUniformPayload(category, uniform, categoryRequiresUniform(category));
+
+  const update = isPlayer1
+    ? registrationUniformPlayer1(uniform)
+    : registrationUniformPlayer2(uniform);
+
+  await regRef.update({
+    ...update,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  return {ok: true};
 });

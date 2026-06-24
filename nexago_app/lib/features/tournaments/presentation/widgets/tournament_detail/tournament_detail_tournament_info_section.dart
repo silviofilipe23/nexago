@@ -48,8 +48,8 @@ class TournamentDetailTournamentInfoSection extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor:
-                      context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+                  backgroundColor: context.themeColors.onSurfaceMuted
+                      .withValues(alpha: 0.12),
                   child: Icon(
                     Icons.person_outline_rounded,
                     color: context.themeColors.onSurfaceMuted,
@@ -82,32 +82,32 @@ class TournamentDetailTournamentInfoSection extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 10),
-          _InfoCard(
-            child: Column(
-              children: [
-                _InfoRow(
-                  label: 'Formato',
-                  value: tournamentDetailFormatSummary(tournament),
-                ),
-                const _InfoDivider(),
-                _InfoRow(
-                  label: 'Data',
-                  value: tournamentDetailLongDate(tournament),
-                ),
-                const _InfoDivider(),
-                _InfoRow(
-                  label: 'Categorias',
-                  value: tournamentExploreCategoriesSubtitle(stats),
-                ),
-                const _InfoDivider(),
-                _InfoRow(
-                  label: 'Inscrição',
-                  value: tournamentDetailInscriptionInfoValue(tournament),
-                ),
-              ],
-            ),
-          ),
+          // const SizedBox(height: 10),
+          // _InfoCard(
+          //   child: Column(
+          //     children: [
+          //       _InfoRow(
+          //         label: 'Formato',
+          //         value: tournamentDetailFormatSummary(tournament),
+          //       ),
+          //       const _InfoDivider(),
+          //       _InfoRow(
+          //         label: 'Data',
+          //         value: tournamentDetailLongDate(tournament),
+          //       ),
+          //       const _InfoDivider(),
+          //       _InfoRow(
+          //         label: 'Categorias',
+          //         value: tournamentExploreCategoriesSubtitle(stats),
+          //       ),
+          //       const _InfoDivider(),
+          //       _InfoRow(
+          //         label: 'Inscrição',
+          //         value: tournamentDetailInscriptionInfoValue(tournament),
+          //       ),
+          //     ],
+          //   ),
+          // ),
           const SizedBox(height: 10),
           _InfoCard(
             child: Row(
@@ -173,9 +173,7 @@ class TournamentDetailTournamentInfoSection extends StatelessWidget {
   }
 
   Future<void> _openMaps(String query) async {
-    final uri = Uri.parse(
-      ArenaBookingSuccessActions.buildMapsSearchUrl(query),
-    );
+    final uri = Uri.parse(ArenaBookingSuccessActions.buildMapsSearchUrl(query));
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 }

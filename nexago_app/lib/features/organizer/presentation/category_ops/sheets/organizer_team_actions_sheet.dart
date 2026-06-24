@@ -228,8 +228,12 @@ class _OrganizerTeamActionsSheetState
                   context: context,
                   builder: (ctx) => AlertDialog(
                     title: const Text('Remover da categoria?'),
-                    content: const Text(
-                      'A inscrição será cancelada e a vaga liberada.',
+                    content: Text(
+                      team.paidAmountCents > 0
+                          ? 'A inscrição será cancelada e a vaga liberada. '
+                                'O atleta pagou ${formatCategoryMoneyCents(team.paidAmountCents)} — '
+                                'o reembolso é manual e o atleta será avisado.'
+                          : 'A inscrição será cancelada e a vaga liberada.',
                     ),
                     actions: [
                       TextButton(

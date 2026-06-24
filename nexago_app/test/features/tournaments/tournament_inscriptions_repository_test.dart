@@ -52,13 +52,74 @@ void main() {
       ),
     ];
 
-    test('maps categoryId to registrationId for athlete teams', () {
+    test('maps categoryId to registration with paid flag for athlete teams', () {
+      final rowsWithPaid = [
+        ...rows,
+        (
+          registrationId: 'reg-3',
+          inscription: {'categoryId': 'Feminino C', 'teamId': 't3', 'isPaid': true},
+          team: {'player1Id': 'uid-a', 'player2Id': 'uid-d'},
+        ),
+        (
+          registrationId: 'reg-4',
+          inscription: {'categoryId': 'Open', 'teamId': 't4', 'isPaid': false},
+          team: {'player1Id': 'uid-a', 'player2Id': 'uid-e'},
+        ),
+      ];
       expect(
         userRegistrationsByCategoryData(rows, 'uid-a'),
         {
-          'Masculino C': 'reg-1',
-          'Misto': 'reg-2',
+          'Masculino C': const UserCategoryRegistration(
+            registrationId: 'reg-1',
+            isPaid: false,
+          ),
+          'Misto': const UserCategoryRegistration(
+            registrationId: 'reg-2',
+            isPaid: false,
+          ),
         },
+      );
+      expect(
+        userRegistrationsByCategoryData(rowsWithPaid, 'uid-a')['Feminino C'],
+        const UserCategoryRegistration(registrationId: 'reg-3', isPaid: true),
+      );
+      expect(
+        userRegistrationsByCategoryData(rowsWithPaid, 'uid-a')['Open']?.isPaid,
+        isFalse,
+      );
+    });
+
+    test('includes solo pending registration without team', () {
+      final soloRows = [
+        (
+          registrationId: 'solo-1',
+          inscription: {
+            'categoryId': 'Masculino C',
+            'player1Id': 'uid-a',
+            'participantUids': ['uid-a'],
+            'partnerPending': true,
+            'isPaid': false,
+          },
+          team: null,
+        ),
+      ];
+      expect(
+        userRegistrationsByCategoryData(soloRows, 'uid-a'),
+        {
+          'Masculino C': const UserCategoryRegistration(
+            registrationId: 'solo-1',
+            isPaid: false,
+          ),
+        },
+      );
+      expect(
+        registeredCategoryIdsForUserData(
+          soloRows
+              .map((r) => (inscription: r.inscription, team: r.team))
+              .toList(),
+          'uid-a',
+        ),
+        {'Masculino C'},
       );
     });
   });

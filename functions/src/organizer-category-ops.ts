@@ -308,6 +308,49 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
     paidAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });
+
+  // Solo que pagou o total e ainda não tem parceiro: avisa para convidar
+  // (o parceiro entra sem taxa) com deep link para o passo de parceiro.
+  if (data.partnerPending === true) {
+    try {
+      const teamId = (data.teamId as string | undefined)?.trim() ?? "";
+      const reservedUids = new Set<string>();
+      if (teamId) {
+        const teamSnap = await db
+          .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
+          .get();
+        const team = teamSnap.data() ?? {};
+        for (const id of [team.player1Id, team.player2Id]) {
+          if (typeof id === "string" && id.trim()) reservedUids.add(id.trim());
+        }
+      } else {
+        // Solo novo (sem equipe): notifica o atleta da inscrição.
+        const p1 = (data.player1Id as string | undefined)?.trim() ?? "";
+        if (p1) reservedUids.add(p1);
+      }
+      const categoryId = (data.categoryId as string | undefined)?.trim() ?? "";
+      const url =
+        `/torneios/${tournamentId}/inscricao?registrationId=${registrationId}` +
+        `&step=partner${categoryId ? `&categoryId=${encodeURIComponent(categoryId)}` : ""}`;
+      await Promise.all(
+        [...reservedUids].map((athleteUid) =>
+          deliverNotificationToUser({
+            userId: athleteUid,
+            title: "Pagamento confirmado",
+            body: "Vaga garantida! Convide seu parceiro — ele entra sem taxa.",
+            type: "tournament_registration_partner_pending",
+            data: {tournamentId, registrationId, url},
+          }).catch(() => undefined),
+        ),
+      );
+    } catch (notifyError) {
+      logger.warn("Falha ao notificar convite de parceiro pós-confirmação", {
+        registrationId,
+        notifyError,
+      });
+    }
+  }
+
   return {ok: true};
 });
 
@@ -352,12 +395,48 @@ export const organizerRemoveFromCategory = onCall(async (request) => {
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError("not-found", "Inscrição não encontrada");
 
-  const tournamentId = (snap.data()?.tournamentId as string)?.trim();
+  const data = snap.data() ?? {};
+  const tournamentId = (data.tournamentId as string)?.trim();
   if (!tournamentId) throw new HttpsError("failed-precondition", "Torneio inválido");
 
   await assertCanManageTournament(db, uid, tournamentId);
+
+  // Inscrição paga (inclui solo que pagou o total): registra/avisa reembolso.
+  // Não há estorno automático — o organizador devolve manualmente o valor pago.
+  const paidAmount = Number(data.paidAmount) || 0;
+  const wasPaid = data.isPaid === true || paidAmount > 0;
+  const refundAmount = paidAmount;
+
+  if (wasPaid) {
+    const teamId = (data.teamId as string | undefined)?.trim() ?? "";
+    const athleteUids = new Set<string>();
+    if (teamId) {
+      const teamSnap = await db
+        .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
+        .get();
+      const team = teamSnap.data() ?? {};
+      for (const id of [team.player1Id, team.player2Id]) {
+        if (typeof id === "string" && id.trim()) athleteUids.add(id.trim());
+      }
+    }
+    const amountLabel = refundAmount > 0
+      ? ` Reembolso de R$ ${refundAmount.toFixed(2).replace(".", ",")} será tratado pelo organizador.`
+      : " Procure o organizador para tratar do reembolso.";
+    await Promise.all(
+      [...athleteUids].map((athleteUid) =>
+        deliverNotificationToUser({
+          userId: athleteUid,
+          title: "Inscrição cancelada",
+          body: `Sua inscrição foi cancelada pelo organizador.${amountLabel}`,
+          type: "tournament_registration_cancelled",
+          data: {tournamentId, url: `/torneios/${tournamentId}`},
+        }).catch(() => undefined),
+      ),
+    );
+  }
+
   await ref.delete();
-  return {ok: true};
+  return {ok: true, refundPending: wasPaid, refundAmount};
 });
 
 export const resendRegistrationPayment = onCall(async (request) => {

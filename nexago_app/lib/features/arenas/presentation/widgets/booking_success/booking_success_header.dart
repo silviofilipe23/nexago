@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/ui/feedback/feedback_page.dart';
 import '../../../../../core/theme/app_typography.dart';
 
 class BookingSuccessHeader extends StatelessWidget {
@@ -22,64 +23,8 @@ class BookingSuccessHeader extends StatelessWidget {
 
     return Column(
       children: [
-        SizedBox(
-          width: double.infinity,
-          height: 160,
-          child: Stack(
-            alignment: Alignment.center,
-            clipBehavior: Clip.none,
-            children: [
-              // Halo externo (anel verde escuro)
-              Container(
-                width: 104,
-                height: 104,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppColors.win.withValues(alpha: 0.22),
-                    width: 10,
-                  ),
-                ),
-              ),
-              // Glow suave
-              Container(
-                width: 92,
-                height: 92,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.win.withValues(alpha: 0.45),
-                      blurRadius: 36,
-                      spreadRadius: 2,
-                    ),
-                    BoxShadow(
-                      color: AppColors.win.withValues(alpha: 0.18),
-                      blurRadius: 64,
-                      spreadRadius: 8,
-                    ),
-                  ],
-                ),
-              ),
-              // Círculo principal + check
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: AppColors.win,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.check_rounded,
-                  color: AppColors.black,
-                  size: 48,
-                  weight: 900,
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: 24),
+        const FeedbackHeroIcon(kind: FeedbackKind.success),
+        const SizedBox(height: 24),
         Text(
           'RESERVA CONFIRMADA',
           style: AppTypography.mono(

@@ -12,6 +12,12 @@ class TournamentPartnerInviteException implements Exception {
   TournamentPartnerInviteException(this.message);
   final String message;
 
+  /// Conflito de inscrição/dupla — exibir FeedbackPage.alert.
+  bool get isRegistrationConflict =>
+      message.contains('já possui inscrição') ||
+      message.contains('já está inscrito') ||
+      message.contains('Já existe uma dupla');
+
   @override
   String toString() => message;
 }
@@ -110,6 +116,24 @@ class TournamentPartnerInviteService {
     } on FirebaseFunctionsException catch (e) {
       throw TournamentPartnerInviteException(
         e.message ?? 'Não foi possível garantir a vaga.',
+      );
+    }
+  }
+
+  /// Define/atualiza o uniforme do atleta na sua inscrição (pós-inscrição).
+  Future<void> setRegistrationUniform({
+    required String registrationId,
+    required TournamentUniformSelection uniform,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable('setRegistrationUniform');
+      await callable.call(<String, dynamic>{
+        'registrationId': registrationId,
+        'uniform': uniform.toCallableMap(),
+      });
+    } on FirebaseFunctionsException catch (e) {
+      throw TournamentPartnerInviteException(
+        e.message ?? 'Não foi possível salvar o uniforme.',
       );
     }
   }

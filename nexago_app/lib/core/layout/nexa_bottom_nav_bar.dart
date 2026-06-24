@@ -20,7 +20,7 @@ class NexaBottomNavBar extends StatelessWidget {
     this.selectedItemColor = AppColors.brand,
     this.unselectedItemColor,
     this.uppercaseLabels = false,
-    this.height = 64,
+    this.height = 100,
     this.showLabels = true,
     this.labelTextStyle,
     this.horizontalMargin = 16,
@@ -117,6 +117,6 @@ class NexaBottomNavBar extends StatelessWidget {
 
 /// Altura útil da barra (cápsula flutuante + safe area aproximada).
 double nexaBottomNavBarHeight({
-  double barHeight = 64,
+  double barHeight = 75,
   double bottomMargin = 10,
 }) => barHeight + bottomMargin + NexaBottomNavBar._glassOverflow;

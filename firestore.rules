@@ -1233,6 +1233,8 @@ service cloud.firestore {
     // Regras para a coleção de inscrições de equipes em torneios
     // Caminho: /artifacts/{appId}/public/data/inscriptions
     // IMPORTANTE: Esta regra deve vir antes da regra padrão para ter prioridade
+    // Inscrições: par único por categoria (mesmos integrantes) é enforced em
+    // acceptTournamentPartnerInvite (Cloud Functions), não nas rules.
     match /artifacts/{appId}/public/data/inscriptions/{registrationId} {
       // Leitura: documento individual (chaves); list exige login (evita scrape em massa).
       allow get: if true;

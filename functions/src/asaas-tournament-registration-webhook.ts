@@ -18,6 +18,10 @@ import {
   resolveTournamentRegistrationCredit,
   sharePaidUidsFromRegistration,
 } from "./tournament-registration-pix-helpers";
+import {
+  loadTournamentData,
+  resolveCategoryEntryFee,
+} from "./tournament-registration-guards";
 import {deliverNotificationToUser} from "./notification-delivery";
 
 const ASAAS_NON_TERMINAL_STATUSES = new Set([
@@ -58,19 +62,9 @@ async function loadEntryFee(
   tournamentId: string,
   categoryId: string,
 ): Promise<number> {
-  let tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
-  if (!tournamentSnap.exists) {
-    tournamentSnap = await db
-      .doc(`artifacts/${projectId}/public/data/tournaments/${tournamentId}`)
-      .get();
-  }
-  if (!tournamentSnap.exists) return 0;
-  const categories = (tournamentSnap.data()?.categories || []) as Array<{
-    categoryName: string;
-    entryFee?: number;
-  }>;
-  const category = categories.find((c) => c.categoryName === categoryId);
-  return category?.entryFee ?? 0;
+  const tournament = await loadTournamentData(db, projectId, tournamentId);
+  if (!tournament) return 0;
+  return resolveCategoryEntryFee(tournament, categoryId);
 }
 
 async function loadTeamAthleteUids(

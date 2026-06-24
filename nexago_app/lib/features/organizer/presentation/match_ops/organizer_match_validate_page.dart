@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
+import 'package:nexago_app/core/ui/feedback/feedback_page.dart';
+import 'package:nexago_app/core/ui/feedback/show_feedback_page.dart';
 
 import '../../domain/match_ops/match_ops_logic.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
@@ -153,7 +155,16 @@ class _OrganizerMatchValidatePageState
           .read(organizerMatchScheduleServiceProvider)
           .validateMatchResult(matchId: matchId);
       if (!mounted) return;
-      showAppSnackBar(context, 'Resultado validado.');
+      await pushSuccessFeedback(
+        context,
+        title: 'Resultado validado',
+        description: 'O placar foi confirmado e a chave foi atualizada.',
+        primaryAction: FeedbackAction(
+          label: 'Ver partida',
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+      );
+      if (!mounted) return;
       context.pushReplacement(
         organizerMatchSummaryPath(widget.tournamentId, matchId),
       );

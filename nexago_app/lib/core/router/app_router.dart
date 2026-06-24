@@ -1024,6 +1024,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             initialStep = TournamentRegistrationStep.payment;
           } else if (stepParam == 'waiting') {
             initialStep = TournamentRegistrationStep.waiting;
+          } else if (stepParam == 'partner') {
+            initialStep = TournamentRegistrationStep.partner;
           }
           return TournamentRegistrationPage(
             tournamentId: id,

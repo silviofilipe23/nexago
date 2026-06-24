@@ -5,6 +5,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/tournament_detail_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_success_args.dart';
@@ -18,7 +19,7 @@ class TournamentDetailCategoryCard extends StatelessWidget {
     required this.tournamentStatus,
     required this.onRegister,
     this.inscriptionCount,
-    this.registrationId,
+    this.registration,
     this.isOnWaitlist = false,
   });
 
@@ -28,11 +29,11 @@ class TournamentDetailCategoryCard extends StatelessWidget {
   final TournamentListingStatus tournamentStatus;
   final VoidCallback? onRegister;
   final int? inscriptionCount;
-  final String? registrationId;
+  final UserCategoryRegistration? registration;
   final bool isOnWaitlist;
 
   void _openRegistrationSuccess(BuildContext context) {
-    final regId = registrationId?.trim() ?? '';
+    final regId = registration?.registrationId.trim() ?? '';
     if (regId.isEmpty || tournamentId.isEmpty) return;
     context.pushNamed(
       AppRouteNames.tournamentRegistrationSuccess,
@@ -53,7 +54,8 @@ class TournamentDetailCategoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isEnrolled = registrationId != null && registrationId!.isNotEmpty;
+    final isRegistrationPaid = registration?.isPaid == true;
+    final isEnrolled = isRegistrationPaid || isOnWaitlist;
     final status = tournamentCategoryRowStatus(
       offer,
       inscriptionCount: inscriptionCount,
@@ -62,13 +64,12 @@ class TournamentDetailCategoryCard extends StatelessWidget {
       offer,
       inscriptionCount: inscriptionCount,
     );
-    final ctaKind = isEnrolled && !offer.isCompleted
-        ? TournamentCategoryCtaKind.viewRegistration
-        : tournamentCategoryCtaKind(
-            offer,
-            tournamentStatus,
-            inscriptionCount: inscriptionCount,
-          );
+    final ctaKind = tournamentCategoryCtaKindForAthlete(
+      offer: offer,
+      tournamentStatus: tournamentStatus,
+      isRegistrationPaid: isRegistrationPaid,
+      inscriptionCount: inscriptionCount,
+    );
     final prizes = categoryPrizeRows(offer);
     final formatTag = tournamentCategoryFormatTag(offer);
     final genderTag = tournamentCategoryGenderTag(offer);

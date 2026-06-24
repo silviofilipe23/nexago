@@ -8,8 +8,6 @@ class AthleteNotificationsRepository {
 
   final FirebaseFirestore _firestore;
 
-  static const _limit = 50;
-
   CollectionReference<Map<String, dynamic>> _notifications(String uid) {
     return _firestore.collection('users').doc(uid).collection('notifications');
   }
@@ -19,7 +17,6 @@ class AthleteNotificationsRepository {
 
     return _notifications(uid)
         .orderBy('createdAt', descending: true)
-        .limit(_limit)
         .snapshots()
         .map(
           (snap) => snap.docs
@@ -38,18 +35,21 @@ class AthleteNotificationsRepository {
 
   Future<void> markAllRead(String uid, List<AthleteInboxNotification> items) async {
     if (uid.isEmpty) return;
-    final batch = _firestore.batch();
-    var count = 0;
-    for (final item in items) {
-      if (!item.isUnread) continue;
-      batch.update(_notifications(uid).doc(item.id), {
-        'read': true,
-        'readAt': FieldValue.serverTimestamp(),
-      });
-      count++;
-      if (count >= 400) break;
+    final unread = items.where((item) => item.isUnread).toList();
+    if (unread.isEmpty) return;
+
+    const batchSize = 400;
+    for (var i = 0; i < unread.length; i += batchSize) {
+      final batch = _firestore.batch();
+      final chunk = unread.skip(i).take(batchSize);
+      for (final item in chunk) {
+        batch.update(_notifications(uid).doc(item.id), {
+          'read': true,
+          'readAt': FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
     }
-    if (count > 0) await batch.commit();
   }
 
   Future<void> dismiss(String uid, String notificationId) async {

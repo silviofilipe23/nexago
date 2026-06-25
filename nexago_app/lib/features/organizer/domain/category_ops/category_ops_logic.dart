@@ -34,6 +34,58 @@ OrganizerTeamRegistrationStatus registrationStatusFromInscription(
   return OrganizerTeamRegistrationStatus.pending;
 }
 
+/// Paridade com `generateCategoryBracket` (CF): pago, fora da fila, dupla completa.
+bool isTeamEligibleForBracketDraw(OrganizerCategoryTeamRow team) {
+  if (team.status != OrganizerTeamRegistrationStatus.confirmed) return false;
+  if (team.partnerPending) return false;
+  return true;
+}
+
+List<OrganizerCategoryTeamRow> teamsEligibleForBracketDraw(
+  Iterable<OrganizerCategoryTeamRow> teams,
+) =>
+    teams.where(isTeamEligibleForBracketDraw).toList(growable: false);
+
+Set<String> publishedBracketTeamIds(CategoryOpsState ops) {
+  final ids = <String>{};
+  for (final seed in ops.seeds) {
+    final id = seed.trim();
+    if (id.isNotEmpty) ids.add(id);
+  }
+  for (final group in ops.groupsPreview) {
+    for (final teamId in group.teamIds) {
+      final id = teamId.trim();
+      if (id.isNotEmpty) ids.add(id);
+    }
+  }
+  return ids;
+}
+
+/// Após chave publicada, só participantes da chave aparecem na categoria.
+List<OrganizerCategoryTeamRow> visibleCategoryTeams({
+  required List<OrganizerCategoryTeamRow> teams,
+  required CategoryOpsState? ops,
+}) {
+  if (ops?.bracketStatus != CategoryBracketStatus.published) {
+    return teams;
+  }
+  final allowed = publishedBracketTeamIds(ops!);
+  if (allowed.isEmpty) return teams;
+  return teams
+      .where((t) => allowed.contains(t.teamId))
+      .toList(growable: false);
+}
+
+List<String> filterSeedTeamIdsToEligible(
+  List<String> seedTeamIds,
+  Iterable<OrganizerCategoryTeamRow> eligibleTeams,
+) {
+  final eligibleIds = eligibleTeams.map((t) => t.teamId).toSet();
+  return seedTeamIds
+      .where((id) => eligibleIds.contains(id))
+      .toList(growable: false);
+}
+
 List<OrganizerCategoryTeamRow> filterCategoryTeams(
   List<OrganizerCategoryTeamRow> teams,
   OrganizerCategoryTeamFilter filter,
@@ -249,6 +301,54 @@ String bracketStructureSummary(int teamCount) {
   final advWord = s.byes == 1 ? 'avança' : 'avançam';
   return '$teamCount duplas · chave de ${s.bracketSize} · '
       '${s.byes} $byeWord (top ${s.byes} $advWord direto)';
+}
+
+/// Quantidade default de grupos para a prévia: distribui as duplas em grupos
+/// de no máximo [teamsPerGroup] duplas (arredondando para cima).
+int defaultGroupCountForCategory({
+  required int teamCount,
+  required int teamsPerGroup,
+}) {
+  if (teamCount <= 0) return 1;
+  final perGroup = teamsPerGroup < 2 ? 4 : teamsPerGroup;
+  return ((teamCount + perGroup - 1) ~/ perGroup).clamp(1, teamCount);
+}
+
+/// Total de classificados no mata-mata (grupos × classificados por grupo).
+int totalKnockoutQualifiers({
+  required int groupCount,
+  required int qualifiersPerGroup,
+}) =>
+    groupCount * qualifiersPerGroup;
+
+/// Mata-mata equilibrado exige potência de 2 cruzamentos na 1ª rodada.
+bool isBalancedKnockoutQualifierCount(int totalQualifiers) {
+  final pairings = totalQualifiers >> 1;
+  return pairings >= 1 && (pairings & (pairings - 1)) == 0;
+}
+
+/// Cabeça de chave na prévia: top [primaryHeadCount] da ordem de seeds (1 por grupo).
+bool isGroupDrawPrimaryHead({
+  required int? seedRank,
+  required int primaryHeadCount,
+}) {
+  if (seedRank == null || primaryHeadCount < 1) return false;
+  return seedRank <= primaryHeadCount;
+}
+
+/// Rótulo de badge na prévia do sorteio: cabeça (`C1`) ou posição global (`#8`).
+String groupDrawTeamBadgeLabel({
+  required OrganizerCategoryTeamRow team,
+  required Map<String, int> overallRankByTeamId,
+  required int primaryHeadCount,
+}) {
+  if (isGroupDrawPrimaryHead(
+    seedRank: team.seedRank,
+    primaryHeadCount: primaryHeadCount,
+  )) {
+    return 'C${team.seedRank}';
+  }
+  return '#${overallRankByTeamId[team.teamId] ?? '?'}';
 }
 
 /// Distribui duplas em grupos (padrão A/B) com snake draft quando há seeds.

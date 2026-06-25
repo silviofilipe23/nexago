@@ -255,4 +255,53 @@ void main() {
       );
     });
   });
+
+  group('resolveTournamentCourts', () {
+    test('generates courts from courtsCount when array is absent', () {
+      final courts = MatchOpsLogic.resolveTournamentCourts(
+        courtsCount: 4,
+        courtsRaw: null,
+      );
+      expect(courts, hasLength(4));
+      expect(courts.map((c) => c.id), ['Q1', 'Q2', 'Q3', 'Q4']);
+    });
+
+    test('preserves custom names when array matches courtsCount', () {
+      final courts = MatchOpsLogic.resolveTournamentCourts(
+        courtsCount: 4,
+        courtsRaw: [
+          {'id': 'Q1', 'name': 'Quadra Central', 'order': 1},
+          {'id': 'Q2', 'name': 'Quadra Lateral', 'order': 2},
+          {'id': 'Q3', 'name': 'Quadra 3', 'order': 3},
+          {'id': 'Q4', 'name': 'Quadra 4', 'order': 4},
+        ],
+      );
+      expect(courts, hasLength(4));
+      expect(courts.first.name, 'Quadra Central');
+      expect(courts[1].name, 'Quadra Lateral');
+    });
+
+    test('regenerates when array size mismatches courtsCount', () {
+      final courts = MatchOpsLogic.resolveTournamentCourts(
+        courtsCount: 4,
+        courtsRaw: [
+          {'id': 'Q1', 'name': 'Quadra Central', 'order': 1},
+          {'id': 'Q2', 'name': 'Quadra Lateral', 'order': 2},
+        ],
+      );
+      expect(courts, hasLength(4));
+      expect(courts.map((c) => c.name), [
+        'Quadra 1',
+        'Quadra 2',
+        'Quadra 3',
+        'Quadra 4',
+      ]);
+    });
+
+    test('normalizeCourtsCount clamps invalid values to at least 1', () {
+      expect(MatchOpsLogic.normalizeCourtsCount(0), 1);
+      expect(MatchOpsLogic.normalizeCourtsCount(-3), 1);
+      expect(MatchOpsLogic.normalizeCourtsCount(null), 4);
+    });
+  });
 }

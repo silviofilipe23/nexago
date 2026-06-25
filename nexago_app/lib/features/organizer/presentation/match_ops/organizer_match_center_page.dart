@@ -43,9 +43,7 @@ class _OrganizerMatchCenterPageState
       });
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref
-          .read(organizerMatchOpsRepositoryProvider)
-          .ensureCourtsInitialized(tournamentId: widget.tournamentId);
+      bootstrapOrganizerTournamentCourts(ref, widget.tournamentId);
     });
   }
 

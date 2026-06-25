@@ -35,37 +35,46 @@ class OrganizerMatchOpsRepository {
     return _tournaments.doc(id).snapshots().map((snap) {
       if (!snap.exists) return const <TournamentCourt>[];
       final data = snap.data();
+      final courtsCount =
+          MatchOpsLogic.normalizeCourtsCount(
+            (data?['courtsCount'] as num?)?.toInt(),
+          );
       final courtsRaw = data?['courts'];
-      if (courtsRaw is List && courtsRaw.isNotEmpty) {
-        return courtsRaw
-            .whereType<Map>()
-            .map((e) => TournamentCourt.fromMap(Map<String, dynamic>.from(e)))
-            .where((c) => c.id.isNotEmpty)
-            .toList()
-          ..sort((a, b) => a.order.compareTo(b.order));
-      }
-      final count = (data?['courtsCount'] as num?)?.toInt() ?? 2;
-      return MatchOpsLogic.defaultCourtsFromCount(count);
+      return MatchOpsLogic.resolveTournamentCourts(
+        courtsCount: courtsCount,
+        courtsRaw: courtsRaw is List ? courtsRaw : null,
+      );
     });
   }
 
   Future<void> ensureCourtsInitialized({
     required String tournamentId,
-    int courtsCount = 2,
   }) async {
     final id = tournamentId.trim();
     if (id.isEmpty) return;
     final snap = await _tournaments.doc(id).get();
     if (!snap.exists) return;
-    final data = snap.data();
-    final courtsRaw = data?['courts'];
-    if (courtsRaw is List && courtsRaw.isNotEmpty) return;
+    final data = snap.data() ?? {};
+    final courtsCount = MatchOpsLogic.normalizeCourtsCount(
+      (data['courtsCount'] as num?)?.toInt(),
+    );
+    final courtsRaw = data['courts'];
+    final existing = courtsRaw is List ? courtsRaw : null;
+    final needsSync = existing == null ||
+        existing.isEmpty ||
+        existing.length != courtsCount;
 
-    final courts = MatchOpsLogic.defaultCourtsFromCount(courtsCount);
+    if (!needsSync) return;
+
+    final courts = MatchOpsLogic.resolveTournamentCourts(
+      courtsCount: courtsCount,
+      courtsRaw: existing,
+    );
     await _tournaments.doc(id).set(
       {
         'courts': courts.map((c) => c.toMap()).toList(),
-        'matchOps': const TournamentMatchOpsConfig().toMap(),
+        if (data['matchOps'] == null)
+          'matchOps': const TournamentMatchOpsConfig().toMap(),
         'updatedAt': FieldValue.serverTimestamp(),
       },
       SetOptions(merge: true),

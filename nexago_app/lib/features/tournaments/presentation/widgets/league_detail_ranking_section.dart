@@ -77,21 +77,24 @@ class _LeagueDetailRankingSectionState
           ),
         ),
         const SizedBox(height: 12),
-        SegmentedButton<LeagueRankingViewMode>(
-          segments: const [
-            ButtonSegment(
-              value: LeagueRankingViewMode.teams,
-              label: Text('Duplas'),
-            ),
-            ButtonSegment(
-              value: LeagueRankingViewMode.athletes,
-              label: Text('Atletas'),
-            ),
-          ],
-          selected: {_viewMode},
-          onSelectionChanged: (selection) {
-            setState(() => _viewMode = selection.first);
-          },
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<LeagueRankingViewMode>(
+            segments: const [
+              ButtonSegment(
+                value: LeagueRankingViewMode.teams,
+                label: Text('Duplas'),
+              ),
+              ButtonSegment(
+                value: LeagueRankingViewMode.athletes,
+                label: Text('Atletas'),
+              ),
+            ],
+            selected: {_viewMode},
+            onSelectionChanged: (selection) {
+              setState(() => _viewMode = selection.first);
+            },
+          ),
         ),
         if (categories.length > 1) ...[
           const SizedBox(height: 12),

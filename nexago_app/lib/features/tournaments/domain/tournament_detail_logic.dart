@@ -136,13 +136,14 @@ TournamentDetailStats tournamentDetailStats(
     if (!o.registrationClosed && !o.isCompleted) openCategories++;
   }
 
-  final legacyEnrolled = spotsEnrolled > 0 ? spotsEnrolled : detail.enrolledCount;
+  final legacyEnrolled = spotsEnrolled > 0
+      ? spotsEnrolled
+      : detail.enrolledCount;
   return TournamentDetailStats(
     categoryCount: offers.length,
     openCategories: openCategories,
     spotsTotal: spotsTotal > 0 ? spotsTotal : detail.spotsTotal,
-    spotsEnrolled:
-        enrollmentCountsResolved ? spotsEnrolled : legacyEnrolled,
+    spotsEnrolled: enrollmentCountsResolved ? spotsEnrolled : legacyEnrolled,
     prizeTotalLabel: _prizeTotalLabel(detail),
   );
 }
@@ -659,8 +660,8 @@ String? tournamentRecentlyOpenedBanner(
 ) {
   if (!canRegisterForTournament(tournament.status)) return null;
   final createdAt = tournament.createdAt;
-  final recentlyCreated = createdAt != null &&
-      DateTime.now().difference(createdAt).inDays <= 14;
+  final recentlyCreated =
+      createdAt != null && DateTime.now().difference(createdAt).inDays <= 14;
   if (recentlyCreated || stats.spotsEnrolled == 0) {
     return 'Inscrições recém-abertas — garanta a vaga da sua dupla antes de lotar.';
   }
@@ -671,7 +672,7 @@ String tournamentExploreCategoriesSubtitle(TournamentDetailStats stats) {
   final count = stats.categoryCount;
   final catLabel = count == 1 ? '1 categoria' : '$count categorias';
   if (stats.spotsTotal <= 0) return catLabel;
-  return '$catLabel · ${stats.spotsTotal} vagas';
+  return '$catLabel';
 }
 
 String tournamentExploreBracketSubtitle(TournamentDetail tournament) {

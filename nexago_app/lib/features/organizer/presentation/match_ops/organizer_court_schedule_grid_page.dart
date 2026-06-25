@@ -47,6 +47,9 @@ class _OrganizerCourtScheduleGridPageState
     _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      bootstrapOrganizerTournamentCourts(ref, widget.tournamentId);
+    });
   }
 
   void _syncHeaderHorizontalScroll() {

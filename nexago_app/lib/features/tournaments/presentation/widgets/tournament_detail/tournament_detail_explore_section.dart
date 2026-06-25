@@ -58,7 +58,7 @@ class TournamentDetailExploreSection extends ConsumerWidget {
           if (showBracket)
             _ExploreCard(
               icon: Icons.account_tree_outlined,
-              title: 'Chave',
+              title: 'Chaves e Jogos',
               subtitle: tournamentExploreBracketSubtitle(tournament),
               onTap: () => context.pushNamed(
                 AppRouteNames.tournamentBracket,

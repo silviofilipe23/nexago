@@ -51,6 +51,7 @@ class OrganizerCategoryTeamRow {
     this.expectedAmountCents = 0,
     this.registeredAt,
     this.paymentMethod = '',
+    this.partnerPending = false,
   });
 
   final String registrationId;
@@ -63,6 +64,8 @@ class OrganizerCategoryTeamRow {
   final int expectedAmountCents;
   final DateTime? registeredAt;
   final String paymentMethod;
+  /// Solo pagou o total e ainda aguarda parceiro — não entra na chave.
+  final bool partnerPending;
 
   String get displayName {
     final n1 = player1.name.trim();

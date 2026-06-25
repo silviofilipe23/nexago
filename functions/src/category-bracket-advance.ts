@@ -36,7 +36,12 @@ function parseAdvanceSlot(raw: unknown): BracketAdvanceSlot | null {
   const teamSlot = slot.teamSlot;
   if (typeof matchNumber !== "number" || Number.isNaN(matchNumber)) return null;
   if (teamSlot !== "teamAId" && teamSlot !== "teamBId") return null;
-  return {matchNumber, teamSlot};
+  const result: BracketAdvanceSlot = {matchNumber, teamSlot};
+  const round = slot.round;
+  if (typeof round === "number" && !Number.isNaN(round)) {
+    result.round = round;
+  }
+  return result;
 }
 
 function loserTeamId(match: Record<string, unknown>): string | null {
@@ -54,14 +59,17 @@ async function findMatchByNumber(
   tournamentId: string,
   categoryId: string,
   matchNumber: number,
+  round?: number,
 ): Promise<FirebaseFirestore.QueryDocumentSnapshot | null> {
-  const snap = await db
+  let query: FirebaseFirestore.Query = db
     .collection(matchesPath)
     .where("tournamentId", "==", tournamentId)
     .where("categoryId", "==", categoryId)
-    .where("matchNumber", "==", matchNumber)
-    .limit(1)
-    .get();
+    .where("matchNumber", "==", matchNumber);
+  if (round !== undefined) {
+    query = query.where("round", "==", round);
+  }
+  const snap = await query.limit(1).get();
   if (snap.empty) return null;
   return snap.docs[0];
 }
@@ -117,6 +125,7 @@ export async function applyBracketAdvances(
       tournamentId,
       categoryId,
       update.advance.matchNumber,
+      update.advance.round,
     );
     if (!target) continue;
     if (!canFillBracketSlot(target.data(), update.advance.teamSlot, update.teamId)) {

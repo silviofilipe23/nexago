@@ -78,10 +78,15 @@ class ActiveMobileRoleNotifier extends Notifier<AppMobileRole?> {
 }
 
 /// Papéis disponíveis para o usuário logado (claims do token).
+///
+/// Usa o token EM CACHE (`getIdTokenResult(false)`): estes resolvedores rodam no
+/// `redirect` a cada navegação e só precisam dos claims. O refresh forçado dos
+/// claims acontece no pós-login (post_login_bootstrap/resolvePostLoginDestination)
+/// e o token renova sozinho (~1h / idTokenChanges).
 final availableMobileRolesProvider = FutureProvider<List<AppMobileRole>>((ref) async {
   final user = ref.watch(authProvider).valueOrNull;
   if (user == null) return const [];
-  final token = await user.getIdTokenResult(true);
+  final token = await user.getIdTokenResult(false);
   return mobileRolesFromIdToken(token);
 });
 
@@ -95,7 +100,7 @@ Future<AppMobileRole?> resolveActiveMobileRole(Ref ref) async {
   }
 
   final sessionRole = ref.read(activeMobileRoleProvider);
-  final token = await user.getIdTokenResult(true);
+  final token = await user.getIdTokenResult(false);
   final available = mobileRolesFromIdToken(token);
 
   if (available.length == 1) {
@@ -122,7 +127,7 @@ Future<bool> needsRoleSelectionFlow(Ref ref) async {
   final user = ref.read(authProvider).valueOrNull;
   if (user == null) return false;
 
-  final token = await user.getIdTokenResult(true);
+  final token = await user.getIdTokenResult(false);
   final available = mobileRolesFromIdToken(token);
   if (available.length <= 1) return false;
 

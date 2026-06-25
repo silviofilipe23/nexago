@@ -1589,7 +1589,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
 Future<IdTokenResult?> _safeGetIdTokenResult(User user) async {
   try {
-    return await user.getIdTokenResult(true);
+    // Token EM CACHE (sem rede). O `redirect` roda em toda navegação e só usa
+    // os claims (papéis), que mudam raramente — forçar refresh aqui custava uma
+    // ida ao servidor por troca de tela. O refresh forçado acontece uma vez no
+    // pós-login (resolvePostLoginDestination) e na troca/concessão de papel.
+    return await user.getIdTokenResult(false);
   } on FirebaseAuthException catch (e) {
     if (e.code == 'no-current-user' || e.code == 'user-token-expired') {
       return null;

@@ -61,7 +61,7 @@ class _OrganizerCategoryPaymentsTabState
       categoryId: widget.categoryId,
     );
     final summary = ref.watch(organizerCategoryPaymentsProvider(key));
-    final teamsAsync = ref.watch(organizerCategoryRegistrationsProvider(key));
+    final teamsAsync = ref.watch(organizerCategoryVisibleTeamsProvider(key));
 
     return teamsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),

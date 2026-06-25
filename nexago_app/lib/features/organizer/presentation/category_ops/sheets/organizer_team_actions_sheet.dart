@@ -56,10 +56,19 @@ class _OrganizerTeamActionsSheet extends ConsumerStatefulWidget {
 class _OrganizerTeamActionsSheetState
     extends ConsumerState<_OrganizerTeamActionsSheet> {
   bool _busy = false;
+  // Qual ação está em andamento (mostra o loader na linha correspondente).
+  String? _runningKey;
 
-  Future<void> _run(Future<void> Function() action, String success) async {
+  Future<void> _run(
+    Future<void> Function() action,
+    String success, {
+    String? key,
+  }) async {
     if (_busy) return;
-    setState(() => _busy = true);
+    setState(() {
+      _busy = true;
+      _runningKey = key;
+    });
     try {
       await action();
       if (mounted) {
@@ -69,7 +78,12 @@ class _OrganizerTeamActionsSheetState
     } catch (e) {
       if (mounted) showAppSnackBar(context, '$e', isError: true);
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _runningKey = null;
+        });
+      }
     }
   }
 
@@ -150,8 +164,13 @@ class _OrganizerTeamActionsSheetState
             ),
             _ActionRow(
               enabled: !_busy && !isPaid,
+              loading: _runningKey == 'confirm',
               icon: Icons.account_balance_wallet_outlined,
-              title: isPaid ? 'Pagamento confirmado' : 'Confirmar pagamento',
+              title: isPaid
+                  ? 'Pagamento confirmado'
+                  : _runningKey == 'confirm'
+                  ? 'Confirmando…'
+                  : 'Confirmar pagamento',
               subtitle: isPaid
                   ? paymentSubtitle
                   : 'Marcar como pago · $paymentSubtitle',
@@ -165,6 +184,7 @@ class _OrganizerTeamActionsSheetState
                           registrationId: team.registrationId,
                         ),
                         'Pagamento confirmado.',
+                        key: 'confirm',
                       ),
             ),
             Divider(
@@ -200,14 +220,18 @@ class _OrganizerTeamActionsSheetState
               ),
               _ActionRow(
                 enabled: !_busy,
+                loading: _runningKey == 'waitlist',
                 icon: Icons.format_list_bulleted_rounded,
-                title: 'Mover para lista de espera',
+                title: _runningKey == 'waitlist'
+                    ? 'Movendo…'
+                    : 'Mover para lista de espera',
                 subtitle: 'Libera a vaga e promove a próxima da fila',
                 onTap: () => _run(
                   () => service.moveToWaitlist(
                     registrationId: team.registrationId,
                   ),
                   'Dupla movida para fila.',
+                  key: 'waitlist',
                 ),
               ),
             ],
@@ -217,10 +241,13 @@ class _OrganizerTeamActionsSheetState
             ),
             _ActionRow(
               enabled: !_busy,
+              loading: _runningKey == 'remove',
               icon: Icons.delete_outline_rounded,
               iconColor: AppColors.live,
               iconBackground: AppColors.live.withValues(alpha: 0.12),
-              title: 'Remover da categoria',
+              title: _runningKey == 'remove'
+                  ? 'Removendo…'
+                  : 'Remover da categoria',
               titleColor: AppColors.live,
               subtitle: 'Reembolsa e cancela a inscrição',
               onTap: () async {
@@ -253,6 +280,7 @@ class _OrganizerTeamActionsSheetState
                       registrationId: team.registrationId,
                     ),
                     'Dupla removida.',
+                    key: 'remove',
                   );
                 }
               },
@@ -423,6 +451,7 @@ class _ActionRow extends StatelessWidget {
     this.iconBackground,
     this.titleColor,
     this.trailing,
+    this.loading = false,
   });
 
   final IconData icon;
@@ -434,6 +463,9 @@ class _ActionRow extends StatelessWidget {
   final Color? iconBackground;
   final Color? titleColor;
   final Widget? trailing;
+
+  /// Ação em andamento: troca o ícone por um spinner (feedback ao usuário).
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -458,7 +490,16 @@ class _ActionRow extends StatelessWidget {
                   color: bg,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, size: 20, color: fg),
+                child: loading
+                    ? SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(fg),
+                        ),
+                      )
+                    : Icon(icon, size: 20, color: fg),
               ),
               const SizedBox(width: 12),
               Expanded(

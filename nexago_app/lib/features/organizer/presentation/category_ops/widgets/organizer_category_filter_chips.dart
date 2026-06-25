@@ -8,16 +8,44 @@ import '../../../domain/category_ops/category_ops_providers.dart';
 import '../../../domain/tournament_ops/tournament_ops_providers.dart';
 
 class OrganizerCategoryFilterChips extends ConsumerWidget {
-  const OrganizerCategoryFilterChips({super.key});
+  const OrganizerCategoryFilterChips({
+    super.key,
+    required this.tournamentId,
+    required this.categoryId,
+  });
+
+  final String tournamentId;
+  final String categoryId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(organizerCategoryFilterProvider);
+    final ops = ref.watch(
+      organizerCategoryOpsProvider(
+        OrganizerCategoryKey(
+          tournamentId: tournamentId,
+          categoryId: categoryId,
+        ),
+      ),
+    );
+    final bracketPublished =
+        ops.valueOrNull?.bracketStatus == CategoryBracketStatus.published;
+
+    final filters = bracketPublished
+        ? OrganizerCategoryTeamFilter.values
+            .where(
+              (f) =>
+                  f != OrganizerCategoryTeamFilter.pending &&
+                  f != OrganizerCategoryTeamFilter.waitlist,
+            )
+            .toList()
+        : OrganizerCategoryTeamFilter.values;
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
-        children: OrganizerCategoryTeamFilter.values.map((filter) {
+        children: filters.map((filter) {
           final selected = state.filter == filter;
           final label = switch (filter) {
             OrganizerCategoryTeamFilter.all => 'Todas',

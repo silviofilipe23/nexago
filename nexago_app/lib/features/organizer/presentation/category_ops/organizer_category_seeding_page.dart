@@ -79,7 +79,15 @@ class _OrganizerCategorySeedingPageState
     if (_initialized) return;
     _initialized = true;
     _seedByRanking = ops?.seedByRanking ?? true;
-    _teams = teams;
+    final eligible = teamsEligibleForBracketDraw(teams);
+    if (ops != null && ops.seeds.isNotEmpty) {
+      _teams = applySeedOrder(
+        eligible,
+        filterSeedTeamIdsToEligible(ops.seeds, eligible),
+      );
+    } else {
+      _teams = eligible;
+    }
   }
 
   OrganizerTournamentCategorySummary? _categorySummary(
@@ -115,7 +123,9 @@ class _OrganizerCategorySeedingPageState
           error: (e, _) => Center(child: Text('$e')),
           data: (teams) {
             _bootstrapTeams(teams, ops);
-            if (_teams.isEmpty) _teams = teams;
+            if (_teams.isEmpty) {
+              _teams = teamsEligibleForBracketDraw(teams);
+            }
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

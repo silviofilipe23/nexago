@@ -48,7 +48,10 @@ List<TournamentMatch> bracketMatchesForCategory(
 /// Chave composta para agrupar fases sem colapsar WB/LB ou tipos distintos no mesmo `round`.
 String bracketGroupKey(TournamentMatch match) {
   final type = match.matchType.trim();
+  final typeLower = type.toLowerCase();
   if (type == 'WB' || type == 'LB') return '$type:${match.round}';
+  // Chave gerada pela CF usa matchType genérico "knockout" + round por fase.
+  if (typeLower == 'knockout') return 'knockout:${match.round}';
   if (type.isNotEmpty) return type;
   final desc = match.description?.trim();
   if (desc != null && desc.isNotEmpty) return 'desc:$desc';
@@ -60,6 +63,7 @@ int bracketGroupSortOrder(TournamentMatch match) {
   // Dupla eliminatória: WB1 → LB1 → WB2 → LB2 …
   if (type == 'wb') return match.round * 10;
   if (type == 'lb') return match.round * 10 + 5;
+  if (type == 'knockout') return 200 + match.round;
   if (type == 'third place') return 8900;
   if (type == 'final') return 9000;
   if (type == 'grand final' || type == 'grand_final') return 9100;

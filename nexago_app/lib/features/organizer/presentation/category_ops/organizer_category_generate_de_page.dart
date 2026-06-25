@@ -48,11 +48,12 @@ class _OrganizerCategoryGenerateDePageState
             tournamentId: widget.tournamentId,
             categoryId: widget.categoryId,
           );
-      final teams =
+      final allTeams =
           await ref.read(organizerCategoryRegistrationsProvider(key).future);
+      final eligible = teamsEligibleForBracketDraw(allTeams);
       final seeds = ops.seeds.isNotEmpty
-          ? ops.seeds
-          : teams.map((t) => t.teamId).toList(growable: false);
+          ? filterSeedTeamIdsToEligible(ops.seeds, eligible)
+          : eligible.map((t) => t.teamId).toList(growable: false);
 
       await ref.read(organizerCategoryOpsServiceProvider).generateCategoryBracket(
             tournamentId: widget.tournamentId,
@@ -114,9 +115,14 @@ class _OrganizerCategoryGenerateDePageState
         error: (e, _) => Center(child: Text('$e')),
         data: (teams) {
           final seeds = opsAsync.valueOrNull?.seeds ?? const <String>[];
-          final ordered = seeds.isNotEmpty
-              ? applySeedOrder(teams, seeds)
-              : applySeedOrder(teams, defaultSeedOrderByRanking(teams));
+          final eligible = teamsEligibleForBracketDraw(teams);
+          final filteredSeeds = filterSeedTeamIdsToEligible(seeds, eligible);
+          final ordered = filteredSeeds.isNotEmpty
+              ? applySeedOrder(eligible, filteredSeeds)
+              : applySeedOrder(
+                  eligible,
+                  defaultSeedOrderByRanking(eligible),
+                );
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [

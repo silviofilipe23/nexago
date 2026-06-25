@@ -315,6 +315,35 @@ abstract final class MatchOpsLogic {
     );
   }
 
+  static const int defaultCourtsCount = 4;
+
+  static int normalizeCourtsCount(int? raw) {
+    final count = raw ?? defaultCourtsCount;
+    return count < 1 ? 1 : count;
+  }
+
+  static List<TournamentCourt> parseCourtsRaw(List<dynamic>? courtsRaw) {
+    if (courtsRaw == null || courtsRaw.isEmpty) return const [];
+    return courtsRaw
+        .whereType<Map>()
+        .map((e) => TournamentCourt.fromMap(Map<String, dynamic>.from(e)))
+        .where((c) => c.id.isNotEmpty)
+        .toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+  }
+
+  /// [courtsCount] é a fonte de verdade; reutiliza [courtsRaw] só quando o
+  /// tamanho bate e todos os IDs são válidos (preserva nomes customizados).
+  static List<TournamentCourt> resolveTournamentCourts({
+    required int courtsCount,
+    List<dynamic>? courtsRaw,
+  }) {
+    final count = normalizeCourtsCount(courtsCount);
+    final parsed = parseCourtsRaw(courtsRaw);
+    if (parsed.length == count) return parsed;
+    return defaultCourtsFromCount(count);
+  }
+
   static int compareMatchesForGrid(TournamentMatch a, TournamentMatch b) {
     final ta = a.scheduleTime;
     final tb = b.scheduleTime;

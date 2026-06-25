@@ -9,6 +9,8 @@ import {
 export interface BracketAdvanceSlot {
   matchNumber: number;
   teamSlot: "teamAId" | "teamBId";
+  /** Rodada da partida destino — necessário quando matchNumber é por rodada (SE/grupos+mata-mata). */
+  round?: number;
 }
 
 export interface QualifierSlot {
@@ -54,18 +56,52 @@ export function crossoverFirstRoundPairings(
     return pairs;
   }
 
-  const qualifiers: QualifierSlot[] = [];
-  for (const poolId of groupIds) {
-    for (let place = 1; place <= safeQ; place++) {
-      qualifiers.push({poolId, place});
+  // n grupos: espelha grupo i com grupo n+1-i (A×D, B×C, C×B, D×A…).
+  const n = groupIds.length;
+  const pairs: Array<{a: QualifierSlot; b: QualifierSlot}> = [];
+  const halfBands = Math.floor(safeQ / 2);
+  for (let k = 1; k <= halfBands; k++) {
+    const oppPlace = safeQ - k + 1;
+    for (let i = 0; i < n; i++) {
+      pairs.push({
+        a: {poolId: groupIds[i]!, place: k},
+        b: {poolId: groupIds[n - 1 - i]!, place: oppPlace},
+      });
     }
   }
-  const pairs: Array<{a: QualifierSlot; b: QualifierSlot}> = [];
-  for (let i = 0; i < qualifiers.length; i += 2) {
-    const b = qualifiers[i + 1];
-    if (b) pairs.push({a: qualifiers[i], b});
-  }
   return pairs;
+}
+
+/**
+ * Rodadas de um rodízio (round-robin) pelo "circle method": em cada rodada todo
+ * time joga no máximo uma vez, então listar os jogos rodada a rodada distribui o
+ * descanso de forma uniforme dentro do grupo. Com nº ímpar de times, um BYE
+ * folga a cada rodada (pares com BYE são descartados).
+ */
+export function roundRobinRounds(ids: string[]): Array<[string, string]>[] {
+  const teams = ids.filter((id) => id.trim().length > 0);
+  if (teams.length < 2) return [];
+
+  const BYE = "";
+  const arr = [...teams];
+  if (arr.length % 2 === 1) arr.push(BYE);
+
+  const n = arr.length;
+  const rounds: Array<[string, string]>[] = [];
+  // O primeiro elemento fica fixo; os demais giram a cada rodada.
+  const order = [...arr];
+  for (let r = 0; r < n - 1; r++) {
+    const round: Array<[string, string]> = [];
+    for (let i = 0; i < n / 2; i++) {
+      const a = order[i];
+      const b = order[n - 1 - i];
+      if (a !== BYE && b !== BYE) round.push([a, b]);
+    }
+    if (round.length > 0) rounds.push(round);
+    // Rotaciona mantendo o índice 0 fixo.
+    order.splice(1, 0, order.pop() as string);
+  }
+  return rounds;
 }
 
 export function buildGroupsKnockoutMatches(
@@ -84,27 +120,41 @@ export function buildGroupsKnockoutMatches(
           {id: "B", teamIds: teamIds.slice(Math.ceil(teamIds.length / 2))},
         ];
 
+  // Melhor sequência de jogos: cada grupo vira uma FILA de confrontos em ordem
+  // de rodízio (circle method → descanso uniforme dentro do grupo); depois
+  // intercalamos os grupos em rodízio simples (1 jogo de cada por vez, pulando
+  // grupos esgotados). Assim jogos do mesmo grupo nunca ficam adjacentes →
+  // nenhum time joga em matchNumber consecutivos.
+  const groupQueues = safeGroups.map((group) => ({
+    poolId: group.id,
+    pairs: roundRobinRounds(group.teamIds).flat(),
+  }));
+
   const groupMatches: MatchDraft[] = [];
   let matchNumber = 1;
-  for (const group of safeGroups) {
-    const ids = group.teamIds.filter((id) => id.trim().length > 0);
-    for (let i = 0; i < ids.length; i++) {
-      for (let j = i + 1; j < ids.length; j++) {
-        groupMatches.push({
-          round: 0,
-          matchType: "group",
-          poolId: group.id,
-          teamAId: ids[i],
-          teamBId: ids[j],
-          isGroupMatch: true,
-          matchNumber: matchNumber++,
-        });
-      }
+  let remaining = true;
+  while (remaining) {
+    remaining = false;
+    for (const queue of groupQueues) {
+      const pair = queue.pairs.shift();
+      if (!pair) continue;
+      remaining = true;
+      groupMatches.push({
+        round: 0,
+        matchType: "group",
+        poolId: queue.poolId,
+        teamAId: pair[0],
+        teamBId: pair[1],
+        isGroupMatch: true,
+        matchNumber: matchNumber++,
+      });
     }
   }
 
   const groupIds = safeGroups.map((g) => g.id);
   const pairings = crossoverFirstRoundPairings(groupIds, qualifiersPerGroup);
+  // matchNumberStart = total de jogos da fase de grupos + 1 → o mata-mata
+  // continua a numeração sequencialmente (ex.: grupos terminam em #24, QF1 = #25).
   const knockoutMatches = buildSingleEliminationKnockoutMatches(
     [],
     1,
@@ -116,6 +166,7 @@ export function buildGroupsKnockoutMatches(
       teamADescription: qualifierSlotDescription(pair.a),
       teamBDescription: qualifierSlotDescription(pair.b),
     })),
+    groupMatches.length + 1,
   );
 
   return [...groupMatches, ...knockoutMatches];
@@ -162,6 +213,7 @@ function buildSingleEliminationKnockoutMatches(
   teamIds: string[],
   roundStart: number,
   firstRoundOverrides?: FirstRoundOverride[],
+  matchNumberStart = 1,
 ): MatchDraft[] {
   const n = firstRoundOverrides?.length
     ? firstRoundOverrides.length * 2
@@ -185,7 +237,6 @@ function buildSingleEliminationKnockoutMatches(
 
     rounds[r] = [];
     for (let m = 0; m < matchesInRound; m++) {
-      const matchNumber = m + 1;
       const isFirstRound = r === 0;
       const override = firstRoundOverrides?.[m];
       const teamAId = isFirstRound
@@ -202,7 +253,8 @@ function buildSingleEliminationKnockoutMatches(
         teamAId,
         teamBId,
         isGroupMatch: false,
-        matchNumber,
+        // matchNumber definitivo é atribuído depois (numeração GLOBAL).
+        matchNumber: 0,
       };
 
       if (isFirstRound && override) {
@@ -230,31 +282,137 @@ function buildSingleEliminationKnockoutMatches(
   // rodada com um slot vazio normalmente está esperando o vencedor de um jogo
   // futuro — não é um bye — e empurrar o time adiante "pularia" essa partida.
   if (totalRounds > 1) {
-    for (const match of rounds[0]!) {
+    for (let i = 0; i < rounds[0]!.length; i++) {
+      const match = rounds[0]![i];
       const a = match.teamAId.trim();
       const b = match.teamBId.trim();
       const solo = a && !b ? a : !a && b ? b : "";
       if (!solo) continue;
-      const nextIdx = Math.ceil(match.matchNumber / 2) - 1;
+      const nextIdx = Math.floor(i / 2);
       const next = rounds[1]?.[nextIdx];
       if (!next) continue;
-      const slot = match.matchNumber % 2 === 1 ? "teamAId" : "teamBId";
+      const slot = slotForIndex(i);
       next[slot] = solo;
     }
   }
 
-  return rounds.flat();
+  // Disputa de 3º lugar: perdedores das semifinais (n >= 4 equipes reais).
+  let thirdPlace: MatchDraft | null = null;
+  if (n >= 4 && totalRounds >= 2) {
+    thirdPlace = {
+      round: roundStart + totalRounds - 1,
+      matchType: "Third Place",
+      poolId: "",
+      teamAId: "",
+      teamBId: "",
+      isGroupMatch: false,
+      matchNumber: 0,
+    };
+  }
+
+  // Numeração GLOBAL: rodada 0 → ... → final → 3º lugar. O caller informa onde
+  // a sequência começa (`matchNumberStart`) para que matchNumbers continuem a
+  // contagem da fase de grupos quando existir.
+  let counter = matchNumberStart;
+  for (let r = 0; r < totalRounds; r++) {
+    for (const m of rounds[r]!) {
+      m.matchNumber = counter++;
+    }
+  }
+  if (thirdPlace) thirdPlace.matchNumber = counter++;
+
+  // Fia explicitamente o avanço de TODAS as rodadas. Antes a propagação era
+  // implícita (por round+ceil(matchNumber/2)) e dependia de matchNumber por
+  // rodada começar em 1 — incompatível com numeração global.
+  for (let r = 0; r < totalRounds - 1; r++) {
+    const cur = rounds[r]!;
+    const nxt = rounds[r + 1]!;
+    for (let i = 0; i < cur.length; i++) {
+      const match = cur[i]!;
+      const target = nxt[Math.floor(i / 2)]!;
+      const slot = slotForIndex(i);
+      match.winnerAdvance = advanceToSlot(
+        target.matchNumber,
+        slot,
+        target.round,
+      );
+    }
+  }
+
+  if (thirdPlace) {
+    const semis = rounds[totalRounds - 2]!;
+    for (let i = 0; i < semis.length; i++) {
+      const semi = semis[i]!;
+      const slot = slotForIndex(i);
+      semi.loserAdvance = advanceToSlot(
+        thirdPlace.matchNumber,
+        slot,
+        thirdPlace.round,
+      );
+    }
+  }
+
+  // Placeholders "Vencedor Jogo #N" para slots à espera de uma partida anterior.
+  // Pulamos slots já preenchidos por bye (1ª rodada → 2ª) ou por overrides (ex.:
+  // qualifier de grupo). 3º lugar usa "Perdedor Jogo #N" das semifinais.
+  for (let r = 1; r < totalRounds; r++) {
+    const cur = rounds[r]!;
+    const prev = rounds[r - 1]!;
+    for (let i = 0; i < cur.length; i++) {
+      const match = cur[i]!;
+      const predA = prev[2 * i];
+      const predB = prev[2 * i + 1];
+      if (
+        predA &&
+        !match.teamAId.trim() &&
+        !match.teamADescription
+      ) {
+        match.teamADescription = `Vencedor Jogo #${predA.matchNumber}`;
+      }
+      if (
+        predB &&
+        !match.teamBId.trim() &&
+        !match.teamBDescription
+      ) {
+        match.teamBDescription = `Vencedor Jogo #${predB.matchNumber}`;
+      }
+    }
+  }
+  if (thirdPlace) {
+    const semis = rounds[totalRounds - 2]!;
+    if (semis[0] && !thirdPlace.teamADescription) {
+      thirdPlace.teamADescription = `Perdedor Jogo #${semis[0].matchNumber}`;
+    }
+    if (semis[1] && !thirdPlace.teamBDescription) {
+      thirdPlace.teamBDescription = `Perdedor Jogo #${semis[1].matchNumber}`;
+    }
+  }
+
+  const result = rounds.flat();
+  if (thirdPlace) result.push(thirdPlace);
+
+  return result;
 }
 
 function slotForIndex(index: number): "teamAId" | "teamBId" {
   return index % 2 === 0 ? "teamAId" : "teamBId";
 }
 
+function advanceToSlot(
+  matchNumber: number,
+  teamSlot: "teamAId" | "teamBId",
+  round?: number,
+): BracketAdvanceSlot {
+  return round !== undefined ?
+    {matchNumber, teamSlot, round} :
+    {matchNumber, teamSlot};
+}
+
 function advanceTo(
   target: MatchDraft,
   teamSlot: "teamAId" | "teamBId",
 ): BracketAdvanceSlot {
-  return {matchNumber: target.matchNumber, teamSlot};
+  return advanceToSlot(target.matchNumber, teamSlot);
 }
 
 /**

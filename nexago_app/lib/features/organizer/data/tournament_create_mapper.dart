@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/search/search_keywords.dart';
+import '../domain/match_ops/match_ops_logic.dart';
 import '../domain/tournament_create/tournament_create_draft.dart';
 import '../domain/tournament_create/tournament_create_logic.dart';
 
@@ -52,6 +53,9 @@ abstract final class TournamentCreateMapper {
           : null,
       'dateLabel': _formatDateRange(startAt, endAt),
       'courtsCount': draft.courtsCount,
+      'courts': MatchOpsLogic.defaultCourtsFromCount(draft.courtsCount)
+          .map((c) => c.toMap())
+          .toList(),
       'format': _disputeFormatValue(draft.categories),
       'capacity': capacity,
       if (!isUpdate) 'enrolledCount': 0,

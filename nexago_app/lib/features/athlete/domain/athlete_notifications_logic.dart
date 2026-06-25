@@ -31,6 +31,7 @@ class AthleteNotificationPresentation {
     required this.iconBackground,
     this.actions = const [],
     this.routePath,
+    this.statusLine,
   });
 
   final IconData icon;
@@ -38,6 +39,7 @@ class AthleteNotificationPresentation {
   final Color iconBackground;
   final List<AthleteNotificationAction> actions;
   final String? routePath;
+  final String? statusLine;
 }
 
 class AthleteNotificationSection {
@@ -121,6 +123,34 @@ String notificationRelativeTimeLabel(DateTime createdAt, DateTime now) {
   return '${createdAt.day.toString().padLeft(2, '0')}/${createdAt.month.toString().padLeft(2, '0')}';
 }
 
+String? _tournamentPartnerInviteStatusLine(String response) {
+  switch (response.toLowerCase()) {
+    case 'accepted':
+      return 'Você aceitou o convite';
+    case 'declined':
+      return 'Você recusou o convite';
+    default:
+      return null;
+  }
+}
+
+String? _tournamentPartnerInviteAcceptedRoute(Map<String, String> data) {
+  final inviteId = data['inviteId'] ?? '';
+  final tournamentId = data['tournamentId'] ?? '';
+  final registrationId = data['registrationId'] ?? '';
+  final categoryId = data['categoryId'] ?? '';
+  if (tournamentId.isNotEmpty && registrationId.isNotEmpty) {
+    return '/torneios/$tournamentId/inscricao'
+        '?registrationId=$registrationId'
+        '&categoryId=$categoryId'
+        '&inviteId=$inviteId';
+  }
+  if (inviteId.isNotEmpty) {
+    return '/torneios-convite/$inviteId';
+  }
+  return null;
+}
+
 AthleteNotificationPresentation notificationPresentation(
   AthleteInboxNotification notification,
 ) {
@@ -176,6 +206,24 @@ AthleteNotificationPresentation notificationPresentation(
       );
     case 'tournament_partner_invite':
       final inviteId = data['inviteId'] ?? '';
+      final inviteResponse = data['inviteResponse'] ?? '';
+      final statusLine = _tournamentPartnerInviteStatusLine(inviteResponse);
+      if (statusLine != null) {
+        final accepted = inviteResponse.toLowerCase() == 'accepted';
+        return AthleteNotificationPresentation(
+          icon: accepted
+              ? Icons.check_circle_outline_rounded
+              : Icons.block_rounded,
+          iconColor: accepted ? AppColors.win : AppColors.onSurfaceMuted,
+          iconBackground: accepted
+              ? AppColors.win.withValues(alpha: 0.15)
+              : AppColors.surfaceRaised,
+          statusLine: statusLine,
+          routePath: accepted
+              ? _tournamentPartnerInviteAcceptedRoute(data)
+              : null,
+        );
+      }
       return AthleteNotificationPresentation(
         icon: Icons.emoji_events_outlined,
         iconColor: AppColors.pending,

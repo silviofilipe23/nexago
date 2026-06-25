@@ -20,6 +20,15 @@ final organizerMatchOpsRepositoryProvider =
   return OrganizerMatchOpsRepository();
 });
 
+/// Sincroniza `courts[]` com `courtsCount` do torneio ao abrir telas de match ops.
+void bootstrapOrganizerTournamentCourts(WidgetRef ref, String tournamentId) {
+  final id = tournamentId.trim();
+  if (id.isEmpty) return;
+  ref
+      .read(organizerMatchOpsRepositoryProvider)
+      .ensureCourtsInitialized(tournamentId: id);
+}
+
 final organizerMatchScheduleServiceProvider =
     Provider<OrganizerMatchScheduleService>((ref) {
   return OrganizerMatchScheduleService();

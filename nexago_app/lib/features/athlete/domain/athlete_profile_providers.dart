@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/providers/cache_for.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../data/athlete_profile_repository.dart';
 import 'athlete_profile.dart';
@@ -14,6 +15,9 @@ final athleteOnboardingJustCompletedProvider = StateProvider<bool>((ref) => fals
 
 /// Documento `users/{uid}` do atleta logado ou `null` se ainda não existir.
 final athleteProfileProvider = StreamProvider.autoDispose<AthleteProfile?>((ref) {
+  // Lido pelo `redirect` em toda navegação: mantém vivo para não re-assinar o
+  // Firestore a cada troca de tela.
+  cacheFor(ref);
   final user = ref.watch(authProvider).valueOrNull;
   if (user == null) {
     return const Stream<AthleteProfile?>.empty();

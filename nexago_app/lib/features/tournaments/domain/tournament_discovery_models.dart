@@ -140,6 +140,7 @@ class TournamentCategoryOffer {
     this.uniformSizeOptionsTop = const [],
     this.uniformSizeOptionsShorts = const [],
     this.waitlistEnabled = true,
+    this.qualifiersPerGroup = 2,
   });
 
   /// Id da categoria no Firestore (`categories[].id`); legado usa `categoryName`.
@@ -174,6 +175,9 @@ class TournamentCategoryOffer {
   final List<String> uniformSizeOptionsShorts;
   /// Herdado do torneio (`waitlistEnabled` na raiz do documento).
   final bool waitlistEnabled;
+
+  /// Duplas que avançam por grupo (`categories[].qualifiersPerGroup`).
+  final int qualifiersPerGroup;
 }
 
 class TournamentCategoryPrize {

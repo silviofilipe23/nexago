@@ -259,6 +259,7 @@ Future<List<OrganizerCategoryTeamRow>> _mapInscriptionsToTeams({
         expectedAmountCents: expectedPerTeamCents,
         registeredAt: registeredAt,
         paymentMethod: (row.inscription['paymentMethod'] as String?) ?? '',
+        partnerPending: row.inscription['partnerPending'] == true,
       ),
     );
   }
@@ -310,7 +311,7 @@ final organizerCategoryOpsProvider = StreamProvider.autoDispose
 
 final organizerCategoryPaymentsProvider = Provider.autoDispose
     .family<OrganizerCategoryPaymentsSummary, OrganizerCategoryKey>((ref, key) {
-  final teams = ref.watch(organizerCategoryRegistrationsProvider(key));
+  final teams = ref.watch(organizerCategoryVisibleTeamsProvider(key));
   return teams.when(
     data: (rows) {
       final expected = rows.isNotEmpty ? rows.first.expectedAmountCents : 0;
@@ -379,9 +380,27 @@ final organizerCategoryFilterProvider =
     NotifierProvider.autoDispose<OrganizerCategoryFilterNotifier,
         OrganizerCategoryFilterState>(OrganizerCategoryFilterNotifier.new);
 
+final organizerCategoryVisibleTeamsProvider = Provider.autoDispose
+    .family<AsyncValue<List<OrganizerCategoryTeamRow>>, OrganizerCategoryKey>(
+        (ref, key) {
+  final teams = ref.watch(organizerCategoryRegistrationsProvider(key));
+  final ops = ref.watch(organizerCategoryOpsProvider(key));
+  return teams.when(
+    data: (rows) {
+      final visible = visibleCategoryTeams(
+        teams: rows,
+        ops: ops.valueOrNull,
+      );
+      return AsyncData(visible);
+    },
+    loading: () => const AsyncLoading(),
+    error: (e, st) => AsyncError(e, st),
+  );
+});
+
 final organizerCategoryFilteredTeamsProvider = Provider.autoDispose
     .family<List<OrganizerCategoryTeamRow>, OrganizerCategoryKey>((ref, key) {
-  final teams = ref.watch(organizerCategoryRegistrationsProvider(key));
+  final teams = ref.watch(organizerCategoryVisibleTeamsProvider(key));
   final filterState = ref.watch(organizerCategoryFilterProvider);
   return teams.when(
     data: (rows) => sortCategoryTeams(

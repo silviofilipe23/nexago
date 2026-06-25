@@ -110,6 +110,8 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
     );
     final detail = ref.watch(organizerTournamentDetailProvider(tournamentId));
     final teamsAsync = ref.watch(organizerCategoryRegistrationsProvider(key));
+    final visibleTeamsAsync =
+        ref.watch(organizerCategoryVisibleTeamsProvider(key));
     final selectedTab = ref.watch(organizerCategoryShellTabProvider);
     final filterState = ref.watch(organizerCategoryFilterProvider);
     final filteredTeams = ref.watch(
@@ -120,23 +122,25 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
         .where((c) => c.categoryId == categoryId)
         .firstOrNull;
     final summary = detail.valueOrNull?.summary;
-    final teams = teamsAsync.valueOrNull ?? const [];
-    final teamCount = teams.length;
+    final allTeams = teamsAsync.valueOrNull ?? const [];
+    final visibleTeams = visibleTeamsAsync.valueOrNull ?? allTeams;
+    final eligibleCount = teamsEligibleForBracketDraw(allTeams).length;
     final waitlistCount = countTeamsByStatus(
-      teams,
+      visibleTeams,
       OrganizerTeamRegistrationStatus.waitlist,
     );
     final confirmedCount = countTeamsByStatus(
-      teams,
+      visibleTeams,
       OrganizerTeamRegistrationStatus.confirmed,
     );
-    final pendingCount =
-        category?.pendingCount ??
-        countTeamsByStatus(teams, OrganizerTeamRegistrationStatus.pending);
+    final pendingCount = countTeamsByStatus(
+      visibleTeams,
+      OrganizerTeamRegistrationStatus.pending,
+    );
     final canGenerateBracket = category == null
         ? false
         : isBracketFormatSupportedRaw(category.bracketFormat) &&
-              (canGenerateCategoryBracket(confirmedCount: confirmedCount) ||
+              (canGenerateCategoryBracket(confirmedCount: eligibleCount) ||
                   category.bracketStatus ==
                       OrganizerCategoryBracketStatus.published);
     final hasUniformKit = organizerTournamentHasUniformKit(
@@ -169,7 +173,7 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
                 onGenerateBracket: () => _onGenerateBracket(
                   context,
                   category,
-                  confirmedCount: confirmedCount,
+                  confirmedCount: eligibleCount,
                 ),
                 onSeeding: () => pushOrganizerCategorySeeding(
                   GoRouter.of(context),
@@ -194,7 +198,7 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
               onSelected: ref
                   .read(organizerCategoryShellTabProvider.notifier)
                   .select,
-              teamCount: teamCount,
+              teamCount: visibleTeams.length,
               pendingPaymentsCount: pendingCount,
             ),
             if (selectedTab == OrganizerCategoryShellTab.teams) ...[
@@ -230,7 +234,10 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              const OrganizerCategoryFilterChips(),
+              OrganizerCategoryFilterChips(
+                tournamentId: tournamentId,
+                categoryId: categoryId,
+              ),
               const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),

@@ -60,6 +60,36 @@ class AthleteNotificationsRepository {
       'readAt': FieldValue.serverTimestamp(),
     });
   }
+
+  Future<void> recordPartnerInviteResponse({
+    required String uid,
+    required String inviteId,
+    required String inviteResponse,
+  }) async {
+    if (uid.isEmpty || inviteId.isEmpty || inviteResponse.isEmpty) return;
+
+    final snap = await _notifications(uid)
+        .where('data.inviteId', isEqualTo: inviteId)
+        .get();
+
+    if (snap.docs.isEmpty) return;
+
+    final batch = _firestore.batch();
+    var pending = 0;
+    for (final doc in snap.docs) {
+      final type = doc.data()['type'] as String? ?? '';
+      if (type != 'tournament_partner_invite') continue;
+      batch.update(doc.reference, {
+        'data.inviteResponse': inviteResponse,
+        'read': true,
+        'readAt': FieldValue.serverTimestamp(),
+      });
+      pending++;
+    }
+    if (pending > 0) {
+      await batch.commit();
+    }
+  }
 }
 
 final athleteNotificationsRepositoryProvider =

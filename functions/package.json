@@ -10,7 +10,8 @@
     "deploy": "firebase deploy --only functions",
     "deploy:dev": "firebase use dev && firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test": "npm run build && node --test lib/**/*.test.js"
+    "test": "npm run build && node --test lib/**/*.test.js",
+    "bulk-enroll": "node scripts/bulk-enroll-league-stage.js"
   },
   "engines": {
     "node": "22"

@@ -136,6 +136,18 @@ class AthleteNotificationCard extends StatelessWidget {
                                         ),
                                       ),
                                     ],
+                                    if (presentation.statusLine != null) ...[
+                                      SizedBox(height: 6),
+                                      Text(
+                                        presentation.statusLine!,
+                                        style:
+                                            theme.textTheme.bodySmall?.copyWith(
+                                          color: presentation.iconColor,
+                                          fontWeight: FontWeight.w700,
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),

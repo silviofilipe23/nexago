@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/providers/cache_for.dart';
 import '../../../core/search/search_keywords.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../athlete/domain/athlete_display_name.dart';
@@ -84,6 +85,7 @@ final tournamentDiscoveryDataSourceProvider =
 
 final discoveryTournamentsProvider =
     StreamProvider.autoDispose<List<DiscoveryTournament>>((ref) {
+  cacheFor(ref);
   return ref.watch(tournamentDiscoveryDataSourceProvider).watchTournaments();
 });
 
@@ -101,11 +103,14 @@ final discoveryLeagueKeywordSearchProvider = FutureProvider.autoDispose
 
 final discoveryLeaguesProvider =
     StreamProvider.autoDispose<List<DiscoveryLeague>>((ref) {
+  cacheFor(ref);
   return ref.watch(tournamentDiscoveryDataSourceProvider).watchLeagues();
 });
 
 final tournamentDetailProvider = StreamProvider.autoDispose
     .family<TournamentDetail?, String>((ref, tournamentId) {
+  // Detalhe é reaberto com frequência: mantém vivo para reabrir instantâneo.
+  cacheFor(ref);
   return ref
       .watch(tournamentDiscoveryDataSourceProvider)
       .watchTournamentDetail(tournamentId);

@@ -1,20 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:nexago_app/core/theme/app_typography.dart';
 
-import '../../../../../core/router/routes.dart';
 import '../../../../../core/theme/app_colors.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/tournament_inscriptions_repository.dart';
 import '../../../domain/tournament_detail_model.dart';
+import '../../../domain/tournament_discovery_models.dart';
+import '../../../domain/tournament_group_standings_logic.dart';
 import '../../../domain/tournament_matches_logic.dart';
 import '../../../domain/tournament_discovery_providers.dart';
-import '../tournament_match_card.dart';
 import 'tournament_detail_category_chips.dart';
 import 'tournament_detail_message.dart';
 import 'tournament_detail_tab_slivers.dart';
 import 'tournament_matches_filter_toggle.dart';
+import 'tournament_pool_standings_widgets.dart';
 
 class TournamentDetailGroupsTab extends ConsumerWidget {
   const TournamentDetailGroupsTab({
@@ -32,14 +30,11 @@ class TournamentDetailGroupsTab extends ConsumerWidget {
   final ValueChanged<String> onCategorySelected;
   final ValueChanged<TournamentMatchesFilter> onFilterChanged;
 
-  void _openMatchDetail(BuildContext context, String matchId) {
-    final id = matchId.trim();
-    if (id.isEmpty) return;
-    context.pushNamed(
-      AppRouteNames.athleteMatchDetail,
-      pathParameters: {'matchId': id},
-      queryParameters: {AppRoutes.matchDetailFromTournamentQuery: '1'},
-    );
+  TournamentCategoryOffer? _selectedOffer(List<TournamentCategoryOffer> offers) {
+    for (final offer in offers) {
+      if (offer.id == categoryId) return offer;
+    }
+    return offers.isNotEmpty ? offers.first : null;
   }
 
   List<Widget> buildSlivers(BuildContext context, WidgetRef ref) {
@@ -85,14 +80,29 @@ class TournamentDetailGroupsTab extends ConsumerWidget {
 
         final matches = cards.map((c) => c.match).toList();
         final cardsById = {for (final c in cards) c.match.id: c};
-        var pool = poolMatchesForCategory(matches, categoryId);
+        final pool = poolMatchesForCategory(matches, categoryId);
+        final selectedOffer = _selectedOffer(offers);
+        final qualifiersPerGroup = selectedOffer?.qualifiersPerGroup ?? 2;
+
+        var standingsGroups = buildPoolStandingsGroups(
+          poolMatches: pool,
+          cardsById: cardsById,
+          qualifiersPerGroup: qualifiersPerGroup,
+          athleteTeamIds: athleteTeamIds,
+        );
+
+        final isPhaseComplete =
+            isGroupStageCompleteForCategory(standingsGroups);
+
         if (filter == TournamentMatchesFilter.mine) {
-          pool = filterAthleteMatches(
-            pool,
-            athleteTeamIds,
-          );
+          standingsGroups = standingsGroups
+              .where(
+                (group) => group.rows.any(
+                  (row) => athleteTeamIds.contains(row.teamId),
+                ),
+              )
+              .toList();
         }
-        final groups = groupMatchesByPool(pool);
 
         return tournamentDetailTabSliversFromChildren(
           padding: const EdgeInsets.only(bottom: 32),
@@ -107,74 +117,41 @@ class TournamentDetailGroupsTab extends ConsumerWidget {
                 value: filter,
                 onChanged: onFilterChanged,
               ),
-            if (pool.isEmpty && filter == TournamentMatchesFilter.mine)
+            if (pool.isEmpty)
+              Padding(
+                padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
+                child: TournamentDetailMessageBody(
+                  title: filter == TournamentMatchesFilter.mine
+                      ? 'Nenhum jogo seu'
+                      : 'Grupos ainda não publicados',
+                  message: filter == TournamentMatchesFilter.mine
+                      ? 'Você ainda não tem jogos nesta categoria.'
+                      : 'Quando a fase de grupos for gerada para esta categoria, a classificação aparecerá aqui.',
+                ),
+              )
+            else if (standingsGroups.isEmpty &&
+                filter == TournamentMatchesFilter.mine)
               Padding(
                 padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
                 child: TournamentDetailMessageBody(
                   title: 'Nenhum jogo seu',
-                  message:
-                      'Você ainda não tem jogos nesta categoria.',
+                  message: 'Você ainda não tem jogos nesta categoria.',
                 ),
               )
-            else if (pool.isEmpty)
-              Padding(
-                padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
-                child: TournamentDetailMessageBody(
-                  title: 'Grupos ainda não publicados',
-                  message:
-                      'Quando a fase de grupos for gerada para esta categoria, os confrontos aparecerão aqui.',
+            else ...[
+              TournamentGroupStandingsHeader(
+                isComplete: isPhaseComplete,
+                qualifiersPerGroup: qualifiersPerGroup,
+              ),
+              for (final group in standingsGroups)
+                TournamentPoolStandingsCard(
+                  group: group,
+                  qualifiersPerGroup: qualifiersPerGroup,
                 ),
-              )
-            else
-              for (final group in groups) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          group.poolLabel.toUpperCase(),
-                          style: AppTypography.soraRegular(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                            color: context.themeColors.onSurface,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: context.themeColors.surfaceCard,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: context.themeColors.onSurfaceMuted
-                                .withValues(alpha: 0.15),
-                          ),
-                        ),
-                        child: Text(
-                          '${group.matches.length} jogos',
-                          style: AppTypography.mono(
-                            fontSize: 10,
-                            color: context.themeColors.onSurfaceMuted,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                for (final match in group.matches)
-                  TournamentMatchCard(
-                    viewModel: cardsById[match.id]!,
-                    isAthleteMatch: isAthleteMatchForHighlight(
-                      match,
-                      athleteTeamIds,
-                    ),
-                    onTap: () => _openMatchDetail(context, match.id),
-                  ),
-              ],
+              TournamentGroupStandingsFooter(
+                qualifiersPerGroup: qualifiersPerGroup,
+              ),
+            ],
           ],
         );
       },

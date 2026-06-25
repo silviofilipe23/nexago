@@ -207,6 +207,7 @@ abstract final class TournamentDocumentMapper {
         uniformSizeOptionsShorts:
             _stringList(map['uniformSizeOptionsShorts']),
         waitlistEnabled: tournamentWaitlistEnabled,
+        qualifiersPerGroup: (_int(map['qualifiersPerGroup']) ?? 2).clamp(1, 99),
       );
 
       if (!categoryRequiresUniform(preliminaryOffer) &&
@@ -242,6 +243,8 @@ abstract final class TournamentDocumentMapper {
           uniformSizeOptionsShorts:
               _stringList(map['uniformSizeOptionsShorts']),
           waitlistEnabled: tournamentWaitlistEnabled,
+          qualifiersPerGroup:
+              (_int(map['qualifiersPerGroup']) ?? 2).clamp(1, 99),
         ),
       );
     }

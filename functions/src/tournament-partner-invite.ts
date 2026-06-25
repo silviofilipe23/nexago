@@ -9,7 +9,7 @@ import * as logger from "firebase-functions/logger";
 import {assertCanRegisterInTournament} from "./athlete-tournament-access";
 import {assertTeamLevelEligibility} from "./category-level-eligibility";
 import {assertTeamAgeEligibility} from "./category-age-eligibility";
-import {deliverNotificationToUser} from "./notification-delivery";
+import {deliverNotificationToUser, markTournamentPartnerInviteInboxResponse} from "./notification-delivery";
 import {
   assertTournamentAcceptsRegistration,
   findCategory,
@@ -1022,6 +1022,20 @@ export const acceptTournamentPartnerInvite = onCall(async (request) => {
     }
   }
 
+  try {
+    await markTournamentPartnerInviteInboxResponse(uid, inviteId, "accepted", {
+      tournamentId,
+      categoryId,
+      registrationId,
+    });
+  } catch (inboxError) {
+    logger.warn("Falha ao atualizar inbox do convite aceito", {
+      inviteId,
+      uid,
+      inboxError,
+    });
+  }
+
   return result;
 });
 
@@ -1059,6 +1073,15 @@ export const cancelTournamentPartnerInvite = onCall(async (request) => {
       throw new HttpsError("permission-denied", "Apenas o convidado pode recusar.");
     }
     await inviteRef.update({status: "declined"});
+    try {
+      await markTournamentPartnerInviteInboxResponse(uid, inviteId, "declined");
+    } catch (inboxError) {
+      logger.warn("Falha ao atualizar inbox do convite recusado", {
+        inviteId,
+        uid,
+        inboxError,
+      });
+    }
     return {success: true, status: "declined"};
   }
 

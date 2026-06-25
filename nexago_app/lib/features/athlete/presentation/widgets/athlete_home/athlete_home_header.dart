@@ -49,50 +49,13 @@ class AthleteHomeHeader extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GestureDetector(
-          onTap: onAvatarTap,
-          child: SizedBox(
-            width: avatarSlotSize,
-            height: avatarSlotSize,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  child: AthleteProfileAvatar(
-                    size: avatarSize,
-                    initials: initials,
-                    imageUrl: avatarUrl,
-                  ),
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.brand,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.black, width: 2),
-                    ),
-                    child: Text(
-                      '$displayLevel',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.black,
-                        fontSize: 10,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        _buildAvatarSlot(
+          avatarSlotSize: avatarSlotSize,
+          avatarSize: avatarSize,
+          initials: initials,
+          avatarUrl: avatarUrl,
+          displayLevel: displayLevel,
+          theme: theme,
         ),
         SizedBox(width: 12),
         Expanded(
@@ -197,6 +160,95 @@ class AthleteHomeHeader extends StatelessWidget {
     final parts = name.trim().split(RegExp(r'\s+'));
     if (parts.isEmpty || parts.first.isEmpty) return 'Atleta';
     return parts.first;
+  }
+
+  Widget _buildAvatarSlot({
+    required double avatarSlotSize,
+    required double avatarSize,
+    required String initials,
+    required String? avatarUrl,
+    required int displayLevel,
+    required ThemeData theme,
+  }) {
+    final avatar = SizedBox(
+      width: avatarSlotSize,
+      height: avatarSlotSize,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            child: AthleteProfileAvatar(
+              size: avatarSize,
+              initials: initials,
+              imageUrl: avatarUrl,
+            ),
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.brand,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.black, width: 2),
+              ),
+              child: Text(
+                '$displayLevel',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.black,
+                  fontSize: 10,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (onAvatarTap == null) return avatar;
+
+    return _ScalePressAction(onTap: onAvatarTap!, child: avatar);
+  }
+}
+
+class _ScalePressAction extends StatefulWidget {
+  const _ScalePressAction({required this.onTap, required this.child});
+
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  State<_ScalePressAction> createState() => _ScalePressActionState();
+}
+
+class _ScalePressActionState extends State<_ScalePressAction> {
+  var _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      onTap: widget.onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedScale(
+        scale: _pressed ? 0.94 : 1,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
+      ),
+    );
   }
 }
 

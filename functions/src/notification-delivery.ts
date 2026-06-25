@@ -342,3 +342,44 @@ export async function deliverNotificationToUser(
 
   return {sent, failed};
 }
+
+/** Atualiza inbox do convidado após aceitar ou recusar convite de dupla. */
+export async function markTournamentPartnerInviteInboxResponse(
+  userId: string,
+  inviteId: string,
+  inviteResponse: "accepted" | "declined",
+  extraData?: Record<string, string>,
+): Promise<void> {
+  if (!userId || !inviteId) return;
+
+  const db = getFirestore();
+  const snap = await db
+    .collection(`users/${userId}/notifications`)
+    .where("data.inviteId", "==", inviteId)
+    .get();
+
+  if (snap.empty) return;
+
+  const batch = db.batch();
+  let pending = 0;
+
+  for (const doc of snap.docs) {
+    if (doc.data().type !== "tournament_partner_invite") continue;
+    const update: Record<string, unknown> = {
+      "data.inviteResponse": inviteResponse,
+      read: true,
+      readAt: FieldValue.serverTimestamp(),
+    };
+    if (extraData) {
+      for (const [key, value] of Object.entries(extraData)) {
+        update[`data.${key}`] = value;
+      }
+    }
+    batch.update(doc.ref, update);
+    pending += 1;
+  }
+
+  if (pending > 0) {
+    await batch.commit();
+  }
+}

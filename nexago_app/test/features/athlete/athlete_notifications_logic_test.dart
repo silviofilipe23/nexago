@@ -104,6 +104,55 @@ void main() {
       expect(p.actions.length, 2);
       expect(p.routePath, '/torneios-convite/inv1');
       expect(p.icon, Icons.emoji_events_outlined);
+      expect(p.statusLine, isNull);
+    });
+
+    test('tournament invite declined hides actions and shows status', () {
+      final n = AthleteInboxNotification(
+        id: 'x',
+        title: 'Convite',
+        body: 'Body',
+        type: 'tournament_partner_invite',
+        data: const {'inviteId': 'inv1', 'inviteResponse': 'declined'},
+        read: true,
+        dismissed: false,
+        createdAt: now,
+      );
+      final p = notificationPresentation(n);
+      expect(p.actions, isEmpty);
+      expect(p.statusLine, 'Você recusou o convite');
+      expect(p.routePath, isNull);
+      expect(p.icon, Icons.block_rounded);
+    });
+
+    test('tournament invite accepted hides actions and routes to inscription', () {
+      final n = AthleteInboxNotification(
+        id: 'x',
+        title: 'Convite',
+        body: 'Body',
+        type: 'tournament_partner_invite',
+        data: const {
+          'inviteId': 'inv1',
+          'inviteResponse': 'accepted',
+          'tournamentId': 't1',
+          'registrationId': 'r1',
+          'categoryId': 'catA',
+        },
+        read: true,
+        dismissed: false,
+        createdAt: now,
+      );
+      final p = notificationPresentation(n);
+      expect(p.actions, isEmpty);
+      expect(p.statusLine, 'Você aceitou o convite');
+      expect(
+        p.routePath,
+        '/torneios/t1/inscricao'
+            '?registrationId=r1'
+            '&categoryId=catA'
+            '&inviteId=inv1',
+      );
+      expect(p.icon, Icons.check_circle_outline_rounded);
     });
 
     test('tournament invite accepted routes to payment', () {

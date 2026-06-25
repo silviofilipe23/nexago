@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/search/search_keywords.dart';
 import '../domain/league_create/league_create_draft.dart';
 import '../domain/league_stage_create/league_stage_create_draft.dart';
+import '../domain/match_ops/match_ops_logic.dart';
 import '../domain/tournament_create/tournament_create_draft.dart';
 import '../domain/tournament_create/tournament_create_logic.dart';
 
@@ -164,6 +165,9 @@ abstract final class LeagueStageTournamentFactory {
       'endAt': Timestamp.fromDate(endAt),
       'dateLabel': dateLabel,
       'courtsCount': courtsCount,
+      'courts': MatchOpsLogic.defaultCourtsFromCount(courtsCount)
+          .map((c) => c.toMap())
+          .toList(),
       'format': _disputeFormatFromMaps(categories),
       'capacity': capacity,
       'enrolledCount': 0,

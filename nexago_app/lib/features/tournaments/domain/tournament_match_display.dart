@@ -315,6 +315,9 @@ String matchRoundLabel(TournamentMatch match) {
     return 'Grand Final';
   }
   if (type == 'Third Place') return '3º lugar';
+  if (type.toLowerCase() == 'knockout' && match.round > 0) {
+    return 'Rodada ${match.round}';
+  }
 
   final typeLabel = matchTypeLabelPt(type);
   if (type.isNotEmpty && typeLabel != type) return typeLabel;
@@ -327,9 +330,25 @@ String matchRoundLabel(TournamentMatch match) {
   return 'Eliminatórias';
 }
 
+/// Rótulo da fase eliminatória a partir do nº de jogos na rodada.
+String knockoutPhaseLabelForMatchCount(int matchesInRound) {
+  return switch (matchesInRound) {
+    16 => '32 avos de final',
+    8 => 'Oitavas de final',
+    4 => 'Quartas de final',
+    2 => 'Semifinais',
+    1 => 'Eliminatórias',
+    _ => '$matchesInRound jogos',
+  };
+}
+
 String bracketRoundGroupLabel(List<TournamentMatch> matches) {
   if (matches.isEmpty) return '';
   final sorted = [...matches]
     ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
-  return matchRoundLabel(sorted.first);
+  final first = sorted.first;
+  if (first.matchType.trim().toLowerCase() == 'knockout') {
+    return knockoutPhaseLabelForMatchCount(sorted.length);
+  }
+  return matchRoundLabel(first);
 }

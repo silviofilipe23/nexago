@@ -137,6 +137,42 @@ void main() {
     expect(groups[1].roundLabel, 'Semifinais');
   });
 
+  test('groupBracketMatchesByRound separates generic knockout by round', () {
+    final matches = [
+      _match(id: 'qf1', matchType: 'knockout', round: 1, matchNumber: 1),
+      _match(id: 'qf2', matchType: 'knockout', round: 1, matchNumber: 2),
+      _match(id: 'qf3', matchType: 'knockout', round: 1, matchNumber: 3),
+      _match(id: 'qf4', matchType: 'knockout', round: 1, matchNumber: 4),
+      _match(id: 'sf1', matchType: 'knockout', round: 2, matchNumber: 1),
+      _match(id: 'sf2', matchType: 'knockout', round: 2, matchNumber: 2),
+      _match(id: 'fin', matchType: 'Final', round: 3, matchNumber: 1),
+      _match(id: '3rd', matchType: 'Third Place', round: 3, matchNumber: 2),
+    ];
+
+    final groups = groupBracketMatchesByRound(matches);
+    expect(groups, hasLength(4));
+    expect(
+      groups.map((g) => g.roundLabel),
+      ['Quartas de final', 'Semifinais', '3º lugar', 'Final'],
+    );
+  });
+
+  test('groupBracketMatchesByRound labels oitavas from eight first-round games', () {
+    final matches = List.generate(
+      8,
+      (i) => _match(
+        id: 'r16-$i',
+        matchType: 'knockout',
+        round: 1,
+        matchNumber: i + 1,
+      ),
+    );
+
+    final groups = groupBracketMatchesByRound(matches);
+    expect(groups, hasLength(1));
+    expect(groups.first.roundLabel, 'Oitavas de final');
+  });
+
   test('groupMatchesByPool sorts pool keys', () {
     final pools = poolMatchesForCategory(all, 'cat-a');
     final groups = groupMatchesByPool(pools);

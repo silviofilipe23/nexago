@@ -230,6 +230,30 @@ describe("crossoverFirstRoundPairings", () => {
       {a: {poolId: "A", place: 2}, b: {poolId: "B", place: 1}},
     ]);
   });
+
+  it("pairs A1×D2, B1×C2, C1×B2, D1×A2 for four groups", () => {
+    const pairs = crossoverFirstRoundPairings(["A", "B", "C", "D"], 2);
+    assert.deepEqual(pairs, [
+      {a: {poolId: "A", place: 1}, b: {poolId: "D", place: 2}},
+      {a: {poolId: "B", place: 1}, b: {poolId: "C", place: 2}},
+      {a: {poolId: "C", place: 1}, b: {poolId: "B", place: 2}},
+      {a: {poolId: "D", place: 1}, b: {poolId: "A", place: 2}},
+    ]);
+  });
+
+  it("pairs eight groups in mirrored crossover for oitavas", () => {
+    const groupIds = ["A", "B", "C", "D", "E", "F", "G", "H"];
+    const pairs = crossoverFirstRoundPairings(groupIds, 2);
+    assert.equal(pairs.length, 8);
+    assert.deepEqual(pairs[0], {a: {poolId: "A", place: 1}, b: {poolId: "H", place: 2}});
+    assert.deepEqual(pairs[1], {a: {poolId: "B", place: 1}, b: {poolId: "G", place: 2}});
+    assert.deepEqual(pairs[2], {a: {poolId: "C", place: 1}, b: {poolId: "F", place: 2}});
+    assert.deepEqual(pairs[3], {a: {poolId: "D", place: 1}, b: {poolId: "E", place: 2}});
+    assert.deepEqual(pairs[4], {a: {poolId: "E", place: 1}, b: {poolId: "D", place: 2}});
+    assert.deepEqual(pairs[5], {a: {poolId: "F", place: 1}, b: {poolId: "C", place: 2}});
+    assert.deepEqual(pairs[6], {a: {poolId: "G", place: 1}, b: {poolId: "B", place: 2}});
+    assert.deepEqual(pairs[7], {a: {poolId: "H", place: 1}, b: {poolId: "A", place: 2}});
+  });
 });
 
 describe("buildGroupsKnockoutMatches", () => {
@@ -242,15 +266,31 @@ describe("buildGroupsKnockoutMatches", () => {
 
     const matches = buildGroupsKnockoutMatches(teams, groups, 2);
 
-    const group = matches.filter((m) => m.isGroupMatch);
+    const group = matches
+      .filter((m) => m.isGroupMatch)
+      .sort((a, b) => a.matchNumber - b.matchNumber);
     assert.equal(group.length, 2);
+    // Fase de grupos preserva numeração 1..N (global, mas começa do início).
+    assert.deepEqual(
+      group.map((m) => m.matchNumber),
+      [1, 2],
+    );
 
-    const semis = matches.filter((m) => m.round === 1 && m.matchType === "knockout");
+    const semis = matches
+      .filter((m) => m.round === 1 && m.matchType === "knockout")
+      .sort((a, b) => a.matchNumber - b.matchNumber);
     assert.equal(semis.length, 2);
+    // Numeração GLOBAL continua a contagem dos grupos: #1, #2 grupos → #3, #4 semis.
+    assert.deepEqual(
+      semis.map((m) => m.matchNumber),
+      [3, 4],
+    );
     assert.equal(semis[0].teamAId, "");
     assert.equal(semis[0].teamBId, "");
     assert.deepEqual(semis[0].teamAQualifier, {poolId: "A", place: 1});
     assert.deepEqual(semis[0].teamBQualifier, {poolId: "B", place: 2});
+    // Descrições de qualifier (1º Grupo A / 2º Grupo B) NÃO são sobrescritas
+    // pelos placeholders "Vencedor Jogo #N".
     assert.equal(semis[0].teamADescription, "1º Grupo A");
     assert.equal(semis[0].teamBDescription, "2º Grupo B");
 
@@ -259,8 +299,166 @@ describe("buildGroupsKnockoutMatches", () => {
 
     const finals = matches.filter((m) => m.matchType === "Final");
     assert.equal(finals.length, 1);
+    assert.equal(finals[0].matchNumber, 5);
     assert.equal(finals[0].teamAId, "");
     assert.equal(finals[0].teamBId, "");
+    // Final espera o vencedor das semis: placeholders globais.
+    assert.equal(finals[0].teamADescription, `Vencedor Jogo #${semis[0].matchNumber}`);
+    assert.equal(finals[0].teamBDescription, `Vencedor Jogo #${semis[1].matchNumber}`);
+
+    const thirdPlace = matches.filter((m) => m.matchType === "Third Place");
+    assert.equal(thirdPlace.length, 1);
+    assert.equal(thirdPlace[0].round, finals[0].round);
+    assert.equal(thirdPlace[0].matchNumber, 6);
+    // 3º lugar mostra "Perdedor Jogo #N" para cada semifinal.
+    assert.equal(thirdPlace[0].teamADescription, `Perdedor Jogo #${semis[0].matchNumber}`);
+    assert.equal(thirdPlace[0].teamBDescription, `Perdedor Jogo #${semis[1].matchNumber}`);
+
+    for (let i = 0; i < semis.length; i++) {
+      const semi = semis[i];
+      const slot = i === 0 ? "teamAId" : "teamBId";
+      assert.deepEqual(semi.winnerAdvance, {
+        matchNumber: finals[0].matchNumber,
+        teamSlot: slot,
+        round: finals[0].round,
+      });
+      assert.deepEqual(semi.loserAdvance, {
+        matchNumber: thirdPlace[0].matchNumber,
+        teamSlot: slot,
+        round: thirdPlace[0].round,
+      });
+    }
+  });
+
+  it("intercala os grupos e dá descanso igual (2 grupos × 4 times)", () => {
+    const groups = [
+      {id: "A", teamIds: ["a1", "a2", "a3", "a4"]},
+      {id: "B", teamIds: ["b1", "b2", "b3", "b4"]},
+    ];
+    const teams = [...groups[0].teamIds, ...groups[1].teamIds];
+
+    const group = buildGroupsKnockoutMatches(teams, groups, 2)
+      .filter((m) => m.isGroupMatch)
+      .sort((x, y) => x.matchNumber - y.matchNumber);
+
+    // Rodízio completo de cada grupo: 6 confrontos por grupo (C(4,2)), 12 no total.
+    assert.equal(group.length, 12);
+    const pairsOf = (poolId: string) =>
+      new Set(
+        group
+          .filter((m) => m.poolId === poolId)
+          .map((m) => [m.teamAId, m.teamBId].sort().join("-")),
+      );
+    assert.equal(pairsOf("A").size, 6);
+    assert.equal(pairsOf("B").size, 6);
+
+    // A sequência alterna os grupos (A,B,A,B…).
+    assert.deepEqual(
+      group.map((m) => m.poolId),
+      ["A", "B", "A", "B", "A", "B", "A", "B", "A", "B", "A", "B"],
+    );
+
+    // Nenhum time joga em matchNumber consecutivos (descanso uniforme).
+    for (let i = 1; i < group.length; i++) {
+      const prev = new Set([group[i - 1].teamAId, group[i - 1].teamBId]);
+      assert.ok(
+        !prev.has(group[i].teamAId) && !prev.has(group[i].teamBId),
+        `jogo ${i + 1} repete um time do jogo ${i}`,
+      );
+    }
+  });
+
+  it("cruza 4 grupos nas quartas e gera disputa de 3º lugar (16 equipes)", () => {
+    const groups = [
+      {id: "A", teamIds: ["a1", "a2", "a3", "a4"]},
+      {id: "B", teamIds: ["b1", "b2", "b3", "b4"]},
+      {id: "C", teamIds: ["c1", "c2", "c3", "c4"]},
+      {id: "D", teamIds: ["d1", "d2", "d3", "d4"]},
+    ];
+    const teams = groups.flatMap((g) => g.teamIds);
+    const matches = buildGroupsKnockoutMatches(teams, groups, 2);
+
+    // 4 grupos × C(4,2)=6 confrontos = 24 jogos de fase de grupos.
+    const groupMatches = matches.filter((m) => m.isGroupMatch);
+    assert.equal(groupMatches.length, 24);
+    assert.equal(
+      Math.max(...groupMatches.map((m) => m.matchNumber)),
+      24,
+      "fase de grupos deve terminar em #24",
+    );
+
+    const quarters = matches
+      .filter((m) => m.round === 1 && m.matchType === "knockout")
+      .sort((a, b) => a.matchNumber - b.matchNumber);
+    assert.equal(quarters.length, 4);
+    // Mata-mata começa em #25 (24 grupos + 1) — numeração GLOBAL contínua.
+    assert.deepEqual(
+      quarters.map((m) => m.matchNumber),
+      [25, 26, 27, 28],
+    );
+    assert.deepEqual(quarters[0].teamAQualifier, {poolId: "A", place: 1});
+    assert.deepEqual(quarters[0].teamBQualifier, {poolId: "D", place: 2});
+    assert.deepEqual(quarters[1].teamAQualifier, {poolId: "B", place: 1});
+    assert.deepEqual(quarters[1].teamBQualifier, {poolId: "C", place: 2});
+    assert.deepEqual(quarters[2].teamAQualifier, {poolId: "C", place: 1});
+    assert.deepEqual(quarters[2].teamBQualifier, {poolId: "B", place: 2});
+    assert.deepEqual(quarters[3].teamAQualifier, {poolId: "D", place: 1});
+    assert.deepEqual(quarters[3].teamBQualifier, {poolId: "A", place: 2});
+
+    const semis = matches
+      .filter((m) => m.round === 2 && m.matchType === "knockout")
+      .sort((a, b) => a.matchNumber - b.matchNumber);
+    assert.equal(semis.length, 2);
+    assert.deepEqual(
+      semis.map((m) => m.matchNumber),
+      [29, 30],
+    );
+
+    const finalMatch = matches.find((m) => m.matchType === "Final")!;
+    const thirdPlace = matches.find((m) => m.matchType === "Third Place")!;
+    assert.equal(finalMatch.matchNumber, 31);
+    assert.equal(thirdPlace.matchNumber, 32);
+
+    // QF.winnerAdvance aponta para as semis com matchNumber GLOBAL e round corretos.
+    for (let i = 0; i < quarters.length; i++) {
+      const target = semis[Math.floor(i / 2)];
+      const slot = i % 2 === 0 ? "teamAId" : "teamBId";
+      assert.deepEqual(quarters[i].winnerAdvance, {
+        matchNumber: target.matchNumber,
+        teamSlot: slot,
+        round: target.round,
+      });
+      // QF não alimenta 3º lugar (apenas semis perdem para 3º lugar).
+      assert.equal(quarters[i].loserAdvance, undefined);
+    }
+
+    // Semis alimentam final (vencedor) e 3º lugar (perdedor) com placeholders.
+    for (let i = 0; i < semis.length; i++) {
+      const slot = i === 0 ? "teamAId" : "teamBId";
+      assert.deepEqual(semis[i].winnerAdvance, {
+        matchNumber: finalMatch.matchNumber,
+        teamSlot: slot,
+        round: finalMatch.round,
+      });
+      assert.deepEqual(semis[i].loserAdvance, {
+        matchNumber: thirdPlace.matchNumber,
+        teamSlot: slot,
+        round: thirdPlace.round,
+      });
+    }
+
+    // Placeholders: QFs mantêm a descrição de qualifier; SFs/Final/3º referenciam
+    // o nº GLOBAL do jogo anterior.
+    assert.equal(quarters[0].teamADescription, "1º Grupo A");
+    assert.equal(quarters[0].teamBDescription, "2º Grupo D");
+    assert.equal(semis[0].teamADescription, "Vencedor Jogo #25");
+    assert.equal(semis[0].teamBDescription, "Vencedor Jogo #26");
+    assert.equal(semis[1].teamADescription, "Vencedor Jogo #27");
+    assert.equal(semis[1].teamBDescription, "Vencedor Jogo #28");
+    assert.equal(finalMatch.teamADescription, "Vencedor Jogo #29");
+    assert.equal(finalMatch.teamBDescription, "Vencedor Jogo #30");
+    assert.equal(thirdPlace.teamADescription, "Perdedor Jogo #29");
+    assert.equal(thirdPlace.teamBDescription, "Perdedor Jogo #30");
   });
 });
 
@@ -275,6 +473,61 @@ describe("buildSingleEliminationMatches", () => {
     assert.equal(semis[0].teamBId, "t4");
     assert.equal(semis[1].teamAId, "t2");
     assert.equal(semis[1].teamBId, "t3");
+  });
+
+  it("gera disputa de 3º lugar com semifinais wired (4 equipes)", () => {
+    const matches = buildSingleEliminationMatches(["t1", "t2", "t3", "t4"]);
+    const final = matches.find((m) => m.matchType === "Final")!;
+    const third = matches.find((m) => m.matchType === "Third Place")!;
+    assert.ok(final);
+    assert.ok(third);
+    assert.equal(third.round, final.round);
+    // Numeração global: semis #1-#2, final #3, 3º lugar #4.
+    assert.equal(final.matchNumber, 3);
+    assert.equal(third.matchNumber, 4);
+
+    const semis = matches
+      .filter((m) => m.round === 1 && m.matchType === "knockout")
+      .sort((a, b) => a.matchNumber - b.matchNumber);
+    assert.equal(semis.length, 2);
+    assert.deepEqual(
+      semis.map((m) => m.matchNumber),
+      [1, 2],
+    );
+    for (let i = 0; i < semis.length; i++) {
+      const slot = i === 0 ? "teamAId" : "teamBId";
+      assert.deepEqual(semis[i].winnerAdvance, {
+        matchNumber: final.matchNumber,
+        teamSlot: slot,
+        round: final.round,
+      });
+      assert.deepEqual(semis[i].loserAdvance, {
+        matchNumber: third.matchNumber,
+        teamSlot: slot,
+        round: third.round,
+      });
+    }
+
+    // Placeholders na final e no 3º lugar usam o nº GLOBAL das semifinais.
+    assert.equal(final.teamADescription, `Vencedor Jogo #${semis[0].matchNumber}`);
+    assert.equal(final.teamBDescription, `Vencedor Jogo #${semis[1].matchNumber}`);
+    assert.equal(third.teamADescription, `Perdedor Jogo #${semis[0].matchNumber}`);
+    assert.equal(third.teamBDescription, `Perdedor Jogo #${semis[1].matchNumber}`);
+  });
+
+  it("não gera 3º lugar com menos de 4 equipes", () => {
+    assert.equal(
+      buildSingleEliminationMatches(["t1", "t2"]).filter(
+        (m) => m.matchType === "Third Place",
+      ).length,
+      0,
+    );
+    assert.equal(
+      buildSingleEliminationMatches(["t1", "t2", "t3"]).filter(
+        (m) => m.matchType === "Third Place",
+      ).length,
+      0,
+    );
   });
 
   it("distribui byes para os melhores seeds, um por partida (não pot. de 2)", () => {
@@ -337,12 +590,41 @@ describe("buildSingleEliminationMatches", () => {
           `${n}: deveria ter exatamente uma final`,
         );
 
-        // Simula: joga partidas com 2 times, byes são walkover (já propagados
-        // na construção). Ao fim, a final tem que ter sido resolvida.
-        const byKey = new Map(
+        // 3º lugar quando há semifinais reais (n >= 4).
+        const thirdCount = matches.filter(
+          (m) => m.matchType === "Third Place",
+        ).length;
+        if (n >= 4) {
+          assert.equal(thirdCount, 1, `${n}: deveria ter disputa de 3º lugar`);
+          const finalRound = matches.find((m) => m.matchType === "Final")!.round;
+          const semis = matches.filter(
+            (m) => m.round === finalRound - 1 && m.matchType === "knockout",
+          );
+          for (const semi of semis) {
+            assert.ok(
+              semi.winnerAdvance?.round === finalRound,
+              `${n}: semi sem winnerAdvance para final`,
+            );
+            assert.ok(
+              semi.loserAdvance?.round === finalRound,
+              `${n}: semi sem loserAdvance para 3º lugar`,
+            );
+          }
+        } else {
+          assert.equal(thirdCount, 0, `${n}: não deveria ter 3º lugar`);
+        }
+
+        // matchNumber é GLOBAL (único) → indexa direto. Joga partidas com 2 times
+        // (sempre teamA vence, deterministicamente) e segue winnerAdvance/
+        // loserAdvance explícitos; byes (1 time só) marcam done sem follow-up,
+        // porque já foram propagados diretamente na construção.
+        const byNum = new Map(
           matches.map((m) => [
-            `${m.round}:${m.matchNumber}`,
-            {...m, done: false, winnerId: ""},
+            m.matchNumber,
+            {...m, done: false, winnerId: ""} as typeof m & {
+              done: boolean;
+              winnerId: string;
+            },
           ]),
         );
         let progressed = true;
@@ -350,21 +632,30 @@ describe("buildSingleEliminationMatches", () => {
         while (progressed && guard++ < 5000) {
           progressed = false;
           for (const m of matches) {
-            const cur = byKey.get(`${m.round}:${m.matchNumber}`)!;
+            const cur = byNum.get(m.matchNumber)!;
             if (cur.done) continue;
             const a = cur.teamAId.trim();
             const b = cur.teamBId.trim();
             if (a && b) {
               cur.winnerId = a;
+              const loserId = b;
               cur.done = true;
               progressed = true;
-              const nr = m.round + 1;
-              if (rounds.includes(nr)) {
-                const nn = Math.ceil(m.matchNumber / 2);
-                const slot =
-                  m.matchNumber % 2 === 1 ? "teamAId" : "teamBId";
-                const t = byKey.get(`${nr}:${nn}`)!;
-                t[slot] = cur.winnerId;
+              for (const [adv, teamId] of [
+                [m.winnerAdvance, cur.winnerId] as const,
+                [m.loserAdvance, loserId] as const,
+              ]) {
+                if (!adv) continue;
+                const target = byNum.get(adv.matchNumber);
+                if (!target) continue;
+                // Idempotente: se o slot já tem o mesmo time (bye direto na
+                // construção), não dispara erro.
+                if (target[adv.teamSlot].trim() === teamId.trim()) continue;
+                assert.ok(
+                  !target[adv.teamSlot].trim(),
+                  `${n}: slot #${adv.matchNumber}.${adv.teamSlot} preenchido 2x`,
+                );
+                target[adv.teamSlot] = teamId;
               }
             } else if (a || b) {
               cur.done = true; // bye / walkover
@@ -372,7 +663,7 @@ describe("buildSingleEliminationMatches", () => {
           }
         }
         const finalMatch = matches.find((m) => m.matchType === "Final")!;
-        const fk = byKey.get(`${finalMatch.round}:${finalMatch.matchNumber}`)!;
+        const fk = byNum.get(finalMatch.matchNumber)!;
         assert.ok(fk.done && fk.winnerId, `${n}: final não resolveu`);
       });
     }

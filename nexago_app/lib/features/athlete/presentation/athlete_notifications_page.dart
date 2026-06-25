@@ -121,8 +121,19 @@ class _AthleteNotificationsPageState
         await ref
             .read(tournamentPartnerInviteServiceProvider)
             .cancelInvite(inviteId, asDecline: true);
+        final uid = _uid;
+        if (uid != null) {
+          await ref
+              .read(athleteNotificationsRepositoryProvider)
+              .recordPartnerInviteResponse(
+                uid: uid,
+                inviteId: inviteId,
+                inviteResponse: 'declined',
+              );
+        }
         if (!mounted) return;
         showAppSnackBar(context, 'Convite recusado.');
+        return;
       } else if (type == 'booking_invite') {
         if (!mounted) return;
         showAppSnackBar(
@@ -132,7 +143,6 @@ class _AthleteNotificationsPageState
         _navigateForNotification(notification);
         return;
       }
-      _animateRemoval(notification);
     } on TournamentPartnerInviteException catch (e) {
       if (!mounted) return;
       showAppSnackBar(context, e.message, isError: true);

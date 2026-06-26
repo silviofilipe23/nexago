@@ -5,20 +5,15 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
-import 'package:share_plus/share_plus.dart';
 
-import '../../domain/category_ops/category_ops_providers.dart';
+import '../../domain/category_ops/category_ops_logic.dart';
+import '../../domain/category_ops/category_ops_models.dart';
 import '../../domain/tournament_create/tournament_create_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
-import '../../domain/tournament_uniforms/tournament_uniforms_providers.dart';
 import 'organizer_tournament_navigation.dart';
-import 'sheets/organizer_tournament_actions_sheet.dart';
-import 'tabs/organizer_category_payments_tab.dart';
-import 'tabs/organizer_category_teams_tab.dart';
-import 'widgets/organizer_category_filter_chips.dart';
+import 'widgets/organizer_category_explore_section.dart';
 import 'widgets/organizer_category_shell_header.dart';
-import 'widgets/organizer_category_shell_tabs.dart';
 
 class OrganizerCategoryShellPage extends ConsumerWidget {
   const OrganizerCategoryShellPage({
@@ -35,9 +30,6 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
     OrganizerTournamentCategorySummary category, {
     required int confirmedCount,
   }) async {
-    final canGenerate =
-        canGenerateCategoryBracket(confirmedCount: confirmedCount) ||
-        category.bracketStatus == OrganizerCategoryBracketStatus.published;
     final unsupportedHint = unsupportedBracketFormatHint(
       category.bracketFormat,
     );
@@ -45,7 +37,7 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
       showAppSnackBar(context, unsupportedHint, isError: true);
       return;
     }
-    if (!canGenerate) {
+    if (!canGenerateCategoryBracket(confirmedCount: confirmedCount)) {
       showAppSnackBar(
         context,
         generateBracketBlockedHint(
@@ -55,30 +47,6 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
         isError: true,
       );
       return;
-    }
-
-    if (category.bracketStatus == OrganizerCategoryBracketStatus.published) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Republicar chave?'),
-          content: const Text(
-            'Já existe uma chave publicada nesta categoria. '
-            'Gerar novamente pode apagar partidas e resultados.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Continuar'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !context.mounted) return;
     }
     _generateBracket(context, category.bracketFormat);
   }
@@ -110,12 +78,8 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
     );
     final detail = ref.watch(organizerTournamentDetailProvider(tournamentId));
     final teamsAsync = ref.watch(organizerCategoryRegistrationsProvider(key));
-    final visibleTeamsAsync =
-        ref.watch(organizerCategoryVisibleTeamsProvider(key));
-    final selectedTab = ref.watch(organizerCategoryShellTabProvider);
-    final filterState = ref.watch(organizerCategoryFilterProvider);
-    final filteredTeams = ref.watch(
-      organizerCategoryFilteredTeamsProvider(key),
+    final visibleTeamsAsync = ref.watch(
+      organizerCategoryVisibleTeamsProvider(key),
     );
 
     final category = detail.valueOrNull?.categories
@@ -137,156 +101,64 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
       visibleTeams,
       OrganizerTeamRegistrationStatus.pending,
     );
-    final canGenerateBracket = category == null
+    final showGenerateBracket = category == null
         ? false
-        : isBracketFormatSupportedRaw(category.bracketFormat) &&
-              (canGenerateCategoryBracket(confirmedCount: eligibleCount) ||
-                  category.bracketStatus ==
-                      OrganizerCategoryBracketStatus.published);
-    final hasUniformKit = organizerTournamentHasUniformKit(
-      detail.valueOrNull?.tournament,
-    );
+        : showGenerateBracketQuickAction(
+            category: category,
+            eligibleConfirmedCount: eligibleCount,
+          );
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        child: CustomScrollView(
+          slivers: [
             if (category != null && summary != null)
-              OrganizerCategoryShellHeader(
-                tournamentName: summary.name,
-                category: category,
-                onBack: () => context.pop(),
+              SliverToBoxAdapter(
+                child: OrganizerCategoryShellHeader(
+                  tournamentName: summary.name,
+                  category: category,
+                  onBack: () => context.pop(),
+                ),
               ),
             if (category != null) ...[
-              OrganizerCategoryKpiRow(
-                confirmedCount: confirmedCount,
-                pendingCount: pendingCount,
-                waitlistCount: waitlistCount,
-                collectedCents: category.collectedCents,
+              SliverToBoxAdapter(
+                child: OrganizerCategoryKpiRow(
+                  confirmedCount: confirmedCount,
+                  pendingCount: pendingCount,
+                  waitlistCount: waitlistCount,
+                  collectedCents: category.collectedCents,
+                ),
               ),
-              const SizedBox(height: 12),
-              _CategoryQuickActions(
-                canGenerateBracket: canGenerateBracket,
-                showUniforms: hasUniformKit,
-                onGenerateBracket: () => _onGenerateBracket(
-                  context,
-                  category,
-                  confirmedCount: eligibleCount,
-                ),
-                onSeeding: () => pushOrganizerCategorySeeding(
-                  GoRouter.of(context),
-                  tournamentId: tournamentId,
-                  categoryId: categoryId,
-                ),
-                onUniforms: () => pushOrganizerTournamentUniforms(
-                  GoRouter.of(context),
-                  tournamentId: tournamentId,
-                  categoryId: categoryId,
-                ),
-                onShare: () => Share.shareUri(
-                  Uri.parse(
-                    organizerTournamentRegistrationShareLink(tournamentId),
+              if (showGenerateBracketCta(category)) ...[
+                const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                SliverToBoxAdapter(
+                  child: _CategoryQuickActions(
+                    showGenerateBracket: showGenerateBracket,
+                    onGenerateBracket: () => _onGenerateBracket(
+                      context,
+                      category,
+                      confirmedCount: eligibleCount,
+                    ),
+                    onSeeding: () => pushOrganizerCategorySeeding(
+                      GoRouter.of(context),
+                      tournamentId: tournamentId,
+                      categoryId: categoryId,
+                    ),
                   ),
+                ),
+              ],
+              SliverToBoxAdapter(
+                child: OrganizerCategoryExploreSection(
+                  tournamentId: tournamentId,
+                  categoryId: categoryId,
+                  category: category,
+                  teamCount: visibleTeams.length,
+                  pendingCount: pendingCount,
                 ),
               ),
             ],
-            const SizedBox(height: 12),
-            OrganizerCategoryShellTabs(
-              selected: selectedTab,
-              onSelected: ref
-                  .read(organizerCategoryShellTabProvider.notifier)
-                  .select,
-              teamCount: visibleTeams.length,
-              pendingPaymentsCount: pendingCount,
-            ),
-            if (selectedTab == OrganizerCategoryShellTab.teams) ...[
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: TextField(
-                  style: AppTypography.soraRegular(
-                    fontSize: 14,
-                    color: context.themeColors.onSurface,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Buscar dupla ou atleta...',
-                    hintStyle: AppTypography.soraRegular(
-                      fontSize: 14,
-                      color: context.themeColors.onSurfaceMuted,
-                    ),
-                    prefixIcon: Icon(
-                      Icons.search_rounded,
-                      color: context.themeColors.onSurfaceMuted,
-                    ),
-                    filled: true,
-                    fillColor: context.themeColors.surfaceRaised,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  onChanged: (v) => ref
-                      .read(organizerCategoryFilterProvider.notifier)
-                      .setSearch(v),
-                ),
-              ),
-              const SizedBox(height: 8),
-              OrganizerCategoryFilterChips(
-                tournamentId: tournamentId,
-                categoryId: categoryId,
-              ),
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _TeamsMetaRow(
-                  total: filteredTeams.length,
-                  sort: filterState.sort,
-                  onSortChanged: (sort) => ref
-                      .read(organizerCategoryFilterProvider.notifier)
-                      .setSort(sort),
-                ),
-              ),
-              const SizedBox(height: 4),
-            ],
-            Expanded(
-              child: IndexedStack(
-                index: selectedTab.index,
-                children: [
-                  OrganizerCategoryTeamsTab(
-                    tournamentId: tournamentId,
-                    categoryId: categoryId,
-                  ),
-                  OrganizerCategoryPaymentsTab(
-                    tournamentId: tournamentId,
-                    categoryId: categoryId,
-                  ),
-                  Center(
-                    child: FilledButton(
-                      onPressed: () => pushOrganizerCategoryBracket(
-                        GoRouter.of(context),
-                        tournamentId: tournamentId,
-                        categoryId: categoryId,
-                      ),
-                      child: const Text('Ver chave'),
-                    ),
-                  ),
-                  Center(
-                    child: FilledButton(
-                      onPressed: () => pushOrganizerCategoryBracket(
-                        GoRouter.of(context),
-                        tournamentId: tournamentId,
-                        categoryId: categoryId,
-                        tab: 'matches',
-                      ),
-                      child: const Text('Ver jogos'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
         ),
       ),
@@ -296,20 +168,14 @@ class OrganizerCategoryShellPage extends ConsumerWidget {
 
 class _CategoryQuickActions extends StatelessWidget {
   const _CategoryQuickActions({
-    required this.canGenerateBracket,
-    required this.showUniforms,
+    required this.showGenerateBracket,
     required this.onGenerateBracket,
     required this.onSeeding,
-    required this.onUniforms,
-    required this.onShare,
   });
 
-  final bool canGenerateBracket;
-  final bool showUniforms;
+  final bool showGenerateBracket;
   final VoidCallback onGenerateBracket;
   final VoidCallback onSeeding;
-  final VoidCallback onUniforms;
-  final VoidCallback onShare;
 
   static const _height = 44.0;
   static const _gap = 8.0;
@@ -333,35 +199,17 @@ class _CategoryQuickActions extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
-          OutlinedButton.icon(
-            onPressed: canGenerateBracket ? onGenerateBracket : null,
-            icon: const Icon(Icons.account_tree_outlined, size: 17),
-            label: const Text('Gerar chave'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.brand,
-              disabledForegroundColor: AppColors.brand.withValues(alpha: 0.35),
-              backgroundColor: AppColors.brand.withValues(alpha: 0.08),
-              side: BorderSide(
-                color: canGenerateBracket
-                    ? AppColors.brand.withValues(alpha: 0.55)
-                    : AppColors.brand.withValues(alpha: 0.2),
-              ),
-              shape: _pillShape,
-              minimumSize: const Size(0, _height),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              textStyle: labelStyle,
-            ),
-          ),
-          const SizedBox(width: _gap),
-          if (showUniforms) ...[
+          if (showGenerateBracket) ...[
             OutlinedButton.icon(
-              onPressed: onUniforms,
-              icon: const Icon(Icons.checkroom_outlined, size: 17),
-              label: const Text('Uniformes'),
+              onPressed: onGenerateBracket,
+              icon: const Icon(Icons.account_tree_outlined, size: 17),
+              label: const Text('Gerar chave'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: context.themeColors.onSurface,
-                backgroundColor: context.themeColors.surfaceRaised,
-                side: BorderSide(color: mutedBorder),
+                foregroundColor: AppColors.brand,
+                backgroundColor: AppColors.brand.withValues(alpha: 0.08),
+                side: BorderSide(
+                  color: AppColors.brand.withValues(alpha: 0.55),
+                ),
                 shape: _pillShape,
                 minimumSize: const Size(0, _height),
                 padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -384,83 +232,8 @@ class _CategoryQuickActions extends StatelessWidget {
               textStyle: labelStyle,
             ),
           ),
-          const SizedBox(width: _gap),
-          OutlinedButton(
-            onPressed: onShare,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: context.themeColors.onSurface,
-              backgroundColor: context.themeColors.surfaceRaised,
-              side: BorderSide(color: mutedBorder),
-              shape: _pillShape,
-              minimumSize: const Size(_height, _height),
-              padding: EdgeInsets.zero,
-            ),
-            child: const Icon(Icons.share_rounded, size: 18),
-          ),
         ],
       ),
-    );
-  }
-}
-
-class _TeamsMetaRow extends StatelessWidget {
-  const _TeamsMetaRow({
-    required this.total,
-    required this.sort,
-    required this.onSortChanged,
-  });
-
-  final int total;
-  final OrganizerTeamSort sort;
-  final ValueChanged<OrganizerTeamSort> onSortChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            '$total DUPLAS',
-            style: AppTypography.mono(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: context.themeColors.onSurfaceMuted,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
-        PopupMenuButton<OrganizerTeamSort>(
-          initialValue: sort,
-          onSelected: onSortChanged,
-          color: context.themeColors.surfaceCard,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                organizerTeamSortLabel(sort),
-                style: AppTypography.soraRegular(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.brand,
-                ),
-              ),
-              const Icon(
-                Icons.expand_more_rounded,
-                size: 18,
-                color: AppColors.brand,
-              ),
-            ],
-          ),
-          itemBuilder: (context) => OrganizerTeamSort.values
-              .map(
-                (s) => PopupMenuItem(
-                  value: s,
-                  child: Text(organizerTeamSortLabel(s)),
-                ),
-              )
-              .toList(),
-        ),
-      ],
     );
   }
 }

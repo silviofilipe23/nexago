@@ -34,8 +34,8 @@ class TournamentMatchCard extends StatelessWidget {
     final borderColor = isLive
         ? AppColors.brand.withValues(alpha: 0.55)
         : isAthleteMatch
-            ? AppColors.brand.withValues(alpha: 0.85)
-            : context.themeColors.onSurfaceMuted.withValues(alpha: 0.12);
+        ? AppColors.brand.withValues(alpha: 0.85)
+        : context.themeColors.onSurfaceMuted.withValues(alpha: 0.12);
     final borderWidth = isAthleteMatch && !isLive ? 2.0 : 1.0;
     final backgroundColor = isAthleteMatch && !isLive
         ? AppColors.brand.withValues(alpha: 0.06)
@@ -102,7 +102,10 @@ class TournamentMatchCard extends StatelessWidget {
             setsWon: counts.$2,
             hasScore: hasScore,
             isWinner: teamBWon,
-            partialsLabel: setPartialsLabelForTeam(match: match, isTeamA: false),
+            partialsLabel: setPartialsLabelForTeam(
+              match: match,
+              isTeamA: false,
+            ),
           ),
         ],
       ),
@@ -120,10 +123,7 @@ class TournamentMatchCard extends StatelessWidget {
           ? content
           : Material(
               color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                child: content,
-              ),
+              child: InkWell(onTap: onTap, child: content),
             ),
     );
 
@@ -148,8 +148,9 @@ class _TeamRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor =
-        isWinner ? context.themeColors.onSurface : context.themeColors.onSurfaceMuted;
+    final textColor = isWinner
+        ? context.themeColors.onSurface
+        : context.themeColors.onSurfaceMuted;
     final fontWeight = isWinner ? FontWeight.w700 : FontWeight.w400;
     final scoreLabel = hasScore ? '$setsWon' : '—';
     final partialsColor = isWinner
@@ -169,7 +170,7 @@ class _TeamRow extends StatelessWidget {
               Text(
                 team.displayName,
                 style: AppTypography.soraRegular(
-                  fontSize: 14,
+                  fontSize: 12,
                   fontWeight: fontWeight,
                   color: textColor,
                 ),
@@ -223,15 +224,9 @@ class _AvatarStack extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           if (players.isNotEmpty)
-            Positioned(
-              left: 0,
-              child: _AvatarCircle(player: players.first),
-            ),
+            Positioned(left: 0, child: _AvatarCircle(player: players.first)),
           if (players.length > 1)
-            Positioned(
-              left: 16,
-              child: _AvatarCircle(player: players[1]),
-            ),
+            Positioned(left: 16, child: _AvatarCircle(player: players[1])),
           if (players.isEmpty)
             Positioned(
               left: 0,

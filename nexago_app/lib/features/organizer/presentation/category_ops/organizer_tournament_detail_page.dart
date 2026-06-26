@@ -6,17 +6,15 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:nexago_app/core/ui/nexa_share.dart';
 
 import '../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
+import '../../domain/tournament_uniforms/tournament_uniforms_providers.dart';
 import '../match_ops/organizer_match_navigation.dart';
 import 'sheets/organizer_tournament_actions_sheet.dart';
-import 'tabs/organizer_tournament_categories_tab.dart';
-import 'tabs/organizer_tournament_financial_tab.dart';
-import 'tabs/organizer_tournament_matches_tab.dart';
-import 'tabs/organizer_tournament_overview_tab.dart';
-import 'widgets/organizer_tournament_detail_tabs.dart';
+import 'organizer_tournament_navigation.dart';
+import 'widgets/organizer_tournament_explore_section.dart';
 import 'widgets/organizer_tournament_header.dart';
 
 class OrganizerTournamentDetailPage extends ConsumerStatefulWidget {
@@ -31,9 +29,9 @@ class OrganizerTournamentDetailPage extends ConsumerStatefulWidget {
 
 class _OrganizerTournamentDetailPageState
     extends ConsumerState<OrganizerTournamentDetailPage> {
-  /// Garante que o "modo dia do evento" (aba inicial inteligente) seja aplicado
-  /// uma única vez — depois disso, respeita a escolha do organizador.
-  bool _appliedSmartDefaultTab = false;
+  /// Garante que o "modo dia do evento" (push automático para Partidas) seja
+  /// aplicado uma única vez na primeira visita ao hub.
+  bool _appliedSmartDefaultNavigation = false;
 
   static DateTime? _toDate(dynamic value) {
     if (value is Timestamp) return value.toDate();
@@ -41,19 +39,22 @@ class _OrganizerTournamentDetailPageState
     return null;
   }
 
-  void _maybeApplySmartDefaultTab(Map<String, dynamic> tournament) {
-    if (_appliedSmartDefaultTab) return;
-    _appliedSmartDefaultTab = true;
+  void _maybeAutoOpenOperationsOnEventDay(Map<String, dynamic> tournament) {
+    if (_appliedSmartDefaultNavigation) return;
+    _appliedSmartDefaultNavigation = true;
     final tab = defaultOrganizerDetailTab(
       listingStatus: (tournament['listingStatus'] as String?) ?? '',
       startAt: _toDate(tournament['startAt']),
       endAt: _toDate(tournament['endAt']),
       now: DateTime.now(),
     );
-    if (tab == OrganizerTournamentDetailTab.categories) return;
+    if (tab != OrganizerTournamentDetailTab.matches) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(organizerTournamentDetailTabProvider.notifier).select(tab);
+      pushOrganizerTournamentOperations(
+        GoRouter.of(context),
+        tournamentId: widget.tournamentId,
+      );
     });
   }
 
@@ -63,7 +64,6 @@ class _OrganizerTournamentDetailPageState
     final detailAsync = ref.watch(
       organizerTournamentDetailProvider(tournamentId),
     );
-    final selectedTab = ref.watch(organizerTournamentDetailTabProvider);
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -135,99 +135,82 @@ class _OrganizerTournamentDetailPageState
           final showMatchDayButton = organizerTournamentMatchDayVisible(
             startAt: tournamentStartAt,
           );
-          _maybeApplySmartDefaultTab(tournament);
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: OrganizerTournamentHeader(summary: summary),
+          final showUniformsTab = organizerTournamentHasUniformKit(tournament);
+          _maybeAutoOpenOperationsOnEventDay(tournament);
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: OrganizerTournamentHeader(summary: summary),
+                ),
               ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: OrganizerTournamentKpiRow(summary: summary),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: OrganizerTournamentKpiRow(summary: summary),
+                ),
               ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => Share.shareUri(
-                          Uri.parse(
-                            organizerTournamentRegistrationShareLink(
-                              tournamentId,
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => nexaShareUri(
+                            context,
+                            Uri.parse(
+                              organizerTournamentRegistrationShareLink(
+                                tournamentId,
+                              ),
                             ),
                           ),
-                        ),
-                        icon: const Icon(Icons.share_rounded, size: 18),
-                        label: const Text('Compartilhar inscrição'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.brand,
-                          side: BorderSide(
-                            color: AppColors.brand.withValues(alpha: 0.55),
-                          ),
-                          minimumSize: const Size.fromHeight(44),
-                        ),
-                      ),
-                    ),
-                    if (showMatchDayButton) ...[
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: () => context.push(
-                            organizerMatchCenterPath(tournamentId),
-                          ),
-                          icon: const Icon(
-                            Icons.sports_volleyball_rounded,
-                            size: 18,
-                          ),
-                          label: const Text('Dia do jogo'),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: context.themeColors.surfaceRaised,
-                            foregroundColor: context.themeColors.onSurface,
+                          icon: const Icon(Icons.share_rounded, size: 18),
+                          label: const Text('Compartilhar inscrição'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.brand,
+                            side: BorderSide(
+                              color: AppColors.brand.withValues(alpha: 0.55),
+                            ),
                             minimumSize: const Size.fromHeight(44),
                           ),
                         ),
                       ),
+                      if (showMatchDayButton) ...[
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () => context.push(
+                              organizerMatchCenterPath(tournamentId),
+                            ),
+                            icon: const Icon(
+                              Icons.sports_volleyball_rounded,
+                              size: 18,
+                            ),
+                            label: const Text('Dia do jogo'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: context.themeColors.surfaceRaised,
+                              foregroundColor: context.themeColors.onSurface,
+                              minimumSize: const Size.fromHeight(44),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: OrganizerTournamentDetailTabs(
-                  selected: selectedTab,
-                  onSelected: (tab) => ref
-                      .read(organizerTournamentDetailTabProvider.notifier)
-                      .select(tab),
+              SliverToBoxAdapter(
+                child: OrganizerTournamentExploreSection(
+                  tournamentId: tournamentId,
+                  summary: summary,
+                  showUniforms: showUniformsTab,
                 ),
               ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: IndexedStack(
-                  index: selectedTab.index,
-                  children: [
-                    OrganizerTournamentCategoriesTab(
-                      categories: state.categories,
-                      tournamentId: tournamentId,
-                      tournamentStartAt: tournamentStartAt,
-                    ),
-                    OrganizerTournamentOverviewTab(
-                      summary: summary,
-                      tournament: tournament,
-                    ),
-                    OrganizerTournamentFinancialTab(
-                      summary: summary,
-                      categories: state.categories,
-                    ),
-                    OrganizerTournamentMatchesTab(tournamentId: tournamentId),
-                  ],
-                ),
-              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           );
         },

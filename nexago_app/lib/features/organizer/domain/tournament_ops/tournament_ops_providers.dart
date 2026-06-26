@@ -87,10 +87,13 @@ OrganizerTournamentCategorySummary _categoryFromData({
 }) {
   var paid = 0;
   var pending = 0;
-  var collected = 0;
+  var viaApp = 0;
+  var viaOrganizer = 0;
   final categoryId = (categoryMap['id'] as String?) ??
       (categoryMap['categoryName'] as String?) ??
       '';
+  final entryFee = (categoryMap['entryFeeCents'] as num?)?.toInt() ??
+      (((categoryMap['entryFee'] as num?)?.toDouble() ?? 0) * 100).round();
 
   for (final row in inscriptions) {
     final catId = (row.inscription['categoryId'] as String?)?.trim() ?? '';
@@ -98,8 +101,18 @@ OrganizerTournamentCategorySummary _categoryFromData({
     if (row.inscription['waitlist'] == true) continue;
     if (row.inscription['isPaid'] == true) {
       paid++;
-      final paidAmount = (row.inscription['paidAmount'] as num?)?.toInt() ?? 0;
-      collected += paidAmount;
+      final payment = confirmedInscriptionPayment(
+        inscription: row.inscription,
+        entryFeeCents: entryFee,
+      );
+      if (payment != null) {
+        switch (payment.channel) {
+          case OrganizerPaymentChannel.viaApp:
+            viaApp += payment.cents;
+          case OrganizerPaymentChannel.viaOrganizer:
+            viaOrganizer += payment.cents;
+        }
+      }
     } else {
       pending++;
     }
@@ -119,7 +132,9 @@ OrganizerTournamentCategorySummary _categoryFromData({
     categoryMap: categoryMap,
     paidCount: paid,
     pendingCount: pending,
-    collectedCents: collected,
+    collectedCents: viaApp + viaOrganizer,
+    viaAppCents: viaApp,
+    viaOrganizerCents: viaOrganizer,
     bracketStatus: switch (bracketStatus) {
       CategoryBracketStatus.draft => OrganizerCategoryBracketStatus.draft,
       CategoryBracketStatus.published =>
@@ -169,16 +184,21 @@ final organizerTournamentDetailProvider = StreamProvider.autoDispose
 
       var paidTotal = 0;
       var pendingTotal = 0;
-      var collectedTotal = 0;
+      var paymentsBreakdown = const OrganizerPaymentsBreakdown();
       for (final row in inscriptions) {
         if (row.inscription['waitlist'] == true) continue;
         if (row.inscription['isPaid'] == true) {
           paidTotal++;
-          collectedTotal +=
-              (row.inscription['paidAmount'] as num?)?.toInt() ?? 0;
         } else {
           pendingTotal++;
         }
+      }
+      for (final category in categories) {
+        paymentsBreakdown = paymentsBreakdown +
+            OrganizerPaymentsBreakdown(
+              viaAppCents: category.viaAppCents,
+              viaOrganizerCents: category.viaOrganizerCents,
+            );
       }
 
       final summary = buildTournamentSummary(
@@ -187,7 +207,7 @@ final organizerTournamentDetailProvider = StreamProvider.autoDispose
         categories: categories,
         paidCount: paidTotal,
         pendingCount: pendingTotal,
-        collectedCents: collectedTotal,
+        paymentsBreakdown: paymentsBreakdown,
       );
 
       return OrganizerTournamentDetailState(
@@ -241,7 +261,8 @@ Future<List<OrganizerCategoryTeamRow>> _mapInscriptionsToTeams({
     final p1Id = (team['player1Id'] as String?)?.trim() ?? '';
     final p2Id = (team['player2Id'] as String?)?.trim() ?? '';
     final teamId = (row.inscription['teamId'] as String?)?.trim() ?? '';
-    final paidAmount = (row.inscription['paidAmount'] as num?)?.toInt() ?? 0;
+    final paidAmount =
+        inscriptionPaidAmountCents(row.inscription['paidAmount'] as num?);
     final registeredAtRaw = row.inscription['createdAt'];
     DateTime? registeredAt;
     if (registeredAtRaw is Timestamp) {
@@ -315,13 +336,13 @@ final organizerCategoryPaymentsProvider = Provider.autoDispose
   return teams.when(
     data: (rows) {
       final expected = rows.isNotEmpty ? rows.first.expectedAmountCents : 0;
-      return buildPaymentsSummary(
+      return buildPaymentsBreakdown(
         teams: rows,
         expectedPerTeamCents: expected,
       );
     },
-    loading: () => const OrganizerCategoryPaymentsSummary(),
-    error: (_, __) => const OrganizerCategoryPaymentsSummary(),
+    loading: () => const OrganizerPaymentsBreakdown(),
+    error: (_, __) => const OrganizerPaymentsBreakdown(),
   );
 });
 
@@ -330,25 +351,21 @@ class OrganizerCategoryFilterState {
     this.filter = OrganizerCategoryTeamFilter.all,
     this.sort = OrganizerTeamSort.registrationOrder,
     this.searchQuery = '',
-    this.tab = OrganizerCategoryShellTab.teams,
   });
 
   final OrganizerCategoryTeamFilter filter;
   final OrganizerTeamSort sort;
   final String searchQuery;
-  final OrganizerCategoryShellTab tab;
 
   OrganizerCategoryFilterState copyWith({
     OrganizerCategoryTeamFilter? filter,
     OrganizerTeamSort? sort,
     String? searchQuery,
-    OrganizerCategoryShellTab? tab,
   }) {
     return OrganizerCategoryFilterState(
       filter: filter ?? this.filter,
       sort: sort ?? this.sort,
       searchQuery: searchQuery ?? this.searchQuery,
-      tab: tab ?? this.tab,
     );
   }
 }
@@ -369,10 +386,6 @@ class OrganizerCategoryFilterNotifier
 
   void setSearch(String query) {
     state = state.copyWith(searchQuery: query);
-  }
-
-  void setTab(OrganizerCategoryShellTab tab) {
-    state = state.copyWith(tab: tab);
   }
 }
 
@@ -411,15 +424,3 @@ final organizerCategoryFilteredTeamsProvider = Provider.autoDispose
     error: (_, __) => const [],
   );
 });
-
-final organizerTournamentDetailTabProvider =
-    NotifierProvider.autoDispose<_TournamentDetailTabNotifier,
-        OrganizerTournamentDetailTab>(_TournamentDetailTabNotifier.new);
-
-class _TournamentDetailTabNotifier
-    extends AutoDisposeNotifier<OrganizerTournamentDetailTab> {
-  @override
-  OrganizerTournamentDetailTab build() => OrganizerTournamentDetailTab.categories;
-
-  void select(OrganizerTournamentDetailTab tab) => state = tab;
-}

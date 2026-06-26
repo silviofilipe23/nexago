@@ -11,12 +11,14 @@ TournamentMatch _match({
   DateTime? scheduleTime,
   DateTime? scheduleEndTime,
   String courtId = 'Q1',
+  int round = 1,
+  int matchNumber = 1,
 }) {
   return TournamentMatch(
     id: id,
     tournamentId: 'tor1',
     categoryId: 'A',
-    round: 1,
+    round: round,
     matchType: 'wb',
     poolId: '',
     teamAId: teamAId,
@@ -25,7 +27,7 @@ TournamentMatch _match({
     resultA: '',
     resultB: '',
     isGroupMatch: false,
-    matchNumber: 1,
+    matchNumber: matchNumber,
     scheduleTime: scheduleTime,
     scheduleEndTime: scheduleEndTime,
     courtId: courtId,
@@ -92,6 +94,33 @@ void main() {
       );
       expect(slots.length, 2);
       expect(slots.map((s) => s.courtId).toSet().length, greaterThanOrEqualTo(1));
+    });
+
+    test('buildDaySchedule segue a sequência (round, matchNumber)', () {
+      final courts = [const TournamentCourt(id: 'Q1', name: 'Q1', order: 1)];
+      // Entrada embaralhada de propósito: grupos (round 0) + mata-mata (round 1
+      // e 2) com matchNumber fora de ordem na lista.
+      final unscheduled = [
+        _match(id: 'sf2', round: 2, matchNumber: 6, teamAId: 't7', teamBId: 't8'),
+        _match(id: 'qf3', round: 1, matchNumber: 3, teamAId: 't5', teamBId: 't6'),
+        _match(id: 'g1', round: 0, matchNumber: 1, teamAId: 'a1', teamBId: 'a2'),
+        _match(id: 'qf1', round: 1, matchNumber: 2, teamAId: 't1', teamBId: 't2'),
+        _match(id: 'sf1', round: 2, matchNumber: 5, teamAId: 't3', teamBId: 't4'),
+      ];
+      final slots = ScheduleLogic.buildDaySchedule(
+        unscheduled: unscheduled,
+        courts: courts,
+        dayStart: DateTime(2026, 6, 14, 8, 0),
+        matchDurationMin: 50,
+        minRestMin: 0,
+        existingScheduled: const [],
+        avoidAthleteConflict: false,
+      );
+      // Uma única quadra → a ordem dos slots reflete a sequência de jogos.
+      expect(
+        slots.map((s) => s.matchId).toList(),
+        ['g1', 'qf1', 'qf3', 'sf1', 'sf2'],
+      );
     });
   });
 }

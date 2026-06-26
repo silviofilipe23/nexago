@@ -30,4 +30,32 @@ void main() {
     expect(find.text('Lotado'), findsOneWidget);
     expect(find.text('Gerar chave'), findsOneWidget);
   });
+
+  testWidgets('OrganizerTournamentCategoryCard hides Gerar chave when published',
+      (tester) async {
+    const category = OrganizerTournamentCategorySummary(
+      categoryId: 'open',
+      name: 'Open',
+      maxTeams: 4,
+      enrolledCount: 4,
+      paidCount: 4,
+      pendingCount: 0,
+      bracketStatus: OrganizerCategoryBracketStatus.published,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: OrganizerTournamentCategoryCard(
+            category: category,
+            onTap: () {},
+            onGenerateBracket: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Gerar chave'), findsNothing);
+    expect(find.textContaining('Chave publicada'), findsOneWidget);
+  });
 }

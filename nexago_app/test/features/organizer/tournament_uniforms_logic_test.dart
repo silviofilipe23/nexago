@@ -13,6 +13,8 @@ OrganizerInscriptionWithTeam _inscription({
   String? sizeTopPlayer2,
   int? jerseyNumberPlayer1,
   int? jerseyNumberPlayer2,
+  String? jerseyNamePlayer1,
+  String? jerseyNamePlayer2,
   bool waitlist = false,
 }) {
   return (
@@ -24,6 +26,8 @@ OrganizerInscriptionWithTeam _inscription({
       if (sizeTopPlayer2 != null) 'sizeTopPlayer2': sizeTopPlayer2,
       if (jerseyNumberPlayer1 != null) 'jerseyNumberPlayer1': jerseyNumberPlayer1,
       if (jerseyNumberPlayer2 != null) 'jerseyNumberPlayer2': jerseyNumberPlayer2,
+      if (jerseyNamePlayer1 != null) 'jerseyNamePlayer1': jerseyNamePlayer1,
+      if (jerseyNamePlayer2 != null) 'jerseyNamePlayer2': jerseyNamePlayer2,
     },
     team: {
       'player1Id': p1,
@@ -78,6 +82,57 @@ void main() {
       expect(rows[1].isComplete, isTrue);
     });
 
+    test('reads jersey name from inscription when configured', () {
+      final configs = [
+        const OrganizerUniformCategoryConfig(
+          categoryId: 'sub19m',
+          name: 'Sub 19 M',
+          uniformType: 'top_only',
+          uniformNameOnShirt: true,
+        ),
+      ];
+      final rows = flattenInscriptionsToUniformRows(
+        inscriptions: [
+          _inscription(
+            registrationId: 'r1',
+            categoryId: 'sub19m',
+            p2: '',
+            sizeTopPlayer1: 'M',
+            jerseyNamePlayer1: 'Silva',
+          ),
+        ],
+        categoryConfigs: configs,
+        profilesByUid: _profiles(),
+      );
+      expect(rows.single.jerseyName, 'Silva');
+      expect(rows.single.isComplete, isTrue);
+    });
+
+    test('uses nickname as primary athlete label when available', () {
+      final profiles = {
+        'u1': const AppUserProfile(
+          uid: 'u1',
+          fullName: 'Ana Silva',
+          nickname: 'Aninha',
+        ),
+      };
+      final rows = flattenInscriptionsToUniformRows(
+        inscriptions: [
+          _inscription(
+            registrationId: 'r1',
+            categoryId: 'sub19m',
+            p2: '',
+            sizeTopPlayer1: 'M',
+            jerseyNumberPlayer1: 7,
+          ),
+        ],
+        categoryConfigs: _kitConfigs(),
+        profilesByUid: profiles,
+      );
+      expect(rows.single.athleteName, 'Aninha');
+      expect(rows.single.athleteFullName, 'Ana Silva');
+    });
+
     test('ignores waitlist and categories without kit', () {
       final rows = flattenInscriptionsToUniformRows(
         inscriptions: [
@@ -116,6 +171,18 @@ void main() {
       );
       expect(rows.length, 1);
       expect(rows.single.athleteUid, 'u1');
+    });
+  });
+
+  group('uniformAthleteDisplayLabel', () {
+    test('prefers nickname over full name', () {
+      const profile = AppUserProfile(
+        uid: 'u1',
+        fullName: 'João Pedro',
+        nickname: '@jota',
+      );
+      expect(uniformAthleteDisplayLabel(profile), 'jota');
+      expect(uniformAthleteFullNameSubtitle(profile), 'João Pedro');
     });
   });
 
@@ -161,6 +228,81 @@ void main() {
         isTrue,
       );
     });
+
+    test('requires jersey name when configured', () {
+      const config = OrganizerUniformCategoryConfig(
+        categoryId: 'c',
+        name: 'Cat',
+        uniformType: 'top_only',
+        uniformNameOnShirt: true,
+      );
+      expect(
+        isUniformRowComplete(
+          config: config,
+          sizeTop: 'M',
+          jerseyNumber: null,
+          jerseyName: null,
+        ),
+        isFalse,
+      );
+      expect(
+        isUniformRowComplete(
+          config: config,
+          sizeTop: 'M',
+          jerseyNumber: null,
+          jerseyName: 'Silva',
+        ),
+        isTrue,
+      );
+    });
+  });
+
+  group('uniformSizeOrderForCategoryFilter', () {
+    test('uses category size options when filtered', () {
+      final configs = [
+        const OrganizerUniformCategoryConfig(
+          categoryId: 'masc',
+          name: 'Masc',
+          uniformType: 'top_only',
+          sizeOptionsTop: ['P', 'M', 'G', 'GG'],
+        ),
+        const OrganizerUniformCategoryConfig(
+          categoryId: 'fem',
+          name: 'Fem',
+          uniformType: 'top_only',
+          sizeOptionsTop: ['PP', 'P', 'M', 'G'],
+        ),
+      ];
+      expect(
+        uniformSizeOrderForCategoryFilter(configs, categoryId: 'fem'),
+        ['PP', 'P', 'M', 'G'],
+      );
+      expect(
+        uniformSizeOrderForCategoryFilter(configs, categoryId: 'masc'),
+        ['P', 'M', 'G', 'GG'],
+      );
+    });
+
+    test('merges all categories when no filter', () {
+      final configs = [
+        const OrganizerUniformCategoryConfig(
+          categoryId: 'masc',
+          name: 'Masc',
+          uniformType: 'top_only',
+          sizeOptionsTop: ['P', 'M', 'G'],
+        ),
+        const OrganizerUniformCategoryConfig(
+          categoryId: 'fem',
+          name: 'Fem',
+          uniformType: 'top_only',
+          sizeOptionsTop: ['PP', 'P', 'M'],
+        ),
+      ];
+      expect(
+        uniformSizeOrderForCategoryFilter(configs),
+        ['PP', 'P', 'M', 'G'],
+      );
+    });
   });
 
   group('buildUniformsSummary', () {
@@ -202,6 +344,39 @@ void main() {
       expect(summary.pendingCount, 1);
       expect(summary.countBySize['M'], 2);
       expect(summary.pendingWithoutSize, 1);
+    });
+
+    test('scopes counts to one category', () {
+      final rows = [
+        const OrganizerUniformAthleteRow(
+          athleteUid: '1',
+          athleteName: 'A',
+          initials: 'A',
+          categoryId: 'masc',
+          categoryLabel: 'Masc',
+          partnerShortName: '',
+          sizeTop: 'M',
+          isComplete: true,
+        ),
+        const OrganizerUniformAthleteRow(
+          athleteUid: '2',
+          athleteName: 'B',
+          initials: 'B',
+          categoryId: 'fem',
+          categoryLabel: 'Fem',
+          partnerShortName: '',
+          sizeTop: 'P',
+          isComplete: true,
+        ),
+      ];
+      final mascOnly = filterUniformRows(rows, categoryId: 'masc');
+      final summary = buildUniformsSummary(
+        mascOnly,
+        sizeOrder: const ['P', 'M', 'G'],
+      );
+      expect(summary.totalAthletes, 1);
+      expect(summary.countBySize['M'], 1);
+      expect(summary.countBySize['P'], 0);
     });
   });
 
@@ -286,7 +461,7 @@ void main() {
       expect(csv, contains('Torneio,Copa Teste'));
       expect(csv, contains('Resumo por tamanho'));
       expect(csv, contains('M,1'));
-      expect(csv, contains('Nome,Categoria,Parceiro,Tamanho,Numero,Status'));
+      expect(csv, contains('Nome,Categoria,Parceiro,Tamanho,Numero,NomeCamisa,Status'));
       expect(csv, contains('"Ana Silva","Sub 19 M"'));
       expect(csv, contains('Confirmado'));
     });

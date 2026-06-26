@@ -80,6 +80,7 @@ final organizerTournamentUniformsProvider = StreamProvider.autoDispose
         rows: rows,
         summary: summary,
         categoryChips: chips,
+        categoryConfigs: categoryConfigs,
       );
     });
   });
@@ -96,6 +97,26 @@ final organizerTournamentUniformsFilteredProvider = Provider.autoDispose
     sizeTop: filter.sizeTop,
     pendingOnly: filter.pendingOnly,
   );
+});
+
+/// Resumo e gráfico por tamanho respeitam o filtro de categoria (não o de
+/// tamanho/pendente — esses só filtram a lista).
+final organizerTournamentUniformsDisplaySummaryProvider = Provider.autoDispose
+    .family<OrganizerUniformsSummary, String>((ref, tournamentId) {
+  final state = ref.watch(organizerTournamentUniformsProvider(tournamentId));
+  final filter = ref.watch(organizerTournamentUniformsFilterProvider);
+  final data = state.valueOrNull;
+  if (data == null) return const OrganizerUniformsSummary();
+
+  final categoryId = filter.categoryId?.trim();
+  final scopedRows = categoryId != null && categoryId.isNotEmpty
+      ? filterUniformRows(data.rows, categoryId: categoryId)
+      : data.rows;
+  final sizeOrder = uniformSizeOrderForCategoryFilter(
+    data.categoryConfigs,
+    categoryId: categoryId,
+  );
+  return buildUniformsSummary(scopedRows, sizeOrder: sizeOrder);
 });
 
 bool organizerTournamentHasUniformKit(Map<String, dynamic>? tournament) {

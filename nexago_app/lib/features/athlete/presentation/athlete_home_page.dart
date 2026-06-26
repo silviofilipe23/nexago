@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -54,27 +55,20 @@ class AthleteHomePage extends ConsumerWidget {
               registrations: registrations,
               bookings: bookings,
             );
-            final name = profile != null
-                ? athleteDisplayName(profile)
-                : 'Atleta';
+            final name =
+                profile != null ? athleteDisplayName(profile) : 'Atleta';
             final unreadNotifications = ref.watch(
               athleteUnreadNotificationsCountProvider,
             );
 
-            final topInset = MediaQuery.paddingOf(context).top;
-
-            return ListView(
+            return CustomScrollView(
               controller: ref
                   .watch(athleteShellScrollRegistryProvider)
                   .controllerFor(0),
-              padding: const EdgeInsets.fromLTRB(0, 0, 0, 28),
-              children: [
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    athleteHomeHorizontalPadding,
-                    topInset + 16,
-                    athleteHomeHorizontalPadding,
-                    0,
+              slivers: [
+                NexaFloatingHeaderSliver(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: athleteHomeHorizontalPadding,
                   ),
                   child: AthleteHomeHeader(
                     displayName: name,
@@ -89,98 +83,107 @@ class AthleteHomePage extends ConsumerWidget {
                         context.pushNamed(AppRouteNames.athleteNotifications),
                   ),
                 ),
-                SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: athleteHomeHorizontalPadding,
-                  ),
-                  child: AthleteHomeFeaturedCard(
-                    featured: featured,
-                    onReserveTap: () =>
-                        _goToTab(ref, athleteShellReservarTabIndex),
-                    onBookingTap: () =>
-                        context.pushNamed(AppRouteNames.myBookings),
-                    onTournamentTap: () {
-                      final tournament = switch (featured) {
-                        AthleteHomeFeaturedTournament(:final registration) =>
-                          registration,
-                        _ => null,
-                      };
-                      final id = tournament?.tournamentId.trim() ?? '';
-                      if (id.isEmpty) return;
-                      context.pushNamed(
-                        AppRouteNames.tournamentDetail,
-                        pathParameters: {'tournamentId': id},
-                      );
-                    },
+                SliverPadding(
+                  padding: const EdgeInsets.only(bottom: 28),
+                  sliver: SliverList.list(
+                    children: [
+                      SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: athleteHomeHorizontalPadding,
+                        ),
+                        child: AthleteHomeFeaturedCard(
+                          featured: featured,
+                          onReserveTap: () =>
+                              _goToTab(ref, athleteShellReservarTabIndex),
+                          onBookingTap: () =>
+                              context.pushNamed(AppRouteNames.myBookings),
+                          onTournamentTap: () {
+                            final tournament = switch (featured) {
+                              AthleteHomeFeaturedTournament(
+                                :final registration
+                              ) =>
+                                registration,
+                              _ => null,
+                            };
+                            final id = tournament?.tournamentId.trim() ?? '';
+                            if (id.isEmpty) return;
+                            context.pushNamed(
+                              AppRouteNames.tournamentDetail,
+                              pathParameters: {'tournamentId': id},
+                            );
+                          },
+                        ),
+                      ),
+                      // SizedBox(height: 8),
+                      // AthleteHomeQuickActions(
+                      //   actions: [
+                      //     AthleteHomeQuickAction(
+                      //       icon: Icons.add_rounded,
+                      //       label: 'Reservar',
+                      //       onTap: () => _goToTab(ref, athleteShellReservarTabIndex),
+                      //       highlighted: true,
+                      //     ),
+                      //     AthleteHomeQuickAction(
+                      //       icon: Icons.person_add_outlined,
+                      //       label: 'Convidar',
+                      //       onTap: () => openInviteFromHome(context, ref),
+                      //     ),
+                      //     AthleteHomeQuickAction(
+                      //       icon: Icons.emoji_events_outlined,
+                      //       label: 'Torneios',
+                      //       onTap: () => _goToTab(ref, athleteShellCompeteTabIndex),
+                      //     ),
+                      //     // AthleteHomeQuickAction(
+                      //     //   icon: Icons.sports_tennis_rounded,
+                      //     //   label: 'Play Match',
+                      //     //   onTap: () => showAppSnackBar(context, 'Em breve.'),
+                      //     // ),
+                      //   ],
+                      // ),
+                      SizedBox(height: 8),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: athleteHomeHorizontalPadding,
+                        ),
+                        child: PendingTournamentInviterInvitesSection(),
+                      ),
+                      SizedBox(height: 8),
+                      const AthleteHomeCompetitionsSection(),
+                      SizedBox(height: 8),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: athleteHomeHorizontalPadding,
+                        ),
+                        child: MyTournamentsHomeSection(),
+                      ),
+                      SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: athleteHomeHorizontalPadding,
+                        ),
+                        child: AthleteHomeDailyMissionsSection(
+                          missions: missionsAsync.valueOrNull,
+                          onViewAll: () =>
+                              context.pushNamed(AppRouteNames.athleteQuest),
+                          onMissionTap: (mission) =>
+                              navigateForDailyMission(context, ref, mission),
+                        ),
+                      ),
+                      // SizedBox(height: 24),
+                      // AthleteHomeSlotsSection(
+                      //   slots: mockAthleteHomeSlots(),
+                      //   onViewAll: () => _goToTab(ref, athleteShellReservarTabIndex),
+                      // ),
+                      // SizedBox(height: 24),
+                      // AthleteHomePlaysWithSection(
+                      //   partners: mockAthleteHomePlayPartners(),
+                      //   onInvite: () => showAppSnackBar(context, 'Em breve.'),
+                      //   onPartnerAction: (_) => showAppSnackBar(context, 'Em breve.'),
+                      // ),
+                    ],
                   ),
                 ),
-                // SizedBox(height: 8),
-                // AthleteHomeQuickActions(
-                //   actions: [
-                //     AthleteHomeQuickAction(
-                //       icon: Icons.add_rounded,
-                //       label: 'Reservar',
-                //       onTap: () => _goToTab(ref, athleteShellReservarTabIndex),
-                //       highlighted: true,
-                //     ),
-                //     AthleteHomeQuickAction(
-                //       icon: Icons.person_add_outlined,
-                //       label: 'Convidar',
-                //       onTap: () => openInviteFromHome(context, ref),
-                //     ),
-                //     AthleteHomeQuickAction(
-                //       icon: Icons.emoji_events_outlined,
-                //       label: 'Torneios',
-                //       onTap: () => _goToTab(ref, athleteShellCompeteTabIndex),
-                //     ),
-                //     // AthleteHomeQuickAction(
-                //     //   icon: Icons.sports_tennis_rounded,
-                //     //   label: 'Play Match',
-                //     //   onTap: () => showAppSnackBar(context, 'Em breve.'),
-                //     // ),
-                //   ],
-                // ),
-                SizedBox(height: 8),
-                const Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: athleteHomeHorizontalPadding,
-                  ),
-                  child: PendingTournamentInviterInvitesSection(),
-                ),
-                SizedBox(height: 8),
-                const AthleteHomeCompetitionsSection(),
-                SizedBox(height: 8),
-                const Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: athleteHomeHorizontalPadding,
-                  ),
-                  child: MyTournamentsHomeSection(),
-                ),
-                SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: athleteHomeHorizontalPadding,
-                  ),
-                  child: AthleteHomeDailyMissionsSection(
-                    missions: missionsAsync.valueOrNull,
-                    onViewAll: () =>
-                        context.pushNamed(AppRouteNames.athleteQuest),
-                    onMissionTap: (mission) =>
-                        navigateForDailyMission(context, ref, mission),
-                  ),
-                ),
-                // SizedBox(height: 24),
-                // AthleteHomeSlotsSection(
-                //   slots: mockAthleteHomeSlots(),
-                //   onViewAll: () => _goToTab(ref, athleteShellReservarTabIndex),
-                // ),
-                // SizedBox(height: 24),
-                // AthleteHomePlaysWithSection(
-                //   partners: mockAthleteHomePlayPartners(),
-                //   onInvite: () => showAppSnackBar(context, 'Em breve.'),
-                //   onPartnerAction: (_) => showAppSnackBar(context, 'Em breve.'),
-                // ),
               ],
             );
           },

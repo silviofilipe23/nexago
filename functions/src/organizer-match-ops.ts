@@ -762,9 +762,17 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   }> = [];
   const skipped: Array<{matchId: string; reason: string}> = [];
 
-  const sorted = [...unscheduled].sort(
-    (a, b) => (a.data().round ?? 0) - (b.data().round ?? 0),
-  );
+  // Sequência de jogos: rodada primeiro e, dentro da rodada, pela numeração
+  // GLOBAL (matchNumber) — que já codifica a ordem correta (grupos intercalados
+  // 1..N, depois o mata-mata). Sem o desempate por matchNumber, o mata-mata era
+  // agendado em ordem arbitrária do Firestore.
+  const sorted = [...unscheduled].sort((a, b) => {
+    const ad = a.data();
+    const bd = b.data();
+    const byRound = (ad.round ?? 0) - (bd.round ?? 0);
+    if (byRound !== 0) return byRound;
+    return (ad.matchNumber ?? 0) - (bd.matchNumber ?? 0);
+  });
 
   for (const doc of sorted) {
     let chosenCourt = courts[0].id;

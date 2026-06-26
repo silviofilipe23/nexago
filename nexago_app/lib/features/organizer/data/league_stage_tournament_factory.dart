@@ -171,6 +171,7 @@ abstract final class LeagueStageTournamentFactory {
       'format': _disputeFormatFromMaps(categories),
       'capacity': capacity,
       'enrolledCount': 0,
+      'collectedCents': 0,
       'listingStatus': listingStatus,
       'status': listingStatus,
       'visibility': TournamentVisibility.publicListing.name,

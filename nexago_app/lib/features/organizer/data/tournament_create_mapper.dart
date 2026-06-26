@@ -59,6 +59,7 @@ abstract final class TournamentCreateMapper {
       'format': _disputeFormatValue(draft.categories),
       'capacity': capacity,
       if (!isUpdate) 'enrolledCount': 0,
+      if (!isUpdate) 'collectedCents': 0,
       'listingStatus': listingStatus,
       'status': listingStatus,
       'visibility': draft.visibility.name,

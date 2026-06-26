@@ -70,6 +70,18 @@ abstract final class AppRoutes {
   static const String organizerTournamentUniforms =
       '/organizer/tournaments/:tournamentId/uniforms';
 
+  static const String organizerTournamentCategories =
+      '/organizer/tournaments/:tournamentId/categories';
+
+  static const String organizerTournamentOverview =
+      '/organizer/tournaments/:tournamentId/overview';
+
+  static const String organizerTournamentFinancial =
+      '/organizer/tournaments/:tournamentId/financial';
+
+  static const String organizerTournamentOperations =
+      '/organizer/tournaments/:tournamentId/operations';
+
   /// Shell da categoria (E1).
   static const String organizerCategoryShell =
       '/organizer/tournaments/:tournamentId/categories/:categoryId';
@@ -88,6 +100,12 @@ abstract final class AppRoutes {
 
   static const String organizerCategoryBracket =
       '/organizer/tournaments/:tournamentId/categories/:categoryId/bracket';
+
+  static const String organizerCategoryTeams =
+      '/organizer/tournaments/:tournamentId/categories/:categoryId/teams';
+
+  static const String organizerCategoryPayments =
+      '/organizer/tournaments/:tournamentId/categories/:categoryId/payments';
 
   /// Central de partidas (G1).
   static const String organizerMatchCenter =
@@ -419,6 +437,12 @@ abstract final class AppRouteNames {
       'organizerLeagueStagePublished';
   static const String organizerTournamentDetail = 'organizerTournamentDetail';
   static const String organizerTournamentUniforms = 'organizerTournamentUniforms';
+  static const String organizerTournamentCategories =
+      'organizerTournamentCategories';
+  static const String organizerTournamentOverview = 'organizerTournamentOverview';
+  static const String organizerTournamentFinancial = 'organizerTournamentFinancial';
+  static const String organizerTournamentOperations =
+      'organizerTournamentOperations';
   static const String organizerCategoryShell = 'organizerCategoryShell';
   static const String organizerCategorySeeding = 'organizerCategorySeeding';
   static const String organizerCategoryGenerateBracket =
@@ -427,6 +451,8 @@ abstract final class AppRouteNames {
   static const String organizerCategoryCommunicate =
       'organizerCategoryCommunicate';
   static const String organizerCategoryBracket = 'organizerCategoryBracket';
+  static const String organizerCategoryTeams = 'organizerCategoryTeams';
+  static const String organizerCategoryPayments = 'organizerCategoryPayments';
   static const String organizerMatchCenter = 'organizerMatchCenter';
   static const String organizerMatchQueue = 'organizerMatchQueue';
   static const String organizerMatchCourts = 'organizerMatchCourts';

@@ -183,7 +183,7 @@ class OrganizerCategoryKpiRow extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.mono(
-                    fontSize: 8,
+                    fontSize: 10,
                     color: context.themeColors.onSurfaceMuted,
                     height: 1.2,
                   ),

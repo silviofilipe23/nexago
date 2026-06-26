@@ -29,7 +29,6 @@ class _OrganizerCategoryFormatPageState
     extends ConsumerState<OrganizerCategoryFormatPage> {
   bool _winnersAdvantage = true;
   final String _phaseBestOf = 'md3';
-  bool _thirdPlace = false;
 
   Future<void> _saveAndContinue() async {
     final ops = await ref
@@ -38,7 +37,9 @@ class _OrganizerCategoryFormatPageState
           tournamentId: widget.tournamentId,
           categoryId: widget.categoryId,
         );
-    await ref.read(organizerCategoryOpsRepositoryProvider).saveCategoryOps(
+    await ref
+        .read(organizerCategoryOpsRepositoryProvider)
+        .saveCategoryOps(
           tournamentId: widget.tournamentId,
           categoryId: widget.categoryId,
           state: CategoryOpsState(
@@ -51,7 +52,6 @@ class _OrganizerCategoryFormatPageState
             // Pontuação é sempre melhor-de-3 (3º set decisivo até 15);
             // MD5 não é suportado pelo motor de placar.
             finalBestOf5: false,
-            thirdPlaceEnabled: _thirdPlace,
             groupsPreview: ops.groupsPreview,
           ),
         );
@@ -82,17 +82,6 @@ class _OrganizerCategoryFormatPageState
             subtitle: 'Chave principal + repescagem',
             selected: true,
             onTap: () {},
-          ),
-          const SizedBox(height: 16),
-          SwitchListTile(
-            title: const Text('Vantagem na grande final'),
-            value: _winnersAdvantage,
-            onChanged: (v) => setState(() => _winnersAdvantage = v),
-          ),
-          SwitchListTile(
-            title: const Text('Disputa de 3º lugar'),
-            value: _thirdPlace,
-            onChanged: (v) => setState(() => _thirdPlace = v),
           ),
         ],
       ),

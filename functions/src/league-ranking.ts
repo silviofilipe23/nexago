@@ -24,7 +24,7 @@ export interface LeaguePlacementAward {
 }
 
 export interface LeaguePlacementContext {
-  categoryThirdPlaceEnabled: boolean;
+  hasThirdPlaceMatch: boolean;
   isDoubleElimination?: boolean;
   maxLbRound?: number;
   /**
@@ -220,7 +220,7 @@ export function resolveLeaguePlacementsFromMatch(
   }
 
   if (isSemiFinalMatchType(matchType)) {
-    if (context.categoryThirdPlaceEnabled) return [];
+    if (context.hasThirdPlaceMatch) return [];
     return [{teamId: loserId, place: 3}];
   }
 
@@ -236,7 +236,7 @@ export function resolveLeaguePlacementsFromMatch(
     // por isso NÃO dá para fixar "round 1 = semifinal".
     const semifinalRound = finalRound > 1 ? finalRound - 1 : 1;
     if (round === semifinalRound) {
-      if (context.categoryThirdPlaceEnabled) return [];
+      if (context.hasThirdPlaceMatch) return [];
       return [{teamId: loserId, place: 3}];
     }
     if (round > 0) {
@@ -251,20 +251,6 @@ export function resolveLeaguePlacementsFromMatch(
   }
 
   return [];
-}
-
-function categoryThirdPlaceEnabled(
-  tournament: Record<string, unknown>,
-  categoryId: string,
-): boolean {
-  const categoryOps = tournament.categoryOps as
-    | Record<string, Record<string, unknown>>
-    | undefined;
-  const ops = categoryOps?.[categoryId];
-  if (!ops) return false;
-  if (ops.thirdPlaceEnabled === true) return true;
-  const bracketConfig = ops.bracketConfig as Record<string, unknown> | undefined;
-  return bracketConfig?.thirdPlaceEnabled === true;
 }
 
 function upsertStageResult(
@@ -339,6 +325,7 @@ async function loadCategoryBracketContext(
   isDoubleElimination: boolean;
   maxLbRound: number;
   knockoutFinalRound: number;
+  hasThirdPlaceMatch: boolean;
 }> {
   const snap = await db
     .collection(artifactsMatchesPath(projectId))
@@ -349,8 +336,12 @@ async function loadCategoryBracketContext(
   let maxLbRound = 0;
   let isDoubleElimination = false;
   let knockoutFinalRound = 0;
+  let hasThirdPlaceMatch = false;
   for (const doc of snap.docs) {
     const matchType = normalizeMatchType(doc.data().matchType);
+    if (isThirdPlaceMatchType(matchType)) {
+      hasThirdPlaceMatch = true;
+    }
     if (matchType === "wb" || matchType === "lb") {
       isDoubleElimination = true;
     }
@@ -365,7 +356,7 @@ async function loadCategoryBracketContext(
       if (round > knockoutFinalRound) knockoutFinalRound = round;
     }
   }
-  return {isDoubleElimination, maxLbRound, knockoutFinalRound};
+  return {isDoubleElimination, maxLbRound, knockoutFinalRound, hasThirdPlaceMatch};
 }
 
 async function loadTeamAthleteIds(
@@ -606,7 +597,6 @@ export async function tryAwardLeagueStagePointsForMatch(
   const stageOrder = (tournament.leagueStageOrder as number | undefined) ?? 0;
   const matchId = (match.id as string | undefined)?.trim();
 
-  const thirdPlaceEnabled = categoryThirdPlaceEnabled(tournament, categoryId);
   const bracketContext = await loadCategoryBracketContext(
     db,
     projectId,
@@ -614,7 +604,7 @@ export async function tryAwardLeagueStagePointsForMatch(
     categoryId,
   );
   const placements = resolveLeaguePlacementsFromMatch(match, {
-    categoryThirdPlaceEnabled: thirdPlaceEnabled,
+    hasThirdPlaceMatch: bracketContext.hasThirdPlaceMatch,
     isDoubleElimination: bracketContext.isDoubleElimination,
     maxLbRound: bracketContext.maxLbRound,
     knockoutFinalRound: bracketContext.knockoutFinalRound,

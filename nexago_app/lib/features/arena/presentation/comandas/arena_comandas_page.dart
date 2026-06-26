@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/layout/nexa_floating_header.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -97,24 +98,29 @@ class _ComandasBody extends ConsumerWidget {
               ref.watch(arenaShellScrollRegistryProvider).controllerFor(2),
           key: const PageStorageKey<String>('arena-comandas-scroll'),
           slivers: [
+            NexaFloatingHeaderSliver(
+              topGap: 8,
+              padding: const EdgeInsets.symmetric(
+                horizontal: ArenaDashboardTokens.horizontalPadding,
+              ),
+              child: _ComandasHeader(
+                arenaName: arenaName,
+                onSearch: () {
+                  showAppSnackBar(context, 'Busca em breve.');
+                },
+              ),
+            ),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(
                   ArenaDashboardTokens.horizontalPadding,
-                  8,
+                  20,
                   ArenaDashboardTokens.horizontalPadding,
                   0,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _ComandasHeader(
-                      arenaName: arenaName,
-                      onSearch: () {
-                        showAppSnackBar(context, 'Busca em breve.');
-                      },
-                    ),
-                    const SizedBox(height: 20),
                     ArenaComandaKpiRow(arenaId: arenaId),
                     const SizedBox(height: 16),
                     ArenaComandaFilterChips(openCount: kpis.openCount),

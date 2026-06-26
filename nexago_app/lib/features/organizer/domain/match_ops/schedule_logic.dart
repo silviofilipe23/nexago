@@ -122,8 +122,16 @@ abstract final class ScheduleLogic {
       }
     }
 
+    // Sequência de jogos: rodada primeiro (não dá para jogar uma fase antes da
+    // anterior) e, dentro da rodada, pela numeração GLOBAL (matchNumber) — que
+    // já codifica a ordem correta (grupos intercalados 1..N, depois o mata-mata).
+    // Sem o desempate por matchNumber, o mata-mata saía em ordem arbitrária.
     final pending = [...unscheduled]
-      ..sort((a, b) => a.round.compareTo(b.round));
+      ..sort((a, b) {
+        final byRound = a.round.compareTo(b.round);
+        if (byRound != 0) return byRound;
+        return a.matchNumber.compareTo(b.matchNumber);
+      });
 
     for (final match in pending) {
       TournamentCourt? chosenCourt;

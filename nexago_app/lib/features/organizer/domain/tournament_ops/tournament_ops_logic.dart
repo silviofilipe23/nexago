@@ -1,5 +1,6 @@
 import '../../../tournaments/domain/tournament_detail_logic.dart';
 import '../tournament_create/tournament_create_logic.dart';
+import '../category_ops/category_ops_models.dart';
 import 'tournament_ops_models.dart';
 
 String organizerTournamentShareLink(String tournamentId) =>
@@ -28,6 +29,72 @@ OrganizerTournamentDetailTab defaultOrganizerDetailTab({
   return inWindow
       ? OrganizerTournamentDetailTab.matches
       : OrganizerTournamentDetailTab.categories;
+}
+
+String organizerExploreCategoriesSubtitle(int count) =>
+    count == 1 ? '1 categoria' : '$count categorias';
+
+String organizerExploreOverviewSubtitle(OrganizerTournamentSummary summary) {
+  final registration = summary.listingStatus.trim().toLowerCase() == 'open'
+      ? 'Inscrições abertas'
+      : 'Inscrições encerradas';
+  final date = summary.dateLabel.trim();
+  if (date.isNotEmpty) return '$registration · $date';
+  return registration;
+}
+
+String organizerExploreFinancialSubtitle(OrganizerPaymentsBreakdown breakdown) {
+  if (breakdown.totalCollectedCents <= 0) return 'Nenhum pagamento ainda';
+  final total = formatOrganizerMoneyShort(breakdown.totalCollectedCents);
+  if (breakdown.viaOrganizerCents > 0) {
+    final direct = formatOrganizerMoneyShort(breakdown.viaOrganizerCents);
+    return '$total arrecadado · $direct direto';
+  }
+  return '$total arrecadado';
+}
+
+/// Formato abreviado (K) para KPIs do header e cards compactos.
+String formatOrganizerMoneyShort(int cents) {
+  if (cents <= 0) return 'R\$ 0';
+  final reais = cents / 100;
+  if (reais >= 1000) {
+    final k = reais / 1000;
+    return 'R\$ ${k.toStringAsFixed(k.truncateToDouble() == k ? 0 : 1)}K';
+  }
+  return formatOrganizerMoneyDetail(cents);
+}
+
+/// Valor completo para telas financeiras de detalhe.
+String formatOrganizerMoneyDetail(int cents) {
+  if (cents <= 0) return 'R\$ 0';
+  final reais = cents / 100;
+  return 'R\$ ${reais.toStringAsFixed(reais.truncateToDouble() == reais ? 0 : 2)}';
+}
+
+/// Alias legado — prefira [formatOrganizerMoneyShort] ou [formatOrganizerMoneyDetail].
+String formatOrganizerMoneyCents(int cents) => formatOrganizerMoneyShort(cents);
+
+int netTransferCents(int viaAppCents, {double feeRate = 0.06}) {
+  if (viaAppCents <= 0) return 0;
+  return (viaAppCents * (1 - feeRate)).round();
+}
+
+String organizerExploreMatchesSubtitle({
+  required int total,
+  required int live,
+}) {
+  if (total <= 0) return 'Operação do dia';
+  if (live > 0) return '$total partidas · $live ao vivo';
+  return total == 1 ? '1 partida' : '$total partidas';
+}
+
+String organizerExploreUniformsSubtitle({
+  required int pendingCount,
+  required int totalAthletes,
+}) {
+  if (totalAthletes <= 0) return 'Aguardando inscrições';
+  if (pendingCount <= 0) return 'Todos confirmados';
+  return pendingCount == 1 ? '1 pendente' : '$pendingCount pendentes';
 }
 
 /// Habilita atalhos de programação do dia quando ao menos uma categoria já
@@ -143,21 +210,6 @@ String tournamentMetaLine({
   return parts.join(' · ');
 }
 
-String formatOrganizerMoneyCents(int cents) {
-  if (cents <= 0) return 'R\$ 0';
-  final reais = cents / 100;
-  if (reais >= 1000) {
-    final k = reais / 1000;
-    return 'R\$ ${k.toStringAsFixed(k.truncateToDouble() == k ? 0 : 1)}K';
-  }
-  return 'R\$ ${reais.toStringAsFixed(reais.truncateToDouble() == reais ? 0 : 2)}';
-}
-
-int netTransferCents(int collectedCents, {double feeRate = 0.06}) {
-  if (collectedCents <= 0) return 0;
-  return (collectedCents * (1 - feeRate)).round();
-}
-
 OrganizerCategoryBracketStatus parseBracketStatus(String? raw) =>
     switch (raw?.trim().toLowerCase()) {
       'draft' => OrganizerCategoryBracketStatus.draft,
@@ -207,6 +259,17 @@ bool canGenerateCategoryBracket({
 }) =>
     confirmedCount >= minTeams;
 
+bool showGenerateBracketCta(OrganizerTournamentCategorySummary category) =>
+    category.bracketStatus != OrganizerCategoryBracketStatus.published;
+
+bool showGenerateBracketQuickAction({
+  required OrganizerTournamentCategorySummary category,
+  required int eligibleConfirmedCount,
+}) =>
+    showGenerateBracketCta(category) &&
+    isBracketFormatSupportedRaw(category.bracketFormat) &&
+    canGenerateCategoryBracket(confirmedCount: eligibleConfirmedCount);
+
 String generateBracketBlockedHint({
   required int confirmedCount,
   int minTeams = minTeamsToGenerateBracket,
@@ -231,7 +294,7 @@ OrganizerTournamentSummary buildTournamentSummary({
   required List<OrganizerTournamentCategorySummary> categories,
   required int paidCount,
   required int pendingCount,
-  required int collectedCents,
+  required OrganizerPaymentsBreakdown paymentsBreakdown,
 }) {
   return OrganizerTournamentSummary(
     tournamentId: tournamentId,
@@ -248,7 +311,9 @@ OrganizerTournamentSummary buildTournamentSummary({
     enrolledCount: paidCount,
     pendingCount: pendingCount,
     categoryCount: categories.length,
-    collectedCents: collectedCents,
+    collectedCents: paymentsBreakdown.totalCollectedCents,
+    paymentsBreakdown: paymentsBreakdown,
+    paymentMode: (data['paymentMode'] as String?) ?? '',
     defaultEntryFeeCents:
         (data['defaultEntryFeeCents'] as num?)?.toInt() ?? 0,
     courtsCount: (data['courtsCount'] as num?)?.toInt() ?? 4,
@@ -261,6 +326,8 @@ OrganizerTournamentCategorySummary buildCategorySummary({
   required int paidCount,
   required int pendingCount,
   required int collectedCents,
+  int viaAppCents = 0,
+  int viaOrganizerCents = 0,
   OrganizerCategoryBracketStatus bracketStatus =
       OrganizerCategoryBracketStatus.none,
 }) {
@@ -288,6 +355,8 @@ OrganizerTournamentCategorySummary buildCategorySummary({
     paidCount: paidCount,
     pendingCount: pendingCount,
     collectedCents: collectedCents,
+    viaAppCents: viaAppCents,
+    viaOrganizerCents: viaOrganizerCents,
     entryFeeCents: entryFee,
     registrationClosed: categoryMap['registrationClosed'] as bool? ?? false,
     bracketStatus: bracketStatus,

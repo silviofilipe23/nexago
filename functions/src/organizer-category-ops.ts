@@ -15,6 +15,14 @@ import {
 import {BRACKET_DEFINITIONS} from "./bracket-definitions/bracket-definitions";
 import {assertCanManageTournament} from "./tournament-acl";
 import {
+  ORGANIZER_DIRECT_PAYMENT_METHOD,
+  organizerDirectConfirmPaidAmount,
+} from "./organizer-category-ops-payments";
+import {
+  loadTournamentData,
+  resolveCategoryEntryFee,
+} from "./tournament-registration-guards";
+import {
   canCancelTournament,
   countPaidRegistrations,
   paidTeamIdsForCancellation,
@@ -301,11 +309,23 @@ export const organizerConfirmRegistrationPayment = onCall(async (request) => {
   const tournamentId = (data.tournamentId as string)?.trim();
   if (!tournamentId) throw new HttpsError("failed-precondition", "Torneio inválido");
 
+  const categoryId = (data.categoryId as string | undefined)?.trim() ?? "";
+  const tournament = await loadTournamentData(db, projectId, tournamentId);
+  if (!tournament) {
+    throw new HttpsError("not-found", "Torneio não encontrado");
+  }
+  const entryFee = categoryId
+    ? resolveCategoryEntryFee(tournament, categoryId)
+    : 0;
+  const paidAmount = organizerDirectConfirmPaidAmount(entryFee);
+
   await assertCanManageTournament(db, uid, tournamentId);
   await ref.update({
     isPaid: true,
     // Ao confirmar o pagamento, o time deixa de ser "fila".
     waitlist: false,
+    paidAmount: paidAmount ?? FieldValue.delete(),
+    paymentMethod: ORGANIZER_DIRECT_PAYMENT_METHOD,
     paidAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });

@@ -49,6 +49,7 @@ void main() {
     expect(category['bestOf'], 'bestOf3');
     expect(map['keywords'], isA<List>());
     expect(map['enrolledCount'], 0);
+    expect(map['collectedCents'], 0);
   });
 
   test('toFirestore draft status when not publishing', () {
@@ -197,6 +198,7 @@ void main() {
     expect(map['wizardStep'], 'rules');
     expect(map.containsKey('createdAt'), isFalse);
     expect(map.containsKey('enrolledCount'), isFalse);
+    expect(map.containsKey('collectedCents'), isFalse);
   });
 
   test('toFirestore propagates uniform settings to categories', () {

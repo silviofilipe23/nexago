@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/location/user_location_providers.dart';
 import '../../../core/location/user_location_snapshot.dart';
@@ -62,8 +63,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
 
   ArenaSportChip _sportChipFromProfile(AthleteProfile? profile) {
     if (profile == null) return ArenaSearchFilters.defaultSportChip;
-    final hasSport =
-        profile.primarySportFirestoreId?.isNotEmpty == true ||
+    final hasSport = profile.primarySportFirestoreId?.isNotEmpty == true ||
         profile.sport.trim().isNotEmpty;
     if (!hasSport) return ArenaSearchFilters.defaultSportChip;
 
@@ -176,9 +176,8 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
   int _previewFilterResultCount(ArenaSearchFilters draft) {
     final slotResults =
         ref.read(arenaSearchResultsProvider(_filters.slot)).valueOrNull ??
-        const <ArenaSearchResult>[];
-    final location =
-        ref.read(userLocationProvider).valueOrNull ??
+            const <ArenaSearchResult>[];
+    final location = ref.read(userLocationProvider).valueOrNull ??
         const UserLocationSnapshot(source: UserLocationSource.none);
     final favorites =
         ref.read(favoriteArenaIdsProvider).valueOrNull ?? const <String>[];
@@ -240,9 +239,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
     });
 
     try {
-      await ref
-          .read(favoritesServiceProvider)
-          .toggleFavoriteArena(
+      await ref.read(favoritesServiceProvider).toggleFavoriteArena(
             userId: userId,
             arenaId: arenaId,
             isFavorite: isFavorite,
@@ -359,7 +356,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                           : 'Nenhuma arena encontrada',
                       subtitle: rawCount > 0
                           ? 'Temos $rawCount arena${rawCount == 1 ? '' : 's'} na base, '
-                                'mas nenhuma passou nos filtros atuais.'
+                              'mas nenhuma passou nos filtros atuais.'
                           : 'Ajuste filtros, data ou horário para ver mais opções.',
                     ),
                   ),
@@ -371,9 +368,9 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
               controller: scrollController,
               physics: const BouncingScrollPhysics(),
               slivers: [
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(20, topInset + 16, 20, 10),
-                  sliver: SliverToBoxAdapter(child: _buildHeaderControls()),
+                NexaFloatingHeaderSliver(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                  child: _buildHeaderControls(),
                 ),
                 // if (favoriteItems.isNotEmpty)
                 //   SliverPadding(
@@ -412,8 +409,7 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                     itemBuilder: (context, index) {
                       final item = items[index];
                       final result = item.result;
-                      final isFavorite =
-                          _favoriteOverrides[result.arena.id] ??
+                      final isFavorite = _favoriteOverrides[result.arena.id] ??
                           favoriteIdsSet.contains(result.arena.id);
 
                       return staggeredFadeSlide(
@@ -434,12 +430,12 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
                           ),
                           onToggleFavorite:
                               _favoritePendingArenaIds.contains(result.arena.id)
-                              ? null
-                              : () => _toggleFavorite(
-                                  userId: userId,
-                                  arenaId: result.arena.id,
-                                  isFavorite: isFavorite,
-                                ),
+                                  ? null
+                                  : () => _toggleFavorite(
+                                        userId: userId,
+                                        arenaId: result.arena.id,
+                                        isFavorite: isFavorite,
+                                      ),
                           onReserve: result.hasAvailability
                               ? () {
                                   final slot = result.selectedSlot!;

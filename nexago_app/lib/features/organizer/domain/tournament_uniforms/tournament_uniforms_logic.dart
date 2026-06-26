@@ -91,10 +91,30 @@ List<String> uniformSizeOrderForConfigs(
   return ordered;
 }
 
+/// Ordem de tamanhos para o gráfico: uma categoria usa só as opções dela
+/// (ex.: masculino vs feminino); sem filtro, mescla todas as categorias.
+List<String> uniformSizeOrderForCategoryFilter(
+  List<OrganizerUniformCategoryConfig> configs, {
+  String? categoryId,
+}) {
+  final id = categoryId?.trim();
+  if (id != null && id.isNotEmpty) {
+    final config = uniformConfigForCategory(configs, id);
+    if (config != null) {
+      if (config.sizeOptionsTop.isNotEmpty) {
+        return List<String>.from(config.sizeOptionsTop);
+      }
+      if (config.requiresUniform) return defaultUniformSizeOrder();
+    }
+  }
+  return uniformSizeOrderForConfigs(configs);
+}
+
 bool isUniformRowComplete({
   required OrganizerUniformCategoryConfig config,
   required String? sizeTop,
   required int? jerseyNumber,
+  String? jerseyName,
 }) {
   final top = sizeTop?.trim() ?? '';
   if (top.isEmpty) return false;
@@ -106,6 +126,10 @@ bool isUniformRowComplete({
     final n = jerseyNumber;
     if (n == null || n < 1 || n > 99) return false;
   }
+  if (config.uniformNameOnShirt) {
+    final name = jerseyName?.trim() ?? '';
+    if (name.isEmpty) return false;
+  }
   return true;
 }
 
@@ -116,6 +140,23 @@ String shortDisplayName(String name) {
   final last = parts.last;
   if (last.isEmpty) return parts.first;
   return '${parts.first} ${last[0].toUpperCase()}.';
+}
+
+/// Rótulo principal na lista de uniformes: apelido quando existir.
+String uniformAthleteDisplayLabel(AppUserProfile? profile) {
+  if (profile == null) return 'Atleta';
+  final nick = readableNicknameCandidate(profile.nickname);
+  if (nick != null) return nick;
+  return resolveAppUserDisplayName(profile, fallback: 'Atleta');
+}
+
+/// Nome completo na linha secundária quando diferente do apelido exibido.
+String? uniformAthleteFullNameSubtitle(AppUserProfile? profile) {
+  if (profile == null) return null;
+  final primary = uniformAthleteDisplayLabel(profile);
+  final full = readableNameCandidate(profile.fullName);
+  if (full != null && full != primary) return full;
+  return null;
 }
 
 String? _readSizeTop(Map<String, dynamic> inscription, int playerIndex) {
@@ -132,6 +173,13 @@ int? _readJerseyNumber(Map<String, dynamic> inscription, int playerIndex) {
   return null;
 }
 
+String? _readJerseyName(Map<String, dynamic> inscription, int playerIndex) {
+  final key = playerIndex == 1 ? 'jerseyNamePlayer1' : 'jerseyNamePlayer2';
+  final raw = inscription[key] as String?;
+  final trimmed = raw?.trim() ?? '';
+  return trimmed.isEmpty ? null : trimmed;
+}
+
 OrganizerUniformAthleteRow? _athleteRow({
   required String uid,
   required AppUserProfile? profile,
@@ -142,10 +190,12 @@ OrganizerUniformAthleteRow? _athleteRow({
 }) {
   final id = uid.trim();
   if (id.isEmpty) return null;
-  final name = profile != null ? appUserDisplayName(profile) : 'Atleta';
+  final name = uniformAthleteDisplayLabel(profile);
+  final fullName = uniformAthleteFullNameSubtitle(profile);
   final initials = profile != null ? appUserInitials(profile) : '?';
   final sizeTop = _readSizeTop(inscription, playerIndex);
   final jerseyNumber = _readJerseyNumber(inscription, playerIndex);
+  final jerseyName = _readJerseyName(inscription, playerIndex);
   return OrganizerUniformAthleteRow(
     athleteUid: id,
     athleteName: name,
@@ -154,12 +204,15 @@ OrganizerUniformAthleteRow? _athleteRow({
     categoryId: config.categoryId,
     categoryLabel: config.name,
     partnerShortName: partnerName.isEmpty ? '' : 'c/ ${shortDisplayName(partnerName)}',
+    athleteFullName: fullName,
     sizeTop: sizeTop,
     jerseyNumber: jerseyNumber,
+    jerseyName: jerseyName,
     isComplete: isUniformRowComplete(
       config: config,
       sizeTop: sizeTop,
       jerseyNumber: jerseyNumber,
+      jerseyName: jerseyName,
     ),
   );
 }
@@ -182,10 +235,14 @@ List<OrganizerUniformAthleteRow> flattenInscriptionsToUniformRows({
     final p1Id = (team['player1Id'] as String?)?.trim() ?? '';
     final p2Id = (team['player2Id'] as String?)?.trim() ?? '';
     final p1Name = p1Id.isNotEmpty
-        ? appUserDisplayName(profilesByUid[p1Id] ?? AppUserProfile(uid: p1Id))
+        ? uniformAthleteDisplayLabel(
+            profilesByUid[p1Id] ?? AppUserProfile(uid: p1Id),
+          )
         : '';
     final p2Name = p2Id.isNotEmpty
-        ? appUserDisplayName(profilesByUid[p2Id] ?? AppUserProfile(uid: p2Id))
+        ? uniformAthleteDisplayLabel(
+            profilesByUid[p2Id] ?? AppUserProfile(uid: p2Id),
+          )
         : '';
 
     final row1 = _athleteRow(
@@ -313,13 +370,14 @@ String buildUniformsExportCsv({
   }
   buffer.writeln();
   buffer.writeln('Atletas');
-  buffer.writeln('Nome,Categoria,Parceiro,Tamanho,Numero,Status');
+  buffer.writeln('Nome,Categoria,Parceiro,Tamanho,Numero,NomeCamisa,Status');
   for (final row in rows) {
     final status = row.isComplete ? 'Confirmado' : 'Pendente';
     final size = row.sizeTop ?? '';
     final number = row.jerseyNumber?.toString() ?? '';
+    final shirtName = row.jerseyName ?? '';
     buffer.writeln(
-      '"${row.athleteName}","${row.categoryLabel}","${row.partnerShortName}","$size","$number","$status"',
+      '"${row.athleteName}","${row.categoryLabel}","${row.partnerShortName}","$size","$number","$shirtName","$status"',
     );
   }
   return buffer.toString();

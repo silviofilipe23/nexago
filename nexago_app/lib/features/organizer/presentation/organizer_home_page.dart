@@ -168,26 +168,16 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
     return NumberFormat.currency(locale: 'pt_BR', symbol: r'R$').format(value);
   }
 
-  int _estimateRevenueCents(Map<String, dynamic> tournament) {
-    final enrolled = (tournament['enrolledCount'] as num?)?.toInt() ?? 0;
-    if (enrolled <= 0) return 0;
-    final categories = tournament['categories'];
-    if (categories is List && categories.isNotEmpty) {
-      var minFeeCents = 0;
-      for (final item in categories) {
-        if (item is! Map) continue;
-        final fee =
-            (item['entryFeeCents'] as num?)?.toInt() ??
-            (((item['entryFee'] as num?)?.toDouble() ?? 0) * 100).round();
-        if (fee > 0 && (minFeeCents == 0 || fee < minFeeCents)) {
-          minFeeCents = fee;
-        }
-      }
-      if (minFeeCents > 0) return enrolled * minFeeCents;
-    }
-    final defaultFee =
-        (tournament['defaultEntryFeeCents'] as num?)?.toInt() ?? 0;
-    return enrolled * defaultFee;
+  int _tournamentCollectedCents(Map<String, dynamic> event) {
+    if (event['_kind'] != 'tournament') return 0;
+    return (event['collectedCents'] as num?)?.toInt() ?? 0;
+  }
+
+  int _totalCollectedCents(List<Map<String, dynamic>> tournaments) {
+    return tournaments.fold<int>(
+      0,
+      (sum, tournament) => sum + _tournamentCollectedCents(tournament),
+    );
   }
 
   Future<void> _discardTournamentDraft({String? remoteDraftId}) async {
@@ -308,10 +298,7 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
                   final filtered = _filteredEvents(allEvents);
                   final activeCount = _activeCount(allEvents);
                   final totalEnrolled = _totalEnrolled(tournaments);
-                  final totalRevenue = tournaments.fold<int>(
-                    0,
-                    (sum, t) => sum + _estimateRevenueCents(t),
-                  );
+                  final totalRevenue = _totalCollectedCents(tournaments);
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -497,7 +484,7 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
                                 _OrganizerEventCard(
                                   data: event,
                                   revenueLabel: _formatRevenue(
-                                    _estimateRevenueCents(event),
+                                    _tournamentCollectedCents(event),
                                   ),
                                   onAddStage:
                                       event['_kind'] == 'league' &&

@@ -7,6 +7,7 @@ import 'package:nexago_app/core/ui/app_snackbar.dart';
 
 import '../../../domain/category_ops/category_ops_logic.dart';
 import '../../../domain/category_ops/category_ops_models.dart';
+import '../../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../widgets/organizer_team_dual_avatars.dart';
 
@@ -81,8 +82,10 @@ class _OrganizerCategoryPaymentsTabState
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
           children: [
             _CollectedSummaryCard(summary: summary),
-            // const SizedBox(height: 12),
-            // _PayoutCard(netTransferCents: summary.netTransferCents),
+            if (summary.viaAppCents > 0) ...[
+              const SizedBox(height: 12),
+              _PayoutCard(netTransferCents: summary.netTransferCents),
+            ],
             if (pending.isNotEmpty) ...[
               const SizedBox(height: 20),
               _PaymentsSectionHeader(
@@ -154,6 +157,12 @@ class _CollectedSummaryCard extends StatelessWidget {
     final paidLabel = summary.totalSlots > 0
         ? '${summary.paidCount} de ${summary.totalSlots} pagas'
         : '${summary.paidCount} pagas';
+    final breakdownLines = <String>[
+      if (summary.viaAppCents > 0)
+        'Pelo app · ${formatOrganizerMoneyDetail(summary.viaAppCents)}',
+      if (summary.viaOrganizerCents > 0)
+        'Direto com você · ${formatOrganizerMoneyDetail(summary.viaOrganizerCents)}',
+    ];
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -179,7 +188,7 @@ class _CollectedSummaryCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                formatCategoryMoneyCents(summary.collectedCents),
+                formatOrganizerMoneyDetail(summary.totalCollectedCents),
                 style: AppTypography.soraRegular(
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
@@ -194,7 +203,7 @@ class _CollectedSummaryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      formatCategoryMoneyCents(summary.expectedCents),
+                      formatOrganizerMoneyDetail(summary.expectedCents),
                       style: AppTypography.soraRegular(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -214,6 +223,22 @@ class _CollectedSummaryCard extends StatelessWidget {
               ),
             ],
           ),
+          if (breakdownLines.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            ...breakdownLines.map(
+              (line) => Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(
+                  line,
+                  style: AppTypography.soraRegular(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: muted,
+                  ),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(99),
@@ -238,7 +263,7 @@ class _CollectedSummaryCard extends StatelessWidget {
               const Spacer(),
               if (summary.outstandingCents > 0)
                 Text(
-                  '${formatCategoryMoneyCents(summary.outstandingCents)} em aberto',
+                  '${formatOrganizerMoneyDetail(summary.outstandingCents)} em aberto',
                   style: AppTypography.mono(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
@@ -260,62 +285,54 @@ class _PayoutCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: context.themeColors.surfaceCard,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: () {},
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(
+        color: context.themeColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.brand.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  Icons.account_balance_wallet_outlined,
-                  size: 18,
-                  color: AppColors.brand,
-                ),
-              ),
-              const SizedBox(width: 12),
-              // Expanded(
-              //   child: Column(
-              //     crossAxisAlignment: CrossAxisAlignment.start,
-              //     children: [
-              //       Text(
-              //         'Próximo repasse · ${formatCategoryMoneyCents(netTransferCents)}',
-              //         style: AppTypography.soraRegular(
-              //           fontSize: 14,
-              //           fontWeight: FontWeight.w800,
-              //           color: context.themeColors.onSurface,
-              //         ),
-              //       ),
-              //       const SizedBox(height: 2),
-              //       Text(
-              //         'Líquido após taxa 6% · em D+2 do encerramento',
-              //         style: AppTypography.soraRegular(
-              //           fontSize: 12,
-              //           fontWeight: FontWeight.w500,
-              //           color: context.themeColors.onSurfaceMuted,
-              //         ),
-              //       ),
-              //     ],
-              //   ),
-              // ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: context.themeColors.onSurfaceMuted,
-              ),
-            ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.brand.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              Icons.account_balance_wallet_outlined,
+              size: 18,
+              color: AppColors.brand,
+            ),
           ),
-        ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Repasse líquido · ${formatOrganizerMoneyDetail(netTransferCents)}',
+                  style: AppTypography.soraRegular(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: context.themeColors.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Líquido após taxa 6% · só inscrições pelo app',
+                  style: AppTypography.soraRegular(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -459,7 +476,7 @@ class _ReceivedPaymentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final amount = formatCategoryMoneyCents(teamDisplayAmountCents(team));
+    final amount = formatOrganizerMoneyDetail(teamDisplayAmountCents(team));
     final muted = context.themeColors.onSurfaceMuted;
 
     return Container(

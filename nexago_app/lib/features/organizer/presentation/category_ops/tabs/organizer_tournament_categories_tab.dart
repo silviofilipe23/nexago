@@ -90,10 +90,8 @@ class OrganizerTournamentCategoriesTab extends StatelessWidget {
                   return;
                 }
                 if (!canGenerateCategoryBracket(
-                      confirmedCount: category.paidCount,
-                    ) &&
-                    category.bracketStatus !=
-                        OrganizerCategoryBracketStatus.published) {
+                  confirmedCount: category.paidCount,
+                )) {
                   showAppSnackBar(
                     context,
                     generateBracketBlockedHint(
@@ -103,30 +101,6 @@ class OrganizerTournamentCategoriesTab extends StatelessWidget {
                     isError: true,
                   );
                   return;
-                }
-                if (category.bracketStatus ==
-                    OrganizerCategoryBracketStatus.published) {
-                  final confirmed = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('Republicar chave?'),
-                      content: const Text(
-                        'Já existe uma chave publicada nesta categoria. '
-                        'Gerar novamente pode apagar partidas e resultados.',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Cancelar'),
-                        ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text('Continuar'),
-                        ),
-                      ],
-                    ),
-                  );
-                  if (confirmed != true || !context.mounted) return;
                 }
                 final format =
                     generateBracketRouteFormat(category.bracketFormat);

@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/layout/nexa_floating_header.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
-import '../../../../../core/layout/nexa_floating_header.dart';
-import '../../../../../core/router/routes.dart';
-import 'package:nexago_app/core/theme/app_theme_colors.dart';
-
-class TournamentDetailSubpageScaffold extends StatelessWidget {
-  const TournamentDetailSubpageScaffold({
+class OrganizerTournamentSubpageScaffold extends StatelessWidget {
+  const OrganizerTournamentSubpageScaffold({
     super.key,
     required this.title,
     required this.slivers,
     this.onBack,
+    this.trailing,
   });
 
   final String title;
   final List<Widget> slivers;
   final VoidCallback? onBack;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +32,8 @@ class TournamentDetailSubpageScaffold extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 0, 20, 12),
               child: _SubpageToolbar(
                 title: title,
-                onBack: onBack ?? () => _defaultBack(context),
+                onBack: onBack ?? () => context.pop(),
+                trailing: trailing,
               ),
             ),
             ...slivers,
@@ -41,24 +42,18 @@ class TournamentDetailSubpageScaffold extends StatelessWidget {
       ),
     );
   }
-
-  void _defaultBack(BuildContext context) {
-    if (context.canPop()) {
-      context.pop();
-      return;
-    }
-    context.go(AppRoutes.tournamentDiscoveryList);
-  }
 }
 
 class _SubpageToolbar extends StatelessWidget {
   const _SubpageToolbar({
     required this.title,
     required this.onBack,
+    this.trailing,
   });
 
   final String title;
   final VoidCallback onBack;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +84,7 @@ class _SubpageToolbar extends StatelessWidget {
             ),
           ),
         ),
+        if (trailing != null) trailing!,
       ],
     );
   }

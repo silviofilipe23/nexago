@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/app_mobile_role.dart';
 import '../../../core/auth/active_role_providers.dart';
+import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/router/routes.dart';
 import '../../arena/domain/arena_access_provider.dart';
 import '../../arena/presentation/widgets/arena_dashboard_tokens.dart';
@@ -25,7 +26,6 @@ class TournamentDiscoveryPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final access = ref.watch(tournamentAccessStateProvider);
-    final topInset = MediaQuery.paddingOf(context).top;
     final arenaPanelAsync = ref.watch(arenaPanelAccessProvider);
     final activeRole = ref.watch(activeMobileRoleProvider);
     final showArenaPanelShortcut = arenaPanelAsync.maybeWhen(
@@ -38,16 +38,15 @@ class TournamentDiscoveryPage extends ConsumerWidget {
       bottom: false,
       child: ColoredBox(
         color: theme.colorScheme.surfaceContainerLowest,
-        child: ListView(
+        child: CustomScrollView(
           controller: ref
               .watch(athleteShellScrollRegistryProvider)
               .controllerFor(athleteShellCompeteTabIndex),
-          padding: const EdgeInsets.fromLTRB(0, 0, 0, 28),
-          children: [
-            Padding(
-              padding: EdgeInsets.fromLTRB(
+          slivers: [
+            NexaFloatingHeaderSliver(
+              padding: const EdgeInsets.fromLTRB(
                 ArenaDashboardTokens.horizontalPadding,
-                topInset + 16,
+                0,
                 ArenaDashboardTokens.horizontalPadding,
                 12,
               ),
@@ -63,48 +62,55 @@ class TournamentDiscoveryPage extends ConsumerWidget {
                     : const [],
               ),
             ),
-          if (!access.canAccess)
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: ArenaDashboardTokens.horizontalPadding,
+            SliverPadding(
+              padding: const EdgeInsets.only(bottom: 28),
+              sliver: SliverList.list(
+                children: [
+                  if (!access.canAccess)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: ArenaDashboardTokens.horizontalPadding,
+                      ),
+                      child: TournamentAccessBanner(
+                        onboardingCompleted: access.onboardingCompleted,
+                        blockMessage: access.blockMessage,
+                        missingStepTitles: access.missingStepTitles,
+                      ),
+                    ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: ArenaDashboardTokens.horizontalPadding,
+                    ),
+                    child: PendingTournamentInviterInvitesSection(),
+                  ),
+                  // const SizedBox(height: 16),
+                  // CompeteHubPlayMatchBanner(
+                  //   onTap: () => showAppSnackBar(context, 'Em breve.'),
+                  // ),
+                  // const SizedBox(height: 24),
+                  const CompeteHubTournamentsSection(),
+                  const SizedBox(height: 8),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: ArenaDashboardTokens.horizontalPadding,
+                    ),
+                    child: CompeteHubRankingSection(),
+                  ),
+                  const SizedBox(height: 8),
+                  const CompeteHubAthletesSection(),
+                  const SizedBox(height: 8),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: ArenaDashboardTokens.horizontalPadding,
+                    ),
+                    child: CompeteHubTeamsSection(),
+                  ),
+                ],
               ),
-              child: TournamentAccessBanner(
-                onboardingCompleted: access.onboardingCompleted,
-                blockMessage: access.blockMessage,
-                missingStepTitles: access.missingStepTitles,
-              ),
             ),
-          const Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: ArenaDashboardTokens.horizontalPadding,
-            ),
-            child: PendingTournamentInviterInvitesSection(),
-          ),
-          // const SizedBox(height: 16),
-          // CompeteHubPlayMatchBanner(
-          //   onTap: () => showAppSnackBar(context, 'Em breve.'),
-          // ),
-          // const SizedBox(height: 24),
-          const CompeteHubTournamentsSection(),
-          const SizedBox(height: 8),
-          const Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: ArenaDashboardTokens.horizontalPadding,
-            ),
-            child: CompeteHubRankingSection(),
-          ),
-          const SizedBox(height: 8),
-          const CompeteHubAthletesSection(),
-          const SizedBox(height: 8),
-          const Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: ArenaDashboardTokens.horizontalPadding,
-            ),
-            child: CompeteHubTeamsSection(),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
     );
   }
 }

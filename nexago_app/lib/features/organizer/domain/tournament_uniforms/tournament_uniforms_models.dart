@@ -33,9 +33,11 @@ class OrganizerUniformAthleteRow {
     this.avatarUrl,
     required this.categoryId,
     required this.categoryLabel,
-    required this.partnerShortName,
+    required     this.partnerShortName,
+    this.athleteFullName,
     this.sizeTop,
     this.jerseyNumber,
+    this.jerseyName,
     required this.isComplete,
   });
 
@@ -46,8 +48,10 @@ class OrganizerUniformAthleteRow {
   final String categoryId;
   final String categoryLabel;
   final String partnerShortName;
+  final String? athleteFullName;
   final String? sizeTop;
   final int? jerseyNumber;
+  final String? jerseyName;
   final bool isComplete;
 }
 
@@ -128,6 +132,7 @@ class OrganizerUniformsState {
     this.rows = const [],
     this.summary = const OrganizerUniformsSummary(),
     this.categoryChips = const [],
+    this.categoryConfigs = const [],
     this.error,
   });
 
@@ -138,6 +143,7 @@ class OrganizerUniformsState {
   final List<OrganizerUniformAthleteRow> rows;
   final OrganizerUniformsSummary summary;
   final List<OrganizerUniformCategoryChip> categoryChips;
+  final List<OrganizerUniformCategoryConfig> categoryConfigs;
   final Object? error;
 
   static const empty = OrganizerUniformsState(isLoading: false);
@@ -150,6 +156,7 @@ class OrganizerUniformsState {
     List<OrganizerUniformAthleteRow>? rows,
     OrganizerUniformsSummary? summary,
     List<OrganizerUniformCategoryChip>? categoryChips,
+    List<OrganizerUniformCategoryConfig>? categoryConfigs,
     Object? error,
   }) {
     return OrganizerUniformsState(
@@ -160,6 +167,7 @@ class OrganizerUniformsState {
       rows: rows ?? this.rows,
       summary: summary ?? this.summary,
       categoryChips: categoryChips ?? this.categoryChips,
+      categoryConfigs: categoryConfigs ?? this.categoryConfigs,
       error: error,
     );
   }

@@ -96,6 +96,7 @@ import {
   onTournamentMatchCompletedAdvance,
 } from "./organizer-match-ops";
 import {deleteOwnAccount} from "./account-deletion";
+import {onTournamentInscriptionWriteSyncCollectedCents} from "./tournament-collected-stats";
 
 export {
   quoteArenaBooking,
@@ -145,6 +146,7 @@ export {
   applyLeagueRankingForMatch,
   onTournamentMatchCompletedAdvance,
   deleteOwnAccount,
+  onTournamentInscriptionWriteSyncCollectedCents,
 };
 
 // Initialize Firebase Admin

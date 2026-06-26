@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-enum OrganizerCategoryShellTab { teams, payments, bracket, matches }
-
 enum OrganizerTeamRegistrationStatus { confirmed, pending, waitlist }
 
 enum OrganizerCategoryTeamFilter { all, seeds, pending, waitlist }
@@ -97,32 +95,56 @@ class OrganizerCategoryTeamRow {
   }
 }
 
+enum OrganizerPaymentChannel { viaApp, viaOrganizer }
+
+/// Arrecadação da categoria/torneio separada por canal (app vs direto).
 @immutable
-class OrganizerCategoryPaymentsSummary {
-  const OrganizerCategoryPaymentsSummary({
-    this.collectedCents = 0,
+class OrganizerPaymentsBreakdown {
+  const OrganizerPaymentsBreakdown({
+    this.viaAppCents = 0,
+    this.viaOrganizerCents = 0,
     this.expectedCents = 0,
+    this.pendingCount = 0,
     this.paidCount = 0,
     this.totalSlots = 0,
-    this.pendingCount = 0,
     this.feeRate = 0.06,
   });
 
-  final int collectedCents;
+  final int viaAppCents;
+  final int viaOrganizerCents;
   final int expectedCents;
+  final int pendingCount;
   final int paidCount;
   final int totalSlots;
-  final int pendingCount;
   final double feeRate;
 
-  int get outstandingCents =>
-      (expectedCents - collectedCents).clamp(0, expectedCents);
+  int get totalCollectedCents => viaAppCents + viaOrganizerCents;
 
-  int get netTransferCents => (collectedCents * (1 - feeRate)).round();
+  /// Compatível com o resumo anterior.
+  int get collectedCents => totalCollectedCents;
+
+  int get netTransferCents => (viaAppCents * (1 - feeRate)).round();
+
+  int get outstandingCents =>
+      (expectedCents - totalCollectedCents).clamp(0, expectedCents);
 
   double get progress =>
-      expectedCents > 0 ? collectedCents / expectedCents : 0.0;
+      expectedCents > 0 ? totalCollectedCents / expectedCents : 0.0;
+
+  OrganizerPaymentsBreakdown operator +(OrganizerPaymentsBreakdown other) {
+    return OrganizerPaymentsBreakdown(
+      viaAppCents: viaAppCents + other.viaAppCents,
+      viaOrganizerCents: viaOrganizerCents + other.viaOrganizerCents,
+      expectedCents: expectedCents + other.expectedCents,
+      pendingCount: pendingCount + other.pendingCount,
+      paidCount: paidCount + other.paidCount,
+      totalSlots: totalSlots + other.totalSlots,
+      feeRate: feeRate,
+    );
+  }
 }
+
+typedef OrganizerCategoryPaymentsSummary = OrganizerPaymentsBreakdown;
 
 enum CategoryBracketStatus { none, draft, published }
 
@@ -136,7 +158,6 @@ class CategoryOpsState {
     this.winnersAdvantage = true,
     this.phaseBestOf = 'md3',
     this.finalBestOf5 = true,
-    this.thirdPlaceEnabled = false,
     this.groupsPreview = const [],
   });
 
@@ -147,7 +168,6 @@ class CategoryOpsState {
   final bool winnersAdvantage;
   final String phaseBestOf;
   final bool finalBestOf5;
-  final bool thirdPlaceEnabled;
   final List<CategoryGroupPreview> groupsPreview;
 }
 

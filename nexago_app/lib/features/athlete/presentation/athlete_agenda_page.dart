@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -197,8 +198,7 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
 
     final nextItem = findNextAgendaItem(filtered, now: now);
     final highlightNextId = nextItem?.id;
-    final isEmptyDayHero =
-        !isPastTab &&
+    final isEmptyDayHero = !isPastTab &&
         !isMonthMode &&
         _filter == AthleteAgendaFilter.all &&
         _searchQuery.isEmpty &&
@@ -262,20 +262,18 @@ class _AthleteAgendaPageState extends ConsumerState<AthleteAgendaPage> {
                       parent: BouncingScrollPhysics(),
                     ),
                     slivers: [
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.only(top: topInset + 8),
-                          child: AgendaHeader(
-                            eyebrow: headerEyebrow,
-                            title: headerTitle,
-                            monthModeActive: isMonthMode,
-                            unreadNotificationCount: unreadNotifications,
-                            searchVisible: _searchVisible,
-                            onSearchTap: _toggleSearch,
-                            onCalendarTap: _toggleViewMode,
-                            onNotificationsTap: () => context.pushNamed(
-                              AppRouteNames.athleteNotifications,
-                            ),
+                      NexaFloatingHeaderSliver(
+                        topGap: 8,
+                        child: AgendaHeader(
+                          eyebrow: headerEyebrow,
+                          title: headerTitle,
+                          monthModeActive: isMonthMode,
+                          unreadNotificationCount: unreadNotifications,
+                          searchVisible: _searchVisible,
+                          onSearchTap: _toggleSearch,
+                          onCalendarTap: _toggleViewMode,
+                          onNotificationsTap: () => context.pushNamed(
+                            AppRouteNames.athleteNotifications,
                           ),
                         ),
                       ),

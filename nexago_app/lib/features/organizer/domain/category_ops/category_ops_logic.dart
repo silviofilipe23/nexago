@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../tournaments/domain/tournament_detail_logic.dart';
 import '../tournament_create/tournament_create_logic.dart';
+import '../tournament_ops/tournament_ops_models.dart';
 import 'category_ops_models.dart';
 
 String formatCategoryMoneyCents(int cents) {
@@ -139,27 +140,87 @@ List<OrganizerCategoryTeamRow> sortCategoryTeams(
   return copy;
 }
 
-OrganizerCategoryPaymentsSummary buildPaymentsSummary({
+const kOrganizerDirectPaymentMethod = 'organizer_direct';
+
+/// `paidAmount` no Firestore é em reais; o app trabalha em centavos.
+int inscriptionPaidAmountCents(num? paidAmountReais) {
+  if (paidAmountReais == null) return 0;
+  final reais = paidAmountReais.toDouble();
+  if (reais <= 0) return 0;
+  return (reais * 100).round();
+}
+
+String paymentMethodLabel(String method) {
+  return switch (method.trim().toLowerCase()) {
+    'pix' => 'Pix',
+    'card' || 'credit_card' => 'Cartão',
+    kOrganizerDirectPaymentMethod => 'Direto com você',
+    '' => 'Pix',
+    _ => method.trim(),
+  };
+}
+
+int teamCollectedCents(OrganizerCategoryTeamRow team) {
+  if (team.status != OrganizerTeamRegistrationStatus.confirmed) return 0;
+  if (team.paidAmountCents > 0) return team.paidAmountCents;
+  return team.expectedAmountCents;
+}
+
+OrganizerPaymentChannel teamPaymentChannel(OrganizerCategoryTeamRow team) {
+  final method = team.paymentMethod.trim().toLowerCase();
+  if (method == kOrganizerDirectPaymentMethod) {
+    return OrganizerPaymentChannel.viaOrganizer;
+  }
+  if (team.paidAmountCents > 0) return OrganizerPaymentChannel.viaApp;
+  return OrganizerPaymentChannel.viaOrganizer;
+}
+
+({OrganizerPaymentChannel channel, int cents})? confirmedInscriptionPayment({
+  required Map<String, dynamic> inscription,
+  required int entryFeeCents,
+}) {
+  if (inscription['waitlist'] == true) return null;
+  if (inscription['isPaid'] != true) return null;
+  final paidCents =
+      inscriptionPaidAmountCents(inscription['paidAmount'] as num?);
+  final method =
+      (inscription['paymentMethod'] as String?)?.trim().toLowerCase() ?? '';
+  final cents = paidCents > 0 ? paidCents : entryFeeCents;
+  final channel = method == kOrganizerDirectPaymentMethod
+      ? OrganizerPaymentChannel.viaOrganizer
+      : paidCents > 0
+          ? OrganizerPaymentChannel.viaApp
+          : OrganizerPaymentChannel.viaOrganizer;
+  return (channel: channel, cents: cents);
+}
+
+OrganizerPaymentsBreakdown buildPaymentsBreakdown({
   required List<OrganizerCategoryTeamRow> teams,
   required int expectedPerTeamCents,
   double feeRate = 0.06,
 }) {
-  var collected = 0;
+  var viaApp = 0;
+  var viaOrganizer = 0;
   var paid = 0;
   var pending = 0;
   for (final team in teams) {
     if (team.status == OrganizerTeamRegistrationStatus.confirmed) {
       paid++;
-      collected += team.paidAmountCents > 0
-          ? team.paidAmountCents
-          : expectedPerTeamCents;
+      final amount = teamCollectedCents(team);
+      switch (teamPaymentChannel(team)) {
+        case OrganizerPaymentChannel.viaApp:
+          viaApp += amount;
+        case OrganizerPaymentChannel.viaOrganizer:
+          viaOrganizer += amount;
+      }
     } else if (team.status == OrganizerTeamRegistrationStatus.pending) {
       pending++;
     }
   }
   final expected = teams.length * expectedPerTeamCents;
-  return OrganizerCategoryPaymentsSummary(
-    collectedCents: collected,
+  return OrganizerPaymentsBreakdown(
+    viaAppCents: viaApp,
+    viaOrganizerCents: viaOrganizer,
     expectedCents: expected,
     paidCount: paid,
     totalSlots: teams.length,
@@ -167,6 +228,18 @@ OrganizerCategoryPaymentsSummary buildPaymentsSummary({
     feeRate: feeRate,
   );
 }
+
+/// Alias legado.
+OrganizerPaymentsBreakdown buildPaymentsSummary({
+  required List<OrganizerCategoryTeamRow> teams,
+  required int expectedPerTeamCents,
+  double feeRate = 0.06,
+}) =>
+    buildPaymentsBreakdown(
+      teams: teams,
+      expectedPerTeamCents: expectedPerTeamCents,
+      feeRate: feeRate,
+    );
 
 CategoryOpsState categoryOpsFromMap(Map<String, dynamic>? raw) {
   if (raw == null || raw.isEmpty) return const CategoryOpsState();
@@ -213,7 +286,6 @@ CategoryOpsState categoryOpsFromMap(Map<String, dynamic>? raw) {
     winnersAdvantage: config['winnersAdvantage'] as bool? ?? true,
     phaseBestOf: (config['phaseBestOf'] as String?) ?? 'md3',
     finalBestOf5: config['finalBestOf5'] as bool? ?? true,
-    thirdPlaceEnabled: config['thirdPlaceEnabled'] as bool? ?? false,
     groupsPreview: groups,
   );
 }
@@ -235,7 +307,6 @@ Map<String, dynamic> categoryOpsToMap(CategoryOpsState state) => {
     'winnersAdvantage': state.winnersAdvantage,
     'phaseBestOf': state.phaseBestOf,
     'finalBestOf5': state.finalBestOf5,
-    'thirdPlaceEnabled': state.thirdPlaceEnabled,
   },
   'groupsPreview': state.groupsPreview
       .map((g) => {'id': g.id, 'teamIds': g.teamIds})
@@ -398,21 +469,59 @@ List<CategoryGroupPreview> distributeTeamsIntoGroups({
   ];
 }
 
-int categoryShellTabCount(OrganizerCategoryShellTab tab) => switch (tab) {
-  OrganizerCategoryShellTab.teams => 0,
-  OrganizerCategoryShellTab.payments => 0,
-  OrganizerCategoryShellTab.bracket => 0,
-  OrganizerCategoryShellTab.matches => 0,
-};
+String organizerCategoryExploreTeamsSubtitle({
+  required int teamCount,
+  required int pendingCount,
+}) {
+  if (teamCount <= 0) return 'Nenhuma inscrição';
+  if (pendingCount > 0) {
+    final pendingLabel =
+        pendingCount == 1 ? '1 pendente' : '$pendingCount pendentes';
+    return teamCount == 1
+        ? '1 dupla · $pendingLabel'
+        : '$teamCount duplas · $pendingLabel';
+  }
+  return teamCount == 1 ? '1 dupla' : '$teamCount duplas';
+}
 
-String categoryShellTabLabel(OrganizerCategoryShellTab tab, {int? count}) {
-  final suffix = count != null && count > 0 ? ' ($count)' : '';
-  return switch (tab) {
-    OrganizerCategoryShellTab.teams => 'Duplas$suffix',
-    OrganizerCategoryShellTab.payments => 'Pagamentos$suffix',
-    OrganizerCategoryShellTab.bracket => 'Chave',
-    OrganizerCategoryShellTab.matches => 'Jogos',
-  };
+String organizerCategoryExplorePaymentsSubtitle(
+  OrganizerPaymentsBreakdown breakdown,
+) {
+  if (breakdown.totalCollectedCents <= 0) {
+    if (breakdown.pendingCount > 0) {
+      return breakdown.pendingCount == 1
+          ? '1 pagamento pendente'
+          : '${breakdown.pendingCount} pendentes';
+    }
+    return 'Nenhum pagamento';
+  }
+  final total = formatCategoryMoneyShort(breakdown.totalCollectedCents);
+  if (breakdown.viaOrganizerCents > 0 && breakdown.viaAppCents > 0) {
+    final direct = formatCategoryMoneyShort(breakdown.viaOrganizerCents);
+    return '$total arrecadado · $direct direto';
+  }
+  if (breakdown.viaOrganizerCents > 0) {
+    return '$total recebido direto';
+  }
+  return '$total arrecadado';
+}
+
+String organizerCategoryExploreBracketSubtitle(
+  OrganizerCategoryBracketStatus status,
+) =>
+    switch (status) {
+      OrganizerCategoryBracketStatus.none => 'Chave não gerada',
+      OrganizerCategoryBracketStatus.draft => 'Chave em rascunho',
+      OrganizerCategoryBracketStatus.published => 'Chave publicada',
+    };
+
+String organizerCategoryExploreMatchesSubtitle({
+  required int total,
+  required int live,
+}) {
+  if (total <= 0) return 'Aguardando chave publicada';
+  if (live > 0) return '$total jogos · $live ao vivo';
+  return total == 1 ? '1 jogo' : '$total jogos';
 }
 
 String organizerTeamSortLabel(OrganizerTeamSort sort) => switch (sort) {
@@ -472,11 +581,8 @@ String teamSeedActionSubtitle(int? seedRank) {
 }
 
 String teamPaymentActionSubtitle(OrganizerCategoryTeamRow team) {
-  final method = team.paymentMethod.trim();
-  final paymentLabel = method.isNotEmpty ? method : 'Pix';
-  final cents = team.paidAmountCents > 0
-      ? team.paidAmountCents
-      : team.expectedAmountCents;
+  final paymentLabel = paymentMethodLabel(team.paymentMethod);
+  final cents = teamCollectedCents(team);
   final amount = formatCategoryMoneyCents(cents);
   final registered = team.registeredAt;
   if (registered == null) return '$paymentLabel · $amount';
@@ -487,8 +593,7 @@ int teamCombinedRankingPoints(OrganizerCategoryTeamRow team) =>
     team.player1.rankingPoints + team.player2.rankingPoints;
 
 String teamReceivedPaymentSubtitle(OrganizerCategoryTeamRow team) {
-  final method = team.paymentMethod.trim();
-  final paymentLabel = method.isNotEmpty ? method : 'Pix';
+  final paymentLabel = paymentMethodLabel(team.paymentMethod);
   final registered = team.registeredAt;
   if (registered == null) return paymentLabel;
   return '$paymentLabel · ${formatTeamRegistrationDate(registered)}';
@@ -502,7 +607,7 @@ String teamPendingPaymentSubtitle(OrganizerCategoryTeamRow team) {
 }
 
 int teamDisplayAmountCents(OrganizerCategoryTeamRow team) =>
-    team.paidAmountCents > 0 ? team.paidAmountCents : team.expectedAmountCents;
+    teamCollectedCents(team);
 
 String teamRankingPointsLabel(OrganizerCategoryTeamRow team) {
   final pts = teamCombinedRankingPoints(team);

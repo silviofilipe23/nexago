@@ -65,7 +65,6 @@ class _OrganizerCategoryGenerateSePageState
               'winnersAdvantage': ops.winnersAdvantage,
               'phaseBestOf': ops.phaseBestOf,
               'finalBestOf5': ops.finalBestOf5,
-              'thirdPlaceEnabled': ops.thirdPlaceEnabled,
             },
           );
       if (mounted) {

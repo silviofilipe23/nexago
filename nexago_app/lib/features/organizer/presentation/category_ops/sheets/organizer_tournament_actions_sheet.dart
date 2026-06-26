@@ -7,11 +7,12 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:nexago_app/core/ui/nexa_share.dart';
 
 import '../../../data/organizer_tournament_ops_repository.dart';
 import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_ops/tournament_ops_logic.dart';
+import '../../../domain/tournament_ops/tournament_ops_models.dart';
 import '../../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../domain/tournament_uniforms/tournament_uniforms_providers.dart';
 import '../../tournament_create/tournament_create_navigation.dart';
@@ -162,7 +163,8 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
               subtitle: 'Link de inscrição + card pro story',
               onTap: () {
                 Navigator.pop(context);
-                Share.shareUri(
+                nexaShareUri(
+                  context,
                   Uri.parse(
                     organizerTournamentRegistrationShareLink(tournamentId),
                   ),

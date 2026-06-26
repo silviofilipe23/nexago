@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/active_role_providers.dart';
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/router/routes.dart';
 import '../../auth/presentation/role_selection_page.dart';
 import '../../../core/theme/app_colors.dart';
@@ -100,125 +101,146 @@ class _SettingsBody extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxW = constraints.maxWidth > 560 ? 480.0 : double.infinity;
-        return SingleChildScrollView(
+        return CustomScrollView(
           controller:
               ref.watch(arenaShellScrollRegistryProvider).controllerFor(4),
-          padding: const EdgeInsets.fromLTRB(
-            ArenaDashboardTokens.horizontalPadding,
-            12,
-            ArenaDashboardTokens.horizontalPadding,
-            32,
-          ),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxW),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const ArenaSettingsHeader(),
-                  SizedBox(height: 28),
-                  ArenaSettingsGroup(
-                    sectionLabel: 'ARENA',
-                    children: [
-                      ArenaSettingsTile(
-                        leading: ArenaSettingsArenaLogo(
-                          logoUrl: arena?.logoUrl,
-                        ),
-                        title: arena?.name ?? 'Arena',
-                        subtitle: profileSubtitle,
-                        icon: Icons.stadium_rounded,
-                        onTap: arena == null
-                            ? null
-                            : () => context.pushNamed(
-                                  AppRouteNames.arenaProfile,
-                                ),
-                        trailingBadge: const ArenaSettingsProfileBadge(),
-                        showDivider: true,
-                      ),
-                      ArenaSettingsTile(
-                        icon: Icons.calendar_month_outlined,
-                        title: 'Disponibilidade na agenda',
-                        subtitle: availabilitySubtitle,
-                        onTap: () => context.pushNamed(
-                          AppRouteNames.arenaAvailabilitySettings,
-                        ),
-                      ),
-                      ArenaSettingsTile(
-                        icon: Icons.grid_view_rounded,
-                        title: 'Quadras',
-                        subtitle: courtsSubtitle,
-                        onTap: () => context.pushNamed(AppRouteNames.arenaCourts),
-                        showDivider: true,
-                      ),
-                      ArenaSettingsTile(
-                        icon: Icons.inventory_2_outlined,
-                        title: 'Produtos e estoque',
-                        subtitle: productsSubtitle,
-                        variant: ArenaSettingsIconVariant.neutral,
-                        onTap: () =>
-                            context.pushNamed(AppRouteNames.arenaProducts),
-                        trailingBadge: productSummary.alertCount > 0
-                            ? _ProductsAlertBadge(count: productSummary.alertCount)
-                            : null,
-                        showDivider: false,
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 24),
-                  ArenaSettingsGroup(
-                    sectionLabel: 'PREFERÊNCIAS',
-                    children: [
-                      ArenaSettingsTile(
-                        icon: Icons.notifications_outlined,
-                        title: 'Notificações',
-                        subtitle: 'Push, e-mail, WhatsApp',
-                        variant: ArenaSettingsIconVariant.neutral,
-                        onTap: () => showAppSnackBar(
-                          context,
-                          'Notificações em breve.',
-                        ),
-                      ),
-                      ArenaSettingsTile(
-                        icon: Icons.account_balance_wallet_outlined,
-                        title: 'Pagamentos',
-                        subtitle: paymentsSubtitle,
-                        variant: ArenaSettingsIconVariant.neutral,
-                        onTap: () => context.pushNamed(AppRouteNames.arenaPayments),
-                      ),
-                      ArenaSettingsTile(
-                        icon: Icons.person_add_outlined,
-                        title: 'Equipe',
-                        subtitle: '1 owner • convidar staff',
-                        variant: ArenaSettingsIconVariant.neutral,
-                        onTap: () => showAppSnackBar(
-                          context,
-                          'Equipe em breve.',
-                        ),
-                        showDivider: false,
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 24),
-                  if (canSwitchRole)
-                    ArenaSettingsGroup(
-                      sectionLabel: 'ACESSO',
-                      children: [
-                        ArenaSettingsTile(
-                          icon: Icons.swap_horiz_rounded,
-                          title: 'Trocar papel',
-                          subtitle: 'Entrar como atleta ou organizador',
-                          variant: ArenaSettingsIconVariant.orange,
-                          onTap: () => navigateToRoleSelection(context, ref),
-                          showDivider: false,
-                        ),
-                      ],
-                    ),
-                  if (canSwitchRole) SizedBox(height: 24),
-                  const _ArenaSettingsLogoutSection(),
-                ],
+          slivers: [
+            NexaFloatingHeaderSliver(
+              topGap: 12,
+              padding: const EdgeInsets.symmetric(
+                horizontal: ArenaDashboardTokens.horizontalPadding,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxW),
+                  child: const ArenaSettingsHeader(),
+                ),
               ),
             ),
-          ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
+                ArenaDashboardTokens.horizontalPadding,
+                0,
+                ArenaDashboardTokens.horizontalPadding,
+                32,
+              ),
+              sliver: SliverToBoxAdapter(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: maxW),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(height: 28),
+                        ArenaSettingsGroup(
+                          sectionLabel: 'ARENA',
+                          children: [
+                            ArenaSettingsTile(
+                              leading: ArenaSettingsArenaLogo(
+                                logoUrl: arena?.logoUrl,
+                              ),
+                              title: arena?.name ?? 'Arena',
+                              subtitle: profileSubtitle,
+                              icon: Icons.stadium_rounded,
+                              onTap: arena == null
+                                  ? null
+                                  : () => context.pushNamed(
+                                        AppRouteNames.arenaProfile,
+                                      ),
+                              trailingBadge: const ArenaSettingsProfileBadge(),
+                              showDivider: true,
+                            ),
+                            ArenaSettingsTile(
+                              icon: Icons.calendar_month_outlined,
+                              title: 'Disponibilidade na agenda',
+                              subtitle: availabilitySubtitle,
+                              onTap: () => context.pushNamed(
+                                AppRouteNames.arenaAvailabilitySettings,
+                              ),
+                            ),
+                            ArenaSettingsTile(
+                              icon: Icons.grid_view_rounded,
+                              title: 'Quadras',
+                              subtitle: courtsSubtitle,
+                              onTap: () =>
+                                  context.pushNamed(AppRouteNames.arenaCourts),
+                              showDivider: true,
+                            ),
+                            ArenaSettingsTile(
+                              icon: Icons.inventory_2_outlined,
+                              title: 'Produtos e estoque',
+                              subtitle: productsSubtitle,
+                              variant: ArenaSettingsIconVariant.neutral,
+                              onTap: () => context
+                                  .pushNamed(AppRouteNames.arenaProducts),
+                              trailingBadge: productSummary.alertCount > 0
+                                  ? _ProductsAlertBadge(
+                                      count: productSummary.alertCount)
+                                  : null,
+                              showDivider: false,
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 24),
+                        ArenaSettingsGroup(
+                          sectionLabel: 'PREFERÊNCIAS',
+                          children: [
+                            ArenaSettingsTile(
+                              icon: Icons.notifications_outlined,
+                              title: 'Notificações',
+                              subtitle: 'Push, e-mail, WhatsApp',
+                              variant: ArenaSettingsIconVariant.neutral,
+                              onTap: () => showAppSnackBar(
+                                context,
+                                'Notificações em breve.',
+                              ),
+                            ),
+                            ArenaSettingsTile(
+                              icon: Icons.account_balance_wallet_outlined,
+                              title: 'Pagamentos',
+                              subtitle: paymentsSubtitle,
+                              variant: ArenaSettingsIconVariant.neutral,
+                              onTap: () => context
+                                  .pushNamed(AppRouteNames.arenaPayments),
+                            ),
+                            ArenaSettingsTile(
+                              icon: Icons.person_add_outlined,
+                              title: 'Equipe',
+                              subtitle: '1 owner • convidar staff',
+                              variant: ArenaSettingsIconVariant.neutral,
+                              onTap: () => showAppSnackBar(
+                                context,
+                                'Equipe em breve.',
+                              ),
+                              showDivider: false,
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 24),
+                        if (canSwitchRole)
+                          ArenaSettingsGroup(
+                            sectionLabel: 'ACESSO',
+                            children: [
+                              ArenaSettingsTile(
+                                icon: Icons.swap_horiz_rounded,
+                                title: 'Trocar papel',
+                                subtitle: 'Entrar como atleta ou organizador',
+                                variant: ArenaSettingsIconVariant.orange,
+                                onTap: () =>
+                                    navigateToRoleSelection(context, ref),
+                                showDivider: false,
+                              ),
+                            ],
+                          ),
+                        if (canSwitchRole) SizedBox(height: 24),
+                        const _ArenaSettingsLogoutSection(),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );

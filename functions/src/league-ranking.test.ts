@@ -64,7 +64,7 @@ describe("pointsForPlace and pointsForBucket", () => {
 
 describe("resolveLeaguePlacementsFromMatch", () => {
   const noThirdPlace = {
-    categoryThirdPlaceEnabled: false,
+    hasThirdPlaceMatch: false,
     isDoubleElimination: false,
     maxLbRound: 0,
   };
@@ -83,7 +83,7 @@ describe("resolveLeaguePlacementsFromMatch", () => {
   it("awards 3rd and 4th on Third Place", () => {
     const awards = resolveLeaguePlacementsFromMatch(
       completedMatch({matchType: "Third Place"}),
-      {...noThirdPlace, categoryThirdPlaceEnabled: true},
+      {...noThirdPlace, hasThirdPlaceMatch: true},
     );
     assert.deepEqual(awards, [
       {teamId: "team-a", place: 3},
@@ -102,7 +102,7 @@ describe("resolveLeaguePlacementsFromMatch", () => {
   it("defers semi loser when third place match exists", () => {
     const awards = resolveLeaguePlacementsFromMatch(
       completedMatch({matchType: "Semi-Final"}),
-      {...noThirdPlace, categoryThirdPlaceEnabled: true},
+      {...noThirdPlace, hasThirdPlaceMatch: true},
     );
     assert.deepEqual(awards, []);
   });
@@ -152,7 +152,7 @@ describe("resolveLeaguePlacementsFromMatch", () => {
       completedMatch({matchType: "knockout", round: 2}),
       {
         ...noThirdPlace,
-        categoryThirdPlaceEnabled: true,
+        hasThirdPlaceMatch: true,
         knockoutFinalRound: 3,
       },
     );

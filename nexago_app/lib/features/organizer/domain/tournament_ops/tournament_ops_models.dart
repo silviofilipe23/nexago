@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../category_ops/category_ops_models.dart';
+
 enum OrganizerTournamentListingBadge {
   registrationsOpen,
   registrationsClosed,
@@ -27,6 +29,8 @@ class OrganizerTournamentSummary {
     this.pendingCount = 0,
     this.categoryCount = 0,
     this.collectedCents = 0,
+    this.paymentsBreakdown = const OrganizerPaymentsBreakdown(),
+    this.paymentMode = '',
     this.defaultEntryFeeCents = 0,
     this.registrationOpensAt,
     this.registrationClosesAt,
@@ -47,6 +51,8 @@ class OrganizerTournamentSummary {
   final int pendingCount;
   final int categoryCount;
   final int collectedCents;
+  final OrganizerPaymentsBreakdown paymentsBreakdown;
+  final String paymentMode;
   final int defaultEntryFeeCents;
   final DateTime? registrationOpensAt;
   final DateTime? registrationClosesAt;
@@ -68,6 +74,8 @@ class OrganizerTournamentCategorySummary {
     this.paidCount = 0,
     this.pendingCount = 0,
     this.collectedCents = 0,
+    this.viaAppCents = 0,
+    this.viaOrganizerCents = 0,
     this.entryFeeCents = 0,
     this.registrationClosed = false,
     this.bracketStatus = OrganizerCategoryBracketStatus.none,
@@ -85,6 +93,8 @@ class OrganizerTournamentCategorySummary {
   final int paidCount;
   final int pendingCount;
   final int collectedCents;
+  final int viaAppCents;
+  final int viaOrganizerCents;
   final int entryFeeCents;
   final bool registrationClosed;
   final OrganizerCategoryBracketStatus bracketStatus;

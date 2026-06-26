@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/features/organizer/domain/category_ops/category_ops_models.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_ops/tournament_ops_logic.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_ops/tournament_ops_models.dart';
 
@@ -22,7 +23,7 @@ void main() {
         categories: categories,
         paidCount: 8,
         pendingCount: 2,
-        collectedCents: 80000,
+        paymentsBreakdown: const OrganizerPaymentsBreakdown(viaAppCents: 80000),
       );
       expect(summary.name, 'Copa Teste');
       expect(summary.enrolledCount, 8);
@@ -133,6 +134,58 @@ void main() {
       expect(
         generateBracketBlockedHint(confirmedCount: 1),
         contains('Falta 1'),
+      );
+    });
+  });
+
+  group('showGenerateBracketCta', () {
+    test('hidden when bracket is published', () {
+      const category = OrganizerTournamentCategorySummary(
+        categoryId: 'open',
+        name: 'Open',
+        bracketStatus: OrganizerCategoryBracketStatus.published,
+      );
+      expect(showGenerateBracketCta(category), isFalse);
+    });
+
+    test('visible when bracket not published', () {
+      const category = OrganizerTournamentCategorySummary(
+        categoryId: 'open',
+        name: 'Open',
+      );
+      expect(showGenerateBracketCta(category), isTrue);
+    });
+  });
+
+  group('showGenerateBracketQuickAction', () {
+    test('false when published even with enough teams', () {
+      const category = OrganizerTournamentCategorySummary(
+        categoryId: 'open',
+        name: 'Open',
+        bracketFormat: 'single_elimination',
+        bracketStatus: OrganizerCategoryBracketStatus.published,
+      );
+      expect(
+        showGenerateBracketQuickAction(
+          category: category,
+          eligibleConfirmedCount: 8,
+        ),
+        isFalse,
+      );
+    });
+
+    test('true when not published and enough confirmed teams', () {
+      const category = OrganizerTournamentCategorySummary(
+        categoryId: 'open',
+        name: 'Open',
+        bracketFormat: 'single_elimination',
+      );
+      expect(
+        showGenerateBracketQuickAction(
+          category: category,
+          eligibleConfirmedCount: 2,
+        ),
+        isTrue,
       );
     });
   });
@@ -306,6 +359,87 @@ void main() {
           now: DateTime(2026, 10, 24, 14),
         ),
         OrganizerTournamentDetailTab.categories,
+      );
+    });
+  });
+
+  group('organizerExploreSubtitles', () {
+    test('categories subtitle pluralizes correctly', () {
+      expect(organizerExploreCategoriesSubtitle(1), '1 categoria');
+      expect(organizerExploreCategoriesSubtitle(4), '4 categorias');
+    });
+
+    test('overview subtitle includes registration and date', () {
+      const summary = OrganizerTournamentSummary(
+        tournamentId: 't1',
+        name: 'Test',
+        listingStatus: 'open',
+        dateLabel: '24 out',
+      );
+      expect(
+        organizerExploreOverviewSubtitle(summary),
+        'Inscrições abertas · 24 out',
+      );
+    });
+
+    test('financial subtitle handles zero and positive amounts', () {
+      expect(
+        organizerExploreFinancialSubtitle(const OrganizerPaymentsBreakdown()),
+        'Nenhum pagamento ainda',
+      );
+      expect(
+        organizerExploreFinancialSubtitle(
+          const OrganizerPaymentsBreakdown(viaAppCents: 3000200),
+        ),
+        contains('arrecadado'),
+      );
+      expect(
+        organizerExploreFinancialSubtitle(
+          const OrganizerPaymentsBreakdown(
+            viaAppCents: 10000,
+            viaOrganizerCents: 5000,
+          ),
+        ),
+        contains('direto'),
+      );
+    });
+
+    test('matches subtitle handles empty, live and totals', () {
+      expect(
+        organizerExploreMatchesSubtitle(total: 0, live: 0),
+        'Operação do dia',
+      );
+      expect(
+        organizerExploreMatchesSubtitle(total: 12, live: 2),
+        '12 partidas · 2 ao vivo',
+      );
+      expect(
+        organizerExploreMatchesSubtitle(total: 1, live: 0),
+        '1 partida',
+      );
+    });
+
+    test('uniforms subtitle handles pending states', () {
+      expect(
+        organizerExploreUniformsSubtitle(
+          pendingCount: 0,
+          totalAthletes: 0,
+        ),
+        'Aguardando inscrições',
+      );
+      expect(
+        organizerExploreUniformsSubtitle(
+          pendingCount: 3,
+          totalAthletes: 10,
+        ),
+        '3 pendentes',
+      );
+      expect(
+        organizerExploreUniformsSubtitle(
+          pendingCount: 0,
+          totalAthletes: 10,
+        ),
+        'Todos confirmados',
       );
     });
   });

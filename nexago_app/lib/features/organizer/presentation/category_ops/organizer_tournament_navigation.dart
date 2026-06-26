@@ -23,6 +23,46 @@ void pushOrganizerTournamentUniforms(
   );
 }
 
+void pushOrganizerTournamentCategories(
+  GoRouter router, {
+  required String tournamentId,
+}) {
+  router.pushNamed(
+    AppRouteNames.organizerTournamentCategories,
+    pathParameters: {'tournamentId': tournamentId.trim()},
+  );
+}
+
+void pushOrganizerTournamentOverview(
+  GoRouter router, {
+  required String tournamentId,
+}) {
+  router.pushNamed(
+    AppRouteNames.organizerTournamentOverview,
+    pathParameters: {'tournamentId': tournamentId.trim()},
+  );
+}
+
+void pushOrganizerTournamentFinancial(
+  GoRouter router, {
+  required String tournamentId,
+}) {
+  router.pushNamed(
+    AppRouteNames.organizerTournamentFinancial,
+    pathParameters: {'tournamentId': tournamentId.trim()},
+  );
+}
+
+void pushOrganizerTournamentOperations(
+  GoRouter router, {
+  required String tournamentId,
+}) {
+  router.pushNamed(
+    AppRouteNames.organizerTournamentOperations,
+    pathParameters: {'tournamentId': tournamentId.trim()},
+  );
+}
+
 void pushOrganizerCategoryShell(
   GoRouter router, {
   required String tournamentId,
@@ -30,6 +70,34 @@ void pushOrganizerCategoryShell(
 }) {
   router.pushNamed(
     AppRouteNames.organizerCategoryShell,
+    pathParameters: {
+      'tournamentId': tournamentId.trim(),
+      'categoryId': categoryId.trim(),
+    },
+  );
+}
+
+void pushOrganizerCategoryTeams(
+  GoRouter router, {
+  required String tournamentId,
+  required String categoryId,
+}) {
+  router.pushNamed(
+    AppRouteNames.organizerCategoryTeams,
+    pathParameters: {
+      'tournamentId': tournamentId.trim(),
+      'categoryId': categoryId.trim(),
+    },
+  );
+}
+
+void pushOrganizerCategoryPayments(
+  GoRouter router, {
+  required String tournamentId,
+  required String categoryId,
+}) {
+  router.pushNamed(
+    AppRouteNames.organizerCategoryPayments,
     pathParameters: {
       'tournamentId': tournamentId.trim(),
       'categoryId': categoryId.trim(),

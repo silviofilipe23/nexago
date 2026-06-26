@@ -136,7 +136,8 @@ class OrganizerTournamentCategoryCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (category.readyToGenerateBracket) ...[
+                if (category.readyToGenerateBracket &&
+                    showGenerateBracketCta(category)) ...[
                   const SizedBox(height: 14),
                   _BracketReadyFooter(
                     hint: categoryReadyHint(category),

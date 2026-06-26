@@ -32,7 +32,7 @@ class _TournamentBracketPageState extends ConsumerState<TournamentBracketPage> {
         body: Center(child: CircularProgressIndicator(color: AppColors.brand)),
       ),
       error: (e, _) => TournamentDetailSubpageScaffold(
-        title: 'Chave',
+        title: 'Chave e Jogos',
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
@@ -57,12 +57,11 @@ class _TournamentBracketPageState extends ConsumerState<TournamentBracketPage> {
           );
         }
 
-        final categoryId = _categoryId ??
-            tournament.categoryOffers.firstOrNull?.id ??
-            '';
+        final categoryId =
+            _categoryId ?? tournament.categoryOffers.firstOrNull?.id ?? '';
 
         return TournamentDetailSubpageScaffold(
-          title: 'Chave',
+          title: 'Chave e Jogos',
           slivers: TournamentDetailBracketTab(
             tournament: tournament,
             categoryId: categoryId,

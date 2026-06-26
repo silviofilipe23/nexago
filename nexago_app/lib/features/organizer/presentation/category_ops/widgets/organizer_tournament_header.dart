@@ -125,7 +125,7 @@ class OrganizerTournamentKpiRow extends StatelessWidget {
       ),
     ];
     return SizedBox(
-      height: 76,
+      height: 60,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: items.length,
@@ -133,7 +133,7 @@ class OrganizerTournamentKpiRow extends StatelessWidget {
         itemBuilder: (context, index) {
           final item = items[index];
           return Container(
-            width: 118,
+            width: 100,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: context.themeColors.surfaceCard,
@@ -150,7 +150,7 @@ class OrganizerTournamentKpiRow extends StatelessWidget {
                 Text(
                   item.label,
                   style: AppTypography.mono(
-                    fontSize: 10,
+                    fontSize: 8,
                     color: context.themeColors.onSurfaceMuted,
                   ),
                 ),
@@ -160,6 +160,7 @@ class OrganizerTournamentKpiRow extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                     color: item.accent ? AppColors.win : null,
+                    fontSize: 12,
                   ),
                 ),
               ],

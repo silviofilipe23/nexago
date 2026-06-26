@@ -6,13 +6,20 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../domain/tournament_uniforms/tournament_uniforms_models.dart';
 
 class OrganizerUniformsAthleteTile extends StatelessWidget {
-  const OrganizerUniformsAthleteTile({super.key, required this.row});
+  const OrganizerUniformsAthleteTile({
+    super.key,
+    required this.row,
+    this.showJerseyName = false,
+  });
 
   final OrganizerUniformAthleteRow row;
+  final bool showJerseyName;
 
   @override
   Widget build(BuildContext context) {
     final subtitleParts = <String>[
+      if (row.athleteFullName != null && row.athleteFullName!.isNotEmpty)
+        row.athleteFullName!,
       row.categoryLabel,
       if (row.partnerShortName.isNotEmpty) row.partnerShortName,
     ];
@@ -30,8 +37,8 @@ class OrganizerUniformsAthleteTile extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 30,
+            height: 30,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: AppColors.brand.withValues(alpha: 0.12),
@@ -49,7 +56,7 @@ class OrganizerUniformsAthleteTile extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 6),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -59,8 +66,8 @@ class OrganizerUniformsAthleteTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.soraRegular(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
                     color: context.themeColors.onSurface,
                   ),
                 ),
@@ -70,7 +77,7 @@ class OrganizerUniformsAthleteTile extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.soraRegular(
-                    fontSize: 12,
+                    fontSize: 8,
                     fontWeight: FontWeight.w500,
                     color: context.themeColors.onSurfaceMuted,
                   ),
@@ -82,6 +89,10 @@ class OrganizerUniformsAthleteTile extends StatelessWidget {
           if (row.isComplete) ...[
             _SizeBadge(label: row.sizeTop ?? '—'),
             const SizedBox(width: 10),
+            if (showJerseyName) ...[
+              _JerseyNameBadge(name: row.jerseyName),
+              const SizedBox(width: 10),
+            ],
             _NumberBadge(number: row.jerseyNumber),
           ] else
             const _PendingBadge(),
@@ -113,6 +124,44 @@ class _SizeBadge extends StatelessWidget {
           fontWeight: FontWeight.w900,
           color: AppColors.black,
         ),
+      ),
+    );
+  }
+}
+
+class _JerseyNameBadge extends StatelessWidget {
+  const _JerseyNameBadge({this.name});
+
+  final String? name;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = name?.trim() ?? '';
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 72),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            'NOME',
+            style: AppTypography.mono(
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: context.themeColors.onSurfaceMuted,
+            ),
+          ),
+          Text(
+            label.isEmpty ? '—' : label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.soraRegular(
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              color: context.themeColors.onSurface,
+              height: 1,
+            ),
+          ),
+        ],
       ),
     );
   }

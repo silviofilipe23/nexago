@@ -59,7 +59,6 @@ class _OrganizerCategorySeedingPageState
             winnersAdvantage: ops.winnersAdvantage,
             phaseBestOf: ops.phaseBestOf,
             finalBestOf5: ops.finalBestOf5,
-            thirdPlaceEnabled: ops.thirdPlaceEnabled,
             groupsPreview: ops.groupsPreview,
           ),
         );

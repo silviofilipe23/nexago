@@ -40,7 +40,13 @@ import '../../features/organizer/presentation/league_stage_create/steps/league_s
 import '../../features/organizer/presentation/league_stage_create/steps/league_stage_create_review_page.dart';
 import '../../features/organizer/presentation/league_stage_create/league_stage_published_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_tournament_detail_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_tournament_categories_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_tournament_overview_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_tournament_financial_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_tournament_operations_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_shell_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_category_teams_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_category_payments_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_tournament_uniforms_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_seeding_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_generate_bracket_page.dart';
@@ -610,6 +616,50 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 },
               ),
               GoRoute(
+                path: 'categories',
+                name: AppRouteNames.organizerTournamentCategories,
+                builder: (context, state) {
+                  final tournamentId =
+                      state.pathParameters['tournamentId']?.trim() ?? '';
+                  return OrganizerTournamentCategoriesPage(
+                    tournamentId: tournamentId,
+                  );
+                },
+              ),
+              GoRoute(
+                path: 'overview',
+                name: AppRouteNames.organizerTournamentOverview,
+                builder: (context, state) {
+                  final tournamentId =
+                      state.pathParameters['tournamentId']?.trim() ?? '';
+                  return OrganizerTournamentOverviewPage(
+                    tournamentId: tournamentId,
+                  );
+                },
+              ),
+              GoRoute(
+                path: 'financial',
+                name: AppRouteNames.organizerTournamentFinancial,
+                builder: (context, state) {
+                  final tournamentId =
+                      state.pathParameters['tournamentId']?.trim() ?? '';
+                  return OrganizerTournamentFinancialPage(
+                    tournamentId: tournamentId,
+                  );
+                },
+              ),
+              GoRoute(
+                path: 'operations',
+                name: AppRouteNames.organizerTournamentOperations,
+                builder: (context, state) {
+                  final tournamentId =
+                      state.pathParameters['tournamentId']?.trim() ?? '';
+                  return OrganizerTournamentOperationsPage(
+                    tournamentId: tournamentId,
+                  );
+                },
+              ),
+              GoRoute(
                 path: 'categories/:categoryId',
                 name: AppRouteNames.organizerCategoryShell,
                 builder: (context, state) {
@@ -623,6 +673,34 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                   );
                 },
                 routes: [
+                  GoRoute(
+                    path: 'teams',
+                    name: AppRouteNames.organizerCategoryTeams,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final categoryId =
+                          state.pathParameters['categoryId']?.trim() ?? '';
+                      return OrganizerCategoryTeamsPage(
+                        tournamentId: tournamentId,
+                        categoryId: categoryId,
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: 'payments',
+                    name: AppRouteNames.organizerCategoryPayments,
+                    builder: (context, state) {
+                      final tournamentId =
+                          state.pathParameters['tournamentId']?.trim() ?? '';
+                      final categoryId =
+                          state.pathParameters['categoryId']?.trim() ?? '';
+                      return OrganizerCategoryPaymentsPage(
+                        tournamentId: tournamentId,
+                        categoryId: categoryId,
+                      );
+                    },
+                  ),
                   GoRoute(
                     path: 'seeding',
                     name: AppRouteNames.organizerCategorySeeding,

@@ -12,6 +12,8 @@ OrganizerCategoryTeamRow _team({
   int? seedRank,
   int ranking = 0,
   bool partnerPending = false,
+  int paidAmountCents = 0,
+  String paymentMethod = '',
 }) {
   return OrganizerCategoryTeamRow(
     registrationId: 'r-$teamId',
@@ -21,6 +23,8 @@ OrganizerCategoryTeamRow _team({
     status: status,
     seedRank: seedRank,
     expectedAmountCents: 10000,
+    paidAmountCents: paidAmountCents,
+    paymentMethod: paymentMethod,
     partnerPending: partnerPending,
   );
 }
@@ -142,20 +146,89 @@ void main() {
     });
   });
 
-  group('buildPaymentsSummary', () {
-    test('computes net transfer with 6% fee', () {
+  group('inscriptionPaidAmountCents', () {
+    test('converts Firestore reais to cents', () {
+      expect(inscriptionPaidAmountCents(160), 16000);
+      expect(inscriptionPaidAmountCents(99.5), 9950);
+      expect(inscriptionPaidAmountCents(0), 0);
+      expect(inscriptionPaidAmountCents(null), 0);
+    });
+  });
+
+  group('buildPaymentsBreakdown', () {
+    test('direct confirmation counts toward viaOrganizer without app fee', () {
       final teams = [
         _team(teamId: 'a', name: 'A', status: OrganizerTeamRegistrationStatus.confirmed),
         _team(teamId: 'b', name: 'B', status: OrganizerTeamRegistrationStatus.pending),
       ];
-      final summary = buildPaymentsSummary(
+      final summary = buildPaymentsBreakdown(
         teams: teams,
         expectedPerTeamCents: 10000,
       );
       expect(summary.paidCount, 1);
       expect(summary.pendingCount, 1);
+      expect(summary.viaOrganizerCents, 10000);
+      expect(summary.viaAppCents, 0);
       expect(summary.collectedCents, 10000);
-      expect(summary.netTransferCents, 9400);
+      expect(summary.netTransferCents, 0);
+    });
+
+    test('mixed app and direct with net fee only on app', () {
+      final teams = [
+        _team(
+          teamId: 'app1',
+          name: 'App1',
+          status: OrganizerTeamRegistrationStatus.confirmed,
+          paidAmountCents: 10000,
+          paymentMethod: 'pix',
+        ),
+        _team(
+          teamId: 'app2',
+          name: 'App2',
+          status: OrganizerTeamRegistrationStatus.confirmed,
+          paidAmountCents: 10000,
+        ),
+        _team(
+          teamId: 'direct',
+          name: 'Direct',
+          status: OrganizerTeamRegistrationStatus.confirmed,
+          paidAmountCents: 10000,
+          paymentMethod: kOrganizerDirectPaymentMethod,
+        ),
+      ];
+      final summary = buildPaymentsBreakdown(
+        teams: teams,
+        expectedPerTeamCents: 10000,
+      );
+      expect(summary.viaAppCents, 20000);
+      expect(summary.viaOrganizerCents, 10000);
+      expect(summary.collectedCents, 30000);
+      expect(summary.netTransferCents, 18800);
+      expect(summary.outstandingCents, 0);
+    });
+  });
+
+  group('organizerCategoryExploreSubtitles', () {
+    test('teams subtitle pluralizes and shows pending', () {
+      expect(
+        organizerCategoryExploreTeamsSubtitle(teamCount: 0, pendingCount: 0),
+        'Nenhuma inscrição',
+      );
+      expect(
+        organizerCategoryExploreTeamsSubtitle(teamCount: 3, pendingCount: 2),
+        '3 duplas · 2 pendentes',
+      );
+    });
+
+    test('payments subtitle shows direct breakdown when mixed', () {
+      const breakdown = OrganizerPaymentsBreakdown(
+        viaAppCents: 10000,
+        viaOrganizerCents: 5000,
+      );
+      expect(
+        organizerCategoryExplorePaymentsSubtitle(breakdown),
+        contains('direto'),
+      );
     });
   });
 

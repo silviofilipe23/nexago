@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
-import '../../domain/match_ops/match_ops_models.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
+import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/domain/tournament_discovery_models.dart';
 import '../../../tournaments/domain/tournament_discovery_providers.dart';
 import '../../../tournaments/domain/tournament_matches_logic.dart';
@@ -28,9 +29,18 @@ class OrganizerCategoryBracketListPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final matchesAsync =
-        ref.watch(organizerTournamentMatchesProvider(tournamentId));
-    final prizes = ref
+    final detail = ref.watch(organizerTournamentDetailProvider(tournamentId));
+    final tournamentName = detail.valueOrNull?.summary?.name ?? '';
+    final categoryFromDetail = detail.valueOrNull?.categories
+        .where((c) => c.categoryId == categoryId)
+        .firstOrNull;
+    final displayCategoryName = categoryFromDetail?.name ?? categoryName.trim();
+
+    final matchesAsync = ref.watch(
+      organizerTournamentMatchesProvider(tournamentId),
+    );
+    final prizes =
+        ref
             .watch(tournamentDetailProvider(tournamentId))
             .valueOrNull
             ?.categoryOffers
@@ -38,10 +48,6 @@ class OrganizerCategoryBracketListPage extends ConsumerWidget {
             .firstOrNull
             ?.prizes ??
         const <TournamentCategoryPrize>[];
-
-    final title =
-        categoryName.isNotEmpty ? 'Chave · $categoryName' : 'Chave';
-    final theme = Theme.of(context);
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -53,20 +59,52 @@ class OrganizerCategoryBracketListPage extends ConsumerWidget {
         scrolledUnderElevation: 0,
         centerTitle: false,
         titleSpacing: 8,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-            color: context.themeColors.onSurface,
-            letterSpacing: -0.3,
-            height: 1.1,
+        leading: Material(
+          color: context.themeColors.surfaceRaised,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: () => context.pop(),
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 18,
+                color: context.themeColors.onSurface,
+              ),
+            ),
           ),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (tournamentName.isNotEmpty)
+              Text(
+                tournamentName.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.mono(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.brand,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            Text(
+              displayCategoryName.isNotEmpty ? displayCategoryName : 'Chave',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.soraRegular(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                color: context.themeColors.onSurface,
+                height: 1.1,
+              ),
+            ),
+          ],
         ),
       ),
       body: matchesAsync.when(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/domain/favorites_providers.dart';
 import '../domain/arena_dashboard_providers.dart';
@@ -44,129 +45,160 @@ class ArenaDashboardPage extends ConsumerWidget {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final maxW = constraints.maxWidth > 720 ? 640.0 : double.infinity;
-            return Center(
-              child: SingleChildScrollView(
-                controller: ref
-                    .watch(arenaShellScrollRegistryProvider)
-                    .controllerFor(0),
-                key: const PageStorageKey<String>('arena-dashboard-scroll'),
-                padding: const EdgeInsets.fromLTRB(
-                  ArenaDashboardTokens.horizontalPadding,
-                  16,
-                  ArenaDashboardTokens.horizontalPadding,
-                  32,
-                ),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: maxW),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const FadeSlideIn(
+            return CustomScrollView(
+              controller:
+                  ref.watch(arenaShellScrollRegistryProvider).controllerFor(0),
+              key: const PageStorageKey<String>('arena-dashboard-scroll'),
+              slivers: [
+                NexaFloatingHeaderSliver(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: ArenaDashboardTokens.horizontalPadding,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: maxW),
+                      child: const FadeSlideIn(
                         duration: Duration(milliseconds: 420),
                         offsetY: 14,
                         child: ArenaDashboardHeader(),
                       ),
-                      SizedBox(height: ArenaDashboardTokens.sectionGap),
-                      const FadeSlideIn(
-                        duration: Duration(milliseconds: 440),
-                        offsetY: 14,
-                        child: ArenaDashboardQuickActions(),
-                      ),
-                      SizedBox(height: ArenaDashboardTokens.sectionGap),
-                      const FadeSlideIn(
-                        duration: Duration(milliseconds: 460),
-                        offsetY: 14,
-                        child: ArenaDashboardPeriodChips(),
-                      ),
-                      SizedBox(height: ArenaDashboardTokens.sectionGap),
-                      summaryAsync.when(
-                        data: (summary) => metricsAsync.when(
-                          data: (metrics) => Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              FadeSlideIn(
-                                duration: const Duration(milliseconds: 500),
-                                offsetY: 14,
-                                child: ArenaDashboardKpiGrid(
-                                  items: [
-                                    ArenaDashboardKpiItem(
-                                      label: 'Faturamento',
-                                      value: formatDashboardCurrency(
-                                        metrics.revenue,
+                    ),
+                  ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(
+                    ArenaDashboardTokens.horizontalPadding,
+                    0,
+                    ArenaDashboardTokens.horizontalPadding,
+                    32,
+                  ),
+                  sliver: SliverToBoxAdapter(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: maxW),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(height: ArenaDashboardTokens.sectionGap),
+                            const FadeSlideIn(
+                              duration: Duration(milliseconds: 440),
+                              offsetY: 14,
+                              child: ArenaDashboardQuickActions(),
+                            ),
+                            SizedBox(height: ArenaDashboardTokens.sectionGap),
+                            const FadeSlideIn(
+                              duration: Duration(milliseconds: 460),
+                              offsetY: 14,
+                              child: ArenaDashboardPeriodChips(),
+                            ),
+                            SizedBox(height: ArenaDashboardTokens.sectionGap),
+                            summaryAsync.when(
+                              data: (summary) => metricsAsync.when(
+                                data: (metrics) => Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    FadeSlideIn(
+                                      duration:
+                                          const Duration(milliseconds: 500),
+                                      offsetY: 14,
+                                      child: ArenaDashboardKpiGrid(
+                                        items: [
+                                          ArenaDashboardKpiItem(
+                                            label: 'Faturamento',
+                                            value: formatDashboardCurrency(
+                                              metrics.revenue,
+                                            ),
+                                            icon: Icons.payments_rounded,
+                                            badge: metrics.revenueBadge,
+                                          ),
+                                          ArenaDashboardKpiItem(
+                                            label: 'Ocupação',
+                                            value:
+                                                formatDashboardOccupancyPercent(
+                                              metrics.occupancyRatePercent,
+                                            ),
+                                            icon:
+                                                Icons.stacked_bar_chart_rounded,
+                                            badge: metrics.occupancyBadge,
+                                          ),
+                                          ArenaDashboardKpiItem(
+                                            label: 'Reservas',
+                                            value: '${metrics.bookingsCount}',
+                                            icon: Icons.event_available_rounded,
+                                            badge: metrics.bookingsBadge,
+                                          ),
+                                          ArenaDashboardKpiItem(
+                                            label: 'Pico',
+                                            value: formatDashboardPeakHour(
+                                              metrics.peakHour,
+                                            ),
+                                            icon: Icons
+                                                .local_fire_department_rounded,
+                                            badge: metrics.peakBadge,
+                                          ),
+                                        ],
                                       ),
-                                      icon: Icons.payments_rounded,
-                                      badge: metrics.revenueBadge,
                                     ),
-                                    ArenaDashboardKpiItem(
-                                      label: 'Ocupação',
-                                      value: formatDashboardOccupancyPercent(
-                                        metrics.occupancyRatePercent,
+                                    SizedBox(
+                                        height:
+                                            ArenaDashboardTokens.sectionGap),
+                                    FadeSlideIn(
+                                      duration:
+                                          const Duration(milliseconds: 540),
+                                      offsetY: 14,
+                                      child: ArenaDashboardRevenueChartCard(
+                                        values: summary.revenueLast7Days,
+                                        labels: summary.chartDayLabels,
+                                        metrics: metrics,
                                       ),
-                                      icon: Icons.stacked_bar_chart_rounded,
-                                      badge: metrics.occupancyBadge,
                                     ),
-                                    ArenaDashboardKpiItem(
-                                      label: 'Reservas',
-                                      value: '${metrics.bookingsCount}',
-                                      icon: Icons.event_available_rounded,
-                                      badge: metrics.bookingsBadge,
-                                    ),
-                                    ArenaDashboardKpiItem(
-                                      label: 'Pico',
-                                      value: formatDashboardPeakHour(
-                                        metrics.peakHour,
+                                    SizedBox(
+                                        height:
+                                            ArenaDashboardTokens.sectionGap),
+                                    FadeSlideIn(
+                                      duration:
+                                          const Duration(milliseconds: 580),
+                                      offsetY: 14,
+                                      child: ArenaDashboardInsightsSection(
+                                        summary: summary,
                                       ),
-                                      icon: Icons.local_fire_department_rounded,
-                                      badge: metrics.peakBadge,
+                                    ),
+                                    SizedBox(
+                                        height:
+                                            ArenaDashboardTokens.sectionGap),
+                                    FadeSlideIn(
+                                      duration:
+                                          const Duration(milliseconds: 620),
+                                      offsetY: 14,
+                                      child: ArenaDashboardFollowersCard(
+                                        insightsAsync: followersInsightsAsync,
+                                        arenaId: arenaId,
+                                      ),
+                                    ),
+                                    SizedBox(
+                                        height:
+                                            ArenaDashboardTokens.sectionGap),
+                                    const FadeSlideIn(
+                                      duration: Duration(milliseconds: 660),
+                                      offsetY: 14,
+                                      child: ArenaDashboardReputationSection(),
                                     ),
                                   ],
                                 ),
+                                loading: () => _loadingBlock(),
+                                error: (e, _) => _errorBlock(theme),
                               ),
-                              SizedBox(height: ArenaDashboardTokens.sectionGap),
-                              FadeSlideIn(
-                                duration: const Duration(milliseconds: 540),
-                                offsetY: 14,
-                                child: ArenaDashboardRevenueChartCard(
-                                  values: summary.revenueLast7Days,
-                                  labels: summary.chartDayLabels,
-                                  metrics: metrics,
-                                ),
-                              ),
-                              SizedBox(height: ArenaDashboardTokens.sectionGap),
-                              FadeSlideIn(
-                                duration: const Duration(milliseconds: 580),
-                                offsetY: 14,
-                                child: ArenaDashboardInsightsSection(
-                                  summary: summary,
-                                ),
-                              ),
-                              SizedBox(height: ArenaDashboardTokens.sectionGap),
-                              FadeSlideIn(
-                                duration: const Duration(milliseconds: 620),
-                                offsetY: 14,
-                                child: ArenaDashboardFollowersCard(
-                                  insightsAsync: followersInsightsAsync,
-                                  arenaId: arenaId,
-                                ),
-                              ),
-                              SizedBox(height: ArenaDashboardTokens.sectionGap),
-                              const FadeSlideIn(
-                                duration: Duration(milliseconds: 660),
-                                offsetY: 14,
-                                child: ArenaDashboardReputationSection(),
-                              ),
-                            ],
-                          ),
-                          loading: () => _loadingBlock(),
-                          error: (e, _) => _errorBlock(theme),
+                              loading: () => _loadingBlock(),
+                              error: (e, _) => _errorBlock(theme),
+                            ),
+                          ],
                         ),
-                        loading: () => _loadingBlock(),
-                        error: (e, _) => _errorBlock(theme),
                       ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             );
           },
         ),

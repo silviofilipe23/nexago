@@ -59,6 +59,8 @@ service cloud.firestore {
         request.resource.data.listingStatus is string &&
         isValidTournamentListingStatus(request.resource.data.listingStatus) &&
         request.resource.data.enrolledCount == 0 &&
+        (!('collectedCents' in request.resource.data) ||
+         request.resource.data.collectedCents == 0) &&
         request.resource.data.categories is list &&
         request.resource.data.categories.size() >= 1;
     }
@@ -67,6 +69,7 @@ service cloud.firestore {
         resource.data.managerId == request.auth.uid &&
         request.resource.data.managerId == resource.data.managerId &&
         request.resource.data.enrolledCount == resource.data.enrolledCount &&
+        request.resource.data.collectedCents == resource.data.collectedCents &&
         request.resource.data.listingStatus is string &&
         isValidTournamentListingStatus(request.resource.data.listingStatus);
     }

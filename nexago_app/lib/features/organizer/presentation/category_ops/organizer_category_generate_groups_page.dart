@@ -294,18 +294,20 @@ class _OrganizerCategoryGenerateGroupsPageState
                           excludedCount: excludedCount,
                         ),
                       ],
-                      const SizedBox(height: 12),
-                      OrganizerGroupSeedsToggleCard(
-                        value: _useSeeds,
-                        headCount: _headCount(
-                          groupCount: groupCount,
-                          seedTeamIds: seedTeamIds,
+                      if (seedTeamIds.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        OrganizerGroupSeedsToggleCard(
+                          value: _useSeeds,
+                          headCount: _headCount(
+                            groupCount: groupCount,
+                            seedTeamIds: seedTeamIds,
+                          ),
+                          onChanged: (value) {
+                            setState(() => _useSeeds = value);
+                            redraw();
+                          },
                         ),
-                        onChanged: (value) {
-                          setState(() => _useSeeds = value);
-                          redraw();
-                        },
-                      ),
+                      ],
                       if (!knockoutBalanced) ...[
                         const SizedBox(height: 12),
                         OrganizerGroupDrawKnockoutWarningBanner(

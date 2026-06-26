@@ -1,11 +1,12 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_card_view_model.dart';
 import '../../../tournaments/domain/tournament_discovery_providers.dart';
 import '../../data/organizer_match_ops_repository.dart';
 import '../../data/organizer_match_schedule_service.dart';
+import '../tournament_ops/tournament_ops_providers.dart';
 import 'match_ops_logic.dart';
 import 'match_ops_models.dart';
 import 'schedule_logic.dart';
@@ -98,6 +99,68 @@ class _MatchCenterCategoryNotifier
   void select(String categoryId) => state = categoryId;
 }
 
+DateTime? _matchOpsFirestoreDate(dynamic value) {
+  if (value is Timestamp) return value.toDate();
+  if (value is DateTime) return value;
+  return null;
+}
+
+/// Dias disponíveis na grade H1 (intervalo do torneio ou partidas agendadas).
+final organizerScheduleGridDayKeysProvider = Provider.autoDispose
+    .family<List<String>, String>((ref, tournamentId) {
+  final detail = ref.watch(organizerTournamentDetailProvider(tournamentId));
+  final matches = ref.watch(organizerTournamentMatchesProvider(tournamentId));
+  final tournament = detail.valueOrNull?.tournament;
+  final startAt = _matchOpsFirestoreDate(tournament?['startAt']);
+  final endAt = _matchOpsFirestoreDate(tournament?['endAt']);
+  var days = ScheduleLogic.tournamentDayKeys(startAt: startAt, endAt: endAt);
+  if (days.isEmpty) {
+    days = ScheduleLogic.tournamentDayKeysFromMatches(
+      matches.valueOrNull ?? const [],
+    );
+  }
+  return days;
+});
+
+final organizerScheduleGridDayKeyProvider = NotifierProvider.autoDispose
+    .family<_ScheduleGridDayKeyNotifier, String, String>(
+  _ScheduleGridDayKeyNotifier.new,
+);
+
+/// Dia ativo de programação (grade, pick, H2, sheet, auto).
+final organizerScheduleDayKeyProvider = organizerScheduleGridDayKeyProvider;
+
+class _ScheduleGridDayKeyNotifier
+    extends AutoDisposeFamilyNotifier<String, String> {
+  var _userSelected = false;
+
+  @override
+  String build(String tournamentId) {
+    ref.watch(organizerScheduleGridDayKeysProvider(tournamentId));
+    ref.watch(organizerMatchOpsConfigProvider(tournamentId));
+
+    if (_userSelected && state.isNotEmpty) return state;
+
+    return _resolveDefault(tournamentId);
+  }
+
+  void select(String dayKey) {
+    _userSelected = true;
+    state = dayKey.trim();
+  }
+
+  String _resolveDefault(String tournamentId) {
+    final days = ref.read(organizerScheduleGridDayKeysProvider(tournamentId));
+    final config =
+        ref.read(organizerMatchOpsConfigProvider(tournamentId)).valueOrNull;
+    return ScheduleLogic.resolveScheduleGridDayKey(
+      tournamentDays: days,
+      activeDayKey: config?.activeDayKey,
+      preferredDayKey: _userSelected ? state : null,
+    );
+  }
+}
+
 @immutable
 class OrganizerMatchOpsState {
   const OrganizerMatchOpsState({
@@ -165,9 +228,7 @@ final organizerMatchOpsStateProvider = Provider.autoDispose
     summaries: courtSummaries,
     queue: callQueue,
   );
-  final dayKey = config.activeDayKey.isNotEmpty
-      ? config.activeDayKey
-      : ScheduleLogic.dayKeyFromDate(DateTime.now());
+  final dayKey = ref.watch(organizerScheduleDayKeyProvider(tournamentId));
   final dayMatches = MatchOpsLogic.matchesForDay(allMatches, dayKey);
   final insights = MatchOpsLogic.computeDelayInsights(
     matches: allMatches,

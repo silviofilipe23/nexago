@@ -4,6 +4,7 @@ import 'package:nexago_app/core/theme/app_theme.dart';
 import 'package:nexago_app/features/organizer/domain/category_ops/category_ops_models.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/match_ops_logic.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/match_ops_models.dart';
+import 'package:nexago_app/features/organizer/domain/match_ops/schedule_logic.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/schedule_pick_logic.dart';
 import 'package:nexago_app/features/organizer/presentation/match_ops/widgets/organizer_match_live_table_widgets.dart';
 import 'package:nexago_app/features/organizer/presentation/match_ops/widgets/organizer_schedule_pick_widgets.dart';
@@ -24,6 +25,7 @@ TournamentMatch _match({
   bool isGroupMatch = false,
   String? teamADescription = 'Léo / Tiago',
   String? teamBDescription = 'Marcos / Victor',
+  String? dayKey,
 }) {
   return TournamentMatch(
     id: id,
@@ -44,6 +46,7 @@ TournamentMatch _match({
     courtId: courtId,
     teamADescription: teamADescription,
     teamBDescription: teamBDescription,
+    dayKey: dayKey ?? '',
   );
 }
 
@@ -151,6 +154,30 @@ void main() {
 
       expect(pool.map((m) => m.id), contains('m1'));
       expect(pool.map((m) => m.id), isNot(contains('m3')));
+    });
+
+    test('matchesForDay shows scheduled match only on its tournament day', () {
+      final tournamentDays = ScheduleLogic.tournamentDayKeys(
+        startAt: DateTime(2026, 6, 26),
+        endAt: DateTime(2026, 6, 28),
+      );
+      expect(tournamentDays, ['2026-06-26', '2026-06-27', '2026-06-28']);
+
+      final scheduledDay2 = _match(
+        id: 'future',
+        scheduleTime: DateTime(2026, 6, 27, 10),
+        courtId: 'Q1',
+        dayKey: '2026-06-27',
+      );
+      final all = [_match(id: 'pool'), scheduledDay2];
+
+      final day26 = MatchOpsLogic.matchesForDay(all, '2026-06-26');
+      final day27 = MatchOpsLogic.matchesForDay(all, '2026-06-27');
+
+      expect(day26.map((m) => m.id), contains('pool'));
+      expect(day26.map((m) => m.id), isNot(contains('future')));
+      expect(day27.map((m) => m.id), contains('future'));
+      expect(day27.map((m) => m.id), contains('pool'));
     });
 
     test('suggestSlotForMatch returns court and time', () {

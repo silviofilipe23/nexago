@@ -1,11 +1,16 @@
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 
-function dayKeyFromDate(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+const EVENT_TIME_ZONE = "America/Sao_Paulo";
+
+function dayKeyFromEventDate(d) {
+  return d.toLocaleDateString("en-CA", {timeZone: EVENT_TIME_ZONE});
+}
+
+function eventDateFromDayKeyAndTime(dayKey, hour, minute) {
+  const hh = String(hour).padStart(2, "0");
+  const mm = String(minute).padStart(2, "0");
+  return new Date(`${dayKey}T${hh}:${mm}:00-03:00`);
 }
 
 function detectCourtOverlap(
@@ -24,9 +29,19 @@ function detectCourtOverlap(
 }
 
 describe("organizer-match-ops", () => {
-  it("dayKeyFromDate formats YYYY-MM-DD", () => {
-    const key = dayKeyFromDate(new Date("2026-06-14T10:00:00"));
+  it("dayKeyFromEventDate formats YYYY-MM-DD in São Paulo", () => {
+    const key = dayKeyFromEventDate(new Date("2026-06-14T10:00:00Z"));
     assert.equal(key, "2026-06-14");
+  });
+
+  it("dayKeyFromEventDate uses SP calendar for late UTC instant", () => {
+    const key = dayKeyFromEventDate(new Date("2026-06-15T02:30:00Z"));
+    assert.equal(key, "2026-06-14");
+  });
+
+  it("eventDateFromDayKeyAndTime builds SP wall clock as UTC", () => {
+    const start = eventDateFromDayKeyAndTime("2026-06-14", 8, 0);
+    assert.equal(start.toISOString(), "2026-06-14T11:00:00.000Z");
   });
 
   it("detectCourtOverlap finds conflict", () => {

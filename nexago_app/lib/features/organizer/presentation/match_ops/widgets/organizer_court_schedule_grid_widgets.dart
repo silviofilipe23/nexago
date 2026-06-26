@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -6,6 +7,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../tournaments/domain/tournament_match.dart';
 import '../../../domain/match_ops/match_ops_models.dart';
 import '../../../domain/match_ops/schedule_grid_logic.dart';
+import '../../../domain/match_ops/schedule_logic.dart';
 
 class ScheduleGridHeader extends StatelessWidget {
   const ScheduleGridHeader({
@@ -14,94 +16,214 @@ class ScheduleGridHeader extends StatelessWidget {
     required this.onBack,
     this.onMore,
     this.alertCount = 0,
+    this.dayPicker,
   });
 
   final String programLabel;
   final VoidCallback onBack;
   final VoidCallback? onMore;
   final int alertCount;
+  final Widget? dayPicker;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _ScheduleGridIconButton(
-            icon: Icons.arrow_back_ios_new_rounded,
-            onPressed: onBack,
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  programLabel,
-                  style: AppTypography.mono(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.brand,
-                    letterSpacing: 0.8,
-                  ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ScheduleGridIconButton(
+                icon: Icons.arrow_back_ios_new_rounded,
+                onPressed: onBack,
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      programLabel,
+                      style: AppTypography.mono(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.brand,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    Text(
+                      'Grade de quadras',
+                      style: AppTypography.soraRegular(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: context.themeColors.onSurface,
+                        height: 1.15,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Grade de quadras',
-                  style: AppTypography.soraRegular(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: context.themeColors.onSurface,
-                    height: 1.15,
+              ),
+              if (alertCount > 0) ...[
+                Container(
+                  margin: const EdgeInsets.only(top: 4, right: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.live.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: AppColors.live.withValues(alpha: 0.45),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 5,
+                        height: 5,
+                        decoration: const BoxDecoration(
+                          color: AppColors.live,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$alertCount',
+                        style: AppTypography.mono(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.live,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
-            ),
+            ],
           ),
-          if (alertCount > 0) ...[
-            Container(
-              margin: const EdgeInsets.only(top: 4, right: 8),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.live.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: AppColors.live.withValues(alpha: 0.45),
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 5,
-                    height: 5,
-                    decoration: const BoxDecoration(
-                      color: AppColors.live,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$alertCount',
-                    style: AppTypography.mono(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.live,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          if (dayPicker != null) ...[
+            const SizedBox(height: 10),
+            dayPicker!,
           ],
-          if (onMore != null)
-            _ScheduleGridIconButton(
-              icon: Icons.more_horiz_rounded,
-              onPressed: onMore!,
-            )
-          else
-            const SizedBox(width: 40),
         ],
       ),
+    );
+  }
+}
+
+class ScheduleGridDayPicker extends StatelessWidget {
+  const ScheduleGridDayPicker({
+    super.key,
+    required this.tournamentDays,
+    required this.selectedDayKey,
+    required this.onDaySelected,
+  });
+
+  final List<String> tournamentDays;
+  final String selectedDayKey;
+  final ValueChanged<String> onDaySelected;
+
+  DateTime? _dayKeyToLocalDate(String dayKey) {
+    final anchor = nexagoEventDayKeyAnchor(dayKey);
+    if (anchor == null) return null;
+    return toNexagoEventLocal(anchor);
+  }
+
+  Future<void> _openCalendar(BuildContext context) async {
+    if (tournamentDays.isEmpty) return;
+    final first = _dayKeyToLocalDate(tournamentDays.first);
+    final last = _dayKeyToLocalDate(tournamentDays.last);
+    final initial = _dayKeyToLocalDate(selectedDayKey) ?? first;
+    if (first == null || last == null || initial == null) return;
+
+    final picked = await showDatePicker(
+      context: context,
+      locale: const Locale('pt', 'BR'),
+      initialDate: initial,
+      firstDate: first,
+      lastDate: last,
+      helpText: 'Selecionar dia',
+      cancelText: 'Cancelar',
+      confirmText: 'OK',
+    );
+    if (picked == null) return;
+    onDaySelected(ScheduleLogic.dayKeyFromDate(picked));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedLabel =
+        ScheduleGridLogic.programDayDateLabel(selectedDayKey);
+
+    if (tournamentDays.length <= 1) {
+      return Row(
+        children: [
+          Icon(
+            Icons.calendar_today_rounded,
+            size: 14,
+            color: context.themeColors.onSurfaceMuted,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            selectedLabel,
+            style: AppTypography.soraRegular(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: context.themeColors.onSurfaceMuted,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: tournamentDays.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final dayKey = tournamentDays[index];
+                final selected = dayKey == selectedDayKey;
+                return FilterChip(
+                  label: Text(
+                    ScheduleGridLogic.programDayChipLabel(dayKey),
+                    style: AppTypography.mono(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: selected
+                          ? Colors.white
+                          : context.themeColors.onSurfaceMuted,
+                    ),
+                  ),
+                  selected: selected,
+                  showCheckmark: false,
+                  onSelected: (_) => onDaySelected(dayKey),
+                  selectedColor: AppColors.brand,
+                  backgroundColor: context.themeColors.surfaceRaised,
+                  side: BorderSide(
+                    color: selected
+                        ? AppColors.brand
+                        : context.themeColors.onSurfaceMuted
+                            .withValues(alpha: 0.2),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  visualDensity: VisualDensity.compact,
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        _ScheduleGridIconButton(
+          icon: Icons.calendar_month_rounded,
+          onPressed: () => _openCalendar(context),
+        ),
+      ],
     );
   }
 }
@@ -170,7 +292,7 @@ class ScheduleGridCourtHeaders extends StatelessWidget {
   }
 }
 
-class ScheduleGridBody extends StatelessWidget {
+class ScheduleGridBody extends StatefulWidget {
   const ScheduleGridBody({
     super.key,
     required this.courts,
@@ -180,6 +302,7 @@ class ScheduleGridBody extends StatelessWidget {
     required this.categoryLabelsByMatchId,
     required this.defaultDurationMin,
     required this.draggingMatchId,
+    required this.selectedDayKey,
     required this.onMatchTap,
     required this.onDropMatch,
     required this.onDragStarted,
@@ -194,6 +317,7 @@ class ScheduleGridBody extends StatelessWidget {
   final Map<String, String> categoryLabelsByMatchId;
   final int defaultDurationMin;
   final String? draggingMatchId;
+  final String selectedDayKey;
   final ValueChanged<TournamentMatch> onMatchTap;
   final void Function(TournamentMatch match, String courtId, DateTime slotStart)
       onDropMatch;
@@ -202,7 +326,92 @@ class ScheduleGridBody extends StatelessWidget {
   final ScrollController? horizontalScrollController;
 
   @override
+  State<ScheduleGridBody> createState() => _ScheduleGridBodyState();
+}
+
+class _ScheduleGridBodyState extends State<ScheduleGridBody> {
+  late final ScrollController _verticalScrollController;
+  String? _scrolledForDayKey;
+
+  @override
+  void initState() {
+    super.initState();
+    _verticalScrollController = ScrollController();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToInitial());
+  }
+
+  @override
+  void didUpdateWidget(covariant ScheduleGridBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedDayKey != widget.selectedDayKey ||
+        oldWidget.slots != widget.slots) {
+      _scrolledForDayKey = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToInitial());
+    }
+  }
+
+  @override
+  void dispose() {
+    _verticalScrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToInitial() {
+    if (_scrolledForDayKey == widget.selectedDayKey) return;
+    if (!_verticalScrollController.hasClients) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToInitial());
+      return;
+    }
+
+    final gridEnd = widget.slots.isNotEmpty
+        ? widget.slots.last
+            .add(const Duration(minutes: ScheduleGridLogic.slotMinutes))
+        : widget.gridStart;
+
+    final todayKey = ScheduleLogic.dayKeyFromDate(nexagoEventNow());
+    double targetOffset = 0;
+
+    if (widget.selectedDayKey == todayKey) {
+      final nowOffset = ScheduleGridLogic.nowLineOffset(
+        gridStart: widget.gridStart,
+        gridEnd: gridEnd,
+      );
+      if (nowOffset != null) {
+        targetOffset = (nowOffset - ScheduleGridLogic.slotHeight * 2)
+            .clamp(0.0, _verticalScrollController.position.maxScrollExtent);
+      }
+    } else {
+      TournamentMatch? firstScheduled;
+      for (final list in widget.matchesByCourt.values) {
+        for (final match in list) {
+          final time = match.scheduleTime;
+          if (time == null) continue;
+          if (firstScheduled == null ||
+              time.isBefore(firstScheduled.scheduleTime!)) {
+            firstScheduled = match;
+          }
+        }
+      }
+      if (firstScheduled?.scheduleTime != null) {
+        final top = ScheduleGridLogic.matchTopOffset(
+          match: firstScheduled!,
+          gridStart: widget.gridStart,
+        );
+        targetOffset =
+            (top - ScheduleGridLogic.slotHeight).clamp(0.0, double.infinity);
+      }
+    }
+
+    _verticalScrollController.jumpTo(
+      targetOffset.clamp(0.0, _verticalScrollController.position.maxScrollExtent),
+    );
+    _scrolledForDayKey = widget.selectedDayKey;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final slots = widget.slots;
+    final gridStart = widget.gridStart;
     final gridHeight = ScheduleGridLogic.gridTotalHeight(slots);
     final gridEnd = slots.isNotEmpty
         ? slots.last.add(const Duration(minutes: ScheduleGridLogic.slotMinutes))
@@ -213,10 +422,11 @@ class ScheduleGridBody extends StatelessWidget {
     );
 
     return SingleChildScrollView(
+      controller: _verticalScrollController,
       padding: const EdgeInsets.only(bottom: 16),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        controller: horizontalScrollController,
+        controller: widget.horizontalScrollController,
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: SizedBox(
           height: gridHeight,
@@ -227,29 +437,32 @@ class ScheduleGridBody extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _ScheduleGridTimeColumn(slots: slots),
-                  for (final court in courts)
+                  for (final court in widget.courts)
                     _ScheduleGridCourtColumn(
                       court: court,
                       slots: slots,
                       gridStart: gridStart,
-                      matches: matchesByCourt[court.id] ?? const [],
-                      categoryLabelsByMatchId: categoryLabelsByMatchId,
-                      defaultDurationMin: defaultDurationMin,
-                      draggingMatchId: draggingMatchId,
-                      onMatchTap: onMatchTap,
-                      onDropMatch: onDropMatch,
-                      onDragStarted: onDragStarted,
-                      onDragEnded: onDragEnded,
+                      matches: widget.matchesByCourt[court.id] ?? const [],
+                      categoryLabelsByMatchId:
+                          widget.categoryLabelsByMatchId,
+                      defaultDurationMin: widget.defaultDurationMin,
+                      draggingMatchId: widget.draggingMatchId,
+                      onMatchTap: widget.onMatchTap,
+                      onDropMatch: widget.onDropMatch,
+                      onDragStarted: widget.onDragStarted,
+                      onDragEnded: widget.onDragEnded,
                     ),
                 ],
               ),
-              if (nowOffset != null)
+              if (nowOffset != null &&
+                  widget.selectedDayKey ==
+                      ScheduleLogic.dayKeyFromDate(nexagoEventNow()))
                 Positioned(
                   top: nowOffset,
                   left: 0,
                   right: 0,
                   child: ScheduleGridNowLine(
-                    timeLabel: ScheduleGridLogic.timeLabel(DateTime.now()),
+                    timeLabel: ScheduleGridLogic.timeLabel(nexagoEventNow()),
                   ),
                 ),
             ],
@@ -336,7 +549,10 @@ class ScheduleGridActionBar extends StatelessWidget {
                     alpha: 0.28,
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -422,7 +638,7 @@ class _ScheduleGridCourtColumn extends StatelessWidget {
   final String? draggingMatchId;
   final ValueChanged<TournamentMatch> onMatchTap;
   final void Function(TournamentMatch match, String courtId, DateTime slotStart)
-      onDropMatch;
+  onDropMatch;
   final ValueChanged<TournamentMatch> onDragStarted;
   final VoidCallback onDragEnded;
 
@@ -462,30 +678,30 @@ class _ScheduleGridCourtColumn extends StatelessWidget {
               child: IgnorePointer(
                 ignoring: draggingMatchId != null,
                 child: _ScheduleGridMatchCard(
-                match: match,
-                metaLabel: ScheduleGridLogic.matchMetaLabel(
                   match: match,
-                  categoryLabel:
-                      categoryLabelsByMatchId[match.id] ?? match.categoryId,
-                ),
-                teamALine: ScheduleGridLogic.teamLine(
-                  description: match.teamADescription,
-                  teamId: match.teamAId,
-                ),
-                teamBLine: ScheduleGridLogic.teamLine(
-                  description: match.teamBDescription,
-                  teamId: match.teamBId,
-                ),
-                timeRange: ScheduleGridLogic.matchTimeRange(
-                  match,
-                  defaultDurationMin: defaultDurationMin,
-                ),
-                phase: ScheduleGridLogic.matchPhase(match),
-                showAlert: ScheduleGridLogic.showAlertIcon(match),
-                isDragging: draggingMatchId == match.id,
-                onTap: () => onMatchTap(match),
-                onDragStarted: () => onDragStarted(match),
-                onDragEnded: onDragEnded,
+                  metaLabel: ScheduleGridLogic.matchMetaLabel(
+                    match: match,
+                    categoryLabel:
+                        categoryLabelsByMatchId[match.id] ?? match.categoryId,
+                  ),
+                  teamALine: ScheduleGridLogic.teamLine(
+                    description: match.teamADescription,
+                    teamId: match.teamAId,
+                  ),
+                  teamBLine: ScheduleGridLogic.teamLine(
+                    description: match.teamBDescription,
+                    teamId: match.teamBId,
+                  ),
+                  timeRange: ScheduleGridLogic.matchTimeRange(
+                    match,
+                    defaultDurationMin: defaultDurationMin,
+                  ),
+                  phase: ScheduleGridLogic.matchPhase(match),
+                  showAlert: ScheduleGridLogic.showAlertIcon(match),
+                  isDragging: draggingMatchId == match.id,
+                  onTap: () => onMatchTap(match),
+                  onDragStarted: () => onDragStarted(match),
+                  onDragEnded: onDragEnded,
                 ),
               ),
             ),
@@ -509,7 +725,7 @@ class _ScheduleGridDropSlot extends StatelessWidget {
   final DateTime gridStart;
   final bool showDropHint;
   final void Function(TournamentMatch match, String courtId, DateTime slotStart)
-      onDropMatch;
+  onDropMatch;
 
   @override
   Widget build(BuildContext context) {

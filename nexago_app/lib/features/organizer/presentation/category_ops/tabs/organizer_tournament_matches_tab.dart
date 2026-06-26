@@ -18,8 +18,9 @@ class OrganizerTournamentMatchesTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final matchesAsync =
-        ref.watch(organizerTournamentMatchesProvider(tournamentId));
+    final matchesAsync = ref.watch(
+      organizerTournamentMatchesProvider(tournamentId),
+    );
 
     return matchesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -37,7 +38,9 @@ class OrganizerTournamentMatchesTab extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Expanded(child: _StatChip(value: '$total', label: 'Partidas')),
+                Expanded(
+                  child: _StatChip(value: '$total', label: 'Partidas'),
+                ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: _StatChip(
@@ -68,7 +71,7 @@ class OrganizerTournamentMatchesTab extends ConsumerWidget {
             const SizedBox(height: 10),
             _ActionTile(
               icon: Icons.sensors_rounded,
-              title: 'Ao vivo',
+              title: 'Central de Partidas',
               subtitle: 'Partidas em andamento, fila e chamadas pra quadra',
               onTap: () => context.push(organizerMatchCenterPath(tournamentId)),
             ),
@@ -103,18 +106,18 @@ class _StatChip extends StatelessWidget {
           Text(
             value,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: accent ?? context.themeColors.onSurface,
-                  letterSpacing: -0.3,
-                ),
+              fontWeight: FontWeight.w800,
+              color: accent ?? context.themeColors.onSurface,
+              letterSpacing: -0.3,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             label,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: context.themeColors.onSurfaceMuted,
-                  fontWeight: FontWeight.w600,
-                ),
+              color: context.themeColors.onSurfaceMuted,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
@@ -182,16 +185,16 @@ class _ActionTile extends StatelessWidget {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: context.themeColors.onSurfaceMuted,
-                            height: 1.3,
-                          ),
+                        color: context.themeColors.onSurfaceMuted,
+                        height: 1.3,
+                      ),
                     ),
                   ],
                 ),
@@ -227,18 +230,18 @@ class _MatchesEmptyState extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               'Nenhuma partida ainda',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(
               'Gere a chave nas categorias para montar a programação dos jogos.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: context.themeColors.onSurfaceMuted,
-                    height: 1.45,
-                  ),
+                color: context.themeColors.onSurfaceMuted,
+                height: 1.45,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -247,7 +250,9 @@ class _MatchesEmptyState extends StatelessWidget {
               style: AppTypography.mono(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.8),
+                color: context.themeColors.onSurfaceMuted.withValues(
+                  alpha: 0.8,
+                ),
                 letterSpacing: 0.3,
               ),
             ),

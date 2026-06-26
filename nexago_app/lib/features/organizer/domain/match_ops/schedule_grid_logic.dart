@@ -1,3 +1,4 @@
+import '../../../../core/time/nexago_event_timezone.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
@@ -13,6 +14,62 @@ abstract final class ScheduleGridLogic {
   static const double slotHeight = 52;
   static const double courtColumnWidth = 112;
   static const double timeColumnWidth = 44;
+
+  /// Janela padrão da grade H1 (parede SP).
+  static const String gridDayStart = '07:00';
+  static const String gridDayEnd = '24:00';
+
+  /// Slots da grade: 07:00–23:30 SP, expandindo se partidas saírem da janela.
+  static List<DateTime> gridTimeSlotsForDay({
+    required String dayKey,
+    List<TournamentMatch> dayMatches = const [],
+    int defaultDurationMin = 50,
+  }) {
+    final anchor = _parseDayKey(dayKey) ?? nexagoEventDayKeyAnchor(dayKey);
+    if (anchor == null) return const [];
+
+    var startLabel = gridDayStart;
+    var endLabel = gridDayEnd;
+    DateTime? latestInstant;
+
+    final baseStart = _mergeTime(anchor, gridDayStart, fallbackHour: 7);
+    final baseEnd = _mergeTime(anchor, gridDayEnd, fallbackHour: 24);
+
+    for (final match in dayMatches) {
+      final scheduleStart = match.scheduleTime;
+      if (scheduleStart == null) continue;
+      final scheduleEnd = match.scheduleEndTime ??
+          scheduleStart.add(Duration(minutes: defaultDurationMin));
+
+      if (nexagoEventUtcInstant(scheduleStart).isBefore(baseStart)) {
+        startLabel = timeLabel(_floorToSlot(scheduleStart));
+      }
+
+      final endUtc = nexagoEventUtcInstant(scheduleEnd);
+      if (endUtc.isAfter(baseEnd)) {
+        latestInstant = latestInstant == null || endUtc.isAfter(latestInstant)
+            ? endUtc
+            : latestInstant;
+      }
+    }
+
+    var slots = buildTimeSlots(
+      day: anchor,
+      dayStart: startLabel,
+      dayEnd: endLabel,
+    );
+
+    if (latestInstant != null && slots.isNotEmpty) {
+      var cursor = slots.last.add(const Duration(minutes: slotMinutes));
+      final target = _ceilToSlotEnd(latestInstant);
+      while (cursor.isBefore(target)) {
+        slots.add(cursor);
+        cursor = cursor.add(const Duration(minutes: slotMinutes));
+      }
+    }
+
+    return slots;
+  }
 
   static List<DateTime> buildTimeSlots({
     required DateTime day,
@@ -38,7 +95,7 @@ abstract final class ScheduleGridLogic {
   }) {
     if (slots.isNotEmpty) return slots.first;
     final parsed = _parseDayKey(dayKey);
-    return parsed ?? DateTime.now();
+    return parsed ?? nexagoEventNow();
   }
 
   static double gridTotalHeight(List<DateTime> slots) =>
@@ -50,7 +107,9 @@ abstract final class ScheduleGridLogic {
   }) {
     final start = match.scheduleTime;
     if (start == null) return 0;
-    final minutes = start.difference(gridStart).inMinutes;
+    final minutes = nexagoEventUtcInstant(start)
+        .difference(nexagoEventUtcInstant(gridStart))
+        .inMinutes;
     return (minutes / slotMinutes) * slotHeight;
   }
 
@@ -80,18 +139,56 @@ abstract final class ScheduleGridLogic {
     if (matchPhase(match) != ScheduleGridMatchPhase.upcoming) return false;
     final start = match.scheduleTime;
     if (start == null) return false;
-    return DateTime.now().isAfter(start.add(const Duration(minutes: 5)));
+    return nexagoEventNow().isAfter(start.add(const Duration(minutes: 5)));
   }
 
   static String programDayLabel(String dayKey) {
     final parsed = _parseDayKey(dayKey);
     if (parsed == null) return 'HOJE';
-    return 'DIA ${parsed.day}';
+    return 'DIA ${toNexagoEventLocal(parsed).day}';
+  }
+
+  /// Rótulo legível do dia para o header (ex. `Sáb, 26 jun`).
+  static String programDayDateLabel(String dayKey) {
+    final parsed = _parseDayKey(dayKey);
+    if (parsed == null) return 'Hoje';
+    final local = toNexagoEventLocal(parsed);
+    const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const months = [
+      'jan',
+      'fev',
+      'mar',
+      'abr',
+      'mai',
+      'jun',
+      'jul',
+      'ago',
+      'set',
+      'out',
+      'nov',
+      'dez',
+    ];
+    final weekday = weekdays[local.weekday % 7];
+    final month = months[local.month - 1];
+    return '$weekday, ${local.day} $month';
+  }
+
+  /// Chip compacto (ex. `Sáb 26/06`).
+  static String programDayChipLabel(String dayKey) {
+    final parsed = _parseDayKey(dayKey);
+    if (parsed == null) return 'Hoje';
+    final local = toNexagoEventLocal(parsed);
+    const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    final weekday = weekdays[local.weekday % 7];
+    final d = local.day.toString().padLeft(2, '0');
+    final m = local.month.toString().padLeft(2, '0');
+    return '$weekday $d/$m';
   }
 
   static String timeLabel(DateTime time) {
-    final h = time.hour.toString().padLeft(2, '0');
-    final m = time.minute.toString().padLeft(2, '0');
+    final local = toNexagoEventLocal(time);
+    final h = local.hour.toString().padLeft(2, '0');
+    final m = local.minute.toString().padLeft(2, '0');
     return '$h:$m';
   }
 
@@ -207,9 +304,13 @@ abstract final class ScheduleGridLogic {
     required DateTime gridEnd,
     DateTime? now,
   }) {
-    final current = now ?? DateTime.now();
-    if (current.isBefore(gridStart) || !current.isBefore(gridEnd)) return null;
-    final minutes = current.difference(gridStart).inMinutes;
+    final current = nexagoEventUtcInstant(now ?? nexagoEventNow());
+    final gridStartUtc = nexagoEventUtcInstant(gridStart);
+    final gridEndUtc = nexagoEventUtcInstant(gridEnd);
+    if (current.isBefore(gridStartUtc) || !current.isBefore(gridEndUtc)) {
+      return null;
+    }
+    final minutes = current.difference(gridStartUtc).inMinutes;
     return (minutes / slotMinutes) * slotHeight;
   }
 
@@ -217,13 +318,7 @@ abstract final class ScheduleGridLogic {
     required DateTime gridStart,
     required DateTime slot,
   }) {
-    return DateTime(
-      gridStart.year,
-      gridStart.month,
-      gridStart.day,
-      slot.hour,
-      slot.minute,
-    );
+    return nexagoEventUtcInstant(slot);
   }
 
   static String _categoryShortLabel(String categoryLabel) {
@@ -267,10 +362,52 @@ abstract final class ScheduleGridLogic {
     String hhmm, {
     required int fallbackHour,
   }) {
+    final local = toNexagoEventLocal(day);
     final parts = hhmm.split(':');
     final hour = parts.isNotEmpty ? int.tryParse(parts[0]) ?? fallbackHour : fallbackHour;
     final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
-    return DateTime(day.year, day.month, day.day, hour, minute);
+    return nexagoEventDateTime(
+      year: local.year,
+      month: local.month,
+      day: local.day,
+      hour: hour,
+      minute: minute,
+    );
+  }
+
+  static DateTime _floorToSlot(DateTime instant) {
+    final local = toNexagoEventLocal(instant);
+    final minute = local.minute - (local.minute % slotMinutes);
+    return nexagoEventDateTime(
+      year: local.year,
+      month: local.month,
+      day: local.day,
+      hour: local.hour,
+      minute: minute,
+    );
+  }
+
+  static DateTime _ceilToSlotEnd(DateTime instant) {
+    final local = toNexagoEventLocal(instant);
+    final remainder = local.minute % slotMinutes;
+    if (remainder == 0 && local.second == 0 && local.millisecond == 0) {
+      return nexagoEventDateTime(
+        year: local.year,
+        month: local.month,
+        day: local.day,
+        hour: local.hour,
+        minute: local.minute,
+      ).add(const Duration(minutes: slotMinutes));
+    }
+    final addMin = remainder == 0 ? slotMinutes : slotMinutes - remainder;
+    final floored = nexagoEventDateTime(
+      year: local.year,
+      month: local.month,
+      day: local.day,
+      hour: local.hour,
+      minute: local.minute - (local.minute % slotMinutes),
+    );
+    return floored.add(Duration(minutes: addMin + slotMinutes));
   }
 
   static DateTime? _parseDayKey(String dayKey) {
@@ -282,6 +419,6 @@ abstract final class ScheduleGridLogic {
     final m = int.tryParse(parts[1]);
     final d = int.tryParse(parts[2]);
     if (y == null || m == null || d == null) return null;
-    return DateTime(y, m, d);
+    return nexagoEventDayKeyAnchor(key);
   }
 }

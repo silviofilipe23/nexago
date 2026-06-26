@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -16,6 +18,7 @@ import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_card_view_model.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
+import 'widgets/organizer_schedule_time_widgets.dart';
 import '../../presentation/category_ops/widgets/organizer_team_dual_avatars.dart';
 
 /// J1 — Check-in & W.O.
@@ -37,7 +40,17 @@ class OrganizerMatchCheckInPage extends ConsumerStatefulWidget {
 class _OrganizerMatchCheckInPageState
     extends ConsumerState<OrganizerMatchCheckInPage> {
   bool _releasingMatch = false;
+  bool _assigningCourt = false;
   String? _updatingTeam;
+  String? _selectedCourtId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      bootstrapOrganizerTournamentCourts(ref, widget.tournamentId);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +114,24 @@ class _OrganizerMatchCheckInPageState
               .take(4)
               .toList();
 
+          final courts = matchOpsState.courts;
+          final opsConfig =
+              config ?? matchOpsState.config;
+          final effectiveCourtId = _effectiveCourtId(match);
+          final hasCourt = _hasCourt(match);
+          final checkInComplete =
+              MatchOpsLogic.canReleaseAfterCheckIn(checkInA, checkInB);
+          final canRelease = MatchOpsLogic.canReleaseAfterCheckInWithCourt(
+            checkInA,
+            checkInB,
+            hasCourt: hasCourt,
+          );
+          final courtLabel = _courtDisplayLabel(
+            courtId: effectiveCourtId,
+            courts: courts,
+            match: match,
+          );
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -109,6 +140,7 @@ class _OrganizerMatchCheckInPageState
                 child: _CheckInHeader(
                   match: match,
                   categoryLabel: categoryLabel,
+                  courtLabel: courtLabel,
                   onBack: () => context.pop(),
               ),
               ),
@@ -117,8 +149,19 @@ class _OrganizerMatchCheckInPageState
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                   children: [
                     _ToleranceCard(
-                      toleranceMin: config?.checkInToleranceMin ?? 15,
+                      toleranceMin: opsConfig.checkInToleranceMin,
                       scheduleTime: match.scheduleTime,
+                    ),
+                    const SizedBox(height: 20),
+                    _CourtAssignmentSection(
+                      courts: courts,
+                      selectedCourtId: effectiveCourtId,
+                      assigning: _assigningCourt,
+                      onCourtSelected: (courtId) => _assignCourt(
+                        match: match,
+                        courtId: courtId,
+                        config: opsConfig,
+                      ),
                     ),
                     const SizedBox(height: 24),
                     _SectionHeader(
@@ -173,15 +216,108 @@ class _OrganizerMatchCheckInPageState
               ),
               _CheckInBottomBar(
                 releasing: _releasingMatch,
-                canRelease:
-                    MatchOpsLogic.canReleaseAfterCheckIn(checkInA, checkInB),
-                onRelease: () => _releaseMatch(match.id),
+                checkInComplete: checkInComplete,
+                hasCourt: hasCourt,
+                canRelease: canRelease,
+                onRelease: () => _releaseMatch(match),
               ),
             ],
           );
         },
       ),
     );
+  }
+
+  String _effectiveCourtId(TournamentMatch match) {
+    final fromMatch = match.courtId.trim();
+    if (fromMatch.isNotEmpty) return fromMatch;
+    return _selectedCourtId?.trim() ?? '';
+  }
+
+  bool _hasCourt(TournamentMatch match) {
+    if (MatchOpsLogic.matchHasCourt(match)) return true;
+    return _effectiveCourtId(match).isNotEmpty;
+  }
+
+  String _courtDisplayLabel({
+    required String courtId,
+    required List<TournamentCourt> courts,
+    required TournamentMatch match,
+  }) {
+    final id = courtId.trim();
+    if (id.isEmpty) {
+      return match.courtName?.trim() ?? '';
+    }
+    for (final court in courts) {
+      if (court.id == id) {
+        return court.name.trim().isNotEmpty ? court.name.trim() : court.id;
+      }
+    }
+    return id;
+  }
+
+  Future<void> _assignCourt({
+    required TournamentMatch match,
+    required String courtId,
+    required TournamentMatchOpsConfig config,
+  }) async {
+    if (_assigningCourt) return;
+    final trimmed = courtId.trim();
+    if (trimmed.isEmpty) return;
+
+    setState(() {
+      _assigningCourt = true;
+      _selectedCourtId = trimmed;
+    });
+    try {
+      final service = ref.read(organizerMatchScheduleServiceProvider);
+      final durationMin = config.defaultMatchDurationMin;
+      final dayKey = config.activeDayKey.isNotEmpty
+          ? config.activeDayKey
+          : ScheduleLogic.dayKeyFromDate(nexagoEventNow());
+      final start = match.scheduleTime ?? nexagoEventNow();
+      final end = match.scheduleEndTime ??
+          start.add(Duration(minutes: durationMin));
+
+      if (match.scheduleTime != null) {
+        await service.rescheduleMatch(
+          matchId: match.id,
+          courtId: trimmed,
+          scheduleTime: start,
+          scheduleEndTime: end,
+          dayKey: match.dayKey.isNotEmpty ? match.dayKey : dayKey,
+        );
+      } else {
+        await service.scheduleMatch(
+          matchId: match.id,
+          courtId: trimmed,
+          scheduleTime: start,
+          scheduleEndTime: end,
+          dayKey: dayKey,
+        );
+      }
+      if (mounted) showAppSnackBar(context, 'Quadra definida.');
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _selectedCourtId =
+              match.courtId.isNotEmpty ? match.courtId : null;
+        });
+        showAppSnackBar(context, _friendlyScheduleError(e), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _assigningCourt = false);
+    }
+  }
+
+  String _friendlyScheduleError(Object error) {
+    if (error is FirebaseFunctionsException) {
+      if (error.code == 'failed-precondition' &&
+          (error.message?.trim().isNotEmpty ?? false)) {
+        return error.message!.trim();
+      }
+    }
+    return 'Erro: $error';
   }
 
   Future<void> _setCheckIn(String matchId, {required String team}) async {
@@ -250,13 +386,17 @@ class _OrganizerMatchCheckInPageState
     }
   }
 
-  Future<void> _releaseMatch(String matchId) async {
+  Future<void> _releaseMatch(TournamentMatch match) async {
     if (_releasingMatch) return;
+    final courtId = _effectiveCourtId(match);
+    if (courtId.isEmpty) return;
+
     setState(() => _releasingMatch = true);
     try {
-      await ref
-          .read(organizerMatchScheduleServiceProvider)
-          .releaseMatchAfterCheckIn(matchId: matchId);
+      await ref.read(organizerMatchScheduleServiceProvider).callMatchToCourt(
+            matchId: match.id,
+            courtId: courtId,
+          );
       if (mounted) {
         showAppSnackBar(context, 'Partida liberada.');
         context.pop();
@@ -276,11 +416,13 @@ class _CheckInHeader extends StatelessWidget {
   const _CheckInHeader({
     required this.match,
     required this.categoryLabel,
+    required this.courtLabel,
     required this.onBack,
   });
 
   final TournamentMatch match;
   final String categoryLabel;
+  final String courtLabel;
   final VoidCallback onBack;
 
   @override
@@ -291,12 +433,14 @@ class _CheckInHeader extends StatelessWidget {
     final round = matchRoundLabel(match).toUpperCase();
     if (round.isNotEmpty) parts.add(round);
     if (match.scheduleTime != null) {
-      final t = match.scheduleTime!.toLocal();
+      final t = toNexagoEventLocal(match.scheduleTime!);
       final hh = t.hour.toString().padLeft(2, '0');
       final mm = t.minute.toString().padLeft(2, '0');
       parts.add('$hh:$mm');
     }
-    final court = match.courtName?.trim() ?? '';
+    final court = courtLabel.trim().isNotEmpty
+        ? courtLabel.trim()
+        : (match.courtName?.trim() ?? '');
     if (court.isNotEmpty) parts.add(court);
 
     return Padding(
@@ -345,6 +489,66 @@ class _CheckInHeader extends StatelessWidget {
   }
 }
 
+// ── Court assignment ───────────────────────────────────────────────────────────
+
+class _CourtAssignmentSection extends StatelessWidget {
+  const _CourtAssignmentSection({
+    required this.courts,
+    required this.selectedCourtId,
+    required this.onCourtSelected,
+    this.assigning = false,
+  });
+
+  final List<TournamentCourt> courts;
+  final String selectedCourtId;
+  final ValueChanged<String> onCourtSelected;
+  final bool assigning;
+
+  @override
+  Widget build(BuildContext context) {
+    if (courts.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: context.themeColors.surfaceCard,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Text(
+          'Configure quadras no torneio para liberar a partida.',
+          style: AppTypography.soraRegular(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: context.themeColors.onSurfaceMuted,
+          ),
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        ScheduleTimeCourtPicker(
+          courts: courts,
+          selectedCourtId: selectedCourtId,
+          onCourtSelected: assigning ? (_) {} : onCourtSelected,
+        ),
+        if (assigning)
+          const Positioned(
+            right: 16,
+            top: 20,
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 // ── Tolerance card ─────────────────────────────────────────────────────────────
 
 class _ToleranceCard extends StatefulWidget {
@@ -386,7 +590,7 @@ class _ToleranceCardState extends State<_ToleranceCard> {
     final remaining = schedule != null
         ? schedule
             .add(Duration(minutes: widget.toleranceMin))
-            .difference(DateTime.now())
+            .difference(nexagoEventNow())
         : null;
     final expired = remaining != null && remaining.inSeconds <= 0;
 
@@ -676,7 +880,7 @@ class _UpcomingCallRow extends StatelessWidget {
     final seedA = liveTableTeamSeed(match, sideA: true);
     if (seedA != null) metaParts.add('cabeça #$seedA');
     if (match.scheduleTime != null) {
-      final t = match.scheduleTime!.toLocal();
+      final t = toNexagoEventLocal(match.scheduleTime!);
       final hh = t.hour.toString().padLeft(2, '0');
       final mm = t.minute.toString().padLeft(2, '0');
       metaParts.add('$hh:$mm');
@@ -761,14 +965,25 @@ class _CheckInBottomBar extends StatelessWidget {
   const _CheckInBottomBar({
     required this.onRelease,
     this.releasing = false,
+    this.checkInComplete = false,
+    this.hasCourt = false,
     this.canRelease = false,
   });
 
   final VoidCallback onRelease;
   final bool releasing;
+  final bool checkInComplete;
+  final bool hasCourt;
 
-  /// Só libera a partida quando as duas duplas fizeram check-in.
+  /// Check-in completo e quadra definida.
   final bool canRelease;
+
+  String get _label {
+    if (releasing) return 'Liberando…';
+    if (canRelease) return 'Liberar partida';
+    if (checkInComplete && !hasCourt) return 'Defina a quadra';
+    return 'Aguardando check-in';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -803,13 +1018,7 @@ class _CheckInBottomBar extends StatelessWidget {
                         size: 18,
                         color: Colors.black,
                       ),
-                label: Text(
-                  releasing
-                      ? 'Liberando…'
-                      : canRelease
-                          ? 'Liberar partida'
-                          : 'Aguardando check-in',
-                ),
+                label: Text(_label),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.brand,
                   foregroundColor: Colors.black,

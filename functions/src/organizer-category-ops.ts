@@ -28,6 +28,7 @@ import {
   paidTeamIdsForCancellation,
 } from "./tournament-cancellation";
 import {sharePaidUidsFromRegistration} from "./tournament-registration-pix-helpers";
+import {notifyBracketPublishedAthletes} from "./organizer-category-ops-bracket-notify";
 
 function getFirebaseProjectId(): string {
   return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
@@ -287,6 +288,29 @@ export const generateCategoryBracket = onCall(async (request) => {
   );
 
   await batch.commit();
+
+  try {
+    const categoryLabel = String(
+      categoryMeta?.label ?? categoryMeta?.categoryName ?? categoryId,
+    ).trim();
+    await notifyBracketPublishedAthletes({
+      db,
+      projectId,
+      tournamentId,
+      categoryId,
+      categoryLabel: categoryLabel || categoryId,
+      format,
+      teamIds,
+      teamsPath: (teamId) => `${artifactsTeamsPath(projectId)}/${teamId}`,
+    });
+  } catch (e) {
+    logger.warn("generateCategoryBracket: falha ao notificar atletas", {
+      tournamentId,
+      categoryId,
+      e,
+    });
+  }
+
   return {matchCount: matchDrafts.length, format};
 });
 
@@ -585,7 +609,7 @@ export const sendCategoryCommunication = onCall(async (request) => {
       if (sendPush) {
         await deliverNotificationToUser({
           userId: playerId,
-          title: "Mensagem do torneio",
+          title: "Mensagem do organizador",
           body: message.slice(0, 180),
           type: "tournament_communication",
           data: {tournamentId, categoryId},

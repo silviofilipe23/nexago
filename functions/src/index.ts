@@ -593,7 +593,7 @@ export const sendArenaBookingReminders = onSchedule({
             }, {merge: true});
             skipped += 1;
           } else {
-            const title = "Lembrete de jogo";
+            const title = "Seu jogo está chegando! Confirme sua presença";
             const body = "Seu jogo começa em 1 hora";
             const courtName = (booking.courtName || "Quadra").trim();
             const arenaName = (booking.arenaName || "Arena").trim();

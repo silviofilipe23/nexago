@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../domain/match_ops/match_ops_models.dart';
 import '../../../domain/match_ops/schedule_grid_logic.dart';
-import '../../../domain/match_ops/schedule_time_logic.dart';
 import '../../category_ops/widgets/organizer_team_dual_avatars.dart';
 import 'organizer_match_live_table_widgets.dart';
 
@@ -174,13 +174,11 @@ class ScheduleTimeCourtPicker extends StatelessWidget {
     super.key,
     required this.courts,
     required this.selectedCourtId,
-    required this.courtStatusById,
     required this.onCourtSelected,
   });
 
   final List<TournamentCourt> courts;
   final String selectedCourtId;
-  final Map<String, ScheduleCourtSlotStatus> courtStatusById;
   final ValueChanged<String> onCourtSelected;
 
   @override
@@ -208,8 +206,6 @@ class ScheduleTimeCourtPicker extends StatelessWidget {
                   child: _ScheduleCourtChip(
                     court: court,
                     selected: selectedCourtId == court.id,
-                    status: courtStatusById[court.id] ??
-                        ScheduleCourtSlotStatus.free,
                     onTap: () => onCourtSelected(court.id),
                   ),
                 ),
@@ -226,21 +222,15 @@ class _ScheduleCourtChip extends StatelessWidget {
   const _ScheduleCourtChip({
     required this.court,
     required this.selected,
-    required this.status,
     required this.onTap,
   });
 
   final TournamentCourt court;
   final bool selected;
-  final ScheduleCourtSlotStatus status;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final busy = status == ScheduleCourtSlotStatus.busy;
-    final statusLabel = busy ? 'ocupada' : 'livre';
-    final statusColor = busy ? AppColors.live : AppColors.win;
-
     return Material(
       color: selected
           ? AppColors.brand.withValues(alpha: 0.12)
@@ -259,28 +249,16 @@ class _ScheduleCourtChip extends StatelessWidget {
                   : context.themeColors.onSurfaceMuted.withValues(alpha: 0.16),
             ),
           ),
-          child: Column(
-            children: [
-              Text(
-                court.id,
-                style: AppTypography.mono(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: selected
-                      ? AppColors.brand
-                      : context.themeColors.onSurface,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                statusLabel,
-                style: AppTypography.mono(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  color: statusColor,
-                ),
-              ),
-            ],
+          child: Text(
+            court.id,
+            textAlign: TextAlign.center,
+            style: AppTypography.mono(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: selected
+                  ? AppColors.brand
+                  : context.themeColors.onSurface,
+            ),
           ),
         ),
       ),
@@ -293,13 +271,11 @@ class ScheduleTimeSlotPicker extends StatelessWidget {
     super.key,
     required this.slots,
     required this.selectedSlot,
-    required this.isSlotEnabled,
     required this.onSlotSelected,
   });
 
   final List<DateTime> slots;
   final DateTime? selectedSlot;
-  final bool Function(DateTime slot) isSlotEnabled;
   final ValueChanged<DateTime> onSlotSelected;
 
   @override
@@ -340,11 +316,7 @@ class ScheduleTimeSlotPicker extends StatelessWidget {
                   if (i > 0) const SizedBox(width: 8),
                   _ScheduleTimeChip(
                     label: ScheduleGridLogic.timeLabel(slots[i]),
-                    selected: selectedSlot != null &&
-                        selectedSlot!.hour == slots[i].hour &&
-                        selectedSlot!.minute == slots[i].minute,
-                    enabled: isSlotEnabled(slots[i]),
-                    occupied: !isSlotEnabled(slots[i]),
+                    selected: _isSameEventSlot(selectedSlot, slots[i]),
                     onTap: () => onSlotSelected(slots[i]),
                   ),
                 ],
@@ -357,19 +329,22 @@ class ScheduleTimeSlotPicker extends StatelessWidget {
   }
 }
 
+bool _isSameEventSlot(DateTime? a, DateTime b) {
+  if (a == null) return false;
+  final localA = toNexagoEventLocal(a);
+  final localB = toNexagoEventLocal(b);
+  return localA.hour == localB.hour && localA.minute == localB.minute;
+}
+
 class _ScheduleTimeChip extends StatelessWidget {
   const _ScheduleTimeChip({
     required this.label,
     required this.selected,
-    required this.enabled,
-    required this.occupied,
     required this.onTap,
   });
 
   final String label;
   final bool selected;
-  final bool enabled;
-  final bool occupied;
   final VoidCallback onTap;
 
   @override
@@ -380,52 +355,28 @@ class _ScheduleTimeChip extends StatelessWidget {
           : context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
-        onTap: enabled ? onTap : null,
+        onTap: onTap,
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: occupied ? 8 : 10,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: selected
                   ? AppColors.brand
-                  : context.themeColors.onSurfaceMuted.withValues(
-                      alpha: occupied ? 0.08 : 0.16,
-                    ),
+                  : context.themeColors.onSurfaceMuted.withValues(alpha: 0.16),
             ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: AppTypography.mono(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  height: 1.1,
-                  color: selected
-                      ? Colors.black
-                      : (enabled
-                          ? context.themeColors.onSurface
-                          : context.themeColors.onSurfaceMuted),
-                ),
-              ),
-              if (occupied) ...[
-                const SizedBox(height: 2),
-                Text(
-                  'ocupada',
-                  style: AppTypography.mono(
-                    fontSize: 8,
-                    fontWeight: FontWeight.w700,
-                    height: 1.1,
-                    color: context.themeColors.onSurfaceMuted,
-                  ),
-                ),
-              ],
-            ],
+          child: Text(
+            label,
+            style: AppTypography.mono(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              height: 1.1,
+              color: selected
+                  ? Colors.black
+                  : context.themeColors.onSurface,
+            ),
           ),
         ),
       ),

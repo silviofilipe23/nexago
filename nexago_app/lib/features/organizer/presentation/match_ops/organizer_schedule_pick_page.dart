@@ -3,14 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 
-import '../../domain/match_ops/match_ops_logic.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
 import '../../domain/match_ops/schedule_grid_logic.dart';
-import '../../domain/match_ops/schedule_logic.dart';
 import '../../domain/match_ops/schedule_pick_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import 'organizer_match_navigation.dart';
+import 'widgets/organizer_court_schedule_grid_widgets.dart';
 import 'widgets/organizer_schedule_pick_widgets.dart';
 
 /// H1.2 — Selecionar partida a agendar.
@@ -54,10 +53,14 @@ class _OrganizerSchedulePickPageState
         const [];
     final config = state.config;
     final courts = state.courts;
-    final dayKey = config.activeDayKey.isNotEmpty
-        ? config.activeDayKey
-        : ScheduleLogic.dayKeyFromDate(DateTime.now());
-    final dayMatches = state.dayMatches;
+    final dayKey = ref.watch(organizerScheduleDayKeyProvider(widget.tournamentId));
+    final tournamentDays =
+        ref.watch(organizerScheduleGridDayKeysProvider(widget.tournamentId));
+    final allMatches =
+        ref.watch(organizerTournamentMatchesProvider(widget.tournamentId))
+            .valueOrNull ??
+        const <TournamentMatch>[];
+    final dayMatches = MatchOpsLogic.matchesForDay(allMatches, dayKey);
 
     final filteredByCategory = SchedulePickLogic.filterByCategory(
       dayMatches,
@@ -109,13 +112,35 @@ class _OrganizerSchedulePickPageState
         children: [
           SafeArea(
             bottom: false,
-            child: SchedulePickHeader(
-              programLabel:
-                  'PROGRAMAÇÃO • ${ScheduleGridLogic.programDayLabel(dayKey)}',
-              onBack: () => context.pop(),
-              onMore: () => context.push(
-                organizerMatchAutoSchedulePath(widget.tournamentId),
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SchedulePickHeader(
+                  programLabel:
+                      'PROGRAMAÇÃO • ${ScheduleGridLogic.programDayDateLabel(dayKey).toUpperCase()}',
+                  onBack: () => context.pop(),
+                  onMore: () => context.push(
+                    organizerMatchAutoSchedulePath(widget.tournamentId),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: ScheduleGridDayPicker(
+                    tournamentDays: tournamentDays,
+                    selectedDayKey: dayKey,
+                    onDaySelected: (key) {
+                      ref
+                          .read(
+                            organizerScheduleDayKeyProvider(
+                              widget.tournamentId,
+                            ).notifier,
+                          )
+                          .select(key);
+                      setState(() => _selectedMatchId = null);
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
           SchedulePickTabRow(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../../core/time/nexago_event_timezone.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/athlete_tournament_day_logic.dart';
@@ -19,7 +20,8 @@ class MyTournamentsNextMatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final match = nextMatch.match;
     final timeLabel = match.scheduleTime != null
-        ? DateFormat('HH:mm', 'pt_BR').format(match.scheduleTime!.toLocal())
+        ? DateFormat('HH:mm', 'pt_BR')
+            .format(toNexagoEventLocal(match.scheduleTime!))
         : 'Em breve';
 
     return Padding(

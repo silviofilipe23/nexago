@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/match_ops_models.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/schedule_time_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
@@ -8,6 +9,7 @@ TournamentMatch _match({
   String id = 'm1',
   String courtId = '',
   DateTime? scheduleTime,
+  DateTime? scheduleEndTime,
   String teamAId = 't1',
   String teamBId = 't2',
 }) {
@@ -27,13 +29,23 @@ TournamentMatch _match({
     matchNumber: 1,
     courtId: courtId,
     scheduleTime: scheduleTime,
+    scheduleEndTime: scheduleEndTime,
   );
 }
 
 void main() {
+  setUpAll(() async {
+    await initializeNexagoEventTimezone();
+  });
+
   group('ScheduleTimeLogic', () {
     test('courtStatusAt returns busy when overlap exists', () {
-      final slot = DateTime(2026, 6, 16, 10);
+      final slot = nexagoEventDateTime(
+        year: 2026,
+        month: 6,
+        day: 16,
+        hour: 10,
+      );
       final status = ScheduleTimeLogic.courtStatusAt(
         courtId: 'Q1',
         slotStart: slot,
@@ -42,7 +54,61 @@ void main() {
           _match(
             id: 'other',
             courtId: 'Q1',
-            scheduleTime: DateTime(2026, 6, 16, 9, 30),
+            scheduleTime: nexagoEventDateTime(
+              year: 2026,
+              month: 6,
+              day: 16,
+              hour: 9,
+              minute: 30,
+            ),
+            scheduleEndTime: nexagoEventDateTime(
+              year: 2026,
+              month: 6,
+              day: 16,
+              hour: 10,
+              minute: 20,
+            ),
+          ),
+        ],
+        excludeMatchId: 'm1',
+      );
+      expect(status, ScheduleCourtSlotStatus.busy);
+    });
+
+    test('courtStatusAt returns busy for live match on court', () {
+      final status = ScheduleTimeLogic.courtStatusAt(
+        courtId: 'Q1',
+        courtName: 'Quadra 1',
+        slotStart: nexagoEventDateTime(
+          year: 2026,
+          month: 6,
+          day: 16,
+          hour: 18,
+        ),
+        durationMin: 50,
+        allMatches: [
+          TournamentMatch(
+            id: 'live',
+            tournamentId: 'tour',
+            categoryId: 'cat',
+            round: 1,
+            matchType: 'wb',
+            poolId: '',
+            teamAId: 't1',
+            teamBId: 't2',
+            status: TournamentMatchStatus.inProgress,
+            resultA: '',
+            resultB: '',
+            isGroupMatch: false,
+            matchNumber: 1,
+            courtId: 'Q1',
+            scheduleTime: nexagoEventDateTime(
+              year: 2026,
+              month: 6,
+              day: 16,
+              hour: 8,
+            ),
+            queueStatus: 'on_court',
           ),
         ],
         excludeMatchId: 'm1',
@@ -65,10 +131,15 @@ void main() {
       );
     });
 
-    test('confirmLabel uses time only', () {
+    test('confirmLabel uses São Paulo wall clock', () {
       expect(
         ScheduleTimeLogic.confirmLabel(
-          slotStart: DateTime(2026, 6, 16, 10),
+          slotStart: nexagoEventDateTime(
+            year: 2026,
+            month: 6,
+            day: 16,
+            hour: 10,
+          ),
         ),
         'Confirmar 10:00',
       );

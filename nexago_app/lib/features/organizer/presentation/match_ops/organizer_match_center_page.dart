@@ -110,8 +110,7 @@ class _OrganizerMatchCenterPageState
                 const SizedBox(height: 8),
                 _CategoryFilterRow(
                   categories: state.categories,
-                  categorySummaries:
-                      detail.valueOrNull?.categories ?? const [],
+                  categorySummaries: detail.valueOrNull?.categories ?? const [],
                   selected: category,
                   onSelected: (id) => ref
                       .read(
@@ -288,14 +287,13 @@ class _MatchCenterHeader extends StatelessWidget {
                     letterSpacing: 0.5,
                   ),
                 ),
-                const SizedBox(height: 4),
                 Text.rich(
                   TextSpan(
                     children: [
                       TextSpan(
                         text: 'Central de partidas',
                         style: AppTypography.soraRegular(
-                          fontSize: 22,
+                          fontSize: 20,
                           fontWeight: FontWeight.w900,
                           color: context.themeColors.onSurface,
                           height: 1.1,

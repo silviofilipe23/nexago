@@ -44,7 +44,7 @@ export const onBookingInviteCreatedNotifyInvitee = onDocumentCreated(
 
     await deliverNotificationToUser({
       userId: inviteeUid,
-      title: "Convite para jogar",
+      title: "Você foi convidado para jogar",
       body,
       type: "booking_invite",
       data: {

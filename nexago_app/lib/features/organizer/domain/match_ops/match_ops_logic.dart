@@ -82,6 +82,21 @@ abstract final class MatchOpsLogic {
         teamB == MatchCheckInStatus.present;
   }
 
+  static bool matchHasCourt(TournamentMatch match) {
+    if (match.courtId.trim().isNotEmpty) return true;
+    final name = match.courtName?.trim() ?? '';
+    return name.isNotEmpty;
+  }
+
+  /// Check-in completo e quadra definida (persistida ou selecionada na tela).
+  static bool canReleaseAfterCheckInWithCourt(
+    MatchCheckInStatus teamA,
+    MatchCheckInStatus teamB, {
+    required bool hasCourt,
+  }) {
+    return canReleaseAfterCheckIn(teamA, teamB) && hasCourt;
+  }
+
   static String categoryGenderShortLabel(String genderLabel) {
     final g = genderLabel.trim().toLowerCase();
     if (g.startsWith('masc')) return 'MASC';

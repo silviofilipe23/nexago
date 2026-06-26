@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/schedule_grid_logic.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_set.dart';
@@ -6,6 +7,7 @@ import 'package:nexago_app/features/tournaments/domain/tournament_match_set.dart
 TournamentMatch _match({
   String status = 'scheduled',
   DateTime? scheduleTime,
+  DateTime? scheduleEndTime,
   String courtId = 'Q1',
   String? teamADescription,
   String? teamBDescription,
@@ -27,6 +29,7 @@ TournamentMatch _match({
     matchNumber: 1,
     courtId: courtId,
     scheduleTime: scheduleTime,
+    scheduleEndTime: scheduleEndTime,
     teamADescription: teamADescription ?? 'Igor / João',
     teamBDescription: teamBDescription ?? 'Bruno / Carlos',
     sets: sets,
@@ -34,9 +37,13 @@ TournamentMatch _match({
 }
 
 void main() {
+  setUpAll(() async {
+    await initializeNexagoEventTimezone();
+  });
+
   group('ScheduleGridLogic', () {
-    test('buildTimeSlots creates 30-minute increments', () {
-      final day = DateTime(2026, 6, 16);
+    test('buildTimeSlots creates 30-minute increments in São Paulo', () {
+      final day = nexagoEventDayKeyAnchor('2026-06-16')!;
       final slots = ScheduleGridLogic.buildTimeSlots(
         day: day,
         dayStart: '08:00',
@@ -48,13 +55,50 @@ void main() {
     });
 
     test('matchTopOffset positions card by schedule time', () {
-      final gridStart = DateTime(2026, 6, 16, 8);
+      final gridStart = nexagoEventDateTime(
+        year: 2026,
+        month: 6,
+        day: 16,
+        hour: 8,
+      );
       final match = _match(
-        scheduleTime: DateTime(2026, 6, 16, 9),
+        scheduleTime: nexagoEventDateTime(
+          year: 2026,
+          month: 6,
+          day: 16,
+          hour: 9,
+        ),
       );
       expect(
         ScheduleGridLogic.matchTopOffset(match: match, gridStart: gridStart),
         ScheduleGridLogic.slotHeight * 2,
+      );
+    });
+
+    test('matchTopOffset aligns SP wall clock when scheduleTime is local', () {
+      final gridStart = nexagoEventDateTime(
+        year: 2026,
+        month: 6,
+        day: 16,
+        hour: 8,
+      );
+      // Simula Timestamp.toDate() no fuso de São Paulo (14:30 local).
+      final scheduleUtc = nexagoEventDateTime(
+        year: 2026,
+        month: 6,
+        day: 16,
+        hour: 14,
+        minute: 30,
+      );
+      final scheduleLocal = scheduleUtc.toLocal();
+      final match = _match(scheduleTime: scheduleLocal);
+      expect(
+        ScheduleGridLogic.matchTopOffset(match: match, gridStart: gridStart),
+        ScheduleGridLogic.slotHeight * 13,
+      );
+      expect(
+        ScheduleGridLogic.timeLabel(scheduleLocal),
+        '14:30',
       );
     });
 
@@ -79,12 +123,52 @@ void main() {
     test('unscheduledCount ignores scheduled matches', () {
       final matches = [
         _match(
-          scheduleTime: DateTime(2026, 6, 16, 8),
+          scheduleTime: nexagoEventDateTime(
+            year: 2026,
+            month: 6,
+            day: 16,
+            hour: 8,
+          ),
           courtId: 'Q1',
         ),
         _match(courtId: ''),
       ];
       expect(ScheduleGridLogic.unscheduledCount(matches), 1);
+    });
+
+    test('gridTimeSlotsForDay covers 07:00 through 23:30 SP', () {
+      const dayKey = '2026-06-16';
+      final slots = ScheduleGridLogic.gridTimeSlotsForDay(dayKey: dayKey);
+      expect(slots.isNotEmpty, isTrue);
+      expect(ScheduleGridLogic.timeLabel(slots.first), '07:00');
+      expect(ScheduleGridLogic.timeLabel(slots.last), '23:30');
+      expect(slots.length, 34);
+    });
+
+    test('gridTimeSlotsForDay expands when match ends after 23:30', () {
+      const dayKey = '2026-06-16';
+      final lateMatch = _match(
+        scheduleTime: nexagoEventDateTime(
+          year: 2026,
+          month: 6,
+          day: 16,
+          hour: 23,
+          minute: 15,
+        ),
+        scheduleEndTime: nexagoEventDateTime(
+          year: 2026,
+          month: 6,
+          day: 17,
+          hour: 0,
+          minute: 15,
+        ),
+      );
+      final slots = ScheduleGridLogic.gridTimeSlotsForDay(
+        dayKey: dayKey,
+        dayMatches: [lateMatch],
+        defaultDurationMin: 50,
+      );
+      expect(slots.length, greaterThan(34));
     });
   });
 }

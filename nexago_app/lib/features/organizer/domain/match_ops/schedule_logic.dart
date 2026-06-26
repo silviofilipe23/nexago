@@ -1,3 +1,4 @@
+import '../../../../core/time/nexago_event_timezone.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import 'match_ops_models.dart';
 
@@ -68,10 +69,17 @@ abstract final class ScheduleLogic {
     required DateTime scheduleEnd,
     required List<TournamentMatch> allMatches,
     String excludeMatchId = '',
+    String? courtName,
   }) {
     for (final m in allMatches) {
       if (m.id == excludeMatchId) continue;
-      if (m.courtId != courtId && m.effectiveCourtLabel != courtId) continue;
+      if (!matchOnCourt(
+        m,
+        courtId: courtId,
+        courtName: courtName,
+      )) {
+        continue;
+      }
       if (m.scheduleTime == null) continue;
 
       final start = m.scheduleTime!;
@@ -87,6 +95,29 @@ abstract final class ScheduleLogic {
       }
     }
     return null;
+  }
+
+  /// Partida vinculada à quadra por `courtId` ou `courtName` legado.
+  static bool matchOnCourt(
+    TournamentMatch match, {
+    required String courtId,
+    String? courtName,
+  }) {
+    final id = courtId.trim();
+    if (id.isEmpty) return false;
+
+    if (match.courtId.trim() == id) return true;
+
+    final configuredName = (courtName ?? '').trim();
+    final matchName = match.courtName?.trim() ?? '';
+    if (configuredName.isNotEmpty && matchName == configuredName) return true;
+
+    final label = match.effectiveCourtLabel.trim();
+    if (label.isEmpty) return false;
+    if (label == id) return true;
+    if (configuredName.isNotEmpty && label == configuredName) return true;
+
+    return false;
   }
 
   /// Prévia de auto-programação para um dia (H3).
@@ -179,11 +210,77 @@ abstract final class ScheduleLogic {
     return slots;
   }
 
-  static String dayKeyFromDate(DateTime date) {
-    final y = date.year.toString().padLeft(4, '0');
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
+  static String dayKeyFromDate(DateTime date) => nexagoEventDayKey(date);
+
+  /// Dias do torneio no calendário SP (`startAt` → `endAt` inclusive).
+  static List<String> tournamentDayKeys({
+    DateTime? startAt,
+    DateTime? endAt,
+  }) {
+    final start = startAt;
+    if (start == null) return const [];
+
+    final startLocal = toNexagoEventLocal(start);
+    final endLocal = toNexagoEventLocal(endAt ?? start);
+    var cursor = DateTime(startLocal.year, startLocal.month, startLocal.day);
+    final last = DateTime(endLocal.year, endLocal.month, endLocal.day);
+    if (last.isBefore(cursor)) return [nexagoEventDayKey(start)];
+
+    final keys = <String>[];
+    while (!cursor.isAfter(last)) {
+      keys.add(
+        nexagoEventDayKey(
+          nexagoEventDateTime(
+            year: cursor.year,
+            month: cursor.month,
+            day: cursor.day,
+          ),
+        ),
+      );
+      cursor = cursor.add(const Duration(days: 1));
+    }
+    return keys;
+  }
+
+  /// Dias disponíveis quando o torneio não tem `startAt` no documento.
+  static List<String> tournamentDayKeysFromMatches(
+    List<TournamentMatch> matches,
+  ) {
+    final keys = <String>{nexagoEventDayKey(nexagoEventNow())};
+    for (final match in matches) {
+      final dk = match.dayKey.trim();
+      if (dk.isNotEmpty) {
+        keys.add(dk);
+        continue;
+      }
+      final scheduleTime = match.scheduleTime;
+      if (scheduleTime != null) {
+        keys.add(nexagoEventDayKey(scheduleTime));
+      }
+    }
+    final sorted = keys.toList()..sort();
+    return sorted;
+  }
+
+  /// Dia inicial da grade H1.
+  static String resolveScheduleGridDayKey({
+    required List<String> tournamentDays,
+    String? activeDayKey,
+    String? preferredDayKey,
+    String? todayDayKey,
+  }) {
+    final today = todayDayKey ?? nexagoEventDayKey(nexagoEventNow());
+    final pool = tournamentDays.isNotEmpty ? tournamentDays : [today];
+
+    final preferred = preferredDayKey?.trim() ?? '';
+    if (preferred.isNotEmpty && pool.contains(preferred)) return preferred;
+
+    final active = activeDayKey?.trim() ?? '';
+    if (active.isNotEmpty && pool.contains(active)) return active;
+
+    if (pool.contains(today)) return today;
+
+    return pool.first;
   }
 }
 

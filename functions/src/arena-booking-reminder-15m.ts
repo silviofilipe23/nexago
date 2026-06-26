@@ -197,7 +197,7 @@ export async function sendBooking15mReminderToAthletes(
   booking: Record<string, unknown>,
   recipientIds: string[]
 ): Promise<{sent: number; failed: number; inboxWritten: number}> {
-  const title = "Reserva começa em 15 min";
+  const title = "Sua reserva começa em 15 min";
   const body = buildBooking15mReminderBody(booking);
   const dateKey = parseDateKeyFromBookingDate(booking["date"]) ?? "";
   const startTime = pickString(booking["startTime"]) ?? "";

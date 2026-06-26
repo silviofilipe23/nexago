@@ -1,3 +1,4 @@
+import '../../../../core/time/nexago_event_timezone.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
 import 'match_ops_models.dart';
@@ -220,24 +221,19 @@ abstract final class SchedulePickLogic {
   }
 
   static DateTime _dayAnchor(String dayKey, TournamentMatchOpsConfig config) {
-    final parsed = _parseDayKey(dayKey);
-    final day = parsed ?? DateTime.now();
+    final parsed = nexagoEventDayKeyAnchor(dayKey);
+    if (parsed == null) return nexagoEventNow();
+    final local = toNexagoEventLocal(parsed);
     final parts = config.dayStart.split(':');
     final hour = parts.isNotEmpty ? int.tryParse(parts[0]) ?? 8 : 8;
     final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
-    return DateTime(day.year, day.month, day.day, hour, minute);
-  }
-
-  static DateTime? _parseDayKey(String dayKey) {
-    final key = dayKey.trim();
-    if (key.isEmpty) return null;
-    final parts = key.split('-');
-    if (parts.length != 3) return null;
-    final y = int.tryParse(parts[0]);
-    final m = int.tryParse(parts[1]);
-    final d = int.tryParse(parts[2]);
-    if (y == null || m == null || d == null) return null;
-    return DateTime(y, m, d);
+    return nexagoEventDateTime(
+      year: local.year,
+      month: local.month,
+      day: local.day,
+      hour: hour,
+      minute: minute,
+    );
   }
 }
 

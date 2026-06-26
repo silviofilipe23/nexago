@@ -213,20 +213,20 @@ class _AvatarStack extends StatelessWidget {
 
   final List<TournamentMatchCardPlayerViewModel> players;
 
-  static const _size = 28.0;
+  static const _size = 40.0;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
       height: _size,
-      width: 44,
+      width: 64,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           if (players.isNotEmpty)
             Positioned(left: 0, child: _AvatarCircle(player: players.first)),
           if (players.length > 1)
-            Positioned(left: 16, child: _AvatarCircle(player: players[1])),
+            Positioned(left: 24, child: _AvatarCircle(player: players[1])),
           if (players.isEmpty)
             Positioned(
               left: 0,
@@ -248,7 +248,7 @@ class _AvatarCircle extends StatelessWidget {
 
   final TournamentMatchCardPlayerViewModel player;
 
-  static const _size = 28.0;
+  static const _size = 40.0;
 
   @override
   Widget build(BuildContext context) {
@@ -287,7 +287,7 @@ class _AvatarCircle extends StatelessWidget {
       child: Text(
         player.initials,
         style: AppTypography.soraRegular(
-          fontSize: 10,
+          fontSize: 13,
           fontWeight: FontWeight.w700,
           color: AppColors.white,
         ),

@@ -143,7 +143,7 @@ class _TotalCollectedHeroCard extends StatelessWidget {
                       _HeroDivider(color: context.themeColors.onSurfaceMuted),
                       Expanded(
                         child: _HeroStat(
-                          label: 'Taxa NexaGO',
+                          label: 'Taxa nexaGO',
                           value: formatOrganizerMoneyDetail(feeCents),
                           valueColor: AppColors.win,
                         ),
@@ -416,8 +416,9 @@ class _CategoryFinancialCard extends StatelessWidget {
         ? ((category.paidCount / totalTeams) * 100).round()
         : 0;
     final progress = totalTeams > 0 ? category.paidCount / totalTeams : 0.0;
-    final pendingColor =
-        category.pendingCount > 0 ? AppColors.pending : muted.withValues(alpha: 0.5);
+    final pendingColor = category.pendingCount > 0
+        ? AppColors.pending
+        : muted.withValues(alpha: 0.5);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),

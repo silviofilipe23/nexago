@@ -23,5 +23,23 @@ void main() {
       });
       expect(route, '/torneios/t1/inscricao?registrationId=r1&step=payment&categoryId=catA&inviteId=inv1');
     });
+
+    test('tournament_bracket_published opens bracket url from payload', () {
+      final route = resolveNotificationRoute({
+        'type': 'tournament_bracket_published',
+        'tournamentId': 't1',
+        'categoryId': 'Masc A',
+        'url': '/torneios/t1/chave?categoryId=Masc%20A',
+      });
+      expect(route, '/torneios/t1/chave?categoryId=Masc%20A');
+    });
+
+    test('tournament_cancelled falls back to tournament detail', () {
+      final route = resolveNotificationRoute({
+        'type': 'tournament_cancelled',
+        'tournamentId': 't1',
+      });
+      expect(route, '/torneios/t1');
+    });
   });
 }

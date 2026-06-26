@@ -6,11 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
-import '../../domain/match_ops/match_ops_logic.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
 import '../../domain/match_ops/schedule_grid_logic.dart';
-import '../../domain/match_ops/schedule_logic.dart';
-import '../../domain/tournament_ops/tournament_ops_models.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import 'organizer_match_navigation.dart';
@@ -130,18 +127,23 @@ class _OrganizerCourtScheduleGridPageState
     final state = ref.watch(organizerMatchOpsStateProvider(widget.tournamentId));
     final courts = state.courts;
     final config = state.config;
-    final dayKey = config.activeDayKey.isNotEmpty
-        ? config.activeDayKey
-        : ScheduleLogic.dayKeyFromDate(DateTime.now());
-    final dayAnchor =
-        ScheduleGridLogic.gridDayAnchor(dayKey: dayKey, slots: const []);
-    final slots = ScheduleGridLogic.buildTimeSlots(
-      day: dayAnchor,
-      dayStart: config.dayStart,
-      dayEnd: config.dayEnd,
+    final tournamentDays =
+        ref.watch(organizerScheduleGridDayKeysProvider(widget.tournamentId));
+    final dayKey =
+        ref.watch(organizerScheduleGridDayKeyProvider(widget.tournamentId));
+    final allMatches =
+        ref.watch(organizerTournamentMatchesProvider(widget.tournamentId))
+            .valueOrNull ??
+        const <TournamentMatch>[];
+    final dayMatches = MatchOpsLogic.matchesForDay(allMatches, dayKey);
+    final slots = ScheduleGridLogic.gridTimeSlotsForDay(
+      dayKey: dayKey,
+      dayMatches: dayMatches,
+      defaultDurationMin: config.defaultMatchDurationMin,
     );
-    final gridStart = slots.isNotEmpty ? slots.first : dayAnchor;
-    final dayMatches = state.dayMatches;
+    final gridStart = slots.isNotEmpty
+        ? slots.first
+        : ScheduleGridLogic.gridDayAnchor(dayKey: dayKey, slots: slots);
     final scheduled = ScheduleGridLogic.scheduledMatches(dayMatches);
     final matchesByCourt = ScheduleGridLogic.matchesByCourtId(scheduled);
     final unscheduled = ScheduleGridLogic.unscheduledCount(dayMatches);
@@ -164,11 +166,22 @@ class _OrganizerCourtScheduleGridPageState
                   bottom: false,
                   child: ScheduleGridHeader(
                     programLabel:
-                        'PROGRAMAÇÃO • ${ScheduleGridLogic.programDayLabel(dayKey)}',
+                        'PROGRAMAÇÃO • ${ScheduleGridLogic.programDayDateLabel(dayKey).toUpperCase()}',
                     alertCount: unscheduled,
                     onBack: () => context.pop(),
                     onMore: () => context.push(
                       organizerMatchAutoSchedulePath(widget.tournamentId),
+                    ),
+                    dayPicker: ScheduleGridDayPicker(
+                      tournamentDays: tournamentDays,
+                      selectedDayKey: dayKey,
+                      onDaySelected: (key) => ref
+                          .read(
+                            organizerScheduleGridDayKeyProvider(
+                              widget.tournamentId,
+                            ).notifier,
+                          )
+                          .select(key),
                     ),
                   ),
                 ),
@@ -187,14 +200,16 @@ class _OrganizerCourtScheduleGridPageState
                     categoryLabelsByMatchId: categoryLabels,
                     defaultDurationMin: config.defaultMatchDurationMin,
                     draggingMatchId: _draggingMatchId,
+                    selectedDayKey: dayKey,
                     horizontalScrollController: _gridHorizontalScrollController,
                     onMatchTap: (match) => showOrganizerScheduleMatchSheet(
                       context,
                       tournamentId: widget.tournamentId,
                       match: match,
                       courts: courts,
-                      allMatches: dayMatches,
+                      allMatches: allMatches,
                       config: config,
+                      dayKey: dayKey,
                     ),
                     onDropMatch: (match, courtId, slotStart) => _dropMatch(
                       match,

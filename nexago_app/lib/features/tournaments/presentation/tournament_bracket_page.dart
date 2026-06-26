@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:nexago_app/core/theme/app_colors.dart';
 import '../domain/tournament_discovery_providers.dart';
@@ -20,6 +21,19 @@ class TournamentBracketPage extends ConsumerStatefulWidget {
 class _TournamentBracketPageState extends ConsumerState<TournamentBracketPage> {
   String? _categoryId;
   TournamentMatchesFilter _filter = TournamentMatchesFilter.all;
+  bool _initializedCategoryFromRoute = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initializedCategoryFromRoute) return;
+    _initializedCategoryFromRoute = true;
+    final fromRoute =
+        GoRouterState.of(context).uri.queryParameters['categoryId']?.trim();
+    if (fromRoute != null && fromRoute.isNotEmpty) {
+      _categoryId = fromRoute;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,8 +71,11 @@ class _TournamentBracketPageState extends ConsumerState<TournamentBracketPage> {
           );
         }
 
-        final categoryId =
-            _categoryId ?? tournament.categoryOffers.firstOrNull?.id ?? '';
+        final offers = tournament.categoryOffers;
+        final resolvedCategoryId = _categoryId?.trim();
+        final categoryId = offers.any((offer) => offer.id == resolvedCategoryId)
+            ? resolvedCategoryId!
+            : (offers.firstOrNull?.id ?? '');
 
         return TournamentDetailSubpageScaffold(
           title: 'Chave e Jogos',

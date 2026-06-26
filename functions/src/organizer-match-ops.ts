@@ -8,6 +8,10 @@ import {
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {deliverNotificationToUser} from "./notification-delivery";
+import {
+  dayKeyFromEventDate,
+  eventDateFromDayKeyAndTime,
+} from "./event-timezone";
 import {MatchStatus, isMatchCompleted} from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
 import {tryAwardLeagueStagePointsForMatch} from "./league-ranking";
@@ -51,13 +55,6 @@ function parseIsoDate(value: unknown): Date {
     throw new HttpsError("invalid-argument", "Data inválida");
   }
   return d;
-}
-
-function dayKeyFromDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
 }
 
 interface RestConflict {
@@ -373,7 +370,7 @@ export const scheduleMatch = onCall(async (request) => {
   const scheduleTime = parseIsoDate(request.data?.scheduleTime);
   const scheduleEndTime = parseIsoDate(request.data?.scheduleEndTime);
   const dayKey =
-    (request.data?.dayKey as string)?.trim() || dayKeyFromDate(scheduleTime);
+    (request.data?.dayKey as string)?.trim() || dayKeyFromEventDate(scheduleTime);
 
   if (!matchId || !courtId) {
     throw new HttpsError("invalid-argument", "matchId e courtId obrigatórios");
@@ -470,6 +467,21 @@ export const callMatchToCourt = onCall(async (request) => {
 
   await syncTournamentLiveMatchesNow(db, projectId, tournamentId);
 
+  const effectiveCourtId =
+    courtId ||
+    (typeof data.courtId === "string" ? data.courtId.trim() : "");
+  let courtLabel =
+    typeof data.courtName === "string" ? data.courtName.trim() : "";
+  if (!courtLabel && effectiveCourtId) {
+    const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
+    const courts = tournamentSnap.data()?.courts as
+      | Array<{id: string; name: string}>
+      | undefined;
+    const court = courts?.find((c) => c.id === effectiveCourtId);
+    courtLabel = court?.name?.trim() || effectiveCourtId;
+  }
+  if (!courtLabel) courtLabel = "quadra";
+
   // Notificar atletas (best-effort)
   try {
     const teamIds = [data.teamAId, data.teamBId].filter(Boolean) as string[];
@@ -483,10 +495,10 @@ export const callMatchToCourt = onCall(async (request) => {
       for (const playerId of players) {
         await deliverNotificationToUser({
           userId: playerId,
-          title: "Chamada de quadra",
-          body: "Sua partida foi chamada. Dirija-se à quadra.",
+          title: "Sua partida está prestes a começar",
+          body: `Sua partida foi chamada. Dirija-se à ${courtLabel}.`,
           type: "match_call",
-          data: {type: "match_call", matchId, tournamentId},
+          data: {type: "match_call", matchId, tournamentId, courtId: effectiveCourtId},
         });
       }
     }
@@ -731,22 +743,19 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   const minRest = (matchOps?.minRestBetweenMatchesMin as number) ?? 45;
   const dayStartStr = (matchOps?.dayStart as string) ?? "08:00";
   const [h, m] = dayStartStr.split(":").map(Number);
-  const dayStart = new Date(`${dayKey}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
+  const dayStart = eventDateFromDayKeyAndTime(dayKey, h, m);
 
   const courts = (tournament.courts as Array<{id: string; order: number}>) ?? [];
   if (courts.length === 0) {
     throw new HttpsError("failed-precondition", "Configure quadras no torneio");
   }
 
-  const allMatches = await loadTournamentMatches(
-    db,
-    projectId,
-    tournamentId,
-    dayKey,
-  );
+  const allMatches = await loadTournamentMatches(db, projectId, tournamentId);
   const unscheduled = allMatches.filter((doc) => {
     const d = doc.data();
-    return !d.scheduleTime && !isMatchCompleted(d.status);
+    if (d.scheduleTime || isMatchCompleted(d.status)) return false;
+    const matchDayKey = String(d.dayKey ?? "").trim();
+    return matchDayKey === "" || matchDayKey === dayKey;
   });
 
   const courtBusyUntil: Record<string, Date> = {};

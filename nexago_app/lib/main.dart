@@ -12,6 +12,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'core/time/nexago_event_timezone.dart';
 import 'core/auth/auth_providers.dart';
 import 'core/biometric/biometric_app_gate.dart';
 import 'core/deep_link/deep_link_navigation.dart';
@@ -33,6 +34,7 @@ import 'shared/constants/app_strings.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('pt_BR', null);
+  await initializeNexagoEventTimezone();
 
   // Evita registrar o app default duas vezes. Nota: em iOS/Android, **Hot restart (R)**
   // pode quebrar canais nativos (Firebase, shared_preferences → `channel-error`).

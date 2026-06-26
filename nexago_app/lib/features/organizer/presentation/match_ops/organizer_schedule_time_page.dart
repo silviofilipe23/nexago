@@ -4,14 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
-import '../../domain/match_ops/match_ops_logic.dart';
-import '../../domain/match_ops/match_ops_models.dart';
 import '../../domain/match_ops/match_ops_providers.dart';
 import '../../domain/match_ops/schedule_grid_logic.dart';
-import '../../domain/match_ops/schedule_logic.dart';
 import '../../domain/match_ops/schedule_time_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/domain/tournament_match.dart';
+import 'widgets/organizer_court_schedule_grid_widgets.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
 import 'widgets/organizer_schedule_pick_widgets.dart';
 import 'widgets/organizer_schedule_time_widgets.dart';
@@ -45,16 +43,9 @@ class _OrganizerScheduleTimePageState
     return null;
   }
 
-  String _dayKey(TournamentMatchOpsConfig config) {
-    return config.activeDayKey.isNotEmpty
-        ? config.activeDayKey
-        : ScheduleLogic.dayKeyFromDate(DateTime.now());
-  }
-
   Future<void> _confirm({
     required TournamentMatch match,
     required TournamentMatchOpsConfig config,
-    required List<TournamentMatch> dayMatches,
     required String dayKey,
     required DateTime slotStart,
     required String courtId,
@@ -90,6 +81,10 @@ class _OrganizerScheduleTimePageState
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(organizerMatchOpsStateProvider(widget.tournamentId));
+    final allMatches =
+        ref.watch(organizerTournamentMatchesProvider(widget.tournamentId))
+            .valueOrNull ??
+        const <TournamentMatch>[];
     final enrichedMap =
         ref.watch(organizerMatchCardsByIdProvider(widget.tournamentId));
     final categories =
@@ -98,8 +93,13 @@ class _OrganizerScheduleTimePageState
             .valueOrNull
             ?.categories ??
         const [];
+    final dayKey =
+        ref.watch(organizerScheduleDayKeyProvider(widget.tournamentId));
+    final tournamentDays =
+        ref.watch(organizerScheduleGridDayKeysProvider(widget.tournamentId));
+    final dayMatches = MatchOpsLogic.matchesForDay(allMatches, dayKey);
 
-    final match = _findMatch(state.dayMatches);
+    final match = _findMatch(allMatches);
     if (match == null) {
       return Scaffold(
         backgroundColor: context.themeColors.canvas,
@@ -121,8 +121,6 @@ class _OrganizerScheduleTimePageState
 
     final config = state.config;
     final courts = state.courts;
-    final dayKey = _dayKey(config);
-    final dayMatches = state.dayMatches;
     final durationMin = config.defaultMatchDurationMin;
     final minRestMin = config.minRestBetweenMatchesMin;
     final slots = ScheduleTimeLogic.timeSlotsForDay(
@@ -160,27 +158,21 @@ class _OrganizerScheduleTimePageState
           dayKey: dayKey,
           config: config,
         );
-    final courtStatusById = <String, ScheduleCourtSlotStatus>{
-      for (final court in courts)
-        court.id: ScheduleTimeLogic.courtStatusAt(
-          courtId: court.id,
-          slotStart: slotStart,
-          durationMin: durationMin,
-          allMatches: dayMatches,
-          excludeMatchId: match.id,
-        ),
-    };
+    final selectedCourtName = courts
+        .where((court) => court.id == courtId)
+        .map((court) => court.name)
+        .firstOrNull;
 
     final conflicts = ScheduleTimeLogic.conflictsFor(
       match: match,
       courtId: courtId,
       slotStart: slotStart,
       durationMin: durationMin,
-      allMatches: dayMatches,
+      allMatches: allMatches,
       minRestMin: minRestMin,
+      courtName: selectedCourtName,
     );
 
-    final blocking = ScheduleTimeLogic.hasBlockingConflict(conflicts);
     ScheduleConflict? displayConflict;
     for (final conflict in conflicts) {
       if (conflict.type == 'rest') {
@@ -188,9 +180,8 @@ class _OrganizerScheduleTimePageState
         break;
       }
     }
-    displayConflict ??= conflicts.isNotEmpty ? conflicts.first : null;
 
-    final confirmEnabled = courts.isNotEmpty && !blocking;
+    final confirmEnabled = courts.isNotEmpty;
     final confirmLabel = ScheduleTimeLogic.confirmLabel(slotStart: slotStart);
 
     return Scaffold(
@@ -200,9 +191,34 @@ class _OrganizerScheduleTimePageState
         children: [
           SafeArea(
             bottom: false,
-            child: ScheduleTimeHeader(
-              metaLabel: metaLabel,
-              onBack: () => context.pop(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ScheduleTimeHeader(
+                  metaLabel: metaLabel,
+                  onBack: () => context.pop(),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: ScheduleGridDayPicker(
+                    tournamentDays: tournamentDays,
+                    selectedDayKey: dayKey,
+                    onDaySelected: (key) {
+                      ref
+                          .read(
+                            organizerScheduleDayKeyProvider(
+                              widget.tournamentId,
+                            ).notifier,
+                          )
+                          .select(key);
+                      setState(() {
+                        _selectedSlotOverride = null;
+                        _courtIdOverride = null;
+                      });
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
           Expanded(
@@ -228,27 +244,12 @@ class _OrganizerScheduleTimePageState
                     ScheduleTimeCourtPicker(
                       courts: courts,
                       selectedCourtId: courtId,
-                      courtStatusById: courtStatusById,
                       onCourtSelected: (id) =>
                           setState(() => _courtIdOverride = id),
                     ),
                   ScheduleTimeSlotPicker(
                     slots: slots,
                     selectedSlot: slotStart,
-                    isSlotEnabled: (slot) {
-                      final onDay = ScheduleTimeLogic.slotOnDay(
-                        slot: slot,
-                        dayKey: dayKey,
-                        config: config,
-                      );
-                      return ScheduleTimeLogic.isSlotSelectable(
-                        courtId: courtId,
-                        slotStart: onDay,
-                        durationMin: durationMin,
-                        allMatches: dayMatches,
-                        excludeMatchId: match.id,
-                      );
-                    },
                     onSlotSelected: (slot) {
                       setState(() {
                         _selectedSlotOverride = ScheduleTimeLogic.slotOnDay(
@@ -277,7 +278,6 @@ class _OrganizerScheduleTimePageState
             onConfirm: () => _confirm(
               match: match,
               config: config,
-              dayMatches: dayMatches,
               dayKey: dayKey,
               slotStart: slotStart,
               courtId: courtId,

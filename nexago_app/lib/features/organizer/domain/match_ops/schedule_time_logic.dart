@@ -1,3 +1,4 @@
+import '../../../../core/time/nexago_event_timezone.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import 'match_ops_models.dart';
 import 'schedule_grid_logic.dart';
@@ -27,10 +28,27 @@ abstract final class ScheduleTimeLogic {
     required int durationMin,
     required List<TournamentMatch> allMatches,
     required String excludeMatchId,
+    String? courtName,
   }) {
+    for (final m in allMatches) {
+      if (m.id == excludeMatchId) continue;
+      if (!ScheduleLogic.matchOnCourt(
+        m,
+        courtId: courtId,
+        courtName: courtName,
+      )) {
+        continue;
+      }
+      if (m.isCompleted) continue;
+      if (m.isInProgress || m.isOnCourt) {
+        return ScheduleCourtSlotStatus.busy;
+      }
+    }
+
     final end = slotStart.add(Duration(minutes: durationMin));
     final overlap = ScheduleLogic.detectCourtOverlap(
       courtId: courtId,
+      courtName: courtName,
       scheduleStart: slotStart,
       scheduleEnd: end,
       allMatches: allMatches,
@@ -41,15 +59,37 @@ abstract final class ScheduleTimeLogic {
         : ScheduleCourtSlotStatus.busy;
   }
 
+  static Map<String, ScheduleCourtSlotStatus> courtStatusByCourtId({
+    required List<TournamentCourt> courts,
+    required DateTime slotStart,
+    required int durationMin,
+    required List<TournamentMatch> allMatches,
+    required String excludeMatchId,
+  }) {
+    return {
+      for (final court in courts)
+        court.id: courtStatusAt(
+          courtId: court.id,
+          courtName: court.name,
+          slotStart: slotStart,
+          durationMin: durationMin,
+          allMatches: allMatches,
+          excludeMatchId: excludeMatchId,
+        ),
+    };
+  }
+
   static bool isSlotSelectable({
     required String courtId,
     required DateTime slotStart,
     required int durationMin,
     required List<TournamentMatch> allMatches,
     required String excludeMatchId,
+    String? courtName,
   }) {
     return courtStatusAt(
           courtId: courtId,
+          courtName: courtName,
           slotStart: slotStart,
           durationMin: durationMin,
           allMatches: allMatches,
@@ -65,10 +105,12 @@ abstract final class ScheduleTimeLogic {
     required int durationMin,
     required List<TournamentMatch> allMatches,
     required int minRestMin,
+    String? courtName,
   }) {
     final end = slotStart.add(Duration(minutes: durationMin));
     final overlap = ScheduleLogic.detectCourtOverlap(
       courtId: courtId,
+      courtName: courtName,
       scheduleStart: slotStart,
       scheduleEnd: end,
       allMatches: allMatches,
@@ -149,14 +191,18 @@ abstract final class ScheduleTimeLogic {
     required String dayKey,
     required TournamentMatchOpsConfig config,
   }) {
-    final anchor = _dayAnchor(dayKey, config);
-    return DateTime(
-      anchor.year,
-      anchor.month,
-      anchor.day,
-      slot.hour,
-      slot.minute,
-    );
+    final parts = dayKey.split('-').map(int.tryParse).toList();
+    if (parts.length == 3 && parts.every((p) => p != null)) {
+      final local = toNexagoEventLocal(slot);
+      return nexagoEventDateTime(
+        year: parts[0]!,
+        month: parts[1]!,
+        day: parts[2]!,
+        hour: local.hour,
+        minute: local.minute,
+      );
+    }
+    return slot;
   }
 
   static DateTime _dayAnchor(String dayKey, TournamentMatchOpsConfig config) {
@@ -166,8 +212,14 @@ abstract final class ScheduleTimeLogic {
       final hour = int.tryParse(hourMin.first) ?? 8;
       final minute =
           hourMin.length > 1 ? int.tryParse(hourMin[1]) ?? 0 : 0;
-      return DateTime(parts[0]!, parts[1]!, parts[2]!, hour, minute);
+      return nexagoEventDateTime(
+        year: parts[0]!,
+        month: parts[1]!,
+        day: parts[2]!,
+        hour: hour,
+        minute: minute,
+      );
     }
-    return DateTime.now();
+    return nexagoEventNow();
   }
 }

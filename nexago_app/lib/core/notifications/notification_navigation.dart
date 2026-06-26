@@ -86,6 +86,19 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     return AppRoutes.bookingInvite.replaceAll(':inviteId', inviteId);
   }
 
+  if (type == 'tournament_bracket_published' ||
+      type == 'tournament_cancelled') {
+    final bracketUrl = (data['url'] as String?)?.trim();
+    if (bracketUrl != null && bracketUrl.startsWith('/')) return bracketUrl;
+    final tournamentId = (data['tournamentId'] as String?)?.trim() ?? '';
+    if (tournamentId.isNotEmpty) {
+      return AppRoutes.tournamentDetail.replaceAll(
+        ':tournamentId',
+        tournamentId,
+      );
+    }
+  }
+
   // Fluxo de reserva (atleta) -> tela de reservas.
   if (type.contains('booking') || data['bookingId'] != null) {
     return AppRoutes.myBookings;

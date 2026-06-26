@@ -164,7 +164,7 @@ async function notifySubscriber({
       ? `${match.startTime}–${match.endTime}`
       : match.startTime || "";
   const dateLabel = formatDateLabel(match.dateKey);
-  const title = "Horário liberado";
+  const title = "Quadra disponível";
   const body = timePart
     ? `${arenaLabel} · ${courtName} · ${dateLabel} · ${timePart}`
     : `${arenaLabel} · ${courtName} · ${dateLabel}`;

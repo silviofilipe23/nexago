@@ -61,7 +61,27 @@ class OrganizerMatchScheduleService {
       'avoidAthleteConflict': avoidAthleteConflict,
       'respectBracketDeps': respectBracketDeps,
     });
-    return Map<String, dynamic>.from(result.data as Map? ?? {});
+    return _normalizeCallableMap(result.data);
+  }
+
+  static Map<String, dynamic> _normalizeCallableMap(dynamic raw) {
+    if (raw is! Map) return {};
+    final map = Map<String, dynamic>.from(raw);
+    final slots = map['slots'];
+    if (slots is List) {
+      map['slots'] = slots
+          .whereType<Map>()
+          .map((slot) => Map<String, dynamic>.from(slot))
+          .toList();
+    }
+    final skipped = map['skipped'];
+    if (skipped is List) {
+      map['skipped'] = skipped
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    }
+    return map;
   }
 
   Future<void> callMatchToCourt({

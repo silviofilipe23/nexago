@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nexago_app/core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
-import '../../../domain/match_ops/match_ops_models.dart';
 import '../../../domain/match_ops/match_ops_providers.dart';
-import '../../../domain/match_ops/schedule_logic.dart';
+import '../../../domain/match_ops/schedule_grid_logic.dart';
+import '../../../domain/match_ops/schedule_time_logic.dart';
+import '../../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../../tournaments/domain/tournament_match.dart';
+import '../widgets/organizer_match_live_table_widgets.dart';
+import '../widgets/organizer_schedule_match_sheet_widgets.dart';
+import '../widgets/organizer_schedule_pick_widgets.dart';
+import '../widgets/organizer_schedule_time_widgets.dart';
 
 Future<void> showOrganizerScheduleMatchSheet(
   BuildContext context, {
@@ -15,16 +20,29 @@ Future<void> showOrganizerScheduleMatchSheet(
   required List<TournamentCourt> courts,
   required List<TournamentMatch> allMatches,
   required TournamentMatchOpsConfig config,
+  String? dayKey,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    builder: (ctx) => _OrganizerScheduleMatchSheet(
-      tournamentId: tournamentId,
-      match: match,
-      courts: courts,
-      allMatches: allMatches,
-      config: config,
+    backgroundColor: context.themeColors.surfaceCard,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) => DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.88,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) => _OrganizerScheduleMatchSheet(
+        tournamentId: tournamentId,
+        match: match,
+        courts: courts,
+        allMatches: allMatches,
+        config: config,
+        dayKey: dayKey,
+        scrollController: scrollController,
+      ),
     ),
   );
 }
@@ -36,6 +54,8 @@ class _OrganizerScheduleMatchSheet extends ConsumerStatefulWidget {
     required this.courts,
     required this.allMatches,
     required this.config,
+    this.dayKey,
+    this.scrollController,
   });
 
   final String tournamentId;
@@ -43,6 +63,8 @@ class _OrganizerScheduleMatchSheet extends ConsumerStatefulWidget {
   final List<TournamentCourt> courts;
   final List<TournamentMatch> allMatches;
   final TournamentMatchOpsConfig config;
+  final String? dayKey;
+  final ScrollController? scrollController;
 
   @override
   ConsumerState<_OrganizerScheduleMatchSheet> createState() =>
@@ -52,89 +74,113 @@ class _OrganizerScheduleMatchSheet extends ConsumerStatefulWidget {
 class _OrganizerScheduleMatchSheetState
     extends ConsumerState<_OrganizerScheduleMatchSheet> {
   late String _courtId;
-  late TimeOfDay _time;
-  List<ScheduleConflict> _warnings = const [];
+  late DateTime _selectedSlot;
+  DateTime? _previousTime;
+  bool _slotsExpanded = false;
   bool _saving = false;
+
+  String _effectiveDayKey(WidgetRef ref) {
+    final passed = widget.dayKey?.trim() ?? '';
+    if (passed.isNotEmpty) return passed;
+    return ref.watch(organizerScheduleDayKeyProvider(widget.tournamentId));
+  }
+
+  String _initialDayKey(WidgetRef ref) {
+    final passed = widget.dayKey?.trim() ?? '';
+    if (passed.isNotEmpty) return passed;
+    return ref.read(organizerScheduleDayKeyProvider(widget.tournamentId));
+  }
 
   @override
   void initState() {
     super.initState();
-    _courtId = widget.match.courtId.isNotEmpty
-        ? widget.match.courtId
-        : widget.courts.firstOrNull?.id ?? 'Q1';
-    final st = widget.match.scheduleTime ?? DateTime.now();
-    _time = TimeOfDay(hour: st.hour, minute: st.minute);
-    _recomputeWarnings();
+    final dayKey = _initialDayKey(ref);
+    final dayMatches = MatchOpsLogic.matchesForDay(
+      widget.allMatches,
+      dayKey,
+    );
+    final slots = ScheduleTimeLogic.timeSlotsForDay(
+      dayKey: dayKey,
+      config: widget.config,
+    );
+
+    _previousTime = widget.match.scheduleTime;
+    _courtId = ScheduleTimeLogic.initialCourtId(
+      match: widget.match,
+      courts: widget.courts,
+      dayMatches: dayMatches,
+      config: widget.config,
+      dayKey: dayKey,
+    );
+    _selectedSlot = ScheduleTimeLogic.slotOnDay(
+      slot: ScheduleTimeLogic.initialSlot(
+        match: widget.match,
+        dayMatches: dayMatches,
+        courts: widget.courts,
+        config: widget.config,
+        dayKey: dayKey,
+        slots: slots,
+      ),
+      dayKey: dayKey,
+      config: widget.config,
+    );
   }
 
-  void _recomputeWarnings() {
-    final dayKey = widget.config.activeDayKey.isNotEmpty
-        ? widget.config.activeDayKey
-        : ScheduleLogic.dayKeyFromDate(DateTime.now());
-    final parts = dayKey.split('-').map(int.parse).toList();
-    final start = DateTime(
-      parts[0],
-      parts[1],
-      parts[2],
-      _time.hour,
-      _time.minute,
-    );
-    final end = start.add(
-      Duration(minutes: widget.config.defaultMatchDurationMin),
-    );
-    final overlap = ScheduleLogic.detectCourtOverlap(
-      courtId: _courtId,
-      scheduleStart: start,
-      scheduleEnd: end,
-      allMatches: widget.allMatches,
-      excludeMatchId: widget.match.id,
-    );
-    final rest = ScheduleLogic.detectRestConflict(
-      target: widget.match,
-      scheduleStart: start,
-      scheduleEnd: end,
+  ScheduleConflict? _displayConflict({
+    required DateTime slotStart,
+    required String courtId,
+    String? courtName,
+  }) {
+    final conflicts = ScheduleTimeLogic.conflictsFor(
+      match: widget.match,
+      courtId: courtId,
+      slotStart: slotStart,
+      durationMin: widget.config.defaultMatchDurationMin,
       allMatches: widget.allMatches,
       minRestMin: widget.config.minRestBetweenMatchesMin,
+      courtName: courtName,
     );
-    setState(() {
-      _warnings = [
-        if (overlap != null) overlap,
-        ...rest,
-      ];
-    });
+    for (final conflict in conflicts) {
+      if (conflict.type == 'rest') return conflict;
+    }
+    return null;
   }
 
   Future<void> _save() async {
+    if (_saving || widget.courts.isEmpty) return;
     setState(() => _saving = true);
     try {
-      final dayKey = widget.config.activeDayKey.isNotEmpty
-          ? widget.config.activeDayKey
-          : ScheduleLogic.dayKeyFromDate(DateTime.now());
-      final parts = dayKey.split('-').map(int.parse).toList();
-      final start = DateTime(
-        parts[0],
-        parts[1],
-        parts[2],
-        _time.hour,
-        _time.minute,
-      );
+      final dayKey = _effectiveDayKey(ref);
+      final start = _selectedSlot;
       final end = start.add(
         Duration(minutes: widget.config.defaultMatchDurationMin),
       );
       final service = ref.read(organizerMatchScheduleServiceProvider);
-      final result = await service.scheduleMatch(
-        matchId: widget.match.id,
-        courtId: _courtId,
-        scheduleTime: start,
-        scheduleEndTime: end,
-        dayKey: dayKey,
-      );
+      final isReschedule = widget.match.scheduleTime != null;
+      final result = isReschedule
+          ? await service.rescheduleMatch(
+              matchId: widget.match.id,
+              courtId: _courtId,
+              scheduleTime: start,
+              scheduleEndTime: end,
+              dayKey: dayKey,
+            )
+          : await service.scheduleMatch(
+              matchId: widget.match.id,
+              courtId: _courtId,
+              scheduleTime: start,
+              scheduleEndTime: end,
+              dayKey: dayKey,
+            );
       if (!mounted) return;
       final warnings = result['warnings'];
       if (warnings is List && warnings.isNotEmpty) {
         showAppSnackBar(context, 'Agendado com avisos de descanso.');
       } else {
-        showAppSnackBar(context, 'Partida agendada.');
+        showAppSnackBar(
+          context,
+          isReschedule ? 'Horário atualizado.' : 'Partida agendada.',
+        );
       }
       Navigator.of(context).pop();
     } catch (e) {
@@ -146,86 +192,105 @@ class _OrganizerScheduleMatchSheetState
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Agendar partida',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          Text(widget.match.teamsLabel),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            value: _courtId,
-            decoration: const InputDecoration(labelText: 'Quadra'),
-            items: widget.courts
-                .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
-                .toList(),
-            onChanged: (v) {
-              if (v == null) return;
-              setState(() => _courtId = v);
-              _recomputeWarnings();
-            },
-          ),
-          const SizedBox(height: 12),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Horário'),
-            trailing: Text(_time.format(context)),
-            onTap: () async {
-              final picked = await showTimePicker(
-                context: context,
-                initialTime: _time,
-              );
-              if (picked != null) {
-                setState(() => _time = picked);
-                _recomputeWarnings();
-              }
-            },
-          ),
-          if (_warnings.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.pending.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final w in _warnings)
-                    Text('• ${w.message}',
-                        style: const TextStyle(color: AppColors.pending)),
-                ],
-              ),
+    final dayKey = _effectiveDayKey(ref);
+    final slots = ScheduleTimeLogic.timeSlotsForDay(
+      dayKey: dayKey,
+      config: widget.config,
+    );
+    final categories =
+        ref
+            .watch(organizerTournamentDetailProvider(widget.tournamentId))
+            .valueOrNull
+            ?.categories ??
+        const [];
+    final enriched =
+        ref.watch(organizerMatchCardsByIdProvider(widget.tournamentId)).valueOrNull?[widget.match.id];
+    final categoryLabel = MatchOpsLogic.categoryDisplayLabel(
+      categoryId: widget.match.categoryId,
+      categories: categories,
+    );
+    final selectedCourtName = widget.courts
+        .where((court) => court.id == _courtId)
+        .map((court) => court.name)
+        .firstOrNull;
+    final conflict = _displayConflict(
+      slotStart: _selectedSlot,
+      courtId: _courtId,
+      courtName: selectedCourtName,
+    );
+    final programLabel =
+        'PROGRAMAÇÃO • ${ScheduleGridLogic.programDayDateLabel(dayKey)}';
+
+    return Column(
+      children: [
+        ScheduleMatchSheetChrome(
+          programLabel: programLabel,
+          onClose: () => Navigator.of(context).pop(),
+        ),
+        Expanded(
+          child: ListView(
+            controller: widget.scrollController,
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom + 8,
             ),
-          ],
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _saving ||
-                    _warnings.any((w) => w.type == 'overlap')
-                ? null
-                : _save,
-            style: FilledButton.styleFrom(backgroundColor: AppColors.brand),
-            child: _saving
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Confirmar'),
+            children: [
+              ScheduleMatchSheetMatchCard(
+                match: widget.match,
+                categoryLabel: categoryLabel,
+                teamA: schedulePickTeamData(
+                  match: widget.match,
+                  sideA: true,
+                  enriched: enriched,
+                ),
+                teamB: schedulePickTeamData(
+                  match: widget.match,
+                  sideA: false,
+                  enriched: enriched,
+                ),
+                seedA: liveTableTeamSeed(widget.match, sideA: true),
+                seedB: liveTableTeamSeed(widget.match, sideA: false),
+              ),
+              if (widget.courts.isNotEmpty)
+                ScheduleMatchSheetCourtPicker(
+                  courts: widget.courts,
+                  selectedCourtId: _courtId,
+                  onCourtSelected: (id) => setState(() => _courtId = id),
+                ),
+              ScheduleMatchSheetTimeCompare(
+                before: _previousTime,
+                after: _selectedSlot,
+                afterLabel: ScheduleGridLogic.timeLabel(_selectedSlot),
+                slotsExpanded: _slotsExpanded,
+                onTap: () => setState(() => _slotsExpanded = !_slotsExpanded),
+              ),
+              if (_slotsExpanded)
+                ScheduleTimeSlotPicker(
+                  slots: slots,
+                  selectedSlot: _selectedSlot,
+                  onSlotSelected: (slot) {
+                    setState(() {
+                      _selectedSlot = ScheduleTimeLogic.slotOnDay(
+                        slot: slot,
+                        dayKey: dayKey,
+                        config: widget.config,
+                      );
+                    });
+                  },
+                ),
+              if (conflict != null)
+                ScheduleTimeConflictCard(
+                  title: ScheduleTimeLogic.conflictTitle(conflict),
+                  message: conflict.message,
+                ),
+            ],
           ),
-        ],
-      ),
+        ),
+        ScheduleMatchSheetConfirmBar(
+          saving: _saving,
+          enabled: widget.courts.isNotEmpty,
+          onConfirm: _save,
+        ),
+      ],
     );
   }
 }

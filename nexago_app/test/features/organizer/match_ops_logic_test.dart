@@ -210,6 +210,63 @@ void main() {
     });
   });
 
+  group('matchHasCourt', () {
+    test('true when courtId or courtName is set', () {
+      expect(MatchOpsLogic.matchHasCourt(_match(courtId: 'Q1')), isTrue);
+      expect(
+        MatchOpsLogic.matchHasCourt(
+          TournamentMatch(
+            id: 'm1',
+            tournamentId: 't',
+            categoryId: 'c',
+            round: 1,
+            matchType: 'wb',
+            poolId: '',
+            teamAId: 'a',
+            teamBId: 'b',
+            status: TournamentMatchStatus.scheduled,
+            resultA: '',
+            resultB: '',
+            isGroupMatch: false,
+            matchNumber: 1,
+            courtName: 'Quadra 1',
+          ),
+        ),
+        isTrue,
+      );
+      expect(MatchOpsLogic.matchHasCourt(_match()), isFalse);
+    });
+  });
+
+  group('canReleaseAfterCheckInWithCourt', () {
+    test('requires check-in and court', () {
+      expect(
+        MatchOpsLogic.canReleaseAfterCheckInWithCourt(
+          MatchCheckInStatus.present,
+          MatchCheckInStatus.present,
+          hasCourt: true,
+        ),
+        isTrue,
+      );
+      expect(
+        MatchOpsLogic.canReleaseAfterCheckInWithCourt(
+          MatchCheckInStatus.present,
+          MatchCheckInStatus.present,
+          hasCourt: false,
+        ),
+        isFalse,
+      );
+      expect(
+        MatchOpsLogic.canReleaseAfterCheckInWithCourt(
+          MatchCheckInStatus.present,
+          MatchCheckInStatus.pending,
+          hasCourt: true,
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('friendlyScoreError', () {
     test('passes through the server PT message on failed-precondition', () {
       expect(

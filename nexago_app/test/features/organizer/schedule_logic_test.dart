@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/schedule_logic.dart';
 import 'package:nexago_app/features/organizer/domain/match_ops/match_ops_models.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
@@ -35,6 +36,10 @@ TournamentMatch _match({
 }
 
 void main() {
+  setUpAll(() async {
+    await initializeNexagoEventTimezone();
+  });
+
   group('ScheduleLogic', () {
     test('detectCourtOverlap finds overlapping slot', () {
       final start = DateTime(2026, 6, 14, 10, 0);
@@ -53,6 +58,48 @@ void main() {
       );
       expect(overlap, isNotNull);
       expect(overlap!.type, 'overlap');
+    });
+
+    test('matchOnCourt matches courtId or courtName', () {
+      expect(
+        ScheduleLogic.matchOnCourt(
+          _match(courtId: 'Q1'),
+          courtId: 'Q1',
+          courtName: 'Quadra 1',
+        ),
+        isTrue,
+      );
+      expect(
+        ScheduleLogic.matchOnCourt(
+          TournamentMatch(
+            id: 'm',
+            tournamentId: 't',
+            categoryId: 'c',
+            round: 1,
+            matchType: 'wb',
+            poolId: '',
+            teamAId: 'a',
+            teamBId: 'b',
+            status: TournamentMatchStatus.scheduled,
+            resultA: '',
+            resultB: '',
+            isGroupMatch: false,
+            matchNumber: 1,
+            courtName: 'Quadra 1',
+          ),
+          courtId: 'Q1',
+          courtName: 'Quadra 1',
+        ),
+        isTrue,
+      );
+      expect(
+        ScheduleLogic.matchOnCourt(
+          _match(courtId: 'Q2'),
+          courtId: 'Q1',
+          courtName: 'Quadra 1',
+        ),
+        isFalse,
+      );
     });
 
     test('detectRestConflict warns on short rest', () {
@@ -120,6 +167,48 @@ void main() {
       expect(
         slots.map((s) => s.matchId).toList(),
         ['g1', 'qf1', 'qf3', 'sf1', 'sf2'],
+      );
+    });
+
+    test('tournamentDayKeys spans start to end inclusive', () {
+      final start = nexagoEventDateTime(year: 2026, month: 6, day: 30);
+      final end = nexagoEventDateTime(year: 2026, month: 7, day: 2);
+      final keys = ScheduleLogic.tournamentDayKeys(startAt: start, endAt: end);
+      expect(keys, ['2026-06-30', '2026-07-01', '2026-07-02']);
+    });
+
+    test('resolveScheduleGridDayKey prefers activeDayKey when today differs', () {
+      final keys = ['2026-06-14', '2026-06-15', '2026-06-16'];
+      expect(
+        ScheduleLogic.resolveScheduleGridDayKey(
+          tournamentDays: keys,
+          activeDayKey: '2026-06-14',
+          todayDayKey: '2026-06-15',
+        ),
+        '2026-06-14',
+      );
+    });
+
+    test('resolveScheduleGridDayKey uses today when no activeDayKey', () {
+      final keys = ['2026-06-14', '2026-06-15', '2026-06-16'];
+      expect(
+        ScheduleLogic.resolveScheduleGridDayKey(
+          tournamentDays: keys,
+          todayDayKey: '2026-06-15',
+        ),
+        '2026-06-15',
+      );
+    });
+
+    test('resolveScheduleGridDayKey falls back to activeDayKey', () {
+      final keys = ['2026-06-14', '2026-06-15'];
+      expect(
+        ScheduleLogic.resolveScheduleGridDayKey(
+          tournamentDays: keys,
+          activeDayKey: '2026-06-14',
+          todayDayKey: '2026-06-20',
+        ),
+        '2026-06-14',
       );
     });
   });

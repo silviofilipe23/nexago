@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/formatting/app_currency_format.dart';
 
 class BookingPixMethodCard extends StatelessWidget {
   const BookingPixMethodCard({super.key, required this.amountLabel});
@@ -63,10 +63,6 @@ class BookingPixMethodCard extends StatelessWidget {
   }
 
   static String formatAmount(double reais) {
-    return NumberFormat.currency(
-      locale: 'pt_BR',
-      symbol: r'R$',
-      decimalDigits: 2,
-    ).format(reais);
+    return formatBRL(reais);
   }
 }

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/layout/app_scaffold.dart';
 import '../../../core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../../core/ui/fade_slide_in.dart';
@@ -167,11 +168,6 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
   final ScrollController _slotListScrollController = ScrollController();
 
   static final _metaDateFmt = DateFormat('EEE, d MMM', 'pt_BR');
-  static final _priceFmt = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 0,
-  );
 
   @override
   void initState() {
@@ -692,7 +688,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     final durationLabel = formatSelectionDurationLabel(n, slotDurationMinutes);
     final meta = '$durationLabel · ${_metaDateFmt.format(_selectedDay)}';
     final totalVal = totalPriceForRange(slots, s, e);
-    final total = totalVal != null ? _priceFmt.format(totalVal) : null;
+    final total = totalVal != null ? formatBRLWhole(totalVal) : null;
     return (meta: meta, total: total);
   }
 
@@ -1005,7 +1001,7 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                               isSelectionAnchor: _isSelectionAnchorIndex,
                               onSlotTap: (i) => _onSlotTap(i, slots),
                               priceLabelFor: (slot) => slot.priceReais != null
-                                  ? _priceFmt.format(slot.priceReais)
+                                  ? formatBRLWhole(slot.priceReais!)
                                   : null,
                               mostPopularIndex: popularIdx,
                               lastAvailableIndex: lastIdx,

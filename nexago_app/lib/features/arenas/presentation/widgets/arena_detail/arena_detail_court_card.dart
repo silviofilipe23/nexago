@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/formatting/app_currency_format.dart';
 import '../../../domain/arena_detail_logic.dart';
 import '../../../domain/arena_list_item.dart';
 import '../../../domain/court_pricing.dart';
@@ -22,11 +22,6 @@ class ArenaDetailCourtCard extends StatelessWidget {
   final double arenaFallbackPricePerHour;
   final VoidCallback? onTap;
 
-  static final _currency = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 0,
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +35,7 @@ class ArenaDetailCourtCard extends StatelessWidget {
       court: court,
       arenaFallbackPerHourReais: arenaFallbackPricePerHour,
     );
-    final priceLabel = hourly != null ? _currency.format(hourly) : '—';
+    final priceLabel = hourly != null ? formatBRLWhole(hourly) : '—';
 
     final String statusText;
     final Color statusColor;

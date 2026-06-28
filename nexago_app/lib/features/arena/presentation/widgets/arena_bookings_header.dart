@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../core/formatting/app_currency_format.dart';
 import '../../domain/arena_providers.dart';
 
 class ArenaBookingsHeader extends ConsumerWidget {
@@ -17,10 +17,7 @@ class ArenaBookingsHeader extends ConsumerWidget {
         arenaAsync.maybeWhen(data: (a) => a?.name.trim(), orElse: () => null) ??
         'Arena';
     final sum = ref.watch(arenaBookingsTabSummaryProvider);
-    final money = NumberFormat.currency(
-      locale: 'pt_BR',
-      symbol: r'R$',
-    ).format(sum);
+    final money = formatBRL(sum);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

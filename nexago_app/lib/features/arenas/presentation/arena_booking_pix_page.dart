@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/feedback/feedback_page.dart';
 import '../../../core/ui/feedback/show_feedback_page.dart';
@@ -58,11 +59,6 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
   double _paymentFraction = 1.0;
   Timer? _expiryTimer;
 
-  static final _currency = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 2,
-  );
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
 
   double get _totalReais => widget.args.confirmArgs.amountReais;
@@ -252,8 +248,8 @@ class _ArenaBookingPixPageState extends ConsumerState<ArenaBookingPixPage> {
     final paid = _pix?.amountToPayNowReais ?? _payNowReais;
     final due = _dueOnsiteReais;
     final amountLabel = due > 0.02
-        ? 'PIX: ${_currency.format(paid)} · Restante no local: ${_currency.format(due)}'
-        : 'Total pago: ${_currency.format(paid)}';
+        ? 'PIX: ${formatBRL(paid)} · Restante no local: ${formatBRL(due)}'
+        : 'Total pago: ${formatBRL(paid)}';
 
     final uri = Uri(
       path: AppRoutes.arenaBookingSuccess.replaceAll(

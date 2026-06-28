@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/formatting/app_currency_format.dart';
 import '../../../domain/slots_page_logic.dart';
 
 class SlotsDurationPicker extends StatelessWidget {
@@ -17,11 +17,6 @@ class SlotsDurationPicker extends StatelessWidget {
   final int? selectedMinutes;
   final ValueChanged<int> onSelected;
 
-  static final _priceFmt = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 0,
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +31,7 @@ class SlotsDurationPicker extends StatelessWidget {
                 option: options[i],
                 selected: selectedMinutes == options[i].minutes,
                 priceLabel: options[i].priceReais != null
-                    ? _priceFmt.format(options[i].priceReais)
+                    ? formatBRLWhole(options[i].priceReais!)
                     : null,
                 onTap: () => onSelected(options[i].minutes),
               ),

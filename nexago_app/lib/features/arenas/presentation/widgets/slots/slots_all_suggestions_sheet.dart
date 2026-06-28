@@ -50,19 +50,20 @@ Future<void> showSlotsAllSuggestionsSheet({
                 ),
               ),
               Expanded(
-                child: ListView(
+                child: ListView.builder(
                   controller: scrollController,
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  children: [
-                    for (final s in suggestions)
-                      SlotsSuggestionTile(
-                        suggestion: s,
-                        onAction: () {
-                          Navigator.of(ctx).pop();
-                          onSuggestionAction(s);
-                        },
-                      ),
-                  ],
+                  itemCount: suggestions.length,
+                  itemBuilder: (context, index) {
+                    final s = suggestions[index];
+                    return SlotsSuggestionTile(
+                      suggestion: s,
+                      onAction: () {
+                        Navigator.of(ctx).pop();
+                        onSuggestionAction(s);
+                      },
+                    );
+                  },
                 ),
               ),
             ],

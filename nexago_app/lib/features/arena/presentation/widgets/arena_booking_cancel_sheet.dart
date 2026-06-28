@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../core/formatting/app_currency_format.dart';
 import '../../../arenas/domain/arena_booking_cancel_reason.dart';
 import '../../../arenas/domain/booking_providers.dart';
 import '../../domain/arena_booking_labels.dart';
@@ -60,7 +61,7 @@ class _ArenaBookingCancelSheetState
     final summaryMeta = _bookingSummaryMeta(widget.booking);
     final amount = ArenaBookingsGrouping.amountReais(widget.booking.data);
     final amountStr = amount != null
-        ? NumberFormat.currency(locale: 'pt_BR', symbol: r'R$').format(amount)
+        ? formatBRL(amount)
         : '—';
     final payment = arenaBookingPaymentLabel(widget.booking.data);
     final isDirect = payment.toLowerCase().contains('direto');

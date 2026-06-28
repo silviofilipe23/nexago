@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../../core/formatting/app_date_format.dart';
 
 /// Parâmetros da query em `arenaSlots` (alinhado ao web: arena + quadra + dia).
 @immutable
@@ -20,13 +21,7 @@ class SlotsQuery {
   final double? arenaFallbackPricePerHourReais;
 
   /// `YYYY-MM-DD` — útil para logs, SnackBar e alinhamento com o web.
-  String get dateKey {
-    final d = DateTime(date.year, date.month, date.day);
-    final y = d.year.toString().padLeft(4, '0');
-    final m = d.month.toString().padLeft(2, '0');
-    final day = d.day.toString().padLeft(2, '0');
-    return '$y-$m-$day';
-  }
+  String get dateKey => calendarDateKey(date);
 
   @override
   bool operator ==(Object other) {

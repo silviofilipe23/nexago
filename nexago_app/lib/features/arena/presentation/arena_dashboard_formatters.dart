@@ -1,11 +1,7 @@
-import 'package:intl/intl.dart';
+import '../../../core/formatting/app_currency_format.dart';
 
 String formatDashboardCurrency(double value) {
-  return NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 2,
-  ).format(value);
+  return formatBRL(value);
 }
 
 /// [percent] entre 0 e 100.

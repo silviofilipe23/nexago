@@ -1,8 +1,7 @@
 import 'package:intl/intl.dart';
 
+import '../../../../core/formatting/app_currency_format.dart';
 import 'tournament_create_draft.dart';
-
-final _currencyFmt = NumberFormat.currency(locale: 'pt_BR', symbol: r'R$');
 
 String sportLabel(TournamentSport sport) => switch (sport) {
   TournamentSport.beachVolleyball => 'Vôlei de praia',
@@ -185,9 +184,9 @@ String skillLevelLabel(TournamentSkillLevel level) => switch (level) {
   TournamentSkillLevel.open => 'Open',
 };
 
-String formatCents(int cents) => _currencyFmt.format(cents / 100);
+String formatCents(int cents) => formatBRLFromCents(cents);
 
-String formatReais(double value) => _currencyFmt.format(value);
+String formatReais(double value) => formatBRL(value);
 
 String spotsUnitLabel(TournamentCategoryDispute dispute, int spots) {
   final unit = switch (dispute) {

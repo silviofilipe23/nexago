@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/formatting/app_date_format.dart';
 
 import 'my_booking_confirmed_athlete.dart';
 import 'my_booking_payment.dart';
@@ -65,9 +66,7 @@ class MyBookingItem {
     if (dateVal is String) {
       dateRaw = dateVal.length >= 10 ? dateVal.substring(0, 10) : dateVal.trim();
     } else if (dateVal is Timestamp) {
-      final d = dateVal.toDate();
-      dateRaw =
-          '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+      dateRaw = calendarDateKey(dateVal.toDate());
     }
 
     final start = _timeStr(data['startTime']);

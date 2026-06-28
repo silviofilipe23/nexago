@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/formatting/app_currency_format.dart';
 
 class BookingPixAmountSection extends StatelessWidget {
   const BookingPixAmountSection({
@@ -18,11 +18,6 @@ class BookingPixAmountSection extends StatelessWidget {
   final ValueChanged<double> onFractionChanged;
   final bool enabled;
 
-  static final _currency = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 2,
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +42,7 @@ class BookingPixAmountSection extends StatelessWidget {
             Expanded(
               child: _AmountOptionCard(
                 title: 'Total agora',
-                amount: _currency.format(payFull),
+                amount: formatBRL(payFull),
                 footer: 'Garante 100% da reserva',
                 selected: selectedFraction >= 0.99,
                 enabled: enabled,
@@ -58,7 +53,7 @@ class BookingPixAmountSection extends StatelessWidget {
             Expanded(
               child: _AmountOptionCard(
                 title: 'Apenas sinal · 50%',
-                amount: _currency.format(payHalf),
+                amount: formatBRL(payHalf),
                 footer: 'Resto na arena',
                 selected: selectedFraction <= 0.51,
                 enabled: enabled,

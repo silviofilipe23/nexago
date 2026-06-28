@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/formatting/app_date_format.dart';
 
 /// Alerta em `users/{uid}/slotVacancyAlerts/{alertId}` quando uma quadra/dia lota.
 class SlotVacancyAlert {
@@ -29,13 +30,7 @@ class SlotVacancyAlert {
   }) =>
       '${arenaId.trim()}_${courtId.trim()}_$dateKey';
 
-  static String dateKeyFrom(DateTime day) {
-    final d = DateTime(day.year, day.month, day.day);
-    final y = d.year.toString().padLeft(4, '0');
-    final m = d.month.toString().padLeft(2, '0');
-    final dayStr = d.day.toString().padLeft(2, '0');
-    return '$y-$m-$dayStr';
-  }
+  static String dateKeyFrom(DateTime day) => calendarDateKey(day);
 
   factory SlotVacancyAlert.fromFirestore(String docId, Map<String, dynamic> data) {
     final created = data['createdAt'];

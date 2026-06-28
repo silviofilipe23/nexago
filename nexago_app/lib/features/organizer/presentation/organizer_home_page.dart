@@ -12,6 +12,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 import 'package:nexago_app/core/ui/fade_slide_in.dart';
+import '../../../core/formatting/app_currency_format.dart';
 
 import '../../../core/auth/active_role_providers.dart';
 import '../../auth/presentation/role_selection_page.dart';
@@ -165,7 +166,7 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
     if (value >= 1000) {
       return 'R\$ ${NumberFormat.compact(locale: 'pt_BR').format(value)}';
     }
-    return NumberFormat.currency(locale: 'pt_BR', symbol: r'R$').format(value);
+    return formatBRL(value);
   }
 
   int _tournamentCollectedCents(Map<String, dynamic> event) {

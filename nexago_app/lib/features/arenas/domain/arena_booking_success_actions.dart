@@ -1,14 +1,8 @@
-import 'package:intl/intl.dart';
+import '../../../core/formatting/app_currency_format.dart';
 
 /// Ações e formatação da tela de sucesso / ticket.
 abstract final class ArenaBookingSuccessActions {
   ArenaBookingSuccessActions._();
-
-  static final _currency = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 2,
-  );
 
   static String formatBookingDisplayCode(String bookingId) {
     final id = bookingId.trim();
@@ -140,7 +134,7 @@ abstract final class ArenaBookingSuccessActions {
   }) {
     final code = formatBookingDisplayCode(bookingId);
     if (paymentApproved && amountReais != null) {
-      return 'Pagamento de ${_currency.format(amountReais)} aprovado • $code';
+      return 'Pagamento de ${formatBRL(amountReais)} aprovado • $code';
     }
     return 'Reserva registrada • $code';
   }

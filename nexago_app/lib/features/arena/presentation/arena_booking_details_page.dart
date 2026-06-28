@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/formatting/app_currency_format.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/arena_booking_canceled_args.dart';
@@ -99,11 +99,7 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
 
     final statusLabel = arenaBookingBusinessStatusLabel(data);
     final amount = _amountReaisFromData(data);
-    final amountStr = amount != null
-        ? NumberFormat.currency(
-                locale: 'pt_BR', symbol: r'R$', decimalDigits: 2)
-            .format(amount)
-        : '—';
+    final amountStr = amount != null ? formatBRL(amount) : '—';
 
     final participants =
         (data['confirmedParticipants'] as num?)?.toInt() ?? 1;

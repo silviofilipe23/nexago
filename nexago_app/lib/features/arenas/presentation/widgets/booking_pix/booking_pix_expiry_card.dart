@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/formatting/app_currency_format.dart';
 
 /// Card de expiração com countdown MM:SS (protótipo pós-QR).
 class BookingPixExpiryCard extends StatefulWidget {
@@ -52,11 +52,7 @@ class _BookingPixExpiryCardState extends State<BookingPixExpiryCard> {
     final countdown =
         '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
 
-    final amount = NumberFormat.currency(
-      locale: 'pt_BR',
-      symbol: r'R$',
-      decimalDigits: 2,
-    ).format(widget.amountReais);
+    final amount = formatBRL(widget.amountReais);
 
     return Container(
       padding: const EdgeInsets.all(14),

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../../core/formatting/app_date_format.dart';
 
 /// Estado enviado da seleção de horários para a confirmação (paridade com query params do web).
 @immutable
@@ -32,13 +33,7 @@ class ArenaBookingConfirmArgs {
   /// Inícios dos slots tocados na grade (`18:00`, `19:00`…). Define a cobrança no servidor.
   final List<String> selectedSlotStartTimes;
 
-  String get dateKey {
-    final d = DateTime(date.year, date.month, date.day);
-    final y = d.year.toString().padLeft(4, '0');
-    final m = d.month.toString().padLeft(2, '0');
-    final day = d.day.toString().padLeft(2, '0');
-    return '$y-$m-$day';
-  }
+  String get dateKey => calendarDateKey(date);
 
   bool get isValid =>
       arenaId.isNotEmpty &&

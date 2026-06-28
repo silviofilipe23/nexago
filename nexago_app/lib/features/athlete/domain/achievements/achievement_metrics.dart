@@ -1,3 +1,4 @@
+import '../../../../core/formatting/app_date_format.dart';
 import '../athlete_profile.dart';
 import '../gamification_models.dart';
 import '../profile_completion_models.dart';
@@ -131,8 +132,7 @@ class AchievementMetrics {
     DateTime now, {
     int maxEntries = 120,
   }) {
-    final key =
-        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final key = calendarDateKey(now);
     final next = [...current, key];
     if (next.length <= maxEntries) return next;
     return next.sublist(next.length - maxEntries);

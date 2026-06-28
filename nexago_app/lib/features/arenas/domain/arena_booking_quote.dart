@@ -1,4 +1,4 @@
-import 'package:intl/intl.dart';
+import '../../../core/formatting/app_currency_format.dart';
 
 /// Linha de preço retornada por `quoteArenaBooking`.
 class ArenaBookingQuoteLine {
@@ -47,10 +47,9 @@ class ArenaBookingQuote {
   String? get pricingSummary {
     final hourly = impliedHourlyRateReais;
     if (hourly == null) return null;
-    final fmt = NumberFormat.currency(locale: 'pt_BR', symbol: r'R$', decimalDigits: 2);
     final n = lineItems.length;
-    if (n <= 1) return '${fmt.format(hourly)}/h';
-    return '${fmt.format(hourly)}/h × $n horários';
+    if (n <= 1) return '${formatBRL(hourly)}/h';
+    return '${formatBRL(hourly)}/h × $n horários';
   }
 
   static int? _minutes(String hm) {

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../core/formatting/app_currency_format.dart';
 import '../../domain/arena_booking_labels.dart';
 import '../../domain/arena_bookings_grouping.dart';
 import 'arena_dashboard_tokens.dart';
@@ -23,12 +23,6 @@ class ArenaBookingDetailPayment extends StatelessWidget {
   final String endTime;
   final double? amountReais;
 
-  static final _currency = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 2,
-  );
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -41,7 +35,7 @@ class ArenaBookingDetailPayment extends StatelessWidget {
     if (hours != null && hours > 0 && amountReais != null && amountReais! > 0) {
       final durationLabel = ArenaBookingsGrouping.formatDurationLabel(hours);
       final hourly = amountReais! / hours;
-      final hourlyStr = _currency.format(hourly);
+      final hourlyStr = formatBRL(hourly);
       rateLine = '· $durationLabel x $hourlyStr/h';
     }
 
@@ -109,7 +103,7 @@ class ArenaBookingDetailPayment extends StatelessWidget {
                 payment.paidOnlineReais! > 0) ...[
               SizedBox(height: 10),
               Text(
-                'Recebido via PIX: ${_currency.format(payment.paidOnlineReais!)}',
+                'Recebido via PIX: ${formatBRL(payment.paidOnlineReais!)}',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: AppColors.win,
                   fontWeight: FontWeight.w700,
@@ -206,8 +200,7 @@ class _PaymentBreakdown extends StatelessWidget {
             icon: Icons.check_circle_rounded,
             iconColor: AppColors.brand,
             label: 'Sinal PIX (já pago)',
-            value: NumberFormat.currency(locale: 'pt_BR', symbol: r'R$')
-                .format(paid),
+            value: formatBRL(paid),
             valueColor: AppColors.brand,
           ),
         if (due != null && due > 0.02) ...[
@@ -216,15 +209,14 @@ class _PaymentBreakdown extends StatelessWidget {
             icon: Icons.storefront_rounded,
             iconColor: AppColors.pending,
             label: 'Restante na chegada',
-            value: NumberFormat.currency(locale: 'pt_BR', symbol: r'R$')
-                .format(due),
+            value: formatBRL(due),
             valueColor: AppColors.pending,
           ),
         ],
         if (info.totalReais != null) ...[
           SizedBox(height: 8),
           Text(
-            'Total da reserva: ${NumberFormat.currency(locale: 'pt_BR', symbol: r'R$').format(info.totalReais!)}',
+            'Total da reserva: ${formatBRL(info.totalReais!)}',
             style: theme.textTheme.bodySmall?.copyWith(
               color: context.themeColors.onSurfaceMuted,
               fontWeight: FontWeight.w600,

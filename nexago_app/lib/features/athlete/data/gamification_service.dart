@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/formatting/app_date_format.dart';
 
 import '../domain/achievements/achievement_catalog.dart';
 import '../domain/achievements/achievement_metrics.dart';
@@ -690,12 +691,7 @@ class GamificationService {
     return updateStreak(currentStreak: 0, lastGameDate: lastGameDate, now: now);
   }
 
-  static String _dayKey(DateTime date) {
-    final y = date.year.toString().padLeft(4, '0');
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    return '$y-$m-$d';
-  }
+  static String _dayKey(DateTime date) => calendarDateKey(date);
 
   static bool _missionCountsForStreakActivity(String missionId) {
     final id = missionId.trim().toUpperCase();

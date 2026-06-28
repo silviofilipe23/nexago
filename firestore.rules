@@ -1314,8 +1314,15 @@ service cloud.firestore {
       }
 
       // Audit log operacional (I4) — append-only.
+      // Leitura restrita à equipe do torneio: metadados operacionais (byUid/byRole)
+      // não devem ser públicos. Nenhum cliente consome este log (somente escrita).
       match /auditLog/{eventId} {
-        allow read: if true;
+        allow read: if request.auth != null && matchDoc(appId, matchId).data != null && (
+          isAdmin() ||
+          isSuperAdmin() ||
+          canManageTournament(matchDoc(appId, matchId).data.tournamentId) ||
+          canScoreTournament(matchDoc(appId, matchId).data.tournamentId)
+        );
         allow create: if request.auth != null && matchDoc(appId, matchId).data != null && (
           isAdmin() ||
           isSuperAdmin() ||

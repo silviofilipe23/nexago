@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/formatting/app_date_format.dart';
 
 import 'arena_booking_confirm_args.dart';
 
@@ -49,10 +50,7 @@ abstract final class PendingPixBookingMatch {
       return t.length >= 10 ? t.substring(0, 10) : t;
     }
     if (dateVal is Timestamp) {
-      final d = dateVal.toDate();
-      return '${d.year.toString().padLeft(4, '0')}-'
-          '${d.month.toString().padLeft(2, '0')}-'
-          '${d.day.toString().padLeft(2, '0')}';
+      return calendarDateKey(dateVal.toDate());
     }
     return '';
   }

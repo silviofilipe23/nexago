@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../core/formatting/app_date_format.dart';
+import '../../../core/formatting/app_currency_format.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../arena/domain/arena_booking_labels.dart';
@@ -111,15 +113,10 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         .valueOrNull;
     final bookingData = bookingSnap?.data();
 
-    final currency = NumberFormat.currency(
-      locale: 'pt_BR',
-      symbol: r'R$',
-      decimalDigits: 2,
-    );
     final amountValue =
         widget.amountReais ?? (bookingData?['amountReais'] as num?)?.toDouble();
     final paymentLabel = amountValue != null
-        ? currency.format(amountValue)
+        ? formatBRL(amountValue)
         : 'A confirmar';
 
     final paymentTypeLabel = arenaBookingPaymentLabel(bookingData);
@@ -303,10 +300,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
   }
 
   Future<void> _addToCalendar() async {
-    final y = widget.startAt.year.toString().padLeft(4, '0');
-    final m = widget.startAt.month.toString().padLeft(2, '0');
-    final d = widget.startAt.day.toString().padLeft(2, '0');
-    final dateKey = '$y-$m-$d';
+    final dateKey = calendarDateKey(widget.startAt);
     final url = ArenaBookingSuccessActions.buildGoogleCalendarEventUrl(
       title: 'Reserva · ${widget.arenaName}',
       dateKey: dateKey,

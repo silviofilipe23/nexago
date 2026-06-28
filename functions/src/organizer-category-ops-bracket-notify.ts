@@ -47,13 +47,16 @@ export async function notifyBracketPublishedAthletes(params: {
     teamsPath,
   } = params;
 
+  const teamRefs = teamIds
+    .map((teamId) => teamId.trim())
+    .filter((teamId) => teamId.length > 0)
+    .map((teamId) => db.doc(teamsPath(teamId)));
+
   const teamDocs: Array<Record<string, unknown>> = [];
-  for (const teamId of teamIds) {
-    const trimmed = teamId.trim();
-    if (!trimmed) continue;
-    const teamSnap = await db.doc(teamsPath(trimmed)).get();
-    if (teamSnap.exists) {
-      teamDocs.push(teamSnap.data() ?? {});
+  if (teamRefs.length > 0) {
+    const teamSnaps = await db.getAll(...teamRefs);
+    for (const teamSnap of teamSnaps) {
+      if (teamSnap.exists) teamDocs.push(teamSnap.data() ?? {});
     }
   }
 

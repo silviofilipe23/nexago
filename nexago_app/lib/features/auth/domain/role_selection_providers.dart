@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/app_mobile_role.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/active_role_providers.dart';
-import '../../arena/presentation/widgets/arena_selection_gate.dart';
+import '../../arena/domain/arena_selection_providers.dart';
 import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/domain/athlete_public_profile_providers.dart';

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../../../core/formatting/app_currency_format.dart';
 
 import '../../../../arenas/domain/arena_booking_cancellation_policy.dart';
 import '../../../../arenas/domain/arena_booking_success_actions.dart';
@@ -192,7 +193,7 @@ bool bookingDetailsShowSplitCard({
 String? formatSplitPerPersonLabel(double? amountReais, {int slots = kBookingTeamSlots}) {
   if (amountReais == null || amountReais <= 0 || slots < 1) return null;
   final perPerson = amountReais / slots;
-  return NumberFormat.currency(locale: 'pt_BR', symbol: r'R$').format(perPerson);
+  return formatBRL(perPerson);
 }
 
 String formatDistanceKmLabel(double km) {

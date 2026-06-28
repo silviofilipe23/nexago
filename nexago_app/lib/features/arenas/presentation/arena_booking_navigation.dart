@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/formatting/app_date_format.dart';
 
 import '../../../core/router/routes.dart';
 import '../../athlete/domain/athlete_shell_providers.dart';
@@ -27,10 +28,7 @@ void openArenaBookingSlots(
   required DateTime date,
   String? courtId,
 }) {
-  final y = date.year.toString().padLeft(4, '0');
-  final m = date.month.toString().padLeft(2, '0');
-  final d = date.day.toString().padLeft(2, '0');
-  final dateKey = '$y-$m-$d';
+  final dateKey = calendarDateKey(date);
   final resolvedCourtId =
       courtId?.trim().isNotEmpty == true ? courtId!.trim() : slot?.courtId.trim();
   context.pushNamed(

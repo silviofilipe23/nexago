@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/domain/arena_court.dart';
@@ -224,10 +224,9 @@ class _CourtCard extends StatelessWidget {
       subtitleParts.add(court.dimensionsLabel!);
     }
     final subtitle = subtitleParts.join(' · ');
-    final priceFmt = NumberFormat.currency(locale: 'pt_BR', symbol: r'R$');
     final priceLabel =
         court.basePricePerHourReais != null && court.basePricePerHourReais! > 0
-        ? '${priceFmt.format(court.basePricePerHourReais)} / h'
+        ? '${formatBRL(court.basePricePerHourReais!)} / h'
         : null;
 
     return DecoratedBox(

@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
+import '../../../../core/formatting/app_currency_format.dart';
 
 import '../../domain/arena_list_item.dart';
 import '../arena_hero_tag.dart';
@@ -32,14 +32,9 @@ class ArenaCard extends StatefulWidget {
   final bool isFavoriteBusy;
   final VoidCallback? onToggleFavorite;
 
-  static final _currency = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 0,
-  );
 
   static String _priceLabel(double price, bool startingFrom) {
-    final formatted = '${_currency.format(price)} / hora';
+    final formatted = '${formatBRLWhole(price)} / hora';
     return startingFrom ? 'A partir de $formatted' : formatted;
   }
 

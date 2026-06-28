@@ -8,6 +8,10 @@ class AthleteNotificationsRepository {
 
   final FirebaseFirestore _firestore;
 
+  /// Teto do inbox transmitido ao vivo. As notificações relevantes (não-lidas)
+  /// são sempre recentes; o histórico antigo não precisa ser streamado.
+  static const int inboxStreamLimit = 50;
+
   CollectionReference<Map<String, dynamic>> _notifications(String uid) {
     return _firestore.collection('users').doc(uid).collection('notifications');
   }
@@ -17,6 +21,7 @@ class AthleteNotificationsRepository {
 
     return _notifications(uid)
         .orderBy('createdAt', descending: true)
+        .limit(inboxStreamLimit)
         .snapshots()
         .map(
           (snap) => snap.docs

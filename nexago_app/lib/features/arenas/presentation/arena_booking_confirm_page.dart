@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
+import '../../../core/formatting/app_currency_format.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
@@ -58,11 +59,6 @@ class _ArenaBookingConfirmPageState
   String? _lastQuoteKey;
   late final TextEditingController _observationsController;
 
-  static final _currency = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 2,
-  );
 
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
 
@@ -236,7 +232,7 @@ class _ArenaBookingConfirmPageState
           bookingIds: <String>[created.bookingId],
           amountReais: amount,
           paymentApproved: false,
-          amountLabel: 'Total: ${_currency.format(amount)}',
+          amountLabel: 'Total: ${formatBRL(amount)}',
           paymentLabel: 'Pagamento no local na arena.',
         ),
       );
@@ -370,7 +366,7 @@ class _ArenaBookingConfirmPageState
                                   courtLineLabel: courtLineLabel,
                                   courtAmountLabel: _quoting
                                       ? 'Calculando…'
-                                      : _currency.format(displayTotal),
+                                      : formatBRL(displayTotal),
                                 ),
                               ),
                               Padding(
@@ -505,7 +501,7 @@ class _ArenaBookingConfirmPageState
                         metaLabel: stickyMeta,
                         totalLabel: _quoting
                             ? 'Calculando…'
-                            : _currency.format(stickyAmount),
+                            : formatBRL(stickyAmount),
                         ctaLabel: stickyCta,
                         submitting: _submitting,
                         enabled: canPayHere && !_submitting,

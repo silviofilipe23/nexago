@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../core/formatting/app_date_format.dart';
 
 import '../../../core/location/br_locations_data.dart';
 import 'athlete_firestore_codes.dart';
@@ -269,9 +270,7 @@ class AthleteProfile {
   /// Aceita `birthDate` como string (`YYYY-MM-DD`, `dd/mm/aaaa`) ou [Timestamp].
   static String? _readBirthDate(dynamic raw) {
     if (raw is Timestamp) {
-      final dt = raw.toDate();
-      final iso =
-          '${dt.year.toString().padLeft(4, '0')}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      final iso = calendarDateKey(raw.toDate());
       return AthleteFirestoreCodes.birthDateIsoToBr(iso) ?? iso;
     }
     if (raw is String) {

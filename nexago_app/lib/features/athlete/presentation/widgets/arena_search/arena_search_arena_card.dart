@@ -1,10 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../../../core/formatting/app_currency_format.dart';
 import '../../../../arenas/domain/arena_list_item.dart';
 import '../../../../arenas/domain/arena_search_filter_logic.dart';
 import '../../../../arenas/domain/arena_search_filters.dart';
@@ -49,12 +49,7 @@ class ArenaSearchArenaCard extends StatelessWidget {
     final kmLabel = item.kmDistance != null
         ? '${item.kmDistance!.toStringAsFixed(1)} km'
         : '—';
-    final currency = NumberFormat.currency(
-      locale: 'pt_BR',
-      symbol: r'R$',
-      decimalDigits: 0,
-    );
-    final priceValue = currency.format(result.displayPricePerHourReais);
+    final priceValue = formatBRLWhole(result.displayPricePerHourReais);
     final rating = arena.ratingAverage > 0
         ? arena.ratingAverage.toStringAsFixed(1)
         : '—';

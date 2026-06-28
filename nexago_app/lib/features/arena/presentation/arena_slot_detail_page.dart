@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/domain/arena_slot.dart';
@@ -217,7 +218,7 @@ class _StatusPriceRow extends StatelessWidget {
 
     final price = slot.priceReais;
     final priceStr = price != null
-        ? NumberFormat.currency(locale: 'pt_BR', symbol: r'R$').format(price)
+        ? formatBRL(price)
         : null;
 
     return Row(

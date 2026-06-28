@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/theme/app_colors.dart';
 import 'tournament_detail_model.dart';
 import 'tournament_category_spots.dart';
@@ -37,7 +38,6 @@ class TournamentCategoryRowStatus {
 }
 
 final _longDateFmt = DateFormat("d 'de' MMMM 'de' y", 'pt_BR');
-final _currencyFmt = NumberFormat.currency(locale: 'pt_BR', symbol: r'R$');
 
 const _defaultAboutText =
     'Informações completas do evento serão publicadas pela organização em breve.';
@@ -159,7 +159,7 @@ String _prizeTotalLabel(TournamentDetail detail) {
     }
   }
   if (total <= 0) return '—';
-  return _currencyFmt.format(total);
+  return formatBRL(total);
 }
 
 double _prizeTotalValue(TournamentDetail detail) {
@@ -331,7 +331,7 @@ int tournamentCategoryPrizesCategoriesCount(
 
 String formatMoney(double value) {
   final v = value <= 0 ? 0 : value;
-  return _currencyFmt.format(v);
+  return formatBRL(v);
 }
 
 /// Subtítulo da categoria na aba de premiação (ex.: `Masculino · Fase de Grupos + SE`).
@@ -602,7 +602,7 @@ List<CategoryPrizeRow> categoryPrizeRows(TournamentCategoryOffer offer) {
       .map(
         (p) => CategoryPrizeRow(
           positionLabel: _prizePositionLabel(p.position),
-          amountLabel: _currencyFmt.format(p.value),
+          amountLabel: formatBRL(p.value),
           highlight: _prizeOrder(p.position) == 1,
         ),
       )
@@ -629,7 +629,7 @@ String _prizePositionLabel(String position) {
 String formatCategoryEntryFee(TournamentCategoryOffer offer) {
   final fee = offer.entryFee;
   if (fee <= 0) return r'R$ —';
-  return _currencyFmt.format(fee);
+  return formatBRL(fee);
 }
 
 int tournamentSpotsRemaining(TournamentDetailStats stats) {

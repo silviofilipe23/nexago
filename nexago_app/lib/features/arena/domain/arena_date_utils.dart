@@ -1,13 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/formatting/app_date_format.dart';
 
 DateTime arenaDateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
 DateTime arenaTodayDateOnly() => arenaDateOnly(DateTime.now());
 
-String arenaDateKey(DateTime d) {
-  final x = arenaDateOnly(d);
-  return '${x.year.toString().padLeft(4, '0')}-${x.month.toString().padLeft(2, '0')}-${x.day.toString().padLeft(2, '0')}';
-}
+String arenaDateKey(DateTime d) => calendarDateKey(d);
 
 String arenaDateKeyFromDynamic(dynamic raw) {
   if (raw is String) {

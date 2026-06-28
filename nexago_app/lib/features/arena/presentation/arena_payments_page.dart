@@ -3,10 +3,10 @@ import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../data/arena_wallet_repository.dart';
 import '../domain/arena_providers.dart';
@@ -29,11 +29,6 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
   late PayoutPixKeyType _pixKeyType;
   bool _submitting = false;
 
-  static final _currency = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 2,
-  );
 
   @override
   void initState() {
@@ -63,7 +58,7 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
     if (amount == null) return 'Informe um valor válido.';
     if (amount <= 0) return 'O valor deve ser maior que zero.';
     if (amount > availableReais + 0.001) {
-      return 'Máximo disponível: ${_currency.format(availableReais)}.';
+      return 'Máximo disponível: ${formatBRL(availableReais)}.';
     }
     return null;
   }
@@ -278,7 +273,7 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                               errorText: amountError,
                               helperText:
                                   amountError == null && availableReais > 0
-                                  ? 'Disponível: ${_currency.format(availableReais)}'
+                                  ? 'Disponível: ${formatBRL(availableReais)}'
                                   : null,
                               helperMaxLines: 2,
                             ),
@@ -369,11 +364,6 @@ class _BalanceCard extends StatelessWidget {
 
   final ArenaWalletSummary wallet;
 
-  static final _fmt = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 2,
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -396,7 +386,7 @@ class _BalanceCard extends StatelessWidget {
             ),
             SizedBox(height: 8),
             Text(
-              _fmt.format(wallet.availableReais),
+              formatBRL(wallet.availableReais),
               style: theme.textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: AppColors.brand,
@@ -405,7 +395,7 @@ class _BalanceCard extends StatelessWidget {
             if (wallet.pendingReais > 0) ...[
               SizedBox(height: 8),
               Text(
-                'Em análise: ${_fmt.format(wallet.pendingReais)}',
+                'Em análise: ${formatBRL(wallet.pendingReais)}',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: AppColors.pending,
                   fontWeight: FontWeight.w600,
@@ -464,7 +454,7 @@ class _WithdrawalsSection extends ConsumerWidget {
                 ];
                 return ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text(_currency.format(w.amountReais)),
+                  title: Text(formatBRL(w.amountReais)),
                   subtitle: Text(subtitleParts.join(' · ')),
                 );
               }).toList(),
@@ -475,11 +465,6 @@ class _WithdrawalsSection extends ConsumerWidget {
     );
   }
 
-  static final _currency = NumberFormat.currency(
-    locale: 'pt_BR',
-    symbol: r'R$',
-    decimalDigits: 2,
-  );
 }
 
 class _LedgerSection extends ConsumerWidget {
@@ -521,7 +506,7 @@ class _LedgerSection extends ConsumerWidget {
                     (e) => ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(
-                        '+ ${_WithdrawalsSection._currency.format(e.netReais)}',
+                        '+ ${formatBRL(e.netReais)}',
                         style: TextStyle(
                           color: AppColors.win,
                           fontWeight: FontWeight.w700,

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/formatting/app_date_format.dart';
 
 import 'arena_slot_block_reason.dart';
 
@@ -35,13 +36,7 @@ class ArenaSlot {
   final DateTime date;
 
   /// `YYYY-MM-DD` (alinhado à query de slots e ao Firestore).
-  String get dateKey {
-    final d = date;
-    final y = d.year.toString().padLeft(4, '0');
-    final m = d.month.toString().padLeft(2, '0');
-    final day = d.day.toString().padLeft(2, '0');
-    return '$y-$m-$day';
-  }
+  String get dateKey => calendarDateKey(date);
 
   /// Labels "HH:mm" para exibição.
   final String startTime;

@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
+import '../../../../core/formatting/app_currency_format.dart';
 
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -38,7 +38,7 @@ class ArenaBookingCard extends ConsumerWidget {
         (booking.data['confirmedParticipants'] as num?)?.toInt() ?? 1;
     final amount = ArenaBookingsGrouping.amountReais(booking.data);
     final amountStr = amount != null
-        ? NumberFormat.currency(locale: 'pt_BR', symbol: r'R$').format(amount)
+        ? formatBRL(amount)
         : null;
 
     return Material(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/formatting/app_currency_format.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../arenas/domain/arena_slot_block_reason.dart';
@@ -150,7 +151,7 @@ class _SubtitleBuilder {
       final pay = booking?.paymentShortLabel ?? '';
       final amount = booking?.amountReais;
       final money = amount != null
-          ? NumberFormat.currency(locale: 'pt_BR', symbol: r'R$').format(amount)
+          ? formatBRL(amount)
           : (slot.priceReais != null
                 ? NumberFormat.currency(
                     locale: 'pt_BR',
@@ -176,10 +177,10 @@ class _SubtitleBuilder {
     final price = slot.priceReais;
     final base = slot.basePriceReais;
     final priceStr = price != null
-        ? NumberFormat.currency(locale: 'pt_BR', symbol: r'R$').format(price)
+        ? formatBRL(price)
         : null;
     final baseStr = base != null && slot.hasPromotion
-        ? NumberFormat.currency(locale: 'pt_BR', symbol: r'R$').format(base)
+        ? formatBRL(base)
         : null;
 
     if (slot.hasPromotion && priceStr != null && baseStr != null) {

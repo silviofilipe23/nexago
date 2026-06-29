@@ -28,28 +28,6 @@ class ArenaComandasPage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      floatingActionButton: managed.maybeWhen(
-        data: (arenaId) {
-          if (arenaId == null || arenaId.isEmpty) return null;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: FloatingActionButton.extended(
-              onPressed: () {
-                ref.read(arenaComandaDraftProvider.notifier).reset();
-                context.pushNamed(AppRouteNames.arenaComandaNewType);
-              },
-              backgroundColor: AppColors.brand,
-              foregroundColor: AppColors.black,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text(
-                'Nova',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-            ),
-          );
-        },
-        orElse: () => null,
-      ),
       body: SafeArea(
         child: FadeSlideIn(
           child: managed.when(
@@ -77,10 +55,7 @@ class ArenaComandasPage extends ConsumerWidget {
 }
 
 class _ComandasBody extends ConsumerWidget {
-  const _ComandasBody({
-    required this.arenaId,
-    required this.arenaName,
-  });
+  const _ComandasBody({required this.arenaId, required this.arenaName});
 
   final String arenaId;
   final String? arenaName;
@@ -94,8 +69,9 @@ class _ComandasBody extends ConsumerWidget {
     return comandasAsync.when(
       data: (_) {
         return CustomScrollView(
-          controller:
-              ref.watch(arenaShellScrollRegistryProvider).controllerFor(2),
+          controller: ref
+              .watch(arenaShellScrollRegistryProvider)
+              .controllerFor(2),
           key: const PageStorageKey<String>('arena-comandas-scroll'),
           slivers: [
             NexaFloatingHeaderSliver(
@@ -105,6 +81,10 @@ class _ComandasBody extends ConsumerWidget {
               ),
               child: _ComandasHeader(
                 arenaName: arenaName,
+                onNewComanda: () {
+                  ref.read(arenaComandaDraftProvider.notifier).reset();
+                  context.pushNamed(AppRouteNames.arenaComandaNewType);
+                },
                 onSearch: () {
                   showAppSnackBar(context, 'Busca em breve.');
                 },
@@ -145,11 +125,11 @@ class _ComandasBody extends ConsumerWidget {
               )
             else
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(
+                padding: EdgeInsets.fromLTRB(
                   ArenaDashboardTokens.horizontalPadding,
                   0,
                   ArenaDashboardTokens.horizontalPadding,
-                  96,
+                  ArenaDashboardTokens.shellScrollBottomPadding(context),
                 ),
                 sliver: SliverList.separated(
                   itemCount: filtered.length,
@@ -180,10 +160,12 @@ class _ComandasBody extends ConsumerWidget {
 class _ComandasHeader extends StatelessWidget {
   const _ComandasHeader({
     required this.arenaName,
+    required this.onNewComanda,
     required this.onSearch,
   });
 
   final String? arenaName;
+  final VoidCallback onNewComanda;
   final VoidCallback onSearch;
 
   @override
@@ -223,6 +205,41 @@ class _ComandasHeader extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(width: 8),
+        Material(
+          color: AppColors.brand,
+          borderRadius: BorderRadius.circular(12),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onNewComanda,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: SizedBox(
+                height: 44,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.add_rounded,
+                      color: AppColors.black,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Nova',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: AppColors.black,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
         Material(
           color: context.themeColors.surfaceRaised,
           borderRadius: BorderRadius.circular(12),

@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:nexago_app/core/theme/app_typography.dart';
+import 'package:share_plus/share_plus.dart';
 
-import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/ui/app_snackbar.dart';
+import '../../athlete/domain/daily_mission_sync_provider.dart';
 import '../domain/tournament_discovery_models.dart';
 import '../domain/tournament_discovery_providers.dart';
 import '../domain/tournament_listing_status.dart';
-import '../../athlete/domain/daily_mission_sync_provider.dart';
-import 'widgets/tournament_discovery_card.dart';
-import 'widgets/league_detail_ranking_section.dart';
+import 'widgets/league_detail/league_detail_hero.dart';
+import 'widgets/league_detail/league_detail_overview_tab.dart';
+import 'widgets/league_detail/league_detail_ranking_tab.dart';
+import 'widgets/league_detail/league_detail_regulations_tab.dart';
+import 'widgets/league_detail/league_detail_stages_tab.dart';
+import 'widgets/league_detail/league_detail_tab_bar.dart';
 
 class LeagueDetailPage extends ConsumerStatefulWidget {
   const LeagueDetailPage({super.key, required this.leagueId});
@@ -23,17 +26,35 @@ class LeagueDetailPage extends ConsumerStatefulWidget {
   ConsumerState<LeagueDetailPage> createState() => _LeagueDetailPageState();
 }
 
-class _LeagueDetailPageState extends ConsumerState<LeagueDetailPage> {
+class _LeagueDetailPageState extends ConsumerState<LeagueDetailPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: LeagueDetailTabBar.tabs.length, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _shareLeague(DiscoveryLeague league) async {
+    await Share.share('Confira a liga ${league.name} no NexaGO!');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final leagueAsync = ref.watch(leagueDetailProvider(widget.leagueId));
     final tournamentsAsync = ref.watch(discoveryTournamentsProvider);
-    final league = leagueAsync.valueOrNull;
+    final topInset = MediaQuery.paddingOf(context).top;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      appBar: _buildAppBar(context, theme, league),
       body: leagueAsync.when(
         loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
@@ -57,163 +78,105 @@ class _LeagueDetailPageState extends ConsumerState<LeagueDetailPage> {
           });
 
           final tournaments = tournamentsAsync.valueOrNull ?? [];
-          final byId = {for (final t in tournaments) t.id: t};
+          final tournamentsById = {for (final t in tournaments) t.id: t};
           final listingBanner =
               leagueListingBannerMessage(league.listingStatus);
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-            children: [
-              if (listingBanner != null) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.live.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.live.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  child: Text(
-                    listingBanner,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: AppColors.live,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+          return NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              SliverToBoxAdapter(
+                child: LeagueDetailHero(
+                  league: league,
+                  topInset: topInset,
+                  onBack: () => context.pop(),
+                  onBookmark: () {
+                    showAppSnackBar(context, 'Em breve.');
+                  },
+                  onShare: () => _shareLeague(league),
                 ),
-                const SizedBox(height: 16),
-              ],
-              LeagueDetailRankingSection(league: league),
-              SizedBox(height: 8),
-              for (final stage in league.stages) ...[
-                Text(
-                  stage.name,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: context.themeColors.onSurface,
-                  ),
+              ),
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _LeagueTabBarHeader(
+                  child: LeagueDetailTabBar(controller: _tabController),
                 ),
-                if (stage.dateLabel != null) ...[
-                  SizedBox(height: 4),
-                  Text(
-                    stage.dateLabel!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: context.themeColors.onSurfaceMuted,
-                    ),
-                  ),
-                ],
-                SizedBox(height: 10),
-                for (final tid in stage.tournamentIds) ...[
-                  if (byId.containsKey(tid)) ...[
-                    TournamentDiscoveryCard(
-                      tournament: byId[tid]!,
-                      onTap: () => context.pushNamed(
-                        AppRouteNames.tournamentDetail,
-                        pathParameters: {'tournamentId': tid},
+              ),
+            ],
+            body: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (listingBanner != null)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.live.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.live.withValues(alpha: 0.35),
                       ),
                     ),
-                    SizedBox(height: 10),
-                  ],
-                ],
-                SizedBox(height: 14),
+                    child: Text(
+                      listingBanner,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.live,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      LeagueDetailOverviewTab(
+                        league: league,
+                        tournamentsById: tournamentsById,
+                        onViewFullRanking: () => _tabController.animateTo(2),
+                      ),
+                      LeagueDetailStagesTab(
+                        league: league,
+                        tournamentsById: tournamentsById,
+                      ),
+                      LeagueDetailRankingTab(
+                        league: league,
+                        tournamentsById: tournamentsById,
+                      ),
+                      LeagueDetailRegulationsTab(league: league),
+                    ],
+                  ),
+                ),
               ],
-            ],
+            ),
           );
         },
       ),
     );
   }
+}
 
-  PreferredSizeWidget _buildAppBar(
+class _LeagueTabBarHeader extends SliverPersistentHeaderDelegate {
+  _LeagueTabBarHeader({required this.child});
+
+  final Widget child;
+
+  @override
+  double get minExtent => 56;
+
+  @override
+  double get maxExtent => 56;
+
+  @override
+  Widget build(
     BuildContext context,
-    ThemeData theme,
-    DiscoveryLeague? league,
+    double shrinkOffset,
+    bool overlapsContent,
   ) {
-    final subtitle = league != null ? _leagueSubtitle(league) : null;
-    final hasSubtitle = subtitle != null;
-
-    return NexaAppBar(
-      backgroundColor: context.themeColors.canvas,
-      surfaceTintColor: Colors.transparent,
-      elevation: 0,
-      centerTitle: false,
-      toolbarHeight: hasSubtitle ? 64 : kToolbarHeight,
-      titleSpacing: 8,
-      leading: Padding(
-        padding: const EdgeInsets.only(left: 12),
-        child: Center(
-          child: Material(
-            color: context.themeColors.surfaceRaised,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              onTap: () => context.pop(),
-              borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                width: 40,
-                height: 40,
-                child: Icon(
-                  Icons.chevron_left_rounded,
-                  color: context.themeColors.onSurface,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-      title: hasSubtitle
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.mono(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: context.themeColors.onSurfaceMuted,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  league!.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    color: context.themeColors.onSurface,
-                    letterSpacing: -0.2,
-                    height: 1.1,
-                  ),
-                ),
-              ],
-            )
-          : Text(
-              league?.name ?? 'Liga',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: context.themeColors.onSurface,
-                letterSpacing: -0.2,
-              ),
-            ),
-    );
+    return child;
   }
 
-  String? _leagueSubtitle(DiscoveryLeague league) {
-    final parts = <String>[
-      if (league.seasonLabel != null && league.seasonLabel!.trim().isNotEmpty)
-        league.seasonLabel!.trim(),
-      if (league.city != null && league.city!.trim().isNotEmpty)
-        league.city!.trim(),
-    ];
-    if (parts.isEmpty) return null;
-    return parts.join(' · ');
+  @override
+  bool shouldRebuild(covariant _LeagueTabBarHeader oldDelegate) {
+    return oldDelegate.child != child;
   }
 }

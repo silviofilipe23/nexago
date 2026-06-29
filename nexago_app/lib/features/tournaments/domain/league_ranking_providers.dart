@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/auth_providers.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
@@ -11,6 +12,12 @@ import 'tournament_discovery_providers.dart';
 typedef LeagueCategoryRankingsKey = ({String leagueId, String categoryId});
 
 enum LeagueRankingViewMode { teams, athletes }
+
+final leagueViewerTeamIdsProvider = FutureProvider.autoDispose<Set<String>>((ref) async {
+  final uid = ref.watch(authServiceProvider).currentUser?.uid;
+  if (uid == null || uid.trim().isEmpty) return {};
+  return ref.watch(tournamentTeamsRepositoryProvider).teamIdsForAthlete(uid);
+});
 
 final leagueRankingsRepositoryProvider = Provider<LeagueRankingsRepository>((ref) {
   return LeagueRankingsRepository(ref.watch(firestoreProvider));

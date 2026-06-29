@@ -22,18 +22,27 @@ class DiscoveryLeague {
     required this.stages,
     this.seasonLabel,
     this.city,
+    this.state,
+    this.organizationName,
+    this.description,
     this.coverUrl,
     this.listingStatus,
     this.seasonStartAt,
     this.seasonEndAt,
     this.categories = const [],
     this.countingStagesMode = LeaguePointsCountingMode.best4Of6,
+    this.plannedStagesCount,
+    this.grandFinalEnabled = false,
+    this.grandFinalSpots = 16,
   });
 
   final String id;
   final String name;
   final String? seasonLabel;
   final String? city;
+  final String? state;
+  final String? organizationName;
+  final String? description;
   final List<DiscoveryLeagueStage> stages;
   final String? coverUrl;
   final String? listingStatus;
@@ -41,6 +50,11 @@ class DiscoveryLeague {
   final DateTime? seasonEndAt;
   final List<DiscoveryLeagueCategory> categories;
   final LeaguePointsCountingMode countingStagesMode;
+  final int? plannedStagesCount;
+  final bool grandFinalEnabled;
+  final int grandFinalSpots;
+
+  int get totalStagesCount => plannedStagesCount ?? stages.length;
 }
 
 class DiscoveryLeagueStage {

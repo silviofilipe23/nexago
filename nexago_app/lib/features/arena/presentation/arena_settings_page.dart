@@ -33,6 +33,7 @@ class ArenaSettingsPage extends ConsumerWidget {
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       body: SafeArea(
+        bottom: false,
         child: FadeSlideIn(
           child: managed.when(
             skipLoadingOnReload: true,
@@ -101,9 +102,14 @@ class _SettingsBody extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxW = constraints.maxWidth > 560 ? 480.0 : double.infinity;
+        final minContentHeight = MediaQuery.sizeOf(context).height -
+            MediaQuery.paddingOf(context).top -
+            ArenaDashboardTokens.shellScrollBottomPadding(context) -
+            88;
         return CustomScrollView(
           controller:
               ref.watch(arenaShellScrollRegistryProvider).controllerFor(4),
+          physics: ArenaDashboardTokens.shellScrollPhysics,
           slivers: [
             NexaFloatingHeaderSliver(
               topGap: 12,
@@ -118,16 +124,20 @@ class _SettingsBody extends ConsumerWidget {
               ),
             ),
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
+              padding: EdgeInsets.fromLTRB(
                 ArenaDashboardTokens.horizontalPadding,
                 0,
                 ArenaDashboardTokens.horizontalPadding,
-                32,
+                ArenaDashboardTokens.shellScrollBottomPadding(context),
               ),
               sliver: SliverToBoxAdapter(
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: maxW),
+                    constraints: BoxConstraints(
+                      maxWidth: maxW,
+                      minHeight:
+                          minContentHeight.clamp(0.0, double.infinity),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [

@@ -1,8 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:nexago_app/core/theme/app_typography.dart';
+import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 
 import '../../../core/location/br_locations_data.dart';
 import '../../../core/location/user_location_providers.dart';
@@ -10,8 +9,12 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
-import '../../../core/ui/fade_slide_in.dart';
 import '../../athlete/presentation/widgets/br_state_city_fields.dart';
+import '../../athlete/presentation/widgets/edit_profile/edit_profile_dropdown_field.dart';
+import '../../athlete/presentation/widgets/edit_profile/edit_profile_field_decorations.dart';
+import '../../athlete/presentation/widgets/edit_profile/edit_profile_media_header.dart';
+import '../../athlete/presentation/widgets/edit_profile/edit_profile_section_header.dart';
+import '../../athlete/presentation/widgets/edit_profile/edit_profile_text_field.dart';
 import '../../arenas/domain/arena_amenities.dart';
 import '../../arenas/domain/arena_list_item.dart';
 import '../../arenas/domain/arena_search_metadata.dart';
@@ -28,26 +31,32 @@ class ArenaEditProfilePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final arenaAsync = ref.watch(managedArenaDetailProvider);
 
-    return Scaffold(
-      backgroundColor: context.themeColors.canvas,
-      body: arenaAsync.when(
-        skipLoadingOnReload: true,
-        data: (arena) {
-          if (arena == null) {
-            return const SafeArea(
+    return arenaAsync.when(
+      skipLoadingOnReload: true,
+      data: (arena) {
+        if (arena == null) {
+          return Scaffold(
+            backgroundColor: context.themeColors.canvas,
+            body: const SafeArea(
               child: ArenaEmptyState(
                 title: 'Arena não encontrada',
                 message: 'Nenhuma arena vinculada ao seu usuário como gestor.',
                 icon: Icons.storefront_outlined,
               ),
-            );
-          }
-          return FadeSlideIn(child: _ArenaEditProfileForm(initial: arena));
-        },
-        loading: () => const SafeArea(
+            ),
+          );
+        }
+        return _ArenaEditProfileForm(initial: arena);
+      },
+      loading: () => Scaffold(
+        backgroundColor: context.themeColors.canvas,
+        body: const SafeArea(
           child: ArenaLoadingState(label: 'Carregando perfil...'),
         ),
-        error: (e, _) => SafeArea(child: ArenaErrorState(message: '$e')),
+      ),
+      error: (e, _) => Scaffold(
+        backgroundColor: context.themeColors.canvas,
+        body: SafeArea(child: ArenaErrorState(message: '$e')),
       ),
     );
   }
@@ -87,9 +96,93 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
   late PayoutPixKeyType _payoutPixKeyType;
   bool _saving = false;
 
-  static const _headerH = 200.0;
-  static const _logoSize = 88.0;
-  static const _logoOverlap = 36.0;
+  void _popOrBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(AppRoutes.arenaProfile);
+    }
+  }
+
+  PreferredSizeWidget _editProfileAppBar(ThemeData theme) {
+    return NexaAppBar(
+      backgroundColor: context.themeColors.canvas,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      centerTitle: true,
+      automaticallyImplyLeading: false,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 12),
+        child: Center(
+          child: Material(
+            color: context.themeColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: _popOrBack,
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: Icon(
+                  Icons.chevron_left_rounded,
+                  color: context.themeColors.onSurface,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      title: Text(
+        'Editar perfil',
+        style: theme.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+          color: context.themeColors.onSurface,
+          letterSpacing: -0.3,
+        ),
+      ),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: Center(
+            child: FilledButton.icon(
+              onPressed: _saving ? null : _save,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: AppColors.black,
+                disabledBackgroundColor: AppColors.brand.withValues(
+                  alpha: 0.45,
+                ),
+                disabledForegroundColor: AppColors.black.withValues(alpha: 0.5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: _saving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.black,
+                      ),
+                    )
+                  : const Icon(Icons.check_rounded, size: 18),
+              label: const Text(
+                'Salvar',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   void initState() {
@@ -173,10 +266,11 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
             controller: ctrl,
             keyboardType: TextInputType.url,
             style: TextStyle(color: context.themeColors.onSurface),
-            decoration: _fieldDecoration(
-              context,
+            decoration: editProfileInputDecoration(
+              context: context,
               label: 'URL',
-              hint: 'https://…',
+              hintText: 'https://…',
+              focused: true,
             ),
             autofocus: true,
           ),
@@ -341,641 +435,537 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
     final theme = Theme.of(context);
     final arenaName = widget.initial.name.trim();
 
-    return Column(
-      children: [
-        Expanded(
-          child: Form(
-            key: _formKey,
-            child: CustomScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              slivers: [
-                SliverToBoxAdapter(
-                  child: SizedBox(
-                    height: _headerH + _logoOverlap,
-                    child: Stack(
-                      clipBehavior: Clip.none,
+    return Scaffold(
+      backgroundColor: context.themeColors.canvas,
+      appBar: _editProfileAppBar(theme),
+      body: AbsorbPointer(
+        absorbing: _saving,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.fromLTRB(
+              ArenaDashboardTokens.horizontalPadding,
+              8,
+              ArenaDashboardTokens.horizontalPadding,
+              24 + MediaQuery.of(context).viewInsets.bottom,
+            ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    EditProfileMediaHeader(
+                      name: _name.text,
+                      coverRemovedPending: false,
+                      existingCoverUrl: _coverUrl,
+                      pickedCoverBytes: null,
+                      onEditCover: () => _editUrl(
+                        title: 'URL da imagem de capa',
+                        current: _coverUrl,
+                        onSet: (v) => _coverUrl = v,
+                      ),
+                      existingAvatarUrl: _logoUrl,
+                      pickedAvatarBytes: null,
+                      onEditAvatar: () => _editUrl(
+                        title: 'URL do logo',
+                        current: _logoUrl,
+                        onSet: (v) => _logoUrl = v,
+                      ),
+                    ),
+                    const SizedBox(height: 52),
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
-                        Positioned(
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          height: _headerH,
-                          child: _EditCoverHeader(
-                            coverUrl: _coverUrl,
-                            onBack: () => context.pop(),
-                            onEditCover: () => _editUrl(
-                              title: 'URL da imagem de capa',
-                              current: _coverUrl,
-                              onSet: (v) => _coverUrl = v,
-                            ),
+                        Text(
+                          _name.text.trim().isNotEmpty
+                              ? _name.text.trim()
+                              : arenaName.isNotEmpty
+                              ? arenaName
+                              : 'Arena',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: context.themeColors.onSurface,
+                            letterSpacing: -0.3,
                           ),
                         ),
-                        Positioned(
-                          left: ArenaDashboardTokens.horizontalPadding,
-                          top: _headerH - _logoOverlap,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              _EditLogoBadge(
-                                logoUrl: _logoUrl,
-                                name: _name.text,
-                                size: _logoSize,
-                              ),
-                              Positioned(
-                                right: -2,
-                                bottom: -2,
-                                child: Material(
-                                  color: AppColors.brand,
-                                  shape: const CircleBorder(),
-                                  child: InkWell(
-                                    customBorder: const CircleBorder(),
-                                    onTap: () => _editUrl(
-                                      title: 'URL do logo',
-                                      current: _logoUrl,
-                                      onSet: (v) => _logoUrl = v,
-                                    ),
-                                    child: Padding(
-                                      padding: EdgeInsets.all(7),
-                                      child: Icon(
-                                        Icons.edit_rounded,
-                                        size: 16,
-                                        color: AppColors.black,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+                        Text(
+                          '• visível para atletas na busca',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: context.themeColors.onSurfaceMuted,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ),
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(
-                    ArenaDashboardTokens.horizontalPadding,
-                    12,
-                    ArenaDashboardTokens.horizontalPadding,
-                    24 + MediaQuery.of(context).viewInsets.bottom,
-                  ),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-                      Text(
-                        'Editar perfil',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.4,
-                          color: context.themeColors.onSurface,
+                    const SizedBox(height: 28),
+                    const EditProfileSectionHeader(
+                      icon: Icons.subject_rounded,
+                      title: 'DADOS DA ARENA',
+                    ),
+                    EditProfileTextField(
+                      controller: _name,
+                      label: 'NOME DA ARENA',
+                      required: true,
+                      textCapitalization: TextCapitalization.words,
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) {
+                          return 'Nome obrigatório';
+                        }
+                        return null;
+                      },
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    const SizedBox(height: 12),
+                    EditProfileTextField(
+                      controller: _description,
+                      label: 'DESCRIÇÃO',
+                      maxLines: 4,
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: EditProfileTextField(
+                            controller: _phone,
+                            label: 'TELEFONE',
+                            required: true,
+                            keyboardType: TextInputType.phone,
+                            hintText: '(DDD) número',
+                            prefixIcon: Icon(
+                              Icons.phone_outlined,
+                              size: 20,
+                              color: context.themeColors.onSurfaceMuted,
+                            ),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Telefone obrigatório';
+                              }
+                              if (!isValidArenaPhoneDigits(v)) {
+                                return 'Telefone inválido';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: EditProfileTextField(
+                            controller: _whatsapp,
+                            label: 'WHATSAPP',
+                            keyboardType: TextInputType.phone,
+                            hintText: 'Opcional',
+                            prefixIcon: Icon(
+                              Icons.chat_bubble_outline_rounded,
+                              size: 20,
+                              color: context.themeColors.onSurfaceMuted,
+                            ),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return null;
+                              if (!isValidArenaPhoneDigits(v)) {
+                                return 'Número inválido';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    EditProfileTextField(
+                      controller: _address,
+                      label: 'ENDEREÇO',
+                      textCapitalization: TextCapitalization.sentences,
+                      prefixIcon: Icon(
+                        Icons.location_on_outlined,
+                        size: 20,
+                        color: context.themeColors.onSurfaceMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    BrStateCityFields(
+                      selectedState: _selectedState,
+                      selectedCity: _selectedCity,
+                      useEditProfileStyle: true,
+                      horizontalLayout: true,
+                      onStateChanged: (v) => setState(() => _selectedState = v),
+                      onCityChanged: (v) => setState(() => _selectedCity = v),
+                    ),
+                    const SizedBox(height: 28),
+                    const EditProfileSectionHeader(
+                      icon: Icons.pin_drop_outlined,
+                      title: 'COORDENADAS',
+                    ),
+                    Text(
+                      'Usadas para sugerir sua arena a atletas perto. '
+                      'Você pode usar o GPS no local ou informar manualmente.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: context.themeColors.onSurfaceMuted,
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: EditProfileTextField(
+                            controller: _latitude,
+                            label: 'LATITUDE',
+                            hintText: '-16.686891',
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                              signed: true,
+                            ),
+                            validator: _validateOptionalLatitude,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: EditProfileTextField(
+                            controller: _longitude,
+                            label: 'LONGITUDE',
+                            hintText: '-49.264794',
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                              signed: true,
+                            ),
+                            validator: _validateOptionalLongitude,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _saving ? null : _useCurrentLocation,
+                      icon: const Icon(Icons.my_location_rounded, size: 20),
+                      label: const Text('Usar localização atual'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.brand,
+                        side: BorderSide(
+                          color: AppColors.brand.withValues(alpha: 0.45),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      SizedBox(height: 8),
-                      Text(
-                        arenaName.isNotEmpty
-                            ? '$arenaName • visível para atletas na busca'
-                            : 'Atualize como sua arena aparece no app.',
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: context.themeColors.onSurfaceMuted,
-                          fontWeight: FontWeight.w500,
-                          height: 1.45,
-                        ),
+                    ),
+                    const SizedBox(height: 28),
+                    const EditProfileSectionHeader(
+                      icon: Icons.search_rounded,
+                      title: 'BUSCA DO ATLETA',
+                    ),
+                    Text(
+                      'Esportes e superfícies usados nos filtros da aba Reservar. '
+                      'Os tipos das quadras cadastradas são incluídos automaticamente.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: context.themeColors.onSurfaceMuted,
+                        height: 1.35,
+                        fontWeight: FontWeight.w500,
                       ),
-                      SizedBox(height: ArenaDashboardTokens.sectionGap),
-                      const _EditSectionLabel(label: 'DADOS DA ARENA'),
-                      SizedBox(height: 10),
-                      _EditProfileCard(
-                        child: Column(
-                          children: [
-                            TextFormField(
-                              controller: _name,
-                              textCapitalization: TextCapitalization.words,
-                              style: TextStyle(
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'ESPORTES OFERECIDOS',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: context.themeColors.onSurfaceMuted,
+                        letterSpacing: 0.6,
+                        fontSize: 10,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _SearchMetadataChips(
+                      options: ArenaSearchMetadata.sportLabels,
+                      selected: _sports,
+                      onToggle: (l) => _toggleMetadataLabel(_sports, l),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'SUPERFÍCIES',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: context.themeColors.onSurfaceMuted,
+                        letterSpacing: 0.6,
+                        fontSize: 10,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _SearchMetadataChips(
+                      options: kArenaSurfaceOptions,
+                      selected: _surfaces,
+                      onToggle: (l) => _toggleMetadataLabel(_surfaces, l),
+                    ),
+                    const SizedBox(height: 28),
+                    const EditProfileSectionHeader(
+                      icon: Icons.grid_view_rounded,
+                      title: 'COMODIDADES',
+                    ),
+                    _EditFormGroup(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Column(
+                        children: [
+                          _AmenitySwitch(
+                            label: 'Estacionamento',
+                            value: _amenities.parking,
+                            onChanged: (v) => setState(
+                              () =>
+                                  _amenities = _amenities.copyWith(parking: v),
+                            ),
+                          ),
+                          _formDivider(context),
+                          _AmenitySwitch(
+                            label: 'Vestiário',
+                            value: _amenities.lockerRoom,
+                            onChanged: (v) => setState(
+                              () => _amenities = _amenities.copyWith(
+                                lockerRoom: v,
+                              ),
+                            ),
+                          ),
+                          _formDivider(context),
+                          _AmenitySwitch(
+                            label: 'Quadra coberta',
+                            value: _amenities.coveredCourt,
+                            onChanged: (v) => setState(
+                              () => _amenities = _amenities.copyWith(
+                                coveredCourt: v,
+                              ),
+                            ),
+                          ),
+                          _formDivider(context),
+                          _AmenitySwitch(
+                            label: 'Bar',
+                            value: _amenities.bar,
+                            onChanged: (v) => setState(
+                              () => _amenities = _amenities.copyWith(bar: v),
+                            ),
+                          ),
+                          _formDivider(context),
+                          _AmenitySwitch(
+                            label: 'Aluguel de raquetes',
+                            value: _amenities.racketRental,
+                            onChanged: (v) => setState(
+                              () => _amenities = _amenities.copyWith(
+                                racketRental: v,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    const EditProfileSectionHeader(
+                      icon: Icons.account_balance_wallet_outlined,
+                      title: 'PAGAMENTOS',
+                    ),
+                    _EditFormGroup(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Column(
+                        children: [
+                          SwitchListTile.adaptive(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                            ),
+                            title: Text(
+                              'Pagamento online',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
                                 color: context.themeColors.onSurface,
                               ),
-                              decoration: _fieldDecoration(
-                                context,
-                                label: 'Nome da arena',
-                              ),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) {
-                                  return 'Nome obrigatório';
-                                }
-                                return null;
-                              },
-                              onChanged: (_) => setState(() {}),
                             ),
-                            SizedBox(height: 14),
-                            TextFormField(
-                              controller: _description,
-                              minLines: 3,
-                              maxLines: 6,
-                              style: TextStyle(
-                                color: context.themeColors.onSurface,
-                              ),
-                              decoration: _fieldDecoration(
-                                context,
-                                label: 'Descrição',
-                                alignLabel: true,
-                              ),
-                            ),
-                            SizedBox(height: 14),
-                            TextFormField(
-                              controller: _phone,
-                              keyboardType: TextInputType.phone,
-                              style: TextStyle(
-                                color: context.themeColors.onSurface,
-                              ),
-                              decoration: _fieldDecoration(
-                                context,
-                                label: 'Telefone',
-                                hint: '(DDD) número',
-                              ),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) {
-                                  return 'Telefone obrigatório';
-                                }
-                                if (!isValidArenaPhoneDigits(v)) {
-                                  return 'Telefone inválido';
-                                }
-                                return null;
-                              },
-                            ),
-                            SizedBox(height: 14),
-                            TextFormField(
-                              controller: _whatsapp,
-                              keyboardType: TextInputType.phone,
-                              style: TextStyle(
-                                color: context.themeColors.onSurface,
-                              ),
-                              decoration: _fieldDecoration(
-                                context,
-                                label: 'WhatsApp',
-                                hint: 'Opcional',
-                              ),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty) return null;
-                                if (!isValidArenaPhoneDigits(v)) {
-                                  return 'Número inválido';
-                                }
-                                return null;
-                              },
-                            ),
-                            SizedBox(height: 14),
-                            TextFormField(
-                              controller: _address,
-                              textCapitalization: TextCapitalization.sentences,
-                              style: TextStyle(
-                                color: context.themeColors.onSurface,
-                              ),
-                              decoration: _fieldDecoration(
-                                context,
-                                label: 'Endereço',
-                              ),
-                            ),
-                            SizedBox(height: 14),
-                            BrStateCityFields(
-                              selectedState: _selectedState,
-                              selectedCity: _selectedCity,
-                              onStateChanged: (v) =>
-                                  setState(() => _selectedState = v),
-                              onCityChanged: (v) =>
-                                  setState(() => _selectedCity = v),
-                            ),
-                            SizedBox(height: 14),
-                            Text(
-                              'Coordenadas (opcional)',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: context.themeColors.onSurfaceMuted,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            SizedBox(height: 6),
-                            Text(
-                              'Usadas para sugerir sua arena a atletas perto. '
-                              'Você pode usar o GPS no local ou informar manualmente.',
+                            subtitle: Text(
+                              'Reservas com pagamento antecipado',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: context.themeColors.onSurfaceMuted,
                                 height: 1.35,
                               ),
                             ),
-                            SizedBox(height: 10),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _latitude,
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                          signed: true,
-                                        ),
-                                    style: TextStyle(
-                                      color: context.themeColors.onSurface,
-                                    ),
-                                    decoration: _fieldDecoration(
-                                      context,
-                                      label: 'Latitude',
-                                      hint: '-16.686891',
-                                    ),
-                                    validator: _validateOptionalLatitude,
-                                  ),
-                                ),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _longitude,
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                          signed: true,
-                                        ),
-                                    style: TextStyle(
-                                      color: context.themeColors.onSurface,
-                                    ),
-                                    decoration: _fieldDecoration(
-                                      context,
-                                      label: 'Longitude',
-                                      hint: '-49.264794',
-                                    ),
-                                    validator: _validateOptionalLongitude,
-                                  ),
-                                ),
-                              ],
+                            value: _onlinePayment,
+                            activeTrackColor: AppColors.brand.withValues(
+                              alpha: 0.35,
                             ),
-                            SizedBox(height: 10),
-                            OutlinedButton.icon(
-                              onPressed: _saving ? null : _useCurrentLocation,
-                              icon: Icon(Icons.my_location_rounded, size: 20),
-                              label: Text('Usar localização atual'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.brand,
-                                side: BorderSide(
-                                  color: AppColors.brand.withValues(
-                                    alpha: 0.45,
-                                  ),
-                                ),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
+                            activeThumbColor: AppColors.brand,
+                            onChanged: (v) {
+                              setState(() {
+                                _onlinePayment = v;
+                                if (!_onlinePayment && !_onsitePayment) {
+                                  _onsitePayment = true;
+                                }
+                              });
+                            },
+                          ),
+                          Divider(
+                            height: 1,
+                            color: context.themeColors.onSurfaceMuted
+                                .withValues(alpha: 0.15),
+                          ),
+                          SwitchListTile.adaptive(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                            ),
+                            title: Text(
+                              'Pagamento no local',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: context.themeColors.onSurface,
                               ),
                             ),
-                          ],
-                        ),
+                            subtitle: Text(
+                              'Aceitar pagamento na arena',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: context.themeColors.onSurfaceMuted,
+                                height: 1.35,
+                              ),
+                            ),
+                            value: _onsitePayment,
+                            activeTrackColor: AppColors.brand.withValues(
+                              alpha: 0.35,
+                            ),
+                            activeThumbColor: AppColors.brand,
+                            onChanged: (v) {
+                              setState(() {
+                                _onsitePayment = v;
+                                if (!_onlinePayment && !_onsitePayment) {
+                                  _onlinePayment = true;
+                                }
+                              });
+                            },
+                          ),
+                        ],
                       ),
-                      SizedBox(height: ArenaDashboardTokens.sectionGap),
-                      const _EditSectionLabel(label: 'BUSCA DO ATLETA'),
-                      SizedBox(height: 10),
-                      _EditProfileCard(
+                    ),
+                    if (_onlinePayment) ...[
+                      const SizedBox(height: 12),
+                      _EditFormGroup(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              'Esportes e superfícies usados nos filtros da aba Reservar. '
-                              'Os tipos das quadras cadastradas são incluídos automaticamente.',
+                              'Recebimento PIX online',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: context.themeColors.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Atletas pagam PIX via NexaGO (Asaas). '
+                              'Repasses automáticos usam a chave abaixo.',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: context.themeColors.onSurfaceMuted,
-                                height: 1.35,
-                                fontWeight: FontWeight.w500,
+                                height: 1.4,
                               ),
                             ),
-                            SizedBox(height: 16),
-                            Text(
-                              'Esportes oferecidos',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: context.themeColors.onSurfaceMuted,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                            SizedBox(height: 10),
-                            _SearchMetadataChips(
-                              options: ArenaSearchMetadata.sportLabels,
-                              selected: _sports,
-                              onToggle: (l) => _toggleMetadataLabel(_sports, l),
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'Superfícies',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                color: context.themeColors.onSurfaceMuted,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                            SizedBox(height: 10),
-                            _SearchMetadataChips(
-                              options: kArenaSurfaceOptions,
-                              selected: _surfaces,
-                              onToggle: (l) =>
-                                  _toggleMetadataLabel(_surfaces, l),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: ArenaDashboardTokens.sectionGap),
-                      const _EditSectionLabel(label: 'COMODIDADES'),
-                      SizedBox(height: 10),
-                      _EditProfileCard(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Column(
-                          children: [
-                            _AmenitySwitch(
-                              label: 'Estacionamento',
-                              value: _amenities.parking,
-                              onChanged: (v) => setState(
-                                () => _amenities = _amenities.copyWith(
-                                  parking: v,
-                                ),
-                              ),
-                            ),
-                            _AmenitySwitch(
-                              label: 'Vestiário',
-                              value: _amenities.lockerRoom,
-                              onChanged: (v) => setState(
-                                () => _amenities = _amenities.copyWith(
-                                  lockerRoom: v,
-                                ),
-                              ),
-                            ),
-                            _AmenitySwitch(
-                              label: 'Quadra coberta',
-                              value: _amenities.coveredCourt,
-                              onChanged: (v) => setState(
-                                () => _amenities = _amenities.copyWith(
-                                  coveredCourt: v,
-                                ),
-                              ),
-                            ),
-                            _AmenitySwitch(
-                              label: 'Bar',
-                              value: _amenities.bar,
-                              onChanged: (v) => setState(
-                                () => _amenities = _amenities.copyWith(bar: v),
-                              ),
-                            ),
-                            _AmenitySwitch(
-                              label: 'Aluguel de raquetes',
-                              value: _amenities.racketRental,
-                              onChanged: (v) => setState(
-                                () => _amenities = _amenities.copyWith(
-                                  racketRental: v,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: ArenaDashboardTokens.sectionGap),
-                      const _EditSectionLabel(label: 'PAGAMENTOS'),
-                      SizedBox(height: 10),
-                      _EditProfileCard(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Column(
-                          children: [
-                            SwitchListTile.adaptive(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                              ),
-                              title: Text(
-                                'Pagamento online',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: context.themeColors.onSurface,
-                                ),
-                              ),
-                              subtitle: Text(
-                                'Reservas com pagamento antecipado',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: context.themeColors.onSurfaceMuted,
-                                  height: 1.35,
-                                ),
-                              ),
-                              value: _onlinePayment,
-                              activeTrackColor: AppColors.brand.withValues(
-                                alpha: 0.35,
-                              ),
-                              activeThumbColor: AppColors.brand,
+                            const SizedBox(height: 12),
+                            EditProfileDropdownField<PayoutPixKeyType>(
+                              value: _payoutPixKeyType,
+                              label: 'TIPO DA CHAVE PIX',
+                              required: true,
+                              items: [
+                                for (final t in PayoutPixKeyType.values)
+                                  DropdownMenuItem(
+                                    value: t,
+                                    child: Text(t.label),
+                                  ),
+                              ],
                               onChanged: (v) {
-                                setState(() {
-                                  _onlinePayment = v;
-                                  if (!_onlinePayment && !_onsitePayment) {
-                                    _onsitePayment = true;
-                                  }
-                                });
+                                if (!_onlinePayment || v == null) return;
+                                setState(() => _payoutPixKeyType = v);
+                              },
+                              validator: (v) {
+                                if (!_onlinePayment) return null;
+                                if (v == null) {
+                                  return 'Selecione o tipo da chave PIX';
+                                }
+                                return null;
                               },
                             ),
-                            Divider(
-                              height: 1,
-                              color: context.themeColors.onSurfaceMuted
-                                  .withValues(alpha: 0.15),
-                            ),
-                            SwitchListTile.adaptive(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                              ),
-                              title: Text(
-                                'Pagamento no local',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: context.themeColors.onSurface,
-                                ),
-                              ),
-                              subtitle: Text(
-                                'Aceitar pagamento na arena',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: context.themeColors.onSurfaceMuted,
-                                  height: 1.35,
-                                ),
-                              ),
-                              value: _onsitePayment,
-                              activeTrackColor: AppColors.brand.withValues(
-                                alpha: 0.35,
-                              ),
-                              activeThumbColor: AppColors.brand,
-                              onChanged: (v) {
-                                setState(() {
-                                  _onsitePayment = v;
-                                  if (!_onlinePayment && !_onsitePayment) {
-                                    _onlinePayment = true;
-                                  }
-                                });
+                            const SizedBox(height: 12),
+                            EditProfileTextField(
+                              controller: _payoutPixKey,
+                              label: 'CHAVE PIX DA ARENA',
+                              required: true,
+                              hintText: _payoutPixKeyType.hintForField(),
+                              validator: (v) {
+                                if (!_onlinePayment) return null;
+                                if ((v?.trim().length ?? 0) < 5) {
+                                  return 'Informe uma chave PIX válida';
+                                }
+                                return _payoutPixKeyType.validateKey(v ?? '');
                               },
                             ),
-                            if (_onlinePayment) ...[
-                              Divider(
-                                height: 1,
-                                color: context.themeColors.onSurfaceMuted
-                                    .withValues(alpha: 0.15),
-                              ),
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    Text(
-                                      'Recebimento PIX online',
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            color:
-                                                context.themeColors.onSurface,
-                                          ),
-                                    ),
-                                    SizedBox(height: 8),
-                                    Text(
-                                      'Atletas pagam PIX via NexaGO (Asaas). Repasses automáticos usam a chave abaixo.',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
-                                            color: context
-                                                .themeColors
-                                                .onSurfaceMuted,
-                                            height: 1.4,
-                                          ),
-                                    ),
-                                    SizedBox(height: 10),
-                                    DropdownButtonFormField<PayoutPixKeyType>(
-                                      initialValue: _payoutPixKeyType,
-                                      dropdownColor:
-                                          context.themeColors.surfaceSheet,
-                                      style: TextStyle(
-                                        color: context.themeColors.onSurface,
-                                      ),
-                                      decoration: _fieldDecoration(
-                                        context,
-                                        label: 'Tipo da chave PIX',
-                                      ),
-                                      items: [
-                                        for (final t in PayoutPixKeyType.values)
-                                          DropdownMenuItem(
-                                            value: t,
-                                            child: Text(t.label),
-                                          ),
-                                      ],
-                                      onChanged: _onlinePayment
-                                          ? (v) {
-                                              if (v != null) {
-                                                setState(
-                                                  () => _payoutPixKeyType = v,
-                                                );
-                                              }
-                                            }
-                                          : null,
-                                      validator: (v) {
-                                        if (!_onlinePayment) return null;
-                                        if (v == null) {
-                                          return 'Selecione o tipo da chave PIX';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                    SizedBox(height: 10),
-                                    TextFormField(
-                                      controller: _payoutPixKey,
-                                      style: TextStyle(
-                                        color: context.themeColors.onSurface,
-                                      ),
-                                      decoration: _fieldDecoration(
-                                        context,
-                                        label: 'Chave PIX da arena',
-                                        hint: _payoutPixKeyType.hintForField(),
-                                      ),
-                                      validator: (v) {
-                                        if (!_onlinePayment) return null;
-                                        if ((v?.trim().length ?? 0) < 5) {
-                                          return 'Informe uma chave PIX válida';
-                                        }
-                                        return _payoutPixKeyType.validateKey(
-                                          v ?? '',
-                                        );
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                       ),
-                      SizedBox(height: 120),
-                    ]),
-                  ),
+                    ],
+                    const SizedBox(height: 28),
+                    FilledButton(
+                      onPressed: _saving ? null : _save,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                        foregroundColor: AppColors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.black,
+                              ),
+                            )
+                          : const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.check_rounded,
+                                  color: AppColors.black,
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Salvar alterações',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                    color: AppColors.black,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
-        _StickySaveBar(saving: _saving, onSave: _save),
-      ],
+      ),
     );
   }
 
-  InputDecoration _fieldDecoration(
-    BuildContext context, {
-    required String label,
-    String? hint,
-    bool alignLabel = false,
-  }) {
-    final colors = context.themeColors;
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(
-        color: colors.onSurfaceMuted.withValues(alpha: 0.22),
-      ),
-    );
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      alignLabelWithHint: alignLabel,
-      labelStyle: TextStyle(
-        color: colors.onSurfaceMuted,
-        fontWeight: FontWeight.w500,
-      ),
-      hintStyle: TextStyle(
-        color: colors.onSurfaceMuted.withValues(alpha: 0.75),
-      ),
-      filled: true,
-      fillColor: colors.surfaceSheet,
-      border: border,
-      enabledBorder: border,
-      focusedBorder: border.copyWith(
-        borderSide: BorderSide(color: AppColors.brand, width: 1.5),
-      ),
-      errorBorder: border.copyWith(
-        borderSide: BorderSide(color: AppColors.live),
-      ),
-      focusedErrorBorder: border.copyWith(
-        borderSide: BorderSide(color: AppColors.live, width: 1.5),
-      ),
+  Widget _formDivider(BuildContext context) {
+    return Divider(
+      height: 1,
+      color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
     );
   }
 }
 
-class _EditSectionLabel extends StatelessWidget {
-  const _EditSectionLabel({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: AppTypography.soraRegular(
-        fontSize: 10,
-        fontWeight: FontWeight.w500,
-        letterSpacing: 0.2,
-      ),
-    );
-  }
-}
-
-class _EditProfileCard extends StatelessWidget {
-  const _EditProfileCard({
+class _EditFormGroup extends StatelessWidget {
+  const _EditFormGroup({
     required this.child,
     this.padding = const EdgeInsets.all(16),
   });
@@ -985,298 +975,16 @@ class _EditProfileCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: ArenaDashboardTokens.cardDecoration(
-        context,
-        color: context.themeColors.surfaceRaised,
-      ),
-      child: Padding(padding: padding, child: child),
-    );
-  }
-}
-
-class _StickySaveBar extends StatelessWidget {
-  const _StickySaveBar({required this.saving, required this.onSave});
-
-  final bool saving;
-  final VoidCallback onSave;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: context.themeColors.surfaceCard,
-        border: Border(
-          top: BorderSide(
-            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
-          ),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            ArenaDashboardTokens.horizontalPadding,
-            12,
-            ArenaDashboardTokens.horizontalPadding,
-            12,
-          ),
-          child: SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: FilledButton(
-              onPressed: saving ? null : onSave,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.brand,
-                foregroundColor: AppColors.black,
-                disabledBackgroundColor: AppColors.brand.withValues(
-                  alpha: 0.45,
-                ),
-                disabledForegroundColor: AppColors.black.withValues(alpha: 0.5),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              child: saving
-                  ? SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.4,
-                        color: AppColors.black,
-                      ),
-                    )
-                  : Text(
-                      'Salvar alterações',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EditCoverHeader extends StatelessWidget {
-  const _EditCoverHeader({
-    required this.coverUrl,
-    required this.onBack,
-    required this.onEditCover,
-  });
-
-  final String? coverUrl;
-  final VoidCallback onBack;
-  final VoidCallback onEditCover;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _CoverImage(coverUrl: coverUrl),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withValues(alpha: 0.2),
-                Colors.black.withValues(alpha: 0.6),
-              ],
-            ),
-          ),
-        ),
-        SafeArea(
-          bottom: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(4, 4, 12, 12),
-            child: Row(
-              children: [
-                IconButton(
-                  onPressed: onBack,
-                  icon: Icon(
-                    Icons.arrow_back_rounded,
-                    color: context.themeColors.onSurface,
-                  ),
-                ),
-                Spacer(),
-                Material(
-                  color: context.themeColors.surfaceRaised.withValues(
-                    alpha: 0.9,
-                  ),
-                  borderRadius: BorderRadius.circular(10),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: onEditCover,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.image_outlined,
-                            size: 16,
-                            color: context.themeColors.onSurface.withValues(
-                              alpha: 0.9,
-                            ),
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            'ALTERAR CAPA',
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  color: context.themeColors.onSurface,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.5,
-                                  fontSize: 10,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CoverImage extends StatelessWidget {
-  const _CoverImage({required this.coverUrl});
-
-  final String? coverUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    const fallback = _CoverSkeleton();
-
-    if (coverUrl == null || coverUrl!.isEmpty) {
-      return fallback;
-    }
-    return CachedNetworkImage(
-      imageUrl: coverUrl!,
-      fit: BoxFit.cover,
-      fadeInDuration: const Duration(milliseconds: 280),
-      placeholder: (_, __) => fallback,
-      errorWidget: (_, __, ___) => fallback,
-    );
-  }
-}
-
-class _CoverSkeleton extends StatelessWidget {
-  const _CoverSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
+    return Material(
       color: context.themeColors.surfaceRaised,
-      child: Center(
-        child: Icon(
-          Icons.panorama_wide_angle_outlined,
-          size: 48,
-          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.35),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(ArenaDashboardTokens.cardRadius),
+        side: BorderSide(
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
         ),
-      ),
-    );
-  }
-}
-
-class _EditLogoBadge extends StatelessWidget {
-  const _EditLogoBadge({
-    required this.logoUrl,
-    required this.name,
-    required this.size,
-  });
-
-  final String? logoUrl;
-  final String name;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final monogram = _arenaMonogram(name);
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: context.themeColors.surfaceRaised, width: 3),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: logoUrl != null && logoUrl!.isNotEmpty
-          ? CachedNetworkImage(
-              imageUrl: logoUrl!,
-              fit: BoxFit.cover,
-              fadeInDuration: const Duration(milliseconds: 220),
-              placeholder: (_, __) => _LogoGradient(monogram: monogram),
-              errorWidget: (_, __, ___) => _LogoGradient(monogram: monogram),
-            )
-          : _LogoGradient(monogram: monogram),
-    );
-  }
-}
-
-String _arenaMonogram(String name) {
-  final words = name
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((w) => w.isNotEmpty)
-      .toList();
-  if (words.length >= 2) {
-    return words.take(3).map((w) => w[0].toUpperCase()).join();
-  }
-  final t = name.trim();
-  if (t.isEmpty) return '?';
-  if (t.length <= 3) return t.toUpperCase();
-  return t.substring(0, 3).toUpperCase();
-}
-
-class _LogoGradient extends StatelessWidget {
-  const _LogoGradient({required this.monogram});
-
-  final String monogram;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFF8A4A), AppColors.brand, Color(0xFFE5560E)],
-        ),
-      ),
-      child: Center(
-        child: Text(
-          monogram,
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.w900,
-            color: AppColors.black,
-            letterSpacing: -0.5,
-          ),
-        ),
-      ),
+      child: Padding(padding: padding, child: child),
     );
   }
 }
@@ -1305,14 +1013,17 @@ class _SearchMetadataChips extends StatelessWidget {
           showCheckmark: true,
           checkmarkColor: AppColors.brand,
           selectedColor: AppColors.brand.withValues(alpha: 0.12),
+          backgroundColor: context.themeColors.surfaceRaised,
           labelStyle: TextStyle(
             fontWeight: FontWeight.w700,
-            color: isSelected ? AppColors.brand : context.themeColors.onSurface,
+            color: isSelected
+                ? AppColors.brand
+                : context.themeColors.onSurfaceMuted,
           ),
           side: BorderSide(
             color: isSelected
                 ? AppColors.brand
-                : context.themeColors.surfaceRaised,
+                : context.themeColors.onSurfaceMuted.withValues(alpha: 0.15),
           ),
           onSelected: (_) => onToggle(label),
         );
@@ -1337,6 +1048,7 @@ class _AmenitySwitch extends StatelessWidget {
     return SwitchListTile(
       value: value,
       onChanged: onChanged,
+      activeTrackColor: AppColors.brand.withValues(alpha: 0.35),
       activeThumbColor: AppColors.brand,
       title: Text(
         label,

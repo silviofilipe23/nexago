@@ -1499,6 +1499,48 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Lista de espera do site público (captura de e-mail pré-lançamento).
+    // Criação pública e validada (sem auth); leitura/edição/remoção bloqueadas.
+    match /waitlist/{docId} {
+      allow read, update, delete: if false;
+      allow create: if
+        request.resource.data.keys().hasOnly(['email', 'source', 'createdAt']) &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() >= 5 &&
+        request.resource.data.email.size() <= 320 &&
+        request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+[.][^@\\s]+$') &&
+        request.resource.data.source is string &&
+        request.resource.data.source.size() <= 64 &&
+        request.resource.data.createdAt is timestamp;
+    }
+
+    // Leads B2B do site (organizadores e arenas). Criação pública e validada
+    // (sem auth, via Route Handler); leitura/edição/remoção bloqueadas.
+    match /leads/{docId} {
+      allow read, update, delete: if false;
+      allow create: if
+        request.resource.data.keys().hasOnly(
+          ['name', 'email', 'phone', 'org', 'message', 'persona', 'source', 'createdAt']
+        ) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() >= 2 &&
+        request.resource.data.name.size() <= 120 &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() >= 5 &&
+        request.resource.data.email.size() <= 320 &&
+        request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+[.][^@\\s]+$') &&
+        request.resource.data.phone is string &&
+        request.resource.data.phone.size() <= 40 &&
+        request.resource.data.org is string &&
+        request.resource.data.org.size() <= 160 &&
+        request.resource.data.message is string &&
+        request.resource.data.message.size() <= 1000 &&
+        request.resource.data.persona in ['organizador', 'arena', 'geral'] &&
+        request.resource.data.source is string &&
+        request.resource.data.source.size() <= 64 &&
+        request.resource.data.createdAt is timestamp;
+    }
+
     // Regras padrão para outras coleções (ajuste conforme necessário)
     // IMPORTANTE: Esta regra NÃO deve interferir com as regras específicas acima
     // As regras específicas têm prioridade sobre esta regra padrão

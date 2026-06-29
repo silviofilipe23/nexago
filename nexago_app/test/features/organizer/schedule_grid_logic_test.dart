@@ -54,6 +54,53 @@ void main() {
       expect(ScheduleGridLogic.timeLabel(slots[1]), '08:30');
     });
 
+    test('matchBlockHeight is always one 30-minute slot', () {
+      final match = _match(
+        scheduleTime: nexagoEventDateTime(
+          year: 2026,
+          month: 6,
+          day: 16,
+          hour: 8,
+        ),
+        scheduleEndTime: nexagoEventDateTime(
+          year: 2026,
+          month: 6,
+          day: 16,
+          hour: 8,
+          minute: 50,
+        ),
+      );
+      expect(
+        ScheduleGridLogic.matchBlockHeight(
+          match: match,
+          defaultDurationMin: 50,
+        ),
+        ScheduleGridLogic.slotHeight,
+      );
+    });
+
+    test('matchTopOffset snaps start to 30-minute slot row', () {
+      final gridStart = nexagoEventDateTime(
+        year: 2026,
+        month: 6,
+        day: 16,
+        hour: 8,
+      );
+      final match = _match(
+        scheduleTime: nexagoEventDateTime(
+          year: 2026,
+          month: 6,
+          day: 16,
+          hour: 9,
+          minute: 35,
+        ),
+      );
+      expect(
+        ScheduleGridLogic.matchTopOffset(match: match, gridStart: gridStart),
+        ScheduleGridLogic.slotHeight * 3,
+      );
+    });
+
     test('matchTopOffset positions card by schedule time', () {
       final gridStart = nexagoEventDateTime(
         year: 2026,
@@ -99,6 +146,22 @@ void main() {
       expect(
         ScheduleGridLogic.timeLabel(scheduleLocal),
         '14:30',
+      );
+    });
+
+    test('matchTimeRange shows floored 30-minute window', () {
+      final match = _match(
+        scheduleTime: nexagoEventDateTime(
+          year: 2026,
+          month: 6,
+          day: 16,
+          hour: 9,
+          minute: 35,
+        ),
+      );
+      expect(
+        ScheduleGridLogic.matchTimeRange(match, defaultDurationMin: 50),
+        '09:30-10:00',
       );
     });
 

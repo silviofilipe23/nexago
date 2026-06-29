@@ -42,13 +42,16 @@ class ArenaDashboardPage extends ConsumerWidget {
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       body: SafeArea(
+        bottom: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final maxW = constraints.maxWidth > 720 ? 640.0 : double.infinity;
             return CustomScrollView(
-              controller:
-                  ref.watch(arenaShellScrollRegistryProvider).controllerFor(0),
+              controller: ref
+                  .watch(arenaShellScrollRegistryProvider)
+                  .controllerFor(0),
               key: const PageStorageKey<String>('arena-dashboard-scroll'),
+              physics: ArenaDashboardTokens.shellScrollPhysics,
               slivers: [
                 NexaFloatingHeaderSliver(
                   padding: const EdgeInsets.symmetric(
@@ -66,17 +69,18 @@ class ArenaDashboardPage extends ConsumerWidget {
                   ),
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(
+                  padding: EdgeInsets.fromLTRB(
                     ArenaDashboardTokens.horizontalPadding,
                     0,
                     ArenaDashboardTokens.horizontalPadding,
-                    32,
+                    ArenaDashboardTokens.shellScrollBottomPadding(context),
                   ),
                   sliver: SliverToBoxAdapter(
                     child: Center(
                       child: ConstrainedBox(
                         constraints: BoxConstraints(maxWidth: maxW),
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             SizedBox(height: ArenaDashboardTokens.sectionGap),
@@ -95,12 +99,14 @@ class ArenaDashboardPage extends ConsumerWidget {
                             summaryAsync.when(
                               data: (summary) => metricsAsync.when(
                                 data: (metrics) => Column(
+                                  mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
                                     FadeSlideIn(
-                                      duration:
-                                          const Duration(milliseconds: 500),
+                                      duration: const Duration(
+                                        milliseconds: 500,
+                                      ),
                                       offsetY: 14,
                                       child: ArenaDashboardKpiGrid(
                                         items: [
@@ -116,8 +122,8 @@ class ArenaDashboardPage extends ConsumerWidget {
                                             label: 'Ocupação',
                                             value:
                                                 formatDashboardOccupancyPercent(
-                                              metrics.occupancyRatePercent,
-                                            ),
+                                                  metrics.occupancyRatePercent,
+                                                ),
                                             icon:
                                                 Icons.stacked_bar_chart_rounded,
                                             badge: metrics.occupancyBadge,
@@ -141,11 +147,12 @@ class ArenaDashboardPage extends ConsumerWidget {
                                       ),
                                     ),
                                     SizedBox(
-                                        height:
-                                            ArenaDashboardTokens.sectionGap),
+                                      height: ArenaDashboardTokens.sectionGap,
+                                    ),
                                     FadeSlideIn(
-                                      duration:
-                                          const Duration(milliseconds: 540),
+                                      duration: const Duration(
+                                        milliseconds: 540,
+                                      ),
                                       offsetY: 14,
                                       child: ArenaDashboardRevenueChartCard(
                                         values: summary.revenueLast7Days,
@@ -154,22 +161,24 @@ class ArenaDashboardPage extends ConsumerWidget {
                                       ),
                                     ),
                                     SizedBox(
-                                        height:
-                                            ArenaDashboardTokens.sectionGap),
+                                      height: ArenaDashboardTokens.sectionGap,
+                                    ),
                                     FadeSlideIn(
-                                      duration:
-                                          const Duration(milliseconds: 580),
+                                      duration: const Duration(
+                                        milliseconds: 580,
+                                      ),
                                       offsetY: 14,
                                       child: ArenaDashboardInsightsSection(
                                         summary: summary,
                                       ),
                                     ),
                                     SizedBox(
-                                        height:
-                                            ArenaDashboardTokens.sectionGap),
+                                      height: ArenaDashboardTokens.sectionGap,
+                                    ),
                                     FadeSlideIn(
-                                      duration:
-                                          const Duration(milliseconds: 620),
+                                      duration: const Duration(
+                                        milliseconds: 620,
+                                      ),
                                       offsetY: 14,
                                       child: ArenaDashboardFollowersCard(
                                         insightsAsync: followersInsightsAsync,
@@ -177,8 +186,8 @@ class ArenaDashboardPage extends ConsumerWidget {
                                       ),
                                     ),
                                     SizedBox(
-                                        height:
-                                            ArenaDashboardTokens.sectionGap),
+                                      height: ArenaDashboardTokens.sectionGap,
+                                    ),
                                     const FadeSlideIn(
                                       duration: Duration(milliseconds: 660),
                                       offsetY: 14,

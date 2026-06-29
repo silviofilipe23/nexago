@@ -5,9 +5,24 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../tournaments/domain/tournament_match.dart';
+import '../../../../tournaments/domain/tournament_match_card_view_model.dart';
 import '../../../domain/match_ops/match_ops_models.dart';
 import '../../../domain/match_ops/schedule_grid_logic.dart';
 import '../../../domain/match_ops/schedule_logic.dart';
+import 'organizer_schedule_pick_widgets.dart';
+
+String scheduleGridTeamLine({
+  required TournamentMatch match,
+  required bool sideA,
+  TournamentMatchCardViewModel? enriched,
+}) {
+  final label = schedulePickTeamData(
+    match: match,
+    sideA: sideA,
+    enriched: enriched,
+  ).label;
+  return ScheduleGridLogic.teamLine(description: label);
+}
 
 class ScheduleGridHeader extends StatelessWidget {
   const ScheduleGridHeader({
@@ -300,6 +315,7 @@ class ScheduleGridBody extends StatefulWidget {
     required this.gridStart,
     required this.matchesByCourt,
     required this.categoryLabelsByMatchId,
+    required this.enrichedByMatchId,
     required this.defaultDurationMin,
     required this.draggingMatchId,
     required this.selectedDayKey,
@@ -315,6 +331,7 @@ class ScheduleGridBody extends StatefulWidget {
   final DateTime gridStart;
   final Map<String, List<TournamentMatch>> matchesByCourt;
   final Map<String, String> categoryLabelsByMatchId;
+  final Map<String, TournamentMatchCardViewModel> enrichedByMatchId;
   final int defaultDurationMin;
   final String? draggingMatchId;
   final String selectedDayKey;
@@ -445,6 +462,7 @@ class _ScheduleGridBodyState extends State<ScheduleGridBody> {
                       matches: widget.matchesByCourt[court.id] ?? const [],
                       categoryLabelsByMatchId:
                           widget.categoryLabelsByMatchId,
+                      enrichedByMatchId: widget.enrichedByMatchId,
                       defaultDurationMin: widget.defaultDurationMin,
                       draggingMatchId: widget.draggingMatchId,
                       onMatchTap: widget.onMatchTap,
@@ -621,6 +639,7 @@ class _ScheduleGridCourtColumn extends StatelessWidget {
     required this.gridStart,
     required this.matches,
     required this.categoryLabelsByMatchId,
+    required this.enrichedByMatchId,
     required this.defaultDurationMin,
     required this.draggingMatchId,
     required this.onMatchTap,
@@ -634,6 +653,7 @@ class _ScheduleGridCourtColumn extends StatelessWidget {
   final DateTime gridStart;
   final List<TournamentMatch> matches;
   final Map<String, String> categoryLabelsByMatchId;
+  final Map<String, TournamentMatchCardViewModel> enrichedByMatchId;
   final int defaultDurationMin;
   final String? draggingMatchId;
   final ValueChanged<TournamentMatch> onMatchTap;
@@ -684,13 +704,15 @@ class _ScheduleGridCourtColumn extends StatelessWidget {
                     categoryLabel:
                         categoryLabelsByMatchId[match.id] ?? match.categoryId,
                   ),
-                  teamALine: ScheduleGridLogic.teamLine(
-                    description: match.teamADescription,
-                    teamId: match.teamAId,
+                  teamALine: scheduleGridTeamLine(
+                    match: match,
+                    sideA: true,
+                    enriched: enrichedByMatchId[match.id],
                   ),
-                  teamBLine: ScheduleGridLogic.teamLine(
-                    description: match.teamBDescription,
-                    teamId: match.teamBId,
+                  teamBLine: scheduleGridTeamLine(
+                    match: match,
+                    sideA: false,
+                    enriched: enrichedByMatchId[match.id],
                   ),
                   timeRange: ScheduleGridLogic.matchTimeRange(
                     match,

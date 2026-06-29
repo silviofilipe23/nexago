@@ -11,7 +11,9 @@ abstract final class ScheduleGridLogic {
   ScheduleGridLogic._();
 
   static const int slotMinutes = 30;
-  static const double slotHeight = 52;
+  /// Altura visual de cada slot de 30 min na grade H1.
+  /// 50 min de partida → ~133px de bloco (50/30 × 80).
+  static const double slotHeight = 80;
   static const double courtColumnWidth = 112;
   static const double timeColumnWidth = 44;
 
@@ -107,22 +109,19 @@ abstract final class ScheduleGridLogic {
   }) {
     final start = match.scheduleTime;
     if (start == null) return 0;
-    final minutes = nexagoEventUtcInstant(start)
+    final slotStart = _floorToSlot(start);
+    final minutes = nexagoEventUtcInstant(slotStart)
         .difference(nexagoEventUtcInstant(gridStart))
         .inMinutes;
     return (minutes / slotMinutes) * slotHeight;
   }
 
+  /// Bloco visual na grade: sempre 1 slot (30 min), independente da duração real.
   static double matchBlockHeight({
     required TournamentMatch match,
     required int defaultDurationMin,
   }) {
-    final start = match.scheduleTime;
-    if (start == null) return slotHeight;
-    final end = match.scheduleEndTime ??
-        start.add(Duration(minutes: defaultDurationMin));
-    final minutes = end.difference(start).inMinutes.clamp(slotMinutes, 240);
-    return (minutes / slotMinutes) * slotHeight;
+    return slotHeight;
   }
 
   static ScheduleGridMatchPhase matchPhase(TournamentMatch match) {
@@ -198,9 +197,9 @@ abstract final class ScheduleGridLogic {
   }) {
     final start = match.scheduleTime;
     if (start == null) return '';
-    final end = match.scheduleEndTime ??
-        start.add(Duration(minutes: defaultDurationMin));
-    return '${timeLabel(start)}-${timeLabel(end)}';
+    final slotStart = _floorToSlot(start);
+    final slotEnd = slotStart.add(const Duration(minutes: slotMinutes));
+    return '${timeLabel(slotStart)}-${timeLabel(slotEnd)}';
   }
 
   static String matchMetaLabel({

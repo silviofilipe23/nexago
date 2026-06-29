@@ -154,6 +154,11 @@ class _OrganizerCourtScheduleGridPageState
             ?.categories ??
         const [];
     final categoryLabels = _categoryLabels(dayMatches, categories);
+    final enrichedByMatchId =
+        ref
+            .watch(organizerMatchCardsByIdProvider(widget.tournamentId))
+            .valueOrNull ??
+        const {};
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -198,6 +203,7 @@ class _OrganizerCourtScheduleGridPageState
                     gridStart: gridStart,
                     matchesByCourt: matchesByCourt,
                     categoryLabelsByMatchId: categoryLabels,
+                    enrichedByMatchId: enrichedByMatchId,
                     defaultDurationMin: config.defaultMatchDurationMin,
                     draggingMatchId: _draggingMatchId,
                     selectedDayKey: dayKey,

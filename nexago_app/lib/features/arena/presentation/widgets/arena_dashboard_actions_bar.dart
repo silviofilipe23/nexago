@@ -3,8 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/router/routes.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/ui/app_snackbar.dart';
-import 'arena_promotion_form_sheet.dart';
+import 'arena_promotions_sheet.dart';
 
 class ArenaDashboardActionsBar extends StatelessWidget {
   const ArenaDashboardActionsBar({super.key, this.arenaId});
@@ -45,15 +44,10 @@ class ArenaDashboardActionsBar extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () async {
-                    final ok = await ArenaPromotionFormSheet.show(
-                      context,
-                      arenaId: arenaId!,
-                    );
-                    if (ok && context.mounted) {
-                      showAppSnackBar(context, 'Promoção ativada na agenda.');
-                    }
-                  },
+                  onPressed: () => ArenaPromotionsSheet.show(
+                    context,
+                    arenaId: arenaId!,
+                  ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: theme.colorScheme.onSurface,
                     side: BorderSide(
@@ -65,7 +59,7 @@ class ArenaDashboardActionsBar extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    'Criar promoção',
+                    'Promoções',
                     style: theme.textTheme.labelLarge?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),

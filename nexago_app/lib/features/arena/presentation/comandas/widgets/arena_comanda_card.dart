@@ -37,14 +37,14 @@ class ArenaComandaCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               _TypeIcon(type: comanda.type),
-              const SizedBox(width: 14),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Flexible(
+                        Expanded(
                           child: Text(
                             title,
                             maxLines: 1,
@@ -73,10 +73,10 @@ class ArenaComandaCard extends StatelessWidget {
                       comandaListSubtitle(comanda),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
+                      style: AppTypography.soraRegular(
                         color: context.themeColors.onSurfaceMuted,
                         fontWeight: FontWeight.w500,
-                        fontSize: 13,
+                        fontSize: 11,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -88,11 +88,15 @@ class ArenaComandaCard extends StatelessWidget {
                         ),
                         if (openedAt != null) ...[
                           const SizedBox(width: 10),
-                          Text(
-                            formatComandaOpenedSince(openedAt),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: context.themeColors.onSurfaceMuted,
-                              fontSize: 12,
+                          Expanded(
+                            child: Text(
+                              formatComandaOpenedSince(openedAt),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: context.themeColors.onSurfaceMuted,
+                                fontSize: 9,
+                              ),
                             ),
                           ),
                         ],
@@ -112,7 +116,7 @@ class ArenaComandaCard extends StatelessWidget {
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                         color: AppColors.pending,
-                        fontSize: 16,
+                        fontSize: 14,
                       ),
                     ),
                   Text(
@@ -124,7 +128,7 @@ class ArenaComandaCard extends StatelessWidget {
                       color: showPartial
                           ? context.themeColors.onSurfaceMuted
                           : context.themeColors.onSurface,
-                      fontSize: showPartial ? 14 : 22,
+                      fontSize: showPartial ? 13 : 17,
                       letterSpacing: -0.5,
                       height: 1.1,
                     ),
@@ -162,22 +166,19 @@ class _TypeIcon extends StatelessWidget {
     };
 
     return Container(
-      width: 48,
-      height: 48,
+      width: 36,
+      height: 36,
       decoration: BoxDecoration(
         color: AppColors.brand.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
       ),
-      child: Icon(icon, color: AppColors.brand, size: 24),
+      child: Icon(icon, color: AppColors.brand, size: 18),
     );
   }
 }
 
 class _StatusPill extends StatelessWidget {
-  const _StatusPill({
-    required this.label,
-    required this.color,
-  });
+  const _StatusPill({required this.label, required this.color});
 
   final String label;
   final Color color;

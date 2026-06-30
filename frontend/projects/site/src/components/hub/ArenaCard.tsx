@@ -12,7 +12,9 @@ import type { ArenaSummary } from '@/lib/firestore/types';
 export function ArenaCard({ arena }: { arena: ArenaSummary }) {
   const place = [arena.city, arena.state].filter(Boolean).join(' · ');
   const cover = arena.photoUrls[0] ?? arena.logoUrl ?? null;
-  const sports = arena.sports.slice(0, 2);
+  // Deduplica pelo rótulo exibido: courtTypes diferentes podem cair no mesmo
+  // label genérico ("Esporte de areia") e gerariam badges repetidos.
+  const sportLabels = [...new Set(arena.sports.map(sportLabel))].slice(0, 2);
 
   return (
     <Link
@@ -46,14 +48,14 @@ export function ArenaCard({ arena }: { arena: ArenaSummary }) {
             <span className="truncate">{place}</span>
           </p>
         )}
-        {sports.length > 0 && (
+        {sportLabels.length > 0 && (
           <div className="mt-auto flex flex-wrap gap-1.5 pt-4">
-            {sports.map((s) => (
+            {sportLabels.map((label) => (
               <span
-                key={s}
+                key={label}
                 className="rounded-pill border border-brand/20 bg-brand-tint px-2.5 py-1 text-xs font-600 text-brand"
               >
-                {sportLabel(s)}
+                {label}
               </span>
             ))}
           </div>

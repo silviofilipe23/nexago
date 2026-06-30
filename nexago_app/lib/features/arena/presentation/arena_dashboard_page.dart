@@ -38,6 +38,8 @@ class ArenaDashboardPage extends ConsumerWidget {
           )
         : ref.watch(arenaFollowersInsightsProvider(arenaId));
     final theme = Theme.of(context);
+    final hideFloatingHeader =
+        ref.watch(arenaShellFloatingHeaderSuppressedProvider) > 0;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -53,21 +55,22 @@ class ArenaDashboardPage extends ConsumerWidget {
               key: const PageStorageKey<String>('arena-dashboard-scroll'),
               physics: ArenaDashboardTokens.shellScrollPhysics,
               slivers: [
-                NexaFloatingHeaderSliver(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: ArenaDashboardTokens.horizontalPadding,
-                  ),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxWidth: maxW),
-                      child: const FadeSlideIn(
-                        duration: Duration(milliseconds: 420),
-                        offsetY: 14,
-                        child: ArenaDashboardHeader(),
+                if (!hideFloatingHeader)
+                  NexaFloatingHeaderSliver(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: ArenaDashboardTokens.horizontalPadding,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: maxW),
+                        child: const FadeSlideIn(
+                          duration: Duration(milliseconds: 420),
+                          offsetY: 14,
+                          child: ArenaDashboardHeader(),
+                        ),
                       ),
                     ),
                   ),
-                ),
                 SliverPadding(
                   padding: EdgeInsets.fromLTRB(
                     ArenaDashboardTokens.horizontalPadding,

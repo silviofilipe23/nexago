@@ -98,12 +98,14 @@ export function ArenasCarousel({
             </button>
           </div>
         </Reveal>
-      </div>
 
-      <ul
-        ref={trackRef}
-        className="mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 [-ms-overflow-style:none] [padding-inline:max(1.25rem,calc((100vw-72rem)/2))] [scrollbar-width:none] sm:mt-12 sm:[padding-inline:max(1.5rem,calc((100vw-72rem)/2))] [&::-webkit-scrollbar]:hidden"
-      >
+        {/* Trilho sangra até a borda mas o 1º card alinha ao gutter do conteúdo
+            (mesmo do título), via -mx/px; scroll-px alinha o snap. Evita o
+            padding-inline arbitrário com max(),calc() que o build quebrava. */}
+        <ul
+          ref={trackRef}
+          className="-mx-5 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-5 px-5 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-6 sm:mt-12 sm:scroll-px-6 sm:px-6 [&::-webkit-scrollbar]:hidden"
+        >
         {arenas.map((arena) => (
           <li
             key={arena.id}
@@ -127,7 +129,8 @@ export function ArenasCarousel({
             </ButtonLink>
           </div>
         </li>
-      </ul>
+        </ul>
+      </div>
     </section>
   );
 }

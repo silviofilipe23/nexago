@@ -129,12 +129,19 @@ export function ArenaPlanos({ id = 'planos' }: { id?: string }) {
         <BillingSwitch yearly={yearly} onChange={setYearly} />
       </Reveal>
 
-      <div className="mt-14 grid items-stretch gap-5 md:grid-cols-3">
+      {/* Mobile: carrossel horizontal sangrando até a borda, snap alinhado ao gutter
+          (peek do próximo card sinaliza o swipe). md+: grid de 3 colunas.
+          Sem `h-full` no item: o stretch do flex/grid iguala a altura dos cards. */}
+      <div className="mt-14 -mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-px-5 px-5 pb-3 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:scroll-px-6 sm:px-6 md:mx-0 md:grid md:grid-cols-3 md:items-stretch md:gap-5 md:snap-none md:overflow-visible md:px-0 md:pb-0 md:pt-0">
         {PLANS.map((plan, i) => {
           const value = yearly ? plan.yearly : plan.monthly;
           const free = plan.monthly === 0;
           return (
-            <Reveal key={plan.name} delay={i * 0.08} className="h-full">
+            <Reveal
+              key={plan.name}
+              delay={i * 0.08}
+              className="w-[80%] shrink-0 snap-start sm:w-[56%] md:w-auto md:shrink"
+            >
               <SpotlightCard
                 className={cn(
                   'flex h-full flex-col p-7',

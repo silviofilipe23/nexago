@@ -163,8 +163,9 @@ class _ArenaComandaCustomerPageState
           const SizedBox(height: 8),
           TextField(
             controller: _cpfController,
-            onChanged:
-                ref.read(arenaComandaDraftProvider.notifier).setCustomerCpf,
+            onChanged: ref
+                .read(arenaComandaDraftProvider.notifier)
+                .setCustomerCpf,
             keyboardType: TextInputType.number,
             decoration: _fieldDecoration(
               context,
@@ -173,28 +174,28 @@ class _ArenaComandaCustomerPageState
               hint: '000.000.000-00',
             ),
           ),
-          const SizedBox(height: 20),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              'Comprovante e cashback',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: context.themeColors.onSurface,
-                  ),
-            ),
-            subtitle: Text(
-              'Enviar no WhatsApp ao fechar a conta',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: context.themeColors.onSurfaceMuted,
-                  ),
-            ),
-            value: draft.sendReceiptWhatsapp,
-            activeTrackColor: AppColors.brand,
-            onChanged: ref
-                .read(arenaComandaDraftProvider.notifier)
-                .setSendReceiptWhatsapp,
-          ),
+          // const SizedBox(height: 20),
+          // SwitchListTile(
+          //   contentPadding: EdgeInsets.zero,
+          //   title: Text(
+          //     'Comprovante e cashback',
+          //     style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          //           fontWeight: FontWeight.w700,
+          //           color: context.themeColors.onSurface,
+          //         ),
+          //   ),
+          //   subtitle: Text(
+          //     'Enviar no WhatsApp ao fechar a conta',
+          //     style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          //           color: context.themeColors.onSurfaceMuted,
+          //         ),
+          //   ),
+          //   value: draft.sendReceiptWhatsapp,
+          //   activeTrackColor: AppColors.brand,
+          //   onChanged: ref
+          //       .read(arenaComandaDraftProvider.notifier)
+          //       .setSendReceiptWhatsapp,
+          // ),
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -209,9 +210,9 @@ class _ArenaComandaCustomerPageState
                 child: Text(
                   'Só o nome é obrigatório. WhatsApp e CPF são usados para comprovante, cashback NexaGO e nota fiscal.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: context.themeColors.onSurfaceMuted,
-                        height: 1.4,
-                      ),
+                    color: context.themeColors.onSurfaceMuted,
+                    height: 1.4,
+                  ),
                 ),
               ),
             ],
@@ -262,8 +263,8 @@ class _ModeChip extends StatelessWidget {
           color: !enabled
               ? context.themeColors.onSurfaceMuted.withValues(alpha: 0.5)
               : selected
-                  ? AppColors.black
-                  : context.themeColors.onSurface,
+              ? AppColors.black
+              : context.themeColors.onSurface,
         ),
       ),
     );

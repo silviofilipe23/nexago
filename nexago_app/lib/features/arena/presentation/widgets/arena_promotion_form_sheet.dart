@@ -8,25 +8,30 @@ import '../../../../core/ui/app_snackbar.dart';
 import '../../../arenas/domain/arena_promotion.dart';
 import '../../../arenas/domain/slots_providers.dart';
 import '../../domain/arena_providers.dart';
+import '../../domain/arena_shell_providers.dart';
 
-/// Bottom sheet para criar promoção de horário (gestor).
+/// Bottom sheet para criar ou editar promoção de horário (gestor).
 class ArenaPromotionFormSheet extends ConsumerStatefulWidget {
-  const ArenaPromotionFormSheet({super.key, required this.arenaId});
+  const ArenaPromotionFormSheet({
+    super.key,
+    required this.arenaId,
+    this.existing,
+  });
 
   final String arenaId;
+  final ArenaPromotion? existing;
 
   static Future<bool> show(
     BuildContext context, {
     required String arenaId,
+    ArenaPromotion? existing,
   }) async {
-    final result = await showModalBottomSheet<bool>(
+    final result = await showArenaShellModalBottomSheet<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: context.themeColors.surfaceSheet,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      builder: (ctx) => ArenaPromotionFormSheet(
+        arenaId: arenaId,
+        existing: existing,
       ),
-      builder: (ctx) => ArenaPromotionFormSheet(arenaId: arenaId),
     );
     return result == true;
   }
@@ -38,14 +43,16 @@ class ArenaPromotionFormSheet extends ConsumerStatefulWidget {
 
 class _ArenaPromotionFormSheetState
     extends ConsumerState<ArenaPromotionFormSheet> {
-  final _labelController = TextEditingController(text: 'Tarde ociosa');
-  final _startController = TextEditingController(text: '14:00');
-  final _endController = TextEditingController(text: '18:00');
-  final _discountController = TextEditingController(text: '20');
-  final Set<int> _weekdays = {1, 2, 3, 4, 5};
-  final Set<String> _courtIds = {};
-  bool _allCourts = true;
+  late final TextEditingController _labelController;
+  late final TextEditingController _startController;
+  late final TextEditingController _endController;
+  late final TextEditingController _discountController;
+  late final Set<int> _weekdays;
+  late final Set<String> _courtIds;
+  late bool _allCourts;
   bool _busy = false;
+
+  bool get _isEdit => widget.existing != null;
 
   static const _weekdayLabels = <int, String>{
     1: 'Seg',
@@ -56,6 +63,33 @@ class _ArenaPromotionFormSheetState
     6: 'Sáb',
     7: 'Dom',
   };
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    _labelController = TextEditingController(
+      text: existing?.label ?? 'Tarde ociosa',
+    );
+    _startController = TextEditingController(
+      text: existing?.startTime ?? '14:00',
+    );
+    _endController = TextEditingController(
+      text: existing?.endTime ?? '18:00',
+    );
+    _discountController = TextEditingController(
+      text: existing?.discountPercent != null
+          ? existing!.discountPercent!.toString()
+          : '20',
+    );
+    _weekdays = existing != null
+        ? Set<int>.from(existing.weekdays)
+        : {1, 2, 3, 4, 5};
+    _allCourts = existing == null || existing.courtIds.isEmpty;
+    _courtIds = existing != null && existing.courtIds.isNotEmpty
+        ? Set<String>.from(existing.courtIds)
+        : {};
+  }
 
   @override
   void dispose() {
@@ -95,8 +129,8 @@ class _ArenaPromotionFormSheetState
     setState(() => _busy = true);
     try {
       final promo = ArenaPromotion(
-        id: '',
-        active: true,
+        id: widget.existing?.id ?? '',
+        active: widget.existing?.active ?? true,
         label: label,
         courtIds: _allCourts ? const [] : _courtIds.toList(),
         weekdays: _weekdays.toList()..sort(),
@@ -104,9 +138,19 @@ class _ArenaPromotionFormSheetState
         endTime: _normalizeHm(_endController.text),
         discountPercent: discount,
       );
-      await ref
-          .read(promotionsRepositoryProvider)
-          .createPromotion(arenaId: widget.arenaId, promotion: promo);
+      final repo = ref.read(promotionsRepositoryProvider);
+      if (_isEdit) {
+        await repo.updatePromotion(
+          arenaId: widget.arenaId,
+          promotionId: widget.existing!.id,
+          promotion: promo,
+        );
+      } else {
+        await repo.createPromotion(
+          arenaId: widget.arenaId,
+          promotion: promo,
+        );
+      }
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -154,7 +198,7 @@ class _ArenaPromotionFormSheetState
             ),
             SizedBox(height: 16),
             Text(
-              'Nova promoção',
+              _isEdit ? 'Editar promoção' : 'Nova promoção',
               style: theme.textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800,
                 color: context.themeColors.onSurface,
@@ -300,7 +344,7 @@ class _ArenaPromotionFormSheetState
                         color: Colors.white,
                       ),
                     )
-                  : Text('Ativar promoção'),
+                  : Text(_isEdit ? 'Salvar alterações' : 'Ativar promoção'),
             ),
           ],
         ),

@@ -3,7 +3,7 @@ import { StoreButtons } from '@/components/ui/StoreButtons';
 
 export function Download() {
   return (
-    <section id="download" className="relative scroll-mt-24 overflow-hidden px-5 py-24 sm:px-6 sm:py-36">
+    <section id="download" className="relative scroll-mt-24 overflow-hidden px-5 py-16 sm:px-6 sm:py-36">
       {/* Glow central */}
       <div
         aria-hidden="true"

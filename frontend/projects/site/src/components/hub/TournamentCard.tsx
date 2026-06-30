@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { MapPin, CalendarDays, Layers } from 'lucide-react';
 import { StatusBadge } from './StatusBadge';
 import { sportLabel } from '@/lib/format';
+import { toSlugId } from '@/lib/slug';
 import type { TournamentSummary } from '@/lib/firestore/types';
 
 function onSpotlightMove(e: MouseEvent<HTMLElement>) {
@@ -19,7 +20,7 @@ export function TournamentCard({ t }: { t: TournamentSummary }) {
 
   return (
     <Link
-      href={`/torneios/${t.id}`}
+      href={`/torneios/${toSlugId(t.name, t.id)}`}
       onMouseMove={onSpotlightMove}
       className="group relative flex h-full flex-col overflow-hidden rounded-5 border border-line bg-surface-1 p-6 transition-[transform,border-color] duration-300 hover:-translate-y-1 hover:border-brand/40 motion-reduce:hover:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
     >
@@ -44,21 +45,30 @@ export function TournamentCard({ t }: { t: TournamentSummary }) {
       </h3>
 
       <dl className="mt-4 space-y-2 text-sm text-text-mute">
-        <div className="flex items-center gap-2">
-          <MapPin className="size-4 shrink-0 text-text-dim" aria-hidden="true" />
-          <dd className="truncate">{place}</dd>
+        <div>
+          <dt className="sr-only">Local</dt>
+          <dd className="flex items-center gap-2">
+            <MapPin className="size-4 shrink-0 text-text-dim" aria-hidden="true" />
+            <span className="truncate">{place}</span>
+          </dd>
         </div>
         {t.dateLabel && (
-          <div className="flex items-center gap-2">
-            <CalendarDays className="size-4 shrink-0 text-text-dim" aria-hidden="true" />
-            <dd>{t.dateLabel}</dd>
+          <div>
+            <dt className="sr-only">Data</dt>
+            <dd className="flex items-center gap-2">
+              <CalendarDays className="size-4 shrink-0 text-text-dim" aria-hidden="true" />
+              <span>{t.dateLabel}</span>
+            </dd>
           </div>
         )}
         {t.categoriesCount > 0 && (
-          <div className="flex items-center gap-2">
-            <Layers className="size-4 shrink-0 text-text-dim" aria-hidden="true" />
-            <dd>
-              {t.categoriesCount} {t.categoriesCount === 1 ? 'categoria' : 'categorias'}
+          <div>
+            <dt className="sr-only">Categorias</dt>
+            <dd className="flex items-center gap-2">
+              <Layers className="size-4 shrink-0 text-text-dim" aria-hidden="true" />
+              <span>
+                {t.categoriesCount} {t.categoriesCount === 1 ? 'categoria' : 'categorias'}
+              </span>
             </dd>
           </div>
         )}

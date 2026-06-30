@@ -21,3 +21,9 @@ type ButtonLinkProps = ComponentProps<typeof Link> & { variant?: Variant };
 export function ButtonLink({ variant = 'primary', className = '', ...props }: ButtonLinkProps) {
   return <Link className={`${base} ${variants[variant]} ${className}`} {...props} />;
 }
+
+type ButtonProps = ComponentProps<'button'> & { variant?: Variant };
+
+export function Button({ variant = 'primary', className = '', type = 'button', ...props }: ButtonProps) {
+  return <button type={type} className={`${base} ${variants[variant]} ${className}`} {...props} />;
+}

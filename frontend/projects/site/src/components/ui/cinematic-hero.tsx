@@ -18,6 +18,22 @@ const INJECTED_STYLES = `
      Sem JS / crawler sem script: conteúdo visível (resiliência + SEO). */
   html.js .gsap-reveal { visibility: hidden; }
 
+  /* Reveal do headline (elemento de LCP) via CSS puro: roda no primeiro paint,
+     sem esperar o bundle do GSAP/hydration. Mantém o LCP próximo do FCP. */
+  .hero-intro-track { animation: heroTrackIn 1200ms var(--ease-out, cubic-bezier(0.22, 1, 0.36, 1)) both; }
+  .hero-intro-days  { animation: heroDaysIn 1100ms cubic-bezier(0.76, 0, 0.24, 1) 380ms both; }
+
+  @keyframes heroTrackIn {
+      0%   { opacity: 0; transform: translateY(56px) scale(0.9); filter: blur(16px); }
+      45%  { opacity: 1; }
+      100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  }
+  @keyframes heroDaysIn {
+      0%   { opacity: 0; clip-path: inset(-0.4em 100% -0.4em -0.4em); }
+      30%  { opacity: 1; }
+      100% { opacity: 1; clip-path: inset(-0.4em -0.4em -0.4em -0.4em); }
+  }
+
   .film-grain {
       position: absolute; inset: 0; width: 100%; height: 100%;
       pointer-events: none; z-index: 50; opacity: 0.05; mix-blend-mode: overlay;
@@ -170,6 +186,7 @@ const INJECTED_STYLES = `
 
   @media (prefers-reduced-motion: reduce) {
     .gsap-reveal { visibility: visible !important; }
+    .hero-intro-track, .hero-intro-days { animation: none; }
   }
 `;
 
@@ -254,34 +271,14 @@ export function CinematicHero({
     const isMobile = window.innerWidth < 768;
 
     const ctx = gsap.context(() => {
-      gsap.set('.text-track', {
-        autoAlpha: 0,
-        y: 60,
-        scale: 0.85,
-        filter: 'blur(20px)',
-        rotationX: -20,
-      });
-      // Folga negativa em cima/baixo/esquerda para o clip do wipe não cortar o glow (só a direita revela).
-      gsap.set('.text-days', { autoAlpha: 1, clipPath: 'inset(-0.4em 100% -0.4em -0.4em)' });
+      // O reveal do headline (.hero-intro-track/.hero-intro-days) é feito por CSS puro
+      // no primeiro paint — não depende deste bundle (mantém o LCP baixo).
       gsap.set('.main-card', { y: window.innerHeight + 200, autoAlpha: 1 });
       gsap.set(
         ['.card-left-text', '.card-right-text', '.mockup-scroll-wrapper', '.floating-badge', '.phone-widget'],
         { autoAlpha: 0 },
       );
       gsap.set('.cta-wrapper', { autoAlpha: 0, scale: 0.8, filter: 'blur(30px)' });
-
-      const introTl = gsap.timeline({ delay: 0.1 });
-      introTl
-        .to('.text-track', {
-          duration: 1.8,
-          autoAlpha: 1,
-          y: 0,
-          scale: 1,
-          filter: 'blur(0px)',
-          rotationX: 0,
-          ease: 'expo.out',
-        })
-        .to('.text-days', { duration: 1.4, clipPath: 'inset(-0.4em -0.4em -0.4em -0.4em)', ease: 'power4.inOut' }, '-=1.0');
 
       const scrollTl = gsap.timeline({
         scrollTrigger: {
@@ -347,10 +344,10 @@ export function CinematicHero({
 
       {/* CAMADA DE FUNDO: Headline */}
       <div className="hero-text-wrapper absolute z-10 flex flex-col items-center justify-center text-center w-screen px-4 will-change-transform">
-        <h1 className="text-track gsap-reveal text-3d-matte font-display text-5xl md:text-7xl lg:text-[6rem] font-bold leading-[1.08] tracking-tight mb-2 pb-1">
+        <h1 className="text-track hero-intro-track text-3d-matte font-display text-5xl md:text-7xl lg:text-[6rem] font-bold leading-[1.08] tracking-tight mb-2 pb-1">
           {tagline1}
         </h1>
-        <h1 className="text-days gsap-reveal text-brand-matte font-display text-5xl md:text-7xl lg:text-[6rem] font-extrabold leading-[1.12] tracking-tighter pb-2">
+        <h1 className="text-days hero-intro-days text-brand-matte font-display text-5xl md:text-7xl lg:text-[6rem] font-extrabold leading-[1.12] tracking-tighter pb-2">
           {tagline2}
         </h1>
       </div>

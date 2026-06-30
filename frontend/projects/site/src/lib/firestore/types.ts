@@ -42,3 +42,43 @@ export interface TournamentDetail extends TournamentSummary {
   cashPrizesEnabled: boolean;
   categories: TournamentCategory[];
 }
+
+export interface LeagueStage {
+  name: string | null;
+  dateLabel: string | null;
+  startAt: Date | null;
+  tournamentIds: string[];
+}
+
+export interface LeagueSummary {
+  id: string;
+  name: string;
+  seasonLabel: string | null;
+  description: string | null;
+  coverUrl: string | null;
+  stages: LeagueStage[];
+}
+
+export interface ArenaSummary {
+  id: string;
+  name: string;
+  city: string | null;
+  state: string | null;
+  description: string | null;
+  sports: string[]; // courtTypes
+  surfaces: string[];
+  amenities: string[];
+  photoUrls: string[];
+  logoUrl: string | null;
+}
+
+export interface ArenaCourt {
+  id: string;
+  name: string | null;
+  sport: string | null;
+  surface: string | null;
+}
+
+export interface ArenaDetail extends ArenaSummary {
+  courts: ArenaCourt[];
+}

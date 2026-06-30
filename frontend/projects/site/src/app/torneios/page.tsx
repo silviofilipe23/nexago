@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getPublicTournaments } from '@/lib/firestore/tournaments';
-import { TournamentCard } from '@/components/hub/TournamentCard';
+import { TournamentBrowser } from '@/components/hub/TournamentBrowser';
+import { toSlugId } from '@/lib/slug';
 
 export const revalidate = 300;
 
@@ -26,7 +27,7 @@ export default async function TorneiosPage() {
     itemListElement: tournaments.map((t, i) => ({
       '@type': 'ListItem',
       position: i + 1,
-      url: `https://nexago.com.br/torneios/${t.id}`,
+      url: `https://nexago.com.br/torneios/${toSlugId(t.name, t.id)}`,
       name: t.name,
     })),
   };
@@ -61,13 +62,7 @@ export default async function TorneiosPage() {
           </p>
         </div>
       ) : (
-        <ul className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {tournaments.map((t) => (
-            <li key={t.id}>
-              <TournamentCard t={t} />
-            </li>
-          ))}
-        </ul>
+        <TournamentBrowser tournaments={tournaments} />
       )}
     </main>
   );

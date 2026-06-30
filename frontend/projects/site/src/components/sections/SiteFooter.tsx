@@ -16,10 +16,10 @@ const COLUMNS = [
     title: 'Plataforma',
     links: [
       { label: 'Como funciona', href: '/#como-funciona' },
-      { label: 'Liga nexaGO', href: '/#liga' },
+      { label: 'Ligas nexaGO', href: '/ligas' },
       { label: 'Rankings', href: '/rankings' },
       { label: 'Torneios', href: '/torneios' },
-      { label: 'Perguntas frequentes', href: '/#faq' },
+      { label: 'Blog', href: '/blog' },
       { label: 'Baixar o app', href: '/#download' },
     ],
   },
@@ -35,6 +35,7 @@ const COLUMNS = [
     title: 'nexaGO',
     links: [
       { label: 'Sobre', href: '/sobre' },
+      { label: 'Ajuda', href: '/ajuda' },
       { label: 'Privacidade', href: '/privacidade' },
       { label: 'Termos de uso', href: '/termos' },
       { label: 'Contato', href: '/contato' },
@@ -50,12 +51,12 @@ export function SiteFooter() {
           <div>
             <Link href="/" className="flex items-center gap-2.5" aria-label="nexaGO — início">
               <Image src="/brand/logo.png" alt="" width={32} height={32} className="size-8" />
-              <span className="font-display text-lg font-700 tracking-tight text-fg">
+              <span className="font-display text-lg font-bold tracking-tight text-fg">
                 nexa<span className="text-brand">GO</span>
               </span>
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-text-mute">
-              A plataforma dos esportes de areia. Beach tennis e vôlei de praia, do amador ao
+              A plataforma dos esportes de areia. Vôlei de praia, do amador ao
               profissional.
             </p>
             <a

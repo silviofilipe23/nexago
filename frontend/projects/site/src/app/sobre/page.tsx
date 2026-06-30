@@ -53,7 +53,7 @@ export default function SobrePage() {
           da sua energia — e foi isso que construímos.
         </p>
         <p className="mt-5 text-balance text-base leading-relaxed text-text-mute">
-          Beach tennis e vôlei de praia movem milhares de pessoas todo fim de semana. Nossa missão
+          Vôlei de praia movem milhares de pessoas todo fim de semana. Nossa missão
           é simples: conectar quem joga, quem organiza e quem recebe os jogos, e transformar essa
           paixão em um circuito vivo, com a Liga nexaGO no centro.
         </p>

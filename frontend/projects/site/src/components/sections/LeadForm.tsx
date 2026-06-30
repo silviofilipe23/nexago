@@ -69,7 +69,7 @@ export function LeadForm({ persona, id = 'contato' }: { persona: Persona; id?: s
   }
 
   return (
-    <section id={id} className="relative mx-auto max-w-2xl scroll-mt-24 px-5 py-24 sm:px-6 sm:py-32">
+    <section id={id} className="relative mx-auto max-w-2xl scroll-mt-24 px-5 py-16 sm:px-6 sm:py-32">
       <Reveal>
         <div className="relative overflow-hidden rounded-5 border border-brand/20 bg-surface-1 px-6 py-10 sm:px-10 sm:py-12">
           <div

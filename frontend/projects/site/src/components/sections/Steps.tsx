@@ -11,7 +11,7 @@ type StepsProps = {
 /** Seção "como funciona": passos numerados (1→N) com reveal em stagger. */
 export function Steps({ eyebrow, title, steps }: StepsProps) {
   return (
-    <section className="relative mx-auto max-w-6xl px-5 py-24 sm:px-6 sm:py-32">
+    <section className="relative mx-auto max-w-6xl px-5 py-16 sm:px-6 sm:py-32">
       <Reveal className="mx-auto max-w-2xl text-center">
         {eyebrow && (
           <p className="mb-3 font-mono text-sm font-600 uppercase tracking-[0.2em] text-brand">

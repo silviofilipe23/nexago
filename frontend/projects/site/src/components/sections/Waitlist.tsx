@@ -49,7 +49,7 @@ export function Waitlist() {
   }
 
   return (
-    <section className="relative mx-auto max-w-3xl px-5 py-24 sm:px-6 sm:py-32">
+    <section className="relative mx-auto max-w-3xl px-5 py-16 sm:px-6 sm:py-32">
       <Reveal>
         <div
           onMouseMove={onSpotlightMove}
@@ -70,11 +70,15 @@ export function Waitlist() {
           />
 
           <div className="relative">
+            <p className="mb-3 font-mono text-sm font-600 uppercase tracking-[0.2em] text-brand">
+              Newsletter
+            </p>
             <h2 className="font-display text-[clamp(1.8rem,5vw,3rem)] font-700 leading-tight tracking-tight text-fg">
-              Entre na lista da Liga
+              O que acontece na areia, na sua caixa de entrada
             </h2>
             <p className="mx-auto mt-4 max-w-md text-balance text-base text-text-mute sm:text-lg">
-              Receba em primeira mão a abertura das inscrições da 1ª etapa e novidades do circuito.
+              Fique por dentro dos torneios abertos, novidades do app, ligas e arenas parceiras — sem spam, só o que importa
+              pra quem vive o esporte de areia.
             </p>
 
             {status === 'success' ? (
@@ -83,7 +87,7 @@ export function Waitlist() {
                 className="mx-auto mt-8 inline-flex items-center gap-2 rounded-pill border border-win/30 bg-surface-0 px-5 py-3 text-sm font-600 text-win"
               >
                 <CheckCircle2 className="size-5" aria-hidden="true" />
-                Pronto! Você está na lista.
+                Inscrito! Fique de olho no seu e-mail.
               </p>
             ) : (
               <form
@@ -91,11 +95,11 @@ export function Waitlist() {
                 noValidate
                 className="mx-auto mt-8 flex max-w-md flex-col gap-3 sm:flex-row"
               >
-                <label htmlFor="waitlist-email" className="sr-only">
+                <label htmlFor="newsletter-email" className="sr-only">
                   Seu melhor e-mail
                 </label>
                 <input
-                  id="waitlist-email"
+                  id="newsletter-email"
                   type="email"
                   name="email"
                   inputMode="email"
@@ -121,7 +125,7 @@ export function Waitlist() {
                     </>
                   ) : (
                     <>
-                      Quero entrar
+                      Assinar
                       <ArrowRight className="size-4" aria-hidden="true" />
                     </>
                   )}

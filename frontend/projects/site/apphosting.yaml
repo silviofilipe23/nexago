@@ -1,0 +1,12 @@
+# Firebase App Hosting — config de runtime do site Next.js (SSR/ISR).
+# Docs: https://firebase.google.com/docs/app-hosting/configure
+# Sem env/secrets: a config do Firebase é de cliente (hardcoded em src/lib/firebase.ts)
+# e o site faz apenas leitura pública. Build: npm ci && npm run build (auto-detectado).
+
+runConfig:
+  # Dev: escala a zero quando ocioso (custo ~zero); sobe sob demanda.
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 80
+  cpu: 1
+  memoryMiB: 512

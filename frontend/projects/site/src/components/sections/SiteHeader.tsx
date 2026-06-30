@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { ChevronDown, Menu, X } from 'lucide-react';
+import { ChevronDown, Download, Menu, X } from 'lucide-react';
 import { ButtonLink } from '@/components/ui/Button';
+import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
 const NAV = [
+  { label: 'Ligas', href: '/ligas' },
   { label: 'Torneios', href: '/torneios' },
   { label: 'Rankings', href: '/rankings' },
 ];
@@ -26,7 +28,7 @@ function Logo() {
       aria-label="nexaGO — início"
     >
       <Image src="/brand/logo.png" alt="" width={32} height={32} priority className="size-8" />
-      <span className="font-display text-lg font-700 tracking-tight text-fg">
+      <span className="font-display text-lg font-bold tracking-tight text-fg">
         nexa<span className="text-brand">GO</span>
       </span>
     </Link>
@@ -127,15 +129,18 @@ function MobileMenu({ onClose }: { onClose: () => void }) {
     >
       <div className="flex items-center justify-between">
         <Logo />
-        <button
-          ref={closeRef}
-          type="button"
-          onClick={onClose}
-          aria-label="Fechar menu"
-          className="inline-flex size-11 items-center justify-center rounded-3 text-fg transition-colors hover:bg-surface-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-        >
-          <X className="size-6" aria-hidden="true" />
-        </button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Fechar menu"
+            className="inline-flex size-11 items-center justify-center rounded-3 text-fg transition-colors hover:bg-surface-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          >
+            <X className="size-6" aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       <nav aria-label="Menu principal" className="mt-10 flex flex-col">
@@ -234,26 +239,39 @@ export function SiteHeader() {
             ))}
           </nav>
 
-          <div className="hidden md:block">
-            <ButtonLink
-              href="/#download"
-              className={`min-h-0 text-sm transition-all duration-300 ease-out motion-reduce:transition-none ${
-                compact ? 'h-8 px-3.5' : 'h-10 px-4'
-              }`}
+          <div className="hidden items-center gap-2 md:flex">
+            <ThemeToggle />
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Abrir menu"
+              aria-expanded={menuOpen}
+              className={`min-h-0 text-sm bg-brand font-sora font-bold text-on-brand shadow-glow-orange hover:bg-brand-light active:bg-brand-dark active:scale-[0.98] rounded-pill px-4 py-2 transition-all duration-300 ease-out motion-reduce:transition-none
+               `}
             >
               Baixar o app
-            </ButtonLink>
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            aria-label="Abrir menu"
-            aria-expanded={menuOpen}
-            className="inline-flex size-11 items-center justify-center rounded-3 text-fg transition-colors hover:bg-surface-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand md:hidden"
-          >
-            <Menu className="size-6" aria-hidden="true" />
-          </button>
+          <div className="flex items-center gap-2 md:hidden">
+            <Link
+              href="/#download"
+              className="inline-flex h-9 items-center gap-1.5 rounded-pill bg-brand px-3.5 font-sora text-[13px] font-bold tracking-tight text-on-brand shadow-glow-orange transition-all duration-200 ease-out hover:bg-brand-light active:scale-[0.98] active:bg-brand-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-bg motion-reduce:transition-none"
+            >
+              <Download className="size-4" aria-hidden="true" />
+              Baixar
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Abrir menu"
+              aria-expanded={menuOpen}
+              className="inline-flex size-11 items-center justify-center rounded-3 text-fg transition-colors hover:bg-surface-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            >
+              <Menu className="size-6" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </header>
 

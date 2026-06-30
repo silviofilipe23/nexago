@@ -44,7 +44,7 @@ const FEATURES: Feature[] = [
 
 export function Features() {
   return (
-    <section className="relative mx-auto max-w-6xl px-5 py-24 sm:px-6 sm:py-32">
+    <section className="relative mx-auto max-w-6xl px-5 py-16 sm:px-6 sm:py-32">
       <Reveal className="mx-auto max-w-2xl text-center">
         <p className="mb-3 text-sm font-600 uppercase tracking-[0.2em] text-brand">O ecossistema</p>
         <h2 className="font-display text-[clamp(1.9rem,5vw,3.25rem)] font-700 leading-tight tracking-tight text-fg">

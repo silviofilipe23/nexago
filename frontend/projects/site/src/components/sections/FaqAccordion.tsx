@@ -7,12 +7,12 @@ import { Reveal } from '@/components/motion/Reveal';
 
 export type QA = { q: string; a: string };
 
-export function FaqAccordion({ items }: { items: QA[] }) {
+export function FaqAccordion({ items, className = 'mt-14' }: { items: QA[]; className?: string }) {
   const [open, setOpen] = useState<number | null>(0);
   const reduce = useReducedMotion();
 
   return (
-    <div className="mt-14 space-y-3">
+    <div className={`${className} space-y-3`}>
       {items.map((item, i) => {
         const isOpen = open === i;
         const panelId = `faq-panel-${i}`;

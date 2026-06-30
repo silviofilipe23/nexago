@@ -8,7 +8,7 @@ const FAQ_ITEMS: QA[] = [
   },
   {
     q: 'Quais esportes posso jogar?',
-    a: 'Beach tennis e vôlei de praia. Cada etapa tem categorias por gênero e nível, do iniciante ao Open.',
+    a: 'Vôlei de praia. Cada etapa tem categorias por gênero e nível, do iniciante ao Open.',
   },
   {
     q: 'Como faço para me inscrever em um torneio?',
@@ -50,7 +50,7 @@ export function FAQ({
   };
 
   return (
-    <section id="faq" className="relative mx-auto max-w-3xl scroll-mt-24 px-5 py-24 sm:px-6 sm:py-32">
+    <section id="faq" className="relative mx-auto max-w-3xl scroll-mt-24 px-5 py-16 sm:px-6 sm:py-32">
       <script
         type="application/ld+json"
         // eslint-disable-next-line react/no-danger

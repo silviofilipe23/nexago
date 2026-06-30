@@ -25,3 +25,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# gravações/screenshots de simulador (não versionar — eram pesados demais p/ o GitHub)
+prints/

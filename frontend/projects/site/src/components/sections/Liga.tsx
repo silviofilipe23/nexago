@@ -10,7 +10,7 @@ const STEPS = [
 
 export function Liga() {
   return (
-    <section id="liga" className="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-24 sm:px-6 sm:py-32">
+    <section id="liga" className="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-16 sm:px-6 sm:py-32">
       <Reveal>
         <div className="relative overflow-hidden rounded-5 border border-brand/20 bg-surface-1 px-7 py-14 sm:px-14 sm:py-20">
           {/* Glow de fundo */}
@@ -47,8 +47,8 @@ export function Liga() {
             </div>
 
             <div className="mt-10">
-              <ButtonLink href="#download">
-                Garantir minha vaga
+              <ButtonLink href="/ligas">
+                Conhecer as Ligas
                 <ArrowRight className="size-4" aria-hidden="true" />
               </ButtonLink>
             </div>

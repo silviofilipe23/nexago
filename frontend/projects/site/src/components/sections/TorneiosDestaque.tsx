@@ -14,7 +14,7 @@ export function TorneiosDestaque({ tournaments }: { tournaments: TournamentSumma
   return (
     <section
       id="torneios-destaque"
-      className="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-24 sm:px-6 sm:py-32"
+      className="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-16 sm:px-6 sm:py-32"
     >
       <Reveal className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-2xl">

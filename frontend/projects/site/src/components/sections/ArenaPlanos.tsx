@@ -113,14 +113,15 @@ export function ArenaPlanos({ id = 'planos' }: { id?: string }) {
   const [yearly, setYearly] = useState(false);
 
   return (
-    <section id={id} className="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-24 sm:px-6 sm:py-32">
+    <section id={id} className="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-16 sm:px-6 sm:py-32">
       <Reveal className="mx-auto max-w-2xl text-center">
         <p className="mb-3 font-mono text-sm font-600 uppercase tracking-[0.2em] text-brand">Planos</p>
         <h2 className="font-display text-[clamp(1.9rem,5vw,3.25rem)] font-700 leading-tight tracking-tight text-fg">
-          O plano certo para a sua arena
+          Invista no que enche suas quadras
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-balance text-base text-text-mute sm:text-lg">
-          Comece de graça e evolua conforme sua quadra enche. Sem fidelidade — você escolhe.
+          Comece grátis hoje. Quando a agenda ganhar ritmo, suba de plano para receber torneios,
+          aparecer em destaque e atrair quem já joga na areia — sem fidelidade, no seu tempo.
         </p>
       </Reveal>
 

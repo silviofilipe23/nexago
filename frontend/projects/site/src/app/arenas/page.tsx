@@ -5,11 +5,16 @@ import { ButtonLink } from '@/components/ui/Button';
 import { SpotlightCard } from '@/components/ui/spotlight-card';
 import { Steps, type Step } from '@/components/sections/Steps';
 import { ArenaPlanos } from '@/components/sections/ArenaPlanos';
+import { ArenasCarousel } from '@/components/sections/ArenasCarousel';
+import { ConviteArena } from '@/components/sections/ConviteArena';
 import { FAQ } from '@/components/sections/FAQ';
 import { LeadForm } from '@/components/sections/LeadForm';
 import { TestimonialsMarquee } from '@/components/sections/TestimonialsMarquee';
 import type { Testimonial } from '@/components/ui/testimonial-card';
 import type { QA } from '@/components/sections/FaqAccordion';
+import { getPublicArenas } from '@/lib/firestore/arenas';
+
+export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: 'Para arenas e gestores de quadra',
@@ -96,7 +101,7 @@ const FAQ_ITEMS: QA[] = [
   },
   {
     q: 'Quais esportes a plataforma atende?',
-    a: 'Beach tennis e vôlei de praia, com suporte a diferentes tipos de quadra e superfícies.',
+    a: 'Vôlei de praia, com suporte a diferentes tipos de quadra e superfícies.',
   },
   {
     q: 'Como os atletas encontram minha arena?',
@@ -104,7 +109,9 @@ const FAQ_ITEMS: QA[] = [
   },
 ];
 
-export default function ArenasPage() {
+export default async function ArenasPage() {
+  const arenas = await getPublicArenas(12);
+
   return (
     <main className="overflow-x-hidden">
       {/* Hero */}
@@ -148,6 +155,10 @@ export default function ArenasPage() {
           ))}
         </div>
       </section>
+
+      <ArenasCarousel arenas={arenas} />
+
+      <ConviteArena />
 
       <Steps eyebrow="Como funciona" title="Da estrutura à quadra lotada em 3 passos" steps={STEPS} />
 

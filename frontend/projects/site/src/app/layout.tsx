@@ -85,10 +85,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${sora.variable} ${inter.variable} ${jetbrains.variable}`}
     >
       <body>
-        {/* Marca JS ativo antes do primeiro paint: sem JS o conteúdo do hero fica visível (resiliência/SEO). */}
+        {/* Antes do primeiro paint: marca JS ativo (hero visível sem JS p/ SEO) e aplica
+            o tema salvo p/ evitar flash. Default = dark (marca dark-first). */}
         <script
           // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }}
+          dangerouslySetInnerHTML={{
+            __html:
+              "document.documentElement.classList.add('js');try{var t=localStorage.getItem('theme');document.documentElement.dataset.theme=(t==='light'||t==='dark')?t:'dark'}catch(e){document.documentElement.dataset.theme='dark'}",
+          }}
         />
         <script
           type="application/ld+json"

@@ -30,6 +30,7 @@ class ArenaSchedulePage extends ConsumerWidget {
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       body: SafeArea(
+        bottom: false,
         child: managedArena.when(
           data: (arenaId) {
             if (arenaId == null || arenaId.isEmpty) {
@@ -39,86 +40,51 @@ class ArenaSchedulePage extends ConsumerWidget {
                 icon: Icons.store_mall_directory_outlined,
               );
             }
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    ArenaDashboardTokens.horizontalPadding,
-                    12,
-                    ArenaDashboardTokens.horizontalPadding,
-                    0,
-                  ),
-                  child: FadeSlideIn(
-                    child: ArenaScheduleHeader(
-                      onOpenCalendar: () => _openCalendar(context, ref),
+            return CustomScrollView(
+              controller: ref
+                  .watch(arenaShellScrollRegistryProvider)
+                  .controllerFor(1),
+              physics: ArenaDashboardTokens.shellScrollPhysics,
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      ArenaDashboardTokens.horizontalPadding,
+                      12,
+                      ArenaDashboardTokens.horizontalPadding,
+                      0,
+                    ),
+                    child: FadeSlideIn(
+                      child: ArenaScheduleHeader(
+                        onOpenCalendar: () => _openCalendar(context, ref),
+                      ),
                     ),
                   ),
                 ),
-                SizedBox(height: 16),
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: ArenaDashboardTokens.horizontalPadding,
-                  ),
-                  child: ArenaScheduleDayStrip(),
-                ),
-                SizedBox(height: 16),
-                Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: ArenaDashboardTokens.horizontalPadding,
-                  ),
-                  child: ArenaScheduleFilters(),
-                ),
-                SizedBox(height: 12),
-                Expanded(
-                  child: groupsAsync.when(
-                    data: (groups) {
-                      if (groups.isEmpty) {
-                        return const ArenaEmptyState(
-                          title: 'Agenda vazia',
-                          message:
-                              'Nenhum horário neste dia para os filtros atuais.',
-                          icon: Icons.event_busy_outlined,
-                        );
-                      }
-                      return ListView.builder(
-                        controller: ref
-                            .watch(arenaShellScrollRegistryProvider)
-                            .controllerFor(1),
-                        physics: const BouncingScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(
-                          ArenaDashboardTokens.horizontalPadding,
-                          4,
-                          ArenaDashboardTokens.horizontalPadding,
-                          24,
-                        ),
-                        itemCount: groups.length,
-                        itemBuilder: (context, index) {
-                          final group = groups[index];
-                          return FadeSlideIn(
-                            duration: Duration(milliseconds: 380 + index * 40),
-                            offsetY: 10,
-                            child: ArenaScheduleHourGroupSection(
-                              group: group,
-                              onSlotTap: (row) =>
-                                  _openSlotDetail(context, row: row),
-                              onSlotLongPress: (row) => _openBlockSheet(
-                                context,
-                                ref,
-                                arenaId: arenaId,
-                                row: row,
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                    loading: () =>
-                        const ArenaLoadingState(label: 'Buscando horários...'),
-                    error: (e, _) => ArenaErrorState(
-                      message: 'Erro ao carregar horários.\n$e',
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: ArenaDashboardTokens.horizontalPadding,
                     ),
+                    child: ArenaScheduleDayStrip(),
                   ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: ArenaDashboardTokens.horizontalPadding,
+                    ),
+                    child: ArenaScheduleFilters(),
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                ..._scheduleGroupsSlivers(
+                  context: context,
+                  ref: ref,
+                  arenaId: arenaId,
+                  groupsAsync: groupsAsync,
                 ),
               ],
             );
@@ -128,6 +94,79 @@ class ArenaSchedulePage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  List<Widget> _scheduleGroupsSlivers({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String arenaId,
+    required AsyncValue<List<ArenaScheduleHourGroup>> groupsAsync,
+  }) {
+    if (groupsAsync.isLoading && !groupsAsync.hasValue) {
+      return [
+        const SliverFillRemaining(
+          hasScrollBody: false,
+          child: ArenaLoadingState(label: 'Buscando horários...'),
+        ),
+      ];
+    }
+    if (groupsAsync.hasError) {
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: ArenaErrorState(
+            message: 'Erro ao carregar horários.\n${groupsAsync.error}',
+          ),
+        ),
+      ];
+    }
+
+    final groups = groupsAsync.value ?? const [];
+    if (groups.isEmpty) {
+      return [
+        const SliverFillRemaining(
+          hasScrollBody: false,
+          child: ArenaEmptyState(
+            title: 'Agenda vazia',
+            message: 'Nenhum horário neste dia para os filtros atuais.',
+            icon: Icons.event_busy_outlined,
+          ),
+        ),
+      ];
+    }
+
+    return [
+      SliverPadding(
+        padding: EdgeInsets.fromLTRB(
+          ArenaDashboardTokens.horizontalPadding,
+          4,
+          ArenaDashboardTokens.horizontalPadding,
+          ArenaDashboardTokens.shellScrollBottomPadding(context),
+        ),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              final group = groups[index];
+              return FadeSlideIn(
+                duration: Duration(milliseconds: 380 + index * 40),
+                offsetY: 10,
+                child: ArenaScheduleHourGroupSection(
+                  group: group,
+                  onSlotTap: (row) => _openSlotDetail(context, row: row),
+                  onSlotLongPress: (row) => _openBlockSheet(
+                    context,
+                    ref,
+                    arenaId: arenaId,
+                    row: row,
+                  ),
+                ),
+              );
+            },
+            childCount: groups.length,
+          ),
+        ),
+      ),
+    ];
   }
 
   Future<void> _openCalendar(BuildContext context, WidgetRef ref) async {

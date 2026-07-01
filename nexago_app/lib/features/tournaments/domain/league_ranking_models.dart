@@ -102,8 +102,11 @@ class DiscoveryLeagueCategory {
   const DiscoveryLeagueCategory({
     required this.id,
     required this.name,
+    this.genderType,
   });
 
   final String id;
   final String name;
+  /// Persistência Firestore: `male` | `female` | `mixed`.
+  final String? genderType;
 }

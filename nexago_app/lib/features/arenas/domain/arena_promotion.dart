@@ -86,6 +86,36 @@ class ArenaPromotion {
     };
   }
 
+  /// Campos editáveis pelo gestor (não altera `active` nem `createdAt`).
+  Map<String, dynamic> toFirestoreUpdate() {
+    final data = <String, dynamic>{
+      'label': label,
+      'startTime': startTime,
+      'endTime': endTime,
+      'weekdays': weekdays,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (courtIds.isEmpty) {
+      data['courtIds'] = FieldValue.delete();
+    } else {
+      data['courtIds'] = courtIds;
+    }
+
+    if (discountPercent != null) {
+      data['discountPercent'] = discountPercent;
+      data['fixedPricePerHourReais'] = FieldValue.delete();
+    } else if (fixedPricePerHourReais != null) {
+      data['fixedPricePerHourReais'] = fixedPricePerHourReais;
+      data['discountPercent'] = FieldValue.delete();
+    } else {
+      data['discountPercent'] = FieldValue.delete();
+      data['fixedPricePerHourReais'] = FieldValue.delete();
+    }
+
+    return data;
+  }
+
   bool matches({
     required String courtId,
     required DateTime date,

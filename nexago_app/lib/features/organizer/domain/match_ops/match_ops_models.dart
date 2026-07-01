@@ -118,8 +118,8 @@ class TournamentMatchOpsConfig {
     this.activeDayKey = '',
     this.dayStart = '08:00',
     this.dayEnd = '18:00',
-    this.defaultMatchDurationMin = 50,
-    this.minRestBetweenMatchesMin = 45,
+    this.defaultMatchDurationMin = 30,
+    this.minRestBetweenMatchesMin = 30,
     this.checkInToleranceMin = 15,
     this.avoidAthleteConflict = true,
     this.respectBracketDeps = true,
@@ -144,9 +144,9 @@ class TournamentMatchOpsConfig {
       dayStart: (map['dayStart'] as String?)?.trim() ?? '08:00',
       dayEnd: (map['dayEnd'] as String?)?.trim() ?? '18:00',
       defaultMatchDurationMin:
-          (map['defaultMatchDurationMin'] as num?)?.toInt() ?? 50,
+          (map['defaultMatchDurationMin'] as num?)?.toInt() ?? 30,
       minRestBetweenMatchesMin:
-          (map['minRestBetweenMatchesMin'] as num?)?.toInt() ?? 45,
+          (map['minRestBetweenMatchesMin'] as num?)?.toInt() ?? 30,
       checkInToleranceMin: (map['checkInToleranceMin'] as num?)?.toInt() ?? 15,
       avoidAthleteConflict: rules is Map
           ? rules['avoidAthleteConflict'] != false

@@ -47,7 +47,7 @@ class OrganizerMatchCard extends ConsumerWidget {
             .valueOrNull
             ?.categories ??
         const [];
-    final categoryLabel = MatchOpsLogic.categoryDisplayLabel(
+    final categoryLabel = MatchOpsLogic.categoryCompactLabel(
       categoryId: row.match.categoryId,
       categories: categories,
     );
@@ -284,7 +284,7 @@ class _CenterMatchCard extends StatelessWidget {
     required String categoryLabel,
   }) {
     final parts = <String>[];
-    final category = categoryLabel.trim().toUpperCase();
+    final category = categoryLabel.trim();
     final round = matchRoundLabel(match).toUpperCase();
     final matchNumber = matchNumberLabelForCard(match).toUpperCase();
     if (matchNumber.isNotEmpty) parts.add(matchNumber);
@@ -649,22 +649,22 @@ class _MatchCardFooter extends StatelessWidget {
             ],
           ),
         ),
-        if (scheduleHint != null)
-          Text(
-            scheduleHint,
-            style: AppTypography.mono(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: context.themeColors.onSurfaceMuted,
-            ),
-          )
-        else if (presentation.showSetColumns && match.sets.isNotEmpty)
-          _SetScoreColumns(
-            match: match,
-            highlightCurrent:
-                presentation.phase == _MatchCardPhase.live ||
-                presentation.phase == _MatchCardPhase.onCourt,
-          ),
+        // if (scheduleHint != null)
+        //   Text(
+        //     scheduleHint,
+        //     style: AppTypography.mono(
+        //       fontSize: 10,
+        //       fontWeight: FontWeight.w600,
+        //       color: context.themeColors.onSurfaceMuted,
+        //     ),
+        //   )
+        // else if (presentation.showSetColumns && match.sets.isNotEmpty)
+        //   _SetScoreColumns(
+        //     match: match,
+        //     highlightCurrent:
+        //         presentation.phase == _MatchCardPhase.live ||
+        //         presentation.phase == _MatchCardPhase.onCourt,
+        //   ),
       ],
     );
   }

@@ -20,6 +20,8 @@ bool isArenaManagerPanelPath(String path) {
     AppRoutes.arenaProfile,
     AppRoutes.arenaProfileEdit,
     AppRoutes.arenaProfileUpdateSuccess,
+    AppRoutes.arenaManagerReviews,
+    AppRoutes.arenaFollowers,
   ];
   for (final r in roots) {
     if (path == r || path.startsWith('$r/')) {

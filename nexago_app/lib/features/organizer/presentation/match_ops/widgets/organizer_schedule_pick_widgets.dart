@@ -18,11 +18,13 @@ class SchedulePickHeader extends StatelessWidget {
     required this.programLabel,
     required this.onBack,
     this.onMore,
+    this.title = 'Agendar partida',
   });
 
   final String programLabel;
   final VoidCallback onBack;
   final VoidCallback? onMore;
+  final String title;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +52,7 @@ class SchedulePickHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Agendar partida',
+                  title,
                   style: AppTypography.soraRegular(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
@@ -352,7 +354,7 @@ class SchedulePickMatchCard extends StatelessWidget {
     final (statusLabel, statusColor) = _statusBadge(context);
     final meta = ScheduleGridLogic.matchMetaLabel(
       match: match,
-      categoryLabel: categoryLabel,
+      categoryCompactLabel: categoryLabel,
     ).toUpperCase();
     final seedA = liveTableTeamSeed(match, sideA: true);
     final seedB = liveTableTeamSeed(match, sideA: false);

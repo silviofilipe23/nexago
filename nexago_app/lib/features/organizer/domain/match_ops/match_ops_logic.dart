@@ -1,5 +1,6 @@
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_card_view_model.dart';
+import '../../../tournaments/domain/tournament_match_display.dart';
 import '../../../tournaments/domain/tournament_match_status.dart';
 import '../category_ops/category_ops_models.dart';
 import '../tournament_ops/tournament_ops_models.dart';
@@ -71,6 +72,61 @@ abstract final class MatchOpsLogic {
       return base;
     }
     return '$genderShort $base';
+  }
+
+  /// Rótulo compacto para cards: `MASC · INICIANTE` (gênero + nível).
+  static String categoryCompactLabel({
+    required String categoryId,
+    List<OrganizerTournamentCategorySummary> categories = const [],
+  }) {
+    final id = categoryId.trim();
+    if (id.isEmpty) return '';
+
+    for (final category in categories) {
+      if (category.categoryId.trim() != id) continue;
+      return categoryCompactLabelFromSummary(category);
+    }
+
+    final parts = <String>[];
+    final gender = categoryGenderShortLabel(id);
+    if (gender.isNotEmpty) parts.add(gender);
+    if (parts.isEmpty) return id.toUpperCase();
+    return parts.join(' · ');
+  }
+
+  static String categoryCompactLabelFromSummary(
+    OrganizerTournamentCategorySummary category,
+  ) {
+    final parts = <String>[];
+    final gender = categoryGenderShortLabel(category.genderLabel);
+    if (gender.isNotEmpty) parts.add(gender);
+    final level = category.levelLabel.trim().toUpperCase();
+    if (level.isNotEmpty) parts.add(level);
+    if (parts.isNotEmpty) return parts.join(' · ');
+
+    final name = category.name.trim();
+    if (name.isNotEmpty) return name.toUpperCase();
+    return category.categoryId.trim().toUpperCase();
+  }
+
+  /// Meta de categoria + fase para headers de partida (`MASC · OPEN · QUARTAS`).
+  static String matchCardCategoryMeta({
+    required TournamentMatch match,
+    required String categoryId,
+    List<OrganizerTournamentCategorySummary> categories = const [],
+    bool includeRound = true,
+  }) {
+    final parts = <String>[];
+    final compact = categoryCompactLabel(
+      categoryId: categoryId,
+      categories: categories,
+    );
+    if (compact.isNotEmpty) parts.add(compact);
+    if (includeRound) {
+      final round = matchRoundLabel(match).toUpperCase();
+      if (round.isNotEmpty) parts.add(round);
+    }
+    return parts.isNotEmpty ? parts.join(' · ') : 'PARTIDA';
   }
 
   /// A partida só pode ser liberada quando as DUAS duplas fizeram check-in.

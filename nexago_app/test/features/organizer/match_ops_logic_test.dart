@@ -171,15 +171,81 @@ void main() {
         'Misto B',
       );
       expect(
-        MatchOpsLogic.categoryGenderShortLabel('Feminino'),
-        'FEM',
-      );
-      expect(
         MatchOpsLogic.categoryDisplayLabel(
           categoryId: 'unknown-id',
           categories: const [],
         ),
         'unknown-id',
+      );
+    });
+
+    test('categoryCompactLabel uses gender and level', () {
+      expect(
+        MatchOpsLogic.categoryCompactLabel(
+          categoryId: 'cat-masc-ini',
+          categories: const [
+            OrganizerTournamentCategorySummary(
+              categoryId: 'cat-masc-ini',
+              name: 'Iniciante',
+              genderLabel: 'Masculino',
+              levelLabel: 'Iniciante',
+            ),
+          ],
+        ),
+        'MASC · INICIANTE',
+      );
+      expect(
+        MatchOpsLogic.categoryCompactLabel(
+          categoryId: 'cat-fem',
+          categories: const [
+            OrganizerTournamentCategorySummary(
+              categoryId: 'cat-fem',
+              name: 'Feminino',
+              genderLabel: 'Feminino',
+              levelLabel: '',
+            ),
+          ],
+        ),
+        'FEM',
+      );
+      expect(
+        MatchOpsLogic.categoryCompactLabel(
+          categoryId: 'cat-open',
+          categories: const [
+            OrganizerTournamentCategorySummary(
+              categoryId: 'cat-open',
+              name: 'Open',
+              genderLabel: '',
+              levelLabel: 'Open',
+            ),
+          ],
+        ),
+        'OPEN',
+      );
+      expect(
+        MatchOpsLogic.categoryCompactLabel(
+          categoryId: 'masc-something',
+          categories: const [],
+        ),
+        'MASC',
+      );
+    });
+
+    test('matchCardCategoryMeta joins compact label and round', () {
+      expect(
+        MatchOpsLogic.matchCardCategoryMeta(
+          match: _match(categoryId: 'cat1'),
+          categoryId: 'cat1',
+          categories: const [
+            OrganizerTournamentCategorySummary(
+              categoryId: 'cat1',
+              name: 'Open',
+              genderLabel: 'Masculino',
+              levelLabel: 'Open',
+            ),
+          ],
+        ),
+        contains('MASC · OPEN'),
       );
     });
   });

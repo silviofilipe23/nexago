@@ -23,7 +23,8 @@ class ArenaComandaReviewPage extends ConsumerStatefulWidget {
       _ArenaComandaReviewPageState();
 }
 
-class _ArenaComandaReviewPageState extends ConsumerState<ArenaComandaReviewPage> {
+class _ArenaComandaReviewPageState
+    extends ConsumerState<ArenaComandaReviewPage> {
   bool _saving = false;
 
   Future<void> _openComanda() async {
@@ -63,8 +64,7 @@ class _ArenaComandaReviewPageState extends ConsumerState<ArenaComandaReviewPage>
   Widget build(BuildContext context) {
     final draft = ref.watch(arenaComandaDraftProvider);
     final booking = draft.linkedBooking;
-    final rentalCents =
-        booking != null ? rentalCentsFromBooking(booking) : 0;
+    final rentalCents = booking != null ? rentalCentsFromBooking(booking) : 0;
     final location = comandaReviewLocationLabel(draft);
 
     return ArenaComandaWizardScaffold(
@@ -105,9 +105,7 @@ class _ArenaComandaReviewPageState extends ConsumerState<ArenaComandaReviewPage>
                             draft.linkWithoutBooking
                                 ? '${draft.customerName} · individual'
                                 : '$location · ${comandaTypeLabel(draft.type).toLowerCase()}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
+                            style: Theme.of(context).textTheme.titleMedium
                                 ?.copyWith(
                                   fontWeight: FontWeight.w800,
                                   color: context.themeColors.onSurface,
@@ -119,7 +117,8 @@ class _ArenaComandaReviewPageState extends ConsumerState<ArenaComandaReviewPage>
                               formatComandaNumber(0),
                               'nova comanda',
                             ),
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
                                   color: context.themeColors.onSurfaceMuted,
                                 ),
                           ),
@@ -152,28 +151,28 @@ class _ArenaComandaReviewPageState extends ConsumerState<ArenaComandaReviewPage>
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              'Pedidos pelo app',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: context.themeColors.onSurface,
-                  ),
-            ),
-            subtitle: Text(
-              'Atletas lançam consumo direto no celular',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: context.themeColors.onSurfaceMuted,
-                  ),
-            ),
-            value: draft.allowAppOrders,
-            activeTrackColor: AppColors.brand,
-            onChanged: ref
-                .read(arenaComandaDraftProvider.notifier)
-                .setAllowAppOrders,
-          ),
+          // const SizedBox(height: 16),
+          // SwitchListTile(
+          //   contentPadding: EdgeInsets.zero,
+          //   title: Text(
+          //     'Pedidos pelo app',
+          //     style: Theme.of(context).textTheme.titleSmall?.copyWith(
+          //           fontWeight: FontWeight.w700,
+          //           color: context.themeColors.onSurface,
+          //         ),
+          //   ),
+          //   subtitle: Text(
+          //     'Atletas lançam consumo direto no celular',
+          //     style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          //           color: context.themeColors.onSurfaceMuted,
+          //         ),
+          //   ),
+          //   value: draft.allowAppOrders,
+          //   activeTrackColor: AppColors.brand,
+          //   onChanged: ref
+          //       .read(arenaComandaDraftProvider.notifier)
+          //       .setAllowAppOrders,
+          // ),
         ],
       ),
       footer: Column(
@@ -188,17 +187,17 @@ class _ArenaComandaReviewPageState extends ConsumerState<ArenaComandaReviewPage>
                     child: Text(
                       'Abre já com a locação',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: context.themeColors.onSurfaceMuted,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: context.themeColors.onSurfaceMuted,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   Text(
                     formatComandaReais(rentalCents),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: context.themeColors.onSurface,
-                        ),
+                      fontWeight: FontWeight.w800,
+                      color: context.themeColors.onSurface,
+                    ),
                   ),
                 ],
               ),
@@ -241,11 +240,7 @@ class _ArenaComandaReviewPageState extends ConsumerState<ArenaComandaReviewPage>
 }
 
 class _ReviewRow extends StatelessWidget {
-  const _ReviewRow({
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
+  const _ReviewRow({required this.label, required this.value, this.valueColor});
 
   final String label;
   final String value;
@@ -261,8 +256,8 @@ class _ReviewRow extends StatelessWidget {
             child: Text(
               label,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: context.themeColors.onSurfaceMuted,
-                  ),
+                color: context.themeColors.onSurfaceMuted,
+              ),
             ),
           ),
           Expanded(
@@ -270,9 +265,9 @@ class _ReviewRow extends StatelessWidget {
               value,
               textAlign: TextAlign.end,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: valueColor ?? context.themeColors.onSurface,
-                  ),
+                fontWeight: FontWeight.w700,
+                color: valueColor ?? context.themeColors.onSurface,
+              ),
             ),
           ),
         ],

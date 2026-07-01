@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../domain/league_ranking_logic.dart';
 import '../domain/league_ranking_models.dart';
+import '../domain/tournament_detail_logic.dart';
 import '../domain/tournament_discovery_models.dart';
 
 abstract final class LeagueDocumentMapper {
@@ -53,8 +54,14 @@ abstract final class LeagueDocumentMapper {
         if (categoryName == null) continue;
         final categoryId =
             _str(map['id'] ?? map['categoryId']) ?? categoryName;
+        final genderRaw =
+            _str(map['genderType']) ?? _str(map['gender']);
         categories.add(
-          DiscoveryLeagueCategory(id: categoryId, name: categoryName),
+          DiscoveryLeagueCategory(
+            id: categoryId,
+            name: categoryName,
+            genderType: _genderTypeFirestore(genderRaw, categoryName),
+          ),
         );
       }
     }
@@ -64,6 +71,9 @@ abstract final class LeagueDocumentMapper {
       name: _str(data['name']) ?? 'Liga',
       seasonLabel: _str(data['seasonLabel'] ?? data['season']),
       city: _str(data['city']),
+      state: _str(data['state']),
+      organizationName: _str(data['organizationName']),
+      description: _str(data['description']),
       stages: stages,
       coverUrl: _str(data['coverUrl'] ?? data['imageUrl']),
       listingStatus: _str(data['listingStatus'] ?? data['status']),
@@ -73,7 +83,24 @@ abstract final class LeagueDocumentMapper {
       countingStagesMode: parseLeagueCountingMode(
         data['countingStagesMode'] as String?,
       ),
+      plannedStagesCount: _int(data['plannedStagesCount']),
+      grandFinalEnabled: data['grandFinalEnabled'] as bool? ?? false,
+      grandFinalSpots: _int(data['grandFinalSpots']) ?? 16,
     );
+  }
+
+  static String? _genderTypeFirestore(String? raw, String categoryName) {
+    final tag = genderTagFromText(raw ?? '');
+    if (tag == 'MASCULINO') return 'male';
+    if (tag == 'FEMININO') return 'female';
+    if (tag == 'MISTO') return 'mixed';
+    final fromName = genderTagFromText(categoryName);
+    return switch (fromName) {
+      'MASCULINO' => 'male',
+      'FEMININO' => 'female',
+      'MISTO' => 'mixed',
+      _ => null,
+    };
   }
 
   static String? _str(dynamic v) {

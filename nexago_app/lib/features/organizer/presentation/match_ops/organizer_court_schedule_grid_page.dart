@@ -75,11 +75,21 @@ class _OrganizerCourtScheduleGridPageState
   ) {
     return {
       for (final match in matches)
-        match.id: MatchOpsLogic.categoryDisplayLabel(
+        match.id: MatchOpsLogic.categoryCompactLabel(
           categoryId: match.categoryId,
           categories: categories,
         ),
     };
+  }
+
+  Map<String, List<TournamentMatch>> _categoryMatchesByCategoryId(
+    List<TournamentMatch> matches,
+  ) {
+    final map = <String, List<TournamentMatch>>{};
+    for (final match in matches) {
+      map.putIfAbsent(match.categoryId, () => []).add(match);
+    }
+    return map;
   }
 
   Future<void> _dropMatch(
@@ -154,6 +164,17 @@ class _OrganizerCourtScheduleGridPageState
             ?.categories ??
         const [];
     final categoryLabels = _categoryLabels(dayMatches, categories);
+    final categoryMatchesByCategoryId =
+        _categoryMatchesByCategoryId(allMatches);
+    final categoryAccentByCategoryId = ScheduleGridLogic.categoryAccentColors([
+      for (final category in categories) category.categoryId,
+      for (final match in allMatches) match.categoryId,
+    ]);
+    final enrichedByMatchId =
+        ref
+            .watch(organizerMatchCardsByIdProvider(widget.tournamentId))
+            .valueOrNull ??
+        const {};
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -198,6 +219,9 @@ class _OrganizerCourtScheduleGridPageState
                     gridStart: gridStart,
                     matchesByCourt: matchesByCourt,
                     categoryLabelsByMatchId: categoryLabels,
+                    categoryAccentByCategoryId: categoryAccentByCategoryId,
+                    categoryMatchesByCategoryId: categoryMatchesByCategoryId,
+                    enrichedByMatchId: enrichedByMatchId,
                     defaultDurationMin: config.defaultMatchDurationMin,
                     draggingMatchId: _draggingMatchId,
                     selectedDayKey: dayKey,

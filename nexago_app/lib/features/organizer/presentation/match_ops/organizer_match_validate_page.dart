@@ -63,7 +63,7 @@ class _OrganizerMatchValidatePageState
           }
 
           final enriched = enrichedMap.valueOrNull?[match.id];
-          final categoryLabel = MatchOpsLogic.categoryDisplayLabel(
+          final categoryLabel = MatchOpsLogic.categoryCompactLabel(
             categoryId: match.categoryId,
             categories: categories,
           );
@@ -112,7 +112,7 @@ class _OrganizerMatchValidatePageState
                       match: match,
                       categoryMeta: validateCategoryMeta(
                         match: match,
-                        categoryLabel: categoryLabel,
+                        categoryCompactLabel: categoryLabel,
                       ),
                       teamA: teamA,
                       teamB: teamB,

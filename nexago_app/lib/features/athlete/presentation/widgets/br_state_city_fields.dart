@@ -19,6 +19,7 @@ class BrStateCityFields extends ConsumerStatefulWidget {
     this.cityValidator,
     this.useEditProfileStyle = false,
     this.useOrganizerFormStyle = false,
+    this.horizontalLayout = false,
   });
 
   final String? selectedState;
@@ -29,6 +30,7 @@ class BrStateCityFields extends ConsumerStatefulWidget {
   final FormFieldValidator<String>? cityValidator;
   final bool useEditProfileStyle;
   final bool useOrganizerFormStyle;
+  final bool horizontalLayout;
 
   @override
   ConsumerState<BrStateCityFields> createState() => _BrStateCityFieldsState();
@@ -152,10 +154,7 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
         final uf = widget.selectedState?.trim().toUpperCase();
         final stateItem = data.stateBySigla(uf);
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DropdownButtonFormField<String>(
+        final stateField = DropdownButtonFormField<String>(
               key: ValueKey<String>('uf_$uf'),
               initialValue: stateItem?.sigla,
               isExpanded: true,
@@ -202,9 +201,9 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
                     if (v == null || v.isEmpty) return 'Selecione o estado';
                     return null;
                   },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
+            );
+
+        final cityField = TextFormField(
               controller: _cityCtrl,
               readOnly: true,
               style: widget.useOrganizerFormStyle
@@ -269,7 +268,25 @@ class _BrStateCityFieldsState extends ConsumerState<BrStateCityFields> {
                     }
                     return null;
                   },
-            ),
+            );
+
+        if (widget.horizontalLayout) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: stateField),
+              const SizedBox(width: 10),
+              Expanded(child: cityField),
+            ],
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            stateField,
+            const SizedBox(height: 16),
+            cityField,
           ],
         );
       },

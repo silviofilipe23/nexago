@@ -243,10 +243,6 @@ class _OrganizerMatchQuickScorePageState
           }
 
           final enriched = enrichedMap.valueOrNull?[match.id];
-          final categoryLabel = MatchOpsLogic.categoryDisplayLabel(
-            categoryId: match.categoryId,
-            categories: categories,
-          );
           final teamA = liveTableTeamData(
             match: match,
             sideA: true,
@@ -294,7 +290,11 @@ class _OrganizerMatchQuickScorePageState
                   children: [
                     _MatchSummaryCard(
                       match: match,
-                      categoryLabel: categoryLabel,
+                      categoryMeta: MatchOpsLogic.matchCardCategoryMeta(
+                        match: match,
+                        categoryId: match.categoryId,
+                        categories: categories,
+                      ),
                       teamA: teamA,
                       teamB: teamB,
                       setsWonA: setsWonA,
@@ -500,7 +500,7 @@ class _QuickScoreHeader extends StatelessWidget {
 class _MatchSummaryCard extends StatelessWidget {
   const _MatchSummaryCard({
     required this.match,
-    required this.categoryLabel,
+    required this.categoryMeta,
     required this.teamA,
     required this.teamB,
     required this.setsWonA,
@@ -508,7 +508,7 @@ class _MatchSummaryCard extends StatelessWidget {
   });
 
   final TournamentMatch match;
-  final String categoryLabel;
+  final String categoryMeta;
   final LiveTableTeamData teamA;
   final LiveTableTeamData teamB;
   final int setsWonA;
@@ -516,13 +516,6 @@ class _MatchSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final parts = <String>[];
-    final cat = categoryLabel.trim().toUpperCase();
-    final round = matchRoundLabel(match).toUpperCase();
-    if (cat.isNotEmpty) parts.add(cat);
-    if (round.isNotEmpty) parts.add(round);
-    final categoryMeta = parts.isNotEmpty ? parts.join(' · ') : 'PARTIDA';
-
     final aWins = setsWonA > setsWonB;
     final bWins = setsWonB > setsWonA;
 

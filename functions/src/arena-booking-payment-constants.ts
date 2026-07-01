@@ -13,5 +13,8 @@ export const TOURNAMENT_REGISTRATION_PIX_EXPIRY_MINUTES = 15;
 /** Prefixo de `externalReference` para transferências PIX de saque de arena. */
 export const ARENA_WITHDRAWAL_REF_PREFIX = "arenaWithdrawal:";
 
+/** Prefixo de `externalReference` para assinatura de plano de arena (`{arenaId}:{tier}`). */
+export const ARENA_SUBSCRIPTION_REF_PREFIX = "arenaSubscription:";
+
 /** Valor máximo (R$) para tentativa de PIX automático na solicitação do gestor. */
 export const ARENA_WITHDRAWAL_AUTO_MAX_REAIS = 500;

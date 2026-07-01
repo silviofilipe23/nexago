@@ -10,13 +10,7 @@ import 'arena_comanda_draft.dart';
 import 'arena_comanda_item.dart';
 import 'arena_comanda_payment.dart';
 
-enum ArenaComandaFilterChip {
-  all,
-  court,
-  table,
-  event,
-  toPay,
-}
+enum ArenaComandaFilterChip { all, court, table, event, toPay }
 
 class ArenaComandasKpis {
   const ArenaComandasKpis({
@@ -85,8 +79,7 @@ Color comandaStatusColor(ArenaComandaStatus status) {
 
 String comandaFilterChipLabel(ArenaComandaFilterChip chip, {int count = 0}) {
   return switch (chip) {
-    ArenaComandaFilterChip.all =>
-      count > 0 ? 'Todas $count' : 'Todas',
+    ArenaComandaFilterChip.all => count > 0 ? 'Todas $count' : 'Todas',
     ArenaComandaFilterChip.court => 'Quadra',
     ArenaComandaFilterChip.table => 'Mesa',
     ArenaComandaFilterChip.event => 'Evento',
@@ -112,9 +105,10 @@ String comandaListTitle(ArenaComanda comanda) {
 
 String comandaListSubtitle(ArenaComanda comanda) {
   final typeLabel = comandaTypeShortLabel(comanda.type);
-  final itemsLabel =
-      comanda.itemsCount == 1 ? '1 item' : '${comanda.itemsCount} itens';
-  return '${comanda.customerName} · $typeLabel · $itemsLabel';
+  final itemsLabel = comanda.itemsCount == 1
+      ? '1 item'
+      : '${comanda.itemsCount} itens';
+  return '$typeLabel · $itemsLabel';
 }
 
 String formatComandaOpenedSince(DateTime openedAt, {DateTime? reference}) {
@@ -129,9 +123,8 @@ String formatComandaOpenedAt(DateTime openedAt) {
 
 int rentalCentsFromBooking(ArenaManagerBooking booking) {
   final data = booking.data;
-  final amountReais = data['amountReais'] ??
-      data['priceReais'] ??
-      data['price'];
+  final amountReais =
+      data['amountReais'] ?? data['priceReais'] ?? data['price'];
   if (amountReais is num && amountReais > 0) {
     return (amountReais * 100).round();
   }
@@ -198,24 +191,26 @@ List<ArenaComanda> filterComandas(
   final active = comandas.where((c) => c.status.isActive).toList();
   return switch (chip) {
     ArenaComandaFilterChip.all => active,
-    ArenaComandaFilterChip.court => active
-        .where(
-          (c) =>
-              c.type == ArenaComandaType.shared ||
-              c.type == ArenaComandaType.individual,
-        )
-        .toList(),
+    ArenaComandaFilterChip.court =>
+      active
+          .where(
+            (c) =>
+                c.type == ArenaComandaType.shared ||
+                c.type == ArenaComandaType.individual,
+          )
+          .toList(),
     ArenaComandaFilterChip.table =>
       active.where((c) => c.type == ArenaComandaType.table).toList(),
     ArenaComandaFilterChip.event =>
       active.where((c) => c.type == ArenaComandaType.event).toList(),
-    ArenaComandaFilterChip.toPay => active
-        .where(
-          (c) =>
-              c.status == ArenaComandaStatus.partiallyPaid ||
-              c.status == ArenaComandaStatus.closing,
-        )
-        .toList(),
+    ArenaComandaFilterChip.toPay =>
+      active
+          .where(
+            (c) =>
+                c.status == ArenaComandaStatus.partiallyPaid ||
+                c.status == ArenaComandaStatus.closing,
+          )
+          .toList(),
   };
 }
 
@@ -255,12 +250,13 @@ String comandaReviewLocationLabel(ArenaComandaDraft draft) {
   if (draft.linkWithoutBooking) return 'Sem vínculo';
   final booking = draft.linkedBooking;
   if (booking == null) return '—';
-  return booking.courtName.isNotEmpty
-      ? booking.courtName
-      : 'Quadra';
+  return booking.courtName.isNotEmpty ? booking.courtName : 'Quadra';
 }
 
-String comandaReviewSubtitle(ArenaComandaDraft draft, int displayNumberPreview) {
+String comandaReviewSubtitle(
+  ArenaComandaDraft draft,
+  int displayNumberPreview,
+) {
   final location = comandaReviewLocationLabel(draft);
   if (draft.linkWithoutBooking) {
     return 'Vai abrir como comanda ${formatComandaNumber(displayNumberPreview)}';
@@ -268,12 +264,7 @@ String comandaReviewSubtitle(ArenaComandaDraft draft, int displayNumberPreview) 
   return '$location · ${comandaTypeLabel(draft.type).toLowerCase()}';
 }
 
-enum ArenaComandaQuickAddCategory {
-  all,
-  bebidas,
-  alimentacao,
-  equipamentos,
-}
+enum ArenaComandaQuickAddCategory { all, bebidas, alimentacao, equipamentos }
 
 String quickAddCategoryLabel(ArenaComandaQuickAddCategory category) {
   return switch (category) {
@@ -284,7 +275,9 @@ String quickAddCategoryLabel(ArenaComandaQuickAddCategory category) {
   };
 }
 
-ArenaProductCategory? quickAddCategoryFilter(ArenaComandaQuickAddCategory chip) {
+ArenaProductCategory? quickAddCategoryFilter(
+  ArenaComandaQuickAddCategory chip,
+) {
   return switch (chip) {
     ArenaComandaQuickAddCategory.all => null,
     ArenaComandaQuickAddCategory.bebidas => ArenaProductCategory.bebidas,

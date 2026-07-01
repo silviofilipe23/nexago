@@ -7,8 +7,11 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/fade_slide_in.dart';
 
+import '../../domain/arena_plan.dart';
+import '../../domain/arena_plan_providers.dart';
 import '../../domain/arena_providers.dart';
 import '../../domain/products/arena_product_providers.dart';
+import '../plan/widgets/arena_plan_gate.dart';
 import '../widgets/arena_async_state.dart';
 import '../widgets/arena_dashboard_tokens.dart';
 import 'widgets/arena_product_card.dart';
@@ -36,9 +39,13 @@ class ArenaProductsListPage extends ConsumerWidget {
                   icon: Icons.inventory_2_outlined,
                 );
               }
+              final entitled = ref
+                  .watch(managedArenaCapabilitiesProvider)
+                  .contains(ArenaCapability.estoque);
               return _ProductsBody(
                 arenaId: arenaId,
                 arenaName: arenaDetail.valueOrNull?.name,
+                entitled: entitled,
               );
             },
             loading: () =>
@@ -52,10 +59,15 @@ class ArenaProductsListPage extends ConsumerWidget {
 }
 
 class _ProductsBody extends ConsumerWidget {
-  const _ProductsBody({required this.arenaId, required this.arenaName});
+  const _ProductsBody({
+    required this.arenaId,
+    required this.arenaName,
+    required this.entitled,
+  });
 
   final String arenaId;
   final String? arenaName;
+  final bool entitled;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,8 +76,23 @@ class _ProductsBody extends ConsumerWidget {
     final summary = ref.watch(arenaProductSummaryProvider(arenaId));
     final selectedCategory = ref.watch(arenaProductsCategoryFilterProvider);
 
+    void guarded(VoidCallback action) {
+      if (!entitled) {
+        showArenaPlanUpsellSheet(
+          context,
+          capability: ArenaCapability.estoque,
+        );
+        return;
+      }
+      action();
+    }
+
     return productsAsync.when(
-      data: (_) {
+      data: (allProducts) {
+        // Sem titularidade e sem catálogo: paywall (nada a preservar).
+        if (!entitled && allProducts.isEmpty) {
+          return const ArenaPlanUpsell(capability: ArenaCapability.estoque);
+        }
         return CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
@@ -88,12 +115,21 @@ class _ProductsBody extends ConsumerWidget {
                           context.goNamed(AppRouteNames.arenaSettings);
                         }
                       },
-                      onStock: () =>
-                          context.pushNamed(AppRouteNames.arenaProductStock),
-                      onAdd: () =>
-                          context.pushNamed(AppRouteNames.arenaProductNew),
+                      onStock: () => guarded(
+                        () => context.pushNamed(AppRouteNames.arenaProductStock),
+                      ),
+                      onAdd: () => guarded(
+                        () => context.pushNamed(AppRouteNames.arenaProductNew),
+                      ),
                     ),
                     const SizedBox(height: 20),
+                    if (!entitled) ...[
+                      const ArenaPlanReadOnlyBanner(
+                        message: 'Somente leitura. Assine o Pro para criar, '
+                            'editar ou repor produtos.',
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     ArenaProductSummaryRow(summary: summary),
                     const SizedBox(height: 16),
                     Row(
@@ -145,9 +181,11 @@ class _ProductsBody extends ConsumerWidget {
                     final product = filtered[index];
                     return ArenaProductCard(
                       product: product,
-                      onTap: () => context.pushNamed(
-                        AppRouteNames.arenaProductEdit,
-                        pathParameters: {'productId': product.id},
+                      onTap: () => guarded(
+                        () => context.pushNamed(
+                          AppRouteNames.arenaProductEdit,
+                          pathParameters: {'productId': product.id},
+                        ),
                       ),
                     );
                   },

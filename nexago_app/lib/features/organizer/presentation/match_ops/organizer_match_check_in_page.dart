@@ -16,7 +16,6 @@ import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/data/nexago_artifacts_paths.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_card_view_model.dart';
-import '../../../tournaments/domain/tournament_match_display.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
 import 'widgets/organizer_schedule_time_widgets.dart';
 import '../../presentation/category_ops/widgets/organizer_team_dual_avatars.dart';
@@ -81,10 +80,6 @@ class _OrganizerMatchCheckInPageState
           }
 
           final enriched = enrichedMap.valueOrNull?[match.id];
-          final categoryLabel = MatchOpsLogic.categoryDisplayLabel(
-            categoryId: match.categoryId,
-            categories: categories,
-          );
           final teamA = liveTableTeamData(
             match: match,
             sideA: true,
@@ -139,7 +134,11 @@ class _OrganizerMatchCheckInPageState
                 bottom: false,
                 child: _CheckInHeader(
                   match: match,
-                  categoryLabel: categoryLabel,
+                  categoryMeta: MatchOpsLogic.matchCardCategoryMeta(
+                    match: match,
+                    categoryId: match.categoryId,
+                    categories: categories,
+                  ),
                   courtLabel: courtLabel,
                   onBack: () => context.pop(),
               ),
@@ -415,23 +414,21 @@ class _OrganizerMatchCheckInPageState
 class _CheckInHeader extends StatelessWidget {
   const _CheckInHeader({
     required this.match,
-    required this.categoryLabel,
+    required this.categoryMeta,
     required this.courtLabel,
     required this.onBack,
   });
 
   final TournamentMatch match;
-  final String categoryLabel;
+  final String categoryMeta;
   final String courtLabel;
   final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
     final parts = <String>[];
-    final category = categoryLabel.trim().toUpperCase();
-    if (category.isNotEmpty) parts.add(category);
-    final round = matchRoundLabel(match).toUpperCase();
-    if (round.isNotEmpty) parts.add(round);
+    final meta = categoryMeta.trim();
+    if (meta.isNotEmpty) parts.add(meta);
     if (match.scheduleTime != null) {
       final t = toNexagoEventLocal(match.scheduleTime!);
       final hh = t.hour.toString().padLeft(2, '0');

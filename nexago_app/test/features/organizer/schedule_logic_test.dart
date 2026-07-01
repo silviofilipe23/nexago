@@ -123,6 +123,25 @@ void main() {
       expect(conflicts.first.type, 'rest');
     });
 
+    test('buildDaySchedule enforces min rest between same team matches', () {
+      final courts = [const TournamentCourt(id: 'Q1', name: 'Q1', order: 1)];
+      final slots = ScheduleLogic.buildDaySchedule(
+        unscheduled: [
+          _match(id: 'a', teamAId: 't1', teamBId: 't2', matchNumber: 1),
+          _match(id: 'b', teamAId: 't1', teamBId: 't3', matchNumber: 2),
+        ],
+        courts: courts,
+        dayStart: DateTime(2026, 6, 14, 8, 0),
+        matchDurationMin: 30,
+        minRestMin: 30,
+        existingScheduled: const [],
+        avoidAthleteConflict: true,
+      );
+      expect(slots.length, 2);
+      final gap = slots[1].start.difference(slots[0].end).inMinutes;
+      expect(gap, greaterThanOrEqualTo(30));
+    });
+
     test('buildDaySchedule assigns courts', () {
       final courts = [
         const TournamentCourt(id: 'Q1', name: 'Q1', order: 1),

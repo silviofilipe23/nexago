@@ -84,6 +84,7 @@ import '../../features/arena/presentation/arena_availability_settings_page.dart'
 import '../../features/arena/presentation/arena_availability_slots_success_page.dart';
 import '../../features/arena/presentation/arena_settings_page.dart';
 import '../../features/arena/presentation/arena_payments_page.dart';
+import '../../features/arena/presentation/plan/arena_plan_page.dart';
 import '../../features/arena/presentation/arena_slot_detail_page.dart';
 import '../../features/arena/presentation/arena_shell_page.dart';
 import '../../features/arena/presentation/comandas/arena_comandas_page.dart';
@@ -1419,6 +1420,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                     path: 'payments',
                     name: AppRouteNames.arenaPayments,
                     builder: (context, state) => const ArenaPaymentsPage(),
+                  ),
+                  GoRoute(
+                    path: 'plan',
+                    name: AppRouteNames.arenaPlan,
+                    builder: (context, state) => const ArenaPlanPage(),
                   ),
                 ],
               ),

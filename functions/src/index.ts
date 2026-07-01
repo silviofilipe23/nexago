@@ -32,6 +32,7 @@ import {
   listPendingArenaWithdrawals,
   reviewArenaWithdrawal,
 } from "./arena-booking-pix";
+import {createArenaSubscription, cancelArenaSubscription} from "./arena-subscription";
 import {asaasWebhook} from "./asaas-webhook";
 import {onArenaBookingCanceledNotifySlotVacancyAlerts} from "./slot-vacancy-alerts";
 import {
@@ -95,6 +96,14 @@ import {deleteOwnAccount} from "./account-deletion";
 import {onTournamentInscriptionWriteSyncCollectedCents} from "./tournament-collected-stats";
 
 export {
+  onArenaCourtCreatedCountUp,
+  onArenaCourtDeletedCountDown,
+  backfillArenaCourtsCount,
+} from "./arena-courts-count";
+
+export {finalizeLapsedArenaPlans} from "./arena-plan-sweeper";
+
+export {
   quoteArenaBooking,
   createArenaBooking,
   cancelPendingArenaBookingPayment,
@@ -103,6 +112,8 @@ export {
   requestArenaWithdrawal,
   listPendingArenaWithdrawals,
   reviewArenaWithdrawal,
+  createArenaSubscription,
+  cancelArenaSubscription,
   asaasWebhook,
   onArenaBookingCanceledNotifySlotVacancyAlerts,
   sendTournamentPartnerInvite,

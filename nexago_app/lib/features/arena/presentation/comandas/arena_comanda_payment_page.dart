@@ -72,33 +72,13 @@ class _ArenaComandaPaymentPageState extends ConsumerState<ArenaComandaPaymentPag
   }) async {
     if (_submitting || amountCents <= 0) return;
 
-    final payerController = TextEditingController(text: comanda.customerName);
-    final confirmed = await showDialog<bool>(
+    final payerNameInput = await showDialog<String>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Confirmar pagamento'),
-          content: TextField(
-            controller: payerController,
-            decoration: const InputDecoration(
-              labelText: 'Nome do pagador',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Confirmar'),
-            ),
-          ],
-        );
-      },
+      builder: (context) =>
+          _PayerNameDialog(initialName: comanda.customerName),
     );
 
-    if (confirmed != true || !mounted) return;
+    if (payerNameInput == null || !mounted) return;
 
     setState(() => _submitting = true);
     try {
@@ -108,9 +88,9 @@ class _ArenaComandaPaymentPageState extends ConsumerState<ArenaComandaPaymentPag
             comandaId: comanda.id,
             method: _method,
             amountCents: amountCents,
-            payerName: payerController.text.trim().isEmpty
+            payerName: payerNameInput.isEmpty
                 ? comanda.customerName
-                : payerController.text.trim(),
+                : payerNameInput,
           );
 
       if (!mounted) return;
@@ -132,7 +112,6 @@ class _ArenaComandaPaymentPageState extends ConsumerState<ArenaComandaPaymentPag
     } catch (e) {
       if (mounted) showAppSnackBar(context, '$e');
     } finally {
-      payerController.dispose();
       if (mounted) setState(() => _submitting = false);
     }
   }
@@ -351,6 +330,58 @@ class _ArenaComandaPaymentPageState extends ConsumerState<ArenaComandaPaymentPag
           error: (e, _) => ArenaErrorState(message: '$e'),
         ),
       ),
+    );
+  }
+}
+
+class _PayerNameDialog extends StatefulWidget {
+  const _PayerNameDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_PayerNameDialog> createState() => _PayerNameDialogState();
+}
+
+class _PayerNameDialogState extends State<_PayerNameDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialName);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Confirmar pagamento'),
+      content: TextField(
+        controller: _controller,
+        decoration: const InputDecoration(
+          labelText: 'Nome do pagador',
+        ),
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => Navigator.pop(context, _controller.text.trim()),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () =>
+              Navigator.pop(context, _controller.text.trim()),
+          child: const Text('Confirmar'),
+        ),
+      ],
     );
   }
 }

@@ -315,6 +315,33 @@ service cloud.firestore {
         isSuperAdmin()
       );
     }
+    // Gate de plano (titularidade): a arena tem acesso pago em um dos [tiers]
+    // AGORA. Deriva de data, não do flag cru — espelha ArenaPlanStatus.entitled:
+    //  - active: sim;
+    //  - overdue: sim enquanto dentro da carência de 7 dias após o vencimento;
+    //  - canceling: sim até o fim do período pago (planActiveUntil);
+    //  - demais (none/refund/chargeback): não.
+    // planStatus/planTier/planActiveUntil só são gravados pelas Cloud Functions
+    // (o gestor não se auto-promove), então é seguro confiar neles aqui.
+    function arenaEntitled(arenaId, tiers) {
+      let a = get(/databases/$(database)/documents/arenas/$(arenaId)).data;
+      let status = a.get('planStatus', 'none');
+      let until = a.get('planActiveUntil', null);
+      return (a.get('planTier', '') in tiers) && (
+        status == 'active' ||
+        (status == 'overdue' && until != null &&
+          request.time < until + duration.value(7, 'd')) ||
+        (status == 'canceling' && until != null && request.time < until)
+      );
+    }
+    // Limite de quadras por plano: Essencial até 2; Pro/Parceiro ilimitado.
+    // courtsCount é mantido por Cloud Function (arena-courts-count.ts) — as rules
+    // não contam documentos, então leem esse campo (default 0). Há uma pequena
+    // janela de corrida por rajada, aceitável para um limite de volume.
+    function arenaCanAddCourt(arenaId) {
+      return arenaEntitled(arenaId, ['pro', 'parceiro']) ||
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.get('courtsCount', 0) < 2;
+    }
     function isValidArenaProductCategory(category) {
       return category in ['bebidas', 'alimentacao', 'equipamentos', 'servicos'];
     }
@@ -615,15 +642,49 @@ service cloud.firestore {
     match /arenas/{arenaId} {
       allow read: if true;
       allow create: if request.auth != null && (isAdmin() || isSuperAdmin() || isArena());
-      allow update, delete: if request.auth != null && (
+      // Campos de plano (planTier/planStatus/planActiveUntil) só as Cloud Functions
+      // gravam (Admin SDK ignora rules); o gestor não pode se auto-promover.
+      allow update: if request.auth != null && (
+        isAdmin() || isSuperAdmin() || (
+          resource.data.managerUserId == request.auth.uid &&
+          request.resource.data.get('planTier', null) == resource.data.get('planTier', null) &&
+          request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null) &&
+          request.resource.data.get('planActiveUntil', null) == resource.data.get('planActiveUntil', null)
+        )
+      );
+      allow delete: if request.auth != null && (
         resource.data.managerUserId == request.auth.uid ||
         isAdmin() ||
         isSuperAdmin()
       );
     }
+    // Cobrança/assinatura da arena — leitura restrita ao gestor/admin; escrita só via functions.
+    match /arenas/{arenaId}/billing/{docId} {
+      allow read: if request.auth != null && (
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+      allow write: if false;
+    }
+    match /arenas/{arenaId}/asaas/{docId} {
+      allow read: if request.auth != null && (
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+      allow write: if false;
+    }
     match /arenas/{arenaId}/courts/{courtId} {
       allow read: if true;
-      allow create, update, delete: if request.auth != null && (
+      allow create: if request.auth != null && (
+        (
+          get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid &&
+          arenaCanAddCourt(arenaId)
+        ) ||
+        isSuperAdmin()
+      );
+      allow update, delete: if request.auth != null && (
         get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
         isSuperAdmin()
       );
@@ -638,7 +699,14 @@ service cloud.firestore {
     }
     match /arenas/{arenaId}/promotions/{promoId} {
       allow read: if true;
-      allow create, update, delete: if request.auth != null && (
+      // Criar/editar promoção exige titularidade Pro. Sem ela o gestor não
+      // reativa nem cria; o sweeper (Cloud Function) pausa as ativas. Excluir
+      // segue liberado para limpeza.
+      allow create, update: if request.auth != null && (
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        isSuperAdmin()
+      ) && (isSuperAdmin() || arenaEntitled(arenaId, ['pro', 'parceiro']));
+      allow delete: if request.auth != null && (
         get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
         isSuperAdmin()
       );
@@ -682,10 +750,14 @@ service cloud.firestore {
     match /arenas/{arenaId}/products/{productId} {
       allow read: if canManageArenaProducts(arenaId);
       allow create: if canManageArenaProducts(arenaId) &&
+        (isSuperAdmin() || arenaEntitled(arenaId, ['pro', 'parceiro'])) &&
         isValidArenaProductData(request.resource.data) &&
         request.resource.data.createdAt is timestamp &&
         request.resource.data.updatedAt is timestamp;
-      allow update: if canManageArenaProducts(arenaId) && (
+      // Editar/repor produto exige titularidade Pro; sem ela o catálogo fica
+      // read-only (delete segue liberado para limpeza).
+      allow update: if canManageArenaProducts(arenaId) &&
+        (isSuperAdmin() || arenaEntitled(arenaId, ['pro', 'parceiro'])) && (
         isValidArenaProductStockUpdate() ||
         (
           isValidArenaProductData(request.resource.data) &&
@@ -701,10 +773,11 @@ service cloud.firestore {
     }
     match /arenas/{arenaId}/stockMovements/{movementId} {
       allow read: if canManageArenaProducts(arenaId);
-      allow create: if isValidArenaStockMovementCreate(
-        arenaId,
-        request.resource.data.productId
-      );
+      allow create: if (isSuperAdmin() || arenaEntitled(arenaId, ['pro', 'parceiro'])) &&
+        isValidArenaStockMovementCreate(
+          arenaId,
+          request.resource.data.productId
+        );
       allow update, delete: if false;
     }
     match /arenas/{arenaId}/metadata/{docId} {
@@ -728,7 +801,11 @@ service cloud.firestore {
         (resource != null && isArenaManagerByArenaId(resource.data.arenaId))
       );
       allow create: if request.auth != null &&
-        isValidArenaComandaCreate(request.resource.data);
+        isValidArenaComandaCreate(request.resource.data) &&
+        (
+          isSuperAdmin() ||
+          arenaEntitled(request.resource.data.arenaId, ['pro', 'parceiro'])
+        );
       allow update: if request.auth != null && (
         isSuperAdmin() ||
         canManageArenaProducts(resource.data.arenaId)
@@ -741,8 +818,18 @@ service cloud.firestore {
             get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId
           )
         );
+        // Adicionar item exige titularidade Pro: uma arena que caiu pro
+        // Essencial (downgrade) fica read-only, mas ainda pode fechar/receber a
+        // comanda (update + payment abaixo continuam liberados).
         allow create: if request.auth != null &&
-          isValidArenaComandaItemCreate(comandaId, request.resource.data);
+          isValidArenaComandaItemCreate(comandaId, request.resource.data) &&
+          (
+            isSuperAdmin() ||
+            arenaEntitled(
+              get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId,
+              ['pro', 'parceiro']
+            )
+          );
         allow delete: if request.auth != null &&
           isValidArenaComandaItemDelete(comandaId);
         allow update: if false;
@@ -1497,6 +1584,48 @@ service cloud.firestore {
       );
       allow list: if request.auth != null;
       allow create, update, delete: if false;
+    }
+
+    // Lista de espera do site público (captura de e-mail pré-lançamento).
+    // Criação pública e validada (sem auth); leitura/edição/remoção bloqueadas.
+    match /waitlist/{docId} {
+      allow read, update, delete: if false;
+      allow create: if
+        request.resource.data.keys().hasOnly(['email', 'source', 'createdAt']) &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() >= 5 &&
+        request.resource.data.email.size() <= 320 &&
+        request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+[.][^@\\s]+$') &&
+        request.resource.data.source is string &&
+        request.resource.data.source.size() <= 64 &&
+        request.resource.data.createdAt is timestamp;
+    }
+
+    // Leads B2B do site (organizadores e arenas). Criação pública e validada
+    // (sem auth, via Route Handler); leitura/edição/remoção bloqueadas.
+    match /leads/{docId} {
+      allow read, update, delete: if false;
+      allow create: if
+        request.resource.data.keys().hasOnly(
+          ['name', 'email', 'phone', 'org', 'message', 'persona', 'source', 'createdAt']
+        ) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() >= 2 &&
+        request.resource.data.name.size() <= 120 &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() >= 5 &&
+        request.resource.data.email.size() <= 320 &&
+        request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+[.][^@\\s]+$') &&
+        request.resource.data.phone is string &&
+        request.resource.data.phone.size() <= 40 &&
+        request.resource.data.org is string &&
+        request.resource.data.org.size() <= 160 &&
+        request.resource.data.message is string &&
+        request.resource.data.message.size() <= 1000 &&
+        request.resource.data.persona in ['organizador', 'arena', 'geral'] &&
+        request.resource.data.source is string &&
+        request.resource.data.source.size() <= 64 &&
+        request.resource.data.createdAt is timestamp;
     }
 
     // Regras padrão para outras coleções (ajuste conforme necessário)

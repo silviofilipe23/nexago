@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'dart:math' as math;
 
 import '../../../core/auth/auth_providers.dart';
-import '../../../core/layout/app_scaffold.dart';
+import '../../../core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/success_page.dart';
 import '../domain/arena_schedule_providers.dart';
 import '../domain/review_reply_providers.dart';
+import 'widgets/arena_dashboard_tokens.dart';
 import 'widgets/reply_review_dialog.dart';
 
 class ArenaReviewsManagementPage extends ConsumerStatefulWidget {
@@ -31,37 +33,67 @@ class _ArenaReviewsManagementPageState
     final replyService = ref.watch(reviewReplyServiceProvider);
     final theme = Theme.of(context);
 
-    return AppScaffold(
-      title: 'Reputação',
-      body: reviewsAsync.when(
-        loading: () => Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Não foi possível carregar o histórico de reputação.',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.colorScheme.error,
-              ),
+    return Scaffold(
+      backgroundColor: context.themeColors.canvas,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _ReviewsHeader(
+              onBack: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.goNamed(AppRouteNames.arenaDashboard);
+                }
+              },
             ),
-          ),
-        ),
-        data: (reviews) {
-          if (reviews.isEmpty) {
-            return Center(child: Text('Ainda não há avaliações registradas.'));
-          }
+            Expanded(
+              child: reviewsAsync.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
+                error: (error, stackTrace) => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'Não foi possível carregar o histórico de reputação.',
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ),
+                data: (reviews) {
+                  if (reviews.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'Ainda não há avaliações registradas.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: context.themeColors.onSurfaceMuted,
+                        ),
+                      ),
+                    );
+                  }
 
-          final visible = reviews.take(_visibleCount).toList(growable: false);
-          final hasMore = reviews.length > visible.length;
+                  final visible =
+                      reviews.take(_visibleCount).toList(growable: false);
+                  final hasMore = reviews.length > visible.length;
 
-          return ListView.separated(
-            key: const PageStorageKey<String>(
-              'arena-reviews-management-scroll',
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-            itemCount: visible.length + 1,
-            separatorBuilder: (context, index) => SizedBox(height: 12),
-            itemBuilder: (context, index) {
+                  return ListView.separated(
+                    key: const PageStorageKey<String>(
+                      'arena-reviews-management-scroll',
+                    ),
+                    padding: const EdgeInsets.fromLTRB(
+                      ArenaDashboardTokens.horizontalPadding,
+                      16,
+                      ArenaDashboardTokens.horizontalPadding,
+                      28,
+                    ),
+                    itemCount: visible.length + 1,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
               if (index == visible.length) {
                 if (!hasMore) {
                   return Padding(
@@ -228,7 +260,57 @@ class _ArenaReviewsManagementPageState
               );
             },
           );
-        },
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReviewsHeader extends StatelessWidget {
+  const _ReviewsHeader({required this.onBack});
+
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 20, 0),
+      child: Row(
+        children: [
+          Material(
+            color: context.themeColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(12),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onBack,
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Icon(
+                  Icons.arrow_back_rounded,
+                  color: context.themeColors.onSurface,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              'Reputação',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: context.themeColors.onSurface,
+                    letterSpacing: -0.3,
+                  ),
+            ),
+          ),
+          const SizedBox(width: 44),
+        ],
       ),
     );
   }

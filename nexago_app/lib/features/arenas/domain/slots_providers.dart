@@ -29,6 +29,14 @@ final arenaPromotionsProvider =
   },
 );
 
+/// Todas as promoções da arena (gestor), inclusive pausadas.
+final arenaAllPromotionsProvider =
+    StreamProvider.autoDispose.family<List<ArenaPromotion>, String>(
+  (ref, arenaId) {
+    return ref.watch(promotionsRepositoryProvider).watchAllPromotions(arenaId);
+  },
+);
+
 /// Quadras da arena (`arenas/{arenaId}/courts`).
 final courtsStreamProvider =
     StreamProvider.autoDispose.family<List<ArenaCourt>, String>((ref, arenaId) {

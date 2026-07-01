@@ -6,7 +6,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../athlete/domain/favorites_providers.dart';
 import 'arena_dashboard_tokens.dart';
-import 'arena_promotion_form_sheet.dart';
+import 'arena_promotions_sheet.dart';
 
 class ArenaDashboardFollowersCard extends StatelessWidget {
   const ArenaDashboardFollowersCard({
@@ -128,22 +128,17 @@ class _FollowersBody extends StatelessWidget {
             Expanded(
               child: FilledButton(
                 onPressed: arenaId == null || arenaId!.isEmpty
-                    ? () => _comingSoon(context, 'Criar promoção')
-                    : () async {
-                        final ok = await ArenaPromotionFormSheet.show(
+                    ? () => _comingSoon(context, 'Promoções')
+                    : () => ArenaPromotionsSheet.show(
                           context,
                           arenaId: arenaId!,
-                        );
-                        if (ok && context.mounted) {
-                          showAppSnackBar(context, 'Promoção ativada na agenda.');
-                        }
-                      },
+                        ),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.brand,
                   foregroundColor: AppColors.black,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                child: Text('Criar promoção'),
+                child: Text('Promoções'),
               ),
             ),
             SizedBox(width: 10),

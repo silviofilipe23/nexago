@@ -74,8 +74,9 @@ async function fetchPixQrCodeOnce(paymentId: string): Promise<AsaasPixQrResponse
 
 /**
  * O QR dinâmico pode demorar alguns segundos após POST /payments (pixTransaction null é normal).
+ * Reutilizável para cobranças avulsas e para o 1º pagamento de uma assinatura.
  */
-async function fetchPixQrCodeWithRetry(paymentId: string): Promise<{
+export async function fetchAsaasPixQrCode(paymentId: string): Promise<{
   qrCode: string;
   qrCodeBase64: string;
 }> {
@@ -152,7 +153,7 @@ export async function createAsaasPixCharge(params: {
     `createAsaasPixCharge: payment ${paymentId} status=${payment.status ?? "?"} dueDate=${dueDate}`,
   );
 
-  const {qrCode, qrCodeBase64} = await fetchPixQrCodeWithRetry(paymentId);
+  const {qrCode, qrCodeBase64} = await fetchAsaasPixQrCode(paymentId);
 
   return {paymentId, qrCode, qrCodeBase64};
 }
@@ -173,6 +174,10 @@ export type AsaasPaymentDetails = {
   status?: string;
   value?: number;
   externalReference?: string;
+  /** Id da assinatura Asaas, quando o pagamento é gerado por uma `/subscriptions`. */
+  subscription?: string;
+  /** Vencimento (YYYY-MM-DD) do pagamento. */
+  dueDate?: string;
 };
 
 export async function getAsaasPayment(paymentId: string): Promise<AsaasPaymentDetails> {

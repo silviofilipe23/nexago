@@ -9,6 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/success_page.dart';
 import '../../../athlete/domain/arena_review.dart';
+import '../../../arenas/domain/arena_detail_logic.dart';
 import '../../data/review_reply_service.dart';
 import '../../domain/arena_providers.dart';
 import '../../domain/review_reply_providers.dart';
@@ -37,21 +38,18 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
       orElse: () => 0.0,
     );
 
+    final pendingCount = pendingReviewsAsync.maybeWhen(
+      data: (reviews) => reviews.length,
+      orElse: () => 0,
+    );
+
     return DecoratedBox(
       decoration: ArenaDashboardTokens.cardDecoration(context),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Reputação',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                color: context.themeColors.onSurface,
-              ),
-            ),
-            SizedBox(height: 20),
             metricsAsync.when(
               loading: () => const LinearProgressIndicator(minHeight: 2),
               error: (e, _) => Text(
@@ -60,56 +58,12 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
                   color: theme.colorScheme.error,
                 ),
               ),
-              data: (m) => Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    averageRating > 0
-                        ? averageRating.toStringAsFixed(1)
-                        : '—',
-                    style: theme.textTheme.displayMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: context.themeColors.onSurface,
-                      height: 1,
-                    ),
-                  ),
-                  SizedBox(width: 20),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${m.repliedPercent.toStringAsFixed(0)}% respondidas',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: context.themeColors.onSurface,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: (m.repliedPercent / 100).clamp(0.0, 1.0),
-                            minHeight: 6,
-                            backgroundColor: context.themeColors.surfaceRaised,
-                            color: AppColors.brand,
-                          ),
-                        ),
-                        SizedBox(height: 10),
-                        Text(
-                          'Tempo médio: ${m.averageReplyHours.toStringAsFixed(1)}h • meta 6h',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: context.themeColors.onSurfaceMuted,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+              data: (m) => _ReputationSummary(
+                averageRating: averageRating,
+                metrics: m,
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             Row(
               children: [
                 Text(
@@ -119,18 +73,53 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
                     color: context.themeColors.onSurface,
                   ),
                 ),
-                Spacer(),
+                if (pendingCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.brand,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '$pendingCount',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: AppColors.black,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
+                const Spacer(),
                 TextButton(
                   onPressed: () =>
                       context.pushNamed(AppRouteNames.arenaManagerReviews),
-                  child: Text('Ver todas'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.brand,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'VER TODAS',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
                 ),
               ],
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 10),
             pendingReviewsAsync.when(
-              loading: () => Center(
-                child: CircularProgressIndicator(strokeWidth: 2),
+              loading: () => const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
               ),
               error: (e, _) => Text(
                 'Não foi possível carregar avaliações.',
@@ -166,6 +155,151 @@ class ArenaDashboardReputationSection extends ConsumerWidget {
   }
 }
 
+class _ReputationSummary extends StatelessWidget {
+  const _ReputationSummary({
+    required this.averageRating,
+    required this.metrics,
+  });
+
+  final double averageRating;
+  final ArenaReviewReputationMetrics metrics;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final replyLabel = _replyRateLabel(metrics.repliedPercent);
+    final replyColor = _replyRateColor(replyLabel);
+    final hoursLabel = metrics.averageReplyHours > 0
+        ? '${metrics.averageReplyHours.toStringAsFixed(1).replaceAll('.', ',')}h'
+        : '—';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Reputação',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: context.themeColors.onSurface,
+              ),
+            ),
+            const Spacer(),
+            if (averageRating > 0) ...[
+              Text(
+                averageRating.toStringAsFixed(1),
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.brand,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(
+                  5,
+                  (i) => Icon(
+                    i < averageRating.round().clamp(0, 5)
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    size: 18,
+                    color: AppColors.brand,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${metrics.repliedPercent.toStringAsFixed(0)}% respondidas',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: context.themeColors.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: (metrics.repliedPercent / 100)
+                                .clamp(0.0, 1.0),
+                            minHeight: 6,
+                            backgroundColor:
+                                context.themeColors.surfaceRaised,
+                            color: AppColors.brand,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        replyLabel,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: replyColor,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  hoursLabel,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: context.themeColors.onSurface,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'meta 6h',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  static String _replyRateLabel(double percent) {
+    if (percent >= 80) return 'alto';
+    if (percent >= 50) return 'médio';
+    return 'baixo';
+  }
+
+  static Color _replyRateColor(String label) {
+    return switch (label) {
+      'alto' => AppColors.win,
+      'médio' => AppColors.pending,
+      _ => AppColors.brand,
+    };
+  }
+}
+
 class _PendingReviewTile extends StatelessWidget {
   const _PendingReviewTile({
     required this.review,
@@ -183,6 +317,8 @@ class _PendingReviewTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final canReply = arenaId.isNotEmpty && managerId.isNotEmpty;
+    final age = formatRelativeReviewAge(review.createdAt, DateTime.now());
+    final comment = (review.comment ?? '').trim();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -198,69 +334,99 @@ class _PendingReviewTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              ...List.generate(
-                5,
-                (i) => Icon(
-                  i < review.rating
-                      ? Icons.star_rounded
-                      : Icons.star_outline_rounded,
-                  size: 16,
-                  color: AppColors.brand,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(
+                  5,
+                  (i) => Icon(
+                    i < review.rating
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    size: 14,
+                    color: AppColors.brand,
+                  ),
                 ),
               ),
-              SizedBox(width: 8),
-              Expanded(
+              const SizedBox(width: 8),
+              Flexible(
                 child: Text(
                   review.athleteName ?? 'Atleta',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     color: context.themeColors.onSurface,
+                  ),
+                ),
+              ),
+              if (age.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Text(
+                  age,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed:
+                    !canReply ? null : () => _reply(context, quick: false),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.brand,
+                  foregroundColor: AppColors.black,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text(
+                  'Responder',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Material(
+                color: context.themeColors.surfaceSheet,
+                borderRadius: BorderRadius.circular(10),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: !canReply ? null : () => _reply(context, quick: true),
+                  child: SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Icon(
+                      Icons.bolt_rounded,
+                      size: 18,
+                      color: canReply
+                          ? AppColors.brand
+                          : context.themeColors.onSurfaceMuted,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-          if ((review.comment ?? '').trim().isNotEmpty) ...[
-            SizedBox(height: 8),
+          if (comment.isNotEmpty) ...[
+            const SizedBox(height: 10),
             Text(
-              review.comment!,
+              '"$comment"',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: context.themeColors.onSurfaceMuted,
+                color: context.themeColors.onSurface,
+                height: 1.35,
               ),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
           ],
-          SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: FilledButton(
-                  onPressed: !canReply
-                      ? null
-                      : () => _reply(context, quick: false),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.brand,
-                    foregroundColor: AppColors.black,
-                  ),
-                  child: Text('Responder'),
-                ),
-              ),
-              SizedBox(width: 8),
-              IconButton.filled(
-                onPressed: !canReply
-                    ? null
-                    : () => _reply(context, quick: true),
-                style: IconButton.styleFrom(
-                  backgroundColor: context.themeColors.surfaceSheet,
-                  foregroundColor: AppColors.brand,
-                ),
-                icon: Icon(Icons.bolt_rounded),
-                tooltip: 'Resposta rápida',
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -271,7 +437,9 @@ class _PendingReviewTile extends StatelessWidget {
       context,
       originalComment: review.comment ?? '',
       rating: review.rating,
-      initialValue: quick ? 'Obrigado pelo feedback! Estamos sempre melhorando.' : null,
+      initialValue: quick
+          ? 'Obrigado pelo feedback! Estamos sempre melhorando.'
+          : null,
     );
     if (text == null) return;
     try {

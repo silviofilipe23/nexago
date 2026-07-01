@@ -426,7 +426,7 @@ class _OrganizerMatchLiveTablePageState
                     ? sets[setIdx]
                     : const TournamentMatchSet(a: 0, b: 0);
                 final court = match.effectiveCourtLabel.trim();
-                final categoryLabel = MatchOpsLogic.categoryDisplayLabel(
+                final categoryLabel = MatchOpsLogic.categoryCompactLabel(
                   categoryId: match.categoryId,
                   categories: tournamentCategories,
                 );

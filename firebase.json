@@ -47,7 +47,10 @@
     },
     {
       "target": "site",
-      "public": "dist/site/browser",
+      "source": "frontend/projects/site",
+      "frameworksBackend": {
+        "region": "us-central1"
+      },
       "headers": [
         {
           "source": "/.well-known/apple-app-site-association",

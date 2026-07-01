@@ -183,7 +183,7 @@ class _OrganizerSchedulePickPageState
 
                       return SchedulePickMatchCard(
                         match: match,
-                        categoryLabel: MatchOpsLogic.categoryDisplayLabel(
+                        categoryLabel: MatchOpsLogic.categoryCompactLabel(
                           categoryId: match.categoryId,
                           categories: categories,
                         ),

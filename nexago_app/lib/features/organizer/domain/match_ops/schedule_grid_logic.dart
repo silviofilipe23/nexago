@@ -1,3 +1,6 @@
+import 'package:flutter/material.dart';
+
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/time/nexago_event_timezone.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
@@ -11,9 +14,54 @@ abstract final class ScheduleGridLogic {
   ScheduleGridLogic._();
 
   static const int slotMinutes = 30;
-  static const double slotHeight = 52;
-  static const double courtColumnWidth = 112;
+  /// Altura visual de cada slot de 30 min na grade H1.
+  /// 50 min de partida → ~133px de bloco (50/30 × 80).
+  static const double slotHeight = 80;
+  /// Largura de cada coluna de quadra na grade H1 (cards com #, fase e nomes).
+  static const double courtColumnWidth = 152;
   static const double timeColumnWidth = 44;
+
+  /// Paleta para diferenciar categorias na grade (ordem estável por `categoryId`).
+  static const List<Color> categoryAccentPalette = [
+    AppColors.brand,
+    Color(0xFF3B82F6),
+    Color(0xFFA855F7),
+    Color(0xFF14B8A6),
+    Color(0xFFEC4899),
+    Color(0xFFF59E0B),
+    Color(0xFF22C55E),
+    Color(0xFF6366F1),
+    Color(0xFF06B6D4),
+    Color(0xFFF43F5E),
+  ];
+
+  /// Mapeia cada categoria a uma cor distinta (ids ordenados para estabilidade).
+  static Map<String, Color> categoryAccentColors(Iterable<String> categoryIds) {
+    final ids = categoryIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    return {
+      for (var i = 0; i < ids.length; i++)
+        ids[i]: categoryAccentPalette[i % categoryAccentPalette.length],
+    };
+  }
+
+  /// Cor da barra lateral do card: categoria + leve atenuação se encerrada.
+  static Color matchCardAccentColor({
+    required String categoryId,
+    required Map<String, Color> categoryColors,
+    required ScheduleGridMatchPhase phase,
+  }) {
+    final base = categoryColors[categoryId.trim()] ?? AppColors.brand;
+    return switch (phase) {
+      ScheduleGridMatchPhase.finished => base.withValues(alpha: 0.45),
+      ScheduleGridMatchPhase.live => base,
+      ScheduleGridMatchPhase.upcoming => base,
+    };
+  }
 
   /// Janela padrão da grade H1 (parede SP).
   static const String gridDayStart = '07:00';
@@ -23,7 +71,7 @@ abstract final class ScheduleGridLogic {
   static List<DateTime> gridTimeSlotsForDay({
     required String dayKey,
     List<TournamentMatch> dayMatches = const [],
-    int defaultDurationMin = 50,
+    int defaultDurationMin = 30,
   }) {
     final anchor = _parseDayKey(dayKey) ?? nexagoEventDayKeyAnchor(dayKey);
     if (anchor == null) return const [];
@@ -107,22 +155,19 @@ abstract final class ScheduleGridLogic {
   }) {
     final start = match.scheduleTime;
     if (start == null) return 0;
-    final minutes = nexagoEventUtcInstant(start)
+    final slotStart = _floorToSlot(start);
+    final minutes = nexagoEventUtcInstant(slotStart)
         .difference(nexagoEventUtcInstant(gridStart))
         .inMinutes;
     return (minutes / slotMinutes) * slotHeight;
   }
 
+  /// Bloco visual na grade: sempre 1 slot (30 min), independente da duração real.
   static double matchBlockHeight({
     required TournamentMatch match,
     required int defaultDurationMin,
   }) {
-    final start = match.scheduleTime;
-    if (start == null) return slotHeight;
-    final end = match.scheduleEndTime ??
-        start.add(Duration(minutes: defaultDurationMin));
-    final minutes = end.difference(start).inMinutes.clamp(slotMinutes, 240);
-    return (minutes / slotMinutes) * slotHeight;
+    return slotHeight;
   }
 
   static ScheduleGridMatchPhase matchPhase(TournamentMatch match) {
@@ -198,21 +243,41 @@ abstract final class ScheduleGridLogic {
   }) {
     final start = match.scheduleTime;
     if (start == null) return '';
-    final end = match.scheduleEndTime ??
-        start.add(Duration(minutes: defaultDurationMin));
-    return '${timeLabel(start)}-${timeLabel(end)}';
+    final slotStart = _floorToSlot(start);
+    final slotEnd = slotStart.add(const Duration(minutes: slotMinutes));
+    return '${timeLabel(slotStart)}-${timeLabel(slotEnd)}';
   }
 
   static String matchMetaLabel({
     required TournamentMatch match,
-    required String categoryLabel,
+    required String categoryCompactLabel,
   }) {
-    final category = _categoryShortLabel(categoryLabel);
+    final category = categoryCompactLabel.trim();
     final round = roundShortLabel(match);
     if (category.isEmpty && round.isEmpty) return 'Partida';
     if (category.isEmpty) return round;
     if (round.isEmpty) return category;
     return '$category • $round';
+  }
+
+  /// Cabeçalho do card na grade: `#3 · MASC · INICIANTE` + fase legível.
+  static ({String eyebrow, String phaseLabel}) matchCardHeader({
+    required TournamentMatch match,
+    required String categoryCompactLabel,
+    List<TournamentMatch> categoryMatches = const [],
+  }) {
+    final category = categoryCompactLabel.trim();
+    final number = matchNumberLabelForCard(match);
+    final eyebrowParts = <String>[];
+    if (number.isNotEmpty) eyebrowParts.add(number);
+    if (category.isNotEmpty) eyebrowParts.add(category);
+    final eyebrow =
+        eyebrowParts.isEmpty ? 'Partida' : eyebrowParts.join(' · ');
+    final phaseLabel = matchPhaseDisplayLabel(
+      match,
+      categoryMatches: categoryMatches,
+    );
+    return (eyebrow: eyebrow, phaseLabel: phaseLabel);
   }
 
   static String roundShortLabel(TournamentMatch match) {

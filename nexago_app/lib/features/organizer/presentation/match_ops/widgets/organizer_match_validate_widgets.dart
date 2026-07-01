@@ -613,10 +613,10 @@ class _ValidateIconButton extends StatelessWidget {
 
 String validateCategoryMeta({
   required TournamentMatch match,
-  required String categoryLabel,
+  required String categoryCompactLabel,
 }) {
   final parts = <String>[];
-  final category = categoryLabel.trim().toUpperCase();
+  final category = categoryCompactLabel.trim();
   final round = matchRoundLabel(match).toUpperCase();
   if (category.isNotEmpty) parts.add(category);
   if (round.isNotEmpty) parts.add(round);

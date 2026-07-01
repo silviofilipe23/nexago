@@ -205,7 +205,7 @@ class _OrganizerScheduleMatchSheetState
         const [];
     final enriched =
         ref.watch(organizerMatchCardsByIdProvider(widget.tournamentId)).valueOrNull?[widget.match.id];
-    final categoryLabel = MatchOpsLogic.categoryDisplayLabel(
+    final categoryLabel = MatchOpsLogic.categoryCompactLabel(
       categoryId: widget.match.categoryId,
       categories: categories,
     );

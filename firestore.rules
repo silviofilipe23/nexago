@@ -615,11 +615,38 @@ service cloud.firestore {
     match /arenas/{arenaId} {
       allow read: if true;
       allow create: if request.auth != null && (isAdmin() || isSuperAdmin() || isArena());
-      allow update, delete: if request.auth != null && (
+      // Campos de plano (planTier/planStatus/planActiveUntil) só as Cloud Functions
+      // gravam (Admin SDK ignora rules); o gestor não pode se auto-promover.
+      allow update: if request.auth != null && (
+        isAdmin() || isSuperAdmin() || (
+          resource.data.managerUserId == request.auth.uid &&
+          request.resource.data.get('planTier', null) == resource.data.get('planTier', null) &&
+          request.resource.data.get('planStatus', null) == resource.data.get('planStatus', null) &&
+          request.resource.data.get('planActiveUntil', null) == resource.data.get('planActiveUntil', null)
+        )
+      );
+      allow delete: if request.auth != null && (
         resource.data.managerUserId == request.auth.uid ||
         isAdmin() ||
         isSuperAdmin()
       );
+    }
+    // Cobrança/assinatura da arena — leitura restrita ao gestor/admin; escrita só via functions.
+    match /arenas/{arenaId}/billing/{docId} {
+      allow read: if request.auth != null && (
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+      allow write: if false;
+    }
+    match /arenas/{arenaId}/asaas/{docId} {
+      allow read: if request.auth != null && (
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+        isAdmin() ||
+        isSuperAdmin()
+      );
+      allow write: if false;
     }
     match /arenas/{arenaId}/courts/{courtId} {
       allow read: if true;

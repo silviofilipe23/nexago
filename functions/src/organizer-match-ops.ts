@@ -729,6 +729,7 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   const tournamentId = (request.data?.tournamentId as string)?.trim();
   const dayKey = (request.data?.dayKey as string)?.trim();
   const preview = request.data?.preview !== false;
+  const avoidAthleteConflict = request.data?.avoidAthleteConflict !== false;
 
   if (!tournamentId || !dayKey) {
     throw new HttpsError("invalid-argument", "tournamentId e dayKey obrigatórios");
@@ -739,8 +740,8 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   const tournament = await assertCanManageTournament(db, uid, tournamentId);
 
   const matchOps = tournament.matchOps as Record<string, unknown> | undefined;
-  const duration = (matchOps?.defaultMatchDurationMin as number) ?? 50;
-  const minRest = (matchOps?.minRestBetweenMatchesMin as number) ?? 45;
+  const duration = (matchOps?.defaultMatchDurationMin as number) ?? 30;
+  const minRest = (matchOps?.minRestBetweenMatchesMin as number) ?? 30;
   const dayStartStr = (matchOps?.dayStart as string) ?? "08:00";
   const [h, m] = dayStartStr.split(":").map(Number);
   const dayStart = eventDateFromDayKeyAndTime(dayKey, h, m);
@@ -761,6 +762,34 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   const courtBusyUntil: Record<string, Date> = {};
   for (const c of courts) {
     courtBusyUntil[c.id] = new Date(dayStart);
+  }
+
+  const teamBusyUntil: Record<string, Date> = {};
+  for (const doc of allMatches) {
+    const d = doc.data();
+    if (!d.scheduleTime) continue;
+    if (String(d.dayKey ?? "").trim() !== dayKey) continue;
+    const courtId = String(d.courtId ?? "").trim();
+    if (!courtId) continue;
+
+    const schedStart = (d.scheduleTime as Timestamp).toDate();
+    const schedEnd = d.scheduleEndTime ?
+      (d.scheduleEndTime as Timestamp).toDate() :
+      new Date(schedStart.getTime() + duration * 60 * 1000);
+
+    const prevCourt = courtBusyUntil[courtId];
+    if (!prevCourt || schedEnd > prevCourt) {
+      courtBusyUntil[courtId] = schedEnd;
+    }
+
+    const teamRestUntil = new Date(schedEnd.getTime() + minRest * 60 * 1000);
+    for (const tid of [d.teamAId, d.teamBId]) {
+      if (typeof tid !== "string" || !tid.trim()) continue;
+      const prevTeam = teamBusyUntil[tid];
+      if (!prevTeam || teamRestUntil > prevTeam) {
+        teamBusyUntil[tid] = teamRestUntil;
+      }
+    }
   }
 
   const slots: Array<{
@@ -784,11 +813,23 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   });
 
   for (const doc of sorted) {
+    const data = doc.data();
     let chosenCourt = courts[0].id;
     let chosenStart = courtBusyUntil[chosenCourt] ?? dayStart;
 
     for (const court of courts) {
-      const start = courtBusyUntil[court.id] ?? dayStart;
+      let start = courtBusyUntil[court.id] ?? dayStart;
+
+      if (avoidAthleteConflict) {
+        for (const tid of [data.teamAId, data.teamBId]) {
+          if (typeof tid !== "string" || !tid.trim()) continue;
+          const busy = teamBusyUntil[tid];
+          if (busy && busy > start) {
+            start = busy;
+          }
+        }
+      }
+
       if (start < chosenStart) {
         chosenStart = start;
         chosenCourt = court.id;
@@ -802,9 +843,15 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
       start: chosenStart.toISOString(),
       end: end.toISOString(),
     });
-    courtBusyUntil[chosenCourt] = new Date(
-      end.getTime() + minRest * 60 * 1000,
-    );
+    courtBusyUntil[chosenCourt] = end;
+
+    if (avoidAthleteConflict) {
+      const teamRestUntil = new Date(end.getTime() + minRest * 60 * 1000);
+      for (const tid of [data.teamAId, data.teamBId]) {
+        if (typeof tid !== "string" || !tid.trim()) continue;
+        teamBusyUntil[tid] = teamRestUntil;
+      }
+    }
   }
 
   if (!preview) {
@@ -825,14 +872,16 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
         allMatches,
         slot.matchId,
       );
-      const restWarnings = detectRestConflict(
-        matchDoc.data(),
-        start,
-        end,
-        allMatches,
-        minRest,
-        slot.matchId,
-      );
+      const restWarnings = avoidAthleteConflict ?
+        detectRestConflict(
+          matchDoc.data(),
+          start,
+          end,
+          allMatches,
+          minRest,
+          slot.matchId,
+        ) :
+        [];
       if (overlap || restWarnings.length > 0) {
         skipped.push({
           matchId: slot.matchId,

@@ -9,14 +9,21 @@ type AsaasCustomerListResponse = {
   data?: Array<{id?: string}>;
 };
 
-/** Apenas dígitos; CPF 11 ou CNPJ 14. */
+/**
+ * Normaliza CPF/CNPJ: maiúsculas, mantém `[0-9A-Z]`.
+ * Suporta o novo CNPJ alfanumérico (Receita 2026): 12 posições alfanuméricas
+ * + 2 DVs numéricos. CPF e CNPJ numérico legado continuam iguais (só dígitos).
+ */
 export function normalizeCpfCnpj(raw: string | undefined): string {
-  const digits = (raw ?? "").replace(/\D/g, "");
-  return digits;
+  return (raw ?? "").toUpperCase().replace(/[^0-9A-Z]/g, "");
 }
 
-export function isValidCpfCnpj(digits: string): boolean {
-  return digits.length === 11 || digits.length === 14;
+/** CPF (11 dígitos) ou CNPJ (14: 12 alfanuméricos + 2 dígitos verificadores). */
+export function isValidCpfCnpj(value: string): boolean {
+  const s = normalizeCpfCnpj(value);
+  if (s.length === 11) return /^\d{11}$/.test(s);
+  if (s.length === 14) return /^[0-9A-Z]{12}[0-9]{2}$/.test(s);
+  return false;
 }
 
 async function readStoredCpfCnpj(uid: string): Promise<string> {

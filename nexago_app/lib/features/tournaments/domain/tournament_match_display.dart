@@ -24,17 +24,13 @@ DateTime? matchTimeForCard(TournamentMatch match) {
   return match.scheduleTime;
 }
 
-String matchTimeLabelForCard(
-  TournamentMatch match, {
-  DateTime? reference,
-}) {
+String matchTimeLabelForCard(TournamentMatch match, {DateTime? reference}) {
   final time = matchTimeForCard(match);
   if (time == null) return '';
 
   final now = reference ?? DateTime.now();
-  final sameDay = time.year == now.year &&
-      time.month == now.month &&
-      time.day == now.day;
+  final sameDay =
+      time.year == now.year && time.month == now.month && time.day == now.day;
   if (sameDay) {
     return DateFormat('HH:mm', 'pt_BR').format(time);
   }
@@ -43,7 +39,7 @@ String matchTimeLabelForCard(
 
 String matchNumberLabelForCard(TournamentMatch match) {
   if (match.matchNumber <= 0) return '';
-  return 'Jogo #${match.matchNumber}';
+  return '#${match.matchNumber}';
 }
 
 String matchCourtLabelForCard(TournamentMatch match) {
@@ -111,8 +107,14 @@ List<TournamentMatchSet> parseSetsFromResultStrings(
   String resultA,
   String resultB,
 ) {
-  final aParts = resultA.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty);
-  final bParts = resultB.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty);
+  final aParts = resultA
+      .split(',')
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty);
+  final bParts = resultB
+      .split(',')
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty);
   final aList = aParts.toList();
   final bList = bParts.toList();
   if (aList.isEmpty && bList.isEmpty) return const [];
@@ -165,9 +167,7 @@ String setPartialsLabelForTeam({
 }) {
   final sets = setsForMatch(match);
   if (sets.isNotEmpty) {
-    return sets
-        .map((s) => isTeamA ? '${s.a}' : '${s.b}')
-        .join(' · ');
+    return sets.map((s) => isTeamA ? '${s.a}' : '${s.b}').join(' · ');
   }
 
   final raw = (isTeamA ? match.resultA : match.resultB).trim();
@@ -351,4 +351,52 @@ String bracketRoundGroupLabel(List<TournamentMatch> matches) {
     return knockoutPhaseLabelForMatchCount(sorted.length);
   }
   return matchRoundLabel(first);
+}
+
+String _poolLabelForId(String poolId) {
+  final trimmed = poolId.trim();
+  if (trimmed.isEmpty) return 'Geral';
+  if (trimmed.toLowerCase().startsWith('grupo')) return trimmed;
+  return 'Grupo $trimmed';
+}
+
+/// Fase legível para UI do organizador (grupos com pool, mata-mata por rodada).
+String matchPhaseDisplayLabel(
+  TournamentMatch match, {
+  List<TournamentMatch> categoryMatches = const [],
+}) {
+  late final String label;
+  if (match.isPoolMatch) {
+    final pool = _poolLabelForId(match.poolId);
+    label = pool == 'Geral' ? 'Fase de grupos' : 'Fase de grupos · $pool';
+  } else {
+    final typeLower = match.matchType.trim().toLowerCase();
+    if (typeLower == 'knockout' && categoryMatches.isNotEmpty) {
+      final inRound = categoryMatches
+          .where(
+            (m) =>
+                m.matchType.trim().toLowerCase() == 'knockout' &&
+                m.round == match.round,
+          )
+          .toList();
+      if (inRound.isNotEmpty) {
+        label = knockoutPhaseLabelForMatchCount(inRound.length);
+      } else {
+        label = _knockoutFallbackPhaseLabel(match, typeLower);
+      }
+    } else {
+      label = _knockoutFallbackPhaseLabel(match, typeLower);
+    }
+  }
+  return label.toUpperCase();
+}
+
+String _knockoutFallbackPhaseLabel(TournamentMatch match, String typeLower) {
+  final roundLabel = matchRoundLabel(match);
+  if (roundLabel.startsWith('Rodada ') &&
+      match.round > 0 &&
+      typeLower == 'knockout') {
+    return 'Mata-mata · $roundLabel';
+  }
+  return roundLabel;
 }

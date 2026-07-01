@@ -128,13 +128,13 @@ class _OrganizerScheduleTimePageState
       config: config,
     );
     final enriched = enrichedMap.valueOrNull?[match.id];
-    final categoryLabel = MatchOpsLogic.categoryDisplayLabel(
+    final categoryLabel = MatchOpsLogic.categoryCompactLabel(
       categoryId: match.categoryId,
       categories: categories,
     );
     final metaLabel = ScheduleGridLogic.matchMetaLabel(
       match: match,
-      categoryLabel: categoryLabel,
+      categoryCompactLabel: categoryLabel,
     );
 
     final courtId = _courtIdOverride ??

@@ -10,10 +10,12 @@ import {getAsaasPayment} from "./asaas-booking-payment";
 import {processArenaBookingAsaasNotification} from "./asaas-arena-booking-webhook";
 import {
   ARENA_BOOKING_PAYMENT_REF_PREFIX,
+  ARENA_SUBSCRIPTION_REF_PREFIX,
   TOURNAMENT_REGISTRATION_PAYMENT_REF_PREFIX,
 } from "./arena-booking-payment-constants";
 import {processArenaWithdrawalTransferWebhook} from "./asaas-withdrawal-webhook";
 import {processTournamentRegistrationAsaasNotification} from "./asaas-tournament-registration-webhook";
+import {processArenaSubscriptionAsaasNotification} from "./asaas-arena-subscription-webhook";
 
 const PAYMENT_EVENTS = new Set([
   "PAYMENT_RECEIVED",
@@ -117,6 +119,7 @@ export const asaasWebhook = onRequest({
   try {
     const payment = await getAsaasPayment(paymentId);
     const externalRef = (payment.externalReference || "").trim();
+    const subscriptionRef = (payment.subscription || "").trim();
     if (externalRef.startsWith(TOURNAMENT_REGISTRATION_PAYMENT_REF_PREFIX)) {
       await processTournamentRegistrationAsaasNotification(
         db,
@@ -126,6 +129,9 @@ export const asaasWebhook = onRequest({
       );
     } else if (externalRef.startsWith(ARENA_BOOKING_PAYMENT_REF_PREFIX)) {
       await processArenaBookingAsaasNotification(db, paymentId, payment, processedRef);
+    } else if (externalRef.startsWith(ARENA_SUBSCRIPTION_REF_PREFIX) || subscriptionRef) {
+      // Cobranças geradas por assinatura de plano de arena (o handler valida o ref).
+      await processArenaSubscriptionAsaasNotification(db, paymentId, payment, processedRef);
     }
   } catch (e) {
     logger.error(`asaasWebhook failed paymentId=${paymentId} event=${event}`, e);

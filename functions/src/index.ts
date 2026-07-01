@@ -32,6 +32,7 @@ import {
   listPendingArenaWithdrawals,
   reviewArenaWithdrawal,
 } from "./arena-booking-pix";
+import {createArenaSubscription, cancelArenaSubscription} from "./arena-subscription";
 import {asaasWebhook} from "./asaas-webhook";
 import {onArenaBookingCanceledNotifySlotVacancyAlerts} from "./slot-vacancy-alerts";
 import {
@@ -103,6 +104,8 @@ export {
   requestArenaWithdrawal,
   listPendingArenaWithdrawals,
   reviewArenaWithdrawal,
+  createArenaSubscription,
+  cancelArenaSubscription,
   asaasWebhook,
   onArenaBookingCanceledNotifySlotVacancyAlerts,
   sendTournamentPartnerInvite,

@@ -281,6 +281,9 @@ abstract final class AppRoutes {
   /// Pagamentos / saldo (gestor). Filha de [arenaSettings] — evita conflito com `/arena/:arenaId`.
   static const String arenaPayments = '/arena/settings/payments';
 
+  /// Plano/assinatura da arena (gestor). Filha de [arenaSettings].
+  static const String arenaPlan = '/arena/settings/plan';
+
   /// Catálogo de produtos (gestor).
   static const String arenaProducts = '/arena/products';
 
@@ -521,6 +524,7 @@ abstract final class AppRouteNames {
   static const String arenaBookingPix = 'arenaBookingPix';
   static const String arenaBookingSuccess = 'arenaBookingSuccess';
   static const String arenaPayments = 'arenaPayments';
+  static const String arenaPlan = 'arenaPlan';
   static const String arenaProducts = 'arenaProducts';
   static const String arenaProductNew = 'arenaProductNew';
   static const String arenaProductEdit = 'arenaProductEdit';

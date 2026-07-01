@@ -341,6 +341,44 @@ void main() {
     });
   });
 
+  group('matchPhaseDisplayLabel', () {
+    test('group match includes pool label', () {
+      expect(
+        matchPhaseDisplayLabel(
+          _bracketMatch(
+            matchType: 'group',
+            poolId: 'A',
+            isGroupMatch: true,
+          ),
+        ),
+        'FASE DE GRUPOS · GRUPO A',
+      );
+    });
+
+    test('knockout round resolves to quartas from peer count', () {
+      final categoryMatches = [
+        _bracketMatch(matchType: 'knockout', round: 2),
+        _bracketMatch(matchType: 'knockout', round: 2),
+        _bracketMatch(matchType: 'knockout', round: 2),
+        _bracketMatch(matchType: 'knockout', round: 2),
+      ];
+      expect(
+        matchPhaseDisplayLabel(
+          categoryMatches.first,
+          categoryMatches: categoryMatches,
+        ),
+        'QUARTAS DE FINAL',
+      );
+    });
+
+    test('final keeps explicit label', () {
+      expect(
+        matchPhaseDisplayLabel(_bracketMatch(matchType: 'Final')),
+        'FINAL',
+      );
+    });
+  });
+
   group('matchRoundLabel', () {
     test('labels grand final variants', () {
       expect(
@@ -359,20 +397,25 @@ void main() {
   });
 }
 
-TournamentMatch _bracketMatch({required String matchType}) {
+TournamentMatch _bracketMatch({
+  required String matchType,
+  String poolId = '',
+  bool isGroupMatch = false,
+  int round = 1,
+}) {
   return TournamentMatch(
     id: 'm-final',
     tournamentId: 't1',
     categoryId: 'cat-a',
-    round: 1,
+    round: round,
     matchType: matchType,
-    poolId: '',
+    poolId: poolId,
     teamAId: 'a',
     teamBId: 'b',
     status: TournamentMatchStatus.scheduled,
     resultA: '',
     resultB: '',
-    isGroupMatch: false,
+    isGroupMatch: isGroupMatch,
     matchNumber: 1,
     sets: const [],
   );

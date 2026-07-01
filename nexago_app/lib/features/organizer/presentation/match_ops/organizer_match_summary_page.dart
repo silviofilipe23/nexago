@@ -49,7 +49,7 @@ class OrganizerMatchSummaryPage extends ConsumerWidget {
           }
 
           final enriched = enrichedMap.valueOrNull?[match.id];
-          final categoryLabel = MatchOpsLogic.categoryDisplayLabel(
+          final categoryLabel = MatchOpsLogic.categoryCompactLabel(
             categoryId: match.categoryId,
             categories: categories,
           );
@@ -206,7 +206,7 @@ class _SummaryMatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final categoryMeta = validateCategoryMeta(
       match: match,
-      categoryLabel: categoryLabel,
+      categoryCompactLabel: categoryLabel,
     );
     final isValidated = match.reportStatus == 'validated';
     final durationMin = match.matchStartedAt != null && match.matchEndedAt != null

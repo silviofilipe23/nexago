@@ -315,6 +315,8 @@ class ScheduleGridBody extends StatefulWidget {
     required this.gridStart,
     required this.matchesByCourt,
     required this.categoryLabelsByMatchId,
+    required this.categoryAccentByCategoryId,
+    required this.categoryMatchesByCategoryId,
     required this.enrichedByMatchId,
     required this.defaultDurationMin,
     required this.draggingMatchId,
@@ -331,6 +333,8 @@ class ScheduleGridBody extends StatefulWidget {
   final DateTime gridStart;
   final Map<String, List<TournamentMatch>> matchesByCourt;
   final Map<String, String> categoryLabelsByMatchId;
+  final Map<String, Color> categoryAccentByCategoryId;
+  final Map<String, List<TournamentMatch>> categoryMatchesByCategoryId;
   final Map<String, TournamentMatchCardViewModel> enrichedByMatchId;
   final int defaultDurationMin;
   final String? draggingMatchId;
@@ -462,6 +466,10 @@ class _ScheduleGridBodyState extends State<ScheduleGridBody> {
                       matches: widget.matchesByCourt[court.id] ?? const [],
                       categoryLabelsByMatchId:
                           widget.categoryLabelsByMatchId,
+                      categoryAccentByCategoryId:
+                          widget.categoryAccentByCategoryId,
+                      categoryMatchesByCategoryId:
+                          widget.categoryMatchesByCategoryId,
                       enrichedByMatchId: widget.enrichedByMatchId,
                       defaultDurationMin: widget.defaultDurationMin,
                       draggingMatchId: widget.draggingMatchId,
@@ -639,6 +647,8 @@ class _ScheduleGridCourtColumn extends StatelessWidget {
     required this.gridStart,
     required this.matches,
     required this.categoryLabelsByMatchId,
+    required this.categoryAccentByCategoryId,
+    required this.categoryMatchesByCategoryId,
     required this.enrichedByMatchId,
     required this.defaultDurationMin,
     required this.draggingMatchId,
@@ -653,6 +663,8 @@ class _ScheduleGridCourtColumn extends StatelessWidget {
   final DateTime gridStart;
   final List<TournamentMatch> matches;
   final Map<String, String> categoryLabelsByMatchId;
+  final Map<String, Color> categoryAccentByCategoryId;
+  final Map<String, List<TournamentMatch>> categoryMatchesByCategoryId;
   final Map<String, TournamentMatchCardViewModel> enrichedByMatchId;
   final int defaultDurationMin;
   final String? draggingMatchId;
@@ -697,33 +709,49 @@ class _ScheduleGridCourtColumn extends StatelessWidget {
               ),
               child: IgnorePointer(
                 ignoring: draggingMatchId != null,
-                child: _ScheduleGridMatchCard(
-                  match: match,
-                  metaLabel: ScheduleGridLogic.matchMetaLabel(
-                    match: match,
-                    categoryLabel:
-                        categoryLabelsByMatchId[match.id] ?? match.categoryId,
-                  ),
-                  teamALine: scheduleGridTeamLine(
-                    match: match,
-                    sideA: true,
-                    enriched: enrichedByMatchId[match.id],
-                  ),
-                  teamBLine: scheduleGridTeamLine(
-                    match: match,
-                    sideA: false,
-                    enriched: enrichedByMatchId[match.id],
-                  ),
-                  timeRange: ScheduleGridLogic.matchTimeRange(
-                    match,
-                    defaultDurationMin: defaultDurationMin,
-                  ),
-                  phase: ScheduleGridLogic.matchPhase(match),
-                  showAlert: ScheduleGridLogic.showAlertIcon(match),
-                  isDragging: draggingMatchId == match.id,
-                  onTap: () => onMatchTap(match),
-                  onDragStarted: () => onDragStarted(match),
-                  onDragEnded: onDragEnded,
+                child: Builder(
+                  builder: (context) {
+                    final categoryLabel =
+                        categoryLabelsByMatchId[match.id] ?? match.categoryId;
+                    final header = ScheduleGridLogic.matchCardHeader(
+                      match: match,
+                      categoryCompactLabel: categoryLabel,
+                      categoryMatches:
+                          categoryMatchesByCategoryId[match.categoryId] ??
+                          const [],
+                    );
+                    final matchPhase = ScheduleGridLogic.matchPhase(match);
+                    return _ScheduleGridMatchCard(
+                      match: match,
+                      eyebrowLabel: header.eyebrow,
+                      phaseLabel: header.phaseLabel,
+                      accentColor: ScheduleGridLogic.matchCardAccentColor(
+                        categoryId: match.categoryId,
+                        categoryColors: categoryAccentByCategoryId,
+                        phase: matchPhase,
+                      ),
+                      teamALine: scheduleGridTeamLine(
+                        match: match,
+                        sideA: true,
+                        enriched: enrichedByMatchId[match.id],
+                      ),
+                      teamBLine: scheduleGridTeamLine(
+                        match: match,
+                        sideA: false,
+                        enriched: enrichedByMatchId[match.id],
+                      ),
+                      timeRange: ScheduleGridLogic.matchTimeRange(
+                        match,
+                        defaultDurationMin: defaultDurationMin,
+                      ),
+                      phase: matchPhase,
+                      showAlert: ScheduleGridLogic.showAlertIcon(match),
+                      isDragging: draggingMatchId == match.id,
+                      onTap: () => onMatchTap(match),
+                      onDragStarted: () => onDragStarted(match),
+                      onDragEnded: onDragEnded,
+                    );
+                  },
                 ),
               ),
             ),
@@ -824,7 +852,9 @@ class _ScheduleGridDropSlot extends StatelessWidget {
 class _ScheduleGridMatchCard extends StatelessWidget {
   const _ScheduleGridMatchCard({
     required this.match,
-    required this.metaLabel,
+    required this.eyebrowLabel,
+    required this.phaseLabel,
+    required this.accentColor,
     required this.teamALine,
     required this.teamBLine,
     required this.timeRange,
@@ -837,7 +867,9 @@ class _ScheduleGridMatchCard extends StatelessWidget {
   });
 
   final TournamentMatch match;
-  final String metaLabel;
+  final String eyebrowLabel;
+  final String phaseLabel;
+  final Color accentColor;
   final String teamALine;
   final String teamBLine;
   final String timeRange;
@@ -847,14 +879,6 @@ class _ScheduleGridMatchCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onDragStarted;
   final VoidCallback onDragEnded;
-
-  Color get _accent {
-    return switch (phase) {
-      ScheduleGridMatchPhase.live => AppColors.live,
-      ScheduleGridMatchPhase.finished => AppColors.win,
-      ScheduleGridMatchPhase.upcoming => AppColors.brand,
-    };
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -876,7 +900,7 @@ class _ScheduleGridMatchCard extends StatelessWidget {
               Container(
                 width: 4,
                 decoration: BoxDecoration(
-                  color: _accent,
+                  color: accentColor,
                   borderRadius: const BorderRadius.horizontal(
                     left: Radius.circular(10),
                   ),
@@ -884,7 +908,7 @@ class _ScheduleGridMatchCard extends StatelessWidget {
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+                  padding: const EdgeInsets.fromLTRB(5, 4, 5, 4),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -892,61 +916,94 @@ class _ScheduleGridMatchCard extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              metaLabel,
+                              eyebrowLabel,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTypography.mono(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
                                 color: context.themeColors.onSurfaceMuted,
+                                letterSpacing: 0.2,
+                                height: 1.1,
                               ),
                             ),
                           ),
-                          if (phase == ScheduleGridMatchPhase.live)
+                          if (timeRange.isNotEmpty) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              timeRange,
+                              style: AppTypography.mono(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w600,
+                                color: context.themeColors.onSurfaceMuted,
+                                height: 1.1,
+                              ),
+                            ),
+                          ],
+                          if (phase == ScheduleGridMatchPhase.live) ...[
+                            const SizedBox(width: 4),
                             Container(
-                              width: 6,
-                              height: 6,
+                              width: 5,
+                              height: 5,
                               decoration: const BoxDecoration(
                                 color: AppColors.live,
                                 shape: BoxShape.circle,
                               ),
                             ),
-                          if (showAlert)
+                          ],
+                          if (showAlert) ...[
+                            const SizedBox(width: 2),
                             Icon(
                               Icons.notifications_none_rounded,
-                              size: 12,
+                              size: 11,
                               color: context.themeColors.onSurfaceMuted,
                             ),
+                          ],
                         ],
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        teamALine,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.soraRegular(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: context.themeColors.onSurface,
+                      if (phaseLabel.trim().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            phaseLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.mono(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w700,
+                              color: context.themeColors.onSurface,
+                              height: 1.1,
+                            ),
+                          ),
                         ),
-                      ),
-                      Text(
-                        teamBLine,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.soraRegular(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: context.themeColors.onSurface,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        timeRange,
-                        style: AppTypography.mono(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          color: context.themeColors.onSurfaceMuted,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              teamALine,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.soraRegular(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: context.themeColors.onSurface,
+                                height: 1.1,
+                              ),
+                            ),
+                            Text(
+                              teamBLine,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.soraRegular(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: context.themeColors.onSurface,
+                                height: 1.1,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -969,11 +1026,13 @@ class _ScheduleGridMatchCard extends StatelessWidget {
             width: ScheduleGridLogic.courtColumnWidth - 8,
             height: ScheduleGridLogic.matchBlockHeight(
               match: match,
-              defaultDurationMin: 50,
+              defaultDurationMin: 30,
             ),
             child: _ScheduleGridMatchCard(
               match: match,
-              metaLabel: metaLabel,
+              eyebrowLabel: eyebrowLabel,
+              phaseLabel: phaseLabel,
+              accentColor: accentColor,
               teamALine: teamALine,
               teamBLine: teamBLine,
               timeRange: timeRange,

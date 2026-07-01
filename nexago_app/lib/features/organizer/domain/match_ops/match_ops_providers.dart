@@ -133,20 +133,22 @@ final organizerScheduleDayKeyProvider = organizerScheduleGridDayKeyProvider;
 class _ScheduleGridDayKeyNotifier
     extends AutoDisposeFamilyNotifier<String, String> {
   var _userSelected = false;
+  String _selectedDayKey = '';
 
   @override
   String build(String tournamentId) {
     ref.watch(organizerScheduleGridDayKeysProvider(tournamentId));
     ref.watch(organizerMatchOpsConfigProvider(tournamentId));
 
-    if (_userSelected && state.isNotEmpty) return state;
+    if (_userSelected && _selectedDayKey.isNotEmpty) return _selectedDayKey;
 
     return _resolveDefault(tournamentId);
   }
 
   void select(String dayKey) {
     _userSelected = true;
-    state = dayKey.trim();
+    _selectedDayKey = dayKey.trim();
+    state = _selectedDayKey;
   }
 
   String _resolveDefault(String tournamentId) {
@@ -156,7 +158,7 @@ class _ScheduleGridDayKeyNotifier
     return ScheduleLogic.resolveScheduleGridDayKey(
       tournamentDays: days,
       activeDayKey: config?.activeDayKey,
-      preferredDayKey: _userSelected ? state : null,
+      preferredDayKey: _userSelected ? _selectedDayKey : null,
     );
   }
 }

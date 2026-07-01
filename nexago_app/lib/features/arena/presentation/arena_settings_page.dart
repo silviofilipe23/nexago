@@ -206,6 +206,14 @@ class _SettingsBody extends ConsumerWidget {
                               ),
                             ),
                             ArenaSettingsTile(
+                              icon: Icons.workspace_premium_outlined,
+                              title: 'Plano',
+                              subtitle: 'Assinatura e benefícios da arena',
+                              variant: ArenaSettingsIconVariant.neutral,
+                              onTap: () =>
+                                  context.pushNamed(AppRouteNames.arenaPlan),
+                            ),
+                            ArenaSettingsTile(
                               icon: Icons.account_balance_wallet_outlined,
                               title: 'Pagamentos',
                               subtitle: paymentsSubtitle,

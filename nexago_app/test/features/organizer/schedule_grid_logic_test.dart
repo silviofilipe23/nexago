@@ -12,21 +12,25 @@ TournamentMatch _match({
   String? teamADescription,
   String? teamBDescription,
   List<TournamentMatchSet> sets = const [],
+  int matchNumber = 1,
+  String matchType = 'wb',
+  String poolId = '',
+  bool isGroupMatch = false,
 }) {
   return TournamentMatch(
     id: 'm1',
     tournamentId: 't1',
     categoryId: 'cat1',
     round: 3,
-    matchType: 'wb',
-    poolId: '',
+    matchType: matchType,
+    poolId: poolId,
     teamAId: 'a',
     teamBId: 'b',
     status: status,
     resultA: '',
     resultB: '',
-    isGroupMatch: false,
-    matchNumber: 1,
+    isGroupMatch: isGroupMatch,
+    matchNumber: matchNumber,
     courtId: courtId,
     scheduleTime: scheduleTime,
     scheduleEndTime: scheduleEndTime,
@@ -206,6 +210,54 @@ void main() {
       expect(ScheduleGridLogic.timeLabel(slots.first), '07:00');
       expect(ScheduleGridLogic.timeLabel(slots.last), '23:30');
       expect(slots.length, 34);
+    });
+
+    test('matchCardHeader includes match number and phase label', () {
+      final match = _match(
+        matchNumber: 7,
+        matchType: 'Group',
+        poolId: 'A',
+        isGroupMatch: true,
+      );
+      final header = ScheduleGridLogic.matchCardHeader(
+        match: match,
+        categoryCompactLabel: 'MASC · INICIANTE',
+        categoryMatches: [match],
+      );
+      expect(header.eyebrow, '#7 · MASC · INICIANTE');
+      expect(header.phaseLabel, contains('GRUPO'));
+    });
+
+    test('categoryAccentColors assigns stable distinct colors', () {
+      final colors = ScheduleGridLogic.categoryAccentColors([
+        'cat-b',
+        'cat-a',
+        'cat-c',
+      ]);
+      expect(colors.length, 3);
+      expect(colors['cat-a'], isNotNull);
+      expect(colors['cat-b'], isNotNull);
+      expect(colors['cat-c'], isNotNull);
+      expect(colors['cat-a'], isNot(colors['cat-b']));
+      expect(
+        ScheduleGridLogic.categoryAccentColors(['cat-a'])['cat-a'],
+        colors['cat-a'],
+      );
+    });
+
+    test('matchCardAccentColor attenuates finished matches', () {
+      final colors = ScheduleGridLogic.categoryAccentColors(['cat1']);
+      final live = ScheduleGridLogic.matchCardAccentColor(
+        categoryId: 'cat1',
+        categoryColors: colors,
+        phase: ScheduleGridMatchPhase.live,
+      );
+      final finished = ScheduleGridLogic.matchCardAccentColor(
+        categoryId: 'cat1',
+        categoryColors: colors,
+        phase: ScheduleGridMatchPhase.finished,
+      );
+      expect(finished.a, lessThan(live.a));
     });
 
     test('gridTimeSlotsForDay expands when match ends after 23:30', () {

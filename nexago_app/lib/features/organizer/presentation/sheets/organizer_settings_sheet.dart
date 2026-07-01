@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/auth/active_role_providers.dart';
 import 'package:nexago_app/core/auth/app_mobile_role.dart';
+import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -65,6 +67,26 @@ class _OrganizerSettingsSheet extends ConsumerWidget {
                     color: context.themeColors.onSurfaceMuted,
                     height: 1.4,
                   ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'FINANCEIRO',
+              style: AppTypography.mono(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: context.themeColors.onSurfaceMuted,
+                letterSpacing: 0.6,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _OrganizerSettingsRow(
+              icon: Icons.account_balance_wallet_rounded,
+              title: 'Carteira e saques',
+              subtitle: 'Saldo de inscrições, chave PIX e saque',
+              onTap: () {
+                Navigator.of(context).pop();
+                context.pushNamed(AppRouteNames.organizerWallet);
+              },
             ),
             if (canSwitchRole) ...[
               const SizedBox(height: 20),
@@ -144,6 +166,75 @@ class _OrganizerSettingsSheet extends ConsumerWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OrganizerSettingsRow extends StatelessWidget {
+  const _OrganizerSettingsRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.themeColors.surfaceRaised,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.brand.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.brand, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: context.themeColors.onSurfaceMuted,
+                            height: 1.35,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: context.themeColors.onSurfaceMuted,
+              ),
+            ],
+          ),
         ),
       ),
     );

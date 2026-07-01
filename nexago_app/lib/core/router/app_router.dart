@@ -19,6 +19,7 @@ import '../../features/auth/register_page.dart';
 import '../../features/auth/presentation/role_selection_page.dart';
 import '../../features/auth/presentation/auth_loading_page.dart';
 import '../../features/organizer/presentation/organizer_home_page.dart';
+import '../../features/organizer/presentation/organizer_financial_page.dart';
 import '../../features/organizer/presentation/create/organizer_create_chooser_page.dart';
 import '../../features/organizer/presentation/tournament_create/steps/tournament_create_categories_page.dart';
 import '../../features/organizer/presentation/tournament_create/steps/tournament_create_identity_page.dart';
@@ -280,6 +281,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         name: AppRouteNames.organizerHome,
         builder: (context, state) => const OrganizerHomePage(),
         routes: [
+          GoRoute(
+            path: 'wallet',
+            name: AppRouteNames.organizerWallet,
+            builder: (context, state) => const OrganizerFinancialPage(),
+          ),
           GoRoute(
             path: 'create',
             name: AppRouteNames.organizerCreate,

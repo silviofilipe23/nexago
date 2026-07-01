@@ -20,6 +20,7 @@ abstract final class AppRoutes {
 
   /// Home do organizador de torneio.
   static const String organizerHome = '/organizer';
+  static const String organizerWallet = '/organizer/wallet';
   static const String organizerCreate = '/organizer/create';
   static const String organizerTournamentCreateExpress =
       '/organizer/tournaments/new/express';
@@ -405,6 +406,7 @@ abstract final class AppRouteNames {
   static const String roleSelection = 'roleSelection';
   static const String authLoading = 'authLoading';
   static const String organizerHome = 'organizerHome';
+  static const String organizerWallet = 'organizerWallet';
   static const String organizerCreate = 'organizerCreate';
   static const String organizerTournamentCreateExpress =
       'organizerTournamentCreateExpress';

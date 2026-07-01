@@ -9,9 +9,12 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 import 'package:nexago_app/core/ui/fade_slide_in.dart';
 
+import '../../domain/arena_plan.dart';
+import '../../domain/arena_plan_providers.dart';
 import '../../domain/arena_schedule_providers.dart';
 import '../../domain/arena_shell_providers.dart';
 import '../../domain/comandas/arena_comanda_providers.dart';
+import '../plan/widgets/arena_plan_gate.dart';
 import '../widgets/arena_async_state.dart';
 import '../widgets/arena_dashboard_tokens.dart';
 import 'widgets/arena_comanda_card.dart';
@@ -39,9 +42,13 @@ class ArenaComandasPage extends ConsumerWidget {
                   icon: Icons.receipt_long_outlined,
                 );
               }
+              final entitled = ref
+                  .watch(managedArenaCapabilitiesProvider)
+                  .contains(ArenaCapability.pdvComandas);
               return _ComandasBody(
                 arenaId: arenaId,
                 arenaName: arenaDetail.valueOrNull?.name,
+                entitled: entitled,
               );
             },
             loading: () =>
@@ -55,10 +62,15 @@ class ArenaComandasPage extends ConsumerWidget {
 }
 
 class _ComandasBody extends ConsumerWidget {
-  const _ComandasBody({required this.arenaId, required this.arenaName});
+  const _ComandasBody({
+    required this.arenaId,
+    required this.arenaName,
+    required this.entitled,
+  });
 
   final String arenaId;
   final String? arenaName;
+  final bool entitled;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -67,7 +79,13 @@ class _ComandasBody extends ConsumerWidget {
     final kpis = ref.watch(arenaComandasKpisProvider(arenaId));
 
     return comandasAsync.when(
-      data: (_) {
+      data: (allComandas) {
+        // Sem titularidade e sem histórico: paywall (nada a preservar).
+        if (!entitled && allComandas.isEmpty) {
+          return const ArenaPlanUpsell(
+            capability: ArenaCapability.pdvComandas,
+          );
+        }
         return CustomScrollView(
           controller: ref
               .watch(arenaShellScrollRegistryProvider)
@@ -82,6 +100,13 @@ class _ComandasBody extends ConsumerWidget {
               child: _ComandasHeader(
                 arenaName: arenaName,
                 onNewComanda: () {
+                  if (!entitled) {
+                    showArenaPlanUpsellSheet(
+                      context,
+                      capability: ArenaCapability.pdvComandas,
+                    );
+                    return;
+                  }
                   ref.read(arenaComandaDraftProvider.notifier).reset();
                   context.pushNamed(AppRouteNames.arenaComandaNewType);
                 },
@@ -90,6 +115,21 @@ class _ComandasBody extends ConsumerWidget {
                 },
               ),
             ),
+            if (!entitled)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    ArenaDashboardTokens.horizontalPadding,
+                    12,
+                    ArenaDashboardTokens.horizontalPadding,
+                    0,
+                  ),
+                  child: const ArenaPlanReadOnlyBanner(
+                    message: 'Somente leitura. Você pode fechar as comandas '
+                        'abertas, mas não abrir novas.',
+                  ),
+                ),
+              ),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(

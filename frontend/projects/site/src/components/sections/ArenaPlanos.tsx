@@ -20,40 +20,48 @@ type Plan = {
   cta: string;
 };
 
-// TODO: valores e benefícios são PLACEHOLDER — substituir pela tabela oficial de planos de arena.
+// Mantém alinhado com functions/src/arena-plans.ts (fonte da verdade) e
+// nexago_app arena_plan.dart. Ciclo anual = 2 meses grátis.
 const PLANS: Plan[] = [
   {
     name: 'Essencial',
-    description: 'Para começar a aparecer para a comunidade da areia.',
+    description: 'Comece a receber reservas online sem pagar mensalidade.',
     monthly: 0,
     yearly: 0,
-    features: ['Perfil público da arena', 'Listagem na busca de arenas', 'Até 5 fotos da estrutura'],
+    features: [
+      'Perfil público e listagem na busca',
+      'Reservas online com pagamento PIX',
+      'Agenda e disponibilidade das quadras',
+      'Avaliações da arena',
+      'Carteira e saque via PIX',
+    ],
     cta: 'Começar grátis',
   },
   {
     name: 'Pro',
-    description: 'Para arenas que querem encher as quadras e receber torneios.',
-    monthly: 199,
-    yearly: 1908,
+    description: 'A operação completa da arena, do balcão ao torneio.',
+    monthly: 149,
+    yearly: 1490,
     popular: true,
     features: [
       'Tudo do Essencial',
+      'PDV e comandas',
+      'Controle de estoque e produtos',
+      'Destaque na busca e promoções de horário',
+      'Dashboard completo, insights e seguidores',
       'Receber etapas e torneios',
-      'Destaque na busca',
-      'Agenda e disponibilidade',
-      'Métricas de visualização',
     ],
     cta: 'Falar com a gente',
   },
   {
     name: 'Parceiro',
     description: 'Para redes e arenas que sediam a Liga nexaGO.',
-    monthly: 499,
-    yearly: 4788,
+    monthly: 399,
+    yearly: 3990,
     features: [
       'Tudo do Pro',
-      'Prioridade em etapas da Liga',
-      'Múltiplas quadras / unidades',
+      'Múltiplas quadras / unidades, sem limite',
+      'Prioridade em etapas da Liga nexaGO',
       'Gerente de conta dedicado',
     ],
     cta: 'Falar com a gente',
@@ -99,7 +107,7 @@ function BillingSwitch({ yearly, onChange }: { yearly: boolean; onChange: (v: bo
                   active ? 'bg-on-brand/15 text-on-brand' : 'bg-brand-tint text-brand',
                 )}
               >
-                -20%
+                2 meses grátis
               </span>
             )}
           </button>
@@ -208,8 +216,7 @@ export function ArenaPlanos({ id = 'planos' }: { id?: string }) {
 
       <Reveal delay={0.1}>
         <p className="mt-10 text-center text-xs text-text-dim">
-          {/* TODO: remover quando os valores forem oficiais. */}
-          Valores ilustrativos — a tabela oficial de planos será confirmada em breve.
+          Sem fidelidade. O Essencial é grátis para sempre — você só paga a taxa por reserva paga.
         </p>
       </Reveal>
     </section>

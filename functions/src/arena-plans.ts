@@ -19,11 +19,12 @@ export interface ArenaPlan {
   free: boolean;
 }
 
-// TODO: valores PLACEHOLDER — substituir pela tabela oficial de planos de arena.
+// Tabela oficial de planos. Ciclo anual = 2 meses grátis (10× o mensal).
+// Essencial é grátis: monetiza via taxa sobre reservas, não por mensalidade.
 export const ARENA_PLANS: Record<ArenaPlanTier, ArenaPlan> = {
   essencial: {tier: "essencial", name: "Essencial", monthlyCents: 0, yearlyCents: 0, free: true},
-  pro: {tier: "pro", name: "Pro", monthlyCents: 19900, yearlyCents: 190800, free: false},
-  parceiro: {tier: "parceiro", name: "Parceiro", monthlyCents: 49900, yearlyCents: 478800, free: false},
+  pro: {tier: "pro", name: "Pro", monthlyCents: 14900, yearlyCents: 149000, free: false},
+  parceiro: {tier: "parceiro", name: "Parceiro", monthlyCents: 39900, yearlyCents: 399000, free: false},
 };
 
 export function isArenaPlanTier(value: unknown): value is ArenaPlanTier {

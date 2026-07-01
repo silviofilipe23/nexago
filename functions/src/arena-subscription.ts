@@ -234,8 +234,11 @@ export const cancelArenaSubscription = onCall(
       {status: "canceled", updatedAt: FieldValue.serverTimestamp()},
       {merge: true},
     );
+    // Downgrade só ao fim do período já pago: mantém planTier e planActiveUntil;
+    // a titularidade (entitlement) expira em planActiveUntil. Ver
+    // ArenaPlanStatus.entitled / arenaEntitled em firestore.rules.
     await db.collection("arenas").doc(arenaId).set(
-      {planStatus: "none", planActiveUntil: null, planUpdatedAt: FieldValue.serverTimestamp()},
+      {planStatus: "canceling", planUpdatedAt: FieldValue.serverTimestamp()},
       {merge: true},
     );
 

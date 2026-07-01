@@ -96,6 +96,14 @@ import {deleteOwnAccount} from "./account-deletion";
 import {onTournamentInscriptionWriteSyncCollectedCents} from "./tournament-collected-stats";
 
 export {
+  onArenaCourtCreatedCountUp,
+  onArenaCourtDeletedCountDown,
+  backfillArenaCourtsCount,
+} from "./arena-courts-count";
+
+export {finalizeLapsedArenaPlans} from "./arena-plan-sweeper";
+
+export {
   quoteArenaBooking,
   createArenaBooking,
   cancelPendingArenaBookingPayment,

@@ -12,13 +12,16 @@ import {isArenaPlanTier, type ArenaPlanTier} from "./arena-plans";
 
 const ACTIVE_STATUSES = new Set(["CONFIRMED", "RECEIVED", "RECEIVED_IN_CASH"]);
 const OVERDUE_STATUSES = new Set(["OVERDUE"]);
-const DOWNGRADE_STATUSES = new Set([
+// Corte imediato (dinheiro revertido / disputa): revoga o Pro na hora.
+const HARD_DOWNGRADE_STATUSES = new Set([
   "REFUNDED",
   "REFUND_REQUESTED",
   "CHARGEBACK_REQUESTED",
   "CHARGEBACK_DISPUTE",
-  "DELETED",
 ]);
+// Assinatura/pagamento removido (inclui nosso próprio cancelamento): mantém o
+// Pro até o fim do período pago (planActiveUntil), como um cancelamento.
+const CANCEL_STATUSES = new Set(["DELETED"]);
 
 type SubscriptionDetails = {nextDueDate?: string; externalReference?: string};
 
@@ -114,7 +117,17 @@ export async function processArenaSubscriptionAsaasNotification(
       {status: "overdue", updatedAt: FieldValue.serverTimestamp()},
       {merge: true},
     );
-  } else if (DOWNGRADE_STATUSES.has(status)) {
+  } else if (CANCEL_STATUSES.has(status)) {
+    // Mantém planTier e planActiveUntil; titularidade expira no fim do período.
+    await arenaRef.set(
+      {planStatus: "canceling", planUpdatedAt: FieldValue.serverTimestamp()},
+      {merge: true},
+    );
+    await billingRef.set(
+      {status: "canceled", updatedAt: FieldValue.serverTimestamp()},
+      {merge: true},
+    );
+  } else if (HARD_DOWNGRADE_STATUSES.has(status)) {
     await arenaRef.set(
       {
         planStatus: "none",

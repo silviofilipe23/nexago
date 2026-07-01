@@ -9,6 +9,7 @@ import '../domain/arena_dashboard_providers.dart';
 import '../domain/arena_schedule_providers.dart';
 import '../domain/arena_shell_providers.dart';
 import 'arena_dashboard_formatters.dart';
+import 'plan/widgets/arena_plan_status_banner.dart';
 import 'widgets/arena_dashboard_followers_card.dart';
 import 'widgets/arena_dashboard_header.dart';
 import 'widgets/arena_dashboard_insights_section.dart';
@@ -86,6 +87,7 @@ class ArenaDashboardPage extends ConsumerWidget {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            const ArenaPlanStatusBanner(),
                             SizedBox(height: ArenaDashboardTokens.sectionGap),
                             const FadeSlideIn(
                               duration: Duration(milliseconds: 440),

@@ -441,7 +441,7 @@ class _CycleToggle extends StatelessWidget {
       child: Row(
         children: [
           option(ArenaBillingCycle.monthly, 'Mensal'),
-          option(ArenaBillingCycle.yearly, 'Anual', badge: '-20%'),
+          option(ArenaBillingCycle.yearly, 'Anual', badge: '2 meses grátis'),
         ],
       ),
     );

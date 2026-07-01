@@ -7,7 +7,10 @@ import '../../../../core/ui/app_snackbar.dart';
 import '../../../arenas/domain/arena_promotion.dart';
 import '../../../arenas/domain/arena_promotion_display.dart';
 import '../../../arenas/domain/slots_providers.dart';
+import '../../domain/arena_plan.dart';
+import '../../domain/arena_plan_providers.dart';
 import '../../domain/arena_shell_providers.dart';
+import '../plan/widgets/arena_plan_gate.dart';
 import 'arena_dashboard_tokens.dart';
 import 'arena_promotion_form_sheet.dart';
 
@@ -140,6 +143,36 @@ class _ArenaPromotionsSheetState extends ConsumerState<ArenaPromotionsSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final caps = ref.watch(managedArenaCapabilitiesProvider);
+    if (!caps.contains(ArenaCapability.promocoes)) {
+      return Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 12,
+          bottom: 20 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.35,
+                  ),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const ArenaPlanUpsell(capability: ArenaCapability.promocoes),
+          ],
+        ),
+      );
+    }
     final promotionsAsync =
         ref.watch(arenaAllPromotionsProvider(widget.arenaId));
 

@@ -9,7 +9,10 @@ import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
 import '../../arenas/domain/arena_court.dart';
+import '../domain/arena_plan.dart';
+import '../domain/arena_plan_providers.dart';
 import '../domain/arena_providers.dart';
+import 'plan/widgets/arena_plan_gate.dart';
 import 'widgets/arena_async_state.dart';
 import 'widgets/arena_court_form_sheet.dart';
 import 'widgets/arena_dashboard_tokens.dart';
@@ -104,6 +107,24 @@ class _CourtsBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final monthlyAsync = ref.watch(arenaCourtMonthlyBookingsProvider(arenaId));
     final monthly = monthlyAsync.valueOrNull ?? const <String, int>{};
+    final maxCourts = ref.watch(managedArenaMaxCourtsProvider);
+    final atLimit = maxCourts != null && courts.length >= maxCourts;
+
+    void onAddCourt() {
+      if (atLimit) {
+        showArenaPlanUpsellSheet(
+          context,
+          capability: ArenaCapability.multiUnidade,
+          icon: Icons.grid_view_rounded,
+          title: 'Limite de quadras atingido',
+          description:
+              'O plano atual permite até $maxCourts quadras. Assine o Pro '
+              'para adicionar quantas precisar.',
+        );
+        return;
+      }
+      _openCourtSheet(context, arenaId: arenaId);
+    }
 
     final maintenanceCount = courts.where((c) => c.isMaintenance).length;
     final activeCount = courts.length - maintenanceCount;
@@ -114,9 +135,7 @@ class _CourtsBody extends ConsumerWidget {
         _CourtsHeader(onBack: () => context.pop()),
         Expanded(
           child: courts.isEmpty
-              ? _EmptyCourts(
-                  onAdd: () => _openCourtSheet(context, arenaId: arenaId),
-                )
+              ? _EmptyCourts(onAdd: onAddCourt)
               : ListView(
                   padding: const EdgeInsets.fromLTRB(
                     ArenaDashboardTokens.horizontalPadding,
@@ -153,9 +172,7 @@ class _CourtsBody extends ConsumerWidget {
                       ),
                     ],
                     SizedBox(height: 14),
-                    _AddCourtButton(
-                      onTap: () => _openCourtSheet(context, arenaId: arenaId),
-                    ),
+                    _AddCourtButton(onTap: onAddCourt),
                   ],
                 ),
         ),

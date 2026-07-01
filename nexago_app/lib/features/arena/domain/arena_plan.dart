@@ -1,7 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Planos de assinatura da arena. Espelha `functions/src/arena-plans.ts` e a
-/// seção de planos do site (`ArenaPlanos`). Valores ainda placeholder.
+/// seção de planos do site (`ArenaPlanos`).
+///
+/// Eixo de valor: o Essencial (grátis) já entrega reservas online com PIX e
+/// carteira — a plataforma monetiza via taxa sobre reservas. O Pro vende a
+/// operação da arena (PDV/comandas, estoque, destaque, promoções, métricas e
+/// receber torneios). O Parceiro adiciona escala (multi-unidade), prioridade
+/// na Liga nexaGO e gerente de conta.
 enum ArenaPlanTier { essencial, pro, parceiro }
 
 enum ArenaBillingCycle { monthly, yearly }
@@ -23,6 +29,69 @@ extension ArenaPlanTierX on ArenaPlanTier {
 
 extension ArenaBillingCycleX on ArenaBillingCycle {
   String get id => this == ArenaBillingCycle.yearly ? 'yearly' : 'monthly';
+}
+
+/// Recursos liberados por plano. Fonte única de verdade do gate no app —
+/// evita `if (tier == pro)` espalhado. O gate de segurança correspondente vive
+/// em `firestore.rules` (helper `arenaHasPlan`); este aqui é UX/entitlement.
+enum ArenaCapability {
+  /// PDV / comandas (abrir e operar comandas).
+  pdvComandas,
+
+  /// Catálogo de produtos e controle de estoque.
+  estoque,
+
+  /// Promoções de horário na agenda.
+  promocoes,
+
+  /// Dashboard completo: insights e seguidores.
+  metricasCompletas,
+
+  /// Pode sediar etapas e torneios.
+  receberTorneios,
+
+  /// Múltiplas quadras / unidades, sem limite.
+  multiUnidade,
+}
+
+/// Capabilities de uma arena a partir do seu tier e titularidade.
+///
+/// Sem titularidade ([ArenaPlanStatus.entitled] falso — Essencial, atraso fora
+/// da carência, cancelamento já expirado) cai para o comportamento do
+/// Essencial: sem capabilities Pro.
+Set<ArenaCapability> capabilitiesFor(
+  ArenaPlanTier? tier, {
+  required bool entitled,
+}) {
+  final effectiveTier = entitled ? tier : ArenaPlanTier.essencial;
+  return switch (effectiveTier) {
+    ArenaPlanTier.parceiro => {
+        ArenaCapability.pdvComandas,
+        ArenaCapability.estoque,
+        ArenaCapability.promocoes,
+        ArenaCapability.metricasCompletas,
+        ArenaCapability.receberTorneios,
+        ArenaCapability.multiUnidade,
+      },
+    ArenaPlanTier.pro => {
+        ArenaCapability.pdvComandas,
+        ArenaCapability.estoque,
+        ArenaCapability.promocoes,
+        ArenaCapability.metricasCompletas,
+        ArenaCapability.receberTorneios,
+      },
+    ArenaPlanTier.essencial || null => const <ArenaCapability>{},
+  };
+}
+
+/// Máximo de quadras por plano. `null` = ilimitado. Sem titularidade cai para o
+/// teto do Essencial. Espelha o gate em `firestore.rules` (`arenaCanAddCourt`).
+int? maxCourtsFor(ArenaPlanTier? tier, {required bool entitled}) {
+  final effectiveTier = entitled ? tier : ArenaPlanTier.essencial;
+  return switch (effectiveTier) {
+    ArenaPlanTier.pro || ArenaPlanTier.parceiro => null,
+    ArenaPlanTier.essencial || null => 2,
+  };
 }
 
 class ArenaPlan {
@@ -54,46 +123,50 @@ class ArenaPlan {
       cycle == ArenaBillingCycle.yearly ? yearlyCents : monthlyCents;
 }
 
-// TODO: valores PLACEHOLDER — manter alinhado com functions/src/arena-plans.ts
-// (a tabela oficial de planos ainda será confirmada).
+// Manter alinhado com functions/src/arena-plans.ts (fonte da verdade dos preços
+// no servidor) e a seção de planos do site (ArenaPlanos). Ciclo anual = 2 meses
+// grátis.
 const List<ArenaPlan> arenaPlansCatalog = [
   ArenaPlan(
     tier: ArenaPlanTier.essencial,
     name: 'Essencial',
-    tagline: 'Para começar a aparecer para a comunidade da areia.',
+    tagline: 'Comece a receber reservas online sem pagar mensalidade.',
     monthlyCents: 0,
     yearlyCents: 0,
     features: [
-      'Perfil público da arena',
-      'Listagem na busca de arenas',
-      'Até 5 fotos da estrutura',
+      'Perfil público e listagem na busca',
+      'Reservas online com pagamento PIX',
+      'Agenda e disponibilidade das quadras',
+      'Avaliações da arena',
+      'Carteira e saque via PIX',
     ],
   ),
   ArenaPlan(
     tier: ArenaPlanTier.pro,
     name: 'Pro',
-    tagline: 'Para encher as quadras e receber torneios.',
-    monthlyCents: 19900,
-    yearlyCents: 190800,
+    tagline: 'A operação completa da arena, do balcão ao torneio.',
+    monthlyCents: 14900,
+    yearlyCents: 149000,
     popular: true,
     features: [
       'Tudo do Essencial',
+      'PDV e comandas',
+      'Controle de estoque e produtos',
+      'Destaque na busca e promoções de horário',
+      'Dashboard completo, insights e seguidores',
       'Receber etapas e torneios',
-      'Destaque na busca',
-      'Agenda e disponibilidade',
-      'Métricas de visualização',
     ],
   ),
   ArenaPlan(
     tier: ArenaPlanTier.parceiro,
     name: 'Parceiro',
     tagline: 'Para redes e arenas que sediam a Liga nexaGO.',
-    monthlyCents: 49900,
-    yearlyCents: 478800,
+    monthlyCents: 39900,
+    yearlyCents: 399000,
     features: [
       'Tudo do Pro',
-      'Prioridade em etapas da Liga',
-      'Múltiplas quadras / unidades',
+      'Múltiplas quadras / unidades, sem limite',
+      'Prioridade em etapas da Liga nexaGO',
       'Gerente de conta dedicado',
     ],
   ),
@@ -107,6 +180,10 @@ ArenaPlan? arenaPlanByTier(ArenaPlanTier? tier) {
   return null;
 }
 
+/// Carência após o vencimento em que a arena `overdue` ainda mantém o Pro,
+/// enquanto o Asaas re-tenta a cobrança. Espelha o gate em `firestore.rules`.
+const Duration arenaOverdueGrace = Duration(days: 7);
+
 /// Estado do plano da arena, lido dos campos públicos de `arenas/{id}`
 /// (gravados apenas pelas Cloud Functions).
 class ArenaPlanStatus {
@@ -114,14 +191,40 @@ class ArenaPlanStatus {
 
   final ArenaPlanTier? tier;
 
-  /// `active` | `overdue` | `pending` | `none`.
+  /// `active` | `overdue` | `canceling` | `pending` | `none`.
   final String status;
   final DateTime? activeUntil;
 
   static const ArenaPlanStatus none = ArenaPlanStatus(status: 'none');
 
+  /// Status cru (para exibição). Titularidade real é [entitled].
   bool get isActive => status == 'active';
   bool get isOverdue => status == 'overdue';
+  bool get isCanceling => status == 'canceling';
+
+  /// A arena tem titularidade do plano pago neste momento?
+  ///
+  /// - `active`: sim (confia no flag).
+  /// - `overdue`: sim enquanto dentro da carência ([arenaOverdueGrace]).
+  /// - `canceling`: sim até o fim do período já pago (`activeUntil`).
+  /// - demais (`none`/refund/chargeback): não.
+  bool entitledAt(DateTime now) {
+    if (tier == null) return false;
+    switch (status) {
+      case 'active':
+        return true;
+      case 'overdue':
+        final until = activeUntil;
+        return until != null && now.isBefore(until.add(arenaOverdueGrace));
+      case 'canceling':
+        final until = activeUntil;
+        return until != null && now.isBefore(until);
+      default:
+        return false;
+    }
+  }
+
+  bool get entitled => entitledAt(DateTime.now());
 
   factory ArenaPlanStatus.fromArenaDoc(Map<String, dynamic>? data) {
     if (data == null) return ArenaPlanStatus.none;

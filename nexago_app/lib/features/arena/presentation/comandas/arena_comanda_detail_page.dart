@@ -7,8 +7,11 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../domain/arena_plan.dart';
+import '../../domain/arena_plan_providers.dart';
 import '../../domain/comandas/arena_comanda_logic.dart';
 import '../../domain/comandas/arena_comanda_providers.dart';
+import '../plan/widgets/arena_plan_gate.dart';
 import '../widgets/arena_async_state.dart';
 import 'widgets/arena_comanda_items_section.dart';
 import 'widgets/arena_comanda_summary_card.dart';
@@ -124,6 +127,16 @@ class ArenaComandaDetailPage extends ConsumerWidget {
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () {
+                            final entitled = ref
+                                .read(managedArenaCapabilitiesProvider)
+                                .contains(ArenaCapability.pdvComandas);
+                            if (!entitled) {
+                              showArenaPlanUpsellSheet(
+                                context,
+                                capability: ArenaCapability.pdvComandas,
+                              );
+                              return;
+                            }
                             context.pushNamed(
                               AppRouteNames.arenaComandaQuickAdd,
                               pathParameters: {'comandaId': comandaId},

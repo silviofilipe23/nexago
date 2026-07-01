@@ -104,6 +104,13 @@ export {
 export {finalizeLapsedArenaPlans} from "./arena-plan-sweeper";
 
 export {
+  setOrganizerPayoutPixKey,
+  requestOrganizerWithdrawal,
+  listPendingOrganizerWithdrawals,
+  reviewOrganizerWithdrawal,
+} from "./organizer-withdrawal";
+
+export {
   quoteArenaBooking,
   createArenaBooking,
   cancelPendingArenaBookingPayment,

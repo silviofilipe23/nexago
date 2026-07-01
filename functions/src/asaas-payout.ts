@@ -148,6 +148,7 @@ type AsaasTransferResponse = {
 export async function sendArenaWithdrawalPixTransfer(
   withdrawalRef: DocumentReference,
   withdrawal: Record<string, unknown>,
+  externalRefPrefix: string = ARENA_WITHDRAWAL_REF_PREFIX,
 ): Promise<PayoutSendResult> {
   const existingStatus = (withdrawal.payoutStatus as string | undefined)?.toLowerCase();
   const existingId = withdrawal.asaasTransferId as string | undefined;
@@ -187,10 +188,10 @@ export async function sendArenaWithdrawalPixTransfer(
         value: amountReais,
         pixAddressKey,
         pixAddressKeyType,
-        externalReference: `${ARENA_WITHDRAWAL_REF_PREFIX}${withdrawalId}`,
+        externalReference: `${externalRefPrefix}${withdrawalId}`,
         description: `Repasse NexaGO — saque ${withdrawalId}`,
       },
-      idempotencyKey: `arena-withdrawal-transfer-${withdrawalId}`,
+      idempotencyKey: `withdrawal-transfer-${externalRefPrefix}${withdrawalId}`,
     });
 
     const transferId = data.id?.trim() || withdrawalId;

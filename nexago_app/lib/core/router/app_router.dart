@@ -85,6 +85,8 @@ import '../../features/arena/presentation/arena_availability_slots_success_page.
 import '../../features/arena/presentation/arena_settings_page.dart';
 import '../../features/arena/presentation/arena_payments_page.dart';
 import '../../features/arena/presentation/plan/arena_plan_page.dart';
+import '../../features/arena/presentation/plan/arena_plan_activated_page.dart';
+import '../../features/arena/presentation/plan/arena_subscription_pending_page.dart';
 import '../../features/arena/presentation/arena_slot_detail_page.dart';
 import '../../features/arena/presentation/arena_shell_page.dart';
 import '../../features/arena/presentation/comandas/arena_comandas_page.dart';
@@ -1415,18 +1417,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 path: AppRoutes.arenaSettings,
                 name: AppRouteNames.arenaSettings,
                 builder: (context, state) => const ArenaSettingsPage(),
-                routes: [
-                  GoRoute(
-                    path: 'payments',
-                    name: AppRouteNames.arenaPayments,
-                    builder: (context, state) => const ArenaPaymentsPage(),
-                  ),
-                  GoRoute(
-                    path: 'plan',
-                    name: AppRouteNames.arenaPlan,
-                    builder: (context, state) => const ArenaPlanPage(),
-                  ),
-                ],
               ),
             ],
           ),
@@ -1532,6 +1522,46 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.arenaAvailabilitySettings,
         name: AppRouteNames.arenaAvailabilitySettings,
         builder: (context, state) => const ArenaAvailabilitySettingsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaPayments,
+        name: AppRouteNames.arenaPayments,
+        builder: (context, state) => const ArenaPaymentsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaPlan,
+        name: AppRouteNames.arenaPlan,
+        builder: (context, state) => const ArenaPlanPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaSubscriptionPending,
+        name: AppRouteNames.arenaSubscriptionPending,
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is! ArenaSubscriptionPendingArgs) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Dados de pagamento inválidos.'),
+              ),
+            );
+          }
+          return ArenaSubscriptionPendingPage(args: extra);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.arenaPlanActivated,
+        name: AppRouteNames.arenaPlanActivated,
+        builder: (context, state) {
+          final extra = state.extra;
+          if (extra is! ArenaPlanActivatedArgs) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Dados de ativação inválidos.'),
+              ),
+            );
+          }
+          return ArenaPlanActivatedPage(args: extra);
+        },
       ),
       GoRoute(
         path: AppRoutes.arenaAvailabilitySlotsSuccess,

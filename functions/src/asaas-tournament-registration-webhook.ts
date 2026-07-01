@@ -23,6 +23,8 @@ import {
   resolveCategoryEntryFee,
 } from "./tournament-registration-guards";
 import {deliverNotificationToUser} from "./notification-delivery";
+import {creditOrganizerWalletFromRegistration} from "./organizer-wallet";
+import {TOURNAMENT_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
 
 const ASAAS_NON_TERMINAL_STATUSES = new Set([
   "PENDING",
@@ -54,17 +56,6 @@ function artifactsInscriptionsPath(projectId: string): string {
 
 function artifactsTeamsPath(projectId: string): string {
   return `artifacts/${projectId}/public/data/teams`;
-}
-
-async function loadEntryFee(
-  db: Firestore,
-  projectId: string,
-  tournamentId: string,
-  categoryId: string,
-): Promise<number> {
-  const tournament = await loadTournamentData(db, projectId, tournamentId);
-  if (!tournament) return 0;
-  return resolveCategoryEntryFee(tournament, categoryId);
 }
 
 async function loadTeamAthleteUids(
@@ -188,7 +179,10 @@ export async function processTournamentRegistrationAsaasNotification(
   const regData = registrationSnap.data()!;
   const tournamentId = regData.tournamentId as string;
   const categoryId = regData.categoryId as string;
-  const entryFee = await loadEntryFee(db, projectId, tournamentId, categoryId);
+  const tournament = await loadTournamentData(db, projectId, tournamentId);
+  const entryFee = tournament ? resolveCategoryEntryFee(tournament, categoryId) : 0;
+  const organizerId = typeof tournament?.managerId === "string" ?
+    tournament.managerId.trim() : "";
   const expectedShare = computeTournamentShareAmountReais(entryFee);
 
   if (ASAAS_PAID_STATUSES.has(status)) {
@@ -269,6 +263,26 @@ export async function processTournamentRegistrationAsaasNotification(
     });
 
     await batch.commit();
+
+    // Credita o organizador com o líquido (bruto − taxa de 8%). A plataforma
+    // retém a taxa; o organizador saca depois. Roda uma vez por pagamento
+    // (o processedRef acima já protege contra reprocessamento).
+    if (organizerId) {
+      try {
+        await creditOrganizerWalletFromRegistration(db, organizerId, {
+          registrationId,
+          payerUid,
+          paymentId,
+          grossReais: paidOnline,
+          platformFeeReais: computePlatformFeeReais(paidOnline, TOURNAMENT_FEE_PERCENT),
+        });
+      } catch (walletErr) {
+        logger.error(
+          `Asaas tournament registration ${registrationId}: organizer wallet credit failed`,
+          walletErr,
+        );
+      }
+    }
 
     if (!wasPaidBefore && isPaid) {
       const teamId = typeof regData.teamId === "string" ? regData.teamId : "";

@@ -1,8 +1,12 @@
 import {FieldValue, type Firestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
-import {ARENA_WITHDRAWAL_REF_PREFIX} from "./arena-booking-payment-constants";
+import {
+  ARENA_WITHDRAWAL_REF_PREFIX,
+  ORGANIZER_WITHDRAWAL_REF_PREFIX,
+} from "./arena-booking-payment-constants";
 
 const ARENA_WITHDRAWALS = "arenaWithdrawals";
+const ORGANIZER_WITHDRAWALS = "organizerWithdrawals";
 
 type TransferWebhookPayload = {
   id?: string;
@@ -10,7 +14,8 @@ type TransferWebhookPayload = {
 };
 
 /**
- * Reconcilia webhooks `TRANSFER_*` de saques de arena (`arenaWithdrawal:*`).
+ * Reconcilia webhooks `TRANSFER_*` de saques de arena (`arenaWithdrawal:*`) e de
+ * organizador (`organizerWithdrawal:*`).
  */
 export async function processArenaWithdrawalTransferWebhook(
   db: Firestore,
@@ -21,11 +26,15 @@ export async function processArenaWithdrawalTransferWebhook(
   const externalRef = (transfer?.externalReference || "").trim();
 
   let withdrawalId = "";
-  if (externalRef.startsWith(ARENA_WITHDRAWAL_REF_PREFIX)) {
+  let collectionName = ARENA_WITHDRAWALS;
+  if (externalRef.startsWith(ORGANIZER_WITHDRAWAL_REF_PREFIX)) {
+    withdrawalId = externalRef.slice(ORGANIZER_WITHDRAWAL_REF_PREFIX.length).trim();
+    collectionName = ORGANIZER_WITHDRAWALS;
+  } else if (externalRef.startsWith(ARENA_WITHDRAWAL_REF_PREFIX)) {
     withdrawalId = externalRef.slice(ARENA_WITHDRAWAL_REF_PREFIX.length).trim();
   }
 
-  const col = db.collection(ARENA_WITHDRAWALS);
+  const col = db.collection(collectionName);
   let withdrawalRef;
 
   if (withdrawalId) {

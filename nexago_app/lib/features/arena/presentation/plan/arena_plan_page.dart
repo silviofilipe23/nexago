@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/layout/nexa_floating_header.dart';
+import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../core/formatting/app_currency_format.dart';
@@ -13,7 +15,7 @@ import '../../domain/arena_plan_providers.dart';
 import '../../domain/arena_schedule_providers.dart';
 import '../../data/arena_subscription_repository.dart';
 import '../widgets/arena_dashboard_tokens.dart';
-import 'arena_subscription_pix_page.dart';
+import 'arena_subscription_pending_page.dart';
 
 /// Escolha e assinatura do plano da arena (gestor). Cobrança recorrente via
 /// Asaas: PIX (QR in-app) ou cartão (checkout hospedado).
@@ -91,23 +93,13 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
               plan: plan,
               cycle: _cycle,
               colors: colors,
-              isCurrent: status.isActive && status.tier == plan.tier,
+              status: status,
+              isCurrent: _isCurrentPlan(status, plan),
               submitting: _submitting,
               onSubscribe: plan.free ? null : () => _onSubscribe(arenaId, plan),
+              onDowngrade: plan.free ? () => _onCancel(arenaId) : null,
             ),
             const SizedBox(height: 14),
-          ],
-          if (status.isActive || status.isOverdue) ...[
-            const SizedBox(height: 4),
-            Center(
-              child: TextButton(
-                onPressed: _submitting ? null : () => _onCancel(arenaId),
-                child: Text(
-                  'Cancelar assinatura',
-                  style: TextStyle(color: colors.onSurfaceMuted),
-                ),
-              ),
-            ),
           ],
           const SizedBox(height: 8),
           Text(
@@ -127,17 +119,34 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
     final storedCnpj = await repo.fetchStoredCpfCnpj(arenaId);
     if (!mounted) return;
 
-    final choice = await showModalBottomSheet<_SubscribeChoice>(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: context.themeColors.surfaceSheet,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => _SubscribeSheet(plan: plan, initialCnpj: storedCnpj),
+      builder: (sheetContext) => _SubscribeSheet(
+        plan: plan,
+        initialCnpj: storedCnpj,
+        onSubmit: (choice) => _completeSubscription(
+          sheetContext: sheetContext,
+          arenaId: arenaId,
+          plan: plan,
+          choice: choice,
+          repo: repo,
+        ),
+      ),
     );
-    if (choice == null) return;
+  }
 
+  Future<void> _completeSubscription({
+    required BuildContext sheetContext,
+    required String arenaId,
+    required ArenaPlan plan,
+    required _SubscribeChoice choice,
+    required ArenaSubscriptionRepository repo,
+  }) async {
     setState(() => _submitting = true);
     try {
       final result = await repo.createSubscription(
@@ -149,30 +158,36 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
       );
       if (!mounted) return;
 
+      Navigator.of(sheetContext).pop();
+
+      final pendingArgs = ArenaSubscriptionPendingArgs(
+        arenaId: arenaId,
+        plan: plan,
+        cycle: _cycle,
+        result: result.isPix ? result : null,
+      );
+
       if (result.isPix) {
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => ArenaSubscriptionPixPage(
-              arenaId: arenaId,
-              result: result,
-              plan: plan,
-              cycle: _cycle,
-            ),
-          ),
+        await context.pushNamed(
+          AppRouteNames.arenaSubscriptionPending,
+          extra: pendingArgs,
         );
       } else if (result.invoiceUrl != null) {
         await repo.openCheckout(result.invoiceUrl!);
         if (mounted) {
-          showAppSnackBar(
-            context,
-            'Conclua o pagamento no navegador. O plano é ativado automaticamente.',
+          await context.pushNamed(
+            AppRouteNames.arenaSubscriptionPending,
+            extra: pendingArgs,
           );
         }
       } else {
-        if (mounted) showAppSnackBar(context, 'Não foi possível iniciar o pagamento.');
+        if (mounted) {
+          showAppSnackBar(context, 'Não foi possível iniciar o pagamento.');
+        }
       }
     } on ArenaSubscriptionException catch (e) {
       if (mounted) showAppSnackBar(context, e.message);
+      rethrow;
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -204,7 +219,15 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
       if (mounted) setState(() => _submitting = false);
     }
   }
+}
 
+bool _isCurrentPlan(ArenaPlanStatus status, ArenaPlan plan) {
+  if (plan.free) {
+    return !status.entitled ||
+        status.tier == ArenaPlanTier.essencial ||
+        status.tier == null;
+  }
+  return status.entitled && status.tier == plan.tier;
 }
 
 class _PlanPageToolbar extends StatelessWidget {
@@ -256,10 +279,15 @@ class _SubscribeChoice {
 
 /// Coleta o CNPJ (novo padrão alfanumérico) e o método de pagamento.
 class _SubscribeSheet extends StatefulWidget {
-  const _SubscribeSheet({required this.plan, required this.initialCnpj});
+  const _SubscribeSheet({
+    required this.plan,
+    required this.initialCnpj,
+    required this.onSubmit,
+  });
 
   final ArenaPlan plan;
   final String initialCnpj;
+  final Future<void> Function(_SubscribeChoice choice) onSubmit;
 
   @override
   State<_SubscribeSheet> createState() => _SubscribeSheetState();
@@ -267,6 +295,8 @@ class _SubscribeSheet extends StatefulWidget {
 
 class _SubscribeSheetState extends State<_SubscribeSheet> {
   late final TextEditingController _controller;
+  bool _submitting = false;
+  ArenaSubscriptionMethod? _submittingMethod;
 
   @override
   void initState() {
@@ -282,6 +312,28 @@ class _SubscribeSheetState extends State<_SubscribeSheet> {
     super.dispose();
   }
 
+  Future<void> _submit(ArenaSubscriptionMethod method) async {
+    setState(() {
+      _submitting = true;
+      _submittingMethod = method;
+    });
+    try {
+      await widget.onSubmit(
+        _SubscribeChoice(
+          cpfCnpj: CpfCnpjValidator.normalize(_controller.text),
+          method: method,
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+          _submittingMethod = null;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
@@ -289,92 +341,131 @@ class _SubscribeSheetState extends State<_SubscribeSheet> {
     final raw = _controller.text;
     final valid = CpfCnpjValidator.isValid(raw);
     final error = CpfCnpjValidator.validationMessage(raw);
+    final canSubmit = valid && !_submitting;
 
-    void finish(ArenaSubscriptionMethod method) {
-      Navigator.of(context).pop(
-        _SubscribeChoice(
-          cpfCnpj: CpfCnpjValidator.normalize(_controller.text),
-          method: method,
+    return PopScope(
+      canPop: !_submitting,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          16,
+          20,
+          16 + MediaQuery.of(context).viewInsets.bottom,
         ),
-      );
-    }
-
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        16,
-        20,
-        16 + MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Assinar plano ${widget.plan.name}',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: colors.onSurface,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Confirme o CNPJ da arena para emitir a cobrança.',
-            style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceMuted),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _controller,
-            onChanged: (_) => setState(() {}),
-            keyboardType: TextInputType.text,
-            textCapitalization: TextCapitalization.characters,
-            inputFormatters: [CpfCnpjInputFormatter()],
-            decoration: InputDecoration(
-              labelText: 'CNPJ',
-              hintText: '00.000.000/0000-00',
-              errorText: error,
-              border: const OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: valid
-                      ? () => finish(ArenaSubscriptionMethod.pix)
-                      : null,
-                  icon: const Icon(Icons.qr_code_rounded),
-                  label: const Text('PIX'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: colors.onSurface,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Assinar plano ${widget.plan.name}',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: colors.onSurface,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: valid
-                      ? () => finish(ArenaSubscriptionMethod.creditCard)
-                      : null,
-                  icon: const Icon(Icons.credit_card_rounded),
-                  label: const Text('Cartão'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: colors.brand,
-                    foregroundColor: colors.black,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Confirme o CNPJ da arena para emitir a cobrança.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceMuted,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _controller,
+              onChanged: (_) => setState(() {}),
+              enabled: !_submitting,
+              keyboardType: TextInputType.text,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [CpfCnpjInputFormatter()],
+              decoration: InputDecoration(
+                labelText: 'CNPJ',
+                hintText: '00.000.000/0000-00',
+                errorText: error,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            if (_submitting) ...[
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: colors.brand,
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _submittingMethod == ArenaSubscriptionMethod.pix
+                          ? 'Gerando cobrança PIX…'
+                          : 'Preparando checkout do cartão…',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: colors.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'PIX gera o QR na hora; cartão abre o checkout seguro do Asaas.',
-            style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceMuted),
-          ),
-        ],
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: canSubmit
+                        ? () => _submit(ArenaSubscriptionMethod.pix)
+                        : null,
+                    icon: _submittingMethod == ArenaSubscriptionMethod.pix
+                        ? null
+                        : const Icon(Icons.qr_code_rounded),
+                    label: Text(
+                      _submittingMethod == ArenaSubscriptionMethod.pix
+                          ? 'Gerando…'
+                          : 'PIX',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: colors.onSurface,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: canSubmit
+                        ? () => _submit(ArenaSubscriptionMethod.creditCard)
+                        : null,
+                    icon: _submittingMethod == ArenaSubscriptionMethod.creditCard
+                        ? null
+                        : const Icon(Icons.credit_card_rounded),
+                    label: Text(
+                      _submittingMethod == ArenaSubscriptionMethod.creditCard
+                          ? 'Gerando…'
+                          : 'Cartão',
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colors.brand,
+                      foregroundColor: colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'PIX gera o QR na hora; cartão abre o checkout seguro do Asaas.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.onSurfaceMuted,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -389,23 +480,44 @@ class _StatusBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final plan = arenaPlanByTier(status.tier);
-    final (String title, String subtitle, Color accent) = switch (status.status) {
+    final (
+      String title,
+      String subtitle,
+      Color accent,
+      bool showActiveBadge,
+      IconData icon,
+    ) = switch (status.status) {
       'active' => (
           'Plano ${plan?.name ?? ''} ativo',
           status.activeUntil != null
               ? 'Renova em ${_fmtDate(status.activeUntil!)}'
               : 'Assinatura ativa',
-          colors.win,
+          colors.brand,
+          true,
+          Icons.star_rounded,
         ),
       'overdue' => (
           'Pagamento em atraso',
           'Regularize para manter os benefícios do plano.',
           colors.pending,
+          false,
+          Icons.warning_amber_rounded,
+        ),
+      'canceling' => (
+          'Plano ${plan?.name ?? ''} cancelado',
+          status.activeUntil != null
+              ? 'Benefícios até ${_fmtDate(status.activeUntil!)}'
+              : 'Reative quando quiser.',
+          colors.pending,
+          false,
+          Icons.info_outline_rounded,
         ),
       _ => (
           'Plano Essencial',
           'Você está no plano gratuito. Assine para liberar mais.',
           colors.onSurfaceMuted,
+          false,
+          Icons.star_outline_rounded,
         ),
     };
 
@@ -414,29 +526,56 @@ class _StatusBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withValues(alpha: 0.4)),
+        border: Border.all(color: accent.withValues(alpha: 0.45)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.workspace_premium_rounded, color: accent),
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: accent, size: 22),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: colors.onSurface,
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: AppTypography.soraRegular(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: colors.onSurface,
+                        ),
                       ),
+                    ),
+                    if (showActiveBadge) ...[
+                      const SizedBox(width: 8),
+                      _PlanPillBadge(
+                        label: 'ATIVO',
+                        background: AppColors.win.withValues(alpha: 0.18),
+                        foreground: AppColors.win,
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colors.onSurfaceMuted,
-                      ),
+                  style: AppTypography.soraRegular(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: colors.onSurfaceMuted,
+                    height: 1.35,
+                  ),
                 ),
               ],
             ),
@@ -448,6 +587,38 @@ class _StatusBanner extends StatelessWidget {
 
   static String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+}
+
+class _PlanPillBadge extends StatelessWidget {
+  const _PlanPillBadge({
+    required this.label,
+    required this.background,
+    required this.foreground,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.soraRegular(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: foreground,
+          letterSpacing: 0.4,
+        ),
+      ),
+    );
+  }
 }
 
 class _CycleToggle extends StatelessWidget {
@@ -463,45 +634,6 @@ class _CycleToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget option(ArenaBillingCycle value, String label, {String? badge}) {
-      final active = cycle == value;
-      return Expanded(
-        child: GestureDetector(
-          onTap: () => onChanged(value),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: active ? colors.brand : Colors.transparent,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: active ? colors.black : colors.onSurfaceMuted,
-                  ),
-                ),
-                if (badge != null) ...[
-                  const SizedBox(width: 6),
-                  Text(
-                    badge,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: active ? colors.black : colors.brand,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -510,9 +642,77 @@ class _CycleToggle extends StatelessWidget {
       ),
       child: Row(
         children: [
-          option(ArenaBillingCycle.monthly, 'Mensal'),
-          option(ArenaBillingCycle.yearly, 'Anual', badge: '2 meses grátis'),
+          Expanded(
+            child: _CycleOption(
+              label: 'Mensal',
+              active: cycle == ArenaBillingCycle.monthly,
+              colors: colors,
+              onTap: () => onChanged(ArenaBillingCycle.monthly),
+            ),
+          ),
+          Expanded(
+            child: _CycleOption(
+              label: 'Anual',
+              active: cycle == ArenaBillingCycle.yearly,
+              colors: colors,
+              onTap: () => onChanged(ArenaBillingCycle.yearly),
+              trailing: _PlanPillBadge(
+                label: '2 MESES GRÁTIS',
+                background: AppColors.win.withValues(alpha: 0.16),
+                foreground: AppColors.win,
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _CycleOption extends StatelessWidget {
+  const _CycleOption({
+    required this.label,
+    required this.active,
+    required this.colors,
+    required this.onTap,
+    this.trailing,
+  });
+
+  final String label;
+  final bool active;
+  final AppThemeColors colors;
+  final VoidCallback onTap;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: active ? colors.brand : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: AppTypography.soraRegular(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: active ? colors.black : colors.onSurface,
+              ),
+            ),
+            if (trailing != null) ...[
+              const SizedBox(width: 6),
+              trailing!,
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -523,33 +723,56 @@ class _PlanCard extends StatelessWidget {
     required this.plan,
     required this.cycle,
     required this.colors,
+    required this.status,
     required this.isCurrent,
     required this.submitting,
     required this.onSubscribe,
+    this.onDowngrade,
   });
 
   final ArenaPlan plan;
   final ArenaBillingCycle cycle;
   final AppThemeColors colors;
+  final ArenaPlanStatus status;
   final bool isCurrent;
   final bool submitting;
   final VoidCallback? onSubscribe;
+  final VoidCallback? onDowngrade;
+
+  bool get _canDowngrade =>
+      plan.free &&
+      status.entitled &&
+      status.tier != null &&
+      status.tier != ArenaPlanTier.essencial;
+
+  Color get _checkColor => plan.free ? AppColors.win : colors.brand;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final priceLabel = plan.free ? 'Grátis' : formatBRL(plan.priceCents(cycle) / 100);
+    final priceLabel =
+        plan.free ? 'Grátis' : formatBRL(plan.priceCents(cycle) / 100);
     final cycleLabel = cycle == ArenaBillingCycle.yearly ? '/ano' : '/mês';
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surfaceCard,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: plan.popular ? colors.brand.withValues(alpha: 0.6) : colors.outline,
+          color: plan.popular
+              ? colors.brand.withValues(alpha: 0.55)
+              : colors.onSurfaceMuted.withValues(alpha: 0.14),
           width: plan.popular ? 1.4 : 1,
         ),
+        boxShadow: plan.popular
+            ? [
+                BoxShadow(
+                  color: colors.brand.withValues(alpha: 0.12),
+                  blurRadius: 28,
+                  offset: const Offset(0, 10),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -558,90 +781,151 @@ class _PlanCard extends StatelessWidget {
             children: [
               Text(
                 plan.name,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
+                style: AppTypography.soraRegular(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
                   color: colors.onSurface,
+                  letterSpacing: -0.3,
                 ),
               ),
-              const SizedBox(width: 8),
-              if (plan.popular)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: colors.brand,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    'Popular',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: colors.black,
-                    ),
-                  ),
+              if (plan.popular) ...[
+                const SizedBox(width: 8),
+                _PlanPillBadge(
+                  label: 'POPULAR',
+                  background: colors.brand,
+                  foreground: colors.black,
                 ),
+              ],
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             plan.tagline,
-            style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceMuted),
+            style: AppTypography.soraRegular(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: colors.onSurfaceMuted,
+              height: 1.4,
+            ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
                 priceLabel,
-                style: theme.textTheme.headlineSmall?.copyWith(
+                style: AppTypography.soraRegular(
+                  fontSize: plan.free ? 34 : 30,
                   fontWeight: FontWeight.w900,
                   color: colors.onSurface,
+                  letterSpacing: -0.8,
                 ),
               ),
               if (!plan.free) ...[
                 const SizedBox(width: 4),
-                Text(cycleLabel, style: theme.textTheme.bodySmall?.copyWith(color: colors.onSurfaceMuted)),
+                Text(
+                  cycleLabel,
+                  style: AppTypography.soraRegular(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: colors.onSurfaceMuted,
+                  ),
+                ),
               ],
             ],
           ),
-          const SizedBox(height: 14),
-          for (final f in plan.features)
+          const SizedBox(height: 18),
+          for (final feature in plan.features)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: 10),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.check_rounded, size: 18, color: colors.brand),
-                  const SizedBox(width: 8),
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: colors.surfaceRaised,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.check_rounded,
+                      size: 14,
+                      color: _checkColor,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      f,
-                      style: theme.textTheme.bodyMedium?.copyWith(color: colors.onSurface),
+                      feature,
+                      style: AppTypography.soraRegular(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: colors.onSurface,
+                        height: 1.35,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          if (!plan.free) ...[
+          if (_buildActionLabel() != null) ...[
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
-              child: FilledButton(
-                onPressed: (submitting || isCurrent) ? null : onSubscribe,
-                style: FilledButton.styleFrom(
-                  backgroundColor: plan.popular ? colors.brand : colors.surfaceRaised,
-                  foregroundColor: plan.popular ? colors.black : colors.onSurface,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: Text(
-                  isCurrent ? 'Plano atual' : 'Assinar',
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ),
+              child: _buildAction(context),
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  String? _buildActionLabel() {
+    if (_canDowngrade) return 'Downgrade';
+    if (plan.free) return null;
+    if (isCurrent) return 'Plano atual';
+    return 'Assinar';
+  }
+
+  Widget _buildAction(BuildContext context) {
+    final label = _buildActionLabel()!;
+    final disabled = submitting || (isCurrent && !plan.free);
+
+    if (_canDowngrade) {
+      return OutlinedButton(
+        onPressed: submitting ? null : onDowngrade,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: colors.onSurface,
+          side: BorderSide(color: colors.onSurfaceMuted.withValues(alpha: 0.35)),
+          padding: const EdgeInsets.symmetric(vertical: 15),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      );
+    }
+
+    return FilledButton(
+      onPressed: disabled ? null : onSubscribe,
+      style: FilledButton.styleFrom(
+        backgroundColor: plan.popular ? colors.brand : colors.surfaceRaised,
+        foregroundColor: plan.popular ? colors.black : colors.onSurface,
+        disabledBackgroundColor: colors.surfaceRaised,
+        disabledForegroundColor: colors.onSurfaceMuted,
+        padding: const EdgeInsets.symmetric(vertical: 15),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontWeight: FontWeight.w800),
       ),
     );
   }

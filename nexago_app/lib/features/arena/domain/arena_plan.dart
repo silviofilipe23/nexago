@@ -180,6 +180,89 @@ ArenaPlan? arenaPlanByTier(ArenaPlanTier? tier) {
   return null;
 }
 
+/// Destaque exibido na tela de plano ativado (pós-pagamento).
+class ArenaPlanActivationHighlight {
+  const ArenaPlanActivationHighlight({
+    required this.title,
+    required this.subtitle,
+    this.routeName,
+  });
+
+  final String title;
+  final String subtitle;
+
+  /// Nome da rota go_router ([AppRouteNames]) para deep link opcional.
+  final String? routeName;
+}
+
+/// Copy e destaques da celebração de ativação por tier pago.
+class ArenaPlanActivationContent {
+  const ArenaPlanActivationContent({
+    required this.tier,
+    required this.title,
+    required this.subtitle,
+    required this.highlights,
+  });
+
+  final ArenaPlanTier tier;
+  final String title;
+  final String subtitle;
+  final List<ArenaPlanActivationHighlight> highlights;
+}
+
+/// Conteúdo da tela "Plano ativado" para tiers pagos (Pro / Parceiro).
+ArenaPlanActivationContent arenaPlanActivationContent(ArenaPlanTier tier) {
+  final plan = arenaPlanByTier(tier);
+  final name = plan?.name ?? tier.id;
+
+  return switch (tier) {
+    ArenaPlanTier.pro => ArenaPlanActivationContent(
+        tier: tier,
+        title: 'Plano $name ativado!',
+        subtitle: 'Sua arena está pronta para a operação completa.',
+        highlights: const [
+          ArenaPlanActivationHighlight(
+            title: 'PDV e comandas',
+            subtitle: 'Disponível agora',
+            routeName: 'arenaComandas',
+          ),
+          ArenaPlanActivationHighlight(
+            title: 'Dashboard e Insights',
+            subtitle: 'Disponível agora',
+            routeName: 'arenaDashboard',
+          ),
+          ArenaPlanActivationHighlight(
+            title: 'Torneios e etapas',
+            subtitle: 'Disponível agora',
+            routeName: 'arenaSettings',
+          ),
+        ],
+      ),
+    ArenaPlanTier.parceiro => ArenaPlanActivationContent(
+        tier: tier,
+        title: 'Plano $name ativado!',
+        subtitle: 'Sua rede está pronta para sediar a Liga nexaGO.',
+        highlights: const [
+          ArenaPlanActivationHighlight(
+            title: 'Múltiplas unidades',
+            subtitle: 'Sem limite de quadras',
+          ),
+          ArenaPlanActivationHighlight(
+            title: 'Liga nexaGO',
+            subtitle: 'Prioridade nas etapas',
+          ),
+          ArenaPlanActivationHighlight(
+            title: 'Gerente dedicado',
+            subtitle: 'Suporte exclusivo',
+          ),
+        ],
+      ),
+    ArenaPlanTier.essencial => throw ArgumentError(
+        'Essencial não possui tela de ativação paga.',
+      ),
+  };
+}
+
 /// Carência após o vencimento em que a arena `overdue` ainda mantém o Pro,
 /// enquanto o Asaas re-tenta a cobrança. Espelha o gate em `firestore.rules`.
 const Duration arenaOverdueGrace = Duration(days: 7);

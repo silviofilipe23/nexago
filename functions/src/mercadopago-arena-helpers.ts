@@ -1,6 +1,8 @@
 import {getFirestore, FieldValue} from "firebase-admin/firestore";
 import {defineSecret} from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
+import {isArenaEntitledPro} from "./arena-entitlement";
+import {BOOKING_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
 
 export const MERCADOPAGO_APP_ID = defineSecret("MERCADOPAGO_APP_ID");
 export const MERCADOPAGO_APP_SECRET = defineSecret("MERCADOPAGO_APP_SECRET");
@@ -142,7 +144,6 @@ export async function resolvePixPaymentAuth(
   amountToPayNow: number,
 ): Promise<ResolvedPixPaymentAuth> {
   const paymentReceiver = readArenaPaymentReceiver(arena);
-  const platformFeeBrl = readPlatformFeeBrl();
 
   if (paymentReceiver === "platform") {
     return {
@@ -156,11 +157,15 @@ export async function resolvePixPaymentAuth(
     throw new Error("ARENA_MANAGER_REQUIRED");
   }
 
+  // Split para o recebedor manager: taxa só se a arena está no plano gratuito.
+  const entitled = isArenaEntitledPro(arena, Date.now());
   const accessToken = await getManagerMercadoPagoAccessToken(managerId);
   return {
     accessToken,
     paymentReceiver: "manager",
-    applicationFee: applicationFeeForAmount(amountToPayNow, platformFeeBrl),
+    applicationFee: entitled ?
+      0 :
+      computePlatformFeeReais(amountToPayNow, BOOKING_FEE_PERCENT),
   };
 }
 

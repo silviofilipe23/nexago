@@ -10,8 +10,7 @@
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
-
-const OVERDUE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+import {OVERDUE_GRACE_MS} from "./arena-entitlement";
 
 /** Espelha ArenaPlanStatus.entitledAt: titularidade acabou para overdue/canceling? */
 export function isEntitlementLapsed(

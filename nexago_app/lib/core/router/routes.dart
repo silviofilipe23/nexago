@@ -284,6 +284,13 @@ abstract final class AppRoutes {
   /// Plano/assinatura da arena (gestor). Filha de [arenaSettings].
   static const String arenaPlan = '/arena/settings/plan';
 
+  /// Celebração pós-ativação do plano pago.
+  static const String arenaPlanActivated = '/arena/settings/plan/activated';
+
+  /// Aguardando confirmação PIX/cartão da assinatura.
+  static const String arenaSubscriptionPending =
+      '/arena/settings/plan/pending';
+
   /// Catálogo de produtos (gestor).
   static const String arenaProducts = '/arena/products';
 
@@ -525,6 +532,8 @@ abstract final class AppRouteNames {
   static const String arenaBookingSuccess = 'arenaBookingSuccess';
   static const String arenaPayments = 'arenaPayments';
   static const String arenaPlan = 'arenaPlan';
+  static const String arenaPlanActivated = 'arenaPlanActivated';
+  static const String arenaSubscriptionPending = 'arenaSubscriptionPending';
   static const String arenaProducts = 'arenaProducts';
   static const String arenaProductNew = 'arenaProductNew';
   static const String arenaProductEdit = 'arenaProductEdit';

@@ -15,11 +15,9 @@ import {
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import {creditArenaWalletFromBooking} from "./arena-wallet";
-import {
-  readPlatformFeeBrl,
-  applicationFeeForAmount,
-  roundMoney,
-} from "./mercadopago-arena-helpers";
+import {roundMoney} from "./mercadopago-arena-helpers";
+import {isArenaEntitledPro} from "./arena-entitlement";
+import {BOOKING_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
 
 import {
   ARENA_BOOKING_MP_REF_PREFIX,
@@ -160,9 +158,18 @@ export async function processArenaBookingMercadoPagoNotification(
     const dueOnsite = roundMoney(Math.max(0, totalReais - paidOnline));
     const isPartial = fraction < 0.99 || dueOnsite > 0.02;
     const paymentStatus = isPartial ? "partial" : "paid";
-    const platformFeeBrl = readPlatformFeeBrl();
-    const platformFee = applicationFeeForAmount(paidOnline, platformFeeBrl);
     const arenaId = booking.arenaId as string | undefined;
+
+    // Taxa só para arenas no plano gratuito; Pro/Parceiro isentos.
+    let platformFee = 0;
+    if (arenaId) {
+      const arenaSnap = await db.collection("arenas").doc(arenaId).get();
+      const entitled = arenaSnap.exists &&
+        isArenaEntitledPro(arenaSnap.data() ?? {}, Date.now());
+      platformFee = entitled ?
+        0 :
+        computePlatformFeeReais(paidOnline, BOOKING_FEE_PERCENT);
+    }
 
     const batch = db.batch();
     batch.update(bookingRef, {

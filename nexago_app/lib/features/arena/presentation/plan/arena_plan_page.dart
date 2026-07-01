@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:nexago_app/core/layout/nexa_floating_header.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../core/formatting/app_currency_format.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../../../core/validation/cpf_cnpj.dart';
@@ -9,6 +12,7 @@ import '../../domain/arena_plan.dart';
 import '../../domain/arena_plan_providers.dart';
 import '../../domain/arena_schedule_providers.dart';
 import '../../data/arena_subscription_repository.dart';
+import '../widgets/arena_dashboard_tokens.dart';
 import 'arena_subscription_pix_page.dart';
 
 /// Escolha e assinatura do plano da arena (gestor). Cobrança recorrente via
@@ -28,68 +32,93 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
   Widget build(BuildContext context) {
     final colors = context.themeColors;
     final arenaId = ref.watch(managedArenaIdProvider).valueOrNull;
+    final loading = arenaId == null || arenaId.isEmpty;
 
     return Scaffold(
       backgroundColor: colors.canvas,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        title: const Text('Plano da arena'),
-      ),
       body: SafeArea(
-        child: (arenaId == null || arenaId.isEmpty)
-            ? const Center(child: CircularProgressIndicator())
-            : _buildContent(context, colors, arenaId),
+        top: false,
+        bottom: false,
+        child: CustomScrollView(
+          physics: ArenaDashboardTokens.shellScrollPhysics,
+          slivers: [
+            NexaFloatingHeaderSliver(
+              topGap: 8,
+              padding: const EdgeInsets.fromLTRB(16, 0, 20, 12),
+              child: _PlanPageToolbar(onBack: () => context.pop()),
+            ),
+            if (loading)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else
+              _buildContentSlivers(context, colors, arenaId),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildContent(BuildContext context, AppThemeColors colors, String arenaId) {
+  Widget _buildContentSlivers(
+    BuildContext context,
+    AppThemeColors colors,
+    String arenaId,
+  ) {
     final statusAsync = ref.watch(arenaPlanStatusProvider(arenaId));
     final status = statusAsync.valueOrNull ?? ArenaPlanStatus.none;
+    final bottomPad = MediaQuery.paddingOf(context).bottom + 40;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-      children: [
-        _StatusBanner(status: status, colors: colors),
-        const SizedBox(height: 20),
-        _CycleToggle(
-          cycle: _cycle,
-          onChanged: (c) => setState(() => _cycle = c),
-          colors: colors,
-        ),
-        const SizedBox(height: 20),
-        for (final plan in arenaPlansCatalog) ...[
-          _PlanCard(
-            plan: plan,
+    return SliverPadding(
+      padding: EdgeInsets.fromLTRB(
+        ArenaDashboardTokens.horizontalPadding,
+        8,
+        ArenaDashboardTokens.horizontalPadding,
+        bottomPad,
+      ),
+      sliver: SliverList(
+        delegate: SliverChildListDelegate([
+          _StatusBanner(status: status, colors: colors),
+          const SizedBox(height: 20),
+          _CycleToggle(
             cycle: _cycle,
+            onChanged: (c) => setState(() => _cycle = c),
             colors: colors,
-            isCurrent: status.isActive && status.tier == plan.tier,
-            submitting: _submitting,
-            onSubscribe: plan.free ? null : () => _onSubscribe(arenaId, plan),
           ),
-          const SizedBox(height: 14),
-        ],
-        if (status.isActive || status.isOverdue) ...[
-          const SizedBox(height: 4),
-          Center(
-            child: TextButton(
-              onPressed: _submitting ? null : () => _onCancel(arenaId),
-              child: Text(
-                'Cancelar assinatura',
-                style: TextStyle(color: colors.onSurfaceMuted),
+          const SizedBox(height: 20),
+          for (final plan in arenaPlansCatalog) ...[
+            _PlanCard(
+              plan: plan,
+              cycle: _cycle,
+              colors: colors,
+              isCurrent: status.isActive && status.tier == plan.tier,
+              submitting: _submitting,
+              onSubscribe: plan.free ? null : () => _onSubscribe(arenaId, plan),
+            ),
+            const SizedBox(height: 14),
+          ],
+          if (status.isActive || status.isOverdue) ...[
+            const SizedBox(height: 4),
+            Center(
+              child: TextButton(
+                onPressed: _submitting ? null : () => _onCancel(arenaId),
+                child: Text(
+                  'Cancelar assinatura',
+                  style: TextStyle(color: colors.onSurfaceMuted),
+                ),
               ),
             ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            'Valores ilustrativos — a tabela oficial de planos será confirmada em breve.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.onSurfaceMuted,
+                ),
           ),
-        ],
-        const SizedBox(height: 8),
-        Text(
-          'Valores ilustrativos — a tabela oficial de planos será confirmada em breve.',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colors.onSurfaceMuted,
-              ),
-        ),
-      ],
+        ]),
+      ),
     );
   }
 
@@ -176,6 +205,47 @@ class _ArenaPlanPageState extends ConsumerState<ArenaPlanPage> {
     }
   }
 
+}
+
+class _PlanPageToolbar extends StatelessWidget {
+  const _PlanPageToolbar({required this.onBack});
+
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+
+    return Row(
+      children: [
+        Material(
+          color: colors.surfaceRaised,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: onBack,
+            borderRadius: BorderRadius.circular(12),
+            child: const SizedBox(
+              width: 44,
+              height: 44,
+              child: Icon(Icons.arrow_back_rounded, size: 22),
+            ),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Text(
+            'Plano da arena',
+            style: AppTypography.soraRegular(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              color: colors.onSurface,
+              letterSpacing: -0.3,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _SubscribeChoice {

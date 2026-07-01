@@ -26,5 +26,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# gravações/screenshots de simulador (não versionar — eram pesados demais p/ o GitHub)
-prints/
+# gravações de simulador (não versionar — muito pesadas para o Git)
+prints/*.mov

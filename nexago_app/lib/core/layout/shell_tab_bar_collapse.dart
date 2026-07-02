@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 /// Controla o encolhimento da tab bar ao rolar o conteúdo (0 = expandida, 1 = compacta).
 class ShellTabBarCollapseController extends ChangeNotifier {
@@ -8,6 +9,7 @@ class ShellTabBarCollapseController extends ChangeNotifier {
   static const double collapsedHeight = 50;
 
   double _progress = 0;
+  bool _notifyScheduled = false;
 
   double get progress => _progress;
 
@@ -49,7 +51,21 @@ class ShellTabBarCollapseController extends ChangeNotifier {
     final clamped = value.clamp(0.0, 1.0);
     if ((clamped - _progress).abs() < 0.008) return;
     _progress = clamped;
-    notifyListeners();
+    _scheduleNotify();
+  }
+
+  /// Evita `notifyListeners` durante layout/paint (ex.: scroll end no viewport).
+  void _scheduleNotify() {
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+      notifyListeners();
+      return;
+    }
+    if (_notifyScheduled) return;
+    _notifyScheduled = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _notifyScheduled = false;
+      notifyListeners();
+    });
   }
 
   static double _lerp(double a, double b, double t) => a + (b - a) * t;

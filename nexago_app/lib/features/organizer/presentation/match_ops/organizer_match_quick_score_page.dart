@@ -141,19 +141,20 @@ class _OrganizerMatchQuickScorePageState
     });
   }
 
-  Future<void> _save(String? winnerId) async {
+  Future<void> _save(TournamentMatch match) async {
     // Pré-validação local para feedback rápido; a validação autoritativa
     // (placar legal + cálculo do vencedor pelas regras) ocorre no servidor.
-    if (!MatchScoringLogic.validateQuickScoreSets(_sets)) {
-      showAppSnackBar(context, 'Informe placar válido.');
-      return;
-    }
-    // Lançamento rápido finaliza a partida: exige um vencedor definido pelas
-    // regras (evita submit incompleto que só falharia no servidor).
-    if (winnerId == null) {
+    final validation = MatchScoringLogic.validateQuickScoreSubmission(
+      sets: _sets,
+      bestOf: _bestOf,
+      teamAId: match.teamAId,
+      teamBId: match.teamBId,
+      requireMatchWinner: true,
+    );
+    if (!validation.isValid) {
       showAppSnackBar(
         context,
-        'Complete o placar: nenhuma dupla venceu ainda.',
+        validation.firstMessage ?? 'Informe placar válido.',
       );
       return;
     }
@@ -351,7 +352,7 @@ class _OrganizerMatchQuickScorePageState
               _ConfirmBottomBar(
                 saving: _saving,
                 winnerLabel: winnerLabel,
-                onConfirm: () => _save(winnerId),
+                onConfirm: () => _save(match),
               ),
             ],
           );

@@ -8,6 +8,7 @@ import '../../domain/match_ops/schedule_grid_logic.dart';
 import '../../domain/match_ops/schedule_pick_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/domain/tournament_match.dart';
+import '../../../tournaments/domain/tournament_match_display.dart';
 import 'organizer_match_navigation.dart';
 import 'widgets/organizer_court_schedule_grid_widgets.dart';
 import 'widgets/organizer_schedule_pick_widgets.dart';
@@ -76,6 +77,10 @@ class _OrganizerSchedulePickPageState
       config: config,
       dayKey: dayKey,
     );
+    final matchesByCategoryId = <String, List<TournamentMatch>>{};
+    for (final match in allMatches) {
+      matchesByCategoryId.putIfAbsent(match.categoryId, () => []).add(match);
+    }
 
     TournamentMatch? selectedMatch;
     if (_selectedMatchId != null) {
@@ -186,6 +191,12 @@ class _OrganizerSchedulePickPageState
                         categoryLabel: MatchOpsLogic.categoryCompactLabel(
                           categoryId: match.categoryId,
                           categories: categories,
+                        ),
+                        phaseLabel: matchPhaseDisplayLabel(
+                          match,
+                          categoryMatches:
+                              matchesByCategoryId[match.categoryId] ??
+                                  const [],
                         ),
                         teamA: schedulePickTeamData(
                           match: match,

@@ -12,7 +12,8 @@
     "logs": "firebase functions:log",
     "test": "npm run build && node --test lib/**/*.test.js",
     "bulk-enroll": "node scripts/bulk-enroll-league-stage.js",
-    "seed-tournament": "node scripts/seed-tournament-with-enrollments.js"
+    "seed-tournament": "node scripts/seed-tournament-with-enrollments.js",
+    "seed-tournament-today": "node scripts/seed-tournament-today-with-enrollments.js"
   },
   "engines": {
     "node": "22"

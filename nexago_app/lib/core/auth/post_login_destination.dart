@@ -6,6 +6,7 @@ import '../../features/athlete/domain/athlete_profile_providers.dart';
 import '../deep_link/deep_link_navigation.dart';
 import '../../features/athlete/domain/booking_invite_providers.dart';
 import '../../features/auth/domain/post_login_bootstrap.dart';
+import '../../features/organizer/domain/tournament_staff/my_tournament_staff_providers.dart';
 import '../router/routes.dart';
 import 'active_role_providers.dart';
 import 'app_mobile_role.dart';
@@ -121,11 +122,20 @@ Future<String?> resolveAuthenticatedRedirect({
     }
   }
 
+  // Staff de torneio (sem papel organizer) acessa a operação dos torneios em
+  // que atua; a checagem só roda quando a rota exigiria o papel organizer.
+  var canOperateStaffTournaments = false;
+  if (activeRole != AppMobileRole.organizer &&
+      isOrganizerStaffOperablePath(path)) {
+    canOperateStaffTournaments = await hasActiveTournamentStaffAccess(ref);
+  }
+
   final guardRedirect = redirectForActiveRole(
     path: path,
     activeRole: activeRole,
     availableRoles: availableRoles,
     needsRoleSelection: needsSelection,
+    canOperateStaffTournaments: canOperateStaffTournaments,
   );
   if (guardRedirect != null) {
     return guardRedirect;

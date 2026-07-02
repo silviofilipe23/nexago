@@ -549,6 +549,39 @@ class ScheduleMatchSheetTimeCompare extends StatelessWidget {
   }
 }
 
+class ScheduleMatchSheetUnscheduleButton extends StatelessWidget {
+  const ScheduleMatchSheetUnscheduleButton({
+    super.key,
+    required this.onPressed,
+    this.enabled = true,
+  });
+
+  final VoidCallback onPressed;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final errorColor = Theme.of(context).colorScheme.error;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: OutlinedButton.icon(
+        onPressed: enabled ? onPressed : null,
+        icon: Icon(Icons.event_busy_rounded, size: 18, color: errorColor),
+        label: const Text('Cancelar agendamento'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: errorColor,
+          side: BorderSide(color: errorColor.withValues(alpha: 0.45)),
+          minimumSize: const Size.fromHeight(48),
+          textStyle: AppTypography.soraRegular(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class ScheduleMatchSheetConfirmBar extends StatelessWidget {
   const ScheduleMatchSheetConfirmBar({
     super.key,

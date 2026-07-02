@@ -45,6 +45,7 @@ import '../../features/organizer/presentation/category_ops/organizer_tournament_
 import '../../features/organizer/presentation/category_ops/organizer_tournament_overview_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_tournament_financial_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_tournament_operations_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_tournament_staff_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_shell_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_teams_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_payments_page.dart';
@@ -89,6 +90,12 @@ import '../../features/arena/presentation/plan/arena_plan_page.dart';
 import '../../features/arena/presentation/plan/arena_plan_activated_page.dart';
 import '../../features/arena/presentation/plan/arena_subscription_pending_page.dart';
 import '../../features/arena/presentation/arena_slot_detail_page.dart';
+import '../../features/arena/domain/arena_recurring_created_args.dart';
+import '../../features/arena/domain/arena_recurring_form_args.dart';
+import '../../features/arena/presentation/arena_recurring_details_page.dart';
+import '../../features/arena/presentation/arena_recurring_created_success_page.dart';
+import '../../features/arena/presentation/arena_recurring_form_page.dart';
+import '../../features/arena/presentation/arena_recurring_list_page.dart';
 import '../../features/arena/presentation/arena_shell_page.dart';
 import '../../features/arena/presentation/comandas/arena_comandas_page.dart';
 import '../../features/arena/presentation/comandas/arena_comanda_new_type_page.dart';
@@ -664,6 +671,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                   final tournamentId =
                       state.pathParameters['tournamentId']?.trim() ?? '';
                   return OrganizerTournamentOperationsPage(
+                    tournamentId: tournamentId,
+                  );
+                },
+              ),
+              GoRoute(
+                path: 'staff',
+                name: AppRouteNames.organizerTournamentStaff,
+                builder: (context, state) {
+                  final tournamentId =
+                      state.pathParameters['tournamentId']?.trim() ?? '';
+                  return OrganizerTournamentStaffPage(
                     tournamentId: tournamentId,
                   );
                 },
@@ -1397,6 +1415,52 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                         initialBooking: initial,
                       );
                     },
+                  ),
+                  GoRoute(
+                    path: 'recurring',
+                    name: AppRouteNames.arenaRecurring,
+                    builder: (context, state) =>
+                        const ArenaRecurringListPage(),
+                    routes: [
+                      GoRoute(
+                        path: 'new',
+                        name: AppRouteNames.arenaRecurringNew,
+                        builder: (context, state) {
+                          final extra = state.extra;
+                          return ArenaRecurringFormPage(
+                            args: extra is ArenaRecurringFormArgs
+                                ? extra
+                                : null,
+                          );
+                        },
+                      ),
+                      GoRoute(
+                        path: 'created',
+                        name: AppRouteNames.arenaRecurringCreated,
+                        builder: (context, state) {
+                          final extra = state.extra;
+                          if (extra is! ArenaRecurringCreatedArgs) {
+                            return const Scaffold(
+                              body: Center(
+                                child: Text(
+                                  'Dados de confirmação inválidos.',
+                                ),
+                              ),
+                            );
+                          }
+                          return ArenaRecurringCreatedSuccessPage(args: extra);
+                        },
+                      ),
+                      GoRoute(
+                        path: 'series/:seriesId',
+                        name: AppRouteNames.arenaRecurringDetail,
+                        builder: (context, state) {
+                          final seriesId =
+                              state.pathParameters['seriesId']?.trim() ?? '';
+                          return ArenaRecurringDetailsPage(seriesId: seriesId);
+                        },
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'canceled',

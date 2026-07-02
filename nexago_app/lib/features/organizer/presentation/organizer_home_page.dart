@@ -28,10 +28,22 @@ import 'league_create/sheets/organizer_league_actions_sheet.dart';
 import 'league_stage_create/league_stage_create_navigation.dart';
 import 'tournament_create/tournament_create_navigation.dart';
 import 'sheets/organizer_settings_sheet.dart';
+import 'staff/my_staff_tournaments_section.dart';
+import '../../tournaments/domain/tournament_listing_status.dart';
 
 enum _OrganizerEventFilter { all, leagues, tournaments }
 
 bool _isFirestoreDraft(Map<String, dynamic> data) => isFirestoreDraftData(data);
+
+String _eventListingStatus(Map<String, dynamic> data) {
+  for (final field in ['listingStatus', 'status']) {
+    final raw = (data[field] as String?)?.trim();
+    if (raw != null && raw.isNotEmpty) {
+      return normalizeListingStatusRaw(raw);
+    }
+  }
+  return 'draft';
+}
 
 class OrganizerHomePage extends ConsumerStatefulWidget {
   const OrganizerHomePage({super.key});
@@ -559,6 +571,9 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
                                 ),
                                 const SizedBox(height: 14),
                               ],
+                            const MyStaffTournamentsSection(
+                              horizontalPadding: 0,
+                            ),
                           ],
                         ),
                       ),
@@ -903,7 +918,7 @@ class _OrganizerEventCard extends StatelessWidget {
         (data['locationName'] as String?) ??
         (data['location'] as String?) ??
         '';
-    final status = (data['listingStatus'] as String?) ?? 'draft';
+    final status = _eventListingStatus(data);
     final isDraft = _isFirestoreDraft(data);
     final enrolled = (data['enrolledCount'] as num?)?.toInt() ?? 0;
     final capacity = _capacity(data);
@@ -1040,8 +1055,25 @@ class _OrganizerEventCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: status == 'open' && !isDraft
-                          ? OutlinedButton(
+                      child: isDraft
+                          ? FilledButton(
+                              onPressed: onOpen,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.brand,
+                                foregroundColor: AppColors.black,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text(
+                                'Continuar rascunho',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                            )
+                          : OutlinedButton(
                               onPressed: onOpen,
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: context.themeColors.onSurface,
@@ -1063,23 +1095,6 @@ class _OrganizerEventCard extends StatelessWidget {
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w800,
                                 ),
-                              ),
-                            )
-                          : FilledButton(
-                              onPressed: onOpen,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.brand,
-                                foregroundColor: AppColors.black,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const Text(
-                                'Continuar rascunho',
-                                style: TextStyle(fontWeight: FontWeight.w800),
                               ),
                             ),
                     ),
@@ -1179,7 +1194,7 @@ class _OrganizerEventCard extends StatelessWidget {
 
   Widget _statusBadge({required bool isLive, required String status}) {
     if (isLive) return const _LiveBadge(label: 'Inscrições abertas');
-    if (status == 'draft')
+    if (status == 'draft' || status == 'rascunho')
       return const _HeroBadge(label: 'Rascunho', muted: true);
     if (status == 'open') return const _LiveBadge(label: 'Publicado');
     if (status == 'closed') {

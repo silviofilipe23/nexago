@@ -266,16 +266,17 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
             AthleteSettingsGroup(
               sectionLabel: 'PREFERÊNCIAS',
               children: [
-                AthleteSettingsTile(
-                  icon: Icons.notifications_outlined,
-                  title: 'Notificações',
-                  subtitle: viewData.notificationsSubtitle,
-                  variant: AthleteSettingsIconVariant.neutral,
-                  onTap: () => context.pushNamed(
-                    AppRouteNames.athleteNotificationSettings,
-                  ),
-                  showDivider: true,
-                ),
+                // TODO: Add back when implemented in the next version
+                // AthleteSettingsTile(
+                //   icon: Icons.notifications_outlined,
+                //   title: 'Notificações',
+                //   subtitle: viewData.notificationsSubtitle,
+                //   variant: AthleteSettingsIconVariant.neutral,
+                //   onTap: () => context.pushNamed(
+                //     AppRouteNames.athleteNotificationSettings,
+                //   ),
+                //   showDivider: true,
+                // ),
                 AthleteSettingsTile(
                   icon: Icons.visibility_outlined,
                   title: 'Privacidade e segurança',
@@ -285,14 +286,15 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
                       context.pushNamed(AppRouteNames.athletePrivacySecurity),
                   showDivider: true,
                 ),
-                AthleteSettingsTile(
-                  icon: Icons.brightness_6_outlined,
-                  title: 'Aparência',
-                  subtitle: themePreference.label,
-                  variant: AthleteSettingsIconVariant.neutral,
-                  onTap: () => showAthleteAppearanceSheet(context),
-                  showDivider: true,
-                ),
+                // TODO: Add back when implemented in the next version
+                // AthleteSettingsTile(
+                //   icon: Icons.brightness_6_outlined,
+                //   title: 'Aparência',
+                //   subtitle: themePreference.label,
+                //   variant: AthleteSettingsIconVariant.neutral,
+                //   onTap: () => showAthleteAppearanceSheet(context),
+                //   showDivider: true,
+                // ),
                 AthleteSettingsTile(
                   icon: Icons.language_rounded,
                   title: 'Idioma',

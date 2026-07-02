@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/time/nexago_event_timezone.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
@@ -319,12 +321,9 @@ class ScheduleGridBody extends StatefulWidget {
     required this.categoryMatchesByCategoryId,
     required this.enrichedByMatchId,
     required this.defaultDurationMin,
-    required this.draggingMatchId,
     required this.selectedDayKey,
     required this.onMatchTap,
     required this.onDropMatch,
-    required this.onDragStarted,
-    required this.onDragEnded,
     this.horizontalScrollController,
   });
 
@@ -337,13 +336,13 @@ class ScheduleGridBody extends StatefulWidget {
   final Map<String, List<TournamentMatch>> categoryMatchesByCategoryId;
   final Map<String, TournamentMatchCardViewModel> enrichedByMatchId;
   final int defaultDurationMin;
-  final String? draggingMatchId;
   final String selectedDayKey;
   final ValueChanged<TournamentMatch> onMatchTap;
-  final void Function(TournamentMatch match, String courtId, DateTime slotStart)
-      onDropMatch;
-  final ValueChanged<TournamentMatch> onDragStarted;
-  final VoidCallback onDragEnded;
+  final Future<void> Function(
+    TournamentMatch match,
+    String courtId,
+    DateTime slotStart,
+  ) onDropMatch;
   final ScrollController? horizontalScrollController;
 
   @override
@@ -352,7 +351,15 @@ class ScheduleGridBody extends StatefulWidget {
 
 class _ScheduleGridBodyState extends State<ScheduleGridBody> {
   late final ScrollController _verticalScrollController;
+  final GlobalKey _viewportKey = GlobalKey();
+  Timer? _autoScrollTimer;
+  double _autoScrollDelta = 0;
   String? _scrolledForDayKey;
+  String? _draggingMatchId;
+  String? _savingMatchId;
+
+  static const _autoScrollEdgeSize = 88.0;
+  static const _autoScrollMaxSpeed = 24.0;
 
   @override
   void initState() {
@@ -364,15 +371,96 @@ class _ScheduleGridBodyState extends State<ScheduleGridBody> {
   @override
   void didUpdateWidget(covariant ScheduleGridBody oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedDayKey != widget.selectedDayKey ||
-        oldWidget.slots != widget.slots) {
+    if (oldWidget.selectedDayKey != widget.selectedDayKey) {
       _scrolledForDayKey = null;
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToInitial());
     }
   }
 
+  void _onDragStarted(TournamentMatch match) {
+    setState(() => _draggingMatchId = match.id);
+  }
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    if (_draggingMatchId == null) return;
+    _autoScrollDelta = _autoScrollDeltaForGlobalY(details.globalPosition.dy);
+    if (_autoScrollDelta != 0) {
+      _ensureAutoScrollTimer();
+    } else {
+      _stopAutoScroll();
+    }
+  }
+
+  void _onDragEnded() {
+    _stopAutoScroll();
+    if (_draggingMatchId == null) return;
+    setState(() => _draggingMatchId = null);
+  }
+
+  double _autoScrollDeltaForGlobalY(double globalY) {
+    final box = _viewportKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return 0;
+
+    final top = box.localToGlobal(Offset.zero).dy;
+    final bottom = top + box.size.height;
+
+    if (globalY < top + _autoScrollEdgeSize) {
+      final intensity = ((top + _autoScrollEdgeSize) - globalY) / _autoScrollEdgeSize;
+      return -_autoScrollMaxSpeed * intensity.clamp(0.0, 1.0);
+    }
+    if (globalY > bottom - _autoScrollEdgeSize) {
+      final intensity = (globalY - (bottom - _autoScrollEdgeSize)) / _autoScrollEdgeSize;
+      return _autoScrollMaxSpeed * intensity.clamp(0.0, 1.0);
+    }
+    return 0;
+  }
+
+  void _ensureAutoScrollTimer() {
+    if (_autoScrollTimer != null) return;
+    _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+      if (_autoScrollDelta == 0 || !_verticalScrollController.hasClients) {
+        _stopAutoScroll();
+        return;
+      }
+      final position = _verticalScrollController.position;
+      final next = (position.pixels + _autoScrollDelta)
+          .clamp(0.0, position.maxScrollExtent);
+      if (next == position.pixels) {
+        _stopAutoScroll();
+        return;
+      }
+      _verticalScrollController.jumpTo(next);
+    });
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+    _autoScrollDelta = 0;
+  }
+
+  Future<void> _handleDropMatch(
+    TournamentMatch match,
+    String courtId,
+    DateTime slotStart,
+  ) async {
+    _stopAutoScroll();
+    setState(() {
+      _draggingMatchId = null;
+      _savingMatchId = match.id;
+    });
+    try {
+      await widget.onDropMatch(match, courtId, slotStart);
+    } finally {
+      if (mounted) {
+        setState(() => _savingMatchId = null);
+      }
+    }
+  }
+
   @override
   void dispose() {
+    _stopAutoScroll();
     _verticalScrollController.dispose();
     super.dispose();
   }
@@ -437,14 +525,18 @@ class _ScheduleGridBodyState extends State<ScheduleGridBody> {
     final gridEnd = slots.isNotEmpty
         ? slots.last.add(const Duration(minutes: ScheduleGridLogic.slotMinutes))
         : gridStart;
-    final nowOffset = ScheduleGridLogic.nowLineOffset(
-      gridStart: gridStart,
-      gridEnd: gridEnd,
-    );
+    final showNowLine = widget.selectedDayKey ==
+        ScheduleLogic.dayKeyFromDate(nexagoEventNow());
 
-    return SingleChildScrollView(
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        SingleChildScrollView(
+      key: _viewportKey,
       controller: _verticalScrollController,
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(
+        bottom: 16 + kScheduleGridFloatingActionClearance,
+      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         controller: widget.horizontalScrollController,
@@ -472,28 +564,117 @@ class _ScheduleGridBodyState extends State<ScheduleGridBody> {
                           widget.categoryMatchesByCategoryId,
                       enrichedByMatchId: widget.enrichedByMatchId,
                       defaultDurationMin: widget.defaultDurationMin,
-                      draggingMatchId: widget.draggingMatchId,
+                      draggingMatchId: _draggingMatchId,
+                      savingMatchId: _savingMatchId,
                       onMatchTap: widget.onMatchTap,
-                      onDropMatch: widget.onDropMatch,
-                      onDragStarted: widget.onDragStarted,
-                      onDragEnded: widget.onDragEnded,
+                      onDropMatch: _handleDropMatch,
+                      onDragStarted: _onDragStarted,
+                      onDragUpdate: _onDragUpdate,
+                      onDragEnded: _onDragEnded,
                     ),
                 ],
               ),
-              if (nowOffset != null &&
-                  widget.selectedDayKey ==
-                      ScheduleLogic.dayKeyFromDate(nexagoEventNow()))
-                Positioned(
-                  top: nowOffset,
-                  left: 0,
-                  right: 0,
-                  child: ScheduleGridNowLine(
-                    timeLabel: ScheduleGridLogic.timeLabel(nexagoEventNow()),
-                  ),
+              if (showNowLine)
+                _ScheduleGridNowLineOverlay(
+                  gridStart: gridStart,
+                  gridEnd: gridEnd,
                 ),
             ],
           ),
         ),
+      ),
+    ),
+        if (_savingMatchId != null)
+          Positioned.fill(
+            child: ColoredBox(
+              color: Colors.black.withValues(alpha: 0.06),
+              child: Center(
+                child: Material(
+                  color: context.themeColors.surfaceCard,
+                  elevation: 2,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 14,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.brand,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Atualizando horário…',
+                          style: AppTypography.soraRegular(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: context.themeColors.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Atualiza só a linha “agora” — evita rebuild da grade inteira a cada 30s.
+class _ScheduleGridNowLineOverlay extends StatefulWidget {
+  const _ScheduleGridNowLineOverlay({
+    required this.gridStart,
+    required this.gridEnd,
+  });
+
+  final DateTime gridStart;
+  final DateTime gridEnd;
+
+  @override
+  State<_ScheduleGridNowLineOverlay> createState() =>
+      _ScheduleGridNowLineOverlayState();
+}
+
+class _ScheduleGridNowLineOverlayState extends State<_ScheduleGridNowLineOverlay> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final nowOffset = ScheduleGridLogic.nowLineOffset(
+      gridStart: widget.gridStart,
+      gridEnd: widget.gridEnd,
+    );
+    if (nowOffset == null) return const SizedBox.shrink();
+    return Positioned(
+      top: nowOffset,
+      left: 0,
+      right: 0,
+      child: ScheduleGridNowLine(
+        timeLabel: ScheduleGridLogic.timeLabel(nexagoEventNow()),
       ),
     );
   }
@@ -536,6 +717,9 @@ class ScheduleGridNowLine extends StatelessWidget {
   }
 }
 
+/// Espaço extra no fim da grade para os botões flutuantes.
+const kScheduleGridFloatingActionClearance = 88.0;
+
 class ScheduleGridActionBar extends StatelessWidget {
   const ScheduleGridActionBar({
     super.key,
@@ -550,50 +734,62 @@ class ScheduleGridActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: BoxDecoration(
-        color: context.themeColors.canvas,
-        border: Border(
-          top: BorderSide(
-            color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
-          ),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
+    final shadow = AppColors.black.withValues(alpha: 0.14);
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         child: Row(
           children: [
-            OutlinedButton.icon(
-              onPressed: onAuto,
-              icon: const Icon(Icons.auto_fix_high_rounded, size: 18),
-              label: const Text('Auto'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: context.themeColors.onSurface,
-                side: BorderSide(
-                  color: context.themeColors.onSurfaceMuted.withValues(
-                    alpha: 0.28,
+            Material(
+              elevation: 8,
+              shadowColor: shadow,
+              color: context.themeColors.surfaceCard,
+              borderRadius: BorderRadius.circular(14),
+              clipBehavior: Clip.antiAlias,
+              child: OutlinedButton.icon(
+                onPressed: onAuto,
+                icon: const Icon(Icons.auto_fix_high_rounded, size: 18),
+                label: const Text('Auto'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: context.themeColors.onSurface,
+                  backgroundColor: context.themeColors.surfaceCard,
+                  side: BorderSide.none,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
                   ),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: FilledButton.icon(
-                onPressed: scheduleEnabled ? onSchedule : null,
-                icon: const Icon(Icons.add_rounded, size: 20),
-                label: const Text('Agendar partida'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.brand,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  textStyle: AppTypography.soraRegular(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
+              child: Material(
+                elevation: 8,
+                shadowColor: shadow,
+                borderRadius: BorderRadius.circular(14),
+                clipBehavior: Clip.antiAlias,
+                child: FilledButton.icon(
+                  onPressed: scheduleEnabled ? onSchedule : null,
+                  icon: const Icon(Icons.add_rounded, size: 20),
+                  label: const Text('Agendar partida'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor:
+                        AppColors.brand.withValues(alpha: 0.45),
+                    disabledForegroundColor: Colors.white.withValues(alpha: 0.8),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    textStyle: AppTypography.soraRegular(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ),
@@ -652,9 +848,11 @@ class _ScheduleGridCourtColumn extends StatelessWidget {
     required this.enrichedByMatchId,
     required this.defaultDurationMin,
     required this.draggingMatchId,
+    required this.savingMatchId,
     required this.onMatchTap,
     required this.onDropMatch,
     required this.onDragStarted,
+    required this.onDragUpdate,
     required this.onDragEnded,
   });
 
@@ -668,10 +866,15 @@ class _ScheduleGridCourtColumn extends StatelessWidget {
   final Map<String, TournamentMatchCardViewModel> enrichedByMatchId;
   final int defaultDurationMin;
   final String? draggingMatchId;
+  final String? savingMatchId;
   final ValueChanged<TournamentMatch> onMatchTap;
-  final void Function(TournamentMatch match, String courtId, DateTime slotStart)
-  onDropMatch;
+  final Future<void> Function(
+    TournamentMatch match,
+    String courtId,
+    DateTime slotStart,
+  ) onDropMatch;
   final ValueChanged<TournamentMatch> onDragStarted;
+  final ValueChanged<DragUpdateDetails> onDragUpdate;
   final VoidCallback onDragEnded;
 
   @override
@@ -708,7 +911,7 @@ class _ScheduleGridCourtColumn extends StatelessWidget {
                 defaultDurationMin: defaultDurationMin,
               ),
               child: IgnorePointer(
-                ignoring: draggingMatchId != null,
+                ignoring: draggingMatchId != null || savingMatchId != null,
                 child: Builder(
                   builder: (context) {
                     final categoryLabel =
@@ -746,9 +949,10 @@ class _ScheduleGridCourtColumn extends StatelessWidget {
                       ),
                       phase: matchPhase,
                       showAlert: ScheduleGridLogic.showAlertIcon(match),
-                      isDragging: draggingMatchId == match.id,
+                      isSaving: savingMatchId == match.id,
                       onTap: () => onMatchTap(match),
                       onDragStarted: () => onDragStarted(match),
+                      onDragUpdate: onDragUpdate,
                       onDragEnded: onDragEnded,
                     );
                   },
@@ -774,8 +978,11 @@ class _ScheduleGridDropSlot extends StatelessWidget {
   final DateTime slot;
   final DateTime gridStart;
   final bool showDropHint;
-  final void Function(TournamentMatch match, String courtId, DateTime slotStart)
-  onDropMatch;
+  final Future<void> Function(
+    TournamentMatch match,
+    String courtId,
+    DateTime slotStart,
+  ) onDropMatch;
 
   @override
   Widget build(BuildContext context) {
@@ -860,9 +1067,10 @@ class _ScheduleGridMatchCard extends StatelessWidget {
     required this.timeRange,
     required this.phase,
     required this.showAlert,
-    required this.isDragging,
+    required this.isSaving,
     required this.onTap,
     required this.onDragStarted,
+    required this.onDragUpdate,
     required this.onDragEnded,
   });
 
@@ -875,9 +1083,10 @@ class _ScheduleGridMatchCard extends StatelessWidget {
   final String timeRange;
   final ScheduleGridMatchPhase phase;
   final bool showAlert;
-  final bool isDragging;
+  final bool isSaving;
   final VoidCallback onTap;
   final VoidCallback onDragStarted;
+  final ValueChanged<DragUpdateDetails> onDragUpdate;
   final VoidCallback onDragEnded;
 
   @override
@@ -1016,8 +1225,32 @@ class _ScheduleGridMatchCard extends StatelessWidget {
       ),
     );
 
+    final cardWithSaving = Stack(
+      fit: StackFit.expand,
+      children: [
+        card,
+        if (isSaving)
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: context.themeColors.surfaceRaised.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+
     return LongPressDraggable<TournamentMatch>(
       data: match,
+      maxSimultaneousDrags: isSaving ? 0 : 1,
       feedback: Material(
         color: Colors.transparent,
         child: Opacity(
@@ -1038,18 +1271,21 @@ class _ScheduleGridMatchCard extends StatelessWidget {
               timeRange: timeRange,
               phase: phase,
               showAlert: showAlert,
-              isDragging: true,
+              isSaving: false,
               onTap: () {},
               onDragStarted: () {},
+              onDragUpdate: (_) {},
               onDragEnded: () {},
             ),
           ),
         ),
       ),
-      childWhenDragging: Opacity(opacity: 0.25, child: card),
+      childWhenDragging: const SizedBox.shrink(),
       onDragStarted: onDragStarted,
-      onDragEnd: (_) => onDragEnded,
-      child: Opacity(opacity: isDragging ? 0.35 : 1, child: card),
+      onDragUpdate: onDragUpdate,
+      onDragEnd: (_) => onDragEnded(),
+      onDraggableCanceled: (_, __) => onDragEnded(),
+      child: cardWithSaving,
     );
   }
 }

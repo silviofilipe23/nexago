@@ -9,6 +9,7 @@ import '../../domain/match_ops/schedule_grid_logic.dart';
 import '../../domain/match_ops/schedule_time_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/domain/tournament_match.dart';
+import 'organizer_match_error.dart';
 import 'widgets/organizer_court_schedule_grid_widgets.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
 import 'widgets/organizer_schedule_pick_widgets.dart';
@@ -72,7 +73,9 @@ class _OrganizerScheduleTimePageState
       }
       context.pop();
     } catch (e) {
-      if (mounted) showAppSnackBar(context, 'Erro: $e');
+      if (mounted) {
+        showAppSnackBar(context, friendlyScheduleError(e), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }

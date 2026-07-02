@@ -338,10 +338,12 @@ class SchedulePickMatchCard extends StatelessWidget {
     required this.selected,
     required this.selectable,
     required this.onTap,
+    this.phaseLabel = '',
   });
 
   final TournamentMatch match;
   final String categoryLabel;
+  final String phaseLabel;
   final LiveTableTeamData teamA;
   final LiveTableTeamData teamB;
   final String? suggestionLabel;
@@ -355,6 +357,7 @@ class SchedulePickMatchCard extends StatelessWidget {
     final meta = ScheduleGridLogic.matchMetaLabel(
       match: match,
       categoryCompactLabel: categoryLabel,
+      phaseLabel: phaseLabel,
     ).toUpperCase();
     final seedA = liveTableTeamSeed(match, sideA: true);
     final seedB = liveTableTeamSeed(match, sideA: false);

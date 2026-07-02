@@ -50,6 +50,14 @@ Future<void> main() async {
   await crashlytics.setCrashlyticsCollectionEnabled(!kDebugMode);
   FlutterError.onError = crashlytics.recordFlutterFatalError;
   PlatformDispatcher.instance.onError = (error, stack) {
+    // MissingPluginException é corrida benigna de canal de platform view
+    // (ex.: `setSuppressed` do native_liquid_glass após hot restart ou
+    // dispose da view). Sem impacto ao usuário — registrar como não-fatal
+    // para não poluir o Crashlytics com falsos crashes.
+    if (error is MissingPluginException) {
+      crashlytics.recordError(error, stack, fatal: false);
+      return true;
+    }
     crashlytics.recordError(error, stack, fatal: true);
     return true;
   };

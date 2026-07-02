@@ -28,6 +28,7 @@ class MyBookingItem {
     this.confirmationDeadline,
     this.confirmedParticipants = 1,
     this.confirmedAthletes = const [],
+    this.recurringBookingId,
   });
 
   final String id;
@@ -56,6 +57,13 @@ class MyBookingItem {
 
   /// Parceiros / convidados confirmados quando disponível no documento.
   final List<MyBookingConfirmedAthlete> confirmedAthletes;
+
+  /// Série em `arenaRecurringBookings` quando a reserva é de horário fixo.
+  final String? recurringBookingId;
+
+  /// Ocorrência de horário fixo (mensalista) — criada pela arena; o
+  /// cancelamento é acertado direto com a arena.
+  bool get isRecurring => recurringBookingId != null;
 
   factory MyBookingItem.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -140,6 +148,7 @@ class MyBookingItem {
       confirmationDeadline: (data['confirmationDeadline'] as Timestamp?)?.toDate(),
       confirmedParticipants: confirmedParticipants,
       confirmedAthletes: confirmedAthletes,
+      recurringBookingId: _pickString(data['recurringBookingId']),
     );
   }
 

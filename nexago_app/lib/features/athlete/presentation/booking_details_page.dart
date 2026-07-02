@@ -137,7 +137,13 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         .watch(bookingAttendanceProvider(widget.bookingId))
         .valueOrNull;
 
-    final canCancel = bookingDetailsCanCancel(detailsStatus);
+    // Ocorrência de horário fixo (mensalista): criada pela arena; alterações
+    // e cancelamento são acertados direto com a arena.
+    final isRecurring = bookingData?['isRecurring'] == true ||
+        (bookingData?['recurringBookingId'] as String?)?.trim().isNotEmpty ==
+            true;
+
+    final canCancel = bookingDetailsCanCancel(detailsStatus) && !isRecurring;
     final actionsEnabled = bookingDetailsActionsEnabled(detailsStatus);
 
     return Scaffold(
@@ -192,7 +198,10 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             onCheckIn: _checkInNow,
           ),
           const SizedBox(height: 14),
-          BookingDetailsCancellationCard(arenaName: widget.arenaName),
+          if (isRecurring)
+            _RecurringBookingNoteCard(arenaName: widget.arenaName)
+          else
+            BookingDetailsCancellationCard(arenaName: widget.arenaName),
           const SizedBox(height: 14),
           BookingDetailsActionsSection(
             onDirections: () => _openMaps(address),
@@ -346,5 +355,55 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
         context,
       ).showSnackBar(SnackBar(content: Text('Não foi possível cancelar: $e')));
     }
+  }
+}
+
+/// Substitui o card de política de cancelamento em reservas de horário fixo:
+/// a série é gerida pela arena, sem cancelamento pelo app.
+class _RecurringBookingNoteCard extends StatelessWidget {
+  const _RecurringBookingNoteCard({required this.arenaName});
+
+  final String arenaName;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.themeColors;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surfaceCard,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.event_repeat_rounded, size: 20, color: colors.onSurfaceMuted),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Horário fixo',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: colors.onSurface,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Esta reserva faz parte do seu horário fixo semanal. Para '
+                  'alterações ou cancelamento, fale direto com $arenaName.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceMuted,
+                        height: 1.4,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

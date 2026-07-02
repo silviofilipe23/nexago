@@ -176,6 +176,25 @@ void main() {
       );
     });
 
+    test('teamLine keeps bracket placeholders readable', () {
+      expect(
+        ScheduleGridLogic.teamLine(description: 'Vencedor Jogo #25'),
+        'Venc. Jogo #25',
+      );
+      expect(
+        ScheduleGridLogic.teamLine(description: 'Perdedor Jogo #29'),
+        'Perd. Jogo #29',
+      );
+      expect(
+        ScheduleGridLogic.teamLine(description: '1º Grupo A'),
+        '1º Grupo A',
+      );
+      expect(
+        ScheduleGridLogic.teamLine(description: '2º Grupo B'),
+        '2º Grupo B',
+      );
+    });
+
     test('matchPhase detects live and finished', () {
       expect(
         ScheduleGridLogic.matchPhase(_match(status: 'in_progress')),

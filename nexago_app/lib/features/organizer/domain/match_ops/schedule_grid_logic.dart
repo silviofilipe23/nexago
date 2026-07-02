@@ -14,9 +14,11 @@ abstract final class ScheduleGridLogic {
   ScheduleGridLogic._();
 
   static const int slotMinutes = 30;
+
   /// Altura visual de cada slot de 30 min na grade H1.
   /// 50 min de partida → ~133px de bloco (50/30 × 80).
   static const double slotHeight = 80;
+
   /// Largura de cada coluna de quadra na grade H1 (cards com #, fase e nomes).
   static const double courtColumnWidth = 152;
   static const double timeColumnWidth = 44;
@@ -37,12 +39,13 @@ abstract final class ScheduleGridLogic {
 
   /// Mapeia cada categoria a uma cor distinta (ids ordenados para estabilidade).
   static Map<String, Color> categoryAccentColors(Iterable<String> categoryIds) {
-    final ids = categoryIds
-        .map((id) => id.trim())
-        .where((id) => id.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final ids =
+        categoryIds
+            .map((id) => id.trim())
+            .where((id) => id.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
     return {
       for (var i = 0; i < ids.length; i++)
         ids[i]: categoryAccentPalette[i % categoryAccentPalette.length],
@@ -86,7 +89,8 @@ abstract final class ScheduleGridLogic {
     for (final match in dayMatches) {
       final scheduleStart = match.scheduleTime;
       if (scheduleStart == null) continue;
-      final scheduleEnd = match.scheduleEndTime ??
+      final scheduleEnd =
+          match.scheduleEndTime ??
           scheduleStart.add(Duration(minutes: defaultDurationMin));
 
       if (nexagoEventUtcInstant(scheduleStart).isBefore(baseStart)) {
@@ -124,8 +128,8 @@ abstract final class ScheduleGridLogic {
     required String dayStart,
     required String dayEnd,
   }) {
-    final start = _mergeTime(day, dayStart, fallbackHour: 8);
-    final end = _mergeTime(day, dayEnd, fallbackHour: 18);
+    final start = _mergeTime(day, dayStart, fallbackHour: 7);
+    final end = _mergeTime(day, dayEnd, fallbackHour: 24);
     if (!end.isAfter(start)) return [start];
 
     final slots = <DateTime>[];
@@ -156,9 +160,9 @@ abstract final class ScheduleGridLogic {
     final start = match.scheduleTime;
     if (start == null) return 0;
     final slotStart = _floorToSlot(start);
-    final minutes = nexagoEventUtcInstant(slotStart)
-        .difference(nexagoEventUtcInstant(gridStart))
-        .inMinutes;
+    final minutes = nexagoEventUtcInstant(
+      slotStart,
+    ).difference(nexagoEventUtcInstant(gridStart)).inMinutes;
     return (minutes / slotMinutes) * slotHeight;
   }
 
@@ -248,16 +252,20 @@ abstract final class ScheduleGridLogic {
     return '${timeLabel(slotStart)}-${timeLabel(slotEnd)}';
   }
 
+  /// Meta do card (`CATEGORIA · fase`). Com [phaseLabel] usa a fase completa
+  /// (ex. `Quartas de final`); sem ela, cai no rótulo curto (`QF`).
   static String matchMetaLabel({
     required TournamentMatch match,
     required String categoryCompactLabel,
+    String phaseLabel = '',
   }) {
     final category = categoryCompactLabel.trim();
-    final round = roundShortLabel(match);
+    final round =
+        phaseLabel.trim().isNotEmpty ? phaseLabel.trim() : roundShortLabel(match);
     if (category.isEmpty && round.isEmpty) return 'Partida';
     if (category.isEmpty) return round;
     if (round.isEmpty) return category;
-    return '$category • $round';
+    return '$category · $round';
   }
 
   /// Cabeçalho do card na grade: `#3 · MASC · INICIANTE` + fase legível.
@@ -271,8 +279,7 @@ abstract final class ScheduleGridLogic {
     final eyebrowParts = <String>[];
     if (number.isNotEmpty) eyebrowParts.add(number);
     if (category.isNotEmpty) eyebrowParts.add(category);
-    final eyebrow =
-        eyebrowParts.isEmpty ? 'Partida' : eyebrowParts.join(' · ');
+    final eyebrow = eyebrowParts.isEmpty ? 'Partida' : eyebrowParts.join(' · ');
     final phaseLabel = matchPhaseDisplayLabel(
       match,
       categoryMatches: categoryMatches,
@@ -292,10 +299,7 @@ abstract final class ScheduleGridLogic {
     return label.length > 6 ? '${label.substring(0, 5)}.' : label;
   }
 
-  static String teamLine({
-    String? description,
-    String teamId = '',
-  }) {
+  static String teamLine({String? description, String teamId = ''}) {
     final raw = description?.trim();
     final label = (raw != null && raw.isNotEmpty) ? raw : teamId.trim();
     if (label.isEmpty) return 'A definir';
@@ -308,7 +312,23 @@ abstract final class ScheduleGridLogic {
     if (parts.length >= 2) {
       return '${_firstToken(parts[0])} / ${_initialToken(parts[1])}';
     }
-    return _firstToken(parts.first);
+    // Sem dupla ("A / B"): é placeholder de chave ("Vencedor Jogo #25",
+    // "1º Grupo A") ou nome único de equipe. Manter o rótulo inteiro —
+    // truncar no primeiro token deixava só "Vencedor"/"1º", impossível
+    // saber quem é quem. Compactamos "Vencedor/Perdedor" para caber.
+    return _compactBracketPlaceholder(parts.first);
+  }
+
+  static String _compactBracketPlaceholder(String label) {
+    return label
+        .replaceFirst(
+          RegExp(r'^vencedor\b', caseSensitive: false),
+          'Venc.',
+        )
+        .replaceFirst(
+          RegExp(r'^perdedor\b', caseSensitive: false),
+          'Perd.',
+        );
   }
 
   static Map<String, List<TournamentMatch>> matchesByCourtId(
@@ -344,15 +364,14 @@ abstract final class ScheduleGridLogic {
         .toList();
   }
 
-  static int unscheduledCount(List<TournamentMatch> matches) =>
-      matches
-          .where(
-            (m) =>
-                !TournamentMatchStatus.isCompleted(m.status) &&
-                (m.scheduleTime == null ||
-                    (m.courtId.isEmpty && m.effectiveCourtLabel.isEmpty)),
-          )
-          .length;
+  static int unscheduledCount(List<TournamentMatch> matches) => matches
+      .where(
+        (m) =>
+            !TournamentMatchStatus.isCompleted(m.status) &&
+            (m.scheduleTime == null ||
+                (m.courtId.isEmpty && m.effectiveCourtLabel.isEmpty)),
+      )
+      .length;
 
   static TournamentMatch? nextUnscheduledMatch(List<TournamentMatch> matches) {
     for (final match in matches) {
@@ -429,7 +448,9 @@ abstract final class ScheduleGridLogic {
   }) {
     final local = toNexagoEventLocal(day);
     final parts = hhmm.split(':');
-    final hour = parts.isNotEmpty ? int.tryParse(parts[0]) ?? fallbackHour : fallbackHour;
+    final hour = parts.isNotEmpty
+        ? int.tryParse(parts[0]) ?? fallbackHour
+        : fallbackHour;
     final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
     return nexagoEventDateTime(
       year: local.year,

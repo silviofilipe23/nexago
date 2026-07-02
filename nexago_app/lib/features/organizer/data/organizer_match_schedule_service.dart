@@ -46,12 +46,18 @@ class OrganizerMatchScheduleService {
     return Map<String, dynamic>.from(result.data as Map? ?? {});
   }
 
+  Future<void> unscheduleMatch({required String matchId}) async {
+    final callable = _functions.httpsCallable('unscheduleMatch');
+    await callable.call({'matchId': matchId.trim()});
+  }
+
   Future<Map<String, dynamic>> autoScheduleTournamentDay({
     required String tournamentId,
     required String dayKey,
     bool preview = true,
     bool avoidAthleteConflict = true,
     bool respectBracketDeps = true,
+    String? dayStart,
   }) async {
     final callable = _functions.httpsCallable('autoScheduleTournamentDay');
     final result = await callable.call({
@@ -60,6 +66,8 @@ class OrganizerMatchScheduleService {
       'preview': preview,
       'avoidAthleteConflict': avoidAthleteConflict,
       'respectBracketDeps': respectBracketDeps,
+      if (dayStart != null && dayStart.trim().isNotEmpty)
+        'dayStart': dayStart.trim(),
     });
     return _normalizeCallableMap(result.data);
   }

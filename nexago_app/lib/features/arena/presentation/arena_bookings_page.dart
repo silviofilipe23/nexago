@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import 'package:nexago_app/core/layout/nexa_floating_header.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../../core/router/routes.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../domain/arena_recurring_providers.dart';
 import '../domain/arena_bookings_grouping.dart';
 import '../domain/arena_providers.dart';
 import '../domain/arena_shell_providers.dart';
@@ -20,12 +25,11 @@ class ArenaBookingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final managed = ref.watch(managedArenaIdProvider);
-    final mode = ref.watch(bookingViewModeProvider);
-    final insight = ref.watch(arenaBookingsTodayInsightProvider);
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       body: SafeArea(
+        bottom: false,
         child: managed.when(
           data: (arenaId) {
             if (arenaId == null || arenaId.isEmpty) {
@@ -35,31 +39,7 @@ class ArenaBookingsPage extends ConsumerWidget {
                 icon: Icons.store_mall_directory_outlined,
               );
             }
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    ArenaDashboardTokens.horizontalPadding,
-                    12,
-                    ArenaDashboardTokens.horizontalPadding,
-                    0,
-                  ),
-                  child: const FadeSlideIn(child: ArenaBookingsHeader()),
-                ),
-                SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: ArenaDashboardTokens.horizontalPadding,
-                  ),
-                  child: const ArenaBookingsModeChips(),
-                ),
-                SizedBox(height: 12),
-                Expanded(
-                  child: _BookingsBody(mode: mode, insight: insight),
-                ),
-              ],
-            );
+            return const _BookingsScrollBody();
           },
           loading: () => const ArenaLoadingState(label: 'Carregando arena...'),
           error: (e, _) => ArenaErrorState(message: '$e'),
@@ -69,160 +49,301 @@ class ArenaBookingsPage extends ConsumerWidget {
   }
 }
 
-class _BookingsBody extends ConsumerWidget {
-  const _BookingsBody({required this.mode, required this.insight});
-
-  final BookingViewMode mode;
-  final ArenaBookingsTodayInsight? insight;
+class _BookingsScrollBody extends ConsumerWidget {
+  const _BookingsScrollBody();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(bookingViewModeProvider);
+    final insight = ref.watch(arenaBookingsTodayInsightProvider);
+
+    return CustomScrollView(
+      controller:
+          ref.watch(arenaShellScrollRegistryProvider).controllerFor(3),
+      key: const PageStorageKey<String>('arena-bookings-scroll'),
+      physics: ArenaDashboardTokens.shellScrollPhysics,
+      slivers: [
+        NexaFloatingHeaderSliver(
+          topGap: 8,
+          padding: const EdgeInsets.symmetric(
+            horizontal: ArenaDashboardTokens.horizontalPadding,
+          ),
+          child: const FadeSlideIn(
+            duration: Duration(milliseconds: 420),
+            offsetY: 14,
+            child: ArenaBookingsHeader(),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              ArenaDashboardTokens.horizontalPadding,
+              16,
+              ArenaDashboardTokens.horizontalPadding,
+              0,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const ArenaBookingsModeChips(),
+                const SizedBox(height: 10),
+                const _RecurringEntryRow(),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        ),
+        ..._BookingsBody.sliversFor(
+          ref: ref,
+          mode: mode,
+          insight: insight,
+          bottomPadding: ArenaDashboardTokens.shellScrollBottomPadding(context),
+        ),
+      ],
+    );
+  }
+}
+
+/// Atalho para a gestão de horários fixos (mensalistas).
+class _RecurringEntryRow extends ConsumerWidget {
+  const _RecurringEntryRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final count =
+        ref.watch(arenaActiveRecurringSeriesProvider).valueOrNull?.length;
+
+    return Material(
+      color: AppColors.brand.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.pushNamed(AppRouteNames.arenaRecurring),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.event_repeat_rounded,
+                color: AppColors.brand,
+                size: 18,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Horários fixos (mensalistas)',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.themeColors.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              if (count != null && count > 0)
+                Text(
+                  '$count ativo${count > 1 ? 's' : ''}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.brand,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.brand,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BookingsBody {
+  const _BookingsBody._();
+
+  static List<Widget> sliversFor({
+    required WidgetRef ref,
+    required BookingViewMode mode,
+    required ArenaBookingsTodayInsight? insight,
+    required double bottomPadding,
+  }) {
     switch (mode) {
       case BookingViewMode.today:
-        return _FlatList(
+        return _FlatList.sliversFor(
           async: ref.watch(arenaBookingsTodayProvider),
           insight: insight,
           emptyTitle: 'Nenhuma reserva hoje',
           emptyMessage: 'Não há reservas ativas para hoje.',
+          bottomPadding: bottomPadding,
         );
       case BookingViewMode.tomorrow:
-        return _FlatList(
+        return _FlatList.sliversFor(
           async: ref.watch(arenaBookingsTomorrowProvider),
           emptyTitle: 'Nenhuma reserva amanhã',
           emptyMessage: 'Não há reservas ativas para amanhã.',
+          bottomPadding: bottomPadding,
         );
       case BookingViewMode.upcoming:
-        return _GroupedList(
+        return _GroupedList.sliversFor(
           async: ref.watch(arenaFutureBookingsGroupedProvider),
           emptyTitle: 'Nenhuma reserva futura',
           emptyMessage: 'Não há reservas após amanhã na amostra carregada.',
+          bottomPadding: bottomPadding,
         );
       case BookingViewMode.past:
-        return _GroupedList(
+        return _GroupedList.sliversFor(
           async: ref.watch(arenaPastBookingsGroupedProvider),
           emptyTitle: 'Nenhuma reserva passada',
           emptyMessage: 'Não há reservas anteriores na amostra carregada.',
+          bottomPadding: bottomPadding,
         );
     }
   }
 }
 
-class _FlatList extends ConsumerWidget {
-  const _FlatList({
-    required this.async,
-    required this.emptyTitle,
-    required this.emptyMessage,
-    this.insight,
-  });
+class _FlatList {
+  const _FlatList._();
 
-  final AsyncValue<List<ArenaManagerBooking>> async;
-  final String emptyTitle;
-  final String emptyMessage;
-  final ArenaBookingsTodayInsight? insight;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final scrollController =
-        ref.watch(arenaShellScrollRegistryProvider).controllerFor(3);
+  static List<Widget> sliversFor({
+    required AsyncValue<List<ArenaManagerBooking>> async,
+    required String emptyTitle,
+    required String emptyMessage,
+    required double bottomPadding,
+    ArenaBookingsTodayInsight? insight,
+  }) {
     return async.when(
       data: (bookings) {
         if (bookings.isEmpty && insight == null) {
-          return ArenaEmptyState(
-            title: emptyTitle,
-            message: emptyMessage,
-            icon: Icons.event_busy_outlined,
-          );
-        }
-        return ListView.builder(
-          controller: scrollController,
-          padding: const EdgeInsets.fromLTRB(
-            ArenaDashboardTokens.horizontalPadding,
-            4,
-            ArenaDashboardTokens.horizontalPadding,
-            28,
-          ),
-          physics: const BouncingScrollPhysics(),
-          itemCount: bookings.length + (insight != null ? 1 : 0),
-          itemBuilder: (context, index) {
-            if (insight != null && index == 0) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: ArenaBookingsInsightCard(insight: insight!),
-              );
-            }
-            final i = insight != null ? index - 1 : index;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: FadeSlideIn(
-                delay: Duration(milliseconds: 40 * i.clamp(0, 12)),
-                child: ArenaBookingCard(booking: bookings[i]),
+          return [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: ArenaEmptyState(
+                title: emptyTitle,
+                message: emptyMessage,
+                icon: Icons.event_busy_outlined,
               ),
-            );
-          },
-        );
+            ),
+          ];
+        }
+        final itemCount = bookings.length + (insight != null ? 1 : 0);
+        return [
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              ArenaDashboardTokens.horizontalPadding,
+              4,
+              ArenaDashboardTokens.horizontalPadding,
+              bottomPadding,
+            ),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  if (insight != null && index == 0) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: ArenaBookingsInsightCard(insight: insight),
+                    );
+                  }
+                  final i = insight != null ? index - 1 : index;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: FadeSlideIn(
+                      delay: Duration(milliseconds: 40 * i.clamp(0, 12)),
+                      child: ArenaBookingCard(booking: bookings[i]),
+                    ),
+                  );
+                },
+                childCount: itemCount,
+              ),
+            ),
+          ),
+        ];
       },
-      loading: () => const ArenaLoadingState(label: 'Carregando reservas...'),
-      error: (e, _) =>
-          ArenaErrorState(message: 'Erro ao carregar reservas.\n$e'),
+      loading: () => [
+        const SliverFillRemaining(
+          hasScrollBody: false,
+          child: ArenaLoadingState(label: 'Carregando reservas...'),
+        ),
+      ],
+      error: (e, _) => [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: ArenaErrorState(message: 'Erro ao carregar reservas.\n$e'),
+        ),
+      ],
     );
   }
 }
 
-class _GroupedList extends ConsumerWidget {
-  const _GroupedList({
-    required this.async,
-    required this.emptyTitle,
-    required this.emptyMessage,
-  });
+class _GroupedList {
+  const _GroupedList._();
 
-  final AsyncValue<List<ArenaBookingDaySection>> async;
-  final String emptyTitle;
-  final String emptyMessage;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final scrollController =
-        ref.watch(arenaShellScrollRegistryProvider).controllerFor(3);
+  static List<Widget> sliversFor({
+    required AsyncValue<List<ArenaBookingDaySection>> async,
+    required String emptyTitle,
+    required String emptyMessage,
+    required double bottomPadding,
+  }) {
     return async.when(
       data: (sections) {
         if (sections.isEmpty) {
-          return ArenaEmptyState(
-            title: emptyTitle,
-            message: emptyMessage,
-            icon: Icons.event_note_outlined,
-          );
+          return [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: ArenaEmptyState(
+                title: emptyTitle,
+                message: emptyMessage,
+                icon: Icons.event_note_outlined,
+              ),
+            ),
+          ];
         }
-        return ListView.builder(
-          controller: scrollController,
-          padding: const EdgeInsets.fromLTRB(
-            ArenaDashboardTokens.horizontalPadding,
-            4,
-            ArenaDashboardTokens.horizontalPadding,
-            28,
+        final itemCount = _groupedItemCount(sections);
+        return [
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+              ArenaDashboardTokens.horizontalPadding,
+              4,
+              ArenaDashboardTokens.horizontalPadding,
+              bottomPadding,
+            ),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final flat = _groupedFlatIndex(sections, index);
+                  if (flat.isHeader) {
+                    return Padding(
+                      padding:
+                          EdgeInsets.only(top: flat.sectionIndex > 0 ? 16 : 0),
+                      child: ArenaBookingsSectionHeader(
+                        title: flat.headerTitle!,
+                        subtitle: flat.subtitle,
+                      ),
+                    );
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: ArenaBookingCard(booking: flat.booking!),
+                  );
+                },
+                childCount: itemCount,
+              ),
+            ),
           ),
-          physics: const BouncingScrollPhysics(),
-          itemCount: _groupedItemCount(sections),
-          itemBuilder: (context, index) {
-            final flat = _groupedFlatIndex(sections, index);
-            if (flat.isHeader) {
-              return Padding(
-                padding: EdgeInsets.only(top: flat.sectionIndex > 0 ? 16 : 0),
-                child: ArenaBookingsSectionHeader(
-                  title: flat.headerTitle!,
-                  subtitle: flat.subtitle,
-                ),
-              );
-            }
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: ArenaBookingCard(booking: flat.booking!),
-            );
-          },
-        );
+        ];
       },
-      loading: () => const ArenaLoadingState(label: 'Carregando reservas...'),
-      error: (e, _) =>
-          ArenaErrorState(message: 'Erro ao carregar reservas.\n$e'),
+      loading: () => [
+        const SliverFillRemaining(
+          hasScrollBody: false,
+          child: ArenaLoadingState(label: 'Carregando reservas...'),
+        ),
+      ],
+      error: (e, _) => [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: ArenaErrorState(message: 'Erro ao carregar reservas.\n$e'),
+        ),
+      ],
     );
   }
 }
@@ -232,13 +353,13 @@ class _GroupedFlatIndex {
     this.sectionIndex,
     this.headerTitle,
     this.subtitle,
-  ) : booking = null,
-      isHeader = true;
+  )   : booking = null,
+        isHeader = true;
 
   const _GroupedFlatIndex.card(this.sectionIndex, this.booking)
-    : headerTitle = null,
-      subtitle = null,
-      isHeader = false;
+      : headerTitle = null,
+        subtitle = null,
+        isHeader = false;
 
   final int sectionIndex;
   final bool isHeader;

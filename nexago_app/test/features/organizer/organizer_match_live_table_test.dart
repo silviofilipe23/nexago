@@ -115,6 +115,22 @@ void main() {
     expect(find.textContaining('Ponto · Marcos'), findsOneWidget);
   });
 
+  testWidgets('LiveTableQuickScoreEntry shows no-scorekeeper prompt', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(
+        LiveTableQuickScoreEntry(onTap: () {}),
+      ),
+    );
+
+    expect(find.text('Sem mesário?'), findsOneWidget);
+    expect(
+      find.text('Informe o placar completo de uma vez'),
+      findsOneWidget,
+    );
+  });
+
   test('liveTableTitleLabel uses category and round', () {
     final match = TournamentMatch(
       id: 'm1',

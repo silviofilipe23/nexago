@@ -317,6 +317,107 @@ class _OrganizerMatchLiveTablePageState
     }
   }
 
+  Future<void> _openQuickScoreSheet({
+    required TournamentMatch match,
+    required LiveTableTeamData teamA,
+    required LiveTableTeamData teamB,
+  }) async {
+    final events = (ref
+                .read(organizerMatchPointEventsProvider(widget.matchId))
+                .valueOrNull ??
+            const [])
+        .whereType<TournamentMatchPointEvent>()
+        .toList();
+    final hasPartialScore = match.sets.any((s) => s.a > 0 || s.b > 0) ||
+        events.isNotEmpty;
+
+    if (hasPartialScore && mounted) {
+      final replace = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Substituir placar parcial?'),
+          content: const Text(
+            'A mesa já registrou pontos nesta partida. '
+            'O placar completo vai substituir o andamento atual.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Continuar'),
+            ),
+          ],
+        ),
+      );
+      if (replace != true || !mounted) return;
+    }
+
+    await showLiveTableQuickScoreSheet(
+      context: context,
+      match: match,
+      teamA: teamA,
+      teamB: teamB,
+      onSubmit: _submitQuickScore,
+      onWalkover: _declareQuickScoreWalkover,
+    );
+  }
+
+  Future<void> _submitQuickScore(
+    List<TournamentMatchSet> sets,
+    int bestOf,
+  ) async {
+    setState(() => _saving = true);
+    try {
+      await ref.read(organizerMatchScheduleServiceProvider).submitMatchResult(
+            matchId: widget.matchId,
+            sets: sets.map((s) => {'a': s.a, 'b': s.b}).toList(),
+            bestOf: bestOf,
+          );
+      await TournamentLiveMatchesSync.syncForTournament(
+        FirebaseFirestore.instance,
+        widget.tournamentId,
+      );
+      if (mounted) {
+        showAppSnackBar(context, 'Placar salvo.');
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
+      rethrow;
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _declareQuickScoreWalkover(String winnerTeamId) async {
+    if (winnerTeamId.trim().isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(organizerMatchScheduleServiceProvider).declareMatchWalkover(
+            matchId: widget.matchId,
+            winnerTeamId: winnerTeamId,
+          );
+      await TournamentLiveMatchesSync.syncForTournament(
+        FirebaseFirestore.instance,
+        widget.tournamentId,
+      );
+      if (mounted) {
+        showAppSnackBar(context, 'W.O. registrado.');
+      }
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
+      rethrow;
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _swapServe() async {
     final match = _currentMatch();
     if (match == null || match.isCompleted) return;
@@ -494,10 +595,24 @@ class _OrganizerMatchLiveTablePageState
                       formatEnabled: !_saving && !match.isCompleted,
                       onChangeFormat: () => _showFormatSheet(match),
                     ),
+                    if (!match.isCompleted)
+                      LiveTableQuickScoreEntry(
+                        enabled: actionsEnabled,
+                        onTap: () => _openQuickScoreSheet(
+                          match: match,
+                          teamA: teamA,
+                          teamB: teamB,
+                        ),
+                      ),
                     LiveTableActionBar(
                       enabled: actionsEnabled,
                       onUndo: _undoLastPoint,
                       onSwapServe: _swapServe,
+                      onQuickScore: () => _openQuickScoreSheet(
+                        match: match,
+                        teamA: teamA,
+                        teamB: teamB,
+                      ),
                       onHistory: () => context.push(
                         organizerMatchSummaryPath(
                           widget.tournamentId,

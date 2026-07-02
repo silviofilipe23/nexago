@@ -108,9 +108,16 @@ class _StatusBadge extends StatelessWidget {
 }
 
 class OrganizerTournamentKpiRow extends StatelessWidget {
-  const OrganizerTournamentKpiRow({super.key, required this.summary});
+  const OrganizerTournamentKpiRow({
+    super.key,
+    required this.summary,
+    this.showFinancial = true,
+  });
 
   final OrganizerTournamentSummary summary;
+
+  /// Arrecadação é visível só para o dono; staff vê apenas KPIs operacionais.
+  final bool showFinancial;
 
   @override
   Widget build(BuildContext context) {
@@ -118,11 +125,12 @@ class OrganizerTournamentKpiRow extends StatelessWidget {
       _KpiItem('INSCRITOS', '${summary.enrolledCount}', false),
       _KpiItem('PENDENTES', '${summary.pendingCount}', false),
       _KpiItem('CATEGORIAS', '${summary.categoryCount}', false),
-      _KpiItem(
-        'ARRECADADO',
-        formatOrganizerMoneyCents(summary.collectedCents),
-        true,
-      ),
+      if (showFinancial)
+        _KpiItem(
+          'ARRECADADO',
+          formatOrganizerMoneyCents(summary.collectedCents),
+          true,
+        ),
     ];
     return SizedBox(
       height: 60,

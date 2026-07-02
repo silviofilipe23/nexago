@@ -12,7 +12,7 @@ import {
   dayKeyFromEventDate,
   eventDateFromDayKeyAndTime,
 } from "./event-timezone";
-import {MatchStatus, isMatchCompleted} from "./match-status";
+import {MatchStatus, isMatchCompleted, isMatchInProgress} from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
 import {tryAwardLeagueStagePointsForMatch} from "./league-ranking";
 import {applyBracketAdvances, canFillBracketSlot} from "./category-bracket-advance";
@@ -55,6 +55,18 @@ function parseIsoDate(value: unknown): Date {
     throw new HttpsError("invalid-argument", "Data inválida");
   }
   return d;
+}
+
+/** `HH:mm` válido ou [fallback] (ex. matchOps.dayStart). */
+function parseDayStartTime(value: unknown, fallback: string): string {
+  const fb = typeof fallback === "string" && fallback.trim() ? fallback.trim() : "07:00";
+  const raw = typeof value === "string" && value.trim() ? value.trim() : fb;
+  const match = /^(\d{1,2}):(\d{2})$/.exec(raw);
+  if (!match) return fb;
+  const h = Number(match[1]);
+  const m = Number(match[2]);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return fb;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 interface RestConflict {
@@ -429,6 +441,45 @@ export const scheduleMatch = onCall(async (request) => {
 
 export const rescheduleMatch = scheduleMatch;
 
+export const unscheduleMatch = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+
+  const matchId = (request.data?.matchId as string)?.trim();
+  if (!matchId) throw new HttpsError("invalid-argument", "matchId obrigatório");
+
+  const db = getFirestore();
+  const projectId = getFirebaseProjectId();
+  const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
+  const tournamentId = data.tournamentId as string;
+  await assertCanManageTournament(db, uid, tournamentId);
+
+  if (isMatchCompleted(data.status)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Partida concluída não pode ter o agendamento cancelado",
+    );
+  }
+  if (isMatchInProgress(data.status) || data.queueStatus === "on_court") {
+    throw new HttpsError(
+      "failed-precondition",
+      "Partida em andamento não pode ter o agendamento cancelado",
+    );
+  }
+
+  await ref.update({
+    courtId: FieldValue.delete(),
+    courtName: FieldValue.delete(),
+    scheduleTime: FieldValue.delete(),
+    scheduleEndTime: FieldValue.delete(),
+    dayKey: FieldValue.delete(),
+    queueStatus: FieldValue.delete(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  return {ok: true};
+});
+
 export const callMatchToCourt = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -742,7 +793,8 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   const matchOps = tournament.matchOps as Record<string, unknown> | undefined;
   const duration = (matchOps?.defaultMatchDurationMin as number) ?? 30;
   const minRest = (matchOps?.minRestBetweenMatchesMin as number) ?? 30;
-  const dayStartStr = (matchOps?.dayStart as string) ?? "08:00";
+  const configDayStart = (matchOps?.dayStart as string) ?? "07:00";
+  const dayStartStr = parseDayStartTime(request.data?.dayStart, configDayStart);
   const [h, m] = dayStartStr.split(":").map(Number);
   const dayStart = eventDateFromDayKeyAndTime(dayKey, h, m);
 
@@ -816,9 +868,11 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
     const data = doc.data();
     let chosenCourt = courts[0].id;
     let chosenStart = courtBusyUntil[chosenCourt] ?? dayStart;
+    if (chosenStart < dayStart) chosenStart = new Date(dayStart);
 
     for (const court of courts) {
       let start = courtBusyUntil[court.id] ?? dayStart;
+      if (start < dayStart) start = new Date(dayStart);
 
       if (avoidAthleteConflict) {
         for (const tid of [data.teamAId, data.teamBId]) {

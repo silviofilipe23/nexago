@@ -82,6 +82,7 @@ import {
 import {
   scheduleMatch,
   rescheduleMatch,
+  unscheduleMatch,
   autoScheduleTournamentDay,
   callMatchToCourt,
   releaseMatchAfterCheckIn,
@@ -94,6 +95,12 @@ import {
 } from "./organizer-match-ops";
 import {deleteOwnAccount} from "./account-deletion";
 import {onTournamentInscriptionWriteSyncCollectedCents} from "./tournament-collected-stats";
+import {
+  createArenaRecurringBooking,
+  cancelArenaRecurringBooking,
+  cancelArenaRecurringOccurrence,
+} from "./arena-recurring-booking";
+import {materializeArenaRecurringBookings} from "./arena-recurring-materializer";
 
 export {
   onArenaCourtCreatedCountUp,
@@ -102,6 +109,11 @@ export {
 } from "./arena-courts-count";
 
 export {finalizeLapsedArenaPlans} from "./arena-plan-sweeper";
+
+export {
+  onTournamentStaffWrittenSyncMirror,
+  onTournamentDeletedCleanupStaff,
+} from "./tournament-staff-sync";
 
 export {
   setOrganizerPayoutPixKey,
@@ -150,6 +162,7 @@ export {
   cancelTournament,
   scheduleMatch,
   rescheduleMatch,
+  unscheduleMatch,
   autoScheduleTournamentDay,
   callMatchToCourt,
   releaseMatchAfterCheckIn,
@@ -161,6 +174,10 @@ export {
   onTournamentMatchCompletedAdvance,
   deleteOwnAccount,
   onTournamentInscriptionWriteSyncCollectedCents,
+  createArenaRecurringBooking,
+  cancelArenaRecurringBooking,
+  cancelArenaRecurringOccurrence,
+  materializeArenaRecurringBookings,
 };
 
 // Initialize Firebase Admin

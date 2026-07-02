@@ -272,11 +272,13 @@ class ScheduleTimeSlotPicker extends StatelessWidget {
     required this.slots,
     required this.selectedSlot,
     required this.onSlotSelected,
+    this.sectionTitle = 'HORÁRIO',
   });
 
   final List<DateTime> slots;
   final DateTime? selectedSlot;
   final ValueChanged<DateTime> onSlotSelected;
+  final String sectionTitle;
 
   @override
   Widget build(BuildContext context) {
@@ -288,7 +290,7 @@ class ScheduleTimeSlotPicker extends StatelessWidget {
           Row(
             children: [
               Text(
-                'HORÁRIO',
+                sectionTitle,
                 style: AppTypography.mono(
                   fontSize: 9,
                   fontWeight: FontWeight.w800,

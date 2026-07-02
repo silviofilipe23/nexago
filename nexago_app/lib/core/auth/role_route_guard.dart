@@ -8,6 +8,13 @@ bool isOrganizerExperiencePath(String path) {
   return path == AppRoutes.organizerHome || path.startsWith('/organizer/');
 }
 
+/// Rotas de operação de um torneio específico — liberadas também para staff
+/// (gestor/mesário) sem o papel organizer. Exclui criação de torneio.
+bool isOrganizerStaffOperablePath(String path) {
+  return path.startsWith('/organizer/tournaments/') &&
+      !path.startsWith('/organizer/tournaments/new');
+}
+
 /// Rotas do fluxo atleta (shell, perfil, competir, reservas como jogador).
 bool isAthleteExperiencePath(String path) {
   if (path == AppRoutes.discover ||
@@ -35,6 +42,7 @@ String? redirectForActiveRole({
   required AppMobileRole? activeRole,
   required List<AppMobileRole> availableRoles,
   required bool needsRoleSelection,
+  bool canOperateStaffTournaments = false,
 }) {
   if (needsRoleSelection) {
     if (!isRoleSelectionPath(path) &&
@@ -63,6 +71,9 @@ String? redirectForActiveRole({
 
   if (isOrganizerExperiencePath(path) &&
       activeRole != AppMobileRole.organizer) {
+    if (canOperateStaffTournaments && isOrganizerStaffOperablePath(path)) {
+      return null;
+    }
     return activeRole.homeRoute;
   }
 

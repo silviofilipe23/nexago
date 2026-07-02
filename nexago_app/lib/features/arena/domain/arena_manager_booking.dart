@@ -39,6 +39,23 @@ class ArenaManagerBooking {
 
   bool get attendanceConfirmed => data['attendanceConfirmed'] == true;
 
+  /// Ocorrência de um horário fixo (série em `arenaRecurringBookings`).
+  bool get isRecurring =>
+      data['isRecurring'] == true || recurringBookingId != null;
+
+  String? get recurringBookingId {
+    final raw = data['recurringBookingId'];
+    if (raw is String && raw.trim().isNotEmpty) return raw.trim();
+    return null;
+  }
+
+  /// Mensalista sem conta no app (nome livre digitado pelo gestor).
+  String? get customerName {
+    final raw = data['customerName'];
+    if (raw is String && raw.trim().isNotEmpty) return raw.trim();
+    return null;
+  }
+
   factory ArenaManagerBooking.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {

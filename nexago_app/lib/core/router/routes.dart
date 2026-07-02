@@ -83,6 +83,9 @@ abstract final class AppRoutes {
   static const String organizerTournamentOperations =
       '/organizer/tournaments/:tournamentId/operations';
 
+  static const String organizerTournamentStaff =
+      '/organizer/tournaments/:tournamentId/staff';
+
   /// Shell da categoria (E1).
   static const String organizerCategoryShell =
       '/organizer/tournaments/:tournamentId/categories/:categoryId';
@@ -235,6 +238,13 @@ abstract final class AppRoutes {
 
   /// Detalhe de reserva (gestor): `/arena/bookings/detail/:bookingId`
   static const String arenaBookingDetail = '/arena/bookings/detail/:bookingId';
+
+  /// Horários fixos / mensalistas (gestor).
+  static const String arenaRecurring = '/arena/bookings/recurring';
+  static const String arenaRecurringNew = '/arena/bookings/recurring/new';
+  static const String arenaRecurringCreated = '/arena/bookings/recurring/created';
+  static const String arenaRecurringDetail =
+      '/arena/bookings/recurring/series/:seriesId';
 
   /// Pós-cancelamento com undo: `/arena/bookings/canceled`
   static const String arenaBookingCanceled = '/arena/bookings/canceled';
@@ -455,6 +465,7 @@ abstract final class AppRouteNames {
   static const String organizerTournamentFinancial = 'organizerTournamentFinancial';
   static const String organizerTournamentOperations =
       'organizerTournamentOperations';
+  static const String organizerTournamentStaff = 'organizerTournamentStaff';
   static const String organizerCategoryShell = 'organizerCategoryShell';
   static const String organizerCategorySeeding = 'organizerCategorySeeding';
   static const String organizerCategoryGenerateBracket =
@@ -514,6 +525,10 @@ abstract final class AppRouteNames {
   static const String arenaBookings = 'arenaBookings';
   static const String arenaBookingDetail = 'arenaBookingDetail';
   static const String arenaBookingCanceled = 'arenaBookingCanceled';
+  static const String arenaRecurring = 'arenaRecurring';
+  static const String arenaRecurringNew = 'arenaRecurringNew';
+  static const String arenaRecurringCreated = 'arenaRecurringCreated';
+  static const String arenaRecurringDetail = 'arenaRecurringDetail';
   static const String arenaSettings = 'arenaSettings';
   static const String arenaAvailabilitySettings = 'arenaAvailabilitySettings';
   static const String arenaAvailabilitySlotsSuccess =

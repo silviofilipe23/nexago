@@ -209,7 +209,7 @@ abstract final class ScheduleTimeLogic {
     final parts = dayKey.split('-').map(int.tryParse).toList();
     if (parts.length == 3 && parts.every((p) => p != null)) {
       final hourMin = config.dayStart.split(':');
-      final hour = int.tryParse(hourMin.first) ?? 8;
+      final hour = int.tryParse(hourMin.first) ?? 7;
       final minute =
           hourMin.length > 1 ? int.tryParse(hourMin[1]) ?? 0 : 0;
       return nexagoEventDateTime(

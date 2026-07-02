@@ -1,6 +1,48 @@
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
 
+/// Um problema encontrado na validação de placar completo / lançamento rápido.
+class QuickScoreValidationIssue {
+  const QuickScoreValidationIssue({
+    this.setIndex,
+    required this.message,
+  });
+
+  /// Índice 0-based do set; `null` para erro global da partida.
+  final int? setIndex;
+  final String message;
+}
+
+/// Resultado da validação de um placar informado de uma vez (I2 / mesa ao vivo).
+class QuickScoreValidationResult {
+  const QuickScoreValidationResult({this.issues = const []});
+
+  final List<QuickScoreValidationIssue> issues;
+
+  bool get isValid => issues.isEmpty;
+
+  String? get firstMessage =>
+      issues.isEmpty ? null : issues.first.message;
+
+  String? messageForSet(int index) {
+    for (final issue in issues) {
+      if (issue.setIndex == index) return issue.message;
+    }
+    return null;
+  }
+
+  Map<int, String> get errorsBySetIndex {
+    final map = <int, String>{};
+    for (final issue in issues) {
+      final idx = issue.setIndex;
+      if (idx != null) {
+        map.putIfAbsent(idx, () => issue.message);
+      }
+    }
+    return map;
+  }
+}
+
 /// Regras de placar vôlei de praia (I1/I2).
 abstract final class MatchScoringLogic {
   MatchScoringLogic._();
@@ -219,6 +261,91 @@ abstract final class MatchScoringLogic {
       if (s.a == s.b) return false;
     }
     return true;
+  }
+
+  /// Validação completa do placar informado de uma vez (espelha CF + regras CBV).
+  static QuickScoreValidationResult validateQuickScoreSubmission({
+    required List<TournamentMatchSet> sets,
+    required int bestOf,
+    String? teamAId,
+    String? teamBId,
+    bool requireMatchWinner = true,
+  }) {
+    final issues = <QuickScoreValidationIssue>[];
+
+    if (sets.isEmpty) {
+      issues.add(
+        const QuickScoreValidationIssue(
+          message: 'Informe ao menos um set.',
+        ),
+      );
+      return QuickScoreValidationResult(issues: issues);
+    }
+
+    if (sets.length > bestOf) {
+      issues.add(
+        QuickScoreValidationIssue(
+          message: 'Máximo de $bestOf sets.',
+        ),
+      );
+    }
+
+    for (var i = 0; i < sets.length; i++) {
+      final s = sets[i];
+      final setLabel = 'Set ${i + 1}';
+
+      if (s.a == s.b) {
+        issues.add(
+          QuickScoreValidationIssue(
+            setIndex: i,
+            message: '$setLabel: não pode terminar empatado.',
+          ),
+        );
+        continue;
+      }
+
+      if (s.a < 0 || s.b < 0 || s.a > 99 || s.b > 99) {
+        issues.add(
+          QuickScoreValidationIssue(
+            setIndex: i,
+            message: '$setLabel: placar fora do intervalo (0–99).',
+          ),
+        );
+        continue;
+      }
+
+      final target = targetPointsForSet(i, bestOf);
+      if (!isSetWon(s.a, s.b, target: target)) {
+        issues.add(
+          QuickScoreValidationIssue(
+            setIndex: i,
+            message:
+                '$setLabel: vitória exige $target pontos com vantagem de $minAdvantage.',
+          ),
+        );
+      }
+    }
+
+    final hasSetErrors = issues.any((issue) => issue.setIndex != null);
+    final aId = teamAId?.trim() ?? '';
+    final bId = teamBId?.trim() ?? '';
+    if (requireMatchWinner && !hasSetErrors && aId.isNotEmpty && bId.isNotEmpty) {
+      final winner = matchWinnerId(
+        sets: sets,
+        teamAId: aId,
+        teamBId: bId,
+        bestOf: bestOf,
+      );
+      if (winner == null) {
+        issues.add(
+          const QuickScoreValidationIssue(
+            message: 'Complete o placar: nenhuma dupla venceu ainda.',
+          ),
+        );
+      }
+    }
+
+    return QuickScoreValidationResult(issues: issues);
   }
 
   static const int defaultBestOf = 3;

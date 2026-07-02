@@ -968,6 +968,19 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Horários fixos (mensalistas): série semanal criada pelo gestor.
+    // Escrita apenas via Cloud Functions (Admin SDK) — a criação exige
+    // transação com locks e validação de conflito multi-data.
+    match /arenaRecurringBookings/{seriesId} {
+      allow read: if request.auth != null && (
+        resource.data.athleteId == request.auth.uid ||
+        (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
+         get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid) ||
+        isSuperAdmin()
+      );
+      allow create, update, delete: if false;
+    }
+
     // Bloqueio de atleta por arena (gestor -> arena_blocks/{arenaId}_{athleteId})
     match /arena_blocks/{blockId} {
       allow read: if request.auth != null && (
@@ -1129,7 +1142,7 @@ service cloud.firestore {
     // Índice de torneios em que o atleta atua como staff (espelho de tournaments/{id}/staff/{userId})
     match /users/{userId}/tournamentStaff/{tournamentId} {
       allow read: if request.auth != null && request.auth.uid == userId;
-      allow create, update, delete: if request.auth != null && canManageTournament(tournamentId);
+      allow create, update, delete: if request.auth != null && isTournamentOwner(tournamentId);
     }
 
     match /users/{userId}/slotVacancyAlerts/{alertId} {
@@ -1323,7 +1336,13 @@ service cloud.firestore {
           canManageTournament(tournamentId) ||
           request.auth.uid == staffUserId
         );
-        allow create, update, delete: if request.auth != null && canManageTournament(tournamentId);
+        // Somente o dono do torneio gerencia a equipe; dono não pode ser staff de si mesmo.
+        allow create, update: if request.auth != null &&
+          isTournamentOwner(tournamentId) &&
+          staffUserId != request.auth.uid &&
+          request.resource.data.role in ['manager', 'scorer'] &&
+          request.resource.data.status == 'active';
+        allow delete: if request.auth != null && isTournamentOwner(tournamentId);
       }
     }
 

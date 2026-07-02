@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nexago_app/core/auth/active_role_providers.dart';
 import 'package:nexago_app/core/auth/app_mobile_role.dart';
+import 'package:nexago_app/core/auth/auth_providers.dart';
 import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -16,6 +17,7 @@ Future<void> showOrganizerSettingsSheet(
 ) {
   return showModalBottomSheet<void>(
     context: context,
+    isScrollControlled: true,
     backgroundColor: context.themeColors.surfaceCard,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -33,7 +35,7 @@ class _OrganizerSettingsSheet extends ConsumerWidget {
     final activeRole = ref.watch(activeMobileRoleProvider);
 
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -165,7 +167,126 @@ class _OrganizerSettingsSheet extends ConsumerWidget {
                 ),
               ),
             ],
+            const SizedBox(height: 20),
+            Text(
+              'CONTA',
+              style: AppTypography.mono(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: context.themeColors.onSurfaceMuted,
+                letterSpacing: 0.6,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _OrganizerSettingsLogoutRow(
+              onTap: () => _confirmSignOut(context, ref),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
+  final theme = Theme.of(context);
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Sair da conta?'),
+      content: const Text(
+        'Você precisará entrar novamente para acessar o organizador.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: theme.colorScheme.error,
+            foregroundColor: theme.colorScheme.onError,
+          ),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Sair'),
+        ),
+      ],
+    ),
+  );
+  if (confirm != true || !context.mounted) return;
+
+  Navigator.of(context).pop();
+  await ref.read(appSignOutProvider)();
+  if (!context.mounted) return;
+  context.go(AppRoutes.login);
+}
+
+class _OrganizerSettingsLogoutRow extends StatelessWidget {
+  const _OrganizerSettingsLogoutRow({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.themeColors.surfaceRaised,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: AppColors.live.withValues(alpha: 0.35),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.live.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.logout_rounded,
+                  color: AppColors.live,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Sair da conta',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.live,
+                          ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Encerrar sessão neste aparelho',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: context.themeColors.onSurfaceMuted,
+                            height: 1.35,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: context.themeColors.onSurfaceMuted,
+              ),
+            ],
+          ),
         ),
       ),
     );

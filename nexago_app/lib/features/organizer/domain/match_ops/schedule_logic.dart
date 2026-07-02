@@ -170,6 +170,7 @@ abstract final class ScheduleLogic {
 
       for (final court in courts) {
         var start = courtBusyUntil[court.id] ?? dayStart;
+        if (start.isBefore(dayStart)) start = dayStart;
 
         if (avoidAthleteConflict) {
           for (final tid in [match.teamAId, match.teamBId]) {
@@ -199,8 +200,7 @@ abstract final class ScheduleLogic {
         ),
       );
 
-      courtBusyUntil[chosenCourt.id] =
-          end.add(const Duration(minutes: 5));
+      courtBusyUntil[chosenCourt.id] = end;
       for (final tid in [match.teamAId, match.teamBId]) {
         if (tid.isEmpty) continue;
         teamBusyUntil[tid] = end.add(Duration(minutes: minRestMin));

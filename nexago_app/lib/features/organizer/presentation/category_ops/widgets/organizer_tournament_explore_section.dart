@@ -8,6 +8,7 @@ import 'package:nexago_app/core/ui/explore_card.dart';
 import '../../../domain/match_ops/match_ops_providers.dart';
 import '../../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_models.dart';
+import '../../../domain/tournament_staff/tournament_staff_providers.dart';
 import '../../../domain/tournament_uniforms/tournament_uniforms_providers.dart';
 import '../organizer_tournament_navigation.dart';
 
@@ -17,11 +18,23 @@ class OrganizerTournamentExploreSection extends ConsumerWidget {
     required this.tournamentId,
     required this.summary,
     required this.showUniforms,
+    this.isOwner = false,
+    this.showFinancial = true,
+    this.matchesOnly = false,
   });
 
   final String tournamentId;
   final OrganizerTournamentSummary summary;
   final bool showUniforms;
+
+  /// Card "Equipe" aparece só para o dono — staff não gerencia a equipe.
+  final bool isOwner;
+
+  /// Card "Financeiro" (arrecadação) é exclusivo do dono.
+  final bool showFinancial;
+
+  /// Mesário (scorer) vê apenas o card de partidas.
+  final bool matchesOnly;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -60,15 +73,17 @@ class OrganizerTournamentExploreSection extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          ExploreCard(
-            icon: Icons.grid_view_rounded,
-            title: 'Categorias',
-            subtitle: organizerExploreCategoriesSubtitle(summary.categoryCount),
-            onTap: () => pushOrganizerTournamentCategories(
-              GoRouter.of(context),
-              tournamentId: tournamentId,
+          if (!matchesOnly)
+            ExploreCard(
+              icon: Icons.grid_view_rounded,
+              title: 'Categorias',
+              subtitle:
+                  organizerExploreCategoriesSubtitle(summary.categoryCount),
+              onTap: () => pushOrganizerTournamentCategories(
+                GoRouter.of(context),
+                tournamentId: tournamentId,
+              ),
             ),
-          ),
           // ExploreCard(
           //   icon: Icons.dashboard_outlined,
           //   title: 'Visão geral',
@@ -78,17 +93,18 @@ class OrganizerTournamentExploreSection extends ConsumerWidget {
           //     tournamentId: tournamentId,
           //   ),
           // ),
-          ExploreCard(
-            icon: Icons.payments_outlined,
-            title: 'Financeiro',
-            subtitle: organizerExploreFinancialSubtitle(
-              summary.paymentsBreakdown,
+          if (showFinancial && !matchesOnly)
+            ExploreCard(
+              icon: Icons.payments_outlined,
+              title: 'Financeiro',
+              subtitle: organizerExploreFinancialSubtitle(
+                summary.paymentsBreakdown,
+              ),
+              onTap: () => pushOrganizerTournamentFinancial(
+                GoRouter.of(context),
+                tournamentId: tournamentId,
+              ),
             ),
-            onTap: () => pushOrganizerTournamentFinancial(
-              GoRouter.of(context),
-              tournamentId: tournamentId,
-            ),
-          ),
           ExploreCard(
             icon: Icons.sports_volleyball_rounded,
             title: 'Partidas',
@@ -98,7 +114,24 @@ class OrganizerTournamentExploreSection extends ConsumerWidget {
               tournamentId: tournamentId,
             ),
           ),
-          if (showUniforms)
+          if (isOwner)
+            ExploreCard(
+              icon: Icons.groups_2_rounded,
+              title: 'Equipe',
+              subtitle: ref
+                  .watch(tournamentStaffProvider(tournamentId))
+                  .maybeWhen(
+                    data: (members) => members.isEmpty
+                        ? 'Adicione gestores e mesários'
+                        : '${members.length} ${members.length == 1 ? 'membro' : 'membros'}',
+                    orElse: () => 'Quem ajuda na operação',
+                  ),
+              onTap: () => pushOrganizerTournamentStaff(
+                GoRouter.of(context),
+                tournamentId: tournamentId,
+              ),
+            ),
+          if (showUniforms && !matchesOnly)
             ExploreCard(
               icon: Icons.checkroom_outlined,
               title: 'Uniformes',

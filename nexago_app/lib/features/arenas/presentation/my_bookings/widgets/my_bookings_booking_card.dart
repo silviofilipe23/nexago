@@ -102,7 +102,18 @@ class _MyBookingsBookingCardState extends ConsumerState<MyBookingsBookingCard> {
                         overflow: TextOverflow.ellipsis,
                       ),
                       SizedBox(height: 8),
-                      MyBookingsPaymentChip(payment: widget.item.paymentDisplay),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          MyBookingsPaymentChip(
+                            payment: widget.item.paymentDisplay,
+                          ),
+                          if (widget.item.isRecurring)
+                            const _RecurringChip(),
+                        ],
+                      ),
                       guestsAsync.when(
                         data: (guests) {
                           if (guests.isEmpty) return const SizedBox.shrink();
@@ -143,6 +154,41 @@ class _MyBookingsBookingCardState extends ConsumerState<MyBookingsBookingCard> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Chip "Horário fixo" nas ocorrências de série recorrente (mensalista).
+class _RecurringChip extends StatelessWidget {
+  const _RecurringChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.brand.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.event_repeat_rounded,
+            size: 12,
+            color: AppColors.brand,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            'Horário fixo',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.brand,
+            ),
+          ),
+        ],
       ),
     );
   }

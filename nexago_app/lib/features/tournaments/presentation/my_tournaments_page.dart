@@ -8,6 +8,7 @@ import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/app_status_views.dart';
 import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
+import '../../organizer/presentation/staff/my_staff_tournaments_section.dart';
 import '../../ranking/domain/ranking_display_helpers.dart';
 import '../../ranking/domain/ranking_providers.dart';
 import '../domain/athlete_tournament_day_providers.dart';
@@ -123,6 +124,7 @@ class _MyTournamentsPageState extends ConsumerState<MyTournamentsPage> {
                     return ListView(
                       physics: const BouncingScrollPhysics(),
                       children: [
+                        const MyStaffTournamentsSection(),
                         MyTournamentsTabs(
                           selected: _tab,
                           ongoingCount: 0,
@@ -150,6 +152,7 @@ class _MyTournamentsPageState extends ConsumerState<MyTournamentsPage> {
                   return ListView(
                     physics: const BouncingScrollPhysics(),
                     children: [
+                      const MyStaffTournamentsSection(),
                       MyTournamentsTabs(
                         selected: _tab,
                         ongoingCount: state.ongoingCount,

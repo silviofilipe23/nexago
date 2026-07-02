@@ -106,8 +106,35 @@ class _OrganizerCategoryGenerateDePageState
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
       appBar: NexaAppBar(
-        title: const Text('Gerar chave — dupla eliminatória'),
+        forceMaterial: true,
         backgroundColor: context.themeColors.canvas,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        titleSpacing: 8,
+        leading: Material(
+          color: context.themeColors.surfaceRaised,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: () => context.pop(),
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              width: 40,
+              height: 40,
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 18,
+                color: context.themeColors.onSurface,
+              ),
+            ),
+          ),
+        ),
+        title: const Text(
+          'Gerar chave — dupla eliminatória',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
       body: teamsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),

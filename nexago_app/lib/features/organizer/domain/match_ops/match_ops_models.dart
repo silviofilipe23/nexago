@@ -112,12 +112,18 @@ class TournamentCourt {
       };
 }
 
+/// Início padrão da jornada de programação (parede SP).
+const kDefaultMatchOpsDayStart = '07:00';
+
+/// Fim exclusivo da jornada; com slots de 30 min o último início é 23:30.
+const kDefaultMatchOpsDayEnd = '24:00';
+
 /// Configuração operacional do torneio.
 class TournamentMatchOpsConfig {
   const TournamentMatchOpsConfig({
     this.activeDayKey = '',
-    this.dayStart = '08:00',
-    this.dayEnd = '18:00',
+    this.dayStart = kDefaultMatchOpsDayStart,
+    this.dayEnd = kDefaultMatchOpsDayEnd,
     this.defaultMatchDurationMin = 30,
     this.minRestBetweenMatchesMin = 30,
     this.checkInToleranceMin = 15,
@@ -141,8 +147,9 @@ class TournamentMatchOpsConfig {
     final rules = map['autoScheduleRules'];
     return TournamentMatchOpsConfig(
       activeDayKey: (map['activeDayKey'] as String?)?.trim() ?? '',
-      dayStart: (map['dayStart'] as String?)?.trim() ?? '08:00',
-      dayEnd: (map['dayEnd'] as String?)?.trim() ?? '18:00',
+      dayStart:
+          (map['dayStart'] as String?)?.trim() ?? kDefaultMatchOpsDayStart,
+      dayEnd: (map['dayEnd'] as String?)?.trim() ?? kDefaultMatchOpsDayEnd,
       defaultMatchDurationMin:
           (map['defaultMatchDurationMin'] as num?)?.toInt() ?? 30,
       minRestBetweenMatchesMin:

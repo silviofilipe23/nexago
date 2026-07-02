@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,8 @@ import 'package:nexago_app/core/ui/nexa_share.dart';
 
 import '../../domain/tournament_ops/tournament_ops_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
+import '../../domain/tournament_staff/my_tournament_staff_providers.dart';
+import '../../domain/tournament_staff/tournament_staff_models.dart';
 import '../../domain/tournament_uniforms/tournament_uniforms_providers.dart';
 import '../match_ops/organizer_match_navigation.dart';
 import 'sheets/organizer_tournament_actions_sheet.dart';
@@ -64,6 +67,13 @@ class _OrganizerTournamentDetailPageState
     final detailAsync = ref.watch(
       organizerTournamentDetailProvider(tournamentId),
     );
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    final isOwner =
+        detailAsync.valueOrNull?.tournament?['managerId'] == currentUid;
+    final staffRole = isOwner
+        ? null
+        : ref.watch(myStaffRoleForTournamentProvider(tournamentId));
+    final isScorer = staffRole == TournamentStaffRole.scorer;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -108,18 +118,20 @@ class _OrganizerTournamentDetailPageState
           onPressed: () => context.pop(),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert_rounded),
-            onPressed: detailAsync.valueOrNull?.tournament == null
-                ? null
-                : () => showOrganizerTournamentActionsSheet(
-                    context,
-                    tournamentId: tournamentId,
-                    tournament: detailAsync.value!.tournament!,
-                    summary: detailAsync.value!.summary,
-                    categories: detailAsync.value!.categories,
-                  ),
-          ),
+          // Ações do torneio (editar, cancelar…) são exclusivas do dono.
+          if (isOwner)
+            IconButton(
+              icon: const Icon(Icons.more_vert_rounded),
+              onPressed: detailAsync.valueOrNull?.tournament == null
+                  ? null
+                  : () => showOrganizerTournamentActionsSheet(
+                      context,
+                      tournamentId: tournamentId,
+                      tournament: detailAsync.value!.tournament!,
+                      summary: detailAsync.value!.summary,
+                      categories: detailAsync.value!.categories,
+                    ),
+            ),
         ],
       ),
       body: detailAsync.when(
@@ -149,7 +161,10 @@ class _OrganizerTournamentDetailPageState
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: OrganizerTournamentKpiRow(summary: summary),
+                  child: OrganizerTournamentKpiRow(
+                    summary: summary,
+                    showFinancial: isOwner,
+                  ),
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 12)),
@@ -208,6 +223,9 @@ class _OrganizerTournamentDetailPageState
                   tournamentId: tournamentId,
                   summary: summary,
                   showUniforms: showUniformsTab,
+                  isOwner: isOwner,
+                  showFinancial: isOwner,
+                  matchesOnly: isScorer,
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -215,7 +233,7 @@ class _OrganizerTournamentDetailPageState
           );
         },
       ),
-      bottomNavigationBar: detailAsync.valueOrNull?.summary == null
+      bottomNavigationBar: detailAsync.valueOrNull?.summary == null || isScorer
           ? null
           : SafeArea(
               child: Padding(

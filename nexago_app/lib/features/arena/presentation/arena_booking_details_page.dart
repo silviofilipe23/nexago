@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../core/formatting/app_currency_format.dart';
+import '../../../core/layout/nexa_floating_header.dart';
 import '../../arenas/domain/booking_providers.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../domain/arena_booking_canceled_args.dart';
@@ -16,6 +18,7 @@ import '../domain/arena_booking_labels.dart';
 import '../domain/arena_court_providers.dart';
 import '../domain/arena_date_utils.dart';
 import '../domain/arena_manager_booking.dart';
+import '../domain/arena_route_guard.dart';
 import '../domain/arena_schedule_providers.dart';
 import '../domain/arena_slot_detail_providers.dart';
 import 'widgets/arena_async_state.dart';
@@ -27,6 +30,7 @@ import 'widgets/arena_booking_detail_header.dart';
 import 'widgets/arena_booking_detail_history.dart';
 import 'widgets/arena_booking_detail_payment.dart';
 import 'widgets/arena_booking_detail_timeline.dart';
+import 'widgets/arena_dashboard_tokens.dart';
 
 /// Detalhe de uma reserva para o gestor da arena (painel).
 class ArenaBookingDetailsPage extends ConsumerWidget {
@@ -43,8 +47,8 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final id = bookingId.trim();
     if (id.isEmpty) {
-      return Scaffold(
-        appBar: NexaAppBar(title: Text('Reserva')),
+      return _pageShell(
+        context,
         body: const ArenaErrorState(message: 'ID da reserva inválido.'),
       );
     }
@@ -53,10 +57,11 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
     final arenaId = ref.watch(managedArenaIdProvider).valueOrNull ?? '';
 
     if (liveAsync.hasError && initialBooking == null) {
-      return Scaffold(
-        appBar: NexaAppBar(title: Text('Reserva')),
+      return _pageShell(
+        context,
         body: ArenaErrorState(
-            message: 'Erro ao carregar reserva.\n${liveAsync.error}'),
+          message: 'Erro ao carregar reserva.\n${liveAsync.error}',
+        ),
       );
     }
 
@@ -65,13 +70,13 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
 
     if (merged == null && initialBooking == null) {
       if (liveAsync.isLoading) {
-        return Scaffold(
-          appBar: NexaAppBar(title: Text('Reserva')),
+        return _pageShell(
+          context,
           body: const ArenaLoadingState(label: 'Carregando reserva...'),
         );
       }
-      return Scaffold(
-        appBar: NexaAppBar(title: Text('Reserva')),
+      return _pageShell(
+        context,
         body: const ArenaEmptyState(
           title: 'Reserva não encontrada',
           message: 'Não foi possível carregar os dados desta reserva.',
@@ -83,8 +88,8 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
     var booking = initialBooking ??
         (merged != null ? _bookingFromMerged(id, merged) : null);
     if (booking == null) {
-      return Scaffold(
-        appBar: NexaAppBar(title: Text('Reserva')),
+      return _pageShell(
+        context,
         body: const ArenaLoadingState(label: 'Carregando reserva...'),
       );
     }
@@ -134,22 +139,11 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
         ArenaBookingDetailTimeline.fromBooking(resolvedBooking, data);
     final athleteName = nameAsync.valueOrNull ?? 'Atleta';
 
-    return Scaffold(
-      backgroundColor: context.themeColors.canvas,
-      appBar: NexaAppBar(
-        backgroundColor: context.themeColors.canvas,
-        title: Text('Reserva'),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            }
-          },
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+    return _pageShell(
+      context,
+      eyebrow: _eyebrow(resolvedBooking),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ArenaBookingDetailHeader(
             booking: resolvedBooking,
@@ -227,6 +221,78 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  static Widget _pageShell(
+    BuildContext context, {
+    required Widget body,
+    String eyebrow = 'AGENDA · RESERVA',
+  }) {
+    final hideShell = shouldHideArenaShellBottomNav(
+      GoRouterState.of(context).uri.path,
+    );
+    final bottomPadding = hideShell
+        ? MediaQuery.paddingOf(context).bottom + 24
+        : ArenaDashboardTokens.shellScrollBottomPadding(context);
+    final minContentHeight = _minContentHeight(context, bottomPadding);
+
+    return Scaffold(
+      backgroundColor: context.themeColors.canvas,
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: CustomScrollView(
+          physics: ArenaDashboardTokens.shellScrollPhysics,
+          slivers: [
+            NexaFloatingHeaderSliver(
+              topGap: 4,
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: _ArenaBookingDetailsHeader(
+                eyebrow: eyebrow,
+                onBack: () {
+                  if (context.canPop()) context.pop();
+                },
+              ),
+            ),
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(
+                ArenaDashboardTokens.horizontalPadding,
+                16,
+                ArenaDashboardTokens.horizontalPadding,
+                bottomPadding,
+              ),
+              sliver: SliverToBoxAdapter(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: minContentHeight.clamp(0, double.infinity),
+                  ),
+                  child: body,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static double _minContentHeight(BuildContext context, double bottomPadding) {
+    final size = MediaQuery.sizeOf(context);
+    final padding = MediaQuery.paddingOf(context);
+    const headerHeight = 72.0;
+    return size.height - padding.top - headerHeight - bottomPadding;
+  }
+
+  static String _eyebrow(ArenaManagerBooking booking) {
+    final d = DateTime.tryParse(
+      booking.dateKey.length >= 10 ? booking.dateKey.substring(0, 10) : '',
+    );
+    if (d == null) return booking.courtName.toUpperCase();
+    final dateLabel = DateFormat('EEE, d \'de\' MMMM', 'pt_BR')
+        .format(d)
+        .toUpperCase()
+        .replaceAll('.', '');
+    return '$dateLabel · ${booking.courtName.toUpperCase()}';
   }
 
   static Map<String, dynamic>? _mergeBookingData(
@@ -463,6 +529,82 @@ class ArenaBookingDetailsPage extends ConsumerWidget {
   }
 }
 
+class _ArenaBookingDetailsHeader extends StatelessWidget {
+  const _ArenaBookingDetailsHeader({
+    required this.eyebrow,
+    required this.onBack,
+  });
+
+  final String eyebrow;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _HeaderIconButton(
+          icon: Icons.arrow_back_rounded,
+          onTap: onBack,
+        ),
+        Expanded(
+          child: Column(
+            children: [
+              Text(
+                eyebrow,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.mono(
+                  color: AppColors.brand,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Reserva',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: context.themeColors.onSurface,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 44),
+      ],
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.icon,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.themeColors.surfaceRaised,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icon, color: context.themeColors.onSurface),
+        ),
+      ),
+    );
+  }
+}
+
 class _BlockAthleteReasonDialog extends StatefulWidget {
   const _BlockAthleteReasonDialog();
 
@@ -544,7 +686,6 @@ class _AthleteUnblockResultPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
-      appBar: NexaAppBar(title: Text('Desbloqueio de atleta')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(

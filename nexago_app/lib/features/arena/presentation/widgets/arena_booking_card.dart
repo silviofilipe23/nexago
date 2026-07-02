@@ -123,7 +123,20 @@ class ArenaBookingCard extends ConsumerWidget {
                             ),
                             SizedBox(width: 12),
                             Expanded(
-                              child: nameAsync.when(
+                              child: athleteId.isEmpty &&
+                                      booking.customerName != null
+                                  ? Text(
+                                      booking.customerName!,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 15,
+                                        height: 1.25,
+                                        color: AppColors.onSurface,
+                                      ),
+                                    )
+                                  : nameAsync.when(
                                 data: (name) => Text(
                                   name,
                                   maxLines: 2,
@@ -168,6 +181,12 @@ class ArenaBookingCard extends ConsumerWidget {
                               icon: Icons.account_balance_wallet_outlined,
                               label: paymentLabel,
                             ),
+                            if (booking.isRecurring)
+                              const _MetaChip(
+                                icon: Icons.event_repeat_rounded,
+                                label: 'Horário fixo',
+                                accent: AppColors.brand,
+                              ),
                           ],
                         ),
                         SizedBox(height: 8),

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../core/formatting/app_currency_format.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../../../core/ui/fade_slide_in.dart';
@@ -14,6 +15,7 @@ import '../../arenas/domain/arena_slot_block_reason.dart';
 import '../data/slot_service.dart';
 import '../domain/arena_booking_labels.dart';
 import '../domain/arena_bookings_providers.dart';
+import '../domain/arena_recurring_form_args.dart';
 import '../domain/arena_slot_detail_args.dart';
 import '../domain/arena_slot_detail_providers.dart';
 import '../domain/arena_schedule_providers.dart';
@@ -59,67 +61,291 @@ class ArenaSlotDetailPage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      appBar: NexaAppBar(
-        backgroundColor: context.themeColors.canvas,
-        elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: Text('Horário'),
-      ),
       body: SafeArea(
-        top: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              '$eyebrow · ${args.courtName.toUpperCase()}',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: context.themeColors.onSurfaceMuted,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.4,
+            _ArenaSlotDetailHeader(
+              eyebrow: '$eyebrow · ${args.courtName.toUpperCase()}',
+              onBack: () => context.pop(),
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                children: [
+                  _SlotHeroCard(slot: slot),
+                  if (liveAsync.hasError) ...[
+                    const SizedBox(height: 12),
+                    const ArenaErrorState(
+                      message: 'Não foi possível sincronizar este horário agora.',
+                    ),
+                  ],
+                  const SizedBox(height: 28),
+                  FadeSlideIn(
+                    child: _QuickActionsGrid(
+                      slot: slot,
+                      courtName: args.courtName,
+                    ),
                   ),
-            ),
-            SizedBox(height: 16),
-            _LargeTimeDisplay(
-              startTime: slot.startTime,
-              endTime: slot.endTime,
-            ),
-            SizedBox(height: 16),
-            _StatusPriceRow(slot: slot),
-            if (liveAsync.hasError) ...[
-              SizedBox(height: 12),
-              const ArenaErrorState(
-                message: 'Não foi possível sincronizar este horário agora.',
+                  if (history != null && history.hasEnoughData) ...[
+                    const SizedBox(height: 28),
+                    FadeSlideIn(
+                      child: _WeekdayHistoryCard(
+                        history: history,
+                        weekdayLabel: DateFormat('EEEE', 'pt_BR').format(slot.date),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 28),
+                  FadeSlideIn(
+                    child: slot.isBooked
+                        ? _BookedDetails(slot: slot)
+                        : slot.isBlocked
+                            ? _BlockedDetails(slot: slot)
+                            : const SizedBox.shrink(),
+                  ),
+                ],
               ),
-            ],
-            SizedBox(height: 28),
-            FadeSlideIn(
-              child: _QuickActionsGrid(
-                slot: slot,
-                courtName: args.courtName,
-              ),
-            ),
-            if (history != null && history.hasEnoughData) ...[
-              SizedBox(height: 28),
-              FadeSlideIn(
-                child: _WeekdayHistoryCard(
-                  history: history,
-                  weekdayLabel: DateFormat('EEEE', 'pt_BR').format(slot.date),
-                ),
-              ),
-            ],
-            SizedBox(height: 28),
-            FadeSlideIn(
-              child: slot.isBooked
-                  ? _BookedDetails(slot: slot)
-                  : slot.isBlocked
-                      ? _BlockedDetails(slot: slot)
-                      : const SizedBox.shrink(),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ArenaSlotDetailHeader extends StatelessWidget {
+  const _ArenaSlotDetailHeader({
+    required this.eyebrow,
+    required this.onBack,
+  });
+
+  final String eyebrow;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+      child: Row(
+        children: [
+          _HeaderIconButton(
+            icon: Icons.arrow_back_rounded,
+            onTap: onBack,
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Text(
+                  eyebrow,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.mono(
+                    color: AppColors.brand,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Horário',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: context.themeColors.onSurface,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 44),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.icon,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.themeColors.surfaceRaised,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icon, color: context.themeColors.onSurface),
+        ),
+      ),
+    );
+  }
+}
+
+class _SlotHeroCard extends StatelessWidget {
+  const _SlotHeroCard({required this.slot});
+
+  final ArenaSlot slot;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final status = _slotStatus(slot);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: context.themeColors.surfaceCard,
+                border: Border.all(
+                  color: context.themeColors.onSurfaceMuted.withValues(
+                    alpha: 0.12,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: -48,
+            right: -36,
+            child: Container(
+              width: 160,
+              height: 160,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    status.color.withValues(alpha: 0.2),
+                    status.color.withValues(alpha: 0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'SLOT DA AGENDA',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: context.themeColors.onSurfaceMuted,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    _SlotStatusPill(label: status.label, color: status.color),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _LargeTimeDisplay(
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                ),
+                if (status.priceLabel != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    status.priceLabel!,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: context.themeColors.onSurfaceMuted,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static ({String label, Color color, String? priceLabel}) _slotStatus(
+    ArenaSlot slot,
+  ) {
+    final price = slot.priceReais;
+    final priceStr = price != null ? formatBRL(price) : null;
+
+    if (slot.isBooked) {
+      return (
+        label: 'RESERVADO',
+        color: AppColors.live,
+        priceLabel: priceStr != null ? 'preço · $priceStr' : null,
+      );
+    }
+    if (slot.isBlocked) {
+      final blockLabel = slot.blockReason == ArenaSlotBlockReason.aula
+          ? 'AULA'
+          : 'BLOQUEADO';
+      return (
+        label: blockLabel,
+        color: AppColors.onSurfaceMuted,
+        priceLabel: priceStr != null ? 'preço · $priceStr' : null,
+      );
+    }
+    return (
+      label: 'DISPONÍVEL',
+      color: AppColors.win,
+      priceLabel: priceStr != null ? 'preço · $priceStr' : null,
+    );
+  }
+}
+
+class _SlotStatusPill extends StatelessWidget {
+  const _SlotStatusPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -193,67 +419,6 @@ class _TimePart extends StatelessWidget {
   }
 }
 
-class _StatusPriceRow extends StatelessWidget {
-  const _StatusPriceRow({required this.slot});
-
-  final ArenaSlot slot;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final String label;
-    final Color color;
-    if (slot.isBooked) {
-      label = 'RESERVADO';
-      color = AppColors.live;
-    } else if (slot.isBlocked) {
-      label = slot.blockReason == ArenaSlotBlockReason.aula
-          ? 'AULA'
-          : 'BLOQUEADO';
-      color = context.themeColors.onSurfaceMuted;
-    } else {
-      label = 'DISPONÍVEL';
-      color = AppColors.win;
-    }
-
-    final price = slot.priceReais;
-    final priceStr = price != null
-        ? formatBRL(price)
-        : null;
-
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-              letterSpacing: 0.4,
-            ),
-          ),
-        ),
-        if (priceStr != null) ...[
-          SizedBox(width: 12),
-          Text(
-            'preço · $priceStr',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: context.themeColors.onSurfaceMuted,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
 class _QuickActionsGrid extends ConsumerWidget {
   const _QuickActionsGrid({
     required this.slot,
@@ -317,9 +482,19 @@ class _QuickActionsGrid extends ConsumerWidget {
             ),
             _ActionCard(
               icon: Icons.repeat_rounded,
-              title: 'Recorrência',
+              title: 'Horário fixo',
               subtitle: 'todo ${DateFormat('EEEE', 'pt_BR').format(slot.date)}',
-              onTap: () => showAppSnackBar(context, 'Recorrência em breve.'),
+              enabled: slot.isAvailable,
+              onTap: () => context.pushNamed(
+                AppRouteNames.arenaRecurringNew,
+                extra: ArenaRecurringFormArgs(
+                  courtId: slot.courtId,
+                  weekday: slot.date.weekday,
+                  startTime: slot.startTime,
+                  endTime: slot.endTime,
+                  priceReais: slot.priceReais,
+                ),
+              ),
             ),
           ],
         ),
@@ -483,9 +658,13 @@ class _BookedDetails extends ConsumerWidget {
 
     final athleteUid = slot.bookingAthleteId ??
         bookingAsync.valueOrNull?['athleteId'] as String?;
-    final nameAsync = athleteUid != null
+    final customerName =
+        (bookingAsync.valueOrNull?['customerName'] as String?)?.trim();
+    final nameAsync = athleteUid != null && athleteUid.trim().isNotEmpty
         ? ref.watch(athleteDisplayLabelProvider(athleteUid))
-        : const AsyncValue<String>.data('—');
+        : AsyncValue<String>.data(
+            customerName?.isNotEmpty == true ? customerName! : '—',
+          );
 
     return DecoratedBox(
       decoration: ArenaDashboardTokens.cardDecoration(context),

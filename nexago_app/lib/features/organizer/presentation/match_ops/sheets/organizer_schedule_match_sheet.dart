@@ -8,6 +8,7 @@ import '../../../domain/match_ops/schedule_grid_logic.dart';
 import '../../../domain/match_ops/schedule_time_logic.dart';
 import '../../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../../tournaments/domain/tournament_match.dart';
+import '../organizer_match_error.dart';
 import '../widgets/organizer_match_live_table_widgets.dart';
 import '../widgets/organizer_schedule_match_sheet_widgets.dart';
 import '../widgets/organizer_schedule_pick_widgets.dart';
@@ -146,6 +147,49 @@ class _OrganizerScheduleMatchSheetState
     return null;
   }
 
+  Future<void> _unschedule() async {
+    if (_saving) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar agendamento?'),
+        content: const Text(
+          'A partida volta para a lista de partidas a programar, '
+          'sem quadra e sem horário.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: const Text('Cancelar agendamento'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _saving = true);
+    try {
+      final service = ref.read(organizerMatchScheduleServiceProvider);
+      await service.unscheduleMatch(matchId: widget.match.id);
+      if (!mounted) return;
+      showAppSnackBar(context, 'Agendamento cancelado.');
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, friendlyScheduleError(e), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _save() async {
     if (_saving || widget.courts.isEmpty) return;
     setState(() => _saving = true);
@@ -184,7 +228,9 @@ class _OrganizerScheduleMatchSheetState
       }
       Navigator.of(context).pop();
     } catch (e) {
-      if (mounted) showAppSnackBar(context, 'Erro: $e');
+      if (mounted) {
+        showAppSnackBar(context, friendlyScheduleError(e), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -281,6 +327,11 @@ class _OrganizerScheduleMatchSheetState
                 ScheduleTimeConflictCard(
                   title: ScheduleTimeLogic.conflictTitle(conflict),
                   message: conflict.message,
+                ),
+              if (widget.match.scheduleTime != null)
+                ScheduleMatchSheetUnscheduleButton(
+                  enabled: !_saving,
+                  onPressed: _unschedule,
                 ),
             ],
           ),

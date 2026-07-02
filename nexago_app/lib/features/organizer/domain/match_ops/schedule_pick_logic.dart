@@ -225,7 +225,7 @@ abstract final class SchedulePickLogic {
     if (parsed == null) return nexagoEventNow();
     final local = toNexagoEventLocal(parsed);
     final parts = config.dayStart.split(':');
-    final hour = parts.isNotEmpty ? int.tryParse(parts[0]) ?? 8 : 8;
+    final hour = parts.isNotEmpty ? int.tryParse(parts[0]) ?? 7 : 7;
     final minute = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
     return nexagoEventDateTime(
       year: local.year,

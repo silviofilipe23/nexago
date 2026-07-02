@@ -114,6 +114,121 @@ void main() {
       );
     });
 
+    group('validateQuickScoreSubmission', () {
+      const teamA = 'teamA';
+      const teamB = 'teamB';
+
+      QuickScoreValidationResult validate({
+        required List<TournamentMatchSet> sets,
+        int bestOf = 3,
+        bool requireMatchWinner = true,
+      }) {
+        return MatchScoringLogic.validateQuickScoreSubmission(
+          sets: sets,
+          bestOf: bestOf,
+          teamAId: teamA,
+          teamBId: teamB,
+          requireMatchWinner: requireMatchWinner,
+        );
+      }
+
+      test('rejects empty sets list', () {
+        final result = validate(sets: const []);
+        expect(result.isValid, isFalse);
+        expect(result.firstMessage, 'Informe ao menos um set.');
+      });
+
+      test('rejects 21×20 without two-point advantage', () {
+        final result = validate(sets: const [TournamentMatchSet(a: 21, b: 20)]);
+        expect(result.isValid, isFalse);
+        expect(
+          result.messageForSet(0),
+          'Set 1: vitória exige 21 pontos com vantagem de 2.',
+        );
+      });
+
+      test('rejects 13×11 on decisive set of MD3', () {
+        final result = validate(
+          sets: const [
+            TournamentMatchSet(a: 21, b: 18),
+            TournamentMatchSet(a: 19, b: 21),
+            TournamentMatchSet(a: 13, b: 11),
+          ],
+        );
+        expect(result.isValid, isFalse);
+        expect(
+          result.messageForSet(2),
+          'Set 3: vitória exige 15 pontos com vantagem de 2.',
+        );
+      });
+
+      test('rejects incomplete MD3 with only one legal set', () {
+        final result = validate(
+          sets: const [TournamentMatchSet(a: 21, b: 19)],
+        );
+        expect(result.isValid, isFalse);
+        expect(
+          result.firstMessage,
+          'Complete o placar: nenhuma dupla venceu ainda.',
+        );
+      });
+
+      test('accepts valid MD1 21×18', () {
+        final result = validate(
+          sets: const [TournamentMatchSet(a: 21, b: 18)],
+          bestOf: 1,
+        );
+        expect(result.isValid, isTrue);
+      });
+
+      test('accepts valid MD3 21×19 + 21×18', () {
+        final result = validate(
+          sets: const [
+            TournamentMatchSet(a: 21, b: 19),
+            TournamentMatchSet(a: 21, b: 18),
+          ],
+        );
+        expect(result.isValid, isTrue);
+      });
+
+      test('rejects more sets than bestOf', () {
+        final result = validate(
+          sets: const [
+            TournamentMatchSet(a: 21, b: 19),
+            TournamentMatchSet(a: 21, b: 18),
+            TournamentMatchSet(a: 15, b: 12),
+          ],
+          bestOf: 1,
+        );
+        expect(result.isValid, isFalse);
+        expect(result.firstMessage, 'Máximo de 1 sets.');
+      });
+
+      test('rejects tied set 10×10', () {
+        final result = validate(
+          sets: const [TournamentMatchSet(a: 10, b: 10)],
+          requireMatchWinner: false,
+        );
+        expect(result.isValid, isFalse);
+        expect(
+          result.messageForSet(0),
+          'Set 1: não pode terminar empatado.',
+        );
+      });
+
+      test('rejects score outside 0–99', () {
+        final result = validate(
+          sets: const [TournamentMatchSet(a: 100, b: 98)],
+          requireMatchWinner: false,
+        );
+        expect(result.isValid, isFalse);
+        expect(
+          result.messageForSet(0),
+          'Set 1: placar fora do intervalo (0–99).',
+        );
+      });
+    });
+
     test('undoPoint decrements score', () {
       final result = MatchScoringLogic.undoPoint(
         sets: const [TournamentMatchSet(a: 5, b: 3)],

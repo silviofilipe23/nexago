@@ -64,5 +64,73 @@ void main() {
         AppRoutes.organizerHome,
       );
     });
+
+    test('blocks organizer tournament routes for athlete without staff', () {
+      expect(
+        redirectForActiveRole(
+          path: '/organizer/tournaments/t1',
+          activeRole: AppMobileRole.athlete,
+          availableRoles: [AppMobileRole.athlete],
+          needsRoleSelection: false,
+        ),
+        AppRoutes.discover,
+      );
+    });
+
+    test('allows tournament operation routes for athlete staff', () {
+      for (final path in [
+        '/organizer/tournaments/t1',
+        '/organizer/tournaments/t1/operations',
+        '/organizer/tournaments/t1/categories/c1/payments',
+      ]) {
+        expect(
+          redirectForActiveRole(
+            path: path,
+            activeRole: AppMobileRole.athlete,
+            availableRoles: [AppMobileRole.athlete],
+            needsRoleSelection: false,
+            canOperateStaffTournaments: true,
+          ),
+          isNull,
+          reason: path,
+        );
+      }
+    });
+
+    test('staff access does not open organizer home nor creation', () {
+      for (final path in [
+        AppRoutes.organizerHome,
+        '/organizer/tournaments/new/express',
+        '/organizer/wallet',
+      ]) {
+        expect(
+          redirectForActiveRole(
+            path: path,
+            activeRole: AppMobileRole.athlete,
+            availableRoles: [AppMobileRole.athlete],
+            needsRoleSelection: false,
+            canOperateStaffTournaments: true,
+          ),
+          AppRoutes.discover,
+          reason: path,
+        );
+      }
+    });
+  });
+
+  group('isOrganizerStaffOperablePath', () {
+    test('matches tournament operation paths only', () {
+      expect(isOrganizerStaffOperablePath('/organizer/tournaments/t1'), isTrue);
+      expect(
+        isOrganizerStaffOperablePath('/organizer/tournaments/t1/staff'),
+        isTrue,
+      );
+      expect(
+        isOrganizerStaffOperablePath('/organizer/tournaments/new/express'),
+        isFalse,
+      );
+      expect(isOrganizerStaffOperablePath('/organizer/home'), isFalse);
+      expect(isOrganizerStaffOperablePath('/torneios'), isFalse);
+    });
   });
 }

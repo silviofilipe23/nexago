@@ -94,6 +94,17 @@ int? maxCourtsFor(ArenaPlanTier? tier, {required bool entitled}) {
   };
 }
 
+/// Máximo de horários fixos (séries recorrentes) ativos por plano.
+/// `null` = ilimitado. Espelha o gate server-side em
+/// `functions/src/arena-recurring-booking.ts` (ESSENCIAL_MAX_ACTIVE_RECURRING).
+int? maxRecurringBookingsFor(ArenaPlanTier? tier, {required bool entitled}) {
+  final effectiveTier = entitled ? tier : ArenaPlanTier.essencial;
+  return switch (effectiveTier) {
+    ArenaPlanTier.pro || ArenaPlanTier.parceiro => null,
+    ArenaPlanTier.essencial || null => 3,
+  };
+}
+
 class ArenaPlan {
   const ArenaPlan({
     required this.tier,

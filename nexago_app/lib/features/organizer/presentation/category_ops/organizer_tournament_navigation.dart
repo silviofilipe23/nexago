@@ -63,6 +63,16 @@ void pushOrganizerTournamentOperations(
   );
 }
 
+void pushOrganizerTournamentStaff(
+  GoRouter router, {
+  required String tournamentId,
+}) {
+  router.pushNamed(
+    AppRouteNames.organizerTournamentStaff,
+    pathParameters: {'tournamentId': tournamentId.trim()},
+  );
+}
+
 void pushOrganizerCategoryShell(
   GoRouter router, {
   required String tournamentId,

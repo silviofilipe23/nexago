@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nexago_app/features/tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 
 void main() {
   test('looksLikeFirestoreUid detects auth-style ids', () {

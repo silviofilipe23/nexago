@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../../tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 
 class OrganizerUserProfilesRepository {
   OrganizerUserProfilesRepository(this._firestore);
@@ -9,7 +9,7 @@ class OrganizerUserProfilesRepository {
   final Map<String, AppUserProfile> _cache = {};
 
   CollectionReference<Map<String, dynamic>> get _users =>
-      _firestore.collection('users');
+      _firestore.collection('public_profiles');
 
   Future<AppUserProfile?> getProfile(String uid) async {
     final id = uid.trim();

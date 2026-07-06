@@ -1,3 +1,4 @@
+import 'package:nexago_app/core/ui/app_status_views.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -313,7 +314,7 @@ class _ArenaPaymentsPageState extends ConsumerState<ArenaPaymentsPage> {
                                         ),
                                       ),
                                     ),
-                                    error: (e, _) => Text('Erro: $e'),
+                                    error: (e, _) => AppInlineErrorView(error: e),
                                     data: (wallet) => ArenaFinancialBalanceCard(
                                       wallet: wallet,
                                       period: _period,

@@ -27,8 +27,10 @@ class AgendaEmptyDayView extends ConsumerWidget {
     final nearbyCount = snapshot?.totalAvailableToday ?? 0;
     final proximityPhrase = snapshot?.proximityPhrase ?? 'perto de você';
     final dayLabel = formatAgendaEmptyDayLabel(selectedDay, now: now);
-    final description =
-        formatAgendaEmptyHeroDescription(nearbyCount, proximityPhrase);
+    final description = formatAgendaEmptyHeroDescription(
+      nearbyCount,
+      proximityPhrase,
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
@@ -41,8 +43,9 @@ class AgendaEmptyDayView extends ConsumerWidget {
             onReserveTap: () => openDiscoverReservarTab(context, ref: ref),
             onDropInTap: onDropInTap,
           ),
-          const SizedBox(height: 20),
-          AgendaEmptyRestCard(onTap: onRestDayTap),
+          // TODO: Uncomment this when the rest day card is ready
+          // const SizedBox(height: 20),
+          // AgendaEmptyRestCard(onTap: onRestDayTap),
         ],
       ),
     );

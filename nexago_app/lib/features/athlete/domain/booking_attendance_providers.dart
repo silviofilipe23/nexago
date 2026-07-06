@@ -5,7 +5,7 @@ import '../../../core/auth/auth_providers.dart';
 import 'achievements/achievement_providers.dart';
 import 'gamification_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
-import '../../arenas/domain/arenas_providers.dart';
+import 'package:nexago_app/core/firebase/firebase_providers.dart';
 
 class BookingAttendanceState {
   const BookingAttendanceState({

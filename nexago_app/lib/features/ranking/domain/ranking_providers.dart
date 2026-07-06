@@ -1,9 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
-import '../../arenas/domain/arenas_providers.dart';
-import '../../tournaments/data/users_repository.dart';
-import '../../tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/firebase/firebase_providers.dart';
+import 'package:nexago_app/core/profiles/users_repository.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../../tournaments/domain/compete_hub_models.dart';
 import '../data/ranking_repository.dart';
 import 'ranking_display_helpers.dart';
@@ -176,8 +177,10 @@ final competeHubUserRankingProvider =
   );
 });
 
-final competeHubRankingEntriesProvider =
-    FutureProvider.autoDispose<List<CompeteHubRankingEntry>>((ref) async {
+Future<List<CompeteHubRankingEntry>> _buildPreviewEntries(
+  Ref ref, {
+  required int topCount,
+}) async {
   final user = await ref.watch(authProvider.future);
   final uid = user?.uid.trim();
   final snapshot = await ref.watch(hubAthleteRankingSnapshotProvider.future);
@@ -186,6 +189,7 @@ final competeHubRankingEntriesProvider =
 
   final preview = previewRankingRows(
     rows,
+    topCount: topCount,
     currentAthleteId: uid,
   );
 
@@ -203,23 +207,24 @@ final competeHubRankingEntriesProvider =
         ),
       )
       .toList();
+}
+
+final competeHubRankingEntriesProvider =
+    FutureProvider.autoDispose<List<CompeteHubRankingEntry>>((ref) {
+  return _buildPreviewEntries(ref, topCount: 3);
+});
+
+/// Ranking em destaque da aba Comunidade: top 10 + usuário (se fora do top).
+final communityRankingEntriesProvider =
+    FutureProvider.autoDispose<List<CompeteHubRankingEntry>>((ref) {
+  return _buildPreviewEntries(ref, topCount: 10);
 });
 
 Future<Map<String, AppUserProfile>> _loadProfiles(
   UsersRepository users,
   Iterable<String> athleteIds,
-) async {
-  final unique = athleteIds.toSet().where((id) => id.isNotEmpty);
-  final result = <String, AppUserProfile>{};
-  await Future.wait(
-    unique.map((id) async {
-      final profile = await users.getUserById(id);
-      if (profile != null) {
-        result[id] = profile;
-      }
-    }),
-  );
-  return result;
+) {
+  return users.getUsersByIds(athleteIds);
 }
 
 CompeteHubRankingEntry _mapRankingEntry({
@@ -255,13 +260,36 @@ final rankingListEntriesProvider =
   final users = ref.read(usersRepositoryProvider);
   final firestore = ref.read(firestoreProvider);
 
-  Future<String?> levelFor(String uid) async {
-    final snap = await firestore.collection('athlete_profiles').doc(uid).get();
-    if (!snap.exists) return null;
-    final data = snap.data();
-    if (data == null) return null;
-    final level = data['level'] ?? data['nivel'];
-    return level?.toString().trim();
+  Future<Map<String, String?>> levelsFor(Iterable<String> uids) async {
+    final unique = uids
+        .map((u) => u.trim())
+        .where((u) => u.isNotEmpty)
+        .toSet()
+        .toList();
+    if (unique.isEmpty) return {};
+
+    const chunkSize = 10;
+    final futures = <Future<QuerySnapshot<Map<String, dynamic>>>>[];
+    for (var i = 0; i < unique.length; i += chunkSize) {
+      final end =
+          (i + chunkSize) > unique.length ? unique.length : (i + chunkSize);
+      futures.add(
+        firestore
+            .collection('athlete_profiles')
+            .where(FieldPath.documentId, whereIn: unique.sublist(i, end))
+            .get(),
+      );
+    }
+
+    final levels = <String, String?>{};
+    for (final snap in await Future.wait(futures)) {
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final level = data['level'] ?? data['nivel'];
+        levels[doc.id] = level?.toString().trim();
+      }
+    }
+    return levels;
   }
 
   if (filter.mode == RankingListMode.teams) {
@@ -278,7 +306,7 @@ final rankingListEntriesProvider =
     users: users,
     filter: filter,
     currentUid: currentUid,
-    athleteLevelFor: levelFor,
+    athleteLevelsFor: levelsFor,
   );
 });
 
@@ -323,6 +351,7 @@ void invalidateAthleteRankingCache(WidgetRef ref, {int? year}) {
   }
   ref.invalidate(competeHubUserRankingProvider);
   ref.invalidate(competeHubRankingEntriesProvider);
+  ref.invalidate(communityRankingEntriesProvider);
   ref.invalidate(currentAthleteRankingProvider);
   ref.invalidate(hubAthleteRankingSnapshotProvider);
   ref.invalidate(rankingListEntriesProvider);

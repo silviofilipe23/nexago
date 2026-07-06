@@ -33,18 +33,10 @@ import {
   isTerminalListingStatus,
   type CompletionMatch,
 } from "./tournament-completion";
+import {artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 
-function getFirebaseProjectId(): string {
-  return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
-}
 
-function artifactsMatchesPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/matches`;
-}
 
-function artifactsTeamsPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/teams`;
-}
 
 function parseIsoDate(value: unknown): Date {
   if (typeof value !== "string" || !value.trim()) {

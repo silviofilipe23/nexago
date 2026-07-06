@@ -15,6 +15,8 @@ TournamentMatch _groupMatch({
   String resultB = '0',
   List<TournamentMatchSet> sets = const [],
   int matchNumber = 0,
+  String? teamADescription,
+  String? teamBDescription,
 }) {
   return TournamentMatch(
     id: id,
@@ -32,6 +34,8 @@ TournamentMatch _groupMatch({
     matchNumber: matchNumber,
     winnerId: winnerId,
     sets: sets,
+    teamADescription: teamADescription,
+    teamBDescription: teamBDescription,
   );
 }
 
@@ -243,6 +247,100 @@ void main() {
       expect(group.rows.first.points, 4);
       expect(group.rows.first.qualifies, isTrue);
       expect(group.rows.first.isAthleteTeam, isTrue);
+    });
+
+    test('resolves team names from match descriptions when cards only have ids', () {
+      final matches = [
+        _groupMatch(
+          id: 'm1',
+          poolId: 'A',
+          teamAId: 'team-abc',
+          teamBId: 'team-def',
+          winnerId: 'team-abc',
+          teamADescription: 'Marcelo / Enzo',
+          teamBDescription: 'Dupla B',
+          matchNumber: 1,
+        ),
+      ];
+
+      final cardsById = {
+        for (final match in matches)
+          match.id: TournamentMatchCardViewModel(
+            match: match,
+            teamA: TournamentMatchCardTeamViewModel(
+              displayName: match.teamAId,
+              players: const [],
+            ),
+            teamB: TournamentMatchCardTeamViewModel(
+              displayName: match.teamBId,
+              players: const [],
+            ),
+          ),
+      };
+
+      final groups = buildPoolStandingsGroups(
+        poolMatches: matches,
+        cardsById: cardsById,
+        qualifiersPerGroup: 1,
+        athleteTeamIds: const {},
+      );
+
+      expect(groups.single.rows.first.displayName, 'Marcelo / Enzo');
+      expect(groups.single.rows.last.displayName, 'Dupla B');
+    });
+
+    test('prefers resolved card name from another match in the tournament', () {
+      final poolMatches = [
+        _groupMatch(
+          id: 'm1',
+          poolId: 'A',
+          teamAId: 't1',
+          teamBId: 't2',
+          winnerId: 't1',
+          matchNumber: 1,
+        ),
+      ];
+      final otherMatch = _groupMatch(
+        id: 'm9',
+        poolId: 'B',
+        teamAId: 't1',
+        teamBId: 't9',
+        winnerId: 't1',
+        matchNumber: 9,
+      );
+
+      final cardsById = {
+        'm1': TournamentMatchCardViewModel(
+          match: poolMatches.first,
+          teamA: const TournamentMatchCardTeamViewModel(
+            displayName: 't1',
+            players: [],
+          ),
+          teamB: const TournamentMatchCardTeamViewModel(
+            displayName: 't2',
+            players: [],
+          ),
+        ),
+        'm9': TournamentMatchCardViewModel(
+          match: otherMatch,
+          teamA: const TournamentMatchCardTeamViewModel(
+            displayName: 'Marcelo / Enzo',
+            players: [],
+          ),
+          teamB: const TournamentMatchCardTeamViewModel(
+            displayName: 'Outra dupla',
+            players: [],
+          ),
+        ),
+      };
+
+      final name = teamDisplayNameFromCards(
+        teamId: 't1',
+        poolMatches: poolMatches,
+        cardsById: cardsById,
+      );
+
+      expect(name, 'Marcelo / Enzo');
     });
   });
 }

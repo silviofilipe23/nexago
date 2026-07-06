@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_display_name.dart';
 import 'package:nexago_app/features/athlete/domain/athlete_profile.dart';
-import 'package:nexago_app/features/tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 
 AthleteProfile _profile({
   String name = 'Silvio Dionizio',

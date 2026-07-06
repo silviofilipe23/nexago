@@ -144,3 +144,15 @@ String _stripDiacritics(String value) {
   }
   return buffer.toString();
 }
+
+/// Prefixos para busca case-insensitive de `nickname` no Firestore.
+List<String> nicknameSearchPrefixes(String raw) {
+  final v = raw.trim();
+  if (v.isEmpty) return const [];
+  if (v.length == 1) {
+    return [v, v.toLowerCase(), v.toUpperCase()];
+  }
+  final lower = v.toLowerCase();
+  final title = '${v[0].toUpperCase()}${v.substring(1).toLowerCase()}';
+  return {v, lower, v.toUpperCase(), title}.toList();
+}

@@ -6,10 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/organizer_category_ops_repository.dart';
 import '../../data/organizer_category_ops_service.dart';
+import '../../data/organizer_contacts_service.dart';
 import '../../data/organizer_tournament_ops_repository.dart';
 import '../../data/organizer_user_profiles_repository.dart';
 import '../../../tournaments/data/tournament_inscriptions_repository.dart';
-import '../../../tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../category_ops/category_ops_logic.dart';
 import '../category_ops/category_ops_models.dart';
 import 'tournament_ops_logic.dart';
@@ -223,16 +224,20 @@ final organizerTournamentDetailProvider = StreamProvider.autoDispose
 OrganizerCategoryPlayerInfo _playerFromProfile(
   AppUserProfile? profile, {
   required String uid,
+  String phoneNumber = '',
 }) {
   if (profile == null) {
-    return OrganizerCategoryPlayerInfo(uid: uid);
+    return OrganizerCategoryPlayerInfo(uid: uid, phoneNumber: phoneNumber);
   }
   return OrganizerCategoryPlayerInfo(
     uid: uid,
     name: appUserDisplayName(profile),
     city: profile.city ?? '',
     state: profile.state ?? '',
-    phoneNumber: profile.phoneNumber ?? '',
+    // Telefone vem da callable com ACL do torneio (o espelho público de
+    // perfis não carrega PII); fallback no perfil cobre a transição.
+    phoneNumber:
+        phoneNumber.isNotEmpty ? phoneNumber : (profile.phoneNumber ?? ''),
     profilePhotoUrl: profile.profilePhotoUrl ?? '',
   );
 }
@@ -242,6 +247,7 @@ Future<List<OrganizerCategoryTeamRow>> _mapInscriptionsToTeams({
   required OrganizerUserProfilesRepository profilesRepo,
   required CategoryOpsState ops,
   required int expectedPerTeamCents,
+  Map<String, String> phoneByUid = const {},
 }) async {
   final uids = <String>{};
   for (final row in rows) {
@@ -273,8 +279,16 @@ Future<List<OrganizerCategoryTeamRow>> _mapInscriptionsToTeams({
       OrganizerCategoryTeamRow(
         registrationId: row.registrationId,
         teamId: teamId,
-        player1: _playerFromProfile(profiles[p1Id], uid: p1Id),
-        player2: _playerFromProfile(profiles[p2Id], uid: p2Id),
+        player1: _playerFromProfile(
+          profiles[p1Id],
+          uid: p1Id,
+          phoneNumber: phoneByUid[p1Id] ?? '',
+        ),
+        player2: _playerFromProfile(
+          profiles[p2Id],
+          uid: p2Id,
+          phoneNumber: phoneByUid[p2Id] ?? '',
+        ),
         status: registrationStatusFromInscription(row.inscription),
         paidAmountCents: paidAmount,
         expectedAmountCents: expectedPerTeamCents,
@@ -311,11 +325,15 @@ final organizerCategoryRegistrationsProvider = StreamProvider.autoDispose
       tournamentId: key.tournamentId,
       categoryId: key.categoryId,
     );
+    final phoneByUid = await ref
+        .read(organizerContactsServiceProvider)
+        .phonesForTournament(key.tournamentId);
     return _mapInscriptionsToTeams(
       rows: rows,
       profilesRepo: profilesRepo,
       ops: ops,
       expectedPerTeamCents: entryFee,
+      phoneByUid: phoneByUid,
     );
   });
 });

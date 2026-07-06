@@ -57,7 +57,15 @@ describe("category-level-eligibility · mapeamento de esporte", () => {
 });
 
 describe("category-level-eligibility · resolução de nível do atleta", () => {
-  it("usa nível por esporte quando disponível", () => {
+  it("usa nível por esporte quando disponível (sportOnboarding.levelsBySport)", () => {
+    const user = {
+      level: "iniciante",
+      sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "open"}},
+    };
+    assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 2);
+  });
+
+  it("aceita o campo legado levelsBySportFirestore", () => {
     const user = {
       level: "iniciante",
       levelsBySportFirestore: {VOLEI_PRAIA: "open"},
@@ -66,7 +74,7 @@ describe("category-level-eligibility · resolução de nível do atleta", () => 
   });
 
   it("cai no nível global quando falta o por esporte", () => {
-    const user = {level: "intermediario", levelsBySportFirestore: {}};
+    const user = {level: "intermediario", sportOnboarding: {levelsBySport: {}}};
     assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 1);
   });
 
@@ -76,7 +84,10 @@ describe("category-level-eligibility · resolução de nível do atleta", () => 
   });
 
   it("footvolley (sportCode null) usa nível global", () => {
-    const user = {level: "open", levelsBySportFirestore: {VOLEI_PRAIA: "iniciante"}};
+    const user = {
+      level: "open",
+      sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "iniciante"}},
+    };
     assert.equal(resolveAthleteLevelRank(user, null), 2);
   });
 });
@@ -117,7 +128,7 @@ describe("category-level-eligibility · assertTeamLevelEligibility", () => {
 
   it("permite atleta da própria categoria e acima", async () => {
     const db = mockDb({
-      a: {name: "Ana", levelsBySportFirestore: {VOLEI_PRAIA: "iniciante"}},
+      a: {name: "Ana", sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "iniciante"}}},
     });
     await assert.doesNotReject(
       assertTeamLevelEligibility({
@@ -139,7 +150,7 @@ describe("category-level-eligibility · assertTeamLevelEligibility", () => {
 
   it("bloqueia atleta Open em categoria abaixo, nomeando o atleta", async () => {
     const db = mockDb({
-      a: {name: "João", levelsBySportFirestore: {VOLEI_PRAIA: "open"}},
+      a: {name: "João", sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "open"}}},
     });
     await assert.rejects(
       assertTeamLevelEligibility({
@@ -159,8 +170,8 @@ describe("category-level-eligibility · assertTeamLevelEligibility", () => {
 
   it("dupla bloqueada pelo integrante mais forte", async () => {
     const db = mockDb({
-      a: {name: "Ana", levelsBySportFirestore: {VOLEI_PRAIA: "iniciante"}},
-      b: {name: "Bia", levelsBySportFirestore: {VOLEI_PRAIA: "open"}},
+      a: {name: "Ana", sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "iniciante"}}},
+      b: {name: "Bia", sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "open"}}},
     });
     // Categoria Iniciante: Bia (Open) bloqueia.
     await assert.rejects(

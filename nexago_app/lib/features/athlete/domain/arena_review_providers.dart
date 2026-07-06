@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/auth/auth_providers.dart';
-import '../../arenas/domain/arenas_providers.dart';
+import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../../arenas/domain/my_bookings_providers.dart';
 import '../data/arena_review_service.dart';
 import 'arena_reputation.dart';
@@ -216,7 +216,7 @@ final arenaReviewsStreamProvider = StreamProvider.autoDispose
       final chunk =
           userIds.sublist(i, i + 10 > userIds.length ? userIds.length : i + 10);
       final usersSnap = await firestore
-          .collection('users')
+          .collection('public_profiles')
           .where(FieldPath.documentId, whereIn: chunk)
           .get();
       for (final doc in usersSnap.docs) {
@@ -305,7 +305,7 @@ final recentArenaReviewerProvider =
     final data = docs.first.data();
     final userId = (data['userId'] as String?)?.trim() ?? '';
     if (userId.isEmpty) return null;
-    final userDoc = await firestore.collection('users').doc(userId).get();
+    final userDoc = await firestore.collection('public_profiles').doc(userId).get();
     final name = (userDoc.data()?['name'] as String?)?.trim();
     if (name == null || name.isEmpty) return null;
     return 'Avaliado recentemente por $name';

@@ -4,7 +4,7 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../athlete/presentation/widgets/athlete_profile_avatar.dart';
-import '../../../domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 
 class TournamentRegistrationRecentPartnersChips extends StatelessWidget {
   const TournamentRegistrationRecentPartnersChips({

@@ -1,0 +1,25 @@
+/**
+ * Helpers de projeto/paths do Firestore compartilhados — única fonte para os
+ * caminhos legados sob `artifacts/{projectId}/public/data`.
+ */
+
+export function getFirebaseProjectId(): string {
+  return process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT ||
+    "volley-track-2dd3b";
+}
+
+export function artifactsTeamsPath(projectId: string = getFirebaseProjectId()): string {
+  return `artifacts/${projectId}/public/data/teams`;
+}
+
+export function artifactsMatchesPath(projectId: string = getFirebaseProjectId()): string {
+  return `artifacts/${projectId}/public/data/matches`;
+}
+
+export function artifactsInscriptionsPath(projectId: string = getFirebaseProjectId()): string {
+  return `artifacts/${projectId}/public/data/inscriptions`;
+}
+
+export function artifactsTournamentsPath(projectId: string = getFirebaseProjectId()): string {
+  return `artifacts/${projectId}/public/data/tournaments`;
+}

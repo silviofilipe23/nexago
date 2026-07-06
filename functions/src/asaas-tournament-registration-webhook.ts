@@ -25,6 +25,7 @@ import {
 import {deliverNotificationToUser} from "./notification-delivery";
 import {creditOrganizerWalletFromRegistration} from "./organizer-wallet";
 import {TOURNAMENT_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
+import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 
 const ASAAS_NON_TERMINAL_STATUSES = new Set([
   "PENDING",
@@ -46,17 +47,8 @@ const ASAAS_NEGATIVE_TERMINAL_STATUSES = new Set([
   "DELETED",
 ]);
 
-function getFirebaseProjectId(): string {
-  return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
-}
 
-function artifactsInscriptionsPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/inscriptions`;
-}
 
-function artifactsTeamsPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/teams`;
-}
 
 async function loadTeamAthleteUids(
   db: Firestore,

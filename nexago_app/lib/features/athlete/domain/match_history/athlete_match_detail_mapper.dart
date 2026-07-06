@@ -1,7 +1,7 @@
 import 'package:intl/intl.dart';
 
 import '../../../ranking/domain/ranking_display_helpers.dart';
-import '../../../tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_point_event.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';

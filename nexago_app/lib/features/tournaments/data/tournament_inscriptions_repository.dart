@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
-import '../../arenas/domain/arenas_providers.dart';
+import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import 'nexago_artifacts_paths.dart';
 
 /// Contagem de inscrições (equipes/vagas) por `categoryId` em um torneio.

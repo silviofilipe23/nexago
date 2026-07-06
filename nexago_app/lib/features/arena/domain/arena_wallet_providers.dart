@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../arenas/domain/arenas_providers.dart';
+import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../data/arena_wallet_repository.dart';
 import 'arena_schedule_providers.dart';
 

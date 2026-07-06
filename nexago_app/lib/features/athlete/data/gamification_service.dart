@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../../../core/formatting/app_date_format.dart';
 
 import '../domain/achievements/achievement_catalog.dart';
@@ -18,9 +19,13 @@ Map<String, dynamic> _firestoreSafeMap(Map<String, dynamic> data) {
 }
 
 class GamificationService {
-  GamificationService(this._firestore);
+  GamificationService(
+    this._firestore, {
+    FirebaseFunctions? functions,
+  }) : _functions = functions ?? FirebaseFunctions.instance;
 
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
 
   static const int xpGameCompleted = 50;
   static const int xpInvitePlayer = 20;
@@ -159,6 +164,9 @@ class GamificationService {
     });
   }
 
+  /// XP de favoritar arena — somente via Cloud Function
+  /// ([onArenaFavoriteCreatedAwardXp]); escrita client-side bloqueada nas rules.
+  @Deprecated('Gamificação de favorito é server-side via Cloud Function.')
   Future<void> onArenaFavorited({
     required String userId,
     required String arenaId,
@@ -795,49 +803,31 @@ class GamificationService {
   }
 
   /// Sincroniza XP retroativo dos passos já concluídos e badge de perfil completo.
+  ///
+  /// Escrita em `gamification_*` é feita via Cloud Function (regras do Firestore).
   Future<ProfileCompletionSyncResult> syncProfileCompletionRewards({
     required String userId,
-    required AthleteProfile profile,
+    AthleteProfile? profile,
   }) async {
     final uid = userId.trim();
     if (uid.isEmpty) return ProfileCompletionSyncResult.empty;
 
-    final state = ProfileCompletionState.fromProfile(profile);
-    var totalXp = 0;
-    final newlyAwarded = <String>[];
-
-    for (final status in state.steps) {
-      if (!status.isDone) continue;
-      final feedback = await awardProfileStepXp(userId: uid, step: status.step);
-      if (feedback != null && feedback.xpGained > 0) {
-        totalXp += feedback.xpGained;
-        newlyAwarded.add(status.step.id);
-      }
+    try {
+      final result = await _functions
+          .httpsCallable('syncProfileCompletionRewards')
+          .call<Map<String, dynamic>>(<String, dynamic>{});
+      final data = result.data;
+      final stepIds = data['newlyAwardedStepIds'];
+      return ProfileCompletionSyncResult(
+        totalXpGained: (data['totalXpGained'] as num?)?.toInt() ?? 0,
+        newlyAwardedStepIds: stepIds is List
+            ? stepIds.map((e) => e.toString()).toList(growable: false)
+            : const [],
+        profileMarkedComplete: data['profileMarkedComplete'] == true,
+        unlockedProfileBadge: data['unlockedProfileBadge'] == true,
+      );
+    } on FirebaseFunctionsException {
+      rethrow;
     }
-
-    var profileMarkedComplete = false;
-    var unlockedProfileBadge = false;
-
-    if (state.allComplete) {
-      await _userRef(uid).set(<String, dynamic>{
-        'isProfileComplete': true,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      profileMarkedComplete = true;
-
-      final unlockedIds = await syncAchievements(userId: uid, profile: profile);
-      unlockedProfileBadge =
-          unlockedIds.contains('PROFILE_COMPLETE') ||
-          unlockedIds.contains(GamificationBadge.profileComplete.id);
-    } else {
-      await syncAchievements(userId: uid, profile: profile);
-    }
-
-    return ProfileCompletionSyncResult(
-      totalXpGained: totalXp,
-      newlyAwardedStepIds: newlyAwarded,
-      profileMarkedComplete: profileMarkedComplete,
-      unlockedProfileBadge: unlockedProfileBadge,
-    );
   }
 }

@@ -82,8 +82,10 @@ Map<String, List<MyBookingItem>> groupUpcomingByDate(
     out.putIfAbsent(key, () => <MyBookingItem>[]).add(item);
   }
   for (final list in out.values) {
+    // Ordem cronológica dentro do dia — os cabeçalhos de dia também são
+    // renderizados em ordem ascendente (my_bookings_page).
     list.sort(
-      (a, b) => bookingStartMinutes(b).compareTo(bookingStartMinutes(a)),
+      (a, b) => bookingStartMinutes(a).compareTo(bookingStartMinutes(b)),
     );
   }
   return out;

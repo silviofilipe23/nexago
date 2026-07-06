@@ -7,6 +7,7 @@ import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../domain/athlete_profile_options.dart';
 import '../domain/athlete_sports_levels_providers.dart';
 import 'widgets/athlete_sports_levels/athlete_sport_add_chip.dart';
 import 'widgets/athlete_sports_levels/athlete_sport_level_card.dart';
@@ -50,7 +51,13 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
         ),
         AthleteSportsLevelsStatus.ready => _ReadyBody(
           ui: ui,
-          onLevelSelected: notifier.updateLevel,
+          onLevelSelected: (appSportId, level) => _onLevelSelected(
+            context,
+            ui: ui,
+            appSportId: appSportId,
+            level: level,
+            onConfirm: () => notifier.updateLevel(appSportId, level),
+          ),
           onAddSport: notifier.addSport,
           onMakePrimary: (appSportId) => _confirmMakePrimary(
             context,
@@ -121,6 +128,105 @@ class AthleteSportsLevelsPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Regra "nível só sobe": abaixo do salvo → explica o bloqueio; acima →
+  /// confirma antes de aplicar (a mudança não pode ser desfeita pelo atleta).
+  Future<void> _onLevelSelected(
+    BuildContext context, {
+    required AthleteSportsLevelsUiState ui,
+    required String appSportId,
+    required String level,
+    required VoidCallback onConfirm,
+  }) async {
+    final current = ui.draft.levelByAppSportId[appSportId];
+    if (AthleteProfileOptions.normalizeLevel(current) ==
+        AthleteProfileOptions.normalizeLevel(level)) {
+      return;
+    }
+
+    final lockedRank = ui.lockedLevelRankFor(appSportId);
+    final nextRank = AthleteProfileOptions.levelRank(level);
+    if (lockedRank != null && (nextRank == null || nextRank < lockedRank)) {
+      showAppSnackBar(context, athleteLevelDowngradeBlockedMessage);
+      return;
+    }
+
+    final confirmed = await _confirmLevelChange(
+      context,
+      sportLabel: _labelForSport(ui, appSportId),
+      levelLabel: AthleteProfileOptions.normalizeLevel(level),
+    );
+    if (confirmed) onConfirm();
+  }
+
+  Future<bool> _confirmLevelChange(
+    BuildContext context, {
+    required String sportLabel,
+    required String levelLabel,
+  }) async {
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: context.themeColors.surfaceRaised,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final t = Theme.of(ctx);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Confirmar novo nível',
+                  style: t.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: context.themeColors.onSurface,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  sportLabel.isEmpty
+                      ? 'Seu nível passará a $levelLabel.'
+                      : '$sportLabel: seu nível passará a $levelLabel.',
+                  style: t.textTheme.bodyMedium?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'O nível só pode subir. Para reduzir depois, será preciso '
+                  'falar com o suporte. Em torneios, você disputa apenas '
+                  'categorias do seu nível ou acima.',
+                  style: t.textTheme.bodySmall?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                    height: 1.35,
+                  ),
+                ),
+                SizedBox(height: 20),
+                FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: context.themeColors.canvas,
+                  ),
+                  child: Text('Confirmar nível'),
+                ),
+                SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(false),
+                  child: Text('Cancelar'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    return confirmed == true;
   }
 
   static String _labelForSport(
@@ -246,6 +352,16 @@ class _ReadyBody extends StatelessWidget {
             fontSize: 10,
           ),
         ),
+        SizedBox(height: 6),
+        Text(
+          'Seu nível pode subir, mas não descer. Para corrigir um nível '
+          'errado, fale com o suporte.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: context.themeColors.onSurfaceMuted,
+            height: 1.35,
+            fontSize: 12,
+          ),
+        ),
         SizedBox(height: 10),
         if (ui.enrollments.isEmpty)
           Padding(
@@ -266,6 +382,7 @@ class _ReadyBody extends StatelessWidget {
                 totalGames: ui.totalGames,
                 selectedLevel:
                     ui.draft.levelByAppSportId[e.appSportId] ?? e.levelLabel,
+                lockedLevelRank: ui.lockedLevelRankFor(e.appSportId) ?? -1,
                 enabled: canEdit,
                 onLevelSelected: (level) =>
                     onLevelSelected(e.appSportId, level),

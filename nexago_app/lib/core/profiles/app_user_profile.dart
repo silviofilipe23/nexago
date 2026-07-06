@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../../../core/auth/user_roles.dart';
+import '../auth/user_roles.dart';
 
 /// Perfil em `users/{uid}` (paridade com web `AppUserProfile`).
 class AppUserProfile {
@@ -175,4 +175,21 @@ String initialsFromDisplayName(String name) {
         : parts.first.toUpperCase();
   }
   return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+}
+
+bool isPartnerListableProfile(AppUserProfile profile) {
+  return appUserDisplayName(profile).trim().isNotEmpty;
+}
+
+int comparePartnersForDisplay(AppUserProfile a, AppUserProfile b) {
+  final nameCmp = appUserDisplayName(a)
+      .toLowerCase()
+      .compareTo(appUserDisplayName(b).toLowerCase());
+  if (nameCmp != 0) return nameCmp;
+  return a.uid.compareTo(b.uid);
+}
+
+List<AppUserProfile> sortPartnersForDisplay(List<AppUserProfile> users) {
+  final sorted = [...users]..sort(comparePartnersForDisplay);
+  return sorted;
 }

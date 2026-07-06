@@ -1,3 +1,4 @@
+import 'package:nexago_app/core/ui/app_status_views.dart';
 import 'package:flutter/material.dart';
 import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -119,7 +120,7 @@ class _AthleteProfileGoalsPageState extends ConsumerState<AthleteProfileGoalsPag
         loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         ),
-        error: (e, _) => Center(child: Text('Erro: $e')),
+        error: (e, _) => AppInlineErrorView(error: e),
         data: (_) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

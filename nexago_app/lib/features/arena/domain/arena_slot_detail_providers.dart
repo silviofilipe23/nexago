@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../arenas/domain/arena_slot.dart';
-import '../../arenas/domain/arenas_providers.dart';
+import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import 'arena_manager_booking.dart';
 import '../data/arena_user_label_service.dart';
 

@@ -48,7 +48,6 @@ class AgendaHeader extends StatelessWidget {
                     letterSpacing: 0.3,
                   ),
                 ),
-                SizedBox(height: 4),
                 Text(
                   title,
                   style: theme.textTheme.headlineSmall?.copyWith(

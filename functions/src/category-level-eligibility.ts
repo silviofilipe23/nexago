@@ -74,8 +74,31 @@ export function tournamentSportToLevelSportCode(sport: unknown): string | null {
 }
 
 /**
+ * Mapa nível-por-esporte do doc `users/{uid}`: o app grava em
+ * `sportOnboarding.levelsBySport`; `levelsBySportFirestore` é aceito como
+ * legado (nome do campo no modelo Dart).
+ */
+function levelsBySportOf(
+  userData: UserAccessData,
+): Record<string, unknown> | null {
+  const onboarding = userData.sportOnboarding;
+  if (onboarding != null && typeof onboarding === "object") {
+    const bySport = (onboarding as Record<string, unknown>).levelsBySport;
+    if (bySport != null && typeof bySport === "object") {
+      return bySport as Record<string, unknown>;
+    }
+  }
+  const legacy = userData.levelsBySportFirestore;
+  if (legacy != null && typeof legacy === "object") {
+    return legacy as Record<string, unknown>;
+  }
+  return null;
+}
+
+/**
  * Rank do nível do atleta para o esporte informado.
- * Per-sport (`levelsBySportFirestore[sportCode]`) → `level` global → 0 (mais permissivo).
+ * Per-sport (`sportOnboarding.levelsBySport[sportCode]`) → `level` global → 0
+ * (mais permissivo).
  */
 export function resolveAthleteLevelRank(
   userData: UserAccessData | null,
@@ -84,10 +107,9 @@ export function resolveAthleteLevelRank(
   if (!userData) return 0;
 
   if (sportCode) {
-    const bySport = userData.levelsBySportFirestore;
-    if (bySport && typeof bySport === "object") {
-      const raw = (bySport as Record<string, unknown>)[sportCode];
-      const rank = levelRank(raw);
+    const bySport = levelsBySportOf(userData);
+    if (bySport) {
+      const rank = levelRank(bySport[sportCode]);
       if (rank != null) return rank;
     }
   }

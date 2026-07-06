@@ -27,21 +27,13 @@ import {
   type ParsedCategoryRegistration,
 } from "./tournament-pair-uniqueness";
 import {formatCategoryInviteNotificationLabel} from "./category-display-labels";
+import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 
 const INVITES_COLLECTION = "tournamentRegistrationInvites";
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
 
-function getFirebaseProjectId(): string {
-  return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
-}
 
-function artifactsTeamsPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/teams`;
-}
 
-function artifactsInscriptionsPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/inscriptions`;
-}
 
 type UniformType = "none" | "top_only" | "full";
 

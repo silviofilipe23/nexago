@@ -35,8 +35,12 @@ class TournamentTeam {
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {
     final data = doc.data() ?? {};
+    return TournamentTeam.fromMap(doc.id, data);
+  }
+
+  factory TournamentTeam.fromMap(String id, Map<String, dynamic> data) {
     return TournamentTeam(
-      id: doc.id,
+      id: id,
       player1Id: _str(data['player1Id']) ?? '',
       player2Id: _str(data['player2Id']) ?? '',
       teamName: _str(data['teamName']),

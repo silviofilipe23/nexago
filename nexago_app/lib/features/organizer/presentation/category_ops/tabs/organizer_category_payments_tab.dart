@@ -1,3 +1,4 @@
+import 'package:nexago_app/core/ui/app_status_views.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
@@ -66,7 +67,7 @@ class _OrganizerCategoryPaymentsTabState
 
     return teamsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Erro: $e')),
+      error: (e, _) => AppInlineErrorView(error: e),
       data: (teams) {
         final pending = teams
             .where((t) => t.status == OrganizerTeamRegistrationStatus.pending)

@@ -2,8 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../data/tournament_registration_service.dart';
-import '../data/users_repository.dart';
-import 'app_user_profile.dart';
+import 'package:nexago_app/core/profiles/users_repository.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'tournament_registration_receipt.dart';
 import 'tournament_registration_success_preferences_providers.dart';
 

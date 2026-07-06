@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/users_repository.dart';
 
 import '../../ranking/domain/ranking_display_helpers.dart';
-import '../domain/app_user_profile.dart';
 import '../domain/tournament_match.dart';
 import '../domain/tournament_match_card_view_model.dart';
 import '../domain/tournament_team.dart';
 import 'tournament_teams_repository.dart';
-import 'users_repository.dart';
 
 class TournamentMatchEnrichmentService {
   TournamentMatchEnrichmentService({
@@ -36,13 +36,7 @@ class TournamentMatchEnrichmentService {
       if (team.player2Id.isNotEmpty) userIds.add(team.player2Id);
     }
 
-    final profiles = <String, AppUserProfile>{};
-    await Future.wait(
-      userIds.map((id) async {
-        final profile = await _usersRepository.getUserById(id);
-        if (profile != null) profiles[id] = profile;
-      }),
-    );
+    final profiles = await _usersRepository.getUsersByIds(userIds);
 
     return matches
         .map(
@@ -96,6 +90,58 @@ class TournamentMatchEnrichmentService {
       return teamId.trim().isNotEmpty ? teamId : fallback;
     }
     return cards.first.teamA.displayName;
+  }
+
+  /// Resolve nomes exibíveis para IDs de equipe (classificação de grupos, ranking).
+  Future<Map<String, String>> resolveTeamDisplayNames(
+    Set<String> teamIds, {
+    Map<String, String> descriptionsByTeamId = const {},
+  }) async {
+    if (teamIds.isEmpty) return const {};
+
+    final teams = await _teamsRepository.getTeamsByIds(teamIds);
+    final names = await resolveTeamDisplayNamesFromTeams(teams);
+
+    for (final teamId in teamIds) {
+      final id = teamId.trim();
+      final existing = names[id]?.trim() ?? '';
+      if (id.isEmpty || (existing.isNotEmpty && existing != id)) {
+        continue;
+      }
+      final desc = safeMatchTeamDescription(descriptionsByTeamId[id]);
+      if (desc != null) {
+        names[id] = desc;
+      }
+    }
+
+    return names;
+  }
+
+  /// Monta nomes a partir de documentos de equipe já carregados (ex.: inscrições).
+  Future<Map<String, String>> resolveTeamDisplayNamesFromTeams(
+    Map<String, TournamentTeam> teams,
+  ) async {
+    if (teams.isEmpty) return const {};
+
+    final userIds = <String>{};
+    for (final team in teams.values) {
+      if (team.player1Id.isNotEmpty) userIds.add(team.player1Id);
+      if (team.player2Id.isNotEmpty) userIds.add(team.player2Id);
+    }
+
+    final profiles = await _usersRepository.getUsersByIds(userIds);
+    final names = <String, String>{};
+
+    for (final entry in teams.entries) {
+      final id = entry.key.trim();
+      if (id.isEmpty) continue;
+      final label = _pairLabel(entry.value, profiles);
+      if (label.isNotEmpty && label != id) {
+        names[id] = label;
+      }
+    }
+
+    return names;
   }
 
   TournamentMatchCardTeamViewModel _teamViewModel({
@@ -193,14 +239,29 @@ class TournamentMatchEnrichmentService {
     TournamentTeam team,
     Map<String, AppUserProfile> profiles,
   ) {
+    final teamName = team.teamName?.trim();
+    if (teamName != null && teamName.isNotEmpty) return teamName;
+
     final p1Profile = profiles[team.player1Id];
     final p2Profile = profiles[team.player2Id];
-    final p1 = resolveAppUserDisplayName(p1Profile);
-    final p2 = resolveAppUserDisplayName(p2Profile);
+    final p1 = _playerDisplayName(p1Profile, team.player1Id);
+    final p2 = _playerDisplayName(p2Profile, team.player2Id);
 
-    if (p1.isNotEmpty && p2.isNotEmpty) return '$p1 / $p2';
+    if (team.isLookingForPartner) {
+      if (p1.isNotEmpty) return p1;
+      return '';
+    }
+    if (p1.isNotEmpty && p2.isNotEmpty && p1 != p2) return '$p1 / $p2';
     if (p1.isNotEmpty) return p1;
     if (p2.isNotEmpty) return p2;
     return '';
+  }
+
+  String _playerDisplayName(AppUserProfile? profile, String playerId) {
+    final resolved = resolveAppUserDisplayName(profile);
+    if (resolved.isNotEmpty) return resolved;
+    final id = playerId.trim();
+    if (id.isEmpty) return '';
+    return rankingDisplayName(profile, id);
   }
 }

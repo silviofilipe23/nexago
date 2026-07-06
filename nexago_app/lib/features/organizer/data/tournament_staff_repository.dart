@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-import '../../tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../domain/tournament_staff/tournament_staff_models.dart';
 
 /// CRUD de `tournaments/{id}/staff/{uid}` (somente o dono passa nas rules).

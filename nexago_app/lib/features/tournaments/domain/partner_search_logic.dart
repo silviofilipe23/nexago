@@ -1,4 +1,8 @@
-import 'app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
+
+export 'package:nexago_app/core/profiles/app_user_profile.dart'
+    show isPartnerListableProfile, comparePartnersForDisplay, sortPartnersForDisplay;
+export 'package:nexago_app/core/search/search_keywords.dart' show nicknameSearchPrefixes;
 import 'tournament_detail_logic.dart';
 import 'tournament_discovery_models.dart';
 import 'tournament_registration_logic.dart';
@@ -28,18 +32,6 @@ bool matchesCategoryGender(String? profileGender, String? categoryGenderType) {
   final profileTag = genderTagFromText(profileGender ?? '');
   if (profileTag == null) return false;
   return profileTag == categoryTag;
-}
-
-/// Prefixos para busca case-insensitive de `nickname` no Firestore.
-List<String> nicknameSearchPrefixes(String raw) {
-  final v = raw.trim();
-  if (v.isEmpty) return const [];
-  if (v.length == 1) {
-    return [v, v.toLowerCase(), v.toUpperCase()];
-  }
-  final lower = v.toLowerCase();
-  final title = '${v[0].toUpperCase()}${v.substring(1).toLowerCase()}';
-  return {v, lower, v.toUpperCase(), title}.toList();
 }
 
 TournamentRegistrationPartnerCandidate partnerCandidateFromProfile(
@@ -73,22 +65,6 @@ String? _locationLabel(AppUserProfile profile) {
   return city ?? state;
 }
 
-bool isPartnerListableProfile(AppUserProfile profile) {
-  return appUserDisplayName(profile).trim().isNotEmpty;
-}
-
-int comparePartnersForDisplay(AppUserProfile a, AppUserProfile b) {
-  final nameCmp = appUserDisplayName(a)
-      .toLowerCase()
-      .compareTo(appUserDisplayName(b).toLowerCase());
-  if (nameCmp != 0) return nameCmp;
-  return a.uid.compareTo(b.uid);
-}
-
-List<AppUserProfile> sortPartnersForDisplay(List<AppUserProfile> users) {
-  final sorted = [...users]..sort(comparePartnersForDisplay);
-  return sorted;
-}
 
 List<AppUserProfile> filterPartnersByQuery(
   List<AppUserProfile> users,

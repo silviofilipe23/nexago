@@ -79,6 +79,34 @@ void main() {
       expect(preview.length, 4);
       expect(preview.last.athleteId, 'u5');
     });
+
+    test('respects custom topCount (comunidade usa top 10)', () {
+      final rows = [
+        for (var i = 1; i <= 15; i++)
+          AthleteRankingRow(
+            rank: i,
+            athleteId: 'u$i',
+            totalPoints: 600 - i * 10,
+            tournamentsCount: 2,
+          ),
+      ];
+
+      final topOnly = previewRankingRows(
+        rows,
+        topCount: 10,
+        currentAthleteId: 'u4',
+      );
+      expect(topOnly.length, 10);
+      expect(topOnly.last.athleteId, 'u10');
+
+      final withUser = previewRankingRows(
+        rows,
+        topCount: 10,
+        currentAthleteId: 'u12',
+      );
+      expect(withUser.length, 11);
+      expect(withUser.last.athleteId, 'u12');
+    });
   });
 
   group('filterAthleteRowsByGender', () {

@@ -1,5 +1,5 @@
 import '../../../tournaments/data/tournament_inscriptions_repository.dart';
-import '../../../tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../../../tournaments/domain/tournament_uniform_selection.dart';
 import 'tournament_uniforms_models.dart';
 

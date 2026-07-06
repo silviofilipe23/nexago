@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../athlete/domain/arena_review.dart';
-import '../../arenas/domain/arenas_providers.dart';
+import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../data/review_reply_service.dart';
 import 'arena_schedule_providers.dart';
 
@@ -55,7 +55,7 @@ final managedArenaReviewsProvider =
     for (var i = 0; i < ids.length; i += 10) {
       final chunk = ids.sublist(i, i + 10 > ids.length ? ids.length : i + 10);
       final usersSnap = await firestore
-          .collection('users')
+          .collection('public_profiles')
           .where(FieldPath.documentId, whereIn: chunk)
           .get();
       for (final d in usersSnap.docs) {

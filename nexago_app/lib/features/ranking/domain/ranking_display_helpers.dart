@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 
 const _avatarPalette = [
   Color(0xFF5B8DEF),

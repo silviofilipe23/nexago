@@ -3,14 +3,8 @@ import {onDocumentWritten} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 
 import {ORGANIZER_DIRECT_PAYMENT_METHOD} from "./organizer-category-ops-payments";
+import {artifactsInscriptionsPath, getFirebaseProjectId} from "./firebase-paths";
 
-function getFirebaseProjectId(): string {
-  return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
-}
-
-export function artifactsInscriptionsPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/inscriptions`;
-}
 
 export function inscriptionPaidAmountCents(paidAmount: unknown): number {
   if (typeof paidAmount !== "number" || !Number.isFinite(paidAmount) || paidAmount <= 0) {

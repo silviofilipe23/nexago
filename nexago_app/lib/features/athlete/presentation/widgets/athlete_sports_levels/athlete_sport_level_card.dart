@@ -15,6 +15,7 @@ class AthleteSportLevelCard extends StatelessWidget {
     required this.selectedLevel,
     required this.onLevelSelected,
     required this.onMakePrimary,
+    this.lockedLevelRank = -1,
     this.enabled = true,
   });
 
@@ -23,6 +24,10 @@ class AthleteSportLevelCard extends StatelessWidget {
   final String selectedLevel;
   final ValueChanged<String> onLevelSelected;
   final VoidCallback onMakePrimary;
+
+  /// Rank do nível já salvo (regra "nível só sobe"): chips abaixo dele ficam
+  /// bloqueados visualmente. `-1` = sem nível salvo (tudo liberado).
+  final int lockedLevelRank;
   final bool enabled;
 
   @override
@@ -163,6 +168,9 @@ class AthleteSportLevelCard extends StatelessWidget {
                         selected:
                             selectedLevel ==
                             AthleteSportsLevelsLabels.levelLabels[i],
+                        // Abaixo do nível salvo: visual bloqueado, mas o tap
+                        // segue ativo para a página explicar a regra.
+                        locked: i < lockedLevelRank,
                         onTap: enabled
                             ? () => onLevelSelected(
                                 AthleteSportsLevelsLabels.levelLabels[i],
@@ -232,15 +240,19 @@ class _LevelChip extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.locked = false,
   });
 
   final String label;
   final bool selected;
   final VoidCallback? onTap;
+  final bool locked;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final mutedColor = locked
+        ? context.themeColors.onSurfaceMuted.withValues(alpha: 0.45)
+        : context.themeColors.onSurfaceMuted;
 
     return Material(
       color: selected ? AppColors.brand : context.themeColors.surfaceCard,
@@ -250,17 +262,27 @@ class _LevelChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Center(
-            child: Text(
-              label,
-              style: AppTypography.mono(
-                fontWeight: FontWeight.w700,
-                color: selected
-                    ? context.themeColors.canvas
-                    : context.themeColors.onSurfaceMuted,
-                fontSize: 11,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (locked) ...[
+                Icon(Icons.lock_outline_rounded, size: 12, color: mutedColor),
+                SizedBox(width: 4),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.mono(
+                    fontWeight: FontWeight.w700,
+                    color: selected
+                        ? context.themeColors.canvas
+                        : mutedColor,
+                    fontSize: 11,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),

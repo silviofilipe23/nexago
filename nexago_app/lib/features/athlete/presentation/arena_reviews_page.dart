@@ -146,7 +146,7 @@ class _ArenaReviewsPageState extends ConsumerState<ArenaReviewsPage> {
     for (var i = 0; i < ids.length; i += 10) {
       final chunk = ids.sublist(i, i + 10 > ids.length ? ids.length : i + 10);
       final usersSnap = await firestore
-          .collection('users')
+          .collection('public_profiles')
           .where(FieldPath.documentId, whereIn: chunk)
           .get();
       for (final doc in usersSnap.docs) {

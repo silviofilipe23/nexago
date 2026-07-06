@@ -272,7 +272,8 @@ class TournamentDetailCategoryCard extends StatelessWidget {
             ),
           ),
           SizedBox(height: 16),
-          if (!offer.isCompleted)
+          if (!offer.isCompleted &&
+              ctaKind != TournamentCategoryCtaKind.disabled)
             _CategoryCtaButton(
               kind: ctaKind,
               onPressed: switch (ctaKind) {

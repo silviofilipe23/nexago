@@ -1,3 +1,4 @@
+import 'package:nexago_app/core/ui/app_status_views.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -302,10 +303,10 @@ class _OrganizerHomePageState extends ConsumerState<OrganizerHomePage> {
           child: FadeSlideIn(
             child: tournamentsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Erro: $e')),
+              error: (e, _) => AppInlineErrorView(error: e),
               data: (tournaments) => leaguesAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(child: Text('Erro: $e')),
+                error: (e, _) => AppInlineErrorView(error: e),
                 data: (leagues) {
                   final allEvents = _mergeEvents(tournaments, leagues);
                   final filtered = _filteredEvents(allEvents);

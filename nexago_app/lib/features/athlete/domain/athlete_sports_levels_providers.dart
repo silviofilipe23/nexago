@@ -4,10 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../onboarding/domain/athlete_onboarding_options.dart';
 import 'athlete_profile.dart';
+import 'athlete_profile_options.dart';
 import 'athlete_profile_providers.dart';
 import 'athlete_sports_levels_draft.dart';
 import 'athlete_sports_levels_mapper.dart';
 import 'gamification_providers.dart';
+
+/// Regra "nível só sobe": mensagem ao tentar reduzir o nível salvo.
+const String athleteLevelDowngradeBlockedMessage =
+    'Seu nível não pode ser reduzido. Se precisar corrigir, fale com o suporte.';
 
 enum AthleteSportsLevelsStatus { loading, ready, error }
 
@@ -33,6 +38,14 @@ class AthleteSportsLevelsUiState {
   final String? errorMessage;
 
   bool get canEdit => status == AthleteSportsLevelsStatus.ready && !isSaving;
+
+  /// Rank do nível já salvo para o esporte (piso da regra "nível só sobe").
+  /// `null` quando o esporte ainda não tem nível persistido.
+  int? lockedLevelRankFor(String appSportId) {
+    return AthleteProfileOptions.levelRank(
+      baseline.levelByAppSportId[appSportId],
+    );
+  }
 
   AthleteSportsLevelsUiState copyWith({
     AthleteSportsLevelsStatus? status,
@@ -137,6 +150,13 @@ class AthleteSportsLevelsNotifier
 
   void updateLevel(String appSportId, String levelLabel) {
     if (!state.canEdit) return;
+    // Regra "nível só sobe" (anti-sandbagging): nunca abaixo do nível salvo.
+    // A página já explica o bloqueio ao usuário; aqui só protege o estado.
+    final lockedRank = state.lockedLevelRankFor(appSportId);
+    final nextRank = AthleteProfileOptions.levelRank(levelLabel);
+    if (lockedRank != null && (nextRank == null || nextRank < lockedRank)) {
+      return;
+    }
     final nextDraft = state.draft.setLevel(appSportId, levelLabel);
     _applyDraft(nextDraft, debouncedSave: true);
   }

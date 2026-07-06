@@ -38,6 +38,30 @@ abstract final class AthleteProfileOptions {
     return v;
   }
 
+  /// Rank do nível (Iniciante 0 < Intermediário 1 < Open 2) a partir de label
+  /// (`Open`) ou código Firestore (`open`); legados inclusos. `null` quando
+  /// ausente/desconhecido.
+  static int? levelRank(String? raw) {
+    final normalized = normalizeLevel(raw);
+    if (normalized.isEmpty) return null;
+    final idx = levels.indexOf(normalized);
+    if (idx >= 0) return idx;
+    // Fallback por código bruto (ex.: vindo do Firestore sem normalizar label).
+    switch (raw?.trim().toLowerCase()) {
+      case 'iniciante':
+      case 'basico':
+      case 'básico':
+        return 0;
+      case 'intermediario':
+      case 'intermediário':
+        return 1;
+      case 'open':
+      case 'livre':
+        return 2;
+    }
+    return null;
+  }
+
   /// Normaliza esporte legado (ex.: Futevôlei, Beach tênis).
   static String normalizeSport(String? raw) {
     final v = raw?.trim() ?? '';

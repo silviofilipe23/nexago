@@ -44,7 +44,7 @@ class _OrganizerMatchCallQueuePageState
       }
     } catch (e) {
       if (mounted) {
-        showAppSnackBar(context, 'Erro: $e', isError: true);
+        showAppErrorSnackBar(context, e);
       }
     } finally {
       if (mounted) setState(() => _callingMatchId = null);

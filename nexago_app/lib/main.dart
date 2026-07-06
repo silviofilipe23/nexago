@@ -12,6 +12,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'core/layout/nexa_native_liquid_glass.dart';
 import 'core/time/nexago_event_timezone.dart';
 import 'core/auth/auth_providers.dart';
 import 'core/biometric/biometric_app_gate.dart';
@@ -50,10 +51,10 @@ Future<void> main() async {
   await crashlytics.setCrashlyticsCollectionEnabled(!kDebugMode);
   FlutterError.onError = crashlytics.recordFlutterFatalError;
   PlatformDispatcher.instance.onError = (error, stack) {
-    // MissingPluginException é corrida benigna de canal de platform view
-    // (ex.: `setSuppressed` do native_liquid_glass após hot restart ou
-    // dispose da view). Sem impacto ao usuário — registrar como não-fatal
-    // para não poluir o Crashlytics com falsos crashes.
+    if (isBenignLiquidGlassPluginError(error)) {
+      disableNativeLiquidGlassOnPluginError(error);
+      return true;
+    }
     if (error is MissingPluginException) {
       crashlytics.recordError(error, stack, fatal: false);
       return true;

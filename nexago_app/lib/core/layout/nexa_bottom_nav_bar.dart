@@ -7,6 +7,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_theme_colors.dart';
 import 'nexa_bottom_nav_models.dart';
 import 'nexa_liquid_glass_tab_bar.dart';
+import 'nexa_native_liquid_glass.dart';
 import 'shell_tab_bar_collapse.dart';
 
 /// Bottom navigation Liquid Glass — nativo no iOS 26+, cápsula NexaGO nos demais.
@@ -46,10 +47,17 @@ class NexaBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (NativeLiquidGlassUtils.supportsLiquidGlass && items.length >= 2) {
-      return _buildNativeBar(context);
-    }
-    return _buildGlassBar(context);
+    return ValueListenableBuilder<bool>(
+      valueListenable: nexaNativeLiquidGlassEnabled,
+      builder: (context, nativeEnabled, _) {
+        if (nativeEnabled &&
+            NativeLiquidGlassUtils.supportsLiquidGlass &&
+            items.length >= 2) {
+          return _buildNativeBar(context);
+        }
+        return _buildGlassBar(context);
+      },
+    );
   }
 
   Widget _buildNativeBar(BuildContext context) {

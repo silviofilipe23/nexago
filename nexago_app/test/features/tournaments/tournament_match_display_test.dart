@@ -284,7 +284,7 @@ void main() {
     test('formats positive match numbers', () {
       expect(
         matchNumberLabelForCard(_match(matchNumber: 12)),
-        'Jogo #12',
+        '#12',
       );
     });
 
@@ -322,14 +322,14 @@ void main() {
     test('joins match number and court', () {
       expect(
         matchMetaLabelForCard(_match(matchNumber: 3, courtName: 'Quadra 1')),
-        'Jogo #3 · Quadra 1',
+        '#3 · Quadra 1',
       );
     });
 
     test('formats numeric court in meta label', () {
       expect(
         matchMetaLabelForCard(_match(matchNumber: 3, courtName: '2')),
-        'Jogo #3 · Quadra 2',
+        '#3 · Quadra 2',
       );
     });
 

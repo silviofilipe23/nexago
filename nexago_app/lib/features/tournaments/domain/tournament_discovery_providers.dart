@@ -2,21 +2,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/cache_for.dart';
 import '../../../core/search/search_keywords.dart';
-import '../../arenas/domain/arenas_providers.dart';
+import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../../athlete/domain/athlete_display_name.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../data/firestore_tournament_discovery_data_source.dart';
 import '../data/leagues_repository.dart';
 import '../data/mock_tournament_discovery_data_source.dart';
 import '../data/tournament_discovery_data_source.dart';
+import '../data/tournament_inscriptions_repository.dart';
 import '../data/tournament_match_enrichment_service.dart';
 import '../data/tournament_matches_repository.dart';
 import '../data/tournament_teams_repository.dart';
 import '../data/tournaments_repository.dart';
-import '../data/users_repository.dart';
+import 'package:nexago_app/core/profiles/users_repository.dart';
+import 'tournament_group_standings_logic.dart';
 import 'tournament_match.dart';
 import 'tournament_match_card_view_model.dart';
 import 'tournament_match_point_event.dart';
+import 'tournament_matches_logic.dart';
+import 'tournament_team.dart';
 import 'tournament_detail_logic.dart';
 import 'tournament_detail_model.dart';
 import 'tournament_discovery_config.dart';
@@ -67,6 +71,73 @@ final tournamentMatchCardsProvider = StreamProvider.autoDispose
       .watchByTournament(tournamentId)
       .asyncMap(enrichment.enrichMatches);
 });
+
+typedef TournamentCategoryPoolTeamNamesKey = ({
+  String tournamentId,
+  String categoryId,
+});
+
+/// Nomes das equipes na fase de grupos (inscrições + perfis públicos).
+final tournamentCategoryPoolTeamDisplayNamesProvider = FutureProvider.autoDispose
+    .family<Map<String, String>, TournamentCategoryPoolTeamNamesKey>(
+  (ref, key) async {
+    ref.watch(tournamentMatchesProvider(key.tournamentId));
+    final matches =
+        await ref.read(tournamentMatchesProvider(key.tournamentId).future);
+    final pool = poolMatchesForCategory(matches, key.categoryId);
+
+    final teamIds = <String>{};
+    final descriptions = <String, String>{};
+    for (final match in pool) {
+      for (final side in [
+        (match.teamAId, match.teamADescription),
+        (match.teamBId, match.teamBDescription),
+      ]) {
+        final id = side.$1.trim();
+        if (id.isEmpty) continue;
+        teamIds.add(id);
+        final desc = side.$2?.trim();
+        if (desc != null &&
+            desc.isNotEmpty &&
+            isResolvedTeamDisplayName(id, desc)) {
+          descriptions[id] = desc;
+        }
+      }
+    }
+    if (teamIds.isEmpty) return const {};
+
+    final enrichment = ref.read(tournamentMatchEnrichmentServiceProvider);
+    final inscriptions =
+        await ref
+            .read(tournamentInscriptionsRepositoryProvider)
+            .watchByTournament(key.tournamentId)
+            .first;
+
+    final teamsById = <String, TournamentTeam>{};
+    for (final row in inscriptions) {
+      final categoryId =
+          (row.inscription['categoryId'] as String?)?.trim() ?? '';
+      if (categoryId != key.categoryId.trim()) continue;
+      final teamId = (row.inscription['teamId'] as String?)?.trim() ?? '';
+      if (teamId.isEmpty || !teamIds.contains(teamId) || row.team == null) {
+        continue;
+      }
+      teamsById[teamId] = TournamentTeam.fromMap(teamId, row.team!);
+    }
+
+    final fromInscriptions =
+        await enrichment.resolveTeamDisplayNamesFromTeams(teamsById);
+    final fromRepository = await enrichment.resolveTeamDisplayNames(
+      teamIds,
+      descriptionsByTeamId: descriptions,
+    );
+
+    return mergeTeamDisplayNameMaps(
+      mergeTeamDisplayNameMaps(descriptions, fromRepository),
+      fromInscriptions,
+    );
+  },
+);
 
 final leaguesRepositoryProvider = Provider<LeaguesRepository>((ref) {
   return LeaguesRepository(ref.watch(firestoreProvider));

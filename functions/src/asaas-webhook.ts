@@ -16,6 +16,7 @@ import {
 import {processArenaWithdrawalTransferWebhook} from "./asaas-withdrawal-webhook";
 import {processTournamentRegistrationAsaasNotification} from "./asaas-tournament-registration-webhook";
 import {processArenaSubscriptionAsaasNotification} from "./asaas-arena-subscription-webhook";
+import {getFirebaseProjectId} from "./firebase-paths";
 
 const PAYMENT_EVENTS = new Set([
   "PAYMENT_RECEIVED",
@@ -25,9 +26,6 @@ const PAYMENT_EVENTS = new Set([
   "PAYMENT_REFUNDED",
 ]);
 
-function getFirebaseProjectId(): string {
-  return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
-}
 
 type AsaasWebhookBody = {
   event?: string;

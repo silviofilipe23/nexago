@@ -56,7 +56,7 @@ String formatCourtLabelForCard(String? courtName) {
   return 'Quadra $court';
 }
 
-/// Metadados do topo do card (`Jogo #2 · Quadra 1`).
+/// Metadados do topo do card (`#2 · Quadra 1`).
 String matchMetaLabelForCard(TournamentMatch match) {
   final parts = <String>[];
   final numberLabel = matchNumberLabelForCard(match);

@@ -3,10 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/search/search_keywords.dart';
-import '../../arenas/domain/arenas_providers.dart';
+import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../../ranking/data/ranking_repository.dart';
 import '../../ranking/domain/ranking_models.dart';
-import '../../tournaments/data/users_repository.dart';
+import 'package:nexago_app/core/profiles/users_repository.dart';
 import 'athlete_follow_service.dart';
 import '../../tournaments/domain/compete_hub_logic.dart';
 import '../domain/athlete_discover_logic.dart';
@@ -21,7 +21,7 @@ class AthleteDiscoverRepository {
     required RankingRepository rankingRepository,
     required UsersRepository usersRepository,
     required AthleteFollowService followService,
-  })  : _users = firestore.collection('users'),
+  })  : _users = firestore.collection('public_profiles'),
         _rankingRepository = rankingRepository,
         _usersRepository = usersRepository,
         _followService = followService;

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:native_liquid_glass/native_liquid_glass.dart';
 
+import 'nexa_native_liquid_glass.dart';
+
 /// App bar do NexaGO — Liquid Glass nativo no iOS 26+, Material nos demais.
 class NexaAppBar extends StatefulWidget implements PreferredSizeWidget {
   const NexaAppBar({
@@ -57,38 +59,43 @@ class _NexaAppBarState extends State<NexaAppBar> {
 
   @override
   Widget build(BuildContext context) {
-    final nativeConfig = _buildNativeConfig(context);
-    if (nativeConfig != null) {
-      return _NativeNexaAppBar(
-        config: nativeConfig,
-        actionCallbacks: _actionCallbacks,
-        toolbarHeight: widget.toolbarHeight,
-      );
-    }
+    return ValueListenableBuilder<bool>(
+      valueListenable: nexaNativeLiquidGlassEnabled,
+      builder: (context, _, __) {
+        final nativeConfig = _buildNativeConfig(context);
+        if (nativeConfig != null) {
+          return _NativeNexaAppBar(
+            config: nativeConfig,
+            actionCallbacks: _actionCallbacks,
+            toolbarHeight: widget.toolbarHeight,
+          );
+        }
 
-    return AppBar(
-      title: widget.title,
-      leading: widget.leading,
-      actions: widget.actions,
-      automaticallyImplyLeading: widget.automaticallyImplyLeading,
-      centerTitle: widget.centerTitle,
-      backgroundColor: widget.backgroundColor,
-      foregroundColor: widget.foregroundColor,
-      surfaceTintColor: widget.surfaceTintColor,
-      elevation: widget.elevation,
-      scrolledUnderElevation: widget.scrolledUnderElevation,
-      titleSpacing: widget.titleSpacing,
-      titleTextStyle: widget.titleTextStyle,
-      toolbarHeight: widget.toolbarHeight,
-      leadingWidth: widget.leadingWidth,
-      bottom: widget.bottom,
-      flexibleSpace: widget.flexibleSpace,
+        return AppBar(
+          title: widget.title,
+          leading: widget.leading,
+          actions: widget.actions,
+          automaticallyImplyLeading: widget.automaticallyImplyLeading,
+          centerTitle: widget.centerTitle,
+          backgroundColor: widget.backgroundColor,
+          foregroundColor: widget.foregroundColor,
+          surfaceTintColor: widget.surfaceTintColor,
+          elevation: widget.elevation,
+          scrolledUnderElevation: widget.scrolledUnderElevation,
+          titleSpacing: widget.titleSpacing,
+          titleTextStyle: widget.titleTextStyle,
+          toolbarHeight: widget.toolbarHeight,
+          leadingWidth: widget.leadingWidth,
+          bottom: widget.bottom,
+          flexibleSpace: widget.flexibleSpace,
+        );
+      },
     );
   }
 
   _NativeNexaAppBarConfig? _buildNativeConfig(BuildContext context) {
     if (widget.forceMaterial ||
-        !NativeLiquidGlassUtils.supportsLiquidGlass ||
+        !nexaUseNativeLiquidGlass ||
         widget.bottom != null ||
         widget.flexibleSpace != null) {
       return null;

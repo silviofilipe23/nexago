@@ -373,7 +373,7 @@ class _ArenaRestockPageState extends ConsumerState<ArenaRestockPage> {
       );
     } catch (e) {
       if (mounted) {
-        showAppSnackBar(context, 'Erro: $e', isError: true);
+        showAppErrorSnackBar(context, e);
       }
     } finally {
       if (mounted) setState(() => _saving = false);

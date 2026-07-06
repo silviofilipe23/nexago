@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../ranking/data/ranking_repository.dart';
 import '../../tournaments/data/recent_partners_repository.dart';
-import '../../tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../data/match_history/athlete_match_history_repository.dart';
 import 'athlete_profile.dart';
 import 'athlete_public_profile_models.dart';

@@ -1,9 +1,6 @@
 import {FieldValue, type Firestore} from "firebase-admin/firestore";
 import {isMatchInProgress} from "./match-status";
-
-export function artifactsMatchesPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/matches`;
-}
+import {artifactsMatchesPath} from "./firebase-paths";
 
 /** Recalcula `tournaments.liveMatchesNow` a partir das partidas in progress. */
 export async function syncTournamentLiveMatchesNow(

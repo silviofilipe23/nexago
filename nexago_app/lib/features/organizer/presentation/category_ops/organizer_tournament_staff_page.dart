@@ -1,3 +1,4 @@
+import 'package:nexago_app/core/ui/app_status_views.dart';
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,8 +9,8 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
-import '../../../tournaments/data/users_repository.dart';
-import '../../../tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/users_repository.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../../domain/tournament_staff/tournament_staff_providers.dart';
 import 'widgets/organizer_tournament_subpage_scaffold.dart';
 
@@ -181,7 +182,7 @@ class OrganizerTournamentStaffPage extends ConsumerWidget {
               hasScrollBody: false,
               child: Center(child: CircularProgressIndicator()),
             ),
-            error: (e, _) => SliverToBoxAdapter(child: Text('Erro: $e')),
+            error: (e, _) => SliverToBoxAdapter(child: AppInlineErrorView(error: e)),
             data: (members) {
               if (members.isEmpty) {
                 return SliverFillRemaining(

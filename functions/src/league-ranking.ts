@@ -1,5 +1,6 @@
 import {FieldValue, type Firestore} from "firebase-admin/firestore";
 import {isMatchCompleted} from "./match-status";
+import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath} from "./firebase-paths";
 
 const DEFAULT_LEAGUE_POINTS: Record<string, number> = {
   "1": 450,
@@ -43,17 +44,8 @@ function leagueAthleteRankingsPath(projectId: string): string {
   return `artifacts/${projectId}/public/data/leagueAthleteRankings`;
 }
 
-function artifactsTeamsPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/teams`;
-}
 
-function artifactsMatchesPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/matches`;
-}
 
-function artifactsInscriptionsPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/inscriptions`;
-}
 
 export function normalizeMatchType(raw: unknown): string {
   return String(raw ?? "").trim().toLowerCase().replace(/_/g, " ");

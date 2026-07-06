@@ -22,63 +22,54 @@ class AgendaEmptyDayHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    const radius = 20.0;
 
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.brand.withValues(alpha: 0.18),
-            blurRadius: 40,
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 28, 20, 22),
-        decoration: BoxDecoration(
-          color: context.themeColors.surfaceCard,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.brand.withValues(alpha: 0.22)),
-        ),
-        child: Column(
-          children: [
-            Stack(
-              alignment: Alignment.center,
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.brand.withValues(alpha: 0.45),
-                        blurRadius: 28,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: context.themeColors.surfaceRaised,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppColors.brand.withValues(alpha: 0.35),
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.calendar_today_rounded,
-                    size: 26,
-                    color: AppColors.brand,
-                  ),
-                ),
-              ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: Stack(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 28, 20, 22),
+            decoration: BoxDecoration(
+              color: context.themeColors.surfaceCard,
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(
+                color: AppColors.brand.withValues(alpha: 0.22),
+              ),
             ),
+            child: Column(
+              children: [
+                Stack(
+                  alignment: Alignment.center,
+                  clipBehavior: Clip.hardEdge,
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: context.themeColors.surfaceRaised,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: AppColors.brand.withValues(alpha: 0.35),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.brand.withValues(alpha: 0.22),
+                            blurRadius: 10,
+                            spreadRadius: -6,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.calendar_today_rounded,
+                        size: 26,
+                        color: AppColors.brand,
+                      ),
+                    ),
+                  ],
+                ),
             const SizedBox(height: 16),
             Text(
               dayLabel,
@@ -160,31 +151,54 @@ class AgendaEmptyDayHero extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 2,
-                  child: OutlinedButton.icon(
-                    onPressed: onDropInTap,
-                    icon: const Icon(Icons.person_add_outlined, size: 16),
-                    label: const Text('Drop-in'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: context.themeColors.onSurface,
-                      side: BorderSide(color: context.themeColors.surfaceRaised),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      textStyle: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ),
+                // TODO: Uncomment this when the drop-in button is ready
+                // const SizedBox(width: 10),
+                // Expanded(
+                //   flex: 2,
+                //   child: OutlinedButton.icon(
+                //     onPressed: onDropInTap,
+                //     icon: const Icon(Icons.person_add_outlined, size: 16),
+                //     label: const Text('Drop-in'),
+                //     style: OutlinedButton.styleFrom(
+                //       foregroundColor: context.themeColors.onSurface,
+                //       side: BorderSide(color: context.themeColors.surfaceRaised),
+                //       padding: const EdgeInsets.symmetric(vertical: 14),
+                //       shape: RoundedRectangleBorder(
+                //         borderRadius: BorderRadius.circular(999),
+                //       ),
+                //       textStyle: const TextStyle(
+                //         fontWeight: FontWeight.w700,
+                //         fontSize: 13,
+                //       ),
+                //     ),
+                //   ),
+                // ),
               ],
             ),
           ],
         ),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(radius),
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppColors.brand.withValues(alpha: 0.10),
+                      Colors.transparent,
+                      Colors.transparent,
+                      AppColors.brand.withValues(alpha: 0.06),
+                    ],
+                    stops: const [0, 0.18, 0.82, 1],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

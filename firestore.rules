@@ -304,6 +304,36 @@ service cloud.firestore {
           )
         );
     }
+    // ── Regra "nível só sobe" (anti-sandbagging) ─────────────────────────
+    // O próprio atleta nunca reduz um nível já salvo — nem o global
+    // (`level`, `sportProfile.level`) nem o por esporte
+    // (`sportOnboarding.levelsBySport`). Downgrade só via super admin
+    // (suporte). Primeira definição é livre (campo ausente/valor
+    // desconhecido → rank -1); sobrescrever nível conhecido por valor
+    // inválido é bloqueado.
+    function athleteLevelRank(value) {
+      return value in ['iniciante', 'Iniciante', 'basico', 'básico', 'Básico'] ? 0
+        : (value in ['intermediario', 'Intermediário'] ? 1
+        : (value in ['open', 'Open', 'livre', 'Livre', 'Open / federado'] ? 2 : -1));
+    }
+    function levelsBySportOf(data) {
+      return data.get('sportOnboarding', {}).get('levelsBySport', {});
+    }
+    function sportLevelNotLowered(sportId) {
+      return athleteLevelRank(levelsBySportOf(request.resource.data).get(sportId, null)) >=
+        athleteLevelRank(levelsBySportOf(resource.data).get(sportId, null));
+    }
+    // Guarda os esportes com torneios (elegibilidade por nível) + o nível
+    // global, que é o fallback do backend para os demais esportes.
+    function athleteLevelsNotDowngraded() {
+      return athleteLevelRank(request.resource.data.get('level', null)) >=
+          athleteLevelRank(resource.data.get('level', null)) &&
+        athleteLevelRank(request.resource.data.get('sportProfile', {}).get('level', null)) >=
+          athleteLevelRank(resource.data.get('sportProfile', {}).get('level', null)) &&
+        sportLevelNotLowered('VOLEI_PRAIA') &&
+        sportLevelNotLowered('VOLEI_QUADRA') &&
+        sportLevelNotLowered('BEACH_TENNIS');
+    }
     function isArenaManagerByArenaId(arenaId) {
       return request.auth != null &&
         exists(/databases/$(database)/documents/arenas/$(arenaId)) &&
@@ -733,6 +763,11 @@ service cloud.firestore {
         allow create, update, delete: if false;
       }
     }
+    // Feed da Comunidade — itens gerados pelo sistema; escrita só via Cloud Functions.
+    match /communityFeed/{itemId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
     match /organizerWallets/{organizerId} {
       // Carteira do organizador (id = uid). Escrita só pelas Cloud Functions.
       allow read: if request.auth != null && (
@@ -1015,19 +1050,32 @@ service cloud.firestore {
     }
 
     // Regras para a coleção de usuários
+    // Espelho público de perfis SEM PII (nome, apelido, foto, cidade,
+    // keywords) — mantido por Cloud Function (onUserWrittenSyncPublicProfile).
+    // É o diretório do app: busca de parceiro, ranking, equipes.
+    match /public_profiles/{userId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     match /users/{userId} {
-      // Leitura pública de informações básicas de atletas (para tela pública)
-      // Leitura completa: usuários podem ler seus próprios dados ou admins podem ler qualquer usuário
-      allow read: if 
+      // Perfis de atletas são visíveis apenas para usuários AUTENTICADOS
+      // (busca de parceiro, ranking, equipe). Sem login não há leitura: o doc
+      // contém PII (email, telefone, nascimento) e leitura pública permitia
+      // scraping em massa.
+      // PLANO (após rollout do app que lê public_profiles): remover o ramo
+      // userDocIsPublicAthlete abaixo, deixando owner/admin/convite pendente —
+      // apps antigos ainda leem `users` para busca/ranking, então NÃO apertar
+      // antes da adoção da versão nova.
+      allow read: if request.auth != null && (
         (resource != null && userDocIsPublicAthlete(resource)) ||
-        (request.auth != null && (
-          request.auth.uid == userId ||
-          isAdmin() ||
-          (
-            resource.data.partnerInviteStatus == 'pending' &&
-            resource.data.invitedByUid == request.auth.uid
-          )
-        ));
+        request.auth.uid == userId ||
+        isAdmin() ||
+        (
+          resource.data.partnerInviteStatus == 'pending' &&
+          resource.data.invitedByUid == request.auth.uid
+        )
+      );
       
       // Criar: próprio usuário, admin ou pré-cadastro de parceiro (inscrição)
       allow create: if request.auth != null && (
@@ -1071,7 +1119,8 @@ service cloud.firestore {
           (
             !('superAdmin' in request.resource.data) ||
             request.resource.data.superAdmin == resource.data.superAdmin
-          )
+          ) &&
+          athleteLevelsNotDowngraded()
         ) ||
         isSuperAdmin() ||
         isPartnerPreRegistrationUpdateByInviter(userId)

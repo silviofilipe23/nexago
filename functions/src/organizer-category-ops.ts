@@ -29,22 +29,11 @@ import {
 } from "./tournament-cancellation";
 import {sharePaidUidsFromRegistration} from "./tournament-registration-pix-helpers";
 import {notifyBracketPublishedAthletes} from "./organizer-category-ops-bracket-notify";
+import {artifactsInscriptionsPath, artifactsMatchesPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 
-function getFirebaseProjectId(): string {
-  return process.env.GCLOUD_PROJECT || "volley-track-2dd3b";
-}
 
-function artifactsInscriptionsPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/inscriptions`;
-}
 
-function artifactsTeamsPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/teams`;
-}
 
-function artifactsMatchesPath(projectId: string): string {
-  return `artifacts/${projectId}/public/data/matches`;
-}
 
 function normalizePhoneForWhatsApp(phone: string): string {
   const digits = phone.replace(/\D/g, "");

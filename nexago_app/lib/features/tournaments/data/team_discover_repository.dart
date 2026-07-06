@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/search/search_keywords.dart';
-import '../../arenas/domain/arenas_providers.dart';
+import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../../athlete/domain/athlete_profile.dart';
 import '../../ranking/data/ranking_repository.dart';
 import '../../ranking/domain/ranking_models.dart';
@@ -21,7 +21,7 @@ class TeamDiscoverRepository {
   })  : _teams = firestore.collection(NexagoArtifactsPaths.teamsCollection()),
         _teamRankings =
             firestore.collection(NexagoArtifactsPaths.teamRankingsCollection()),
-        _users = firestore.collection('users'),
+        _users = firestore.collection('public_profiles'),
         _rankingRepository = rankingRepository;
 
   final CollectionReference<Map<String, dynamic>> _teams;

@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/auth/auth_providers.dart';
-import '../../../arenas/domain/arenas_providers.dart';
+import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../../../athlete/domain/athlete_profile.dart';
 import '../../data/team_discover_repository.dart';
 import '../tournament_discovery_providers.dart';
@@ -67,7 +67,7 @@ Future<AthleteProfile?> _loadProfile(Ref ref, String uid) async {
   final id = uid.trim();
   if (id.isEmpty) return null;
   final snap =
-      await ref.read(firestoreProvider).collection('users').doc(id).get();
+      await ref.read(firestoreProvider).collection('public_profiles').doc(id).get();
   if (!snap.exists) return null;
   return AthleteProfile.fromFirestore(snap);
 }

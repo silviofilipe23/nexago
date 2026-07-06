@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/auth/auth_providers.dart';
 import '../../../ranking/domain/ranking_providers.dart';
-import '../../../tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../../../tournaments/domain/compete_hub_models.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_point_event.dart';
@@ -13,7 +13,7 @@ import '../../../tournaments/domain/tournament_team.dart';
 import '../../../tournaments/data/tournament_matches_repository.dart';
 import '../../../tournaments/data/tournament_teams_repository.dart';
 import '../../../tournaments/data/tournaments_repository.dart';
-import '../../../tournaments/data/users_repository.dart';
+import 'package:nexago_app/core/profiles/users_repository.dart';
 import '../../../tournaments/domain/tournament_discovery_providers.dart';
 import '../athlete_display_name.dart';
 import '../athlete_profile.dart';

@@ -1,3 +1,4 @@
+import 'package:nexago_app/core/ui/app_status_views.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -136,7 +137,7 @@ class _OrganizerTournamentDetailPageState
       ),
       body: detailAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Erro: $e')),
+        error: (e, _) => AppInlineErrorView(error: e),
         data: (state) {
           if (state.summary == null || state.tournament == null) {
             return const Center(child: Text('Torneio não encontrado'));

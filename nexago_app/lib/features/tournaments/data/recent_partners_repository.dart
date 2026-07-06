@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/users_repository.dart';
 
-import '../../arenas/domain/arenas_providers.dart';
-import '../domain/app_user_profile.dart';
+import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import '../domain/partner_search_logic.dart';
 import 'nexago_artifacts_paths.dart';
-import 'users_repository.dart';
 
 class RecentPartnersRepository {
   RecentPartnersRepository(this._firestore, this._users);

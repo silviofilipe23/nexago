@@ -8,7 +8,7 @@ export const WEB_PUSH_PUBLIC_KEY = defineSecret("WEB_PUSH_PUBLIC_KEY");
 export const WEB_PUSH_PRIVATE_KEY = defineSecret("WEB_PUSH_PRIVATE_KEY");
 export const WEB_PUSH_SUBJECT = defineSecret("WEB_PUSH_SUBJECT");
 
-interface StoredWebPushSubscription {
+export interface StoredWebPushSubscription {
   id: string;
   userId: string;
   endpoint: string;
@@ -119,7 +119,7 @@ export function isInvalidFcmTokenError(code: string): boolean {
   );
 }
 
-async function getUserNotificationChannels(
+export async function getUserNotificationChannels(
   userId: string
 ): Promise<{
   fcmTokens: StoredFcmToken[];

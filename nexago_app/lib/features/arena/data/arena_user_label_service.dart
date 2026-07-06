@@ -29,7 +29,7 @@ class ArenaUserLabelService {
 
   Future<String> _fetch(String uid) async {
     try {
-      final snap = await _firestore.collection('users').doc(uid).get();
+      final snap = await _firestore.collection('public_profiles').doc(uid).get();
       final data = snap.data();
       if (data != null) {
         final nickname = (data['nickname'] as String?)?.trim();

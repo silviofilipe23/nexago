@@ -83,12 +83,20 @@ class TournamentDetailGroupsTab extends ConsumerWidget {
         final pool = poolMatchesForCategory(matches, categoryId);
         final selectedOffer = _selectedOffer(offers);
         final qualifiersPerGroup = selectedOffer?.qualifiersPerGroup ?? 2;
+        final teamNamesAsync = ref.watch(
+          tournamentCategoryPoolTeamDisplayNamesProvider((
+            tournamentId: tournament.id,
+            categoryId: categoryId,
+          )),
+        );
+        final resolvedTeamNames = teamNamesAsync.valueOrNull ?? const {};
 
         var standingsGroups = buildPoolStandingsGroups(
           poolMatches: pool,
           cardsById: cardsById,
           qualifiersPerGroup: qualifiersPerGroup,
           athleteTeamIds: athleteTeamIds,
+          resolvedTeamNamesById: resolvedTeamNames,
         );
 
         final isPhaseComplete =

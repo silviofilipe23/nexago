@@ -42,7 +42,7 @@ class _ArenaMercadoPagoConnectCardState extends ConsumerState<ArenaMercadoPagoCo
       );
     } catch (e) {
       if (!mounted) return;
-      showAppSnackBar(context, 'Erro: $e', isError: true);
+      showAppErrorSnackBar(context, e);
     } finally {
       if (mounted) setState(() => _opening = false);
     }

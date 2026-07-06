@@ -10,7 +10,7 @@ import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../data/partner_search_service.dart';
 import '../../../data/recent_partners_repository.dart';
-import '../../../domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../../../domain/partner_search_logic.dart';
 import '../../../domain/tournament_discovery_models.dart';
 import '../../../domain/tournament_registration_logic.dart';

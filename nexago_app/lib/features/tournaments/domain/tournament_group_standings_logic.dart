@@ -365,35 +365,88 @@ String poolLabelForId(String poolId) {
   return 'Grupo $trimmed';
 }
 
+bool isResolvedTeamDisplayName(String teamId, String candidate) {
+  final id = teamId.trim();
+  final name = candidate.trim();
+  return id.isNotEmpty && name.isNotEmpty && name != id;
+}
+
+Map<String, String> teamDisplayNamesByIdFromCards(
+  Map<String, TournamentMatchCardViewModel> cardsById,
+) {
+  final names = <String, String>{};
+
+  void put(String teamId, String? candidate) {
+    final id = teamId.trim();
+    final name = candidate?.trim() ?? '';
+    if (!isResolvedTeamDisplayName(id, name)) return;
+    final existing = names[id];
+    if (existing == null || !isResolvedTeamDisplayName(id, existing)) {
+      names[id] = name;
+    }
+  }
+
+  for (final card in cardsById.values) {
+    final match = card.match;
+    put(match.teamAId, card.teamA.displayName);
+    put(match.teamBId, card.teamB.displayName);
+    put(match.teamAId, match.teamADescription);
+    put(match.teamBId, match.teamBDescription);
+  }
+
+  return names;
+}
+
+Map<String, String> mergeTeamDisplayNameMaps(
+  Map<String, String> primary,
+  Map<String, String> secondary,
+) {
+  if (secondary.isEmpty) return primary;
+  final merged = Map<String, String>.from(primary);
+  for (final entry in secondary.entries) {
+    if (isResolvedTeamDisplayName(entry.key, entry.value) &&
+        !isResolvedTeamDisplayName(entry.key, merged[entry.key] ?? '')) {
+      merged[entry.key] = entry.value;
+    }
+  }
+  return merged;
+}
+
 String teamDisplayNameFromCards({
   required String teamId,
   required List<TournamentMatch> poolMatches,
   required Map<String, TournamentMatchCardViewModel> cardsById,
+  Map<String, String>? teamNamesById,
 }) {
   final id = teamId.trim();
   if (id.isEmpty) return '';
 
-  for (final match in poolMatches) {
-    final card = cardsById[match.id];
-    if (card == null) continue;
+  final resolvedNames = teamNamesById ?? teamDisplayNamesByIdFromCards(cardsById);
+  final cached = resolvedNames[id];
+  if (cached != null && isResolvedTeamDisplayName(id, cached)) {
+    return cached;
+  }
+
+  for (final card in cardsById.values) {
+    final match = card.match;
     if (match.teamAId.trim() == id) {
       final name = card.teamA.displayName.trim();
-      if (name.isNotEmpty) return name;
+      if (isResolvedTeamDisplayName(id, name)) return name;
     }
     if (match.teamBId.trim() == id) {
       final name = card.teamB.displayName.trim();
-      if (name.isNotEmpty) return name;
+      if (isResolvedTeamDisplayName(id, name)) return name;
     }
   }
 
   for (final match in poolMatches) {
     if (match.teamAId.trim() == id) {
       final desc = match.teamADescription?.trim();
-      if (desc != null && desc.isNotEmpty) return desc;
+      if (desc != null && isResolvedTeamDisplayName(id, desc)) return desc;
     }
     if (match.teamBId.trim() == id) {
       final desc = match.teamBDescription?.trim();
-      if (desc != null && desc.isNotEmpty) return desc;
+      if (desc != null && isResolvedTeamDisplayName(id, desc)) return desc;
     }
   }
 
@@ -405,9 +458,14 @@ List<TournamentPoolStandingsGroup> buildPoolStandingsGroups({
   required Map<String, TournamentMatchCardViewModel> cardsById,
   required int qualifiersPerGroup,
   required Set<String> athleteTeamIds,
+  Map<String, String> resolvedTeamNamesById = const {},
 }) {
   if (poolMatches.isEmpty) return const [];
 
+  final teamNamesById = mergeTeamDisplayNameMaps(
+    teamDisplayNamesByIdFromCards(cardsById),
+    resolvedTeamNamesById,
+  );
   final poolGroups = groupMatchesByPool(poolMatches);
   final safeQualifiers = qualifiersPerGroup < 1 ? 2 : qualifiersPerGroup;
 
@@ -439,6 +497,7 @@ List<TournamentPoolStandingsGroup> buildPoolStandingsGroups({
             teamId: teamId,
             poolMatches: group.matches,
             cardsById: cardsById,
+            teamNamesById: teamNamesById,
           ),
           wins: stats.wins,
           losses: stats.losses,

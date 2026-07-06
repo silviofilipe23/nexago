@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_uniforms/tournament_uniforms_logic.dart';
 import 'package:nexago_app/features/organizer/domain/tournament_uniforms/tournament_uniforms_models.dart';
 import 'package:nexago_app/features/tournaments/data/tournament_inscriptions_repository.dart';
-import 'package:nexago_app/features/tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 
 OrganizerInscriptionWithTeam _inscription({
   required String registrationId,

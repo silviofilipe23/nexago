@@ -22,7 +22,6 @@ import '../domain/athlete_profile.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/favorites_providers.dart';
-import '../domain/gamification_providers.dart';
 import 'favorite_success_page.dart';
 import 'widgets/arena_search/arena_search_arena_card.dart';
 import 'widgets/arena_search/arena_search_bar.dart';
@@ -250,13 +249,9 @@ class _ArenaListPageState extends ConsumerState<ArenaListPage> {
         _favoriteOverrides.remove(arenaId);
       });
       if (next) {
-        await ref
-            .read(gamificationServiceProvider)
-            .onArenaFavorited(userId: userId, arenaId: arenaId);
-        if (!mounted) return;
         await FavoriteSuccessPage.show(context);
       }
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _favoritePendingArenaIds.remove(arenaId);

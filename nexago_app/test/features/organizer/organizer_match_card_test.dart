@@ -51,7 +51,7 @@ void main() {
 
     await tester.pumpWidget(wrap(OrganizerMatchCard(row: row(match))));
     expect(find.text('AO VIVO'), findsOneWidget);
-    expect(find.textContaining('JOGO #1'), findsOneWidget);
+    expect(find.textContaining('#1'), findsOneWidget);
     expect(find.text('Marcos / Victor'), findsOneWidget);
     expect(find.text('Igor / João'), findsOneWidget);
     expect(find.text('18'), findsWidgets);
@@ -61,7 +61,7 @@ void main() {
     expect(find.text('24:10'), findsOneWidget);
   });
 
-  testWidgets('scheduled card shows AGENDADA and queue hint', (tester) async {
+  testWidgets('scheduled card shows AGENDADA and schedule time', (tester) async {
     final match = TournamentMatch(
       id: 'm2',
       tournamentId: 't1',
@@ -85,9 +85,8 @@ void main() {
 
     await tester.pumpWidget(wrap(OrganizerMatchCard(row: row(match))));
     expect(find.text('AGENDADA'), findsOneWidget);
-    expect(find.text('Após Q1 atual'), findsOneWidget);
     expect(find.text('09:50'), findsOneWidget);
-    expect(find.textContaining('JOGO #2'), findsOneWidget);
+    expect(find.textContaining('#2'), findsOneWidget);
     expect(find.text('André / Gabriel'), findsOneWidget);
     expect(find.text('Felipe / Mateus'), findsOneWidget);
   });
@@ -143,7 +142,7 @@ void main() {
 
     await tester.pumpWidget(wrap(OrganizerMatchCard(row: row(match))));
     expect(find.text('ENCERRADA'), findsOneWidget);
-    expect(find.textContaining('JOGO #8'), findsOneWidget);
+    expect(find.textContaining('#8'), findsOneWidget);
     expect(find.text('Igor / João'), findsOneWidget);
     expect(find.text('Bruno / Caio'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);

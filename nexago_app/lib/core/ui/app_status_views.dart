@@ -198,3 +198,60 @@ class AppErrorView extends StatelessWidget {
     );
   }
 }
+
+/// Erro inline para branches `error:` de providers — mensagem amigável com o
+/// detalhe técnico discreto (ajuda suporte sem assustar o usuário). Use
+/// [AppErrorView] quando houver ação de retry disponível.
+class AppInlineErrorView extends StatelessWidget {
+  const AppInlineErrorView({
+    super.key,
+    this.message = 'Não foi possível carregar.',
+    this.error,
+  });
+
+  final String message;
+  final Object? error;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final detail =
+        error?.toString().replaceFirst('Exception: ', '').trim() ?? '';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off_rounded,
+              size: 40,
+              color: context.themeColors.onSurfaceMuted,
+            ),
+            SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: context.themeColors.onSurface,
+              ),
+            ),
+            if (detail.isNotEmpty) ...[
+              SizedBox(height: 6),
+              Text(
+                detail,
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: context.themeColors.onSurfaceMuted,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

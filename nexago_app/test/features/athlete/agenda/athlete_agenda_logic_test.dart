@@ -379,6 +379,14 @@ void main() {
       expect(parts.suffix, contains('num raio de 5 km'));
     });
 
+    test('formatAgendaEmptyHeroDescription uses singular for one arena', () {
+      final parts = formatAgendaEmptyHeroDescription(1, '');
+      expect(parts.suffix, ' arena livre hoje.');
+      final withPhrase =
+          formatAgendaEmptyHeroDescription(1, 'num raio de 5 km');
+      expect(withPhrase.suffix, ' arena livre num raio de 5 km.');
+    });
+
     test('countDropInsNeedingPlayers counts items with spots needed', () {
       expect(countDropInsNeedingPlayers(mockAgendaDropIns()), 3);
     });

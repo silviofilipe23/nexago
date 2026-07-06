@@ -3,7 +3,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:nexago_app/features/athlete/domain/match_history/athlete_match_detail_mapper.dart';
 import 'package:nexago_app/features/athlete/domain/match_history/athlete_match_detail_models.dart';
 import 'package:nexago_app/features/athlete/domain/match_history/athlete_match_history_models.dart';
-import 'package:nexago_app/features/tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_set.dart';
 import 'package:nexago_app/features/tournaments/domain/tournament_match_status.dart';

@@ -170,7 +170,7 @@ class _OrganizerMatchValidatePageState
       );
     } catch (e) {
       if (mounted) {
-        showAppSnackBar(context, 'Erro: $e');
+        showAppErrorSnackBar(context, e);
       }
     } finally {
       if (mounted) setState(() => _validating = false);

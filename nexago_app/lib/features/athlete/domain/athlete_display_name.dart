@@ -1,4 +1,4 @@
-import '../../tournaments/domain/app_user_profile.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'athlete_profile.dart';
 
 /// Nome exibido do atleta: apelido → nome completo → fallback.

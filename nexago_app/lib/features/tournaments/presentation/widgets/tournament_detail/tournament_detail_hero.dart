@@ -24,7 +24,7 @@ class TournamentDetailHero extends StatelessWidget {
   final Widget toolbar;
 
   static const _horizontalMargin = 20.0;
-  static const _coverContentHeight = 210.0;
+  static const _coverContentHeight = 248.0;
 
   @override
   Widget build(BuildContext context) {
@@ -69,68 +69,73 @@ class TournamentDetailHero extends StatelessWidget {
                   SizedBox(height: topInset),
                   toolbar,
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        _horizontalMargin,
-                        8,
-                        _horizontalMargin,
-                        16,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              _StatusBadge(label: statusLabel),
-                              if (stageLabel.isNotEmpty)
-                                _StageBadge(
-                                  label: stageLabel,
-                                  onCover: hasCover,
-                                ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            tournament.name,
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w900,
-                                  color: hasCover
-                                      ? onCover
-                                      : context.themeColors.onSurface,
-                                  letterSpacing: -0.5,
-                                  height: 1.15,
-                                ),
-                          ),
-                          const SizedBox(height: 10),
-                          _MetaRow(
-                            icon: Icons.location_on_outlined,
-                            label: locationText,
-                            iconColor: hasCover
-                                ? onCoverMuted
-                                : context.themeColors.onSurfaceMuted,
-                            textColor: hasCover
-                                ? onCover.withValues(alpha: 0.9)
-                                : context.themeColors.onSurface.withValues(
-                                    alpha: 0.88,
+                    child: ClipRect(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          _horizontalMargin,
+                          8,
+                          _horizontalMargin,
+                          12,
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _StatusBadge(label: statusLabel),
+                                if (stageLabel.isNotEmpty)
+                                  _StageBadge(
+                                    label: stageLabel,
+                                    onCover: hasCover,
                                   ),
-                          ),
-                          const SizedBox(height: 6),
-                          _MetaRow(
-                            icon: Icons.calendar_today_outlined,
-                            label: dateLabel,
-                            iconColor: hasCover
-                                ? onCoverMuted
-                                : context.themeColors.onSurfaceMuted,
-                            textColor: hasCover
-                                ? onCover.withValues(alpha: 0.9)
-                                : context.themeColors.onSurface.withValues(
-                                    alpha: 0.88,
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              tournament.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.headlineSmall
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: hasCover
+                                        ? onCover
+                                        : context.themeColors.onSurface,
+                                    letterSpacing: -0.5,
+                                    height: 1.15,
                                   ),
-                          ),
-                        ],
+                            ),
+                            const SizedBox(height: 8),
+                            _MetaRow(
+                              icon: Icons.location_on_outlined,
+                              label: locationText,
+                              iconColor: hasCover
+                                  ? onCoverMuted
+                                  : context.themeColors.onSurfaceMuted,
+                              textColor: hasCover
+                                  ? onCover.withValues(alpha: 0.9)
+                                  : context.themeColors.onSurface.withValues(
+                                      alpha: 0.88,
+                                    ),
+                            ),
+                            const SizedBox(height: 4),
+                            _MetaRow(
+                              icon: Icons.calendar_today_outlined,
+                              label: dateLabel,
+                              iconColor: hasCover
+                                  ? onCoverMuted
+                                  : context.themeColors.onSurfaceMuted,
+                              textColor: hasCover
+                                  ? onCover.withValues(alpha: 0.9)
+                                  : context.themeColors.onSurface.withValues(
+                                      alpha: 0.88,
+                                    ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -323,6 +328,8 @@ class _MetaRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: AppTypography.soraRegular(
               fontSize: 13,
               fontWeight: FontWeight.w500,

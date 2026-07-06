@@ -4,11 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/auth/user_roles.dart';
-import '../../../core/search/search_keywords.dart';
-import '../../arenas/domain/arenas_providers.dart';
-import '../domain/app_user_profile.dart';
-import '../domain/partner_search_logic.dart';
+import '../auth/user_roles.dart';
+import '../search/search_keywords.dart';
+import '../firebase/firebase_providers.dart';
+import 'app_user_profile.dart';
+import 'app_user_profile.dart' show isPartnerListableProfile, sortPartnersForDisplay;
 
 class UsersRepositoryException implements Exception {
   UsersRepositoryException(this.message);
@@ -23,14 +23,51 @@ class UsersRepository {
 
   final FirebaseFirestore _firestore;
 
+  /// Escritas e fluxos de pré-cadastro (convite por email) usam `users`.
   CollectionReference<Map<String, dynamic>> get _users =>
       _firestore.collection('users');
 
+  /// Leituras de DIRETÓRIO (busca, listagem, exibição de terceiros) usam o
+  /// espelho sem PII `public_profiles`, mantido por Cloud Function — `users`
+  /// será restrito ao dono/admin após o rollout.
+  CollectionReference<Map<String, dynamic>> get _publicProfiles =>
+      _firestore.collection('public_profiles');
+
   Future<AppUserProfile?> getUserById(String uid) async {
     if (uid.trim().isEmpty) return null;
-    final snap = await _users.doc(uid).get();
+    final snap = await _publicProfiles.doc(uid).get();
     if (!snap.exists) return null;
     return AppUserProfile.fromFirestore(snap);
+  }
+
+  /// Busca perfis em lote (`documentId whereIn` em chunks de 10, paralelo) —
+  /// evita N round-trips sequenciais em listas grandes (ranking, equipes).
+  Future<Map<String, AppUserProfile>> getUsersByIds(
+    Iterable<String> uids,
+  ) async {
+    final unique = uids
+        .map((u) => u.trim())
+        .where((u) => u.isNotEmpty)
+        .toSet()
+        .toList();
+    if (unique.isEmpty) return {};
+
+    const chunkSize = 10;
+    final futures = <Future<QuerySnapshot<Map<String, dynamic>>>>[];
+    for (var i = 0; i < unique.length; i += chunkSize) {
+      final chunk = unique.sublist(i, min(i + chunkSize, unique.length));
+      futures.add(
+        _publicProfiles.where(FieldPath.documentId, whereIn: chunk).get(),
+      );
+    }
+
+    final result = <String, AppUserProfile>{};
+    for (final snap in await Future.wait(futures)) {
+      for (final doc in snap.docs) {
+        result[doc.id] = AppUserProfile.fromFirestore(doc);
+      }
+    }
+    return result;
   }
 
   /// Busca atletas por prefixo de palavra (`keywords` + `hasAthleteRole`).
@@ -42,7 +79,7 @@ class UsersRepository {
     if (!isSearchTermLongEnough(term)) return [];
 
     try {
-      final snap = await _users
+      final snap = await _publicProfiles
           .where('hasAthleteRole', isEqualTo: true)
           .where('keywords', arrayContains: token)
           .limit(max)
@@ -73,7 +110,7 @@ class UsersRepository {
     if (!isSearchTermLongEnough(term)) return [];
 
     try {
-      final snap = await _users
+      final snap = await _publicProfiles
           .where('hasOrganizerRole', isEqualTo: true)
           .where('keywords', arrayContains: token)
           .limit(max)
@@ -145,18 +182,18 @@ class UsersRepository {
       for (final prefix in nicknameSearchPrefixes(t)) {
         if (useMultiRoleAthleteFilter) {
           await mergeAthleteRoleQueries(
-            legacyRoleQuery: _users
+            legacyRoleQuery: _publicProfiles
                 .where('role', isEqualTo: kAthleteAppRole)
                 .where('nickname', isGreaterThanOrEqualTo: prefix)
                 .where('nickname', isLessThan: '$prefix\uf8ff'),
-            rolesArrayQuery: _users
+            rolesArrayQuery: _publicProfiles
                 .where('roles', arrayContains: kAthleteAppRole)
                 .where('nickname', isGreaterThanOrEqualTo: prefix)
                 .where('nickname', isLessThan: '$prefix\uf8ff'),
           );
         } else {
           await mergeQuery(
-            _users
+            _publicProfiles
                 .where('role', isEqualTo: roleFilter)
                 .where('nickname', isGreaterThanOrEqualTo: prefix)
                 .where('nickname', isLessThan: '$prefix\uf8ff'),
@@ -166,24 +203,27 @@ class UsersRepository {
 
       if (useMultiRoleAthleteFilter) {
         await mergeAthleteRoleQueries(
-          legacyRoleQuery: _users
+          legacyRoleQuery: _publicProfiles
               .where('role', isEqualTo: kAthleteAppRole)
               .where('fullName', isGreaterThanOrEqualTo: t)
               .where('fullName', isLessThan: '$t\uf8ff'),
-          rolesArrayQuery: _users
+          rolesArrayQuery: _publicProfiles
               .where('roles', arrayContains: kAthleteAppRole)
               .where('fullName', isGreaterThanOrEqualTo: t)
               .where('fullName', isLessThan: '$t\uf8ff'),
         );
       } else {
         await mergeQuery(
-          _users
+          _publicProfiles
               .where('role', isEqualTo: roleFilter)
               .where('fullName', isGreaterThanOrEqualTo: t)
               .where('fullName', isLessThan: '$t\uf8ff'),
         );
       }
 
+      // Busca por email fica em `users` (o espelho nao tem email - PII).
+      // Apos o aperto das rules este caminho vira no-op para nao-admins e a
+      // busca por email devera migrar para uma Cloud Function.
       final emailTerm = t.toLowerCase();
       if (useMultiRoleAthleteFilter) {
         await mergeAthleteRoleQueries(
@@ -241,7 +281,7 @@ class UsersRepository {
     final byUid = <String, AppUserProfile>{};
 
     await _paginateProfiles(
-      query: _users.where('hasAthleteRole', isEqualTo: true),
+      query: _publicProfiles.where('hasAthleteRole', isEqualTo: true),
       byUid: byUid,
       pageSize: pageSize,
       debugLabel: 'hasAthleteRole',
@@ -250,14 +290,14 @@ class UsersRepository {
 
     if (byUid.isEmpty) {
       await _paginateProfiles(
-        query: _users.where('roles', arrayContains: kAthleteAppRole),
+        query: _publicProfiles.where('roles', arrayContains: kAthleteAppRole),
         byUid: byUid,
         pageSize: pageSize,
         debugLabel: 'roles[] athlete',
         maxResults: maxResults,
       );
       await _paginateProfiles(
-        query: _users.where('role', isEqualTo: kAthleteAppRole),
+        query: _publicProfiles.where('role', isEqualTo: kAthleteAppRole),
         byUid: byUid,
         pageSize: pageSize,
         debugLabel: 'role athlete',
@@ -363,7 +403,12 @@ class UsersRepository {
       'invitedAt': FieldValue.serverTimestamp(),
     });
 
-    final created = await getUserById(uid);
+    // Leitura direta em `users`: o espelho public_profiles é assíncrono
+    // (trigger) e ainda não existe logo após o set; o convidador pode ler o
+    // doc pendente pelas rules (invitedByUid == auth.uid).
+    final createdSnap = await _users.doc(uid).get();
+    final created =
+        createdSnap.exists ? AppUserProfile.fromFirestore(createdSnap) : null;
     if (created == null) {
       throw UsersRepositoryException(
         'Não foi possível criar o perfil do parceiro.',

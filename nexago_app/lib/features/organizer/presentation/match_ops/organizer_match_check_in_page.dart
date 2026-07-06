@@ -335,7 +335,7 @@ class _OrganizerMatchCheckInPageState
       });
       if (mounted) showAppSnackBar(context, 'Check-in atualizado.');
     } catch (e) {
-      if (mounted) showAppSnackBar(context, 'Erro: $e');
+      if (mounted) showAppErrorSnackBar(context, e);
     } finally {
       if (mounted) setState(() => _updatingTeam = null);
     }
@@ -357,7 +357,7 @@ class _OrganizerMatchCheckInPageState
       });
       if (mounted) showAppSnackBar(context, 'Check-in desfeito.');
     } catch (e) {
-      if (mounted) showAppSnackBar(context, 'Erro: $e');
+      if (mounted) showAppErrorSnackBar(context, e);
     } finally {
       if (mounted) setState(() => _updatingTeam = null);
     }
@@ -379,7 +379,7 @@ class _OrganizerMatchCheckInPageState
           );
       if (mounted) showAppSnackBar(context, 'W.O. declarado.');
     } catch (e) {
-      if (mounted) showAppSnackBar(context, 'Erro: $e');
+      if (mounted) showAppErrorSnackBar(context, e);
     } finally {
       if (mounted) setState(() => _updatingTeam = null);
     }
@@ -401,7 +401,7 @@ class _OrganizerMatchCheckInPageState
         context.pop();
       }
     } catch (e) {
-      if (mounted) showAppSnackBar(context, 'Erro: $e');
+      if (mounted) showAppErrorSnackBar(context, e);
     } finally {
       if (mounted) setState(() => _releasingMatch = false);
     }

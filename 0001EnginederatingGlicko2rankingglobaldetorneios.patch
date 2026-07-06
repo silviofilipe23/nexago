@@ -1,0 +1,5063 @@
+From 74911e1b1e7689e5c93eb6570b359168f4fe4078 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 6 Jul 2026 12:01:50 +0000
+Subject: [PATCH] =?UTF-8?q?Engine=20de=20rating=20Glicko-2,=20ranking=20gl?=
+ =?UTF-8?q?obal=20de=20torneios=20e=20escada=20de=205=20n=C3=ADveis=20do?=
+ =?UTF-8?q?=20v=C3=B4lei?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Backend (Cloud Functions):
+- glicko.ts: Glicko-2 puro (known-answer do paper do Glickman nos testes)
+- rating-config.ts: ratingLadders/{sportCode} com defaults e flags de rollout
+  (shadowMode, notificações, auto-promoção/rebaixamento, kill switch)
+- rating-engine.ts: rating por partida com ledger append-only ratingEvents
+  (idempotente por doc id; correção de resultado = supersede + replay);
+  W.O. não pontua rating; dupla via jogador composto
+- rating-ladder.ts: state machine de promoção/rebaixamento (histerese,
+  janela de observação de 90d, proteção pós-promoção, piso da escada,
+  inatividade nunca rebaixa — só infla RD)
+- rating-triggers.ts: triggers de match/user, scheduler diário 06:00
+  America/Sao_Paulo e callables admin (recompute, backfill, migração)
+- tournament-ranking.ts: points writer global incondicional a leagueId
+  preenchendo tournamentCategoryResults/athleteRankings/teamRankings
+  (tabela 100/80/60/50/33/10, best-5 por ano, rankingWeight)
+- category-level-eligibility.ts: ranks unificados da escada de 5 níveis do
+  vôlei (Iniciante 1/2, Intermediário 1/2, Open; legados por aliasing)
+- league-ranking.ts: 4 helpers privados exportados (zero mudança de
+  comportamento)
+
+Rules/índices: blocos ratingLadders/athleteRatings/ratingEvents/levelHistory,
+athleteLevelRank() com os códigos novos, 6 índices compostos.
+
+Flutter:
+- Escada de 5 níveis do vôlei no onboarding, na página Esportes e níveis e
+  nos editores de categoria do organizador (torneio e liga); demais esportes
+  seguem com 3 níveis
+- athlete_rating (model/repositório/provider) + AthleteLevelZoneCard (zona de
+  acesso/reclassificação/consolidação) embutido na página de níveis
+- Ranks unificados no espelho Dart da elegibilidade; filtro de nível do
+  Descobrir casando por bucket legado; roteamento das notificações da escada
+
+Reconstrói módulos ausentes do snapshot (functions/src/firebase-paths.ts,
+lib/core/firebase/firebase_providers.dart) a partir dos usos existentes.
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_016XPVTRgj7NuEXWiAEpZQdL
+---
+ firestore.indexes.json                        |  88 +++
+ firestore.rules                               |  42 +-
+ functions/src/category-display-labels.ts      |   8 +-
+ .../src/category-level-eligibility.test.ts    |  65 +-
+ functions/src/category-level-eligibility.ts   |  74 ++-
+ functions/src/fake-firestore.test-helper.ts   | 151 +++++
+ functions/src/firebase-paths.ts               |  31 +
+ functions/src/glicko.test.ts                  |  96 +++
+ functions/src/glicko.ts                       | 191 ++++++
+ functions/src/index.ts                        |  11 +
+ functions/src/league-ranking.ts               |   8 +-
+ functions/src/rating-config.ts                | 270 +++++++++
+ functions/src/rating-engine.test.ts           | 256 ++++++++
+ functions/src/rating-engine.ts                | 557 ++++++++++++++++++
+ functions/src/rating-ladder.test.ts           | 371 ++++++++++++
+ functions/src/rating-ladder.ts                | 466 +++++++++++++++
+ functions/src/rating-triggers.ts              | 465 +++++++++++++++
+ functions/src/tournament-ranking.test.ts      | 200 +++++++
+ functions/src/tournament-ranking.ts           | 367 ++++++++++++
+ .../lib/core/firebase/firebase_providers.dart |   7 +
+ .../notification_navigation.dart              |   9 +
+ .../data/athlete_rating_repository.dart       |  55 ++
+ .../domain/athlete_discover_logic.dart        |   9 +-
+ .../domain/athlete_firestore_codes.dart       |   9 +
+ .../domain/athlete_profile_options.dart       |  93 ++-
+ .../athlete/domain/athlete_rating.dart        |  76 +++
+ .../domain/athlete_sports_levels_labels.dart  |  25 +-
+ .../domain/athlete_onboarding_options.dart    |  35 ++
+ .../steps/athlete_onboarding_level_step.dart  |   4 +-
+ .../athlete_sports_levels_page.dart           |  36 +-
+ .../widgets/athlete_level_zone_card.dart      | 101 ++++
+ .../athlete_sport_level_card.dart             |  45 +-
+ .../organizer/data/league_create_mapper.dart  |  17 +-
+ .../data/tournament_create_mapper.dart        |   8 +
+ .../tournament_create_draft.dart              |  14 +-
+ .../tournament_create_logic.dart              |  25 +
+ .../sheets/league_category_editor_sheet.dart  |   5 +-
+ .../tournament_category_editor_sheet.dart     |   5 +-
+ .../data/nexago_artifacts_paths.dart          |   3 +
+ .../domain/category_level_eligibility.dart    |  10 +-
+ .../category_level_eligibility_test.dart      |  41 +-
+ 41 files changed, 4231 insertions(+), 118 deletions(-)
+ create mode 100644 functions/src/fake-firestore.test-helper.ts
+ create mode 100644 functions/src/firebase-paths.ts
+ create mode 100644 functions/src/glicko.test.ts
+ create mode 100644 functions/src/glicko.ts
+ create mode 100644 functions/src/rating-config.ts
+ create mode 100644 functions/src/rating-engine.test.ts
+ create mode 100644 functions/src/rating-engine.ts
+ create mode 100644 functions/src/rating-ladder.test.ts
+ create mode 100644 functions/src/rating-ladder.ts
+ create mode 100644 functions/src/rating-triggers.ts
+ create mode 100644 functions/src/tournament-ranking.test.ts
+ create mode 100644 functions/src/tournament-ranking.ts
+ create mode 100644 nexago_app/lib/core/firebase/firebase_providers.dart
+ create mode 100644 nexago_app/lib/features/athlete/data/athlete_rating_repository.dart
+ create mode 100644 nexago_app/lib/features/athlete/domain/athlete_rating.dart
+ create mode 100644 nexago_app/lib/features/athlete/presentation/widgets/athlete_level_zone_card.dart
+
+diff --git a/firestore.indexes.json b/firestore.indexes.json
+index a2dce8b..a7165d5 100644
+--- a/firestore.indexes.json
++++ b/firestore.indexes.json
+@@ -1057,6 +1057,94 @@
+         }
+       ],
+       "density": "SPARSE_ALL"
++    },
++    {
++      "collectionGroup": "ratingEvents",
++      "queryScope": "COLLECTION",
++      "fields": [
++        {
++          "fieldPath": "athleteIds",
++          "arrayConfig": "CONTAINS"
++        },
++        {
++          "fieldPath": "sportCode",
++          "order": "ASCENDING"
++        },
++        {
++          "fieldPath": "endedAt",
++          "order": "ASCENDING"
++        }
++      ]
++    },
++    {
++      "collectionGroup": "ratingEvents",
++      "queryScope": "COLLECTION",
++      "fields": [
++        {
++          "fieldPath": "sportCode",
++          "order": "ASCENDING"
++        },
++        {
++          "fieldPath": "endedAt",
++          "order": "ASCENDING"
++        }
++      ]
++    },
++    {
++      "collectionGroup": "athleteRatings",
++      "queryScope": "COLLECTION",
++      "fields": [
++        {
++          "fieldPath": "sportCode",
++          "order": "ASCENDING"
++        },
++        {
++          "fieldPath": "rating",
++          "order": "DESCENDING"
++        }
++      ]
++    },
++    {
++      "collectionGroup": "athleteRatings",
++      "queryScope": "COLLECTION",
++      "fields": [
++        {
++          "fieldPath": "ladderState",
++          "order": "ASCENDING"
++        },
++        {
++          "fieldPath": "observationStartedAt",
++          "order": "ASCENDING"
++        }
++      ]
++    },
++    {
++      "collectionGroup": "matches",
++      "queryScope": "COLLECTION",
++      "fields": [
++        {
++          "fieldPath": "status",
++          "order": "ASCENDING"
++        },
++        {
++          "fieldPath": "matchEndedAt",
++          "order": "ASCENDING"
++        }
++      ]
++    },
++    {
++      "collectionGroup": "tournamentCategoryResults",
++      "queryScope": "COLLECTION",
++      "fields": [
++        {
++          "fieldPath": "teamId",
++          "order": "ASCENDING"
++        },
++        {
++          "fieldPath": "year",
++          "order": "ASCENDING"
++        }
++      ]
+     }
+   ],
+   "fieldOverrides": []
+diff --git a/firestore.rules b/firestore.rules
+index 8711fe4..9f1cf12 100644
+--- a/firestore.rules
++++ b/firestore.rules
+@@ -311,10 +311,16 @@ service cloud.firestore {
+     // (suporte). Primeira definição é livre (campo ausente/valor
+     // desconhecido → rank -1); sobrescrever nível conhecido por valor
+     // inválido é bloqueado.
++    // Ranks unificados da escada de 5 níveis do vôlei (Iniciante 1/2,
++    // Intermediário 1/2, Open no rank 5 — ranks 1 e 4 reservados para a
++    // escada D/C/B/A do beach tennis no futuro). Legados se comportam como o
++    // degrau inferior do split (iniciante→0, intermediario→2).
+     function athleteLevelRank(value) {
+-      return value in ['iniciante', 'Iniciante', 'basico', 'básico', 'Básico'] ? 0
+-        : (value in ['intermediario', 'Intermediário'] ? 1
+-        : (value in ['open', 'Open', 'livre', 'Livre', 'Open / federado'] ? 2 : -1));
++      return value in ['iniciante', 'Iniciante', 'basico', 'básico', 'Básico', 'iniciante_1', 'Iniciante 1'] ? 0
++        : (value in ['iniciante_2', 'Iniciante 2'] ? 1
++        : (value in ['intermediario', 'Intermediário', 'intermediario_1', 'Intermediário 1'] ? 2
++        : (value in ['intermediario_2', 'Intermediário 2'] ? 3
++        : (value in ['open', 'Open', 'livre', 'Livre', 'Open / federado'] ? 5 : -1))));
+     }
+     function levelsBySportOf(data) {
+       return data.get('sportOnboarding', {}).get('levelsBySport', {});
+@@ -1577,6 +1583,36 @@ service cloud.firestore {
+       allow create, update, delete: if request.auth != null && isAdmin();
+     }
+ 
++    // ── Engine de rating (Glicko-2) e escada de níveis ───────────────────
++    // Config da escada por esporte (bandas, flags de rollout). Escrita só
++    // pelo backoffice/admin; a engine lê via Admin SDK.
++    match /ratingLadders/{sportCode} {
++      allow read: if request.auth != null;
++      allow write: if request.auth != null && isAdmin();
++    }
++
++    // Estado derivado de rating por atleta+esporte. Leitura pública (perfil/
++    // zone card); escrita exclusiva da engine (Admin SDK bypassa rules).
++    match /artifacts/{appId}/public/data/athleteRatings/{ratingId} {
++      allow read: if true;
++      allow write: if request.auth != null && isAdmin();
++    }
++
++    // Ledger append-only de eventos de rating (auditoria/replay). Escrita
++    // exclusiva da engine.
++    match /artifacts/{appId}/public/data/ratingEvents/{eventId} {
++      allow read: if request.auth != null;
++      allow write: if request.auth != null && isAdmin();
++    }
++
++    // Auditoria de mudanças de nível (promoção/rebaixamento/self-upgrade/
++    // migração). O atleta lê o próprio histórico; escrita só pela engine.
++    match /users/{userId}/levelHistory/{entryId} {
++      allow read: if request.auth != null &&
++        (request.auth.uid == userId || isAdmin());
++      allow write: if request.auth != null && isAdmin();
++    }
++
+     // Ranking agregado por liga/categoria (equipes) - leitura pública
+     match /artifacts/{appId}/public/data/leagueTeamRankings/{entryId} {
+       allow read: if true;
+diff --git a/functions/src/category-display-labels.ts b/functions/src/category-display-labels.ts
+index 75e3269..c62f670 100644
+--- a/functions/src/category-display-labels.ts
++++ b/functions/src/category-display-labels.ts
+@@ -1,7 +1,4 @@
+-import {
+-  categoryLevelRank,
+-  levelLabelForRank,
+-} from "./category-level-eligibility";
++import {levelDisplayLabel} from "./category-level-eligibility";
+ 
+ /** Gênero da categoria em português (ex.: Masculino, Feminino, Misto). */
+ export function genderTypeDisplayLabel(raw: unknown): string | null {
+@@ -41,7 +38,8 @@ export function formatCategoryInviteNotificationLabel(
+ 
+   const rawLevel = category.level;
+   if (typeof rawLevel === "string" && rawLevel.trim()) {
+-    parts.push(levelLabelForRank(categoryLevelRank(category)));
++    // Preserva o label do nível da categoria (legado incluso), sem renumerar.
++    parts.push(levelDisplayLabel(rawLevel) ?? rawLevel.trim());
+   }
+ 
+   if (parts.length > 0) return parts.join(" ");
+diff --git a/functions/src/category-level-eligibility.test.ts b/functions/src/category-level-eligibility.test.ts
+index 3cd5f45..c949393 100644
+--- a/functions/src/category-level-eligibility.test.ts
++++ b/functions/src/category-level-eligibility.test.ts
+@@ -23,24 +23,37 @@ function mockDb(usersByUid: Record<string, Record<string, unknown> | null>) {
+ }
+ 
+ describe("category-level-eligibility · níveis", () => {
+-  it("rankeia códigos, labels e legados", () => {
++  it("rankeia códigos novos e labels (escada de 5 do vôlei)", () => {
++    assert.equal(levelRank("iniciante_1"), 0);
++    assert.equal(levelRank("Iniciante 1"), 0);
++    assert.equal(levelRank("iniciante_2"), 1);
++    assert.equal(levelRank("Iniciante 2"), 1);
++    assert.equal(levelRank("intermediario_1"), 2);
++    assert.equal(levelRank("Intermediário 1"), 2);
++    assert.equal(levelRank("intermediario_2"), 3);
++    assert.equal(levelRank("Intermediário 2"), 3);
++    assert.equal(levelRank("open"), 5);
++    assert.equal(levelRank("Open"), 5);
++  });
++
++  it("legados se comportam como o degrau inferior do split (aliasing)", () => {
+     assert.equal(levelRank("iniciante"), 0);
+     assert.equal(levelRank("Iniciante"), 0);
+-    assert.equal(levelRank("intermediario"), 1);
+-    assert.equal(levelRank("Intermediário"), 1);
+-    assert.equal(levelRank("open"), 2);
+-    assert.equal(levelRank("Open"), 2);
++    assert.equal(levelRank("intermediario"), 2);
++    assert.equal(levelRank("Intermediário"), 2);
+     assert.equal(levelRank("basico"), 0);
+     assert.equal(levelRank("Básico"), 0);
+-    assert.equal(levelRank("livre"), 2);
++    assert.equal(levelRank("livre"), 5);
+     assert.equal(levelRank(""), null);
+     assert.equal(levelRank("xpto"), null);
+     assert.equal(levelRank(undefined), null);
+   });
+ 
+   it("hierarquia é crescente", () => {
+-    assert.ok(levelRank("iniciante")! < levelRank("intermediario")!);
+-    assert.ok(levelRank("intermediario")! < levelRank("open")!);
++    assert.ok(levelRank("iniciante_1")! < levelRank("iniciante_2")!);
++    assert.ok(levelRank("iniciante_2")! < levelRank("intermediario_1")!);
++    assert.ok(levelRank("intermediario_1")! < levelRank("intermediario_2")!);
++    assert.ok(levelRank("intermediario_2")! < levelRank("open")!);
+   });
+ });
+ 
+@@ -62,7 +75,7 @@ describe("category-level-eligibility · resolução de nível do atleta", () =>
+       level: "iniciante",
+       sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "open"}},
+     };
+-    assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 2);
++    assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 5);
+   });
+ 
+   it("aceita o campo legado levelsBySportFirestore", () => {
+@@ -70,12 +83,20 @@ describe("category-level-eligibility · resolução de nível do atleta", () =>
+       level: "iniciante",
+       levelsBySportFirestore: {VOLEI_PRAIA: "open"},
+     };
+-    assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 2);
++    assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 5);
++  });
++
++  it("resolve códigos novos por esporte", () => {
++    const user = {
++      level: "iniciante",
++      sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "intermediario_2"}},
++    };
++    assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 3);
+   });
+ 
+   it("cai no nível global quando falta o por esporte", () => {
+     const user = {level: "intermediario", sportOnboarding: {levelsBySport: {}}};
+-    assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 1);
++    assert.equal(resolveAthleteLevelRank(user, "VOLEI_PRAIA"), 2);
+   });
+ 
+   it("sem nenhum nível → iniciante (permissivo)", () => {
+@@ -88,20 +109,30 @@ describe("category-level-eligibility · resolução de nível do atleta", () =>
+       level: "open",
+       sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "iniciante"}},
+     };
+-    assert.equal(resolveAthleteLevelRank(user, null), 2);
++    assert.equal(resolveAthleteLevelRank(user, null), 5);
+   });
+ });
+ 
+ describe("category-level-eligibility · nível da categoria", () => {
+-  it("lê o nível da categoria", () => {
++  it("lê o nível da categoria (labels novos e legados)", () => {
+     assert.equal(categoryLevelRank({level: "Iniciante"}), 0);
+-    assert.equal(categoryLevelRank({level: "Intermediário"}), 1);
+-    assert.equal(categoryLevelRank({level: "Open"}), 2);
++    assert.equal(categoryLevelRank({level: "Iniciante 2"}), 1);
++    assert.equal(categoryLevelRank({level: "Intermediário"}), 2);
++    assert.equal(categoryLevelRank({level: "Intermediário 2"}), 3);
++    assert.equal(categoryLevelRank({level: "Open"}), 5);
+   });
+ 
+   it("categoria sem nível → Open (aceita todos)", () => {
+-    assert.equal(categoryLevelRank({}), 2);
+-    assert.equal(categoryLevelRank(null), 2);
++    assert.equal(categoryLevelRank({}), 5);
++    assert.equal(categoryLevelRank(null), 5);
++  });
++
++  it("categoria legada aceita atleta do degrau superior do split", () => {
++    // Categoria antiga "Intermediário" (rank 2) NÃO comporta um atleta
++    // migrado para intermediario_2 (rank 3) — precisa subir de categoria.
++    assert.equal(isTeamEligible({categoryRank: 2, athleteRanks: [3]}), false);
++    // Mas comporta o intermediario_1 (rank 2) e abaixo.
++    assert.equal(isTeamEligible({categoryRank: 2, athleteRanks: [2, 0]}), true);
+   });
+ });
+ 
+diff --git a/functions/src/category-level-eligibility.ts b/functions/src/category-level-eligibility.ts
+index c0e4596..077a845 100644
+--- a/functions/src/category-level-eligibility.ts
++++ b/functions/src/category-level-eligibility.ts
+@@ -8,16 +8,40 @@ import {loadUserAccessData, type UserAccessData} from "./athlete-tournament-acce
+  * Regra: um atleta pode disputar a sua própria categoria ou categorias ACIMA do
+  * seu nível, nunca ABAIXO. Para duplas, vale o atleta de MAIOR nível.
+  *
+- * Hierarquia: iniciante (0) < intermediario (1) < open (2).
++ * Ranks unificados (vôlei com 5 degraus; `open` fica no rank 5 de propósito —
++ * os ranks 1 e 4 estão reservados para a escada D/C/B/A do beach tennis numa
++ * entrega futura, sem renumerar nada; comparações são sempre dentro do mesmo
++ * esporte, então os buracos não afetam nada):
++ *
++ *   iniciante_1 (0) < iniciante_2 (1) < intermediario_1 (2)
++ *     < intermediario_2 (3) < open (5)
++ *
++ * Legados (aliasing — docs não migrados se comportam como o degrau inferior
++ * do split): iniciante→0, intermediario→2, open→5.
++ *
++ * As chaves incluem código (`intermediario_1`) E label normalizado
++ * (`intermediario1`), porque `categories[].level` guarda o LABEL
++ * ("Intermediário 1") e `sportOnboarding.levelsBySport` guarda o CÓDIGO —
++ * [normalizeLevelKey] tira acento/espaço mas preserva underscore.
+  */
+ 
+ export const LEVEL_RANK: Record<string, number> = {
++  // Códigos novos (levelsBySport) e labels normalizados (categoria).
++  iniciante_1: 0,
++  iniciante1: 0,
++  iniciante_2: 1,
++  iniciante2: 1,
++  intermediario_1: 2,
++  intermediario1: 2,
++  intermediario_2: 3,
++  intermediario2: 3,
++  open: 5,
++  // Legados (escada de 3 níveis) — degrau inferior do split.
+   iniciante: 0,
+-  intermediario: 1,
+-  open: 2,
++  intermediario: 2,
+ };
+ 
+-const HIGHEST_RANK = 2;
++const HIGHEST_RANK = 5;
+ 
+ /** Normaliza acentos/caixa para casar códigos e labels do nível. */
+ function normalizeLevelKey(raw: unknown): string {
+@@ -44,13 +68,49 @@ export function levelRank(raw: unknown): number | null {
+   return null;
+ }
+ 
+-/** Label amigável (PT-BR) para um rank de nível. */
++/**
++ * Label canônico (PT-BR) de um código/label de nível, SEM renumerar legados:
++ * `intermediario` continua "Intermediário" (não vira "Intermediário 1").
++ * `null` quando desconhecido.
++ */
++export function levelDisplayLabel(raw: unknown): string | null {
++  switch (normalizeLevelKey(raw)) {
++    case "iniciante":
++    case "basico":
++      return "Iniciante";
++    case "intermediario":
++      return "Intermediário";
++    case "open":
++    case "livre":
++      return "Open";
++    case "iniciante_1":
++    case "iniciante1":
++      return "Iniciante 1";
++    case "iniciante_2":
++    case "iniciante2":
++      return "Iniciante 2";
++    case "intermediario_1":
++    case "intermediario1":
++      return "Intermediário 1";
++    case "intermediario_2":
++    case "intermediario2":
++      return "Intermediário 2";
++    default:
++      return null;
++  }
++}
++
++/** Label amigável (PT-BR) para um rank de nível (escada do vôlei). */
+ export function levelLabelForRank(rank: number): string {
+   switch (rank) {
+     case 0:
+-      return "Iniciante";
++      return "Iniciante 1";
+     case 1:
+-      return "Intermediário";
++      return "Iniciante 2";
++    case 2:
++      return "Intermediário 1";
++    case 3:
++      return "Intermediário 2";
+     default:
+       return "Open";
+   }
+diff --git a/functions/src/fake-firestore.test-helper.ts b/functions/src/fake-firestore.test-helper.ts
+new file mode 100644
+index 0000000..171a352
+--- /dev/null
++++ b/functions/src/fake-firestore.test-helper.ts
+@@ -0,0 +1,151 @@
++import {Timestamp} from "firebase-admin/firestore";
++
++/**
++ * Firestore fake em memória para testes de unidade — implementa apenas o que
++ * os módulos de rating/ranking usam: doc get/set (merge profundo), collection
++ * add/doc, queries `where` (igualdade e array-contains) + `orderBy` +
++ * `startAfter`/`limit`, e transações sequenciais.
++ *
++ * O sufixo `.test-helper.ts` fica fora do glob `lib/**​/*.test.js` do harness.
++ */
++
++export type DocData = Record<string, unknown>;
++
++function isPlainObject(value: unknown): value is DocData {
++  return (
++    value != null &&
++    typeof value === "object" &&
++    !Array.isArray(value) &&
++    Object.getPrototypeOf(value) === Object.prototype
++  );
++}
++
++export function mergeDeep(target: DocData, source: DocData): DocData {
++  const out: DocData = {...target};
++  for (const [key, value] of Object.entries(source)) {
++    if (isPlainObject(value) && isPlainObject(out[key])) {
++      out[key] = mergeDeep(out[key] as DocData, value);
++    } else {
++      out[key] = value;
++    }
++  }
++  return out;
++}
++
++function orderValue(raw: unknown): number | string {
++  if (raw instanceof Timestamp) return raw.toMillis();
++  if (typeof raw === "number") return raw;
++  return String(raw ?? "");
++}
++
++export class FakeFirestore {
++  store = new Map<string, DocData>();
++
++  seedDoc(path: string, data: DocData): void {
++    this.store.set(path, data);
++  }
++
++  doc(path: string) {
++    return this.makeRef(path);
++  }
++
++  private makeRef(path: string) {
++    const self = this;
++    return {
++      path,
++      id: path.split("/").pop() ?? "",
++      get: async () => self.snapshotOf(path),
++      set: async (data: DocData, opts?: {merge?: boolean}) => {
++        self.write(path, data, opts);
++      },
++      update: async (data: DocData) => {
++        if (!self.store.has(path)) throw new Error(`update em doc ausente: ${path}`);
++        self.write(path, data, {merge: true});
++      },
++    };
++  }
++
++  private snapshotOf(path: string) {
++    const data = this.store.get(path);
++    return {
++      exists: data != null,
++      id: path.split("/").pop() ?? "",
++      data: () => (data ? {...data} : undefined),
++      ref: this.makeRef(path),
++    };
++  }
++
++  private write(path: string, data: DocData, opts?: {merge?: boolean}): void {
++    const prev = this.store.get(path);
++    this.store.set(path, opts?.merge && prev ? mergeDeep(prev, data) : data);
++  }
++
++  collection(path: string) {
++    const self = this;
++    interface QuerySpec {
++      filters: Array<(doc: DocData) => boolean>;
++      orderField?: string;
++      startAfterValue?: unknown;
++      limitCount?: number;
++    }
++    const makeQuery = (spec: QuerySpec) => ({
++      where: (field: string, op: string, value: unknown) =>
++        makeQuery({
++          ...spec,
++          filters: [
++            ...spec.filters,
++            (doc: DocData) =>
++              op === "array-contains"
++                ? Array.isArray(doc[field]) &&
++                  (doc[field] as unknown[]).includes(value)
++                : doc[field] === value,
++          ],
++        }),
++      orderBy: (field: string) => makeQuery({...spec, orderField: field}),
++      startAfter: (value: unknown) => makeQuery({...spec, startAfterValue: value}),
++      limit: (count: number) => makeQuery({...spec, limitCount: count}),
++      get: async () => {
++        let entries = [...self.store.entries()]
++          .filter(([docPath]) => {
++            const parent = docPath.slice(0, docPath.lastIndexOf("/"));
++            return parent === path;
++          })
++          .filter(([, data]) => spec.filters.every((fn) => fn(data)));
++        if (spec.orderField) {
++          const field = spec.orderField;
++          entries = entries.sort(([, a], [, b]) => {
++            const av = orderValue(a[field]);
++            const bv = orderValue(b[field]);
++            return av < bv ? -1 : av > bv ? 1 : 0;
++          });
++          if (spec.startAfterValue != null) {
++            const cutoff = orderValue(spec.startAfterValue);
++            entries = entries.filter(([, data]) => orderValue(data[field]) > cutoff);
++          }
++        }
++        if (spec.limitCount != null) entries = entries.slice(0, spec.limitCount);
++        return {docs: entries.map(([docPath]) => self.snapshotOf(docPath))};
++      },
++    });
++    return {
++      doc: (id: string) => self.makeRef(`${path}/${id}`),
++      add: async (data: DocData) => {
++        const id = `auto_${self.store.size}`;
++        self.write(`${path}/${id}`, data);
++        return self.makeRef(`${path}/${id}`);
++      },
++      ...makeQuery({filters: []}),
++    };
++  }
++
++  async runTransaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
++    const self = this;
++    const tx = {
++      get: async (ref: {path: string}) => self.snapshotOf(ref.path),
++      set: (ref: {path: string}, data: DocData, opts?: {merge?: boolean}) => {
++        self.write(ref.path, data, opts);
++      },
++    };
++    return fn(tx);
++  }
++}
+diff --git a/functions/src/firebase-paths.ts b/functions/src/firebase-paths.ts
+new file mode 100644
+index 0000000..87b8025
+--- /dev/null
++++ b/functions/src/firebase-paths.ts
+@@ -0,0 +1,31 @@
++/**
++ * Paths dos dados legados em `artifacts/{projectId}/public/data/` — paridade
++ * com `NexagoArtifactsPaths` do app Flutter
++ * (`nexago_app/lib/features/tournaments/data/nexago_artifacts_paths.dart`).
++ */
++
++/** Project id do ambiente atual (emulador respeita GCLOUD_PROJECT). */
++export function getFirebaseProjectId(): string {
++  return (
++    process.env.GCLOUD_PROJECT ??
++    process.env.GOOGLE_CLOUD_PROJECT ??
++    process.env.FIREBASE_PROJECT_ID ??
++    ""
++  );
++}
++
++export function artifactsPublicDataBase(projectId: string): string {
++  return `artifacts/${projectId}/public/data`;
++}
++
++export function artifactsMatchesPath(projectId: string): string {
++  return `${artifactsPublicDataBase(projectId)}/matches`;
++}
++
++export function artifactsTeamsPath(projectId: string): string {
++  return `${artifactsPublicDataBase(projectId)}/teams`;
++}
++
++export function artifactsInscriptionsPath(projectId: string): string {
++  return `${artifactsPublicDataBase(projectId)}/inscriptions`;
++}
+diff --git a/functions/src/glicko.test.ts b/functions/src/glicko.test.ts
+new file mode 100644
+index 0000000..3b2f88f
+--- /dev/null
++++ b/functions/src/glicko.test.ts
+@@ -0,0 +1,96 @@
++import {describe, it} from "node:test";
++import assert from "node:assert/strict";
++import {
++  DEFAULT_GLICKO_OPTIONS,
++  compositeTeamRating,
++  inflateRd,
++  updateRating,
++} from "./glicko";
++
++/** Opções sem piso/teto de RD, para bater com os números crus do paper. */
++const PAPER_OPTIONS = {tau: 0.5, minRd: 0, maxRd: 1000};
++
++describe("updateRating", () => {
++  it("reproduz o known-answer do paper do Glickman", () => {
++    // Exemplo do paper: 1500/RD200/vol0.06 vence 1400/30 e perde de
++    // 1550/100 e 1700/300 → r'≈1464.06, RD'≈151.52, σ'≈0.05999.
++    const result = updateRating(
++      {rating: 1500, rd: 200, volatility: 0.06},
++      [
++        {rating: 1400, rd: 30, score: 1},
++        {rating: 1550, rd: 100, score: 0},
++        {rating: 1700, rd: 300, score: 0},
++      ],
++      PAPER_OPTIONS,
++    );
++    assert.ok(Math.abs(result.rating - 1464.06) < 0.05, `rating=${result.rating}`);
++    assert.ok(Math.abs(result.rd - 151.52) < 0.05, `rd=${result.rd}`);
++    assert.ok(Math.abs(result.volatility - 0.05999) < 0.0001);
++  });
++
++  it("vitória sobe e derrota desce o rating", () => {
++    const player = {rating: 1600, rd: 120, volatility: 0.06};
++    const opponent = {rating: 1600, rd: 120};
++    const win = updateRating(player, [{...opponent, score: 1}]);
++    const loss = updateRating(player, [{...opponent, score: 0}]);
++    assert.ok(win.rating > player.rating);
++    assert.ok(loss.rating < player.rating);
++    // Jogar sempre reduz a incerteza.
++    assert.ok(win.rd < player.rd);
++    assert.ok(loss.rd < player.rd);
++  });
++
++  it("upset contra oponente mais forte move mais que vitória esperada", () => {
++    const player = {rating: 1500, rd: 150, volatility: 0.06};
++    const vsStronger = updateRating(player, [{rating: 1800, rd: 100, score: 1}]);
++    const vsWeaker = updateRating(player, [{rating: 1200, rd: 100, score: 1}]);
++    assert.ok(
++      vsStronger.rating - player.rating > vsWeaker.rating - player.rating,
++    );
++  });
++
++  it("respeita piso e teto de RD", () => {
++    const confident = updateRating(
++      {rating: 1500, rd: 62, volatility: 0.06},
++      [{rating: 1500, rd: 60, score: 1}],
++      DEFAULT_GLICKO_OPTIONS,
++    );
++    assert.ok(confident.rd >= DEFAULT_GLICKO_OPTIONS.minRd);
++  });
++
++  it("sem oponentes devolve o jogador inalterado", () => {
++    const player = {rating: 1500, rd: 200, volatility: 0.06};
++    assert.deepEqual(updateRating(player, []), player);
++  });
++});
++
++describe("compositeTeamRating", () => {
++  it("usa média de rating e média quadrática de RD", () => {
++    const composite = compositeTeamRating([
++      {rating: 1400, rd: 100},
++      {rating: 1600, rd: 200},
++    ]);
++    assert.equal(composite.rating, 1500);
++    // sqrt((100² + 200²)/2) ≈ 158.11
++    assert.ok(Math.abs(composite.rd - Math.sqrt(25000)) < 1e-9);
++  });
++
++  it("com um único jogador devolve os valores dele", () => {
++    const composite = compositeTeamRating([{rating: 1700, rd: 90}]);
++    assert.equal(composite.rating, 1700);
++    assert.equal(composite.rd, 90);
++  });
++});
++
++describe("inflateRd", () => {
++  it("infla linearmente e satura no teto", () => {
++    assert.equal(inflateRd(100, 5, 6, 350), 130);
++    assert.equal(inflateRd(340, 10, 6, 350), 350);
++  });
++
++  it("ignora semanas não positivas ou inválidas", () => {
++    assert.equal(inflateRd(100, 0, 6, 350), 100);
++    assert.equal(inflateRd(100, -3, 6, 350), 100);
++    assert.equal(inflateRd(100, Number.NaN, 6, 350), 100);
++  });
++});
+diff --git a/functions/src/glicko.ts b/functions/src/glicko.ts
+new file mode 100644
+index 0000000..dc7324b
+--- /dev/null
++++ b/functions/src/glicko.ts
+@@ -0,0 +1,191 @@
++/**
++ * Glicko-2 puro (sem Firestore) — http://www.glicko.net/glicko/glicko2.pdf
++ *
++ * Convenções da engine de rating:
++ * - Cada partida é tratada como um rating period próprio (modelo streaming,
++ *   como o Lichess), então [updateRating] normalmente recebe UM oponente — o
++ *   jogador composto da dupla adversária ([compositeTeamRating]).
++ * - Escala pública (1500/350) na entrada e na saída; a escala interna
++ *   (μ/φ) fica encapsulada aqui.
++ */
++
++export interface GlickoRating {
++  rating: number;
++  rd: number;
++  volatility: number;
++}
++
++export interface GlickoOpponent {
++  rating: number;
++  rd: number;
++  /** 1 vitória, 0 derrota (0.5 reservado para empate; não usado no v1). */
++  score: number;
++}
++
++export interface GlickoOptions {
++  /** Restringe a variação da volatilidade (paper sugere 0.3–1.2). */
++  tau: number;
++  /** Piso do RD pós-atualização (evita rating "congelado"). */
++  minRd: number;
++  /** Teto do RD (incerteza máxima). */
++  maxRd: number;
++}
++
++export const DEFAULT_GLICKO_OPTIONS: GlickoOptions = {
++  tau: 0.5,
++  minRd: 60,
++  maxRd: 350,
++};
++
++/** Fator de conversão entre a escala pública e a escala Glicko-2 (μ/φ). */
++const SCALE = 173.7178;
++const BASE_RATING = 1500;
++const CONVERGENCE_TOLERANCE = 1e-6;
++
++function toMu(rating: number): number {
++  return (rating - BASE_RATING) / SCALE;
++}
++
++function toPhi(rd: number): number {
++  return rd / SCALE;
++}
++
++function g(phi: number): number {
++  return 1 / Math.sqrt(1 + (3 * phi * phi) / (Math.PI * Math.PI));
++}
++
++function expectedScore(mu: number, muJ: number, phiJ: number): number {
++  return 1 / (1 + Math.exp(-g(phiJ) * (mu - muJ)));
++}
++
++/**
++ * Nova volatilidade σ' pelo algoritmo Illinois (passo 5 do paper).
++ */
++function nextVolatility(
++  phi: number,
++  volatility: number,
++  variance: number,
++  delta: number,
++  tau: number,
++): number {
++  const a = Math.log(volatility * volatility);
++  const phi2 = phi * phi;
++  const delta2 = delta * delta;
++
++  const f = (x: number): number => {
++    const ex = Math.exp(x);
++    const num = ex * (delta2 - phi2 - variance - ex);
++    const den = 2 * (phi2 + variance + ex) ** 2;
++    return num / den - (x - a) / (tau * tau);
++  };
++
++  let A = a;
++  let B: number;
++  if (delta2 > phi2 + variance) {
++    B = Math.log(delta2 - phi2 - variance);
++  } else {
++    let k = 1;
++    while (f(a - k * tau) < 0) k++;
++    B = a - k * tau;
++  }
++
++  let fA = f(A);
++  let fB = f(B);
++  while (Math.abs(B - A) > CONVERGENCE_TOLERANCE) {
++    const C = A + ((A - B) * fA) / (fB - fA);
++    const fC = f(C);
++    if (fC * fB <= 0) {
++      A = B;
++      fA = fB;
++    } else {
++      fA = fA / 2;
++    }
++    B = C;
++    fB = fC;
++  }
++  return Math.exp(A / 2);
++}
++
++/**
++ * Atualiza o rating do jogador após enfrentar [opponents] num rating period.
++ * Sem partidas, devolve o jogador inalterado (a inflação por inatividade é
++ * tratada à parte por [inflateRd]).
++ */
++export function updateRating(
++  player: GlickoRating,
++  opponents: GlickoOpponent[],
++  options: GlickoOptions = DEFAULT_GLICKO_OPTIONS,
++): GlickoRating {
++  if (opponents.length === 0) return player;
++
++  const mu = toMu(player.rating);
++  const phi = toPhi(player.rd);
++
++  let varianceInv = 0;
++  let deltaSum = 0;
++  for (const opp of opponents) {
++    const muJ = toMu(opp.rating);
++    const phiJ = toPhi(opp.rd);
++    const gJ = g(phiJ);
++    const e = expectedScore(mu, muJ, phiJ);
++    varianceInv += gJ * gJ * e * (1 - e);
++    deltaSum += gJ * (opp.score - e);
++  }
++  const variance = 1 / varianceInv;
++  const delta = variance * deltaSum;
++
++  const newVolatility = nextVolatility(
++    phi,
++    player.volatility,
++    variance,
++    delta,
++    options.tau,
++  );
++
++  const phiStar = Math.sqrt(phi * phi + newVolatility * newVolatility);
++  const newPhi = 1 / Math.sqrt(1 / (phiStar * phiStar) + 1 / variance);
++  const newMu = mu + newPhi * newPhi * deltaSum;
++
++  const newRd = Math.min(
++    options.maxRd,
++    Math.max(options.minRd, newPhi * SCALE),
++  );
++  return {
++    rating: newMu * SCALE + BASE_RATING,
++    rd: newRd,
++    volatility: newVolatility,
++  };
++}
++
++/**
++ * Jogador composto de uma dupla: rating = média do par; RD combina as
++ * incertezas (`sqrt((rd1²+rd2²)/2)`), ficando entre a média e o maior RD.
++ * Para um jogador só (individual/dupla incompleta), devolve o próprio.
++ */
++export function compositeTeamRating(
++  members: Array<{rating: number; rd: number}>,
++): {rating: number; rd: number} {
++  if (members.length === 0) {
++    return {rating: BASE_RATING, rd: DEFAULT_GLICKO_OPTIONS.maxRd};
++  }
++  const rating =
++    members.reduce((sum, m) => sum + m.rating, 0) / members.length;
++  const rd = Math.sqrt(
++    members.reduce((sum, m) => sum + m.rd * m.rd, 0) / members.length,
++  );
++  return {rating, rd};
++}
++
++/**
++ * Inflação linear de RD por inatividade (config `inactivityRdPerWeek`),
++ * limitada a [maxRd]. Semanas negativas/NaN não alteram nada.
++ */
++export function inflateRd(
++  rd: number,
++  weeksInactive: number,
++  rdPerWeek: number,
++  maxRd: number,
++): number {
++  if (!Number.isFinite(weeksInactive) || weeksInactive <= 0) return rd;
++  return Math.min(maxRd, rd + weeksInactive * rdPerWeek);
++}
+diff --git a/functions/src/index.ts b/functions/src/index.ts
+index 995d157..ac5c667 100644
+--- a/functions/src/index.ts
++++ b/functions/src/index.ts
+@@ -159,6 +159,17 @@ export {
+   materializeArenaRecurringBookings,
+ };
+ 
++// Rating engine + ranking global de torneios (Glicko-2 / promoção-rebaixamento)
++export {
++  onTournamentMatchCompletedUpdateRatings,
++  onUserWrittenTrackLevelChanges,
++  evaluateRatingLadderDaily,
++  recomputeAthleteRating,
++  backfillRatingsAndResults,
++  migrateAthleteLevels,
++} from "./rating-triggers";
++export {onTournamentMatchCompletedAwardGlobalPoints} from "./tournament-ranking";
++
+ // Initialize Firebase Admin
+ initializeApp();
+ 
+diff --git a/functions/src/league-ranking.ts b/functions/src/league-ranking.ts
+index df5a24c..edddcab 100644
+--- a/functions/src/league-ranking.ts
++++ b/functions/src/league-ranking.ts
+@@ -278,7 +278,7 @@ function upsertStageResult(
+   return filtered;
+ }
+ 
+-async function loadKnockoutTeamIds(
++export async function loadKnockoutTeamIds(
+   db: Firestore,
+   projectId: string,
+   tournamentId: string,
+@@ -308,7 +308,7 @@ async function loadKnockoutTeamIds(
+   return ids;
+ }
+ 
+-async function loadCategoryBracketContext(
++export async function loadCategoryBracketContext(
+   db: Firestore,
+   projectId: string,
+   tournamentId: string,
+@@ -351,7 +351,7 @@ async function loadCategoryBracketContext(
+   return {isDoubleElimination, maxLbRound, knockoutFinalRound, hasThirdPlaceMatch};
+ }
+ 
+-async function loadTeamAthleteIds(
++export async function loadTeamAthleteIds(
+   db: Firestore,
+   projectId: string,
+   teamId: string,
+@@ -367,7 +367,7 @@ async function loadTeamAthleteIds(
+   return [...ids];
+ }
+ 
+-async function loadPaidTeamIds(
++export async function loadPaidTeamIds(
+   db: Firestore,
+   projectId: string,
+   tournamentId: string,
+diff --git a/functions/src/rating-config.ts b/functions/src/rating-config.ts
+new file mode 100644
+index 0000000..b9d692a
+--- /dev/null
++++ b/functions/src/rating-config.ts
+@@ -0,0 +1,270 @@
++import type {Firestore} from "firebase-admin/firestore";
++import {levelRank} from "./category-level-eligibility";
++
++/**
++ * Configuração da escada de rating por esporte (`ratingLadders/{sportCode}`).
++ *
++ * O doc do Firestore é opcional: [loadRatingLadderConfig] mescla o que existir
++ * sobre os defaults hardcoded, então doc ausente/incompleto nunca quebra os
++ * triggers. Ajustes de banda/flag em produção são edição de config, sem deploy.
++ */
++
++export interface RatingLadderLevel {
++  code: string;
++  rank: number;
++  label: string;
++  initialRating: number;
++  /** Rating que abre a zona de promoção; null no topo da escada. */
++  promoteAt: number | null;
++  /** Rating que abre a zona de rebaixamento; null no piso. */
++  demoteAt: number | null;
++}
++
++export interface RatingGlickoParams {
++  initialRd: number;
++  minRd: number;
++  maxRd: number;
++  tau: number;
++  initialVolatility: number;
++  inactivityRdPerWeek: number;
++}
++
++export interface RatingLadderRules {
++  minRatedMatches: number;
++  maxRdForDecision: number;
++  relegationObservationDays: number;
++  relegationObservationMinMatches: number;
++  relegationRecoveryMargin: number;
++  promotionProtectionDays: number;
++}
++
++export interface RatingFlags {
++  ratingEnabled: boolean;
++  shadowMode: boolean;
++  notificationsEnabled: boolean;
++  autoPromotionEnabled: boolean;
++  autoRelegationEnabled: boolean;
++  movEnabled: boolean;
++}
++
++export interface RatingLadderConfig {
++  sportCode: string;
++  levels: RatingLadderLevel[];
++  glicko: RatingGlickoParams;
++  ladder: RatingLadderRules;
++  flags: RatingFlags;
++}
++
++/**
++ * Escada de 5 níveis do vôlei (praia e quadra). `open` fica no rank 5 de
++ * propósito — os ranks 1 e 4 estão reservados para a escada de federação do
++ * beach tennis (D/C/B/A) numa entrega futura, sem renumerar nada.
++ */
++const VOLLEYBALL_LEVELS: RatingLadderLevel[] = [
++  {code: "iniciante_1", rank: 0, label: "Iniciante 1", initialRating: 1250, promoteAt: 1420, demoteAt: null},
++  {code: "iniciante_2", rank: 1, label: "Iniciante 2", initialRating: 1450, promoteAt: 1570, demoteAt: 1350},
++  {code: "intermediario_1", rank: 2, label: "Intermediário 1", initialRating: 1600, promoteAt: 1720, demoteAt: 1500},
++  {code: "intermediario_2", rank: 3, label: "Intermediário 2", initialRating: 1750, promoteAt: 1870, demoteAt: 1650},
++  {code: "open", rank: 5, label: "Open", initialRating: 1900, promoteAt: null, demoteAt: 1800},
++];
++
++export const DEFAULT_LADDER_CONFIG: Omit<RatingLadderConfig, "sportCode"> = {
++  levels: VOLLEYBALL_LEVELS,
++  glicko: {
++    initialRd: 300,
++    minRd: 60,
++    maxRd: 350,
++    tau: 0.5,
++    initialVolatility: 0.06,
++    inactivityRdPerWeek: 6,
++  },
++  ladder: {
++    minRatedMatches: 10,
++    maxRdForDecision: 120,
++    relegationObservationDays: 90,
++    relegationObservationMinMatches: 6,
++    relegationRecoveryMargin: 40,
++    promotionProtectionDays: 120,
++  },
++  flags: {
++    ratingEnabled: true,
++    shadowMode: true,
++    notificationsEnabled: false,
++    autoPromotionEnabled: false,
++    autoRelegationEnabled: false,
++    movEnabled: false,
++  },
++};
++
++function finiteNumber(raw: unknown, fallback: number): number {
++  const value = Number(raw);
++  return Number.isFinite(value) ? value : fallback;
++}
++
++function nullableNumber(raw: unknown): number | null {
++  if (raw == null) return null;
++  const value = Number(raw);
++  return Number.isFinite(value) ? value : null;
++}
++
++function booleanOr(raw: unknown, fallback: boolean): boolean {
++  return typeof raw === "boolean" ? raw : fallback;
++}
++
++function parseLevels(raw: unknown): RatingLadderLevel[] | null {
++  if (!Array.isArray(raw) || raw.length === 0) return null;
++  const levels: RatingLadderLevel[] = [];
++  for (const entry of raw) {
++    if (entry == null || typeof entry !== "object") return null;
++    const row = entry as Record<string, unknown>;
++    const code = typeof row.code === "string" ? row.code.trim() : "";
++    const rank = Number(row.rank);
++    const initialRating = Number(row.initialRating);
++    if (!code || !Number.isFinite(rank) || !Number.isFinite(initialRating)) {
++      return null;
++    }
++    levels.push({
++      code,
++      rank,
++      label: typeof row.label === "string" && row.label.trim() ? row.label.trim() : code,
++      initialRating,
++      promoteAt: nullableNumber(row.promoteAt),
++      demoteAt: nullableNumber(row.demoteAt),
++    });
++  }
++  return levels.sort((a, b) => a.rank - b.rank);
++}
++
++/** Mescla um doc (parcial) de `ratingLadders` sobre os defaults hardcoded. */
++export function parseLadderConfig(
++  sportCode: string,
++  raw: Record<string, unknown> | undefined,
++): RatingLadderConfig {
++  const defaults = DEFAULT_LADDER_CONFIG;
++  const glickoRaw = (raw?.glicko ?? {}) as Record<string, unknown>;
++  const ladderRaw = (raw?.ladder ?? {}) as Record<string, unknown>;
++  const flagsRaw = (raw?.flags ?? {}) as Record<string, unknown>;
++
++  return {
++    sportCode,
++    levels: parseLevels(raw?.levels) ?? defaults.levels,
++    glicko: {
++      initialRd: finiteNumber(glickoRaw.initialRd, defaults.glicko.initialRd),
++      minRd: finiteNumber(glickoRaw.minRd, defaults.glicko.minRd),
++      maxRd: finiteNumber(glickoRaw.maxRd, defaults.glicko.maxRd),
++      tau: finiteNumber(glickoRaw.tau, defaults.glicko.tau),
++      initialVolatility: finiteNumber(
++        glickoRaw.initialVolatility,
++        defaults.glicko.initialVolatility,
++      ),
++      inactivityRdPerWeek: finiteNumber(
++        glickoRaw.inactivityRdPerWeek,
++        defaults.glicko.inactivityRdPerWeek,
++      ),
++    },
++    ladder: {
++      minRatedMatches: finiteNumber(
++        ladderRaw.minRatedMatches,
++        defaults.ladder.minRatedMatches,
++      ),
++      maxRdForDecision: finiteNumber(
++        ladderRaw.maxRdForDecision,
++        defaults.ladder.maxRdForDecision,
++      ),
++      relegationObservationDays: finiteNumber(
++        ladderRaw.relegationObservationDays,
++        defaults.ladder.relegationObservationDays,
++      ),
++      relegationObservationMinMatches: finiteNumber(
++        ladderRaw.relegationObservationMinMatches,
++        defaults.ladder.relegationObservationMinMatches,
++      ),
++      relegationRecoveryMargin: finiteNumber(
++        ladderRaw.relegationRecoveryMargin,
++        defaults.ladder.relegationRecoveryMargin,
++      ),
++      promotionProtectionDays: finiteNumber(
++        ladderRaw.promotionProtectionDays,
++        defaults.ladder.promotionProtectionDays,
++      ),
++    },
++    flags: {
++      ratingEnabled: booleanOr(flagsRaw.ratingEnabled, defaults.flags.ratingEnabled),
++      shadowMode: booleanOr(flagsRaw.shadowMode, defaults.flags.shadowMode),
++      notificationsEnabled: booleanOr(
++        flagsRaw.notificationsEnabled,
++        defaults.flags.notificationsEnabled,
++      ),
++      autoPromotionEnabled: booleanOr(
++        flagsRaw.autoPromotionEnabled,
++        defaults.flags.autoPromotionEnabled,
++      ),
++      autoRelegationEnabled: booleanOr(
++        flagsRaw.autoRelegationEnabled,
++        defaults.flags.autoRelegationEnabled,
++      ),
++      movEnabled: booleanOr(flagsRaw.movEnabled, defaults.flags.movEnabled),
++    },
++  };
++}
++
++/**
++ * Carrega `ratingLadders/{sportCode}` (fallback: `ratingLadders/default`,
++ * depois defaults hardcoded). Nunca lança por doc ausente/malformado.
++ */
++export async function loadRatingLadderConfig(
++  db: Firestore,
++  sportCode: string,
++): Promise<RatingLadderConfig> {
++  let data: Record<string, unknown> | undefined;
++  try {
++    const snap = await db.doc(`ratingLadders/${sportCode}`).get();
++    if (snap.exists) {
++      data = snap.data();
++    } else {
++      const fallback = await db.doc("ratingLadders/default").get();
++      if (fallback.exists) data = fallback.data();
++    }
++  } catch {
++    data = undefined;
++  }
++  return parseLadderConfig(sportCode, data);
++}
++
++/** Nível da escada pelo código exato (novo) ou por aliasing de rank (legado). */
++export function resolveLadderLevel(
++  config: RatingLadderConfig,
++  rawLevel: unknown,
++): RatingLadderLevel {
++  const floor = config.levels[0];
++  if (typeof rawLevel === "string" && rawLevel.trim()) {
++    const code = rawLevel.trim();
++    const exact = config.levels.find((level) => level.code === code);
++    if (exact) return exact;
++    // Legados (`iniciante`, `intermediario`, `open`, `basico`, `livre`) casam
++    // pelo rank unificado: o alias aponta para o degrau de mesmo rank.
++    const rank = levelRank(code);
++    if (rank != null) {
++      const byRank = config.levels.find((level) => level.rank === rank);
++      if (byRank) return byRank;
++      // Rank sem degrau exato (ex.: legado acima do teto): maior degrau ≤ rank.
++      const below = [...config.levels]
++        .reverse()
++        .find((level) => level.rank <= rank);
++      if (below) return below;
++    }
++  }
++  return floor;
++}
++
++/** Próximo degrau acima/abaixo na escada (null nas extremidades). */
++export function adjacentLevel(
++  config: RatingLadderConfig,
++  current: RatingLadderLevel,
++  direction: "up" | "down",
++): RatingLadderLevel | null {
++  const index = config.levels.findIndex((level) => level.code === current.code);
++  if (index < 0) return null;
++  const next = direction === "up" ? index + 1 : index - 1;
++  return config.levels[next] ?? null;
++}
+diff --git a/functions/src/rating-engine.test.ts b/functions/src/rating-engine.test.ts
+new file mode 100644
+index 0000000..6f3f45b
+--- /dev/null
++++ b/functions/src/rating-engine.test.ts
+@@ -0,0 +1,256 @@
++import {describe, it} from "node:test";
++import assert from "node:assert/strict";
++import {Timestamp} from "firebase-admin/firestore";
++import {updateRating} from "./glicko";
++import {parseLadderConfig} from "./rating-config";
++import {
++  applyMatchRatingUpdate,
++  athleteRatingDocId,
++  athleteRatingsPath,
++  declaredLevelFor,
++  isWalkoverMatch,
++  ratingEventId,
++  ratingEventsPath,
++  seedRatingState,
++  shouldProcessRatingUpdate,
++} from "./rating-engine";
++
++import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
++
++// ─── Cenário base: torneio de vôlei de praia, duplas tA×tB ──────────────────
++
++const PROJECT = "proj";
++const CONFIG = parseLadderConfig("VOLEI_PRAIA", undefined);
++const ENDED_AT = Timestamp.fromDate(new Date("2026-06-01T18:00:00Z"));
++
++function seededDb(): FakeFirestore {
++  const db = new FakeFirestore();
++  db.seedDoc("tournaments/T1", {sport: "beachVolleyball"});
++  db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tA`, {
++    player1Id: "a1",
++    player2Id: "a2",
++  });
++  db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tB`, {
++    player1Id: "b1",
++    player2Id: "b2",
++  });
++  for (const uid of ["a1", "a2", "b1", "b2"]) {
++    db.seedDoc(`users/${uid}`, {
++      sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "intermediario_1"}},
++    });
++  }
++  return db;
++}
++
++function match(overrides: DocData = {}): DocData {
++  return {
++    status: "Completed",
++    tournamentId: "T1",
++    categoryId: "C1",
++    teamAId: "tA",
++    teamBId: "tB",
++    winnerId: "tA",
++    matchEndedAt: ENDED_AT,
++    ...overrides,
++  };
++}
++
++function ratingDocOf(db: FakeFirestore, uid: string): DocData | undefined {
++  return db.store.get(
++    `${athleteRatingsPath(PROJECT)}/${athleteRatingDocId(uid, "VOLEI_PRAIA")}`,
++  );
++}
++
++// ─── Puras ───────────────────────────────────────────────────────────────────
++
++describe("isWalkoverMatch / shouldProcessRatingUpdate", () => {
++  it("detecta W.O. por resultA/resultB", () => {
++    assert.equal(isWalkoverMatch({resultA: "W.O.", resultB: "0"}), true);
++    assert.equal(isWalkoverMatch({resultA: "0", resultB: "W.O."}), true);
++    assert.equal(isWalkoverMatch({resultA: "2", resultB: "1"}), false);
++  });
++
++  it("dispara ao concluir com vencedor e na correção; ignora repetição", () => {
++    const after = {status: "Completed", winnerId: "tA"};
++    assert.equal(shouldProcessRatingUpdate({status: "In Progress"}, after), true);
++    assert.equal(shouldProcessRatingUpdate(after, after), false);
++    assert.equal(
++      shouldProcessRatingUpdate({status: "Completed", winnerId: "tB"}, after),
++      true,
++    );
++    assert.equal(shouldProcessRatingUpdate(after, {status: "Completed"}), false);
++  });
++});
++
++describe("declaredLevelFor / seedRatingState", () => {
++  it("resolve nível por esporte com fallback legado e global", () => {
++    assert.equal(
++      declaredLevelFor(
++        {sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "open"}}},
++        "VOLEI_PRAIA",
++      ),
++      "open",
++    );
++    assert.equal(
++      declaredLevelFor({levelsBySportFirestore: {VOLEI_PRAIA: "iniciante"}}, "VOLEI_PRAIA"),
++      "iniciante",
++    );
++    assert.equal(declaredLevelFor({level: "intermediario"}, "VOLEI_PRAIA"), "intermediario");
++    assert.equal(declaredLevelFor(null, "VOLEI_PRAIA"), "");
++  });
++
++  it("seed usa o initialRating do nível declarado (legados por aliasing)", () => {
++    const open = seedRatingState("a1", "VOLEI_PRAIA", CONFIG, "open");
++    assert.equal(open.rating, 1900);
++    assert.equal(open.levelCode, "open");
++
++    const legacy = seedRatingState("a1", "VOLEI_PRAIA", CONFIG, "intermediario");
++    assert.equal(legacy.levelCode, "intermediario_1");
++    assert.equal(legacy.rating, 1600);
++
++    const unknown = seedRatingState("a1", "VOLEI_PRAIA", CONFIG, "");
++    assert.equal(unknown.levelCode, "iniciante_1");
++    assert.equal(unknown.rating, 1250);
++  });
++});
++
++// ─── applyMatchRatingUpdate ──────────────────────────────────────────────────
++
++describe("applyMatchRatingUpdate", () => {
++  it("aplica rating aos 4 atletas e grava o evento no ledger", async () => {
++    const db = seededDb();
++    const result = await applyMatchRatingUpdate(db as never, PROJECT, {
++      matchId: "m1",
++      match: match(),
++    });
++    assert.equal(result.processed, true);
++
++    const event = db.store.get(
++      `${ratingEventsPath(PROJECT)}/${ratingEventId("VOLEI_PRAIA", "m1")}`,
++    );
++    assert.ok(event);
++    assert.equal(event.status, "applied");
++    assert.equal(event.winnerTeamId, "tA");
++    assert.deepEqual(event.athleteIds, ["a1", "a2", "b1", "b2"]);
++
++    // Vencedores sobem, perdedores descem (seed 1600 p/ todos).
++    for (const uid of ["a1", "a2"]) {
++      assert.ok((ratingDocOf(db, uid)!.rating as number) > 1600, uid);
++    }
++    for (const uid of ["b1", "b2"]) {
++      assert.ok((ratingDocOf(db, uid)!.rating as number) < 1600, uid);
++    }
++    assert.equal(ratingDocOf(db, "a1")!.ratedMatches, 1);
++    assert.equal(ratingDocOf(db, "a1")!.wins, 1);
++    assert.equal(ratingDocOf(db, "b1")!.losses, 1);
++  });
++
++  it("é idempotente pelo doc id do evento (re-run não move nada)", async () => {
++    const db = seededDb();
++    await applyMatchRatingUpdate(db as never, PROJECT, {matchId: "m1", match: match()});
++    const before = ratingDocOf(db, "a1")!.rating;
++
++    const rerun = await applyMatchRatingUpdate(db as never, PROJECT, {
++      matchId: "m1",
++      match: match(),
++    });
++    assert.equal(rerun.processed, false);
++    assert.equal(rerun.reason, "duplicate");
++    assert.equal(ratingDocOf(db, "a1")!.rating, before);
++  });
++
++  it("W.O. gera evento skipped e não move rating", async () => {
++    const db = seededDb();
++    const result = await applyMatchRatingUpdate(db as never, PROJECT, {
++      matchId: "m1",
++      match: match({resultA: "W.O.", resultB: "0"}),
++    });
++    assert.equal(result.processed, true);
++    assert.equal(result.walkover, true);
++
++    const event = db.store.get(
++      `${ratingEventsPath(PROJECT)}/${ratingEventId("VOLEI_PRAIA", "m1")}`,
++    );
++    assert.equal(event!.status, "skipped");
++    assert.equal(event!.walkover, true);
++    assert.equal(ratingDocOf(db, "a1"), undefined);
++  });
++
++  it("esporte sem código (futevôlei) e torneio ausente são pulados", async () => {
++    const db = seededDb();
++    db.seedDoc("tournaments/T1", {sport: "footvolley"});
++    const skipped = await applyMatchRatingUpdate(db as never, PROJECT, {
++      matchId: "m1",
++      match: match(),
++    });
++    assert.equal(skipped.processed, false);
++    assert.equal(skipped.reason, "sport_not_rated");
++
++    const missing = await applyMatchRatingUpdate(db as never, PROJECT, {
++      matchId: "m1",
++      match: match({tournamentId: "nope"}),
++    });
++    assert.equal(missing.reason, "tournament_not_found");
++  });
++
++  it("flag ratingEnabled=false desliga a engine (kill switch)", async () => {
++    const db = seededDb();
++    db.seedDoc("ratingLadders/VOLEI_PRAIA", {flags: {ratingEnabled: false}});
++    const result = await applyMatchRatingUpdate(db as never, PROJECT, {
++      matchId: "m1",
++      match: match(),
++    });
++    assert.equal(result.processed, false);
++    assert.equal(result.reason, "rating_disabled");
++  });
++
++  it("seed respeita o nível declarado de cada atleta", async () => {
++    const db = seededDb();
++    db.seedDoc("users/a1", {
++      sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "open"}},
++    });
++    await applyMatchRatingUpdate(db as never, PROJECT, {matchId: "m1", match: match()});
++
++    const doc = ratingDocOf(db, "a1")!;
++    assert.equal(doc.seededFromLevel, "open");
++    assert.equal(doc.levelCode, "open");
++    // Favorito (1900) vencendo dupla 1600: sobe pouco, mas sobe.
++    assert.ok((doc.rating as number) > 1900);
++  });
++
++  it("correção de vencedor superseda o evento e replaya == recomputar do zero", async () => {
++    const db = seededDb();
++    await applyMatchRatingUpdate(db as never, PROJECT, {matchId: "m1", match: match()});
++
++    const corrected = await applyMatchRatingUpdate(db as never, PROJECT, {
++      matchId: "m1",
++      match: match({winnerId: "tB"}),
++    });
++    assert.equal(corrected.processed, true);
++    assert.deepEqual(corrected.replayedAthleteIds, ["a1", "a2", "b1", "b2"]);
++
++    const event = db.store.get(
++      `${ratingEventsPath(PROJECT)}/${ratingEventId("VOLEI_PRAIA", "m1")}`,
++    )!;
++    assert.equal(event.winnerTeamId, "tB");
++    const superseded = event.superseded as Array<Record<string, unknown>>;
++    assert.equal(superseded.length, 1);
++    assert.equal(superseded[0].winnerTeamId, "tA");
++
++    // Replay determinístico: igual a computar direto a partir do seed com o
++    // resultado certo (dupla composta 1600/300 dos dois lados).
++    const expectedLoser = updateRating(
++      {rating: 1600, rd: 300, volatility: 0.06},
++      [{rating: 1600, rd: 300, score: 0}],
++      {tau: 0.5, minRd: 60, maxRd: 350},
++    );
++    const a1 = ratingDocOf(db, "a1")!;
++    assert.ok(Math.abs((a1.rating as number) - expectedLoser.rating) < 1e-9);
++    assert.equal(a1.wins, 0);
++    assert.equal(a1.losses, 1);
++
++    const b1 = ratingDocOf(db, "b1")!;
++    assert.ok((b1.rating as number) > 1600);
++    assert.equal(b1.wins, 1);
++  });
++});
+diff --git a/functions/src/rating-engine.ts b/functions/src/rating-engine.ts
+new file mode 100644
+index 0000000..a1b61d7
+--- /dev/null
++++ b/functions/src/rating-engine.ts
+@@ -0,0 +1,557 @@
++import {FieldValue, Timestamp, type Firestore} from "firebase-admin/firestore";
++import * as logger from "firebase-functions/logger";
++import {compositeTeamRating, updateRating, type GlickoRating} from "./glicko";
++import {
++  loadRatingLadderConfig,
++  resolveLadderLevel,
++  type RatingLadderConfig,
++} from "./rating-config";
++import {
++  applyLadderActions,
++  evaluateLadderTransition,
++  ratingStateFromDoc,
++  ratingStateToDoc,
++  type AthleteRatingState,
++} from "./rating-ladder";
++import {
++  isTournamentMatchCompleted,
++  parseMatchPlayedAt,
++  stringField,
++} from "./tournament-match-gamification";
++import {tournamentSportToLevelSportCode} from "./category-level-eligibility";
++import {artifactsPublicDataBase} from "./firebase-paths";
++import {loadTeamAthleteIds} from "./league-ranking";
++
++/**
++ * Engine de rating Glicko-2 por partida (streaming: cada partida = um rating
++ * period), com ledger append-only `ratingEvents` que torna tudo determinístico
++ * e replayável. Correção de resultado = sobrescreve o evento (guardando o
++ * estado anterior em `superseded`) + replay do ledger de cada atleta envolvido
++ * ordenado por `endedAt`.
++ */
++
++export const RATING_ENGINE_VERSION = 1;
++
++export function ratingEventsPath(projectId: string): string {
++  return `${artifactsPublicDataBase(projectId)}/ratingEvents`;
++}
++
++export function athleteRatingsPath(projectId: string): string {
++  return `${artifactsPublicDataBase(projectId)}/athleteRatings`;
++}
++
++export function ratingEventId(sportCode: string, matchId: string): string {
++  return `${sportCode}_${matchId.trim()}`;
++}
++
++export function athleteRatingDocId(athleteId: string, sportCode: string): string {
++  return `${athleteId.trim()}_${sportCode}`;
++}
++
++/** W.O. não é evidência de skill: não pontua rating (mas pontua colocação). */
++export function isWalkoverMatch(match: Record<string, unknown>): boolean {
++  return (
++    stringField(match["resultA"]) === "W.O." ||
++    stringField(match["resultB"]) === "W.O."
++  );
++}
++
++/**
++ * Processa rating quando a partida fica concluída com vencedor, ou quando o
++ * vencedor é corrigido — mesma semântica de `shouldPropagateMatchAdvance`.
++ */
++export function shouldProcessRatingUpdate(
++  before: Record<string, unknown> | undefined,
++  after: Record<string, unknown> | undefined,
++): boolean {
++  if (!after) return false;
++  if (!isTournamentMatchCompleted(after["status"])) return false;
++  const winnerId = stringField(after["winnerId"]);
++  if (!winnerId) return false;
++  if (!before || !isTournamentMatchCompleted(before["status"])) return true;
++  return stringField(before["winnerId"]) !== winnerId;
++}
++
++/** Nível declarado do atleta para o esporte (código cru, com legados). */
++export function declaredLevelFor(
++  userData: Record<string, unknown> | null | undefined,
++  sportCode: string,
++): string {
++  if (!userData) return "";
++  const onboarding = userData["sportOnboarding"];
++  if (onboarding != null && typeof onboarding === "object") {
++    const bySport = (onboarding as Record<string, unknown>)["levelsBySport"];
++    if (bySport != null && typeof bySport === "object") {
++      const value = (bySport as Record<string, unknown>)[sportCode];
++      if (typeof value === "string" && value.trim()) return value.trim();
++    }
++  }
++  const legacy = userData["levelsBySportFirestore"];
++  if (legacy != null && typeof legacy === "object") {
++    const value = (legacy as Record<string, unknown>)[sportCode];
++    if (typeof value === "string" && value.trim()) return value.trim();
++  }
++  const global = userData["level"];
++  return typeof global === "string" ? global.trim() : "";
++}
++
++/** Estado inicial de rating seedado pelo nível declarado. */
++export function seedRatingState(
++  athleteId: string,
++  sportCode: string,
++  config: RatingLadderConfig,
++  declaredLevel: string,
++): AthleteRatingState {
++  const level = resolveLadderLevel(config, declaredLevel);
++  return {
++    athleteId,
++    sportCode,
++    rating: level.initialRating,
++    rd: config.glicko.initialRd,
++    volatility: config.glicko.initialVolatility,
++    ratedMatches: 0,
++    wins: 0,
++    losses: 0,
++    lastMatchAt: null,
++    levelCode: level.code,
++    levelRank: level.rank,
++    zone: "stable",
++    ladderState: "stable",
++    observationStartedAt: null,
++    observationMatches: 0,
++    notifiedAt: null,
++    protectedUntil: null,
++    seededFromLevel: declaredLevel || level.code,
++  };
++}
++
++interface RatingEventSide {
++  teamId: string;
++  athleteIds: string[];
++}
++
++interface AthleteSnapshot {
++  r: number;
++  rd: number;
++  vol: number;
++  level: string;
++}
++
++function snapshotOf(state: AthleteRatingState): AthleteSnapshot {
++  return {
++    r: state.rating,
++    rd: state.rd,
++    vol: state.volatility,
++    level: state.levelCode,
++  };
++}
++
++export interface ApplyMatchRatingResult {
++  processed: boolean;
++  reason?: string;
++  walkover?: boolean;
++  /** Atletas cujo ledger foi replayado por correção de resultado. */
++  replayedAthleteIds?: string[];
++}
++
++/**
++ * Aplica o rating de uma partida concluída de forma idempotente (doc id do
++ * evento em transação, padrão `gamification_events`). Correção de vencedor
++ * sobrescreve o evento e replaya o ledger dos atletas envolvidos.
++ */
++export async function applyMatchRatingUpdate(
++  db: Firestore,
++  projectId: string,
++  params: {
++    matchId: string;
++    match: Record<string, unknown>;
++    now?: Date;
++  },
++): Promise<ApplyMatchRatingResult> {
++  const {matchId, match} = params;
++  const now = params.now ?? new Date();
++
++  if (!isTournamentMatchCompleted(match["status"])) {
++    return {processed: false, reason: "not_completed"};
++  }
++  const winnerTeamId = stringField(match["winnerId"]);
++  const tournamentId = stringField(match["tournamentId"]);
++  const categoryId = stringField(match["categoryId"]);
++  const teamAId = stringField(match["teamAId"]);
++  const teamBId = stringField(match["teamBId"]);
++  if (!winnerTeamId || !tournamentId || !teamAId || !teamBId) {
++    return {processed: false, reason: "missing_fields"};
++  }
++
++  const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
++  if (!tournamentSnap.exists) {
++    return {processed: false, reason: "tournament_not_found"};
++  }
++  const sportCode = tournamentSportToLevelSportCode(
++    tournamentSnap.data()?.sport,
++  );
++  if (!sportCode) {
++    return {processed: false, reason: "sport_not_rated"};
++  }
++
++  const config = await loadRatingLadderConfig(db, sportCode);
++  if (!config.flags.ratingEnabled) {
++    return {processed: false, reason: "rating_disabled"};
++  }
++
++  const [athleteIdsA, athleteIdsB] = await Promise.all([
++    loadTeamAthleteIds(db, projectId, teamAId),
++    loadTeamAthleteIds(db, projectId, teamBId),
++  ]);
++  if (athleteIdsA.length === 0 || athleteIdsB.length === 0) {
++    logger.warn(`rating-engine: partida ${matchId} sem atletas resolvidos`);
++    return {processed: false, reason: "missing_athletes"};
++  }
++  const allAthleteIds = [...athleteIdsA, ...athleteIdsB];
++
++  // Níveis declarados p/ seed (fora da transação: mudam raramente e o replay
++  // administrativo corrige qualquer corrida).
++  const declaredLevels = new Map<string, string>();
++  await Promise.all(
++    allAthleteIds.map(async (uid) => {
++      const snap = await db.doc(`users/${uid}`).get();
++      declaredLevels.set(uid, declaredLevelFor(snap.data() ?? null, sportCode));
++    }),
++  );
++
++  const walkover = isWalkoverMatch(match);
++  const endedAt = parseMatchPlayedAt(match, now);
++  const eventRef = db
++    .collection(ratingEventsPath(projectId))
++    .doc(ratingEventId(sportCode, matchId));
++
++  const teamA: RatingEventSide = {teamId: teamAId, athleteIds: athleteIdsA};
++  const teamB: RatingEventSide = {teamId: teamBId, athleteIds: athleteIdsB};
++
++  const outcome = await db.runTransaction(async (tx) => {
++    const eventSnap = await tx.get(eventRef);
++    const existing = eventSnap.exists
++      ? (eventSnap.data() as Record<string, unknown>)
++      : null;
++
++    if (existing) {
++      const sameWinner = stringField(existing["winnerTeamId"]) === winnerTeamId;
++      const sameWalkover = (existing["walkover"] === true) === walkover;
++      if (sameWinner && sameWalkover) {
++        return {kind: "duplicate" as const};
++      }
++      // Correção: sobrescreve o evento guardando o estado anterior e replaya
++      // fora da transação.
++      const superseded = Array.isArray(existing["superseded"])
++        ? [...(existing["superseded"] as unknown[])]
++        : [];
++      superseded.push({
++        winnerTeamId: existing["winnerTeamId"] ?? null,
++        walkover: existing["walkover"] === true,
++        post: existing["post"] ?? null,
++        supersededAt: Timestamp.fromDate(now),
++      });
++      tx.set(
++        eventRef,
++        {
++          winnerTeamId,
++          walkover,
++          status: walkover ? "skipped" : "applied",
++          superseded,
++          engineVersion: RATING_ENGINE_VERSION,
++          updatedAt: FieldValue.serverTimestamp(),
++        },
++        {merge: true},
++      );
++      const previousIds = Array.isArray(existing["athleteIds"])
++        ? (existing["athleteIds"] as unknown[]).map(String)
++        : [];
++      return {
++        kind: "correction" as const,
++        replayIds: [...new Set([...previousIds, ...allAthleteIds])],
++      };
++    }
++
++    // Leituras antes de qualquer escrita (regra de transação do Firestore).
++    const ratingRefs = allAthleteIds.map((uid) =>
++      db
++        .collection(athleteRatingsPath(projectId))
++        .doc(athleteRatingDocId(uid, sportCode)),
++    );
++    const ratingSnaps = await Promise.all(ratingRefs.map((ref) => tx.get(ref)));
++
++    const states = new Map<string, AthleteRatingState>();
++    allAthleteIds.forEach((uid, index) => {
++      const snap = ratingSnaps[index];
++      states.set(
++        uid,
++        snap.exists
++          ? ratingStateFromDoc(uid, sportCode, snap.data() as Record<string, unknown>)
++          : seedRatingState(uid, sportCode, config, declaredLevels.get(uid) ?? ""),
++      );
++    });
++
++    const pre: Record<string, AthleteSnapshot> = {};
++    for (const [uid, state] of states) pre[uid] = snapshotOf(state);
++
++    const baseEvent = {
++      matchId,
++      sportCode,
++      tournamentId,
++      categoryId,
++      endedAt: Timestamp.fromDate(endedAt),
++      walkover,
++      winnerTeamId,
++      teamA,
++      teamB,
++      athleteIds: allAthleteIds,
++      pre,
++      engineVersion: RATING_ENGINE_VERSION,
++      createdAt: FieldValue.serverTimestamp(),
++      updatedAt: FieldValue.serverTimestamp(),
++    };
++
++    if (walkover) {
++      tx.set(eventRef, {...baseEvent, post: pre, status: "skipped"});
++      return {kind: "walkover" as const};
++    }
++
++    const glickoOptions = {
++      tau: config.glicko.tau,
++      minRd: config.glicko.minRd,
++      maxRd: config.glicko.maxRd,
++    };
++    const evaluations: Array<{
++      uid: string;
++      evaluation: ReturnType<typeof evaluateLadderTransition>;
++    }> = [];
++    const post: Record<string, AthleteSnapshot> = {};
++
++    for (const [uid, state] of states) {
++      const onTeamA = athleteIdsA.includes(uid);
++      const won = winnerTeamId === (onTeamA ? teamAId : teamBId);
++      const opponents = (onTeamA ? athleteIdsB : athleteIdsA).map(
++        (oppId) => states.get(oppId)!,
++      );
++      const composite = compositeTeamRating(
++        opponents.map((opp) => ({rating: opp.rating, rd: opp.rd})),
++      );
++      const updated: GlickoRating = updateRating(
++        {rating: state.rating, rd: state.rd, volatility: state.volatility},
++        [{rating: composite.rating, rd: composite.rd, score: won ? 1 : 0}],
++        glickoOptions,
++      );
++      const nextState: AthleteRatingState = {
++        ...state,
++        rating: updated.rating,
++        rd: updated.rd,
++        volatility: updated.volatility,
++        ratedMatches: state.ratedMatches + 1,
++        wins: state.wins + (won ? 1 : 0),
++        losses: state.losses + (won ? 0 : 1),
++        lastMatchAt: endedAt,
++      };
++      const evaluation = evaluateLadderTransition(nextState, config, now, "match");
++      post[uid] = snapshotOf(evaluation.next);
++      evaluations.push({uid, evaluation});
++    }
++
++    tx.set(eventRef, {...baseEvent, post, status: "applied"});
++    allAthleteIds.forEach((uid, index) => {
++      const entry = evaluations.find((e) => e.uid === uid)!;
++      tx.set(ratingRefs[index], ratingStateToDoc(entry.evaluation.next));
++    });
++    return {kind: "applied" as const, evaluations};
++  });
++
++  if (outcome.kind === "duplicate") {
++    return {processed: false, reason: "duplicate"};
++  }
++  if (outcome.kind === "walkover") {
++    return {processed: true, walkover: true};
++  }
++  if (outcome.kind === "correction") {
++    for (const uid of outcome.replayIds) {
++      await replayAthleteLedger(db, projectId, uid, sportCode, config);
++    }
++    return {processed: true, replayedAthleteIds: outcome.replayIds};
++  }
++
++  // Efeitos externos da escada (nível/auditoria/notificação) fora da transação.
++  for (const {evaluation} of outcome.evaluations) {
++    if (evaluation.actions.length === 0) continue;
++    const finalState = await applyLadderActions(db, evaluation, config, now);
++    await db
++      .collection(athleteRatingsPath(projectId))
++      .doc(athleteRatingDocId(finalState.athleteId, sportCode))
++      .set(ratingStateToDoc(finalState), {merge: true});
++  }
++  return {processed: true};
++}
++
++/**
++ * Recomputa o rating de um atleta do zero replayando seu ledger em ordem de
++ * `endedAt` (seed = `pre` do primeiro evento; oponentes = `pre` gravado em
++ * cada evento — sem cascata transitiva, decisão documentada do v1). Preserva
++ * os campos de escada (nível/observação) do doc atual.
++ */
++export async function replayAthleteLedger(
++  db: Firestore,
++  projectId: string,
++  athleteId: string,
++  sportCode: string,
++  preloadedConfig?: RatingLadderConfig,
++): Promise<AthleteRatingState | null> {
++  const config =
++    preloadedConfig ?? (await loadRatingLadderConfig(db, sportCode));
++
++  const eventsSnap = await db
++    .collection(ratingEventsPath(projectId))
++    .where("sportCode", "==", sportCode)
++    .where("athleteIds", "array-contains", athleteId)
++    .orderBy("endedAt", "asc")
++    .get();
++
++  const ratingRef = db
++    .collection(athleteRatingsPath(projectId))
++    .doc(athleteRatingDocId(athleteId, sportCode));
++  const currentSnap = await ratingRef.get();
++  const current = currentSnap.exists
++    ? ratingStateFromDoc(
++        athleteId,
++        sportCode,
++        currentSnap.data() as Record<string, unknown>,
++      )
++    : null;
++
++  let glicko: GlickoRating | null = null;
++  let seededFromLevel = current?.seededFromLevel ?? "";
++  let ratedMatches = 0;
++  let wins = 0;
++  let losses = 0;
++  let lastMatchAt: Date | null = null;
++
++  const glickoOptions = {
++    tau: config.glicko.tau,
++    minRd: config.glicko.minRd,
++    maxRd: config.glicko.maxRd,
++  };
++
++  for (const doc of eventsSnap.docs) {
++    const data = doc.data() as Record<string, unknown>;
++    if (data["status"] === "skipped" || data["walkover"] === true) continue;
++
++    const pre = (data["pre"] ?? {}) as Record<string, AthleteSnapshot>;
++    if (!glicko) {
++      const seed = pre[athleteId];
++      if (seed) {
++        glicko = {rating: seed.r, rd: seed.rd, volatility: seed.vol};
++        seededFromLevel = seededFromLevel || seed.level;
++      } else {
++        const seeded = seedRatingState(athleteId, sportCode, config, "");
++        glicko = {
++          rating: seeded.rating,
++          rd: seeded.rd,
++          volatility: seeded.volatility,
++        };
++      }
++    }
++
++    const teamA = (data["teamA"] ?? {}) as Record<string, unknown>;
++    const teamB = (data["teamB"] ?? {}) as Record<string, unknown>;
++    const idsA = Array.isArray(teamA["athleteIds"])
++      ? (teamA["athleteIds"] as unknown[]).map(String)
++      : [];
++    const idsB = Array.isArray(teamB["athleteIds"])
++      ? (teamB["athleteIds"] as unknown[]).map(String)
++      : [];
++    const onTeamA = idsA.includes(athleteId);
++    const myTeamId = stringField(onTeamA ? teamA["teamId"] : teamB["teamId"]);
++    const won = stringField(data["winnerTeamId"]) === myTeamId;
++
++    const oppSnapshots = (onTeamA ? idsB : idsA)
++      .map((id) => pre[id])
++      .filter((snap): snap is AthleteSnapshot => snap != null);
++    if (oppSnapshots.length === 0) continue;
++    const composite = compositeTeamRating(
++      oppSnapshots.map((snap) => ({rating: snap.r, rd: snap.rd})),
++    );
++
++    glicko = updateRating(
++      glicko,
++      [{rating: composite.rating, rd: composite.rd, score: won ? 1 : 0}],
++      glickoOptions,
++    );
++    ratedMatches++;
++    if (won) wins++;
++    else losses++;
++
++    const ended = data["endedAt"];
++    if (ended && typeof ended === "object" && "toDate" in ended) {
++      lastMatchAt = (ended as Timestamp).toDate();
++    }
++
++    // Auditoria: realinha o `post` deste atleta no evento.
++    await doc.ref.set(
++      {
++        post: {
++          [athleteId]: {
++            r: glicko.rating,
++            rd: glicko.rd,
++            vol: glicko.volatility,
++            level: current?.levelCode ?? "",
++          },
++        },
++        updatedAt: FieldValue.serverTimestamp(),
++      },
++      {merge: true},
++    );
++  }
++
++  if (!glicko) {
++    // Sem eventos rateáveis: nada a recomputar.
++    return current;
++  }
++
++  const base =
++    current ?? seedRatingState(athleteId, sportCode, config, seededFromLevel);
++  const level = resolveLadderLevel(config, base.levelCode);
++  const next: AthleteRatingState = {
++    ...base,
++    rating: glicko.rating,
++    rd: glicko.rd,
++    volatility: glicko.volatility,
++    ratedMatches,
++    wins,
++    losses,
++    lastMatchAt,
++    levelCode: level.code,
++    levelRank: level.rank,
++    seededFromLevel,
++  };
++  const evaluation = evaluateLadderTransition(next, config, new Date(), "daily");
++  await ratingRef.set(ratingStateToDoc(evaluation.next));
++  return evaluation.next;
++}
++
++/** Replay em lote (callable admin de recomputação). */
++export async function recomputeSportRatings(
++  db: Firestore,
++  projectId: string,
++  sportCode: string,
++  athleteIds: string[],
++): Promise<number> {
++  const config = await loadRatingLadderConfig(db, sportCode);
++  let recomputed = 0;
++  for (const athleteId of athleteIds) {
++    const result = await replayAthleteLedger(
++      db,
++      projectId,
++      athleteId,
++      sportCode,
++      config,
++    );
++    if (result) recomputed++;
++  }
++  return recomputed;
++}
+diff --git a/functions/src/rating-ladder.test.ts b/functions/src/rating-ladder.test.ts
+new file mode 100644
+index 0000000..9ab2c73
+--- /dev/null
++++ b/functions/src/rating-ladder.test.ts
+@@ -0,0 +1,371 @@
++import {describe, it} from "node:test";
++import assert from "node:assert/strict";
++import {parseLadderConfig} from "./rating-config";
++import {
++  applyLadderActions,
++  applyPromotion,
++  applyRelegation,
++  computeZone,
++  evaluateLadderTransition,
++  type AthleteRatingState,
++} from "./rating-ladder";
++
++const NOW = new Date("2026-07-01T12:00:00Z");
++const DAY_MS = 86_400_000;
++
++/** Config default (shadow on) com overrides pontuais de flags. */
++function config(flags: Record<string, boolean> = {}) {
++  return parseLadderConfig("VOLEI_PRAIA", {flags});
++}
++
++/** Atleta intermediario_1 consolidado (gates de decisão satisfeitos). */
++function state(overrides: Partial<AthleteRatingState> = {}): AthleteRatingState {
++  return {
++    athleteId: "a1",
++    sportCode: "VOLEI_PRAIA",
++    rating: 1600,
++    rd: 90,
++    volatility: 0.06,
++    ratedMatches: 12,
++    wins: 7,
++    losses: 5,
++    lastMatchAt: NOW,
++    levelCode: "intermediario_1",
++    levelRank: 2,
++    zone: "stable",
++    ladderState: "stable",
++    observationStartedAt: null,
++    observationMatches: 0,
++    notifiedAt: null,
++    protectedUntil: null,
++    seededFromLevel: "intermediario_1",
++    ...overrides,
++  };
++}
++
++describe("computeZone", () => {
++  it("identifica zonas pelas bandas do nível", () => {
++    const level = config().levels.find((l) => l.code === "intermediario_1")!;
++    assert.equal(computeZone(1720, level), "promotion");
++    assert.equal(computeZone(1600, level), "stable");
++    assert.equal(computeZone(1500, level), "relegation");
++  });
++});
++
++describe("evaluateLadderTransition · promoção", () => {
++  it("stable → promotion_pending quando cruza a banda com gates ok", () => {
++    const {next, actions} = evaluateLadderTransition(
++      state({rating: 1725}),
++      config(),
++      NOW,
++      "match",
++    );
++    assert.equal(next.ladderState, "promotion_pending");
++    assert.equal(next.zone, "promotion");
++    assert.ok(actions.some((a) => a.kind === "promote"));
++    const promote = actions.find((a) => a.kind === "promote")!;
++    assert.equal(promote.kind === "promote" && promote.to.code, "intermediario_2");
++  });
++
++  it("RD alto ou poucas partidas bloqueiam a decisão (mas a zona aparece)", () => {
++    const highRd = evaluateLadderTransition(
++      state({rating: 1725, rd: 200}),
++      config(),
++      NOW,
++      "match",
++    );
++    assert.equal(highRd.next.ladderState, "stable");
++    assert.equal(highRd.next.zone, "promotion");
++    assert.equal(highRd.actions.length, 0);
++
++    const fewMatches = evaluateLadderTransition(
++      state({rating: 1725, ratedMatches: 4}),
++      config(),
++      NOW,
++      "match",
++    );
++    assert.equal(fewMatches.next.ladderState, "stable");
++    assert.equal(fewMatches.actions.length, 0);
++  });
++
++  it("open (topo) nunca entra em promoção", () => {
++    const {next, actions} = evaluateLadderTransition(
++      state({levelCode: "open", levelRank: 5, rating: 2400}),
++      config(),
++      NOW,
++      "match",
++    );
++    assert.equal(next.ladderState, "stable");
++    assert.equal(actions.length, 0);
++  });
++
++  it("promotion_pending volta a stable se cair da banda (zona morta)", () => {
++    const {next, actions} = evaluateLadderTransition(
++      state({ladderState: "promotion_pending", rating: 1680}),
++      config(),
++      NOW,
++      "match",
++    );
++    assert.equal(next.ladderState, "stable");
++    assert.equal(actions.length, 0);
++  });
++});
++
++describe("evaluateLadderTransition · rebaixamento", () => {
++  it("stable → relegation_observation com aviso único", () => {
++    const {next, actions} = evaluateLadderTransition(
++      state({rating: 1490}),
++      config(),
++      NOW,
++      "match",
++    );
++    assert.equal(next.ladderState, "relegation_observation");
++    assert.deepEqual(next.observationStartedAt, NOW);
++    assert.equal(next.observationMatches, 0);
++    assert.ok(
++      actions.some((a) => a.kind === "notify" && a.type === "relegation_warning"),
++    );
++  });
++
++  it("proteção pós-promoção bloqueia a observação", () => {
++    const {next, actions} = evaluateLadderTransition(
++      state({rating: 1490, protectedUntil: new Date(NOW.getTime() + DAY_MS)}),
++      config(),
++      NOW,
++      "match",
++    );
++    assert.equal(next.ladderState, "stable");
++    assert.equal(actions.length, 0);
++  });
++
++  it("piso da escada (iniciante_1) nunca é rebaixado", () => {
++    const {next, actions} = evaluateLadderTransition(
++      state({levelCode: "iniciante_1", levelRank: 0, rating: 900}),
++      config(),
++      NOW,
++      "match",
++    );
++    assert.equal(next.ladderState, "stable");
++    assert.equal(actions.length, 0);
++  });
++
++  it("partida na observação incrementa o contador", () => {
++    const {next} = evaluateLadderTransition(
++      state({
++        ladderState: "relegation_observation",
++        rating: 1480,
++        observationStartedAt: NOW,
++        observationMatches: 2,
++      }),
++      config(),
++      NOW,
++      "match",
++    );
++    assert.equal(next.observationMatches, 3);
++    assert.equal(next.ladderState, "relegation_observation");
++  });
++
++  it("recuperação acima da margem limpa a observação", () => {
++    const {next, actions} = evaluateLadderTransition(
++      state({
++        ladderState: "relegation_observation",
++        rating: 1541, // demoteAt 1500 + margem 40
++        observationStartedAt: new Date(NOW.getTime() - 30 * DAY_MS),
++        observationMatches: 3,
++      }),
++      config(),
++      NOW,
++      "match",
++    );
++    assert.equal(next.ladderState, "stable");
++    assert.equal(next.observationStartedAt, null);
++    assert.ok(
++      actions.some((a) => a.kind === "notify" && a.type === "relegation_cleared"),
++    );
++  });
++
++  it("janela expirada + amostra suficiente → ação de rebaixamento (daily)", () => {
++    const {next, actions} = evaluateLadderTransition(
++      state({
++        ladderState: "relegation_observation",
++        rating: 1480,
++        observationStartedAt: new Date(NOW.getTime() - 91 * DAY_MS),
++        observationMatches: 7,
++      }),
++      config(),
++      NOW,
++      "daily",
++    );
++    assert.equal(next.ladderState, "relegation_observation");
++    const demote = actions.find((a) => a.kind === "demote");
++    assert.ok(demote);
++    assert.equal(demote.kind === "demote" && demote.to.code, "iniciante_2");
++    assert.ok(
++      actions.some((a) => a.kind === "notify" && a.type === "relegation_applied"),
++    );
++  });
++
++  it("janela expirada com poucas partidas é inconclusiva → stable, sem rebaixar", () => {
++    const {next, actions} = evaluateLadderTransition(
++      state({
++        ladderState: "relegation_observation",
++        rating: 1480,
++        observationStartedAt: new Date(NOW.getTime() - 91 * DAY_MS),
++        observationMatches: 3,
++      }),
++      config(),
++      NOW,
++      "daily",
++    );
++    assert.equal(next.ladderState, "stable");
++    assert.equal(actions.length, 0);
++  });
++
++  it("janela em andamento não decide no passe diário", () => {
++    const {next, actions} = evaluateLadderTransition(
++      state({
++        ladderState: "relegation_observation",
++        rating: 1480,
++        observationStartedAt: new Date(NOW.getTime() - 30 * DAY_MS),
++        observationMatches: 7,
++      }),
++      config(),
++      NOW,
++      "daily",
++    );
++    assert.equal(next.ladderState, "relegation_observation");
++    assert.equal(actions.length, 0);
++  });
++});
++
++describe("applyPromotion / applyRelegation", () => {
++  it("promoção sobe o nível e ativa proteção sem tocar no rating", () => {
++    const cfg = config();
++    const to = cfg.levels.find((l) => l.code === "intermediario_2")!;
++    const promoted = applyPromotion(state({rating: 1725}), cfg, to, NOW);
++    assert.equal(promoted.levelCode, "intermediario_2");
++    assert.equal(promoted.levelRank, 3);
++    assert.equal(promoted.ladderState, "stable");
++    assert.equal(promoted.rating, 1725);
++    assert.equal(
++      promoted.protectedUntil?.getTime(),
++      NOW.getTime() + 120 * DAY_MS,
++    );
++  });
++
++  it("rebaixamento desce o nível e re-seeda o RD (bloqueia nova decisão)", () => {
++    const cfg = config();
++    const to = cfg.levels.find((l) => l.code === "iniciante_2")!;
++    const demoted = applyRelegation(
++      state({rating: 1480, ladderState: "relegation_observation"}),
++      cfg,
++      to,
++    );
++    assert.equal(demoted.levelCode, "iniciante_2");
++    assert.equal(demoted.ladderState, "stable");
++    assert.equal(demoted.rd, Math.round(300 * 0.7));
++    assert.ok(demoted.rd > cfg.ladder.maxRdForDecision);
++  });
++});
++
++/** Firestore fake que registra writes (suficiente p/ applyLadderActions). */
++function mockDb() {
++  const writes: Array<{path: string; data: Record<string, unknown>}> = [];
++  return {
++    writes,
++    doc: (path: string) => ({
++      set: async (data: Record<string, unknown>) => {
++        writes.push({path, data});
++      },
++    }),
++    collection: (path: string) => ({
++      add: async (data: Record<string, unknown>) => {
++        writes.push({path, data});
++      },
++    }),
++  };
++}
++
++describe("applyLadderActions · flags de rollout", () => {
++  it("shadowMode suprime qualquer efeito externo (estado pendente persiste)", async () => {
++    const db = mockDb();
++    const cfg = config({shadowMode: true, autoPromotionEnabled: true, notificationsEnabled: true});
++    const evaluation = evaluateLadderTransition(
++      state({rating: 1725}),
++      cfg,
++      NOW,
++      "match",
++    );
++    const final = await applyLadderActions(db as never, evaluation, cfg, NOW);
++    assert.equal(db.writes.length, 0);
++    assert.equal(final.ladderState, "promotion_pending");
++    assert.equal(final.levelCode, "intermediario_1");
++  });
++
++  it("flag de promoção desligada mantém pendente mesmo fora do shadow", async () => {
++    const db = mockDb();
++    const cfg = config({shadowMode: false, autoPromotionEnabled: false});
++    const evaluation = evaluateLadderTransition(
++      state({rating: 1725}),
++      cfg,
++      NOW,
++      "match",
++    );
++    const final = await applyLadderActions(db as never, evaluation, cfg, NOW);
++    assert.equal(db.writes.length, 0);
++    assert.equal(final.ladderState, "promotion_pending");
++  });
++
++  it("auto-promoção aplica nível em levelsBySport + auditoria em levelHistory", async () => {
++    const db = mockDb();
++    const cfg = config({shadowMode: false, autoPromotionEnabled: true});
++    const evaluation = evaluateLadderTransition(
++      state({rating: 1725}),
++      cfg,
++      NOW,
++      "match",
++    );
++    const final = await applyLadderActions(db as never, evaluation, cfg, NOW);
++
++    assert.equal(final.levelCode, "intermediario_2");
++    assert.equal(final.ladderState, "stable");
++    assert.ok(final.protectedUntil);
++
++    const userWrite = db.writes.find((w) => w.path === "users/a1");
++    assert.ok(userWrite);
++    assert.deepEqual(userWrite.data, {
++      sportOnboarding: {levelsBySport: {VOLEI_PRAIA: "intermediario_2"}},
++    });
++
++    const history = db.writes.find((w) => w.path === "users/a1/levelHistory");
++    assert.ok(history);
++    assert.equal(history.data.reason, "promotion");
++    assert.equal(history.data.toLevel, "intermediario_2");
++    assert.equal(history.data.actor, "rating_engine");
++  });
++
++  it("auto-rebaixamento aplica o degrau abaixo com auditoria", async () => {
++    const db = mockDb();
++    const cfg = config({shadowMode: false, autoRelegationEnabled: true});
++    const evaluation = evaluateLadderTransition(
++      state({
++        ladderState: "relegation_observation",
++        rating: 1480,
++        observationStartedAt: new Date(NOW.getTime() - 91 * DAY_MS),
++        observationMatches: 7,
++      }),
++      cfg,
++      NOW,
++      "daily",
++    );
++    const final = await applyLadderActions(db as never, evaluation, cfg, NOW);
++
++    assert.equal(final.levelCode, "iniciante_2");
++    assert.equal(final.ladderState, "stable");
++    const history = db.writes.find((w) => w.path === "users/a1/levelHistory");
++    assert.ok(history);
++    assert.equal(history.data.reason, "relegation");
++    assert.equal(history.data.fromLevel, "intermediario_1");
++    assert.equal(history.data.toLevel, "iniciante_2");
++  });
++});
+diff --git a/functions/src/rating-ladder.ts b/functions/src/rating-ladder.ts
+new file mode 100644
+index 0000000..24c8b22
+--- /dev/null
++++ b/functions/src/rating-ladder.ts
+@@ -0,0 +1,466 @@
++import {FieldValue, Timestamp, type Firestore} from "firebase-admin/firestore";
++import * as logger from "firebase-functions/logger";
++import {deliverNotificationToUser} from "./notification-delivery";
++import {
++  adjacentLevel,
++  resolveLadderLevel,
++  type RatingLadderConfig,
++  type RatingLadderLevel,
++} from "./rating-config";
++
++/**
++ * State machine de promoção/rebaixamento da escada de níveis.
++ *
++ * [evaluateLadderTransition] é pura (estado + config + relógio → próximo
++ * estado + ações); [applyLadderActions] executa os efeitos externos (nível em
++ * `users/{uid}`, auditoria em `levelHistory`, notificação) respeitando as
++ * flags de rollout — em `shadowMode` os estados são persistidos para
++ * validação, mas nenhum efeito externo acontece.
++ */
++
++export type LadderZone = "stable" | "promotion" | "relegation";
++export type LadderState =
++  | "stable"
++  | "promotion_pending"
++  | "relegation_observation";
++
++export interface AthleteRatingState {
++  athleteId: string;
++  sportCode: string;
++  rating: number;
++  rd: number;
++  volatility: number;
++  ratedMatches: number;
++  wins: number;
++  losses: number;
++  lastMatchAt: Date | null;
++  levelCode: string;
++  levelRank: number;
++  zone: LadderZone;
++  ladderState: LadderState;
++  observationStartedAt: Date | null;
++  observationMatches: number;
++  notifiedAt: Date | null;
++  protectedUntil: Date | null;
++  seededFromLevel: string;
++}
++
++export type LadderNotificationType =
++  | "level_promotion"
++  | "relegation_warning"
++  | "relegation_cleared"
++  | "relegation_applied";
++
++export type LadderAction =
++  | {kind: "promote"; from: RatingLadderLevel; to: RatingLadderLevel}
++  | {kind: "demote"; from: RatingLadderLevel; to: RatingLadderLevel}
++  | {kind: "notify"; type: LadderNotificationType};
++
++export interface LadderEvaluation {
++  next: AthleteRatingState;
++  actions: LadderAction[];
++}
++
++const DAY_MS = 86_400_000;
++
++const SPORT_LABELS: Record<string, string> = {
++  VOLEI_PRAIA: "vôlei de praia",
++  VOLEI_QUADRA: "vôlei de quadra",
++  BEACH_TENNIS: "beach tennis",
++};
++
++export function sportLabel(sportCode: string): string {
++  return SPORT_LABELS[sportCode] ?? sportCode;
++}
++
++/** Zona informativa do rating dentro das bandas do nível atual. */
++export function computeZone(
++  rating: number,
++  level: RatingLadderLevel,
++): LadderZone {
++  if (level.promoteAt != null && rating >= level.promoteAt) return "promotion";
++  if (level.demoteAt != null && rating <= level.demoteAt) return "relegation";
++  return "stable";
++}
++
++function meetsDecisionGates(
++  state: AthleteRatingState,
++  config: RatingLadderConfig,
++): boolean {
++  return (
++    state.rd <= config.ladder.maxRdForDecision &&
++    state.ratedMatches >= config.ladder.minRatedMatches
++  );
++}
++
++/**
++ * Avalia o estado da escada após um rating update ([trigger] `match`) ou no
++ * passe diário ([trigger] `daily`). Não aplica promoção/rebaixamento — devolve
++ * ações para [applyLadderActions] decidir conforme as flags.
++ */
++export function evaluateLadderTransition(
++  state: AthleteRatingState,
++  config: RatingLadderConfig,
++  now: Date,
++  trigger: "match" | "daily",
++): LadderEvaluation {
++  const level = resolveLadderLevel(config, state.levelCode);
++  const actions: LadderAction[] = [];
++  const next: AthleteRatingState = {
++    ...state,
++    levelCode: level.code,
++    levelRank: level.rank,
++    zone: computeZone(state.rating, level),
++  };
++
++  if (state.ladderState === "relegation_observation") {
++    if (trigger === "match") {
++      next.observationMatches = state.observationMatches + 1;
++    }
++
++    // Recuperação: saiu da banda com margem → volta a stable em qualquer update.
++    if (
++      level.demoteAt != null &&
++      state.rating > level.demoteAt + config.ladder.relegationRecoveryMargin
++    ) {
++      next.ladderState = "stable";
++      next.observationStartedAt = null;
++      next.observationMatches = 0;
++      actions.push({kind: "notify", type: "relegation_cleared"});
++      return {next, actions};
++    }
++
++    // Expiração da janela: só o passe diário decide.
++    const startedAt = state.observationStartedAt;
++    const windowMs = config.ladder.relegationObservationDays * DAY_MS;
++    if (
++      trigger === "daily" &&
++      startedAt != null &&
++      now.getTime() - startedAt.getTime() >= windowMs
++    ) {
++      const conclusive =
++        next.observationMatches >=
++          config.ladder.relegationObservationMinMatches &&
++        level.demoteAt != null &&
++        state.rating <= level.demoteAt;
++      const below = adjacentLevel(config, level, "down");
++      if (conclusive && below) {
++        actions.push({kind: "demote", from: level, to: below});
++        actions.push({kind: "notify", type: "relegation_applied"});
++      } else {
++        // Inconclusivo (poucas partidas na janela) → nunca rebaixa por
++        // inatividade; volta a stable sem notificação.
++        next.ladderState = "stable";
++        next.observationStartedAt = null;
++        next.observationMatches = 0;
++      }
++    }
++    return {next, actions};
++  }
++
++  if (state.ladderState === "promotion_pending") {
++    // Caiu da banda antes de aplicar → volta a stable (zona morta evita flap).
++    if (level.promoteAt == null || state.rating < level.promoteAt) {
++      next.ladderState = "stable";
++      return {next, actions};
++    }
++    // Continua elegível: reemite a ação (aplicada quando as flags permitirem).
++    const above = adjacentLevel(config, level, "up");
++    if (above && meetsDecisionGates(state, config)) {
++      actions.push({kind: "promote", from: level, to: above});
++      actions.push({kind: "notify", type: "level_promotion"});
++    }
++    return {next, actions};
++  }
++
++  // stable →
++  const above = adjacentLevel(config, level, "up");
++  if (
++    level.promoteAt != null &&
++    state.rating >= level.promoteAt &&
++    above != null &&
++    meetsDecisionGates(state, config)
++  ) {
++    next.ladderState = "promotion_pending";
++    actions.push({kind: "promote", from: level, to: above});
++    actions.push({kind: "notify", type: "level_promotion"});
++    return {next, actions};
++  }
++
++  const below = adjacentLevel(config, level, "down");
++  const isProtected =
++    state.protectedUntil != null && now.getTime() <= state.protectedUntil.getTime();
++  if (
++    level.demoteAt != null &&
++    state.rating <= level.demoteAt &&
++    below != null &&
++    !isProtected &&
++    meetsDecisionGates(state, config)
++  ) {
++    next.ladderState = "relegation_observation";
++    next.observationStartedAt = now;
++    next.observationMatches = 0;
++    actions.push({kind: "notify", type: "relegation_warning"});
++    return {next, actions};
++  }
++
++  return {next, actions};
++}
++
++/** Aplica a promoção no estado (nível novo, proteção; rating/RD intocados). */
++export function applyPromotion(
++  state: AthleteRatingState,
++  config: RatingLadderConfig,
++  to: RatingLadderLevel,
++  now: Date,
++): AthleteRatingState {
++  return {
++    ...state,
++    levelCode: to.code,
++    levelRank: to.rank,
++    ladderState: "stable",
++    zone: computeZone(state.rating, to),
++    observationStartedAt: null,
++    observationMatches: 0,
++    protectedUntil: new Date(
++      now.getTime() + config.ladder.promotionProtectionDays * DAY_MS,
++    ),
++  };
++}
++
++/** Aplica o rebaixamento (nível abaixo, RD re-seedado para consolidar). */
++export function applyRelegation(
++  state: AthleteRatingState,
++  config: RatingLadderConfig,
++  to: RatingLadderLevel,
++): AthleteRatingState {
++  return {
++    ...state,
++    levelCode: to.code,
++    levelRank: to.rank,
++    ladderState: "stable",
++    zone: computeZone(state.rating, to),
++    observationStartedAt: null,
++    observationMatches: 0,
++    // RD alto bloqueia nova decisão via maxRdForDecision até consolidar.
++    rd: Math.round(config.glicko.initialRd * 0.7),
++  };
++}
++
++function notificationContent(
++  type: LadderNotificationType,
++  params: {sportCode: string; levelLabel: string},
++): {title: string; body: string} {
++  const sport = sportLabel(params.sportCode);
++  switch (type) {
++    case "level_promotion":
++      return {
++        title: "Parabéns! Você subiu de nível 🎉",
++        body: `Seus resultados em torneios te levaram para ${params.levelLabel} no ${sport}.`,
++      };
++    case "relegation_warning":
++      return {
++        title: "Zona de reclassificação",
++        body:
++          `Seu desempenho recente no ${sport} ficou abaixo da faixa de ` +
++          `${params.levelLabel}. Você tem 90 dias de observação para recuperar.`,
++      };
++    case "relegation_cleared":
++      return {
++        title: "Você saiu da zona de reclassificação 💪",
++        body: `Boa recuperação! Seu nível ${params.levelLabel} no ${sport} está garantido.`,
++      };
++    case "relegation_applied":
++      return {
++        title: "Seu nível foi atualizado",
++        body:
++          `Após o período de observação, seu nível no ${sport} passou a ser ` +
++          `${params.levelLabel}. Continue jogando para subir de novo!`,
++      };
++  }
++}
++
++const SPORTS_LEVELS_URL = "/athlete/profile/sports-levels";
++
++/**
++ * Executa as ações da avaliação conforme as flags e devolve o estado final a
++ * persistir em `athleteRatings`. Promoção/rebaixamento escrevem APENAS
++ * `sportOnboarding.levelsBySport[sportCode]` (nunca o `level` global) +
++ * auditoria em `levelHistory`.
++ */
++export async function applyLadderActions(
++  db: Firestore,
++  evaluation: LadderEvaluation,
++  config: RatingLadderConfig,
++  now: Date,
++): Promise<AthleteRatingState> {
++  let state = evaluation.next;
++  const flags = config.flags;
++  const external = !flags.shadowMode;
++  let appliedLevelChange: {reason: "promotion" | "relegation"; to: RatingLadderLevel} | null =
++    null;
++
++  for (const action of evaluation.actions) {
++    if (action.kind === "promote" && external && flags.autoPromotionEnabled) {
++      state = applyPromotion(state, config, action.to, now);
++      appliedLevelChange = {reason: "promotion", to: action.to};
++    }
++    if (action.kind === "demote" && external && flags.autoRelegationEnabled) {
++      state = applyRelegation(state, config, action.to);
++      appliedLevelChange = {reason: "relegation", to: action.to};
++    }
++  }
++
++  if (appliedLevelChange) {
++    const {athleteId, sportCode} = state;
++    await db.doc(`users/${athleteId}`).set(
++      {
++        sportOnboarding: {
++          levelsBySport: {[sportCode]: appliedLevelChange.to.code},
++        },
++      },
++      {merge: true},
++    );
++    await db.collection(`users/${athleteId}/levelHistory`).add({
++      sportCode,
++      fromLevel: evaluation.next.levelCode,
++      toLevel: appliedLevelChange.to.code,
++      reason: appliedLevelChange.reason,
++      rating: Math.round(state.rating),
++      rd: Math.round(state.rd),
++      ratedMatches: state.ratedMatches,
++      actor: "rating_engine",
++      createdAt: FieldValue.serverTimestamp(),
++    });
++  }
++
++  for (const action of evaluation.actions) {
++    if (action.kind !== "notify") continue;
++    if (!external || !flags.notificationsEnabled) continue;
++    // Nível mudou de fato? Notificações de promoção/rebaixamento só saem
++    // acompanhando a mudança real (as de warning/cleared são informativas).
++    if (action.type === "level_promotion" && appliedLevelChange?.reason !== "promotion") {
++      continue;
++    }
++    if (action.type === "relegation_applied" && appliedLevelChange?.reason !== "relegation") {
++      continue;
++    }
++    if (action.type === "relegation_warning" && state.notifiedAt != null) {
++      continue; // aviso de observação sai UMA vez por janela.
++    }
++
++    const level = resolveLadderLevel(config, state.levelCode);
++    const content = notificationContent(action.type, {
++      sportCode: state.sportCode,
++      levelLabel: level.label,
++    });
++    try {
++      await deliverNotificationToUser({
++        userId: state.athleteId,
++        title: content.title,
++        body: content.body,
++        type: action.type,
++        data: {
++          url: SPORTS_LEVELS_URL,
++          sportCode: state.sportCode,
++          levelCode: state.levelCode,
++        },
++      });
++      if (action.type === "relegation_warning") {
++        state = {...state, notifiedAt: now};
++      }
++    } catch (error) {
++      logger.error(
++        `rating-ladder: notificação ${action.type} falhou para ${state.athleteId}`,
++        error,
++      );
++    }
++  }
++
++  // Saiu da observação → o próximo ciclo pode notificar de novo.
++  if (state.ladderState !== "relegation_observation" && state.notifiedAt != null) {
++    state = {...state, notifiedAt: null};
++  }
++
++  return state;
++}
++
++/** (De)serialização do doc `athleteRatings/{athleteId}_{sportCode}`. */
++export function ratingStateToDoc(
++  state: AthleteRatingState,
++): Record<string, unknown> {
++  return {
++    athleteId: state.athleteId,
++    sportCode: state.sportCode,
++    rating: state.rating,
++    rd: state.rd,
++    volatility: state.volatility,
++    ratedMatches: state.ratedMatches,
++    wins: state.wins,
++    losses: state.losses,
++    lastMatchAt: state.lastMatchAt ? Timestamp.fromDate(state.lastMatchAt) : null,
++    levelCode: state.levelCode,
++    levelRank: state.levelRank,
++    zone: state.zone,
++    ladderState: state.ladderState,
++    observationStartedAt: state.observationStartedAt
++      ? Timestamp.fromDate(state.observationStartedAt)
++      : null,
++    observationMatches: state.observationMatches,
++    notifiedAt: state.notifiedAt ? Timestamp.fromDate(state.notifiedAt) : null,
++    protectedUntil: state.protectedUntil
++      ? Timestamp.fromDate(state.protectedUntil)
++      : null,
++    seededFromLevel: state.seededFromLevel,
++    updatedAt: FieldValue.serverTimestamp(),
++  };
++}
++
++function toDate(raw: unknown): Date | null {
++  if (raw && typeof raw === "object" && "toDate" in raw) {
++    const date = (raw as Timestamp).toDate();
++    return Number.isNaN(date.getTime()) ? null : date;
++  }
++  return null;
++}
++
++export function ratingStateFromDoc(
++  athleteId: string,
++  sportCode: string,
++  data: Record<string, unknown>,
++): AthleteRatingState {
++  const num = (raw: unknown, fallback: number): number => {
++    const value = Number(raw);
++    return Number.isFinite(value) ? value : fallback;
++  };
++  const ladderState = String(data.ladderState ?? "stable");
++  const zone = String(data.zone ?? "stable");
++  return {
++    athleteId,
++    sportCode,
++    rating: num(data.rating, 1500),
++    rd: num(data.rd, 350),
++    volatility: num(data.volatility, 0.06),
++    ratedMatches: num(data.ratedMatches, 0),
++    wins: num(data.wins, 0),
++    losses: num(data.losses, 0),
++    lastMatchAt: toDate(data.lastMatchAt),
++    levelCode: String(data.levelCode ?? ""),
++    levelRank: num(data.levelRank, 0),
++    zone: (["stable", "promotion", "relegation"] as const).includes(
++      zone as LadderZone,
++    )
++      ? (zone as LadderZone)
++      : "stable",
++    ladderState: (
++      ["stable", "promotion_pending", "relegation_observation"] as const
++    ).includes(ladderState as LadderState)
++      ? (ladderState as LadderState)
++      : "stable",
++    observationStartedAt: toDate(data.observationStartedAt),
++    observationMatches: num(data.observationMatches, 0),
++    notifiedAt: toDate(data.notifiedAt),
++    protectedUntil: toDate(data.protectedUntil),
++    seededFromLevel: String(data.seededFromLevel ?? ""),
++  };
++}
+diff --git a/functions/src/rating-triggers.ts b/functions/src/rating-triggers.ts
+new file mode 100644
+index 0000000..96772cc
+--- /dev/null
++++ b/functions/src/rating-triggers.ts
+@@ -0,0 +1,465 @@
++import {FieldValue, Timestamp, getFirestore} from "firebase-admin/firestore";
++import type {UserRecord} from "firebase-admin/auth";
++import {
++  onDocumentUpdated,
++  onDocumentWritten,
++} from "firebase-functions/v2/firestore";
++import {onSchedule} from "firebase-functions/v2/scheduler";
++import {HttpsError, onCall} from "firebase-functions/v2/https";
++import * as logger from "firebase-functions/logger";
++import {callerIsSuperAdmin} from "./auth-roles";
++import {levelRank} from "./category-level-eligibility";
++import {inflateRd} from "./glicko";
++import {artifactsMatchesPath, getFirebaseProjectId} from "./firebase-paths";
++import {MatchStatus} from "./match-status";
++import {
++  loadRatingLadderConfig,
++  resolveLadderLevel,
++} from "./rating-config";
++import {
++  applyLadderActions,
++  evaluateLadderTransition,
++  ratingStateFromDoc,
++  ratingStateToDoc,
++  type AthleteRatingState,
++} from "./rating-ladder";
++import {
++  applyMatchRatingUpdate,
++  athleteRatingDocId,
++  athleteRatingsPath,
++  replayAthleteLedger,
++  seedRatingState,
++  shouldProcessRatingUpdate,
++} from "./rating-engine";
++import {tryAwardGlobalRankingForMatch} from "./tournament-ranking";
++
++/** Esportes com escada de rating no v1 (BT adiado — sem torneios de BT ainda). */
++export const RATED_SPORT_CODES = ["VOLEI_PRAIA", "VOLEI_QUADRA"] as const;
++
++const WEEK_MS = 7 * 86_400_000;
++
++/**
++ * Rating engine: trigger desacoplado no path de matches, coexistindo com o
++ * advance de chave, o XP e o points writer (cada um decide sozinho se age).
++ */
++export const onTournamentMatchCompletedUpdateRatings = onDocumentUpdated(
++  "artifacts/{appId}/public/data/matches/{matchId}",
++  async (event) => {
++    const before = event.data?.before.data() as Record<string, unknown> | undefined;
++    const after = event.data?.after.data() as Record<string, unknown> | undefined;
++    if (!shouldProcessRatingUpdate(before, after) || !after) return;
++
++    try {
++      const result = await applyMatchRatingUpdate(
++        getFirestore(),
++        event.params.appId,
++        {matchId: event.params.matchId, match: after},
++      );
++      if (result.processed) {
++        logger.info(
++          `rating: partida ${event.params.matchId} processada` +
++            (result.walkover ? " (W.O., sem rating)" : "") +
++            (result.replayedAthleteIds
++              ? ` (correção, replay de ${result.replayedAthleteIds.length} atleta(s))`
++              : ""),
++        );
++      }
++    } catch (error) {
++      logger.error(`rating: falha na partida ${event.params.matchId}`, error);
++    }
++  },
++);
++
++async function superAdminOrThrow(uid: string | undefined): Promise<string> {
++  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
++  const {getAuth} = await import("firebase-admin/auth");
++  const caller: UserRecord = await getAuth().getUser(uid);
++  if (!callerIsSuperAdmin(caller)) {
++    throw new HttpsError(
++      "permission-denied",
++      "Apenas o super administrador pode executar esta operação.",
++    );
++  }
++  return uid;
++}
++
++function levelsBySportOf(
++  data: Record<string, unknown> | undefined,
++): Record<string, unknown> {
++  const onboarding = data?.["sportOnboarding"];
++  if (onboarding != null && typeof onboarding === "object") {
++    const bySport = (onboarding as Record<string, unknown>)["levelsBySport"];
++    if (bySport != null && typeof bySport === "object") {
++      return bySport as Record<string, unknown>;
++    }
++  }
++  return {};
++}
++
++/**
++ * Self-upgrade: o atleta ainda pode SUBIR o próprio nível pelo app. Este
++ * trigger detecta a subida em `sportOnboarding.levelsBySport`, audita em
++ * `levelHistory` e re-seeda o rating para `max(atual, initialRating do novo
++ * nível)` com RD resetado + proteção — o guard anti-flap contra a escada.
++ *
++ * Escritas da própria engine/migração são ignoradas: promoção grava
++ * `athleteRatings.levelCode` na mesma leva (igualdade → skip) e a migração
++ * mapeia para o mesmo rank (rank não sobe → skip).
++ */
++export const onUserWrittenTrackLevelChanges = onDocumentWritten(
++  "users/{userId}",
++  async (event) => {
++    const before = event.data?.before?.data() as Record<string, unknown> | undefined;
++    const after = event.data?.after?.data() as Record<string, unknown> | undefined;
++    if (!after) return;
++
++    const beforeLevels = levelsBySportOf(before);
++    const afterLevels = levelsBySportOf(after);
++    const userId = event.params.userId;
++    const db = getFirestore();
++    const projectId = getFirebaseProjectId();
++
++    for (const sportCode of RATED_SPORT_CODES) {
++      const rawBefore = String(beforeLevels[sportCode] ?? "").trim();
++      const rawAfter = String(afterLevels[sportCode] ?? "").trim();
++      if (!rawAfter || rawAfter === rawBefore) continue;
++
++      const beforeRank = levelRank(rawBefore);
++      const afterRank = levelRank(rawAfter);
++      if (afterRank == null) continue;
++      // Rename de migração (mesmo rank) ou rebaixamento da engine: não é
++      // self-upgrade.
++      if (beforeRank != null && afterRank <= beforeRank) continue;
++
++      try {
++        const config = await loadRatingLadderConfig(db, sportCode);
++        if (!config.flags.ratingEnabled) continue;
++        const newLevel = resolveLadderLevel(config, rawAfter);
++
++        const ratingRef = db
++          .collection(athleteRatingsPath(projectId))
++          .doc(athleteRatingDocId(userId, sportCode));
++        const snap = await ratingRef.get();
++        const current = snap.exists
++          ? ratingStateFromDoc(userId, sportCode, snap.data() as Record<string, unknown>)
++          : null;
++
++        // Promoção da própria engine: levelCode já está no novo nível.
++        if (current && current.levelCode === newLevel.code) continue;
++
++        const base =
++          current ?? seedRatingState(userId, sportCode, config, rawAfter);
++        const now = new Date();
++        const upgraded: AthleteRatingState = {
++          ...base,
++          rating: Math.max(base.rating, newLevel.initialRating),
++          rd: config.glicko.initialRd,
++          levelCode: newLevel.code,
++          levelRank: newLevel.rank,
++          zone: "stable",
++          ladderState: "stable",
++          observationStartedAt: null,
++          observationMatches: 0,
++          notifiedAt: null,
++          protectedUntil: new Date(
++            now.getTime() + config.ladder.promotionProtectionDays * 86_400_000,
++          ),
++        };
++        await ratingRef.set(ratingStateToDoc(upgraded));
++        await db.collection(`users/${userId}/levelHistory`).add({
++          sportCode,
++          fromLevel: rawBefore || null,
++          toLevel: newLevel.code,
++          reason: "self_upgrade",
++          rating: Math.round(upgraded.rating),
++          rd: Math.round(upgraded.rd),
++          ratedMatches: upgraded.ratedMatches,
++          actor: userId,
++          createdAt: FieldValue.serverTimestamp(),
++        });
++        logger.info(
++          `rating: self-upgrade de ${userId} em ${sportCode} → ${newLevel.code}`,
++        );
++      } catch (error) {
++        logger.error(
++          `rating: falha ao processar self-upgrade de ${userId} em ${sportCode}`,
++          error,
++        );
++      }
++    }
++  },
++);
++
++/**
++ * Passe diário (06:00 America/Sao_Paulo): expira janelas de observação e
++ * infla RD por inatividade (o que bloqueia decisões via `maxRdForDecision` —
++ * inatividade NUNCA rebaixa).
++ */
++export const evaluateRatingLadderDaily = onSchedule(
++  {schedule: "0 6 * * *", timeZone: "America/Sao_Paulo", timeoutSeconds: 540},
++  async () => {
++    const db = getFirestore();
++    const projectId = getFirebaseProjectId();
++    const now = new Date();
++
++    for (const sportCode of RATED_SPORT_CODES) {
++      const config = await loadRatingLadderConfig(db, sportCode);
++      if (!config.flags.ratingEnabled) continue;
++
++      let processed = 0;
++      let changed = 0;
++      let lastId: string | undefined;
++      for (;;) {
++        let query = db
++          .collection(athleteRatingsPath(projectId))
++          .where("sportCode", "==", sportCode)
++          .orderBy("__name__")
++          .limit(400);
++        if (lastId) query = query.startAfter(lastId);
++        const snap = await query.get();
++        if (snap.docs.length === 0) break;
++
++        for (const doc of snap.docs) {
++          processed++;
++          lastId = doc.id;
++          const raw = doc.data() as Record<string, unknown>;
++          let state = ratingStateFromDoc(
++            String(raw.athleteId ?? doc.id.split("_")[0] ?? ""),
++            sportCode,
++            raw,
++          );
++
++          // Inflação de RD por semana COMPLETA de inatividade, ancorada em
++          // `lastRdInflationAt` para não compor a cada passe diário.
++          const anchorRaw = raw["lastRdInflationAt"];
++          const anchor =
++            anchorRaw && typeof anchorRaw === "object" && "toDate" in anchorRaw
++              ? (anchorRaw as Timestamp).toDate()
++              : state.lastMatchAt;
++          let inflationFields: Record<string, unknown> = {};
++          if (anchor) {
++            const weeks = Math.floor((now.getTime() - anchor.getTime()) / WEEK_MS);
++            if (weeks >= 1) {
++              const inflated = inflateRd(
++                state.rd,
++                weeks,
++                config.glicko.inactivityRdPerWeek,
++                config.glicko.maxRd,
++              );
++              if (inflated !== state.rd) {
++                state = {...state, rd: inflated};
++              }
++              inflationFields = {
++                lastRdInflationAt: Timestamp.fromDate(
++                  new Date(anchor.getTime() + weeks * WEEK_MS),
++                ),
++              };
++            }
++          }
++
++          const evaluation = evaluateLadderTransition(state, config, now, "daily");
++          const hasActions = evaluation.actions.length > 0;
++          const inflated = Object.keys(inflationFields).length > 0;
++          const stateChanged =
++            evaluation.next.ladderState !== state.ladderState ||
++            evaluation.next.zone !== state.zone ||
++            evaluation.next.observationStartedAt?.getTime() !==
++              state.observationStartedAt?.getTime();
++
++          if (!hasActions && !stateChanged && !inflated) continue;
++
++          const final = hasActions
++            ? await applyLadderActions(db, evaluation, config, now)
++            : evaluation.next;
++          await doc.ref.set(
++            {...ratingStateToDoc(final), ...inflationFields},
++            {merge: true},
++          );
++          changed++;
++        }
++        if (snap.docs.length < 400) break;
++      }
++      logger.info(
++        `rating-daily ${sportCode}: ${processed} doc(s), ${changed} atualizado(s)`,
++      );
++    }
++  },
++);
++
++/** Replay administrativo do ledger de um atleta (ou lista). */
++export const recomputeAthleteRating = onCall(async (request) => {
++  await superAdminOrThrow(request.auth?.uid);
++
++  const sportCode = String(request.data?.sportCode ?? "").trim();
++  if (!(RATED_SPORT_CODES as readonly string[]).includes(sportCode)) {
++    throw new HttpsError("invalid-argument", "sportCode inválido.");
++  }
++  const rawIds: unknown = request.data?.athleteIds ?? request.data?.athleteId;
++  const athleteIds = (Array.isArray(rawIds) ? rawIds : [rawIds])
++    .map((id) => String(id ?? "").trim())
++    .filter((id) => id.length > 0);
++  if (athleteIds.length === 0) {
++    throw new HttpsError("invalid-argument", "athleteId(s) obrigatório(s).");
++  }
++
++  const db = getFirestore();
++  const projectId = getFirebaseProjectId();
++  let recomputed = 0;
++  for (const athleteId of athleteIds) {
++    const result = await replayAthleteLedger(db, projectId, athleteId, sportCode);
++    if (result) recomputed++;
++  }
++  return {success: true, recomputed};
++});
++
++/**
++ * Backfill de histórico (padrão `backfillSearchKeywords`): processa partidas
++ * `Completed` em ordem de `matchEndedAt`, aplicando rating + pontos globais.
++ * O ledger torna re-runs seguros. Repetir com `startAfterEndedAtMillis` do
++ * retorno até `done`.
++ */
++export const backfillRatingsAndResults = onCall(
++  {timeoutSeconds: 540},
++  async (request) => {
++    await superAdminOrThrow(request.auth?.uid);
++
++    const db = getFirestore();
++    const projectId = getFirebaseProjectId();
++    const pageSize =
++      typeof request.data?.pageSize === "number" && request.data.pageSize > 0
++        ? Math.min(request.data.pageSize, 500)
++        : 300;
++    const startAfterMillis =
++      typeof request.data?.startAfterEndedAtMillis === "number"
++        ? request.data.startAfterEndedAtMillis
++        : undefined;
++
++    let query = db
++      .collection(artifactsMatchesPath(projectId))
++      .where("status", "==", MatchStatus.completed)
++      .orderBy("matchEndedAt")
++      .limit(pageSize);
++    if (startAfterMillis != null) {
++      query = query.startAfter(Timestamp.fromMillis(startAfterMillis));
++    }
++    const snap = await query.get();
++
++    let ratingApplied = 0;
++    let pointsAwarded = 0;
++    let lastEndedAtMillis: number | null = null;
++    for (const doc of snap.docs) {
++      const match: Record<string, unknown> = {...doc.data(), id: doc.id};
++      const ended = match["matchEndedAt"];
++      if (ended && typeof ended === "object" && "toMillis" in ended) {
++        lastEndedAtMillis = (ended as Timestamp).toMillis();
++      }
++      try {
++        const rating = await applyMatchRatingUpdate(db, projectId, {
++          matchId: doc.id,
++          match,
++        });
++        if (rating.processed) ratingApplied++;
++        const points = await tryAwardGlobalRankingForMatch(db, projectId, match);
++        if (points.awarded) pointsAwarded++;
++      } catch (error) {
++        logger.error(`backfillRatings: falha na partida ${doc.id}`, error);
++      }
++    }
++
++    const done = snap.docs.length < pageSize;
++    logger.info(
++      `backfillRatings: ${snap.docs.length} partida(s), rating=${ratingApplied}, pontos=${pointsAwarded}, done=${done}`,
++    );
++    return {
++      success: true,
++      processed: snap.docs.length,
++      ratingApplied,
++      pointsAwarded,
++      nextCursor: lastEndedAtMillis,
++      done,
++    };
++  },
++);
++
++const LEGACY_LEVEL_MIGRATION: Record<string, string> = {
++  iniciante: "iniciante_1",
++  basico: "iniciante_1",
++  básico: "iniciante_1",
++  intermediario: "intermediario_1",
++  livre: "open",
++};
++
++/**
++ * Migra `sportOnboarding.levelsBySport` do vôlei para a escada de 5 níveis
++ * (degrau INFERIOR do split: ninguém fica trancado fora de categorias; a
++ * promoção sobe os fortes em ~10 partidas). Nível global `level` e demais
++ * esportes ficam intocados. Rodar antes do shadow; repetir com `startAfterId`
++ * até `done`.
++ */
++export const migrateAthleteLevels = onCall(
++  {timeoutSeconds: 540},
++  async (request) => {
++    const callerUid = await superAdminOrThrow(request.auth?.uid);
++
++    const db = getFirestore();
++    const pageSize =
++      typeof request.data?.pageSize === "number" && request.data.pageSize > 0
++        ? Math.min(request.data.pageSize, 500)
++        : 300;
++    const startAfterId =
++      typeof request.data?.startAfterId === "string"
++        ? request.data.startAfterId
++        : undefined;
++    const dryRun = request.data?.dryRun === true;
++
++    let query = db.collection("users").orderBy("__name__").limit(pageSize);
++    if (startAfterId) query = query.startAfter(startAfterId);
++    const snap = await query.get();
++
++    let migrated = 0;
++    let lastId: string | undefined;
++    for (const doc of snap.docs) {
++      lastId = doc.id;
++      const bySport = levelsBySportOf(doc.data() as Record<string, unknown>);
++      const updates: Record<string, string> = {};
++      for (const sportCode of RATED_SPORT_CODES) {
++        const raw = String(bySport[sportCode] ?? "").trim().toLowerCase();
++        const mapped = LEGACY_LEVEL_MIGRATION[raw];
++        if (mapped && mapped !== raw) updates[sportCode] = mapped;
++      }
++      if (Object.keys(updates).length === 0) continue;
++
++      migrated++;
++      if (dryRun) continue;
++
++      await doc.ref.set(
++        {sportOnboarding: {levelsBySport: updates}},
++        {merge: true},
++      );
++      for (const [sportCode, toLevel] of Object.entries(updates)) {
++        await db.collection(`users/${doc.id}/levelHistory`).add({
++          sportCode,
++          fromLevel: String(bySport[sportCode] ?? ""),
++          toLevel,
++          reason: "migration",
++          actor: callerUid,
++          createdAt: FieldValue.serverTimestamp(),
++        });
++      }
++    }
++
++    const done = snap.docs.length < pageSize;
++    logger.info(
++      `migrateAthleteLevels: ${snap.docs.length} usuário(s), ${migrated} migrado(s), dryRun=${dryRun}, done=${done}`,
++    );
++    return {
++      success: true,
++      processed: snap.docs.length,
++      migrated,
++      lastId: lastId ?? null,
++      done,
++      dryRun,
++    };
++  },
++);
++
+diff --git a/functions/src/tournament-ranking.test.ts b/functions/src/tournament-ranking.test.ts
+new file mode 100644
+index 0000000..f38a5ea
+--- /dev/null
++++ b/functions/src/tournament-ranking.test.ts
+@@ -0,0 +1,200 @@
++import {describe, it} from "node:test";
++import assert from "node:assert/strict";
++import {Timestamp} from "firebase-admin/firestore";
++import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
++import {
++  aggregateRankingResults,
++  athleteRankingsPath,
++  finalPlaceForAward,
++  globalPointsForAward,
++  teamRankingsPath,
++  tournamentCategoryResultsPath,
++  tryAwardGlobalRankingForMatch,
++  upsertRankingResult,
++} from "./tournament-ranking";
++
++const PROJECT = "proj";
++const ENDED_AT = Timestamp.fromDate(new Date("2026-06-01T18:00:00Z"));
++
++describe("finalPlaceForAward / globalPointsForAward", () => {
++  it("mapeia colocação → finalPlace e pontos da tabela", () => {
++    assert.equal(finalPlaceForAward({teamId: "t", place: 1}), 1);
++    assert.equal(finalPlaceForAward({teamId: "t", bucket: "quarters"}), 5);
++    assert.equal(finalPlaceForAward({teamId: "t", bucket: "groups"}), 9);
++
++    assert.equal(globalPointsForAward({teamId: "t", place: 1}, 1), 100);
++    assert.equal(globalPointsForAward({teamId: "t", place: 2}, 1), 80);
++    assert.equal(globalPointsForAward({teamId: "t", place: 3}, 1), 60);
++    assert.equal(globalPointsForAward({teamId: "t", place: 4}, 1), 50);
++    assert.equal(globalPointsForAward({teamId: "t", bucket: "quarters"}, 1), 33);
++    assert.equal(globalPointsForAward({teamId: "t", bucket: "groups"}, 1), 10);
++  });
++
++  it("aplica rankingWeight (peso por grade) com saneamento", () => {
++    assert.equal(globalPointsForAward({teamId: "t", place: 1}, 1.5), 150);
++    assert.equal(globalPointsForAward({teamId: "t", place: 1}, 0), 100);
++    assert.equal(globalPointsForAward({teamId: "t", place: 1}, Number.NaN), 100);
++  });
++});
++
++describe("aggregateRankingResults", () => {
++  it("soma os melhores 5 por ano (best-N) e o total entre anos", () => {
++    const results = [40, 100, 10, 60, 33, 80].map((points, index) => ({
++      tournamentId: `t${index}`,
++      categoryId: "c",
++      finalPlace: 1,
++      points,
++      year: 2026,
++    }));
++    results.push({tournamentId: "old", categoryId: "c", finalPlace: 1, points: 50, year: 2025});
++
++    const aggregates = aggregateRankingResults(results);
++    // 2026: melhores 5 de [100,80,60,40,33,10] = 313 (o 10 fica de fora).
++    assert.equal(aggregates.pointsByYear["2026"], 313);
++    assert.equal(aggregates.pointsByYear["2025"], 50);
++    assert.equal(aggregates.totalPoints, 363);
++    assert.equal(aggregates.tournamentsCount, 7);
++  });
++});
++
++describe("upsertRankingResult", () => {
++  const entry = {tournamentId: "t1", categoryId: "c1", finalPlace: 2, points: 80, year: 2026};
++
++  it("insere, substitui por chave tournamentId_categoryId e detecta no-op", () => {
++    const inserted = upsertRankingResult([], entry)!;
++    assert.equal(inserted.length, 1);
++
++    // Mesmo resultado → no-op (null) p/ não reescrever o doc à toa.
++    assert.equal(upsertRankingResult(inserted, entry), null);
++
++    // Correção (novo finalPlace) substitui a entrada, sem duplicar.
++    const corrected = upsertRankingResult(inserted, {...entry, finalPlace: 1, points: 100})!;
++    assert.equal(corrected.length, 1);
++    assert.equal(corrected[0].points, 100);
++  });
++});
++
++// ─── Fluxo completo com Firestore fake ───────────────────────────────────────
++
++function seededDb(): FakeFirestore {
++  const db = new FakeFirestore();
++  db.seedDoc("tournaments/T1", {sport: "beachVolleyball"});
++  db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tA`, {player1Id: "a1", player2Id: "a2"});
++  db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tB`, {player1Id: "b1", player2Id: "b2"});
++  return db;
++}
++
++function finalMatch(overrides: DocData = {}): DocData {
++  return {
++    id: "m-final",
++    status: "Completed",
++    tournamentId: "T1",
++    categoryId: "C1",
++    teamAId: "tA",
++    teamBId: "tB",
++    winnerId: "tA",
++    matchType: "Final",
++    matchEndedAt: ENDED_AT,
++    ...overrides,
++  };
++}
++
++describe("tryAwardGlobalRankingForMatch", () => {
++  it("final concede 1º/2º e alimenta resultados + agregados (sem leagueId)", async () => {
++    const db = seededDb();
++    const result = await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
++    assert.equal(result.awarded, true);
++
++    const champion = db.store.get(
++      `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`,
++    )!;
++    assert.equal(champion.finalPlace, 1);
++    assert.equal(champion.pointsEarned, 100);
++    assert.equal(champion.year, 2026);
++
++    const runnerUp = db.store.get(
++      `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tB`,
++    )!;
++    assert.equal(runnerUp.finalPlace, 2);
++    assert.equal(runnerUp.pointsEarned, 80);
++
++    const teamAgg = db.store.get(`${teamRankingsPath(PROJECT)}/tA`)!;
++    assert.equal(teamAgg.totalPoints, 100);
++    assert.equal(teamAgg.tournamentsCount, 1);
++    assert.deepEqual(teamAgg.pointsByYear, {"2026": 100});
++
++    for (const uid of ["a1", "a2"]) {
++      const athleteAgg = db.store.get(`${athleteRankingsPath(PROJECT)}/${uid}`)!;
++      assert.equal(athleteAgg.totalPoints, 100, uid);
++    }
++    for (const uid of ["b1", "b2"]) {
++      const athleteAgg = db.store.get(`${athleteRankingsPath(PROJECT)}/${uid}`)!;
++      assert.equal(athleteAgg.totalPoints, 80, uid);
++    }
++  });
++
++  it("re-run é idempotente (upsert não duplica nem soma de novo)", async () => {
++    const db = seededDb();
++    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
++    const rerun = await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
++    assert.equal(rerun.teamsUpdated, 0);
++
++    const teamAgg = db.store.get(`${teamRankingsPath(PROJECT)}/tA`)!;
++    assert.equal(teamAgg.totalPoints, 100);
++    assert.equal((teamAgg.results as unknown[]).length, 1);
++  });
++
++  it("correção de vencedor troca as colocações via upsert", async () => {
++    const db = seededDb();
++    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
++    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch({winnerId: "tB"}));
++
++    const teamA = db.store.get(`${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`)!;
++    assert.equal(teamA.finalPlace, 2);
++    const aggA = db.store.get(`${teamRankingsPath(PROJECT)}/tA`)!;
++    assert.equal(aggA.totalPoints, 80);
++    const aggB = db.store.get(`${teamRankingsPath(PROJECT)}/tB`)!;
++    assert.equal(aggB.totalPoints, 100);
++  });
++
++  it("times pagos fora do mata-mata pontuam pela fase de grupos", async () => {
++    const db = seededDb();
++    db.seedDoc(`artifacts/${PROJECT}/public/data/teams/tC`, {player1Id: "c1"});
++    db.seedDoc(`artifacts/${PROJECT}/public/data/inscriptions/i1`, {
++      tournamentId: "T1",
++      categoryId: "C1",
++      teamId: "tC",
++      isPaid: true,
++    });
++    // Times do mata-mata detectados pelas partidas não-grupo da categoria.
++    db.seedDoc(`artifacts/${PROJECT}/public/data/matches/m-final`, finalMatch());
++
++    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
++
++    const groupsTeam = db.store.get(
++      `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tC`,
++    )!;
++    assert.equal(groupsTeam.finalPlace, 9);
++    assert.equal(groupsTeam.pointsEarned, 10);
++  });
++
++  it("partida de grupo não concede colocação", async () => {
++    const db = seededDb();
++    const result = await tryAwardGlobalRankingForMatch(
++      db as never,
++      PROJECT,
++      finalMatch({matchType: "group", isGroupMatch: true}),
++    );
++    assert.equal(result.awarded, false);
++  });
++
++  it("rankingWeight do torneio multiplica os pontos", async () => {
++    const db = seededDb();
++    db.seedDoc("tournaments/T1", {sport: "beachVolleyball", rankingWeight: 2});
++    await tryAwardGlobalRankingForMatch(db as never, PROJECT, finalMatch());
++    const champion = db.store.get(
++      `${tournamentCategoryResultsPath(PROJECT)}/T1_C1_tA`,
++    )!;
++    assert.equal(champion.pointsEarned, 200);
++  });
++});
+diff --git a/functions/src/tournament-ranking.ts b/functions/src/tournament-ranking.ts
+new file mode 100644
+index 0000000..d237ff4
+--- /dev/null
++++ b/functions/src/tournament-ranking.ts
+@@ -0,0 +1,367 @@
++import {
++  FieldValue,
++  Timestamp,
++  getFirestore,
++  type Firestore,
++} from "firebase-admin/firestore";
++import {onDocumentUpdated} from "firebase-functions/v2/firestore";
++import * as logger from "firebase-functions/logger";
++import {isMatchCompleted} from "./match-status";
++import {
++  loadCategoryBracketContext,
++  loadKnockoutTeamIds,
++  loadPaidTeamIds,
++  loadTeamAthleteIds,
++  normalizeMatchType,
++  resolveLeaguePlacementsFromMatch,
++  type LeaguePlacementAward,
++} from "./league-ranking";
++import {parseMatchPlayedAt} from "./tournament-match-gamification";
++import {shouldProcessRatingUpdate as shouldAwardForMatch} from "./rating-engine";
++import {artifactsPublicDataBase} from "./firebase-paths";
++
++/**
++ * Ranking global por pontos (estilo federação) — preenche o schema que o app
++ * já lê (`tournamentCategoryResults`, `athleteRankings`, `teamRankings`),
++ * reutilizando a resolução de colocações da engine de liga mas SEM o gate de
++ * `leagueId`: todo torneio pontua.
++ *
++ * Tabela autoritativa (paridade com `pointsByPlace` de
++ * `nexago_app/lib/features/ranking/domain/ranking_constants.dart`, que dá 33
++ * aos lugares 5-8). `tournaments/{id}.rankingWeight` (default 1.0) multiplica.
++ */
++export const DEFAULT_GLOBAL_POINTS: Record<string, number> = {
++  "1": 100,
++  "2": 80,
++  "3": 60,
++  "4": 50,
++  quarters: 33,
++  groups: 10,
++};
++
++/** Nº de melhores resultados que contam por ano (paridade com `bestNResults`). */
++export const BEST_N_RESULTS_PER_YEAR = 5;
++
++export function tournamentCategoryResultsPath(projectId: string): string {
++  return `${artifactsPublicDataBase(projectId)}/tournamentCategoryResults`;
++}
++
++export function athleteRankingsPath(projectId: string): string {
++  return `${artifactsPublicDataBase(projectId)}/athleteRankings`;
++}
++
++export function teamRankingsPath(projectId: string): string {
++  return `${artifactsPublicDataBase(projectId)}/teamRankings`;
++}
++
++/** Colocação persistida: 1-4 direto; quartas→5; fase de grupos→9. */
++export function finalPlaceForAward(award: LeaguePlacementAward): number {
++  if (award.place != null) return award.place;
++  return award.bucket === "quarters" ? 5 : 9;
++}
++
++export function globalPointsForAward(
++  award: LeaguePlacementAward,
++  rankingWeight: number,
++): number {
++  const base =
++    award.place != null
++      ? DEFAULT_GLOBAL_POINTS[String(award.place)] ?? 0
++      : award.bucket != null
++        ? DEFAULT_GLOBAL_POINTS[award.bucket] ?? 0
++        : 0;
++  const weight =
++    Number.isFinite(rankingWeight) && rankingWeight > 0 ? rankingWeight : 1;
++  return Math.max(0, Math.round(base * weight));
++}
++
++export interface GlobalRankingResultEntry {
++  tournamentId: string;
++  categoryId: string;
++  finalPlace: number;
++  points: number;
++  year: number;
++}
++
++/**
++ * Agregados do doc de ranking: `pointsByYear[y]` soma os melhores
++ * [BEST_N_RESULTS_PER_YEAR] resultados do ano; `totalPoints` soma os anos.
++ */
++export function aggregateRankingResults(
++  results: GlobalRankingResultEntry[],
++): {
++  totalPoints: number;
++  tournamentsCount: number;
++  pointsByYear: Record<string, number>;
++} {
++  const byYear = new Map<string, number[]>();
++  for (const result of results) {
++    const key = String(result.year);
++    const list = byYear.get(key) ?? [];
++    list.push(Math.max(0, Math.round(result.points)));
++    byYear.set(key, list);
++  }
++  const pointsByYear: Record<string, number> = {};
++  let totalPoints = 0;
++  for (const [year, points] of byYear) {
++    const best = points
++      .sort((a, b) => b - a)
++      .slice(0, BEST_N_RESULTS_PER_YEAR)
++      .reduce((sum, value) => sum + value, 0);
++    pointsByYear[year] = best;
++    totalPoints += best;
++  }
++  return {totalPoints, tournamentsCount: results.length, pointsByYear};
++}
++
++function parseResults(raw: unknown): GlobalRankingResultEntry[] {
++  if (!Array.isArray(raw)) return [];
++  const out: GlobalRankingResultEntry[] = [];
++  for (const entry of raw) {
++    if (entry == null || typeof entry !== "object") continue;
++    const row = entry as Record<string, unknown>;
++    const tournamentId = String(row.tournamentId ?? "").trim();
++    const categoryId = String(row.categoryId ?? "").trim();
++    if (!tournamentId || !categoryId) continue;
++    out.push({
++      tournamentId,
++      categoryId,
++      finalPlace: Number(row.finalPlace) || 0,
++      points: Number(row.points) || 0,
++      year: Number(row.year) || 0,
++    });
++  }
++  return out;
++}
++
++/** Upsert de `results[]` por `tournamentId_categoryId`; devolve null se nada mudou. */
++export function upsertRankingResult(
++  results: GlobalRankingResultEntry[],
++  entry: GlobalRankingResultEntry,
++): GlobalRankingResultEntry[] | null {
++  const existing = results.find(
++    (row) =>
++      row.tournamentId === entry.tournamentId &&
++      row.categoryId === entry.categoryId,
++  );
++  if (
++    existing &&
++    existing.finalPlace === entry.finalPlace &&
++    existing.points === entry.points &&
++    existing.year === entry.year
++  ) {
++    return null;
++  }
++  const filtered = results.filter(
++    (row) =>
++      !(
++        row.tournamentId === entry.tournamentId &&
++        row.categoryId === entry.categoryId
++      ),
++  );
++  filtered.push(entry);
++  return filtered;
++}
++
++async function upsertGlobalRankingDoc(
++  db: Firestore,
++  params: {
++    collectionPath: string;
++    docId: string;
++    identity: Record<string, string>;
++    entry: GlobalRankingResultEntry;
++  },
++): Promise<boolean> {
++  const ref = db.collection(params.collectionPath).doc(params.docId);
++  const snap = await ref.get();
++  const prev = snap.data() ?? {};
++  const results = parseResults(prev.results);
++
++  const merged = upsertRankingResult(results, params.entry);
++  if (merged == null) return false;
++
++  const aggregates = aggregateRankingResults(merged);
++  await ref.set(
++    {
++      ...params.identity,
++      results: merged,
++      totalPoints: aggregates.totalPoints,
++      tournamentsCount: aggregates.tournamentsCount,
++      pointsByYear: aggregates.pointsByYear,
++      lastUpdated: FieldValue.serverTimestamp(),
++    },
++    {merge: true},
++  );
++  return true;
++}
++
++async function awardGlobalPlacement(
++  db: Firestore,
++  projectId: string,
++  params: {
++    tournamentId: string;
++    categoryId: string;
++    award: LeaguePlacementAward;
++    rankingWeight: number;
++    year: number;
++    completedAt: Date;
++  },
++): Promise<boolean> {
++  const {tournamentId, categoryId, award} = params;
++  const teamId = award.teamId;
++  const points = globalPointsForAward(award, params.rankingWeight);
++  if (points <= 0) return false;
++  const finalPlace = finalPlaceForAward(award);
++
++  // Resultado por categoria (contrato do model Dart `TournamentCategoryResult`).
++  const resultRef = db
++    .collection(tournamentCategoryResultsPath(projectId))
++    .doc(`${tournamentId}_${categoryId}_${teamId}`);
++  const resultSnap = await resultRef.get();
++  const prevResult = resultSnap.data();
++  if (
++    prevResult?.finalPlace === finalPlace &&
++    prevResult?.pointsEarned === points
++  ) {
++    return false;
++  }
++  await resultRef.set({
++    tournamentId,
++    categoryId,
++    teamId,
++    finalPlace,
++    pointsEarned: points,
++    year: params.year,
++    completedAt: Timestamp.fromDate(params.completedAt),
++  });
++
++  const entry: GlobalRankingResultEntry = {
++    tournamentId,
++    categoryId,
++    finalPlace,
++    points,
++    year: params.year,
++  };
++
++  await upsertGlobalRankingDoc(db, {
++    collectionPath: teamRankingsPath(projectId),
++    docId: teamId,
++    identity: {teamId},
++    entry,
++  });
++
++  const athleteIds = await loadTeamAthleteIds(db, projectId, teamId);
++  await Promise.all(
++    athleteIds.map((athleteId) =>
++      upsertGlobalRankingDoc(db, {
++        collectionPath: athleteRankingsPath(projectId),
++        docId: athleteId,
++        identity: {athleteId},
++        entry,
++      }),
++    ),
++  );
++  return true;
++}
++
++function isNonGroupCompletedMatch(match: Record<string, unknown>): boolean {
++  if (!isMatchCompleted(match.status)) return false;
++  const matchType = normalizeMatchType(match.matchType);
++  return !(
++    match.isGroupMatch === true ||
++    matchType === "group" ||
++    matchType === "groups"
++  );
++}
++
++/**
++ * Concede pontos de ranking global pela partida encerrada — espelha
++ * `tryAwardLeagueStagePointsForMatch`, mas incondicional a `leagueId`.
++ */
++export async function tryAwardGlobalRankingForMatch(
++  db: Firestore,
++  projectId: string,
++  match: Record<string, unknown>,
++): Promise<{awarded: boolean; teamsUpdated: number}> {
++  if (!isMatchCompleted(match.status)) {
++    return {awarded: false, teamsUpdated: 0};
++  }
++  const tournamentId = String(match.tournamentId ?? "").trim();
++  const categoryId = String(match.categoryId ?? "").trim();
++  if (!tournamentId || !categoryId) {
++    return {awarded: false, teamsUpdated: 0};
++  }
++
++  const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
++  if (!tournamentSnap.exists) return {awarded: false, teamsUpdated: 0};
++  const rankingWeight = Number(tournamentSnap.data()?.rankingWeight ?? 1);
++
++  const completedAt = parseMatchPlayedAt(match);
++  const year = completedAt.getFullYear();
++
++  const bracketContext = await loadCategoryBracketContext(
++    db,
++    projectId,
++    tournamentId,
++    categoryId,
++  );
++  const placements = resolveLeaguePlacementsFromMatch(match, bracketContext);
++
++  const baseParams = {tournamentId, categoryId, rankingWeight, year, completedAt};
++  let teamsUpdated = 0;
++  for (const award of placements) {
++    if (await awardGlobalPlacement(db, projectId, {...baseParams, award})) {
++      teamsUpdated++;
++    }
++  }
++
++  // Times pagos que não chegaram ao mata-mata pontuam pela fase de grupos
++  // (mesma regra da liga: só a partir da 1ª partida de mata-mata concluída).
++  if (isNonGroupCompletedMatch(match)) {
++    const [paidTeamIds, knockoutTeamIds] = await Promise.all([
++      loadPaidTeamIds(db, projectId, tournamentId, categoryId),
++      loadKnockoutTeamIds(db, projectId, tournamentId, categoryId),
++    ]);
++    for (const teamId of paidTeamIds) {
++      if (knockoutTeamIds.has(teamId)) continue;
++      const awarded = await awardGlobalPlacement(db, projectId, {
++        ...baseParams,
++        award: {teamId, bucket: "groups"},
++      });
++      if (awarded) teamsUpdated++;
++    }
++  }
++
++  return {awarded: teamsUpdated > 0, teamsUpdated};
++}
++
++/**
++ * Trigger desacoplado no mesmo path de matches (coexiste com o advance de
++ * chave e o XP, padrão `onTournamentMatchCompletedAwardXp`).
++ */
++export const onTournamentMatchCompletedAwardGlobalPoints = onDocumentUpdated(
++  "artifacts/{appId}/public/data/matches/{matchId}",
++  async (event) => {
++    const before = event.data?.before.data() as Record<string, unknown> | undefined;
++    const after = event.data?.after.data() as Record<string, unknown> | undefined;
++    if (!shouldAwardForMatch(before, after) || !after) return;
++
++    try {
++      const result = await tryAwardGlobalRankingForMatch(
++        getFirestore(),
++        event.params.appId,
++        {...after, id: event.params.matchId},
++      );
++      if (result.teamsUpdated > 0) {
++        logger.info(
++          `globalRanking: ${result.teamsUpdated} time(s) atualizados pela partida ${event.params.matchId}`,
++        );
++      }
++    } catch (error) {
++      logger.error(
++        `globalRanking: falha na partida ${event.params.matchId}`,
++        error,
++      );
++    }
++  },
++);
+diff --git a/nexago_app/lib/core/firebase/firebase_providers.dart b/nexago_app/lib/core/firebase/firebase_providers.dart
+new file mode 100644
+index 0000000..83d8e1f
+--- /dev/null
++++ b/nexago_app/lib/core/firebase/firebase_providers.dart
+@@ -0,0 +1,7 @@
++import 'package:cloud_firestore/cloud_firestore.dart';
++import 'package:flutter_riverpod/flutter_riverpod.dart';
++
++/// Instância compartilhada do Firestore para repositórios/providers.
++final firestoreProvider = Provider<FirebaseFirestore>((ref) {
++  return FirebaseFirestore.instance;
++});
+diff --git a/nexago_app/lib/core/notifications/notification_navigation.dart b/nexago_app/lib/core/notifications/notification_navigation.dart
+index c60cbaa..24bb30f 100644
+--- a/nexago_app/lib/core/notifications/notification_navigation.dart
++++ b/nexago_app/lib/core/notifications/notification_navigation.dart
+@@ -99,6 +99,15 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
+     }
+   }
+ 
++  // Escada de níveis (engine de rating) -> Esportes e níveis. O backend já
++  // envia `url`; isto é o fallback explícito por tipo.
++  if (type == 'level_promotion' ||
++      type == 'relegation_warning' ||
++      type == 'relegation_applied' ||
++      type == 'relegation_cleared') {
++    return AppRoutes.athleteSportsLevels;
++  }
++
+   // Fluxo de reserva (atleta) -> tela de reservas.
+   if (type.contains('booking') || data['bookingId'] != null) {
+     return AppRoutes.myBookings;
+diff --git a/nexago_app/lib/features/athlete/data/athlete_rating_repository.dart b/nexago_app/lib/features/athlete/data/athlete_rating_repository.dart
+new file mode 100644
+index 0000000..e0e07e4
+--- /dev/null
++++ b/nexago_app/lib/features/athlete/data/athlete_rating_repository.dart
+@@ -0,0 +1,55 @@
++import 'package:cloud_firestore/cloud_firestore.dart';
++import 'package:flutter_riverpod/flutter_riverpod.dart';
++
++import 'package:nexago_app/core/auth/auth_providers.dart';
++import 'package:nexago_app/core/firebase/firebase_providers.dart';
++import '../../tournaments/data/nexago_artifacts_paths.dart';
++import '../domain/athlete_rating.dart';
++
++/// Leitura de `athleteRatings/{athleteId}_{sportCode}` (estado da engine de
++/// rating; escrita é exclusiva do backend).
++class AthleteRatingRepository {
++  AthleteRatingRepository(this._firestore, this._auth);
++
++  final FirebaseFirestore _firestore;
++  final FirebaseAuthProviderLike _auth;
++
++  Stream<AthleteRating?> watchOwnRating(String sportCode) {
++    final uid = _auth.currentUid;
++    if (uid == null || uid.isEmpty) return Stream.value(null);
++    return watchRating(athleteId: uid, sportCode: sportCode);
++  }
++
++  Stream<AthleteRating?> watchRating({
++    required String athleteId,
++    required String sportCode,
++  }) {
++    return _firestore
++        .collection(NexagoArtifactsPaths.athleteRatingsCollection())
++        .doc('${athleteId}_$sportCode')
++        .snapshots()
++        .map((doc) => doc.exists ? AthleteRating.fromFirestore(doc) : null);
++  }
++}
++
++/// Indireção mínima para injetar o uid atual sem acoplar no FirebaseAuth.
++abstract interface class FirebaseAuthProviderLike {
++  String? get currentUid;
++}
++
++class _FirebaseAuthUid implements FirebaseAuthProviderLike {
++  _FirebaseAuthUid(this._read);
++
++  final Ref _read;
++
++  @override
++  String? get currentUid =>
++      _read.read(firebaseAuthProvider).currentUser?.uid.trim();
++}
++
++final athleteRatingRepositoryProvider = Provider<AthleteRatingRepository>((ref) {
++  return AthleteRatingRepository(
++    ref.watch(firestoreProvider),
++    _FirebaseAuthUid(ref),
++  );
++});
+diff --git a/nexago_app/lib/features/athlete/domain/athlete_discover_logic.dart b/nexago_app/lib/features/athlete/domain/athlete_discover_logic.dart
+index 44b058a..925e298 100644
+--- a/nexago_app/lib/features/athlete/domain/athlete_discover_logic.dart
++++ b/nexago_app/lib/features/athlete/domain/athlete_discover_logic.dart
+@@ -1,6 +1,7 @@
+ import 'athlete_discover_models.dart';
+ import 'athlete_firestore_codes.dart';
+ import 'athlete_profile.dart';
++import 'athlete_profile_options.dart';
+ import 'athlete_public_profile_models.dart';
+ 
+ const _onlineThresholdMinutes = 15;
+@@ -75,13 +76,17 @@ bool _matchesLevel(AthleteProfile profile, AthleteDiscoverFilters filters) {
+   final hasLevelFilter = quick.isNotEmpty || filters.levels.isNotEmpty;
+   if (hasLevelFilter && !_profileHasDefinedLevel(profile)) return false;
+ 
++  // O filtro tem 3 buckets legados; níveis da escada de 5 (Iniciante 1/2,
++  // Intermediário 1/2) casam pelo bucket equivalente.
+   final resolved = resolveAthleteLevelLabel(profile);
++  final resolvedBucket =
++      AthleteProfileOptions.legacyBucketLabel(resolved) ?? resolved;
+   if (quick.isNotEmpty) {
+-    if (resolved.toLowerCase() != quick.toLowerCase()) return false;
++    if (resolvedBucket.toLowerCase() != quick.toLowerCase()) return false;
+   }
+   if (filters.levels.isEmpty) return true;
+   return filters.levels.any(
+-    (level) => resolved.toLowerCase() == level.trim().toLowerCase(),
++    (level) => resolvedBucket.toLowerCase() == level.trim().toLowerCase(),
+   );
+ }
+ 
+diff --git a/nexago_app/lib/features/athlete/domain/athlete_firestore_codes.dart b/nexago_app/lib/features/athlete/domain/athlete_firestore_codes.dart
+index 96a9916..e5bdcf9 100644
+--- a/nexago_app/lib/features/athlete/domain/athlete_firestore_codes.dart
++++ b/nexago_app/lib/features/athlete/domain/athlete_firestore_codes.dart
+@@ -59,6 +59,11 @@ abstract final class AthleteFirestoreCodes {
+     'Iniciante': 'iniciante',
+     'Intermediário': 'intermediario',
+     'Open': 'open',
++    // Escada de 5 níveis do vôlei (códigos com underscore no Firestore).
++    'Iniciante 1': 'iniciante_1',
++    'Iniciante 2': 'iniciante_2',
++    'Intermediário 1': 'intermediario_1',
++    'Intermediário 2': 'intermediario_2',
+     // 'Pro': 'pro',
+   };
+ 
+@@ -66,6 +71,10 @@ abstract final class AthleteFirestoreCodes {
+     'iniciante': 'Iniciante',
+     'intermediario': 'Intermediário',
+     'open': 'Open',
++    'iniciante_1': 'Iniciante 1',
++    'iniciante_2': 'Iniciante 2',
++    'intermediario_1': 'Intermediário 1',
++    'intermediario_2': 'Intermediário 2',
+     'pro': 'Pro',
+     'basico': 'Iniciante',
+     'básico': 'Iniciante',
+diff --git a/nexago_app/lib/features/athlete/domain/athlete_profile_options.dart b/nexago_app/lib/features/athlete/domain/athlete_profile_options.dart
+index 2dd059a..d4b43e4 100644
+--- a/nexago_app/lib/features/athlete/domain/athlete_profile_options.dart
++++ b/nexago_app/lib/features/athlete/domain/athlete_profile_options.dart
+@@ -13,6 +13,8 @@ abstract final class AthleteProfileOptions {
+     'Outros',
+   ];
+ 
++  /// Escada legada de 3 níveis — segue valendo para esportes sem escada
++  /// própria (e para o nível global do perfil).
+   static const List<String> levels = [
+     'Iniciante',
+     'Intermediário',
+@@ -20,6 +22,28 @@ abstract final class AthleteProfileOptions {
+     // 'Pro',
+   ];
+ 
++  /// Escada de 5 níveis do vôlei (praia e quadra) — espelho de
++  /// `ratingLadders/{VOLEI_PRAIA|VOLEI_QUADRA}` do backend.
++  static const List<String> volleyballLevels = [
++    'Iniciante 1',
++    'Iniciante 2',
++    'Intermediário 1',
++    'Intermediário 2',
++    'Open',
++  ];
++
++  /// Esportes (código Firestore) que usam a escada de 5 níveis.
++  static const Set<String> fiveLevelSportCodes = {
++    'VOLEI_PRAIA',
++    'VOLEI_QUADRA',
++  };
++
++  /// Labels de nível para o esporte (código Firestore, ex.: `VOLEI_PRAIA`).
++  static List<String> levelsForSportCode(String? firestoreSportCode) {
++    final code = firestoreSportCode?.trim().toUpperCase() ?? '';
++    return fiveLevelSportCodes.contains(code) ? volleyballLevels : levels;
++  }
++
+   static const List<String> genders = ['Masculino', 'Feminino'];
+ 
+   /// Normaliza níveis legados do Firestore.
+@@ -32,36 +56,75 @@ abstract final class AthleteProfileOptions {
+       // 'Avançado': 'Pro',
+     };
+     if (legacy.containsKey(v)) return legacy[v]!;
+-    for (final level in levels) {
+-      if (level == v) return v;
+-    }
+     return v;
+   }
+ 
+-  /// Rank do nível (Iniciante 0 < Intermediário 1 < Open 2) a partir de label
+-  /// (`Open`) ou código Firestore (`open`); legados inclusos. `null` quando
+-  /// ausente/desconhecido.
++  /// Rank unificado do nível a partir de label (`Intermediário 1`) ou código
++  /// Firestore (`intermediario_1`); legados inclusos. `null` quando ausente/
++  /// desconhecido.
++  ///
++  /// Espelho de `LEVEL_RANK` de `functions/src/category-level-eligibility.ts`:
++  /// Iniciante 1 (0) < Iniciante 2 (1) < Intermediário 1 (2) <
++  /// Intermediário 2 (3) < Open (5) — ranks 1 e 4 reservados à escada D/C/B/A
++  /// do beach tennis no futuro. Legados se comportam como o degrau inferior
++  /// do split: `iniciante`→0, `intermediario`→2, `open`→5.
+   static int? levelRank(String? raw) {
+-    final normalized = normalizeLevel(raw);
++    final normalized = normalizeLevel(raw)
++        .toLowerCase()
++        .replaceAll('á', 'a')
++        .replaceAll('é', 'e')
++        .replaceAll('í', 'i');
+     if (normalized.isEmpty) return null;
+-    final idx = levels.indexOf(normalized);
+-    if (idx >= 0) return idx;
+-    // Fallback por código bruto (ex.: vindo do Firestore sem normalizar label).
+-    switch (raw?.trim().toLowerCase()) {
++    switch (normalized) {
+       case 'iniciante':
+       case 'basico':
+-      case 'básico':
++      case 'iniciante 1':
++      case 'iniciante_1':
+         return 0;
+-      case 'intermediario':
+-      case 'intermediário':
++      case 'iniciante 2':
++      case 'iniciante_2':
+         return 1;
++      case 'intermediario':
++      case 'intermediario 1':
++      case 'intermediario_1':
++        return 2;
++      case 'intermediario 2':
++      case 'intermediario_2':
++        return 3;
+       case 'open':
+       case 'livre':
+-        return 2;
++        return 5;
+     }
+     return null;
+   }
+ 
++  /// Label amigável para um rank unificado (escada do vôlei).
++  static String labelForRank(int rank) {
++    switch (rank) {
++      case 0:
++        return 'Iniciante 1';
++      case 1:
++        return 'Iniciante 2';
++      case 2:
++        return 'Intermediário 1';
++      case 3:
++        return 'Intermediário 2';
++      default:
++        return 'Open';
++    }
++  }
++
++  /// Bucket legado de 3 níveis para exibição/filtros que não conhecem a
++  /// escada de 5 (ex.: filtro de nível do Descobrir): 0-1 → Iniciante,
++  /// 2-3 → Intermediário, 5 → Open.
++  static String? legacyBucketLabel(String? raw) {
++    final rank = levelRank(raw);
++    if (rank == null) return null;
++    if (rank <= 1) return 'Iniciante';
++    if (rank <= 3) return 'Intermediário';
++    return 'Open';
++  }
++
+   /// Normaliza esporte legado (ex.: Futevôlei, Beach tênis).
+   static String normalizeSport(String? raw) {
+     final v = raw?.trim() ?? '';
+diff --git a/nexago_app/lib/features/athlete/domain/athlete_rating.dart b/nexago_app/lib/features/athlete/domain/athlete_rating.dart
+new file mode 100644
+index 0000000..81a72bf
+--- /dev/null
++++ b/nexago_app/lib/features/athlete/domain/athlete_rating.dart
+@@ -0,0 +1,76 @@
++import 'package:cloud_firestore/cloud_firestore.dart';
++import 'package:flutter_riverpod/flutter_riverpod.dart';
++
++import '../data/athlete_rating_repository.dart';
++
++/// Estado derivado da engine de rating (`athleteRatings/{uid}_{sportCode}`).
++/// Leitura pública; escrito apenas pelo backend (Glicko-2 por partida).
++class AthleteRating {
++  const AthleteRating({
++    required this.athleteId,
++    required this.sportCode,
++    required this.rating,
++    required this.rd,
++    required this.ratedMatches,
++    required this.wins,
++    required this.losses,
++    required this.levelCode,
++    required this.zone,
++    required this.ladderState,
++    this.lastMatchAt,
++  });
++
++  final String athleteId;
++  final String sportCode;
++  final double rating;
++  final double rd;
++  final int ratedMatches;
++  final int wins;
++  final int losses;
++  final String levelCode;
++
++  /// `stable` | `promotion` | `relegation` (posição nas bandas do nível).
++  final String zone;
++
++  /// `stable` | `promotion_pending` | `relegation_observation`.
++  final String ladderState;
++  final DateTime? lastMatchAt;
++
++  /// Ainda consolidando o rating (poucas partidas para decisões da escada).
++  bool get isProvisional => ratedMatches < 10;
++
++  factory AthleteRating.fromFirestore(
++    DocumentSnapshot<Map<String, dynamic>> doc,
++  ) {
++    final data = doc.data() ?? {};
++    double readDouble(dynamic value) =>
++        value is num ? value.toDouble() : 0;
++    int readInt(dynamic value) => value is num ? value.round() : 0;
++    String readStr(dynamic value) => value is String ? value.trim() : '';
++
++    return AthleteRating(
++      athleteId: readStr(data['athleteId']),
++      sportCode: readStr(data['sportCode']),
++      rating: readDouble(data['rating']),
++      rd: readDouble(data['rd']),
++      ratedMatches: readInt(data['ratedMatches']),
++      wins: readInt(data['wins']),
++      losses: readInt(data['losses']),
++      levelCode: readStr(data['levelCode']),
++      zone: readStr(data['zone']).isEmpty ? 'stable' : readStr(data['zone']),
++      ladderState: readStr(data['ladderState']).isEmpty
++          ? 'stable'
++          : readStr(data['ladderState']),
++      lastMatchAt: data['lastMatchAt'] is Timestamp
++          ? (data['lastMatchAt'] as Timestamp).toDate()
++          : null,
++    );
++  }
++}
++
++/// Rating do atleta logado para um esporte (código FS, ex.: `VOLEI_PRAIA`).
++/// `null` enquanto a engine ainda não processou nenhuma partida dele.
++final athleteRatingProvider =
++    StreamProvider.autoDispose.family<AthleteRating?, String>((ref, sportCode) {
++  return ref.watch(athleteRatingRepositoryProvider).watchOwnRating(sportCode);
++});
+diff --git a/nexago_app/lib/features/athlete/domain/athlete_sports_levels_labels.dart b/nexago_app/lib/features/athlete/domain/athlete_sports_levels_labels.dart
+index 018ed5d..40672a1 100644
+--- a/nexago_app/lib/features/athlete/domain/athlete_sports_levels_labels.dart
++++ b/nexago_app/lib/features/athlete/domain/athlete_sports_levels_labels.dart
+@@ -6,17 +6,22 @@ abstract final class AthleteSportsLevelsLabels {
+ 
+   static const List<String> levelLabels = AthleteProfileOptions.levels;
+ 
+-  static const List<String> levelAbbreviations = [
+-    'Iniciante',
+-    'Intermediário',
+-    'Open',
+-  ];
++  /// Labels de nível conforme o esporte (vôlei: escada de 5; demais: 3).
++  static List<String> levelLabelsFor(String firestoreSportId) {
++    return AthleteProfileOptions.levelsForSportCode(firestoreSportId);
++  }
++
++  static const Map<String, String> _abbreviations = {
++    'Iniciante': 'Iniciante',
++    'Intermediário': 'Intermediário',
++    'Open': 'Open',
++    'Iniciante 1': 'Inic. 1',
++    'Iniciante 2': 'Inic. 2',
++    'Intermediário 1': 'Int. 1',
++    'Intermediário 2': 'Int. 2',
++  };
+ 
+   static String abbreviationFor(String levelLabel) {
+-    final idx = levelLabels.indexOf(levelLabel);
+-    if (idx < 0 || idx >= levelAbbreviations.length) {
+-      return levelLabel;
+-    }
+-    return levelAbbreviations[idx];
++    return _abbreviations[levelLabel] ?? levelLabel;
+   }
+ }
+diff --git a/nexago_app/lib/features/athlete/onboarding/domain/athlete_onboarding_options.dart b/nexago_app/lib/features/athlete/onboarding/domain/athlete_onboarding_options.dart
+index 354b7ce..4d857eb 100644
+--- a/nexago_app/lib/features/athlete/onboarding/domain/athlete_onboarding_options.dart
++++ b/nexago_app/lib/features/athlete/onboarding/domain/athlete_onboarding_options.dart
+@@ -106,6 +106,41 @@ abstract final class AthleteOnboardingOptions {
+     // ),
+   ];
+ 
++  /// Escada de 5 níveis do vôlei (praia e quadra) — espelho de
++  /// `AthleteProfileOptions.volleyballLevels`.
++  static const List<OnboardingLevelOption> volleyballLevels = [
++    OnboardingLevelOption(
++      label: 'Iniciante 1',
++      description: 'Estou começando ou jogo pouco tempo.',
++    ),
++    OnboardingLevelOption(
++      label: 'Iniciante 2',
++      description: 'Já domino o básico e jogo com frequência.',
++    ),
++    OnboardingLevelOption(
++      label: 'Intermediário 1',
++      description: 'Jogo com regularidade e tenho boa experiência.',
++    ),
++    OnboardingLevelOption(
++      label: 'Intermediário 2',
++      description: 'Jogo forte, disputo torneios e vou bem neles.',
++    ),
++    OnboardingLevelOption(
++      label: 'Open',
++      description: 'Tenho alto nível amador e disputo torneios competitivos.',
++    ),
++  ];
++
++  static const Set<String> _fiveLevelSportIds = {
++    'beach_volleyball',
++    'indoor_volleyball',
++  };
++
++  /// Escada de níveis conforme o esporte principal escolhido no onboarding.
++  static List<OnboardingLevelOption> levelsForSport(String? sportId) {
++    return _fiveLevelSportIds.contains(sportId) ? volleyballLevels : levels;
++  }
++
+   static const List<OnboardingGoalOption> goals = [
+     OnboardingGoalOption(
+       id: 'book_arena',
+diff --git a/nexago_app/lib/features/athlete/onboarding/presentation/steps/athlete_onboarding_level_step.dart b/nexago_app/lib/features/athlete/onboarding/presentation/steps/athlete_onboarding_level_step.dart
+index e22e9c8..5b20c59 100644
+--- a/nexago_app/lib/features/athlete/onboarding/presentation/steps/athlete_onboarding_level_step.dart
++++ b/nexago_app/lib/features/athlete/onboarding/presentation/steps/athlete_onboarding_level_step.dart
+@@ -38,7 +38,9 @@ class AthleteOnboardingLevelStep extends ConsumerWidget {
+             subtitle: 'Garante partidas e torneios no seu nível.',
+           ),
+           const SizedBox(height: 20),
+-          ...AthleteOnboardingOptions.levels.map((option) {
++          // Escada do esporte principal escolhido (vôlei: 5 níveis; demais: 3).
++          ...AthleteOnboardingOptions.levelsForSport(draft.primarySportId)
++              .map((option) {
+             return Padding(
+               padding: const EdgeInsets.only(bottom: 10),
+               child: OnboardingLevelTile(
+diff --git a/nexago_app/lib/features/athlete/presentation/athlete_sports_levels_page.dart b/nexago_app/lib/features/athlete/presentation/athlete_sports_levels_page.dart
+index d7ccd9f..05191e4 100644
+--- a/nexago_app/lib/features/athlete/presentation/athlete_sports_levels_page.dart
++++ b/nexago_app/lib/features/athlete/presentation/athlete_sports_levels_page.dart
+@@ -9,6 +9,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
+ import '../../../core/ui/app_snackbar.dart';
+ import '../domain/athlete_profile_options.dart';
+ import '../domain/athlete_sports_levels_providers.dart';
++import 'widgets/athlete_level_zone_card.dart';
+ import 'widgets/athlete_sports_levels/athlete_sport_add_chip.dart';
+ import 'widgets/athlete_sports_levels/athlete_sport_level_card.dart';
+ import 'widgets/athlete_sports_levels/athlete_sports_invite_banner.dart';
+@@ -354,8 +355,10 @@ class _ReadyBody extends StatelessWidget {
+         ),
+         SizedBox(height: 6),
+         Text(
+-          'Seu nível pode subir, mas não descer. Para corrigir um nível '
+-          'errado, fale com o suporte.',
++          'Seu nível é atualizado automaticamente com base nos seus '
++          'resultados em torneios. Você pode subir de nível manualmente, '
++          'mas não reduzir — para corrigir um nível errado, fale com o '
++          'suporte.',
+           style: theme.textTheme.bodySmall?.copyWith(
+             color: context.themeColors.onSurfaceMuted,
+             height: 1.35,
+@@ -377,16 +380,25 @@ class _ReadyBody extends StatelessWidget {
+           ...ui.enrollments.map((e) {
+             return Padding(
+               padding: const EdgeInsets.only(bottom: 12),
+-              child: AthleteSportLevelCard(
+-                enrollment: e,
+-                totalGames: ui.totalGames,
+-                selectedLevel:
+-                    ui.draft.levelByAppSportId[e.appSportId] ?? e.levelLabel,
+-                lockedLevelRank: ui.lockedLevelRankFor(e.appSportId) ?? -1,
+-                enabled: canEdit,
+-                onLevelSelected: (level) =>
+-                    onLevelSelected(e.appSportId, level),
+-                onMakePrimary: () => onMakePrimary(e.appSportId),
++              child: Column(
++                crossAxisAlignment: CrossAxisAlignment.stretch,
++                children: [
++                  AthleteSportLevelCard(
++                    enrollment: e,
++                    totalGames: ui.totalGames,
++                    selectedLevel:
++                        ui.draft.levelByAppSportId[e.appSportId] ??
++                            e.levelLabel,
++                    lockedLevelRank: ui.lockedLevelRankFor(e.appSportId) ?? -1,
++                    enabled: canEdit,
++                    onLevelSelected: (level) =>
++                        onLevelSelected(e.appSportId, level),
++                    onMakePrimary: () => onMakePrimary(e.appSportId),
++                  ),
++                  // Zona da escada (engine de rating) — só aparece quando a
++                  // engine já processou partidas do atleta neste esporte.
++                  AthleteLevelZoneCard(sportCode: e.firestoreSportId),
++                ],
+               ),
+             );
+           }),
+diff --git a/nexago_app/lib/features/athlete/presentation/widgets/athlete_level_zone_card.dart b/nexago_app/lib/features/athlete/presentation/widgets/athlete_level_zone_card.dart
+new file mode 100644
+index 0000000..cf664cf
+--- /dev/null
++++ b/nexago_app/lib/features/athlete/presentation/widgets/athlete_level_zone_card.dart
+@@ -0,0 +1,101 @@
++import 'package:flutter/material.dart';
++import 'package:flutter_riverpod/flutter_riverpod.dart';
++
++import 'package:nexago_app/core/theme/app_theme_colors.dart';
++import '../../domain/athlete_rating.dart';
++
++/// Indicador de zona da escada de níveis (engine de rating): mostra se o
++/// atleta está estável, em zona de acesso (promoção) ou em zona de
++/// reclassificação — ou consolidando, com poucas partidas rateadas.
++/// Some quando a engine ainda não tem dados para o esporte.
++class AthleteLevelZoneCard extends ConsumerWidget {
++  const AthleteLevelZoneCard({super.key, required this.sportCode});
++
++  /// Código Firestore do esporte (ex.: `VOLEI_PRAIA`).
++  final String sportCode;
++
++  @override
++  Widget build(BuildContext context, WidgetRef ref) {
++    final ratingAsync = ref.watch(athleteRatingProvider(sportCode));
++    final rating = ratingAsync.valueOrNull;
++    if (rating == null) return const SizedBox.shrink();
++
++    final (icon, color, text) = _zoneVisual(context, rating);
++    final theme = Theme.of(context);
++
++    return Padding(
++      padding: const EdgeInsets.only(top: 8),
++      child: DecoratedBox(
++        decoration: BoxDecoration(
++          color: color.withValues(alpha: 0.08),
++          borderRadius: BorderRadius.circular(12),
++          border: Border.all(color: color.withValues(alpha: 0.25)),
++        ),
++        child: Padding(
++          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
++          child: Row(
++            children: [
++              Icon(icon, size: 18, color: color),
++              const SizedBox(width: 10),
++              Expanded(
++                child: Text(
++                  text,
++                  style: theme.textTheme.bodySmall?.copyWith(
++                    color: context.themeColors.onSurface,
++                    height: 1.3,
++                    fontSize: 12,
++                  ),
++                ),
++              ),
++            ],
++          ),
++        ),
++      ),
++    );
++  }
++
++  (IconData, Color, String) _zoneVisual(
++    BuildContext context,
++    AthleteRating rating,
++  ) {
++    final games = rating.ratedMatches;
++    final gamesLabel = games == 1 ? '1 partida rateada' : '$games partidas rateadas';
++
++    if (rating.isProvisional) {
++      return (
++        Icons.hourglass_bottom_rounded,
++        context.themeColors.onSurfaceMuted,
++        'Consolidando seu nível: $gamesLabel de 10. Jogue torneios para a '
++            'engine calibrar seu rating.',
++      );
++    }
++    if (rating.ladderState == 'relegation_observation') {
++      return (
++        Icons.warning_amber_rounded,
++        const Color(0xFFE85D04),
++        'Zona de reclassificação: seus resultados recentes ficaram abaixo da '
++            'faixa do seu nível. Recupere nos próximos torneios para manter.',
++      );
++    }
++    if (rating.zone == 'promotion') {
++      return (
++        Icons.trending_up_rounded,
++        const Color(0xFF2E7D32),
++        'Zona de acesso: seus resultados estão acima da faixa do seu nível. '
++            'Continue assim para subir!',
++      );
++    }
++    if (rating.zone == 'relegation') {
++      return (
++        Icons.trending_down_rounded,
++        const Color(0xFFE85D04),
++        'Atenção: seu desempenho recente está no limite inferior do seu nível.',
++      );
++    }
++    return (
++      Icons.verified_outlined,
++      context.themeColors.onSurfaceMuted,
++      'Nível estável para seus resultados atuais ($gamesLabel).',
++    );
++  }
++}
+diff --git a/nexago_app/lib/features/athlete/presentation/widgets/athlete_sports_levels/athlete_sport_level_card.dart b/nexago_app/lib/features/athlete/presentation/widgets/athlete_sports_levels/athlete_sport_level_card.dart
+index 89fc131..b9f24e0 100644
+--- a/nexago_app/lib/features/athlete/presentation/widgets/athlete_sports_levels/athlete_sport_level_card.dart
++++ b/nexago_app/lib/features/athlete/presentation/widgets/athlete_sports_levels/athlete_sport_level_card.dart
+@@ -34,6 +34,8 @@ class AthleteSportLevelCard extends StatelessWidget {
+   Widget build(BuildContext context) {
+     final theme = Theme.of(context);
+     final subtitle = _subtitleFor(enrollment, totalGames);
++    final levelLabels =
++        AthleteSportsLevelsLabels.levelLabelsFor(enrollment.firestoreSportId);
+ 
+     return DecoratedBox(
+       decoration: BoxDecoration(
+@@ -131,7 +133,7 @@ class AthleteSportLevelCard extends StatelessWidget {
+                 ),
+                 Spacer(),
+                 Text(
+-                  '3 níveis',
++                  '${levelLabels.length} níveis',
+                   style: AppTypography.mono(
+                     fontWeight: FontWeight.w600,
+                     color: context.themeColors.onSurfaceMuted.withValues(
+@@ -146,35 +148,36 @@ class AthleteSportLevelCard extends StatelessWidget {
+             SizedBox(height: 10),
+             Row(
+               children: [
+-                for (
+-                  var i = 0;
+-                  i < AthleteSportsLevelsLabels.levelLabels.length;
+-                  i++
+-                )
++                for (var i = 0; i < levelLabels.length; i++)
+                   Expanded(
+                     child: Padding(
+                       padding: EdgeInsets.only(
+                         left: i == 0 ? 0 : 4,
+-                        right:
+-                            i ==
+-                                AthleteSportsLevelsLabels.levelLabels.length - 1
+-                            ? 0
+-                            : 4,
++                        right: i == levelLabels.length - 1 ? 0 : 4,
+                       ),
+                       child: _LevelChip(
+                         label: AthleteSportsLevelsLabels.abbreviationFor(
+-                          AthleteSportsLevelsLabels.levelLabels[i],
++                          levelLabels[i],
+                         ),
+-                        selected:
+-                            selectedLevel ==
+-                            AthleteSportsLevelsLabels.levelLabels[i],
+-                        // Abaixo do nível salvo: visual bloqueado, mas o tap
+-                        // segue ativo para a página explicar a regra.
+-                        locked: i < lockedLevelRank,
++                        // Igualdade por rank: nível legado ainda não migrado
++                        // ("Intermediário") acende o degrau equivalente da
++                        // escada de 5 ("Int. 1").
++                        selected: selectedLevel == levelLabels[i] ||
++                            (AthleteProfileOptions.levelRank(selectedLevel) !=
++                                    null &&
++                                AthleteProfileOptions.levelRank(
++                                        selectedLevel) ==
++                                    AthleteProfileOptions.levelRank(
++                                        levelLabels[i])),
++                        // Abaixo do nível salvo (rank unificado, que tem
++                        // buracos): visual bloqueado, mas o tap segue ativo
++                        // para a página explicar a regra.
++                        locked:
++                            (AthleteProfileOptions.levelRank(levelLabels[i]) ??
++                                    0) <
++                                lockedLevelRank,
+                         onTap: enabled
+-                            ? () => onLevelSelected(
+-                                AthleteSportsLevelsLabels.levelLabels[i],
+-                              )
++                            ? () => onLevelSelected(levelLabels[i])
+                             : null,
+                       ),
+                     ),
+diff --git a/nexago_app/lib/features/organizer/data/league_create_mapper.dart b/nexago_app/lib/features/organizer/data/league_create_mapper.dart
+index 679914e..f66d02a 100644
+--- a/nexago_app/lib/features/organizer/data/league_create_mapper.dart
++++ b/nexago_app/lib/features/organizer/data/league_create_mapper.dart
+@@ -345,6 +345,21 @@ abstract final class LeagueCreateMapper {
+     for (final value in TournamentSkillLevel.values) {
+       if (value.name == raw) return value;
+     }
+-    return TournamentSkillLevel.open;
++    return switch (raw.toLowerCase()) {
++      'iniciante' || 'beginner' => TournamentSkillLevel.beginner,
++      'intermediário' ||
++      'intermediario' ||
++      'intermediate' => TournamentSkillLevel.intermediate,
++      'iniciante 1' || 'iniciante_1' => TournamentSkillLevel.iniciante1,
++      'iniciante 2' || 'iniciante_2' => TournamentSkillLevel.iniciante2,
++      'intermediário 1' ||
++      'intermediario 1' ||
++      'intermediario_1' => TournamentSkillLevel.intermediario1,
++      'intermediário 2' ||
++      'intermediario 2' ||
++      'intermediario_2' => TournamentSkillLevel.intermediario2,
++      'open' || 'livre' => TournamentSkillLevel.open,
++      _ => TournamentSkillLevel.open,
++    };
+   }
+ }
+diff --git a/nexago_app/lib/features/organizer/data/tournament_create_mapper.dart b/nexago_app/lib/features/organizer/data/tournament_create_mapper.dart
+index 3edcbc4..7395ecc 100644
+--- a/nexago_app/lib/features/organizer/data/tournament_create_mapper.dart
++++ b/nexago_app/lib/features/organizer/data/tournament_create_mapper.dart
+@@ -409,6 +409,14 @@ abstract final class TournamentCreateMapper {
+       'intermediário' ||
+       'intermediario' ||
+       'intermediate' => TournamentSkillLevel.intermediate,
++      'iniciante 1' || 'iniciante_1' => TournamentSkillLevel.iniciante1,
++      'iniciante 2' || 'iniciante_2' => TournamentSkillLevel.iniciante2,
++      'intermediário 1' ||
++      'intermediario 1' ||
++      'intermediario_1' => TournamentSkillLevel.intermediario1,
++      'intermediário 2' ||
++      'intermediario 2' ||
++      'intermediario_2' => TournamentSkillLevel.intermediario2,
+       'open' || 'livre' => TournamentSkillLevel.open,
+       _ => TournamentSkillLevel.open,
+     };
+diff --git a/nexago_app/lib/features/organizer/domain/tournament_create/tournament_create_draft.dart b/nexago_app/lib/features/organizer/domain/tournament_create/tournament_create_draft.dart
+index 5d50e63..b4fe945 100644
+--- a/nexago_app/lib/features/organizer/domain/tournament_create/tournament_create_draft.dart
++++ b/nexago_app/lib/features/organizer/domain/tournament_create/tournament_create_draft.dart
+@@ -37,7 +37,19 @@ enum TournamentAgeBand {
+   plus60,
+ }
+ 
+-enum TournamentSkillLevel { beginner, intermediate, open }
++/// Nível da categoria. `beginner`/`intermediate` são a escada legada de 3
++/// níveis (mantidos para parse de categorias antigas e para esportes sem
++/// escada própria); `iniciante1..intermediario2` + `open` formam a escada de
++/// 5 níveis do vôlei (ranks unificados com o perfil do atleta).
++enum TournamentSkillLevel {
++  beginner,
++  intermediate,
++  open,
++  iniciante1,
++  iniciante2,
++  intermediario1,
++  intermediario2,
++}
+ 
+ /// Referência usada para calcular a idade do atleta nas restrições etárias.
+ enum TournamentAgeReference { tournamentStart, yearEnd, registration }
+diff --git a/nexago_app/lib/features/organizer/domain/tournament_create/tournament_create_logic.dart b/nexago_app/lib/features/organizer/domain/tournament_create/tournament_create_logic.dart
+index 076c2c2..80c3119 100644
+--- a/nexago_app/lib/features/organizer/domain/tournament_create/tournament_create_logic.dart
++++ b/nexago_app/lib/features/organizer/domain/tournament_create/tournament_create_logic.dart
+@@ -182,8 +182,33 @@ String skillLevelLabel(TournamentSkillLevel level) => switch (level) {
+   TournamentSkillLevel.beginner => 'Iniciante',
+   TournamentSkillLevel.intermediate => 'Intermediário',
+   TournamentSkillLevel.open => 'Open',
++  TournamentSkillLevel.iniciante1 => 'Iniciante 1',
++  TournamentSkillLevel.iniciante2 => 'Iniciante 2',
++  TournamentSkillLevel.intermediario1 => 'Intermediário 1',
++  TournamentSkillLevel.intermediario2 => 'Intermediário 2',
+ };
+ 
++/// Escada de 5 níveis do vôlei nas categorias novas; a escada legada de 3
++/// segue para futevôlei/esportes sem escada própria. Categorias antigas com
++/// `Iniciante`/`Intermediário` continuam válidas (ranks unificados no
++/// backend); o editor apenas deixa de oferecê-las para vôlei.
++List<TournamentSkillLevel> skillLevelOptionsForSport(TournamentSport sport) =>
++    switch (sport) {
++      TournamentSport.beachVolleyball ||
++      TournamentSport.indoorVolleyball => const [
++        TournamentSkillLevel.iniciante1,
++        TournamentSkillLevel.iniciante2,
++        TournamentSkillLevel.intermediario1,
++        TournamentSkillLevel.intermediario2,
++        TournamentSkillLevel.open,
++      ],
++      TournamentSport.footvolley => const [
++        TournamentSkillLevel.beginner,
++        TournamentSkillLevel.intermediate,
++        TournamentSkillLevel.open,
++      ],
++    };
++
+ String formatCents(int cents) => formatBRLFromCents(cents);
+ 
+ String formatReais(double value) => formatBRL(value);
+diff --git a/nexago_app/lib/features/organizer/presentation/league_create/sheets/league_category_editor_sheet.dart b/nexago_app/lib/features/organizer/presentation/league_create/sheets/league_category_editor_sheet.dart
+index 4d09512..41de5ec 100644
+--- a/nexago_app/lib/features/organizer/presentation/league_create/sheets/league_category_editor_sheet.dart
++++ b/nexago_app/lib/features/organizer/presentation/league_create/sheets/league_category_editor_sheet.dart
+@@ -198,7 +198,10 @@ class _LeagueCategoryEditorSheetState
+             const SizedBox(height: 8),
+             OrganizerChipSelector(
+               horizontalScroll: true,
+-              options: TournamentSkillLevel.values,
++              // Escada conforme o esporte da liga (vôlei: 5 níveis).
++              options: skillLevelOptionsForSport(
++                ref.watch(leagueCreateDraftProvider).sport,
++              ),
+               selected: _category.skillLevel,
+               labelBuilder: skillLevelLabel,
+               onSelected: (value) => setState(
+diff --git a/nexago_app/lib/features/organizer/presentation/tournament_create/sheets/tournament_category_editor_sheet.dart b/nexago_app/lib/features/organizer/presentation/tournament_create/sheets/tournament_category_editor_sheet.dart
+index 5379296..23354d1 100644
+--- a/nexago_app/lib/features/organizer/presentation/tournament_create/sheets/tournament_category_editor_sheet.dart
++++ b/nexago_app/lib/features/organizer/presentation/tournament_create/sheets/tournament_category_editor_sheet.dart
+@@ -199,7 +199,10 @@ class _CategoryEditorSheetState extends ConsumerState<_CategoryEditorSheet> {
+                 const SizedBox(height: 8),
+                 OrganizerChipSelector(
+                   horizontalScroll: true,
+-                  options: TournamentSkillLevel.values,
++                  // Escada conforme o esporte do torneio (vôlei: 5 níveis).
++                  options: skillLevelOptionsForSport(
++                    ref.watch(tournamentCreateDraftProvider).sport,
++                  ),
+                   selected: _category.skillLevel,
+                   labelBuilder: skillLevelLabel,
+                   onSelected: (value) => setState(
+diff --git a/nexago_app/lib/features/tournaments/data/nexago_artifacts_paths.dart b/nexago_app/lib/features/tournaments/data/nexago_artifacts_paths.dart
+index 191fe44..5a9be92 100644
+--- a/nexago_app/lib/features/tournaments/data/nexago_artifacts_paths.dart
++++ b/nexago_app/lib/features/tournaments/data/nexago_artifacts_paths.dart
+@@ -30,6 +30,9 @@ abstract final class NexagoArtifactsPaths {
+ 
+   static String matchesCollection() => '$publicDataBase/matches';
+ 
++  static String athleteRatingsCollection() =>
++      '$publicDataBase/athleteRatings';
++
+   static String matchPointEventsCollection(String matchId) =>
+       '${matchesCollection()}/${matchId.trim()}/pointEvents';
+ 
+diff --git a/nexago_app/lib/features/tournaments/domain/category_level_eligibility.dart b/nexago_app/lib/features/tournaments/domain/category_level_eligibility.dart
+index 4641279..d08d15d 100644
+--- a/nexago_app/lib/features/tournaments/domain/category_level_eligibility.dart
++++ b/nexago_app/lib/features/tournaments/domain/category_level_eligibility.dart
+@@ -5,7 +5,9 @@ import 'tournament_discovery_models.dart';
+ /// Elegibilidade de categoria por nível do atleta (anti-sandbagging).
+ ///
+ /// Regra: o atleta pode disputar a própria categoria ou categorias ACIMA do seu
+-/// nível, nunca ABAIXO. Hierarquia: Iniciante (0) < Intermediário (1) < Open (2).
++/// nível, nunca ABAIXO. Ranks unificados (escada de 5 do vôlei):
++/// Iniciante 1 (0) < Iniciante 2 (1) < Intermediário 1 (2) <
++/// Intermediário 2 (3) < Open (5) — legados como o degrau inferior do split.
+ ///
+ /// Pré-validação da UI, alinhada ao backend autoritativo
+ /// (`functions/src/category-level-eligibility.ts`). Resolve o nível do atleta
+@@ -14,7 +16,7 @@ import 'tournament_discovery_models.dart';
+ abstract final class CategoryLevelEligibility {
+   CategoryLevelEligibility._();
+ 
+-  static const int _highestRank = 2;
++  static const int _highestRank = 5;
+ 
+   /// Esporte do torneio (`tournaments/{id}.sport`, nome do enum) → código de
+   /// esporte do perfil (`levelsBySportFirestore`). `null` quando não há
+@@ -82,9 +84,7 @@ abstract final class CategoryLevelEligibility {
+   /// Mensagem explicativa (snackbar/diálogo) ao tentar uma categoria inferior.
+   static String blockMessage(AthleteProfile? profile, {String? tournamentSport}) {
+     final rank = athleteLevelRank(profile, tournamentSport: tournamentSport);
+-    final label = AthleteProfileOptions.levels.length > rank
+-        ? AthleteProfileOptions.levels[rank]
+-        : 'seu nível';
++    final label = AthleteProfileOptions.labelForRank(rank);
+     return 'Seu nível ($label) não permite categorias inferiores. '
+         'Escolha uma categoria igual ou superior.';
+   }
+diff --git a/nexago_app/test/features/tournaments/category_level_eligibility_test.dart b/nexago_app/test/features/tournaments/category_level_eligibility_test.dart
+index 6054ee3..b4cb29e 100644
+--- a/nexago_app/test/features/tournaments/category_level_eligibility_test.dart
++++ b/nexago_app/test/features/tournaments/category_level_eligibility_test.dart
+@@ -26,18 +26,31 @@ AthleteProfile _athlete(
+ void main() {
+   group('levelRank', () {
+     test('labels, códigos e legados', () {
++      // Ranks unificados: legados como o degrau inferior do split da escada
++      // de 5 (iniciante→0, intermediario→2, open→5).
+       expect(CategoryLevelEligibility.levelRank('Iniciante'), 0);
+       expect(CategoryLevelEligibility.levelRank('iniciante'), 0);
+-      expect(CategoryLevelEligibility.levelRank('Intermediário'), 1);
+-      expect(CategoryLevelEligibility.levelRank('intermediario'), 1);
+-      expect(CategoryLevelEligibility.levelRank('Open'), 2);
+-      expect(CategoryLevelEligibility.levelRank('open'), 2);
++      expect(CategoryLevelEligibility.levelRank('Intermediário'), 2);
++      expect(CategoryLevelEligibility.levelRank('intermediario'), 2);
++      expect(CategoryLevelEligibility.levelRank('Open'), 5);
++      expect(CategoryLevelEligibility.levelRank('open'), 5);
+       expect(CategoryLevelEligibility.levelRank('Básico'), 0);
+-      expect(CategoryLevelEligibility.levelRank('livre'), 2);
++      expect(CategoryLevelEligibility.levelRank('livre'), 5);
+       expect(CategoryLevelEligibility.levelRank(''), isNull);
+       expect(CategoryLevelEligibility.levelRank('xpto'), isNull);
+     });
+ 
++    test('escada de 5 níveis do vôlei (labels e códigos)', () {
++      expect(CategoryLevelEligibility.levelRank('Iniciante 1'), 0);
++      expect(CategoryLevelEligibility.levelRank('iniciante_1'), 0);
++      expect(CategoryLevelEligibility.levelRank('Iniciante 2'), 1);
++      expect(CategoryLevelEligibility.levelRank('iniciante_2'), 1);
++      expect(CategoryLevelEligibility.levelRank('Intermediário 1'), 2);
++      expect(CategoryLevelEligibility.levelRank('intermediario_1'), 2);
++      expect(CategoryLevelEligibility.levelRank('Intermediário 2'), 3);
++      expect(CategoryLevelEligibility.levelRank('intermediario_2'), 3);
++    });
++
+     test('hierarquia crescente', () {
+       expect(
+         CategoryLevelEligibility.levelRank('iniciante')! <
+@@ -57,22 +70,26 @@ void main() {
+       expect(CategoryLevelEligibility.categoryLevelRank(_offer('Iniciante')), 0);
+       expect(
+         CategoryLevelEligibility.categoryLevelRank(_offer('Intermediário')),
+-        1,
++        2,
++      );
++      expect(
++        CategoryLevelEligibility.categoryLevelRank(_offer('Intermediário 2')),
++        3,
+       );
+-      expect(CategoryLevelEligibility.categoryLevelRank(_offer('Open')), 2);
++      expect(CategoryLevelEligibility.categoryLevelRank(_offer('Open')), 5);
+     });
+ 
+     test('categoria sem nível → Open', () {
+-      expect(CategoryLevelEligibility.categoryLevelRank(_offer('')), 2);
++      expect(CategoryLevelEligibility.categoryLevelRank(_offer('')), 5);
+     });
+   });
+ 
+   group('athleteLevelRank', () {
+     test('usa o nível do perfil', () {
+-      expect(CategoryLevelEligibility.athleteLevelRank(_athlete('Open')), 2);
++      expect(CategoryLevelEligibility.athleteLevelRank(_athlete('Open')), 5);
+       expect(
+         CategoryLevelEligibility.athleteLevelRank(_athlete('Intermediário')),
+-        1,
++        2,
+       );
+     });
+ 
+@@ -91,7 +108,7 @@ void main() {
+           a,
+           tournamentSport: 'beachVolleyball',
+         ),
+-        2,
++        5,
+       );
+       // Esporte diferente cai no nível global.
+       expect(
+@@ -113,7 +130,7 @@ void main() {
+           a,
+           tournamentSport: 'footvolley',
+         ),
+-        2,
++        5,
+       );
+     });
+   });
+-- 
+2.43.0
+

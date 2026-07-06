@@ -38,7 +38,7 @@ import {
 } from "./search-keywords-sync";
 import {onTournamentMatchCompletedAwardXp} from "./tournament-match-gamification";
 import {onArenaFavoriteCreatedAwardXp} from "./arena-favorite-gamification";
-import {syncProfileCompletionRewards} from "./profile-completion-gamification";
+import {syncProfileCompletionRewards, onUserProfileUpdatedSyncGamification} from "./profile-completion-gamification";
 import {
   generateCategoryBracket,
   organizerConfirmRegistrationPayment,
@@ -133,6 +133,7 @@ export {
   onTournamentMatchCompletedAwardXp,
   onArenaFavoriteCreatedAwardXp,
   syncProfileCompletionRewards,
+  onUserProfileUpdatedSyncGamification,
   generateCategoryBracket,
   organizerConfirmRegistrationPayment,
   organizerMoveToWaitlist,
@@ -160,6 +161,17 @@ export {
   cancelArenaRecurringOccurrence,
   materializeArenaRecurringBookings,
 };
+
+// Rating engine + ranking global de torneios (Glicko-2 / promoção-rebaixamento)
+export {
+  onTournamentMatchCompletedUpdateRatings,
+  onUserWrittenTrackLevelChanges,
+  evaluateRatingLadderDaily,
+  recomputeAthleteRating,
+  backfillRatingsAndResults,
+  migrateAthleteLevels,
+} from "./rating-triggers";
+export {onTournamentMatchCompletedAwardGlobalPoints} from "./tournament-ranking";
 
 // Initialize Firebase Admin
 initializeApp();

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -260,6 +261,14 @@ class _AthleteEditProfilePageState
       ref.invalidate(userLocationProvider);
       ref.invalidate(profileCompletionStateProvider);
       ref.invalidate(gamificationSummaryProvider);
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+      final message = e.code == 'permission-denied'
+          ? 'Sem permissão para salvar o perfil. Se você já definiu níveis em Esportes e níveis, não é possível rebaixá-los por aqui.'
+          : 'Erro ao salvar: ${e.message ?? e.code}';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

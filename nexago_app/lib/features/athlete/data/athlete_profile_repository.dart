@@ -9,6 +9,7 @@ import '../domain/athlete_notification_preferences.dart';
 import '../domain/athlete_privacy_preferences.dart';
 import '../domain/athlete_discover_logic.dart';
 import '../domain/athlete_profile.dart';
+import '../domain/athlete_profile_options.dart';
 import '../domain/athlete_public_profile_models.dart';
 import '../domain/profile_access.dart';
 import '../domain/profile_completion_models.dart';
@@ -103,6 +104,13 @@ class AthleteProfileRepository {
       data['coverPhotoUrl'] = FieldValue.delete();
     }
 
+    if (exists) {
+      _preserveAthleteLevelsOnUpdate(
+        data: data,
+        existing: snap.data() ?? <String, dynamic>{},
+      );
+    }
+
     await docRef.set(data, SetOptions(merge: true));
   }
 
@@ -192,4 +200,69 @@ String? _normalizedGenderForFirestore(String? raw) {
   if (lower.startsWith('masc')) return 'Masculino';
   if (lower.startsWith('fem')) return 'Feminino';
   return trimmed;
+}
+
+/// Evita que `set(merge)` rebaixe níveis e dispare `athleteLevelsNotDowngraded`.
+void _preserveAthleteLevelsOnUpdate({
+  required Map<String, dynamic> data,
+  required Map<String, dynamic> existing,
+}) {
+  final existingLevel = existing['level'];
+  final requestLevel = data['level'];
+  if (existingLevel is String && existingLevel.trim().isNotEmpty) {
+    final existingRank = AthleteProfileOptions.levelRank(existingLevel);
+    final requestRank = requestLevel is String
+        ? AthleteProfileOptions.levelRank(requestLevel)
+        : null;
+    if (existingRank != null &&
+        (requestRank == null || requestRank < existingRank)) {
+      data['level'] = existingLevel;
+    }
+  }
+
+  final existingSportProfile = existing['sportProfile'];
+  if (existingSportProfile is Map) {
+    final existingCode = existingSportProfile['level']?.toString().trim() ?? '';
+    if (existingCode.isNotEmpty) {
+      final existingRank = AthleteProfileOptions.levelRank(existingCode) ?? -1;
+      final requestSportProfile = data['sportProfile'];
+      final requestCode = requestSportProfile is Map
+          ? requestSportProfile['level']?.toString().trim() ?? ''
+          : '';
+      final requestRank = requestCode.isEmpty
+          ? -1
+          : (AthleteProfileOptions.levelRank(requestCode) ?? -1);
+      if (requestRank < existingRank) {
+        data['sportProfile'] = <String, dynamic>{'level': existingCode};
+      }
+    }
+  } else if (data['sportProfile'] is Map &&
+      (data['sportProfile'] as Map).isEmpty) {
+    data.remove('sportProfile');
+  }
+
+  final existingOnboarding = existing['sportOnboarding'];
+  final requestOnboarding = data['sportOnboarding'];
+  if (existingOnboarding is Map && requestOnboarding is Map) {
+    final existingLevels = existingOnboarding['levelsBySport'];
+    final requestLevels = requestOnboarding['levelsBySport'];
+    if (existingLevels is Map && requestLevels is Map) {
+      final merged = Map<String, dynamic>.from(requestLevels);
+      for (final entry in existingLevels.entries) {
+        final sportId = entry.key.toString();
+        final existingCode = entry.value?.toString().trim() ?? '';
+        if (existingCode.isEmpty) continue;
+        final existingRank =
+            AthleteProfileOptions.levelRank(existingCode) ?? -1;
+        final requestCode = merged[sportId]?.toString().trim() ?? '';
+        final requestRank = requestCode.isEmpty
+            ? -1
+            : (AthleteProfileOptions.levelRank(requestCode) ?? -1);
+        if (requestRank < existingRank) {
+          merged[sportId] = existingCode;
+        }
+      }
+      (requestOnboarding as Map<String, dynamic>)['levelsBySport'] = merged;
+    }
+  }
 }

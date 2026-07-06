@@ -405,9 +405,8 @@ class AthleteProfile {
       if (sport.trim().isNotEmpty) 'sport': sport.trim(),
       if (level.trim().isNotEmpty) 'level': level.trim(),
       'sports': sports,
-      'sportProfile': <String, dynamic>{
-        if (levelFs.isNotEmpty) 'level': levelFs,
-      },
+      if (levelFs.isNotEmpty)
+        'sportProfile': <String, dynamic>{'level': levelFs},
       'useBiometric': useBiometric,
       'city': city.trim(),
       if (state != null && state!.trim().isNotEmpty)

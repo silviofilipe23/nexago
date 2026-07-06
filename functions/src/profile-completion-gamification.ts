@@ -1,4 +1,5 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {onDocumentUpdated} from "firebase-functions/v2/firestore";
 import {
   FieldValue,
   type DocumentSnapshot,
@@ -411,3 +412,52 @@ export const syncProfileCompletionRewards = onCall(async (request) => {
     );
   }
 });
+
+const PROFILE_GAMIFICATION_FIELDS = [
+  "fullName",
+  "profilePhotoUrl",
+  "avatarUrl",
+  "sport",
+  "level",
+  "city",
+  "state",
+  "phoneNumber",
+  "sportOnboarding",
+  "sportProfile",
+  "goals",
+  "gameObjective",
+  "sports",
+  "onboardingCompleted",
+] as const;
+
+export function profileGamificationFieldsChanged(
+  before: Record<string, unknown> | undefined,
+  after: Record<string, unknown>,
+): boolean {
+  for (const field of PROFILE_GAMIFICATION_FIELDS) {
+    if (JSON.stringify(before?.[field] ?? null) !== JSON.stringify(after[field] ?? null)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Credita XP/badges de perfil após gravação em `users/{uid}` (sem escrita no cliente). */
+export const onUserProfileUpdatedSyncGamification = onDocumentUpdated(
+  "users/{userId}",
+  async (event) => {
+    const userId = event.params.userId?.trim() ?? "";
+    if (!userId) return;
+
+    const before = event.data?.before.data() as Record<string, unknown> | undefined;
+    const after = event.data?.after.data() as Record<string, unknown> | undefined;
+    if (!after) return;
+    if (!profileGamificationFieldsChanged(before, after)) return;
+
+    try {
+      await syncProfileCompletionRewardsForUser(getFirestore(), userId);
+    } catch (error) {
+      logger.error("onUserProfileUpdatedSyncGamification: falha", {userId, error});
+    }
+  },
+);

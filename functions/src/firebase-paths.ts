@@ -8,18 +8,22 @@ export function getFirebaseProjectId(): string {
     "volley-track-2dd3b";
 }
 
+export function artifactsPublicDataBase(projectId: string = getFirebaseProjectId()): string {
+  return `artifacts/${projectId}/public/data`;
+}
+
 export function artifactsTeamsPath(projectId: string = getFirebaseProjectId()): string {
-  return `artifacts/${projectId}/public/data/teams`;
+  return `${artifactsPublicDataBase(projectId)}/teams`;
 }
 
 export function artifactsMatchesPath(projectId: string = getFirebaseProjectId()): string {
-  return `artifacts/${projectId}/public/data/matches`;
+  return `${artifactsPublicDataBase(projectId)}/matches`;
 }
 
 export function artifactsInscriptionsPath(projectId: string = getFirebaseProjectId()): string {
-  return `artifacts/${projectId}/public/data/inscriptions`;
+  return `${artifactsPublicDataBase(projectId)}/inscriptions`;
 }
 
 export function artifactsTournamentsPath(projectId: string = getFirebaseProjectId()): string {
-  return `artifacts/${projectId}/public/data/tournaments`;
+  return `${artifactsPublicDataBase(projectId)}/tournaments`;
 }

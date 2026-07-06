@@ -4,6 +4,7 @@ import {test} from "node:test";
 import {
   achievementEventId,
   computeProfileRewardContext,
+  profileGamificationFieldsChanged,
   profileStepEventId,
 } from "./profile-completion-gamification";
 
@@ -41,4 +42,13 @@ test("cidade legada com separador · conta como UF presente", () => {
 
   assert.equal(ctx.stepDone.city, true);
   assert.equal(ctx.stepDone.sport_level, true);
+});
+
+test("profileGamificationFieldsChanged ignora só updatedAt", () => {
+  const before = {city: "Goiânia", updatedAt: "t1"};
+  const after = {city: "Goiânia", updatedAt: "t2"};
+  assert.equal(profileGamificationFieldsChanged(before, after), false);
+
+  const afterCity = {city: "Anápolis", updatedAt: "t2"};
+  assert.equal(profileGamificationFieldsChanged(before, afterCity), true);
 });

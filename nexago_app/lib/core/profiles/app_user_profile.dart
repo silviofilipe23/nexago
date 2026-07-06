@@ -145,6 +145,18 @@ String appUserDisplayName(AppUserProfile user) {
   return resolveAppUserDisplayName(user);
 }
 
+/// Nome curto p/ rótulos de dupla (ex.: "Ana C."), reduzindo colisão quando
+/// dois usuários compartilham o primeiro nome.
+String appUserShortLabel(AppUserProfile user) {
+  final display = appUserDisplayName(user).trim();
+  if (display.isEmpty) return '';
+  final parts =
+      display.split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+  if (parts.length <= 1) return display;
+  final lastInitial = parts.last[0].toUpperCase();
+  return '${parts.first} $lastInitial.';
+}
+
 String? appUserSecondaryLine(AppUserProfile user) {
   final primary = appUserDisplayName(user);
   final parts = <String>[];

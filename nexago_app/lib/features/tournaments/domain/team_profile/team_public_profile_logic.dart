@@ -17,12 +17,7 @@ String teamProfileDisplayName({
 }) {
   final name = team.teamName?.trim();
   if (name != null && name.isNotEmpty) return name;
-  final p1 = _firstName(player1);
-  final p2 = _firstName(player2);
-  if (p1.isNotEmpty && p2.isNotEmpty && p1 != p2) return '$p1/$p2';
-  if (p1.isNotEmpty) return p1;
-  if (p2.isNotEmpty) return p2;
-  return 'Dupla';
+  return pairDisplayName(player1, player2);
 }
 
 String teamProfileSportLabel(AthleteProfile? player1, AthleteProfile? player2) {
@@ -311,13 +306,6 @@ String _campaignLocationLabel(List<TournamentMatch> matches) {
     if (court.isNotEmpty) return court;
   }
   return '';
-}
-
-String _firstName(AthleteProfile? profile) {
-  if (profile == null) return '';
-  final display = athleteDisplayName(profile, fallback: '');
-  if (display.isEmpty) return '';
-  return display.split(' ').first;
 }
 
 class _HeadToHeadAccumulator {

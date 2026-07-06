@@ -30,13 +30,15 @@ String teamDisplayName({
   final teamName = team?.teamName?.trim();
   if (teamName != null && teamName.isNotEmpty) return teamName;
 
+  final p1Short = player1 != null ? appUserShortLabel(player1) : '';
+  final p2Short = player2 != null ? appUserShortLabel(player2) : '';
+  if (p1Short.isNotEmpty && p2Short.isNotEmpty && p1Short != p2Short) {
+    return '$p1Short / $p2Short';
+  }
+
   final p1 = player1 != null ? appUserDisplayName(player1).trim() : '';
   final p2 = player2 != null ? appUserDisplayName(player2).trim() : '';
-  if (p1.isNotEmpty && p2.isNotEmpty) {
-    final s1 = p1.split(' ').first;
-    final s2 = p2.split(' ').first;
-    return '$s1 / $s2';
-  }
+  if (p1.isNotEmpty && p2.isNotEmpty && p1 != p2) return '$p1 / $p2';
   if (p1.isNotEmpty) return p1;
   if (p2.isNotEmpty) return p2;
   return 'Dupla';

@@ -204,4 +204,27 @@ void main() {
       expect(picked, hasLength(2));
     });
   });
+
+  group('TeamDiscoverEntry.displayName', () {
+    test('disambiguates players sharing the same first name', () {
+      final entry = _entry(
+        player1: _player(id: 'p1', name: 'Atleta Intermediário Masculino 20'),
+        player2: _player(id: 'p2', name: 'Atleta Intermediário Masculino 17'),
+      );
+
+      // Sem sobrenome real pra diferenciar (nomes de seed), o rótulo curto
+      // ainda colide — mas nunca deve sumir com um dos dois jogadores.
+      expect(entry.displayName, isNot('Atleta'));
+      expect(entry.displayName, contains('/'));
+    });
+
+    test('shows both first names with last-initial when they differ', () {
+      final entry = _entry(
+        player1: _player(id: 'p1', name: 'Carlos Silva'),
+        player2: _player(id: 'p2', name: 'Carlos Mendes'),
+      );
+
+      expect(entry.displayName, 'Carlos S./Carlos M.');
+    });
+  });
 }

@@ -106,6 +106,41 @@ abstract final class AthleteOnboardingOptions {
     // ),
   ];
 
+  /// Escada de 5 níveis do vôlei (praia e quadra) — espelho de
+  /// `AthleteProfileOptions.volleyballLevels`.
+  static const List<OnboardingLevelOption> volleyballLevels = [
+    OnboardingLevelOption(
+      label: 'Iniciante 1',
+      description: 'Estou começando ou jogo pouco tempo.',
+    ),
+    OnboardingLevelOption(
+      label: 'Iniciante 2',
+      description: 'Já domino o básico e jogo com frequência.',
+    ),
+    OnboardingLevelOption(
+      label: 'Intermediário 1',
+      description: 'Jogo com regularidade e tenho boa experiência.',
+    ),
+    OnboardingLevelOption(
+      label: 'Intermediário 2',
+      description: 'Jogo forte, disputo torneios e vou bem neles.',
+    ),
+    OnboardingLevelOption(
+      label: 'Open',
+      description: 'Tenho alto nível amador e disputo torneios competitivos.',
+    ),
+  ];
+
+  static const Set<String> _fiveLevelSportIds = {
+    'beach_volleyball',
+    'indoor_volleyball',
+  };
+
+  /// Escada de níveis conforme o esporte principal escolhido no onboarding.
+  static List<OnboardingLevelOption> levelsForSport(String? sportId) {
+    return _fiveLevelSportIds.contains(sportId) ? volleyballLevels : levels;
+  }
+
   static const List<OnboardingGoalOption> goals = [
     OnboardingGoalOption(
       id: 'book_arena',

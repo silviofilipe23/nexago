@@ -6,17 +6,22 @@ abstract final class AthleteSportsLevelsLabels {
 
   static const List<String> levelLabels = AthleteProfileOptions.levels;
 
-  static const List<String> levelAbbreviations = [
-    'Iniciante',
-    'Intermediário',
-    'Open',
-  ];
+  /// Labels de nível conforme o esporte (vôlei: escada de 5; demais: 3).
+  static List<String> levelLabelsFor(String firestoreSportId) {
+    return AthleteProfileOptions.levelsForSportCode(firestoreSportId);
+  }
+
+  static const Map<String, String> _abbreviations = {
+    'Iniciante': 'Iniciante',
+    'Intermediário': 'Intermediário',
+    'Open': 'Open',
+    'Iniciante 1': 'Inic. 1',
+    'Iniciante 2': 'Inic. 2',
+    'Intermediário 1': 'Int. 1',
+    'Intermediário 2': 'Int. 2',
+  };
 
   static String abbreviationFor(String levelLabel) {
-    final idx = levelLabels.indexOf(levelLabel);
-    if (idx < 0 || idx >= levelAbbreviations.length) {
-      return levelLabel;
-    }
-    return levelAbbreviations[idx];
+    return _abbreviations[levelLabel] ?? levelLabel;
   }
 }

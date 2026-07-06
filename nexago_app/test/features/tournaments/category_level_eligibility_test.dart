@@ -26,16 +26,29 @@ AthleteProfile _athlete(
 void main() {
   group('levelRank', () {
     test('labels, códigos e legados', () {
+      // Ranks unificados: legados como o degrau inferior do split da escada
+      // de 5 (iniciante→0, intermediario→2, open→5).
       expect(CategoryLevelEligibility.levelRank('Iniciante'), 0);
       expect(CategoryLevelEligibility.levelRank('iniciante'), 0);
-      expect(CategoryLevelEligibility.levelRank('Intermediário'), 1);
-      expect(CategoryLevelEligibility.levelRank('intermediario'), 1);
-      expect(CategoryLevelEligibility.levelRank('Open'), 2);
-      expect(CategoryLevelEligibility.levelRank('open'), 2);
+      expect(CategoryLevelEligibility.levelRank('Intermediário'), 2);
+      expect(CategoryLevelEligibility.levelRank('intermediario'), 2);
+      expect(CategoryLevelEligibility.levelRank('Open'), 5);
+      expect(CategoryLevelEligibility.levelRank('open'), 5);
       expect(CategoryLevelEligibility.levelRank('Básico'), 0);
-      expect(CategoryLevelEligibility.levelRank('livre'), 2);
+      expect(CategoryLevelEligibility.levelRank('livre'), 5);
       expect(CategoryLevelEligibility.levelRank(''), isNull);
       expect(CategoryLevelEligibility.levelRank('xpto'), isNull);
+    });
+
+    test('escada de 5 níveis do vôlei (labels e códigos)', () {
+      expect(CategoryLevelEligibility.levelRank('Iniciante 1'), 0);
+      expect(CategoryLevelEligibility.levelRank('iniciante_1'), 0);
+      expect(CategoryLevelEligibility.levelRank('Iniciante 2'), 1);
+      expect(CategoryLevelEligibility.levelRank('iniciante_2'), 1);
+      expect(CategoryLevelEligibility.levelRank('Intermediário 1'), 2);
+      expect(CategoryLevelEligibility.levelRank('intermediario_1'), 2);
+      expect(CategoryLevelEligibility.levelRank('Intermediário 2'), 3);
+      expect(CategoryLevelEligibility.levelRank('intermediario_2'), 3);
     });
 
     test('hierarquia crescente', () {
@@ -57,22 +70,26 @@ void main() {
       expect(CategoryLevelEligibility.categoryLevelRank(_offer('Iniciante')), 0);
       expect(
         CategoryLevelEligibility.categoryLevelRank(_offer('Intermediário')),
-        1,
+        2,
       );
-      expect(CategoryLevelEligibility.categoryLevelRank(_offer('Open')), 2);
+      expect(
+        CategoryLevelEligibility.categoryLevelRank(_offer('Intermediário 2')),
+        3,
+      );
+      expect(CategoryLevelEligibility.categoryLevelRank(_offer('Open')), 5);
     });
 
     test('categoria sem nível → Open', () {
-      expect(CategoryLevelEligibility.categoryLevelRank(_offer('')), 2);
+      expect(CategoryLevelEligibility.categoryLevelRank(_offer('')), 5);
     });
   });
 
   group('athleteLevelRank', () {
     test('usa o nível do perfil', () {
-      expect(CategoryLevelEligibility.athleteLevelRank(_athlete('Open')), 2);
+      expect(CategoryLevelEligibility.athleteLevelRank(_athlete('Open')), 5);
       expect(
         CategoryLevelEligibility.athleteLevelRank(_athlete('Intermediário')),
-        1,
+        2,
       );
     });
 
@@ -91,7 +108,7 @@ void main() {
           a,
           tournamentSport: 'beachVolleyball',
         ),
-        2,
+        5,
       );
       // Esporte diferente cai no nível global.
       expect(
@@ -113,7 +130,7 @@ void main() {
           a,
           tournamentSport: 'footvolley',
         ),
-        2,
+        5,
       );
     });
   });

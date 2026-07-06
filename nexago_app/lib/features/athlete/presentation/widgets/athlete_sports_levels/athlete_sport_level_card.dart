@@ -34,6 +34,8 @@ class AthleteSportLevelCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final subtitle = _subtitleFor(enrollment, totalGames);
+    final levelLabels =
+        AthleteSportsLevelsLabels.levelLabelsFor(enrollment.firestoreSportId);
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -131,7 +133,7 @@ class AthleteSportLevelCard extends StatelessWidget {
                 ),
                 Spacer(),
                 Text(
-                  '3 níveis',
+                  '${levelLabels.length} níveis',
                   style: AppTypography.mono(
                     fontWeight: FontWeight.w600,
                     color: context.themeColors.onSurfaceMuted.withValues(
@@ -146,35 +148,36 @@ class AthleteSportLevelCard extends StatelessWidget {
             SizedBox(height: 10),
             Row(
               children: [
-                for (
-                  var i = 0;
-                  i < AthleteSportsLevelsLabels.levelLabels.length;
-                  i++
-                )
+                for (var i = 0; i < levelLabels.length; i++)
                   Expanded(
                     child: Padding(
                       padding: EdgeInsets.only(
                         left: i == 0 ? 0 : 4,
-                        right:
-                            i ==
-                                AthleteSportsLevelsLabels.levelLabels.length - 1
-                            ? 0
-                            : 4,
+                        right: i == levelLabels.length - 1 ? 0 : 4,
                       ),
                       child: _LevelChip(
                         label: AthleteSportsLevelsLabels.abbreviationFor(
-                          AthleteSportsLevelsLabels.levelLabels[i],
+                          levelLabels[i],
                         ),
-                        selected:
-                            selectedLevel ==
-                            AthleteSportsLevelsLabels.levelLabels[i],
-                        // Abaixo do nível salvo: visual bloqueado, mas o tap
-                        // segue ativo para a página explicar a regra.
-                        locked: i < lockedLevelRank,
+                        // Igualdade por rank: nível legado ainda não migrado
+                        // ("Intermediário") acende o degrau equivalente da
+                        // escada de 5 ("Int. 1").
+                        selected: selectedLevel == levelLabels[i] ||
+                            (AthleteProfileOptions.levelRank(selectedLevel) !=
+                                    null &&
+                                AthleteProfileOptions.levelRank(
+                                        selectedLevel) ==
+                                    AthleteProfileOptions.levelRank(
+                                        levelLabels[i])),
+                        // Abaixo do nível salvo (rank unificado, que tem
+                        // buracos): visual bloqueado, mas o tap segue ativo
+                        // para a página explicar a regra.
+                        locked:
+                            (AthleteProfileOptions.levelRank(levelLabels[i]) ??
+                                    0) <
+                                lockedLevelRank,
                         onTap: enabled
-                            ? () => onLevelSelected(
-                                AthleteSportsLevelsLabels.levelLabels[i],
-                              )
+                            ? () => onLevelSelected(levelLabels[i])
                             : null,
                       ),
                     ),

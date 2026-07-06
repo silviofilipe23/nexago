@@ -278,7 +278,7 @@ function upsertStageResult(
   return filtered;
 }
 
-async function loadKnockoutTeamIds(
+export async function loadKnockoutTeamIds(
   db: Firestore,
   projectId: string,
   tournamentId: string,
@@ -308,7 +308,7 @@ async function loadKnockoutTeamIds(
   return ids;
 }
 
-async function loadCategoryBracketContext(
+export async function loadCategoryBracketContext(
   db: Firestore,
   projectId: string,
   tournamentId: string,
@@ -351,7 +351,7 @@ async function loadCategoryBracketContext(
   return {isDoubleElimination, maxLbRound, knockoutFinalRound, hasThirdPlaceMatch};
 }
 
-async function loadTeamAthleteIds(
+export async function loadTeamAthleteIds(
   db: Firestore,
   projectId: string,
   teamId: string,
@@ -367,7 +367,7 @@ async function loadTeamAthleteIds(
   return [...ids];
 }
 
-async function loadPaidTeamIds(
+export async function loadPaidTeamIds(
   db: Firestore,
   projectId: string,
   tournamentId: string,

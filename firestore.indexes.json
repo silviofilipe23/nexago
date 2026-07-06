@@ -1057,6 +1057,94 @@
         }
       ],
       "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "ratingEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "athleteIds",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "sportCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "endedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ratingEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sportCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "endedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "athleteRatings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sportCode",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "rating",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "athleteRatings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "ladderState",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "observationStartedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "matchEndedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tournamentCategoryResults",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "teamId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "year",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -59,6 +59,11 @@ abstract final class AthleteFirestoreCodes {
     'Iniciante': 'iniciante',
     'Intermediário': 'intermediario',
     'Open': 'open',
+    // Escada de 5 níveis do vôlei (códigos com underscore no Firestore).
+    'Iniciante 1': 'iniciante_1',
+    'Iniciante 2': 'iniciante_2',
+    'Intermediário 1': 'intermediario_1',
+    'Intermediário 2': 'intermediario_2',
     // 'Pro': 'pro',
   };
 
@@ -66,6 +71,10 @@ abstract final class AthleteFirestoreCodes {
     'iniciante': 'Iniciante',
     'intermediario': 'Intermediário',
     'open': 'Open',
+    'iniciante_1': 'Iniciante 1',
+    'iniciante_2': 'Iniciante 2',
+    'intermediario_1': 'Intermediário 1',
+    'intermediario_2': 'Intermediário 2',
     'pro': 'Pro',
     'basico': 'Iniciante',
     'básico': 'Iniciante',

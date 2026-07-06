@@ -198,7 +198,10 @@ class _LeagueCategoryEditorSheetState
             const SizedBox(height: 8),
             OrganizerChipSelector(
               horizontalScroll: true,
-              options: TournamentSkillLevel.values,
+              // Escada conforme o esporte da liga (vôlei: 5 níveis).
+              options: skillLevelOptionsForSport(
+                ref.watch(leagueCreateDraftProvider).sport,
+              ),
               selected: _category.skillLevel,
               labelBuilder: skillLevelLabel,
               onSelected: (value) => setState(

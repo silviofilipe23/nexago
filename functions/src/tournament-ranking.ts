@@ -1,0 +1,367 @@
+import {
+  FieldValue,
+  Timestamp,
+  getFirestore,
+  type Firestore,
+} from "firebase-admin/firestore";
+import {onDocumentUpdated} from "firebase-functions/v2/firestore";
+import * as logger from "firebase-functions/logger";
+import {isMatchCompleted} from "./match-status";
+import {
+  loadCategoryBracketContext,
+  loadKnockoutTeamIds,
+  loadPaidTeamIds,
+  loadTeamAthleteIds,
+  normalizeMatchType,
+  resolveLeaguePlacementsFromMatch,
+  type LeaguePlacementAward,
+} from "./league-ranking";
+import {parseMatchPlayedAt} from "./tournament-match-gamification";
+import {shouldProcessRatingUpdate as shouldAwardForMatch} from "./rating-engine";
+import {artifactsPublicDataBase} from "./firebase-paths";
+
+/**
+ * Ranking global por pontos (estilo federação) — preenche o schema que o app
+ * já lê (`tournamentCategoryResults`, `athleteRankings`, `teamRankings`),
+ * reutilizando a resolução de colocações da engine de liga mas SEM o gate de
+ * `leagueId`: todo torneio pontua.
+ *
+ * Tabela autoritativa (paridade com `pointsByPlace` de
+ * `nexago_app/lib/features/ranking/domain/ranking_constants.dart`, que dá 33
+ * aos lugares 5-8). `tournaments/{id}.rankingWeight` (default 1.0) multiplica.
+ */
+export const DEFAULT_GLOBAL_POINTS: Record<string, number> = {
+  "1": 100,
+  "2": 80,
+  "3": 60,
+  "4": 50,
+  quarters: 33,
+  groups: 10,
+};
+
+/** Nº de melhores resultados que contam por ano (paridade com `bestNResults`). */
+export const BEST_N_RESULTS_PER_YEAR = 5;
+
+export function tournamentCategoryResultsPath(projectId: string): string {
+  return `${artifactsPublicDataBase(projectId)}/tournamentCategoryResults`;
+}
+
+export function athleteRankingsPath(projectId: string): string {
+  return `${artifactsPublicDataBase(projectId)}/athleteRankings`;
+}
+
+export function teamRankingsPath(projectId: string): string {
+  return `${artifactsPublicDataBase(projectId)}/teamRankings`;
+}
+
+/** Colocação persistida: 1-4 direto; quartas→5; fase de grupos→9. */
+export function finalPlaceForAward(award: LeaguePlacementAward): number {
+  if (award.place != null) return award.place;
+  return award.bucket === "quarters" ? 5 : 9;
+}
+
+export function globalPointsForAward(
+  award: LeaguePlacementAward,
+  rankingWeight: number,
+): number {
+  const base =
+    award.place != null
+      ? DEFAULT_GLOBAL_POINTS[String(award.place)] ?? 0
+      : award.bucket != null
+        ? DEFAULT_GLOBAL_POINTS[award.bucket] ?? 0
+        : 0;
+  const weight =
+    Number.isFinite(rankingWeight) && rankingWeight > 0 ? rankingWeight : 1;
+  return Math.max(0, Math.round(base * weight));
+}
+
+export interface GlobalRankingResultEntry {
+  tournamentId: string;
+  categoryId: string;
+  finalPlace: number;
+  points: number;
+  year: number;
+}
+
+/**
+ * Agregados do doc de ranking: `pointsByYear[y]` soma os melhores
+ * [BEST_N_RESULTS_PER_YEAR] resultados do ano; `totalPoints` soma os anos.
+ */
+export function aggregateRankingResults(
+  results: GlobalRankingResultEntry[],
+): {
+  totalPoints: number;
+  tournamentsCount: number;
+  pointsByYear: Record<string, number>;
+} {
+  const byYear = new Map<string, number[]>();
+  for (const result of results) {
+    const key = String(result.year);
+    const list = byYear.get(key) ?? [];
+    list.push(Math.max(0, Math.round(result.points)));
+    byYear.set(key, list);
+  }
+  const pointsByYear: Record<string, number> = {};
+  let totalPoints = 0;
+  for (const [year, points] of byYear) {
+    const best = points
+      .sort((a, b) => b - a)
+      .slice(0, BEST_N_RESULTS_PER_YEAR)
+      .reduce((sum, value) => sum + value, 0);
+    pointsByYear[year] = best;
+    totalPoints += best;
+  }
+  return {totalPoints, tournamentsCount: results.length, pointsByYear};
+}
+
+function parseResults(raw: unknown): GlobalRankingResultEntry[] {
+  if (!Array.isArray(raw)) return [];
+  const out: GlobalRankingResultEntry[] = [];
+  for (const entry of raw) {
+    if (entry == null || typeof entry !== "object") continue;
+    const row = entry as Record<string, unknown>;
+    const tournamentId = String(row.tournamentId ?? "").trim();
+    const categoryId = String(row.categoryId ?? "").trim();
+    if (!tournamentId || !categoryId) continue;
+    out.push({
+      tournamentId,
+      categoryId,
+      finalPlace: Number(row.finalPlace) || 0,
+      points: Number(row.points) || 0,
+      year: Number(row.year) || 0,
+    });
+  }
+  return out;
+}
+
+/** Upsert de `results[]` por `tournamentId_categoryId`; devolve null se nada mudou. */
+export function upsertRankingResult(
+  results: GlobalRankingResultEntry[],
+  entry: GlobalRankingResultEntry,
+): GlobalRankingResultEntry[] | null {
+  const existing = results.find(
+    (row) =>
+      row.tournamentId === entry.tournamentId &&
+      row.categoryId === entry.categoryId,
+  );
+  if (
+    existing &&
+    existing.finalPlace === entry.finalPlace &&
+    existing.points === entry.points &&
+    existing.year === entry.year
+  ) {
+    return null;
+  }
+  const filtered = results.filter(
+    (row) =>
+      !(
+        row.tournamentId === entry.tournamentId &&
+        row.categoryId === entry.categoryId
+      ),
+  );
+  filtered.push(entry);
+  return filtered;
+}
+
+async function upsertGlobalRankingDoc(
+  db: Firestore,
+  params: {
+    collectionPath: string;
+    docId: string;
+    identity: Record<string, string>;
+    entry: GlobalRankingResultEntry;
+  },
+): Promise<boolean> {
+  const ref = db.collection(params.collectionPath).doc(params.docId);
+  const snap = await ref.get();
+  const prev = snap.data() ?? {};
+  const results = parseResults(prev.results);
+
+  const merged = upsertRankingResult(results, params.entry);
+  if (merged == null) return false;
+
+  const aggregates = aggregateRankingResults(merged);
+  await ref.set(
+    {
+      ...params.identity,
+      results: merged,
+      totalPoints: aggregates.totalPoints,
+      tournamentsCount: aggregates.tournamentsCount,
+      pointsByYear: aggregates.pointsByYear,
+      lastUpdated: FieldValue.serverTimestamp(),
+    },
+    {merge: true},
+  );
+  return true;
+}
+
+async function awardGlobalPlacement(
+  db: Firestore,
+  projectId: string,
+  params: {
+    tournamentId: string;
+    categoryId: string;
+    award: LeaguePlacementAward;
+    rankingWeight: number;
+    year: number;
+    completedAt: Date;
+  },
+): Promise<boolean> {
+  const {tournamentId, categoryId, award} = params;
+  const teamId = award.teamId;
+  const points = globalPointsForAward(award, params.rankingWeight);
+  if (points <= 0) return false;
+  const finalPlace = finalPlaceForAward(award);
+
+  // Resultado por categoria (contrato do model Dart `TournamentCategoryResult`).
+  const resultRef = db
+    .collection(tournamentCategoryResultsPath(projectId))
+    .doc(`${tournamentId}_${categoryId}_${teamId}`);
+  const resultSnap = await resultRef.get();
+  const prevResult = resultSnap.data();
+  if (
+    prevResult?.finalPlace === finalPlace &&
+    prevResult?.pointsEarned === points
+  ) {
+    return false;
+  }
+  await resultRef.set({
+    tournamentId,
+    categoryId,
+    teamId,
+    finalPlace,
+    pointsEarned: points,
+    year: params.year,
+    completedAt: Timestamp.fromDate(params.completedAt),
+  });
+
+  const entry: GlobalRankingResultEntry = {
+    tournamentId,
+    categoryId,
+    finalPlace,
+    points,
+    year: params.year,
+  };
+
+  await upsertGlobalRankingDoc(db, {
+    collectionPath: teamRankingsPath(projectId),
+    docId: teamId,
+    identity: {teamId},
+    entry,
+  });
+
+  const athleteIds = await loadTeamAthleteIds(db, projectId, teamId);
+  await Promise.all(
+    athleteIds.map((athleteId) =>
+      upsertGlobalRankingDoc(db, {
+        collectionPath: athleteRankingsPath(projectId),
+        docId: athleteId,
+        identity: {athleteId},
+        entry,
+      }),
+    ),
+  );
+  return true;
+}
+
+function isNonGroupCompletedMatch(match: Record<string, unknown>): boolean {
+  if (!isMatchCompleted(match.status)) return false;
+  const matchType = normalizeMatchType(match.matchType);
+  return !(
+    match.isGroupMatch === true ||
+    matchType === "group" ||
+    matchType === "groups"
+  );
+}
+
+/**
+ * Concede pontos de ranking global pela partida encerrada — espelha
+ * `tryAwardLeagueStagePointsForMatch`, mas incondicional a `leagueId`.
+ */
+export async function tryAwardGlobalRankingForMatch(
+  db: Firestore,
+  projectId: string,
+  match: Record<string, unknown>,
+): Promise<{awarded: boolean; teamsUpdated: number}> {
+  if (!isMatchCompleted(match.status)) {
+    return {awarded: false, teamsUpdated: 0};
+  }
+  const tournamentId = String(match.tournamentId ?? "").trim();
+  const categoryId = String(match.categoryId ?? "").trim();
+  if (!tournamentId || !categoryId) {
+    return {awarded: false, teamsUpdated: 0};
+  }
+
+  const tournamentSnap = await db.doc(`tournaments/${tournamentId}`).get();
+  if (!tournamentSnap.exists) return {awarded: false, teamsUpdated: 0};
+  const rankingWeight = Number(tournamentSnap.data()?.rankingWeight ?? 1);
+
+  const completedAt = parseMatchPlayedAt(match);
+  const year = completedAt.getFullYear();
+
+  const bracketContext = await loadCategoryBracketContext(
+    db,
+    projectId,
+    tournamentId,
+    categoryId,
+  );
+  const placements = resolveLeaguePlacementsFromMatch(match, bracketContext);
+
+  const baseParams = {tournamentId, categoryId, rankingWeight, year, completedAt};
+  let teamsUpdated = 0;
+  for (const award of placements) {
+    if (await awardGlobalPlacement(db, projectId, {...baseParams, award})) {
+      teamsUpdated++;
+    }
+  }
+
+  // Times pagos que não chegaram ao mata-mata pontuam pela fase de grupos
+  // (mesma regra da liga: só a partir da 1ª partida de mata-mata concluída).
+  if (isNonGroupCompletedMatch(match)) {
+    const [paidTeamIds, knockoutTeamIds] = await Promise.all([
+      loadPaidTeamIds(db, projectId, tournamentId, categoryId),
+      loadKnockoutTeamIds(db, projectId, tournamentId, categoryId),
+    ]);
+    for (const teamId of paidTeamIds) {
+      if (knockoutTeamIds.has(teamId)) continue;
+      const awarded = await awardGlobalPlacement(db, projectId, {
+        ...baseParams,
+        award: {teamId, bucket: "groups"},
+      });
+      if (awarded) teamsUpdated++;
+    }
+  }
+
+  return {awarded: teamsUpdated > 0, teamsUpdated};
+}
+
+/**
+ * Trigger desacoplado no mesmo path de matches (coexiste com o advance de
+ * chave e o XP, padrão `onTournamentMatchCompletedAwardXp`).
+ */
+export const onTournamentMatchCompletedAwardGlobalPoints = onDocumentUpdated(
+  "artifacts/{appId}/public/data/matches/{matchId}",
+  async (event) => {
+    const before = event.data?.before.data() as Record<string, unknown> | undefined;
+    const after = event.data?.after.data() as Record<string, unknown> | undefined;
+    if (!shouldAwardForMatch(before, after) || !after) return;
+
+    try {
+      const result = await tryAwardGlobalRankingForMatch(
+        getFirestore(),
+        event.params.appId,
+        {...after, id: event.params.matchId},
+      );
+      if (result.teamsUpdated > 0) {
+        logger.info(
+          `globalRanking: ${result.teamsUpdated} time(s) atualizados pela partida ${event.params.matchId}`,
+        );
+      }
+    } catch (error) {
+      logger.error(
+        `globalRanking: falha na partida ${event.params.matchId}`,
+        error,
+      );
+    }
+  },
+);

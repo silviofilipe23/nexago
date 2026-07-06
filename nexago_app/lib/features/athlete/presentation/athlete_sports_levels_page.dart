@@ -9,6 +9,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
 import '../domain/athlete_profile_options.dart';
 import '../domain/athlete_sports_levels_providers.dart';
+import 'widgets/athlete_level_zone_card.dart';
 import 'widgets/athlete_sports_levels/athlete_sport_add_chip.dart';
 import 'widgets/athlete_sports_levels/athlete_sport_level_card.dart';
 import 'widgets/athlete_sports_levels/athlete_sports_invite_banner.dart';
@@ -354,8 +355,10 @@ class _ReadyBody extends StatelessWidget {
         ),
         SizedBox(height: 6),
         Text(
-          'Seu nível pode subir, mas não descer. Para corrigir um nível '
-          'errado, fale com o suporte.',
+          'Seu nível é atualizado automaticamente com base nos seus '
+          'resultados em torneios. Você pode subir de nível manualmente, '
+          'mas não reduzir — para corrigir um nível errado, fale com o '
+          'suporte.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: context.themeColors.onSurfaceMuted,
             height: 1.35,
@@ -377,16 +380,25 @@ class _ReadyBody extends StatelessWidget {
           ...ui.enrollments.map((e) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: AthleteSportLevelCard(
-                enrollment: e,
-                totalGames: ui.totalGames,
-                selectedLevel:
-                    ui.draft.levelByAppSportId[e.appSportId] ?? e.levelLabel,
-                lockedLevelRank: ui.lockedLevelRankFor(e.appSportId) ?? -1,
-                enabled: canEdit,
-                onLevelSelected: (level) =>
-                    onLevelSelected(e.appSportId, level),
-                onMakePrimary: () => onMakePrimary(e.appSportId),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AthleteSportLevelCard(
+                    enrollment: e,
+                    totalGames: ui.totalGames,
+                    selectedLevel:
+                        ui.draft.levelByAppSportId[e.appSportId] ??
+                            e.levelLabel,
+                    lockedLevelRank: ui.lockedLevelRankFor(e.appSportId) ?? -1,
+                    enabled: canEdit,
+                    onLevelSelected: (level) =>
+                        onLevelSelected(e.appSportId, level),
+                    onMakePrimary: () => onMakePrimary(e.appSportId),
+                  ),
+                  // Zona da escada (engine de rating) — só aparece quando a
+                  // engine já processou partidas do atleta neste esporte.
+                  AthleteLevelZoneCard(sportCode: e.firestoreSportId),
+                ],
               ),
             );
           }),

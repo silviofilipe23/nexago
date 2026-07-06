@@ -8,16 +8,40 @@ import {loadUserAccessData, type UserAccessData} from "./athlete-tournament-acce
  * Regra: um atleta pode disputar a sua própria categoria ou categorias ACIMA do
  * seu nível, nunca ABAIXO. Para duplas, vale o atleta de MAIOR nível.
  *
- * Hierarquia: iniciante (0) < intermediario (1) < open (2).
+ * Ranks unificados (vôlei com 5 degraus; `open` fica no rank 5 de propósito —
+ * os ranks 1 e 4 estão reservados para a escada D/C/B/A do beach tennis numa
+ * entrega futura, sem renumerar nada; comparações são sempre dentro do mesmo
+ * esporte, então os buracos não afetam nada):
+ *
+ *   iniciante_1 (0) < iniciante_2 (1) < intermediario_1 (2)
+ *     < intermediario_2 (3) < open (5)
+ *
+ * Legados (aliasing — docs não migrados se comportam como o degrau inferior
+ * do split): iniciante→0, intermediario→2, open→5.
+ *
+ * As chaves incluem código (`intermediario_1`) E label normalizado
+ * (`intermediario1`), porque `categories[].level` guarda o LABEL
+ * ("Intermediário 1") e `sportOnboarding.levelsBySport` guarda o CÓDIGO —
+ * [normalizeLevelKey] tira acento/espaço mas preserva underscore.
  */
 
 export const LEVEL_RANK: Record<string, number> = {
+  // Códigos novos (levelsBySport) e labels normalizados (categoria).
+  iniciante_1: 0,
+  iniciante1: 0,
+  iniciante_2: 1,
+  iniciante2: 1,
+  intermediario_1: 2,
+  intermediario1: 2,
+  intermediario_2: 3,
+  intermediario2: 3,
+  open: 5,
+  // Legados (escada de 3 níveis) — degrau inferior do split.
   iniciante: 0,
-  intermediario: 1,
-  open: 2,
+  intermediario: 2,
 };
 
-const HIGHEST_RANK = 2;
+const HIGHEST_RANK = 5;
 
 /** Normaliza acentos/caixa para casar códigos e labels do nível. */
 function normalizeLevelKey(raw: unknown): string {
@@ -44,13 +68,49 @@ export function levelRank(raw: unknown): number | null {
   return null;
 }
 
-/** Label amigável (PT-BR) para um rank de nível. */
+/**
+ * Label canônico (PT-BR) de um código/label de nível, SEM renumerar legados:
+ * `intermediario` continua "Intermediário" (não vira "Intermediário 1").
+ * `null` quando desconhecido.
+ */
+export function levelDisplayLabel(raw: unknown): string | null {
+  switch (normalizeLevelKey(raw)) {
+    case "iniciante":
+    case "basico":
+      return "Iniciante";
+    case "intermediario":
+      return "Intermediário";
+    case "open":
+    case "livre":
+      return "Open";
+    case "iniciante_1":
+    case "iniciante1":
+      return "Iniciante 1";
+    case "iniciante_2":
+    case "iniciante2":
+      return "Iniciante 2";
+    case "intermediario_1":
+    case "intermediario1":
+      return "Intermediário 1";
+    case "intermediario_2":
+    case "intermediario2":
+      return "Intermediário 2";
+    default:
+      return null;
+  }
+}
+
+/** Label amigável (PT-BR) para um rank de nível (escada do vôlei). */
 export function levelLabelForRank(rank: number): string {
   switch (rank) {
     case 0:
-      return "Iniciante";
+      return "Iniciante 1";
     case 1:
-      return "Intermediário";
+      return "Iniciante 2";
+    case 2:
+      return "Intermediário 1";
+    case 3:
+      return "Intermediário 2";
     default:
       return "Open";
   }

@@ -1,7 +1,4 @@
-import {
-  categoryLevelRank,
-  levelLabelForRank,
-} from "./category-level-eligibility";
+import {levelDisplayLabel} from "./category-level-eligibility";
 
 /** Gênero da categoria em português (ex.: Masculino, Feminino, Misto). */
 export function genderTypeDisplayLabel(raw: unknown): string | null {
@@ -41,7 +38,8 @@ export function formatCategoryInviteNotificationLabel(
 
   const rawLevel = category.level;
   if (typeof rawLevel === "string" && rawLevel.trim()) {
-    parts.push(levelLabelForRank(categoryLevelRank(category)));
+    // Preserva o label do nível da categoria (legado incluso), sem renumerar.
+    parts.push(levelDisplayLabel(rawLevel) ?? rawLevel.trim());
   }
 
   if (parts.length > 0) return parts.join(" ");

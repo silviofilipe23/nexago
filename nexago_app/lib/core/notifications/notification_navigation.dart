@@ -99,6 +99,15 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     }
   }
 
+  // Escada de níveis (engine de rating) -> Esportes e níveis. O backend já
+  // envia `url`; isto é o fallback explícito por tipo.
+  if (type == 'level_promotion' ||
+      type == 'relegation_warning' ||
+      type == 'relegation_applied' ||
+      type == 'relegation_cleared') {
+    return AppRoutes.athleteSportsLevels;
+  }
+
   // Fluxo de reserva (atleta) -> tela de reservas.
   if (type.contains('booking') || data['bookingId'] != null) {
     return AppRoutes.myBookings;

@@ -37,7 +37,19 @@ enum TournamentAgeBand {
   plus60,
 }
 
-enum TournamentSkillLevel { beginner, intermediate, open }
+/// Nível da categoria. `beginner`/`intermediate` são a escada legada de 3
+/// níveis (mantidos para parse de categorias antigas e para esportes sem
+/// escada própria); `iniciante1..intermediario2` + `open` formam a escada de
+/// 5 níveis do vôlei (ranks unificados com o perfil do atleta).
+enum TournamentSkillLevel {
+  beginner,
+  intermediate,
+  open,
+  iniciante1,
+  iniciante2,
+  intermediario1,
+  intermediario2,
+}
 
 /// Referência usada para calcular a idade do atleta nas restrições etárias.
 enum TournamentAgeReference { tournamentStart, yearEnd, registration }

@@ -311,10 +311,16 @@ service cloud.firestore {
     // (suporte). Primeira definição é livre (campo ausente/valor
     // desconhecido → rank -1); sobrescrever nível conhecido por valor
     // inválido é bloqueado.
+    // Ranks unificados da escada de 5 níveis do vôlei (Iniciante 1/2,
+    // Intermediário 1/2, Open no rank 5 — ranks 1 e 4 reservados para a
+    // escada D/C/B/A do beach tennis no futuro). Legados se comportam como o
+    // degrau inferior do split (iniciante→0, intermediario→2).
     function athleteLevelRank(value) {
-      return value in ['iniciante', 'Iniciante', 'basico', 'básico', 'Básico'] ? 0
-        : (value in ['intermediario', 'Intermediário'] ? 1
-        : (value in ['open', 'Open', 'livre', 'Livre', 'Open / federado'] ? 2 : -1));
+      return value in ['iniciante', 'Iniciante', 'basico', 'básico', 'Básico', 'iniciante_1', 'Iniciante 1'] ? 0
+        : (value in ['iniciante_2', 'Iniciante 2'] ? 1
+        : (value in ['intermediario', 'Intermediário', 'intermediario_1', 'Intermediário 1'] ? 2
+        : (value in ['intermediario_2', 'Intermediário 2'] ? 3
+        : (value in ['open', 'Open', 'livre', 'Livre', 'Open / federado'] ? 5 : -1))));
     }
     function levelsBySportOf(data) {
       return data.get('sportOnboarding', {}).get('levelsBySport', {});
@@ -1575,6 +1581,36 @@ service cloud.firestore {
     match /artifacts/{appId}/public/data/athleteRankings/{athleteId} {
       allow read: if true;
       allow create, update, delete: if request.auth != null && isAdmin();
+    }
+
+    // ── Engine de rating (Glicko-2) e escada de níveis ───────────────────
+    // Config da escada por esporte (bandas, flags de rollout). Escrita só
+    // pelo backoffice/admin; a engine lê via Admin SDK.
+    match /ratingLadders/{sportCode} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
+    }
+
+    // Estado derivado de rating por atleta+esporte. Leitura pública (perfil/
+    // zone card); escrita exclusiva da engine (Admin SDK bypassa rules).
+    match /artifacts/{appId}/public/data/athleteRatings/{ratingId} {
+      allow read: if true;
+      allow write: if request.auth != null && isAdmin();
+    }
+
+    // Ledger append-only de eventos de rating (auditoria/replay). Escrita
+    // exclusiva da engine.
+    match /artifacts/{appId}/public/data/ratingEvents/{eventId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
+    }
+
+    // Auditoria de mudanças de nível (promoção/rebaixamento/self-upgrade/
+    // migração). O atleta lê o próprio histórico; escrita só pela engine.
+    match /users/{userId}/levelHistory/{entryId} {
+      allow read: if request.auth != null &&
+        (request.auth.uid == userId || isAdmin());
+      allow write: if request.auth != null && isAdmin();
     }
 
     // Ranking agregado por liga/categoria (equipes) - leitura pública

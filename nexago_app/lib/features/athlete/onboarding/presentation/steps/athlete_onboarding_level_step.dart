@@ -38,7 +38,9 @@ class AthleteOnboardingLevelStep extends ConsumerWidget {
             subtitle: 'Garante partidas e torneios no seu nível.',
           ),
           const SizedBox(height: 20),
-          ...AthleteOnboardingOptions.levels.map((option) {
+          // Escada do esporte principal escolhido (vôlei: 5 níveis; demais: 3).
+          ...AthleteOnboardingOptions.levelsForSport(draft.primarySportId)
+              .map((option) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: OnboardingLevelTile(

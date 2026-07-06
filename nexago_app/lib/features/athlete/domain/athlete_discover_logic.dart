@@ -1,6 +1,7 @@
 import 'athlete_discover_models.dart';
 import 'athlete_firestore_codes.dart';
 import 'athlete_profile.dart';
+import 'athlete_profile_options.dart';
 import 'athlete_public_profile_models.dart';
 
 const _onlineThresholdMinutes = 15;
@@ -75,13 +76,17 @@ bool _matchesLevel(AthleteProfile profile, AthleteDiscoverFilters filters) {
   final hasLevelFilter = quick.isNotEmpty || filters.levels.isNotEmpty;
   if (hasLevelFilter && !_profileHasDefinedLevel(profile)) return false;
 
+  // O filtro tem 3 buckets legados; níveis da escada de 5 (Iniciante 1/2,
+  // Intermediário 1/2) casam pelo bucket equivalente.
   final resolved = resolveAthleteLevelLabel(profile);
+  final resolvedBucket =
+      AthleteProfileOptions.legacyBucketLabel(resolved) ?? resolved;
   if (quick.isNotEmpty) {
-    if (resolved.toLowerCase() != quick.toLowerCase()) return false;
+    if (resolvedBucket.toLowerCase() != quick.toLowerCase()) return false;
   }
   if (filters.levels.isEmpty) return true;
   return filters.levels.any(
-    (level) => resolved.toLowerCase() == level.trim().toLowerCase(),
+    (level) => resolvedBucket.toLowerCase() == level.trim().toLowerCase(),
   );
 }
 

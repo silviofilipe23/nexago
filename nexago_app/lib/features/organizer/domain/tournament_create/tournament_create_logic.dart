@@ -182,7 +182,32 @@ String skillLevelLabel(TournamentSkillLevel level) => switch (level) {
   TournamentSkillLevel.beginner => 'Iniciante',
   TournamentSkillLevel.intermediate => 'Intermediário',
   TournamentSkillLevel.open => 'Open',
+  TournamentSkillLevel.iniciante1 => 'Iniciante 1',
+  TournamentSkillLevel.iniciante2 => 'Iniciante 2',
+  TournamentSkillLevel.intermediario1 => 'Intermediário 1',
+  TournamentSkillLevel.intermediario2 => 'Intermediário 2',
 };
+
+/// Escada de 5 níveis do vôlei nas categorias novas; a escada legada de 3
+/// segue para futevôlei/esportes sem escada própria. Categorias antigas com
+/// `Iniciante`/`Intermediário` continuam válidas (ranks unificados no
+/// backend); o editor apenas deixa de oferecê-las para vôlei.
+List<TournamentSkillLevel> skillLevelOptionsForSport(TournamentSport sport) =>
+    switch (sport) {
+      TournamentSport.beachVolleyball ||
+      TournamentSport.indoorVolleyball => const [
+        TournamentSkillLevel.iniciante1,
+        TournamentSkillLevel.iniciante2,
+        TournamentSkillLevel.intermediario1,
+        TournamentSkillLevel.intermediario2,
+        TournamentSkillLevel.open,
+      ],
+      TournamentSport.footvolley => const [
+        TournamentSkillLevel.beginner,
+        TournamentSkillLevel.intermediate,
+        TournamentSkillLevel.open,
+      ],
+    };
 
 String formatCents(int cents) => formatBRLFromCents(cents);
 

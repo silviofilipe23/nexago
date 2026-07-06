@@ -5,7 +5,9 @@ import 'tournament_discovery_models.dart';
 /// Elegibilidade de categoria por nível do atleta (anti-sandbagging).
 ///
 /// Regra: o atleta pode disputar a própria categoria ou categorias ACIMA do seu
-/// nível, nunca ABAIXO. Hierarquia: Iniciante (0) < Intermediário (1) < Open (2).
+/// nível, nunca ABAIXO. Ranks unificados (escada de 5 do vôlei):
+/// Iniciante 1 (0) < Iniciante 2 (1) < Intermediário 1 (2) <
+/// Intermediário 2 (3) < Open (5) — legados como o degrau inferior do split.
 ///
 /// Pré-validação da UI, alinhada ao backend autoritativo
 /// (`functions/src/category-level-eligibility.ts`). Resolve o nível do atleta
@@ -14,7 +16,7 @@ import 'tournament_discovery_models.dart';
 abstract final class CategoryLevelEligibility {
   CategoryLevelEligibility._();
 
-  static const int _highestRank = 2;
+  static const int _highestRank = 5;
 
   /// Esporte do torneio (`tournaments/{id}.sport`, nome do enum) → código de
   /// esporte do perfil (`levelsBySportFirestore`). `null` quando não há
@@ -82,9 +84,7 @@ abstract final class CategoryLevelEligibility {
   /// Mensagem explicativa (snackbar/diálogo) ao tentar uma categoria inferior.
   static String blockMessage(AthleteProfile? profile, {String? tournamentSport}) {
     final rank = athleteLevelRank(profile, tournamentSport: tournamentSport);
-    final label = AthleteProfileOptions.levels.length > rank
-        ? AthleteProfileOptions.levels[rank]
-        : 'seu nível';
+    final label = AthleteProfileOptions.labelForRank(rank);
     return 'Seu nível ($label) não permite categorias inferiores. '
         'Escolha uma categoria igual ou superior.';
   }

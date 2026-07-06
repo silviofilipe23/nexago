@@ -409,6 +409,14 @@ abstract final class TournamentCreateMapper {
       'intermediário' ||
       'intermediario' ||
       'intermediate' => TournamentSkillLevel.intermediate,
+      'iniciante 1' || 'iniciante_1' => TournamentSkillLevel.iniciante1,
+      'iniciante 2' || 'iniciante_2' => TournamentSkillLevel.iniciante2,
+      'intermediário 1' ||
+      'intermediario 1' ||
+      'intermediario_1' => TournamentSkillLevel.intermediario1,
+      'intermediário 2' ||
+      'intermediario 2' ||
+      'intermediario_2' => TournamentSkillLevel.intermediario2,
       'open' || 'livre' => TournamentSkillLevel.open,
       _ => TournamentSkillLevel.open,
     };

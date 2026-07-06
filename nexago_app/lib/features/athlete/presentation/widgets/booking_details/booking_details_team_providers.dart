@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/auth/auth_providers.dart';
+import '../../../../../core/firebase/firebase_providers.dart';
 import '../../../domain/athlete_display_name.dart';
 import '../../../domain/athlete_profile_providers.dart';
 import '../../../../arenas/domain/booking_providers.dart';
@@ -99,12 +100,12 @@ final bookingDetailsTeamProvider = FutureProvider.autoDispose
   );
 
   final guests = <MyBookingConfirmedAthlete>[];
-  final parsed = MyBookingItem.parseConfirmedAthletesFromBooking(data);
   final seen = <String>{if (ownerId != null) ownerId};
-  for (final athlete in parsed) {
+
+  Future<void> addGuest(MyBookingConfirmedAthlete athlete) async {
     final uid = athlete.userId?.trim();
     if (uid != null && uid.isNotEmpty) {
-      if (uid == ownerId || seen.contains(uid)) continue;
+      if (uid == ownerId || seen.contains(uid)) return;
       seen.add(uid);
     }
     var name = athlete.displayName?.trim() ?? '';
@@ -124,6 +125,30 @@ final bookingDetailsTeamProvider = FutureProvider.autoDispose
         avatarUrl: avatar,
       ),
     );
+  }
+
+  final parsed = MyBookingItem.parseConfirmedAthletesFromBooking(data);
+  for (final athlete in parsed) {
+    await addGuest(athlete);
+  }
+
+  // O documento só guarda um par guestAthleteId/Name (ver
+  // BookingInviteService.acceptInvite); a partir do 2º convidado aceito,
+  // completa a lista com os convites aceitos em `bookingInvites`.
+  if (guests.length < confirmedCount - 1) {
+    final firestore = ref.watch(firestoreProvider);
+    final invites = await firestore
+        .collection('bookingInvites')
+        .where('bookingId', isEqualTo: id)
+        .where('status', isEqualTo: 'accepted')
+        .limit(5)
+        .get();
+    for (final doc in invites.docs) {
+      final acceptedBy = (doc.data()['acceptedByUid'] as String?)?.trim();
+      if (acceptedBy != null && acceptedBy.isNotEmpty) {
+        await addGuest(MyBookingConfirmedAthlete(userId: acceptedBy));
+      }
+    }
   }
 
   for (final guest in guests) {

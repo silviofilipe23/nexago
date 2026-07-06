@@ -130,9 +130,25 @@ class _ShareCardHeader extends StatelessWidget {
       child: Row(
         children: [
           _HeaderLogo(),
-          const Spacer(),
-          if (showLiveBadge) ...[_LivePill(), const SizedBox(width: 8)],
-          if (categoryBadge.isNotEmpty) _CategoryPill(label: categoryBadge),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (showLiveBadge) ...[
+                  _LivePill(),
+                  if (categoryBadge.isNotEmpty) const SizedBox(width: 8),
+                ],
+                if (categoryBadge.isNotEmpty)
+                  Flexible(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: _CategoryPill(label: categoryBadge),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -185,6 +201,7 @@ class _CategoryPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: const BoxConstraints(minWidth: 0),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: Colors.black,
@@ -200,6 +217,7 @@ class _CategoryPill extends StatelessWidget {
         ),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.right,
       ),
     );
   }

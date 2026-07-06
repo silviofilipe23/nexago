@@ -71,11 +71,15 @@ class AthleteProfileRepository {
       }
     }
 
-    if (!exists) {
-      // Primeiro save (ex.: onboarding): define papel de atleta.
-      data['role'] = 'athlete';
-      data['roles'] = ['athlete'];
-    }
+    // Garante papel de atleta em todo save (não só na criação), senão
+    // contas que já existiam antes desse campo nunca o recebem — e ficam de
+    // fora de queries por `role`/`hasAthleteRole` para sempre.
+    final existingRoles = exists ? (snap.data()?['roles']) : null;
+    data['role'] = 'athlete';
+    data['roles'] = <String>{
+      if (existingRoles is List) ...existingRoles.whereType<String>(),
+      'athlete',
+    }.toList();
 
     final searchFields = buildUserSearchFields(data);
     data['keywords'] = searchFields.keywords;

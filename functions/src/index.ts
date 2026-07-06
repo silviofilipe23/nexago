@@ -39,6 +39,12 @@ import {
 import {onTournamentMatchCompletedAwardXp} from "./tournament-match-gamification";
 import {onArenaFavoriteCreatedAwardXp} from "./arena-favorite-gamification";
 import {syncProfileCompletionRewards, onUserProfileUpdatedSyncGamification} from "./profile-completion-gamification";
+import {syncAchievements} from "./achievement-engine";
+import {completeDailyMission, recordProfileShare} from "./daily-mission-gamification";
+import {processCompletedGame} from "./game-completed-gamification";
+import {onBookingInviteAcceptedAwardInviterXp} from "./player-invite-gamification";
+import {onArenaBookingAttendanceWrittenSyncGamification} from "./booking-attendance-gamification";
+import {onArenaReviewCreatedAwardXp} from "./arena-review-gamification";
 import {
   generateCategoryBracket,
   organizerConfirmRegistrationPayment,
@@ -134,6 +140,13 @@ export {
   onArenaFavoriteCreatedAwardXp,
   syncProfileCompletionRewards,
   onUserProfileUpdatedSyncGamification,
+  syncAchievements,
+  completeDailyMission,
+  recordProfileShare,
+  processCompletedGame,
+  onBookingInviteAcceptedAwardInviterXp,
+  onArenaBookingAttendanceWrittenSyncGamification,
+  onArenaReviewCreatedAwardXp,
   generateCategoryBracket,
   organizerConfirmRegistrationPayment,
   organizerMoveToWaitlist,

@@ -558,72 +558,14 @@ class BookingService {
         throw BookingException('A janela de confirmação já encerrou.');
       }
 
-      final gamificationRef =
-          _firestore.collection('users').doc(uid).collection('gamification').doc('summary');
-      final badgesRef =
-          _firestore.collection('users').doc(uid).collection('gamification_badges');
-      final gamificationSnap = await tx.get(gamificationRef);
-      final current = gamificationSnap.data() ?? <String, dynamic>{};
-      final totalConfirmed =
-          (current['attendanceConfirmationsTotal'] as num?)?.toInt() ?? 0;
-      final streak = (current['attendanceConfirmationStreak'] as num?)?.toInt() ?? 0;
-      final lastTs = current['lastAttendanceConfirmationAt'];
-      DateTime? last;
-      if (lastTs is Timestamp) last = lastTs.toDate();
-      final nowDate = DateTime(now.year, now.month, now.day);
-      final nextStreak = last == null
-          ? 1
-          : (DateTime(last.year, last.month, last.day)
-                      .difference(nowDate)
-                      .inDays
-                      .abs() <=
-                  1
-              ? streak + 1
-              : 1);
-      final nextTotal = totalConfirmed + 1;
-
+      // Gamificação (streak/badges/XP) é creditada server-side via Cloud Function
+      // (trigger em arenaBookings ao confirmar presença) — rules bloqueiam escrita
+      // do client em `gamification*`, e incluí-la aqui quebraria esta transação inteira.
       tx.update(bookingRef, <String, dynamic>{
         'attendanceConfirmed': true,
         'attendanceStatus': 'confirmed',
         'attendanceConfirmedAt': FieldValue.serverTimestamp(),
       });
-
-      tx.set(
-        gamificationRef,
-        <String, dynamic>{
-          'attendanceConfirmationsTotal': nextTotal,
-          'attendanceConfirmationStreak': nextStreak,
-          'lastAttendanceConfirmationAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
-
-      if (nextStreak >= 5) {
-        tx.set(
-          badgesRef.doc('ATTENDANCE_STREAK_5'),
-          <String, dynamic>{
-            'badgeId': 'ATTENDANCE_STREAK_5',
-            'title': 'Pontual',
-            'description': '5 confirmações seguidas.',
-            'xpReward': 55,
-            'unlockedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
-      }
-      if (nextTotal >= 10) {
-        tx.set(
-          badgesRef.doc('ATTENDANCE_TOTAL_10'),
-          <String, dynamic>{
-            'badgeId': 'ATTENDANCE_TOTAL_10',
-            'title': 'Comprometido',
-            'description': '10 confirmações de presença.',
-            'xpReward': 75,
-            'unlockedAt': FieldValue.serverTimestamp(),
-          },
-          SetOptions(merge: true),
-        );
-      }
     });
   }
 
@@ -707,25 +649,13 @@ class BookingService {
         );
       }
 
+      // Gamificação (checkInsCount) é creditada server-side via Cloud Function
+      // (trigger em arenaBookings ao fazer check-in) — mesmo motivo do confirmAttendance acima.
       tx.update(bookingRef, <String, dynamic>{
         'attendanceStatus': 'checked_in',
         'checkedInAt': FieldValue.serverTimestamp(),
         'locationVerified': locationVerified,
       });
-
-      final gamificationRef =
-          _firestore.collection('users').doc(uid).collection('gamification').doc('summary');
-      final gamificationSnap = await tx.get(gamificationRef);
-      final gData = gamificationSnap.data() ?? <String, dynamic>{};
-      final checkIns = (gData['checkInsCount'] as num?)?.toInt() ?? 0;
-      tx.set(
-        gamificationRef,
-        <String, dynamic>{
-          'checkInsCount': checkIns + 1,
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true),
-      );
     });
   }
 

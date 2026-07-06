@@ -9,7 +9,6 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/ui/app_snackbar.dart';
 import '../../domain/arena_review.dart';
 import '../../domain/arena_review_providers.dart';
-import '../../domain/gamification_providers.dart';
 
 const _xpReward = 10;
 
@@ -121,9 +120,8 @@ class _RatingDialogState extends ConsumerState<_RatingDialog> {
             rating: _rating,
             comment: _composedComment(),
           );
-      await ref
-          .read(gamificationServiceProvider)
-          .addXp(userId: userId, amount: _xpReward, reason: 'ARENA_REVIEW');
+      // XP da avaliação é creditado server-side via Cloud Function (trigger em
+      // arena_reviews) — nenhuma chamada do client necessária.
       if (!mounted) return;
       Navigator.of(context).pop();
       showAppSnackBar(context, 'Obrigado! +$_xpReward XP no seu progresso.');

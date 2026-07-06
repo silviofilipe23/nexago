@@ -1,7 +1,4 @@
-import '../../../../core/formatting/app_date_format.dart';
-import '../athlete_profile.dart';
 import '../gamification_models.dart';
-import '../profile_completion_models.dart';
 
 /// Métricas agregadas para calcular progresso das conquistas.
 class AchievementMetrics {
@@ -125,26 +122,6 @@ class AchievementMetrics {
     }
     return count;
   }
-
-  /// Atualiza lista de dias de jogo ao completar partida.
-  static List<String> appendGameCompletionDay(
-    List<String> current,
-    DateTime now, {
-    int maxEntries = 120,
-  }) {
-    final key = calendarDateKey(now);
-    final next = [...current, key];
-    if (next.length <= maxEntries) return next;
-    return next.sublist(next.length - maxEntries);
-  }
-
-  static Map<String, dynamic> gameWindowFields(List<String> dayKeys) {
-    return <String, dynamic>{
-      'gameCompletionDays': dayKeys,
-      'gamesLast7Days': countGameDaysInWindow(dayKeys, 7),
-      'gamesLast30Days': countGameDaysInWindow(dayKeys, 30),
-    };
-  }
 }
 
 /// Extensão de leitura do summary Firestore.
@@ -174,38 +151,6 @@ extension GamificationSummaryMetrics on GamificationSummary {
       identityComplete: identityComplete,
       totalBookings: totalBookings,
     );
-  }
-}
-
-/// Monta métricas para sync de conquistas (fora do Riverpod).
-abstract final class AchievementMetricsBuilder {
-  AchievementMetricsBuilder._();
-
-  static AchievementMetrics build({
-    required Map<String, dynamic> summaryMap,
-    required AthleteProfile profile,
-    int totalBookings = 0,
-  }) {
-    final completion = ProfileCompletionState.fromProfile(profile);
-    final identityComplete = _identityComplete(completion);
-    return AchievementMetrics.fromSummaryMap(
-      summaryMap,
-      onboardingCompleted: profile.onboardingCompleted,
-      profileStepsDone: completion.completedCount,
-      profileAllComplete: completion.allComplete,
-      identityComplete: identityComplete,
-      totalBookings: totalBookings,
-    );
-  }
-
-  static bool _identityComplete(ProfileCompletionState completion) {
-    final photo = completion.steps
-        .firstWhere((s) => s.step == ProfileCompletionStep.photo)
-        .isDone;
-    final sport = completion.steps
-        .firstWhere((s) => s.step == ProfileCompletionStep.sportLevel)
-        .isDone;
-    return photo && sport;
   }
 }
 

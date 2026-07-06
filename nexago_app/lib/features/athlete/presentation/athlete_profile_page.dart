@@ -20,6 +20,7 @@ import '../domain/gamification_providers.dart';
 import '../domain/profile_completion_providers.dart';
 import 'public_profile/athlete_public_profile_page.dart';
 import 'widgets/athlete_profile_main_view.dart';
+import 'widgets/gamification_feedback_sheet.dart';
 
 /// Perfil do atleta.
 ///
@@ -187,9 +188,18 @@ class _AthleteProfileBody extends ConsumerWidget {
     );
     final uid = ref.read(authProvider).valueOrNull?.uid;
     if (uid == null || uid.isEmpty) return;
-    await ref.read(gamificationServiceProvider).onProfileShared(userId: uid);
-    ref.invalidate(achievementsScreenStateProvider);
-    ref.invalidate(gamificationBadgesProvider);
+    try {
+      final feedback =
+          await ref.read(gamificationServiceProvider).onProfileShared(userId: uid);
+      ref.invalidate(achievementsScreenStateProvider);
+      ref.invalidate(gamificationBadgesProvider);
+      ref.invalidate(gamificationSummaryProvider);
+      if (feedback != null && feedback.xpGained > 0 && context.mounted) {
+        await showGamificationFeedbackSheet(context, feedback: feedback);
+      }
+    } catch (_) {
+      // Nao bloqueia o compartilhamento quando a gamificacao falhar.
+    }
   }
 
   @override

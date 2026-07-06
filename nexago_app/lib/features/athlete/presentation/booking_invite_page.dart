@@ -11,7 +11,6 @@ import '../domain/athlete_display_name.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/booking_invite_model.dart';
 import '../domain/booking_invite_providers.dart';
-import '../domain/gamification_providers.dart';
 
 class BookingInvitePage extends ConsumerStatefulWidget {
   const BookingInvitePage({super.key, required this.inviteId});
@@ -84,13 +83,8 @@ class _BookingInvitePageState extends ConsumerState<BookingInvitePage> {
         acceptedByName: displayName,
       );
 
-      // Concede XP ao jogador que enviou o convite
-      if (uid.isNotEmpty) {
-        await ref.read(gamificationServiceProvider).onPlayerInvited(
-              userId: invite.invitedByUid,
-              inviteId: invite.id,
-            );
-      }
+      // XP de quem convidou é creditado server-side via Cloud Function (trigger
+      // ao aceitar o convite em bookingInvites) — nenhuma chamada do client necessária.
 
       if (!mounted) return;
 

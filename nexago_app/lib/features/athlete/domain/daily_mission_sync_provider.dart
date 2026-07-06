@@ -73,7 +73,6 @@ Future<void> _processEligibleBooking({
     final feedback = await service.processCompletedGame(
       userId: userId,
       bookingId: bookingId,
-      now: now,
     );
     if (feedback != null && feedback.xpGained > 0) {
       _enqueueFeedback(ref, feedback);
@@ -93,7 +92,6 @@ Future<void> _completePlayTodayMission({
     final feedback = await service.completeDailyMission(
       userId: userId,
       mission: GamificationMission.playToday,
-      now: now,
     );
     if (feedback != null && feedback.xpGained > 0) {
       _enqueueFeedback(ref, feedback);

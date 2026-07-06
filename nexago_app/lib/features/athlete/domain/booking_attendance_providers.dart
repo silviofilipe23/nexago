@@ -120,12 +120,10 @@ class ConfirmAttendanceController {
     await ref
         .read(bookingServiceProvider)
         .confirmAttendance(bookingId: bookingId, athleteId: uid);
+    // XP + badges (streak de presença) são creditados server-side via Cloud Function
+    // (trigger em arenaBookings ao confirmar presença); aqui só re-sincronizamos
+    // conquistas para refletir o desbloqueio na tela mais rápido.
     try {
-      await ref.read(gamificationServiceProvider).addXp(
-            userId: uid,
-            amount: 5,
-            reason: 'attendance_confirmed',
-          );
       await ref.read(gamificationServiceProvider).syncAchievements(userId: uid);
       ref.invalidate(gamificationBadgesProvider);
       ref.invalidate(gamificationSummaryProvider);
@@ -158,10 +156,16 @@ class CheckInController {
           athleteId: uid,
           locationVerified: locationVerified,
         );
-    await ref.read(gamificationServiceProvider).syncAchievements(userId: uid);
-    ref.invalidate(gamificationBadgesProvider);
-    ref.invalidate(achievementsScreenStateProvider);
-    ref.invalidate(gamificationSummaryProvider);
+    // checkInsCount é creditado server-side via Cloud Function (trigger em
+    // arenaBookings); aqui só re-sincronizamos conquistas para refletir mais rápido.
+    try {
+      await ref.read(gamificationServiceProvider).syncAchievements(userId: uid);
+      ref.invalidate(gamificationBadgesProvider);
+      ref.invalidate(achievementsScreenStateProvider);
+      ref.invalidate(gamificationSummaryProvider);
+    } catch (_) {
+      // Nao bloqueia o check-in quando a gamificacao falhar.
+    }
   }
 }
 

@@ -31,11 +31,15 @@ class _AthleteAchievementsPageState
   Future<void> _syncAchievements() async {
     final uid = ref.read(authProvider).valueOrNull?.uid;
     if (uid == null || uid.isEmpty) return;
-    await ref.read(gamificationServiceProvider).syncAchievements(userId: uid);
-    if (mounted) {
-      ref.invalidate(achievementsScreenStateProvider);
-      ref.invalidate(gamificationBadgesProvider);
-      ref.invalidate(gamificationSummaryProvider);
+    try {
+      await ref.read(gamificationServiceProvider).syncAchievements(userId: uid);
+      if (mounted) {
+        ref.invalidate(achievementsScreenStateProvider);
+        ref.invalidate(gamificationBadgesProvider);
+        ref.invalidate(gamificationSummaryProvider);
+      }
+    } catch (_) {
+      // Nao bloqueia a tela quando a sincronizacao de conquistas falhar.
     }
   }
 

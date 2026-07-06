@@ -101,21 +101,7 @@ class _AthleteProfileGoalsPageState extends ConsumerState<AthleteProfileGoalsPag
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
-      appBar: NexaAppBar(
-        backgroundColor: context.themeColors.canvas,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          onPressed: () => context.pop(),
-          icon: Icon(Icons.arrow_back_ios_new_rounded),
-        ),
-        title: Text(
-          'Objetivos',
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
+      appBar: _appBar(context, theme),
       body: profileAsync.when(
         loading: () => Center(
           child: CircularProgressIndicator(color: AppColors.brand),
@@ -125,19 +111,9 @@ class _AthleteProfileGoalsPageState extends ConsumerState<AthleteProfileGoalsPag
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Text(
-                  'Conta o que você busca na quadra. Ganhe +40 XP ao salvar.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: context.themeColors.onSurfaceMuted,
-                  ),
-                ),
-              ),
-              SizedBox(height: 16),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   children: [
                     ...AthleteOnboardingOptions.goals.map((option) {
                       return Padding(
@@ -193,6 +169,61 @@ class _AthleteProfileGoalsPageState extends ConsumerState<AthleteProfileGoalsPag
             ],
           );
         },
+      ),
+    );
+  }
+
+  PreferredSizeWidget _appBar(BuildContext context, ThemeData theme) {
+    return NexaAppBar(
+      backgroundColor: context.themeColors.canvas,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      centerTitle: true,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 12),
+        child: Center(
+          child: Material(
+            color: context.themeColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              onTap: () => context.pop(),
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: 40,
+                height: 40,
+                child: Icon(
+                  Icons.chevron_left_rounded,
+                  color: context.themeColors.onSurface,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+      title: Text(
+        'Objetivos',
+        style: theme.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w800,
+          color: context.themeColors.onSurface,
+          letterSpacing: -0.3,
+        ),
+      ),
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(52),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Conta o que você busca na quadra. Ganhe +40 XP ao salvar.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: context.themeColors.onSurfaceMuted,
+                height: 1.35,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

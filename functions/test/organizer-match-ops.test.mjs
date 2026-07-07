@@ -69,4 +69,24 @@ describe("organizer-match-ops", () => {
     );
     assert.equal(overlap, false);
   });
+
+  // Mesmo comparador usado em autoScheduleTournamentDay: matchNumber é a
+  // numeração GLOBAL cronológica. Em dupla eliminação, WB/LB/3º lugar/final
+  // reiniciam `round` cada um na sua chave, então ordenar por round antes do
+  // matchNumber agendava a final antes da WB/LB R2 (conflito na tabela).
+  function sortByMatchSequence(matches) {
+    return [...matches].sort((a, b) => (a.matchNumber ?? 0) - (b.matchNumber ?? 0));
+  }
+
+  it("sortByMatchSequence orders DE matches by matchNumber, not by per-branch round", () => {
+    const matches = [
+      {id: "final", round: 1, matchNumber: 7},
+      {id: "third", round: 1, matchNumber: 6},
+      {id: "wbFinal", round: 2, matchNumber: 4},
+      {id: "lb1", round: 1, matchNumber: 3},
+      {id: "wb1", round: 1, matchNumber: 1},
+    ];
+    const sorted = sortByMatchSequence(matches).map((m) => m.id);
+    assert.deepEqual(sorted, ["wb1", "lb1", "wbFinal", "third", "final"]);
+  });
 });

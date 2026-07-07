@@ -189,6 +189,68 @@ void main() {
       );
     });
 
+    test(
+        'buildDaySchedule segue matchNumber mesmo com round reiniciando por '
+        'chave (dupla eliminação: WB/LB/3º lugar/final têm round próprio)', () {
+      final courts = [const TournamentCourt(id: 'Q1', name: 'Q1', order: 1)];
+      // Estrutura real de DE-4 times (bracket-4-teams.ts): WB e LB têm sua
+      // própria contagem de round (1, 2), e 3º lugar/final reiniciam em
+      // round 1 — mas o matchNumber já reflete a ordem cronológica correta.
+      final unscheduled = [
+        _match(id: 'final', round: 1, matchNumber: 7, teamAId: 't1', teamBId: 't2'),
+        _match(id: 'third', round: 1, matchNumber: 6, teamAId: 't3', teamBId: 't4'),
+        _match(id: 'lbFinal', round: 2, matchNumber: 5, teamAId: 't5', teamBId: 't6'),
+        _match(id: 'wbFinal', round: 2, matchNumber: 4, teamAId: 't7', teamBId: 't8'),
+        _match(id: 'lb1', round: 1, matchNumber: 3, teamAId: 't1', teamBId: 't3'),
+        _match(id: 'wb2', round: 1, matchNumber: 2, teamAId: 't5', teamBId: 't7'),
+        _match(id: 'wb1', round: 1, matchNumber: 1, teamAId: 't2', teamBId: 't4'),
+      ];
+      final slots = ScheduleLogic.buildDaySchedule(
+        unscheduled: unscheduled,
+        courts: courts,
+        dayStart: DateTime(2026, 6, 14, 8, 0),
+        matchDurationMin: 50,
+        minRestMin: 0,
+        existingScheduled: const [],
+        avoidAthleteConflict: false,
+      );
+      // Uma única quadra → a ordem dos slots deve ser a ordem cronológica real
+      // (matchNumber), nunca a final/3º lugar antes da WB R2/LB R2.
+      expect(
+        slots.map((s) => s.matchId).toList(),
+        ['wb1', 'wb2', 'lb1', 'wbFinal', 'lbFinal', 'third', 'final'],
+      );
+    });
+
+    test(
+        'filterAutoSchedulable mantém tudo quando respectBracketDeps é '
+        'false', () {
+      final matches = [
+        _match(id: 'placeholder', teamAId: '', teamBId: ''),
+        _match(id: 'ready', teamAId: 't1', teamBId: 't2'),
+      ];
+      final result = ScheduleLogic.filterAutoSchedulable(
+        matches,
+        respectBracketDeps: false,
+      );
+      expect(result.map((m) => m.id).toList(), ['placeholder', 'ready']);
+    });
+
+    test(
+        'filterAutoSchedulable pula placeholder de chave quando '
+        'respectBracketDeps é true', () {
+      final matches = [
+        _match(id: 'placeholder', teamAId: '', teamBId: ''),
+        _match(id: 'halfDecided', teamAId: 't1', teamBId: ''),
+        _match(id: 'ready', teamAId: 't1', teamBId: 't2'),
+      ];
+      final result = ScheduleLogic.filterAutoSchedulable(
+        matches,
+        respectBracketDeps: true,
+      );
+      expect(result.map((m) => m.id).toList(), ['ready']);
+    });
+
     test('tournamentDayKeys spans start to end inclusive', () {
       final start = nexagoEventDateTime(year: 2026, month: 6, day: 30);
       final end = nexagoEventDateTime(year: 2026, month: 7, day: 2);

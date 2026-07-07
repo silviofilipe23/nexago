@@ -120,6 +120,22 @@ abstract final class ScheduleLogic {
     return false;
   }
 
+  /// Partidas elegíveis para o auto-agendamento (H3). Quando
+  /// [respectBracketDeps] é true, pula partidas cujo lado ainda é um
+  /// placeholder de chave (ex.: "Vencedor Jogo #7") — só agenda quando as
+  /// duas duplas já foram decididas pela partida anterior (winner/loser
+  /// advance já aplicado). Partidas de grupo nunca são afetadas: já nascem
+  /// com as duas duplas reais.
+  static List<TournamentMatch> filterAutoSchedulable(
+    List<TournamentMatch> matches, {
+    required bool respectBracketDeps,
+  }) {
+    if (!respectBracketDeps) return matches;
+    return matches
+        .where((m) => m.teamAId.trim().isNotEmpty && m.teamBId.trim().isNotEmpty)
+        .toList();
+  }
+
   /// Prévia de auto-programação para um dia (H3).
   static List<AutoScheduleSlot> buildDaySchedule({
     required List<TournamentMatch> unscheduled,
@@ -153,16 +169,14 @@ abstract final class ScheduleLogic {
       }
     }
 
-    // Sequência de jogos: rodada primeiro (não dá para jogar uma fase antes da
-    // anterior) e, dentro da rodada, pela numeração GLOBAL (matchNumber) — que
-    // já codifica a ordem correta (grupos intercalados 1..N, depois o mata-mata).
-    // Sem o desempate por matchNumber, o mata-mata saía em ordem arbitrária.
+    // Sequência de jogos: matchNumber já é a numeração GLOBAL cronológica
+    // (grupos intercalados 1..N, depois o mata-mata em ordem de dependência).
+    // NÃO ordenar por `round` primeiro: em dupla eliminação, WB, LB, 3º lugar
+    // e final têm cada um sua própria contagem de round reiniciando em 1, então
+    // "round" não é uma sequência global — ordenar por ele antes do matchNumber
+    // jogava a final e o 3º lugar (round 1 na sua chave) antes da WB/LB R2.
     final pending = [...unscheduled]
-      ..sort((a, b) {
-        final byRound = a.round.compareTo(b.round);
-        if (byRound != 0) return byRound;
-        return a.matchNumber.compareTo(b.matchNumber);
-      });
+      ..sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
 
     for (final match in pending) {
       TournamentCourt? chosenCourt;

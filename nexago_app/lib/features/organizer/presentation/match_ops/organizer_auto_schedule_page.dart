@@ -99,11 +99,14 @@ class _OrganizerAutoSchedulePageState
       scheduleFrom: scheduleFrom,
       config: config,
     );
-    final unscheduled = allMatches.where((m) {
-      if (m.scheduleTime != null || m.isCompleted) return false;
-      final matchDayKey = m.dayKey.trim();
-      return matchDayKey.isEmpty || matchDayKey == dayKey;
-    }).toList();
+    final unscheduled = ScheduleLogic.filterAutoSchedulable(
+      allMatches.where((m) {
+        if (m.scheduleTime != null || m.isCompleted) return false;
+        final matchDayKey = m.dayKey.trim();
+        return matchDayKey.isEmpty || matchDayKey == dayKey;
+      }).toList(),
+      respectBracketDeps: _respectDeps,
+    );
     final existingScheduled = allMatches.where((m) {
       if (m.scheduleTime == null) return false;
       if (m.courtId.isEmpty && m.effectiveCourtLabel.isEmpty) return false;

@@ -8,6 +8,7 @@ import 'package:nexago_app/core/ui/app_snackbar.dart';
 import 'package:nexago_app/core/ui/feedback/feedback_page.dart';
 import 'package:nexago_app/core/ui/feedback/show_feedback_page.dart';
 
+import '../../../../core/router/routes.dart';
 import '../../domain/category_ops/category_ops_logic.dart';
 import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import 'organizer_generate_bracket_helpers.dart';
@@ -68,16 +69,25 @@ class _OrganizerCategoryGenerateDePageState
             },
           );
       if (mounted) {
+        ref.invalidate(organizerCategoryOpsProvider(key));
         await pushSuccessFeedback(
           context,
           title: 'Chave publicada!',
           description: 'Os jogos já aparecem na categoria.',
           primaryAction: FeedbackAction(
-            label: 'Continuar',
+            label: 'Ver categoria',
             onPressed: () => Navigator.of(context).pop(),
           ),
         );
-        if (mounted) context.pop();
+        if (mounted) {
+          context.goNamed(
+            AppRouteNames.organizerCategoryShell,
+            pathParameters: {
+              'tournamentId': widget.tournamentId,
+              'categoryId': widget.categoryId,
+            },
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;

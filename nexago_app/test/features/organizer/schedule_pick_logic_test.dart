@@ -126,6 +126,41 @@ void main() {
       expect(filtered.first.id, 'm1');
     });
 
+    test(
+        'sortedForDisplay usa matchNumber, não round (dupla eliminação '
+        'reinicia round por chave WB/LB/3º lugar/final)', () {
+      TournamentMatch withRound(String id, int round, int matchNumber) {
+        return TournamentMatch(
+          id: id,
+          tournamentId: 't1',
+          categoryId: 'cat1',
+          round: round,
+          matchType: 'wb',
+          poolId: '',
+          teamAId: 'a',
+          teamBId: 'b',
+          status: TournamentMatchStatus.scheduled,
+          resultA: '',
+          resultB: '',
+          isGroupMatch: false,
+          matchNumber: matchNumber,
+        );
+      }
+
+      final matches = [
+        withRound('final', 1, 7),
+        withRound('third', 1, 6),
+        withRound('wbFinal', 2, 4),
+        withRound('lb1', 1, 3),
+        withRound('wb1', 1, 1),
+      ];
+      final sorted = SchedulePickLogic.sortedForDisplay(matches);
+      expect(
+        sorted.map((m) => m.id).toList(),
+        ['wb1', 'lb1', 'wbFinal', 'third', 'final'],
+      );
+    });
+
     test('matchesForDay includes unscheduled matches without dayKey', () {
       final unscheduled = _match(id: 'm1');
       final scheduledOther = TournamentMatch(

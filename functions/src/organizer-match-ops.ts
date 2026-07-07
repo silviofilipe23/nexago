@@ -773,6 +773,7 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   const dayKey = (request.data?.dayKey as string)?.trim();
   const preview = request.data?.preview !== false;
   const avoidAthleteConflict = request.data?.avoidAthleteConflict !== false;
+  const respectBracketDeps = request.data?.respectBracketDeps !== false;
 
   if (!tournamentId || !dayKey) {
     throw new HttpsError("invalid-argument", "tournamentId e dayKey obrigatórios");
@@ -799,6 +800,7 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   const unscheduled = allMatches.filter((doc) => {
     const d = doc.data();
     if (d.scheduleTime || isMatchCompleted(d.status)) return false;
+    if (!isMatchAutoSchedulable(d, respectBracketDeps)) return false;
     const matchDayKey = String(d.dayKey ?? "").trim();
     return matchDayKey === "" || matchDayKey === dayKey;
   });
@@ -844,15 +846,15 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
   }> = [];
   const skipped: Array<{matchId: string; reason: string}> = [];
 
-  // Sequência de jogos: rodada primeiro e, dentro da rodada, pela numeração
-  // GLOBAL (matchNumber) — que já codifica a ordem correta (grupos intercalados
-  // 1..N, depois o mata-mata). Sem o desempate por matchNumber, o mata-mata era
-  // agendado em ordem arbitrária do Firestore.
+  // Sequência de jogos: matchNumber já é a numeração GLOBAL cronológica
+  // (grupos intercalados 1..N, depois o mata-mata em ordem de dependência).
+  // NÃO ordenar por `round` primeiro: em dupla eliminação, WB, LB, 3º lugar
+  // e final têm cada um sua própria contagem de round reiniciando em 1, então
+  // "round" não é uma sequência global — ordenar por ele antes do matchNumber
+  // agendava a final e o 3º lugar (round 1 na sua chave) antes da WB/LB R2.
   const sorted = [...unscheduled].sort((a, b) => {
     const ad = a.data();
     const bd = b.data();
-    const byRound = (ad.round ?? 0) - (bd.round ?? 0);
-    if (byRound !== 0) return byRound;
     return (ad.matchNumber ?? 0) - (bd.matchNumber ?? 0);
   });
 
@@ -990,6 +992,23 @@ export function shouldPropagateMatchAdvance(
   if (!winnerId) return false;
   if (!before || !isMatchCompleted(before.status)) return true;
   return String(before.winnerId ?? "").trim() !== winnerId;
+}
+
+/**
+ * Partida elegível para o auto-agendamento (H3). Quando `respectBracketDeps`
+ * é true, pula partidas cujo lado ainda é um placeholder de chave (ex.:
+ * "Vencedor Jogo #7") — só agenda quando as duas duplas já foram decididas
+ * pela partida anterior (winner/loser advance já aplicado). Partidas de grupo
+ * nunca são afetadas: já nascem com as duas duplas reais.
+ */
+export function isMatchAutoSchedulable(
+  data: {teamAId?: unknown; teamBId?: unknown},
+  respectBracketDeps: boolean,
+): boolean {
+  if (!respectBracketDeps) return true;
+  const teamA = typeof data.teamAId === "string" ? data.teamAId.trim() : "";
+  const teamB = typeof data.teamBId === "string" ? data.teamBId.trim() : "";
+  return teamA !== "" && teamB !== "";
 }
 
 /**

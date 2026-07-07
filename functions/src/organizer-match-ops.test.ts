@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import {test} from "node:test";
 
 import {canFillBracketSlot} from "./category-bracket-advance";
-import {shouldPropagateMatchAdvance} from "./organizer-match-ops";
+import {
+  isMatchAutoSchedulable,
+  shouldPropagateMatchAdvance,
+} from "./organizer-match-ops";
 
 test("canFillBracketSlot preenche slot vazio de partida não iniciada", () => {
   assert.equal(
@@ -79,6 +82,31 @@ test("shouldPropagateMatchAdvance redispara quando o vencedor é corrigido", () 
       {status: "Completed", winnerId: "t1"},
       {status: "Completed", winnerId: "t2"},
     ),
+    true,
+  );
+});
+
+test("isMatchAutoSchedulable ignora dependência quando respectBracketDeps é false", () => {
+  assert.equal(
+    isMatchAutoSchedulable({teamAId: "", teamBId: ""}, false),
+    true,
+  );
+});
+
+test("isMatchAutoSchedulable pula placeholder de chave (time ainda não decidido)", () => {
+  assert.equal(
+    isMatchAutoSchedulable({teamAId: "", teamBId: ""}, true),
+    false,
+  );
+  assert.equal(
+    isMatchAutoSchedulable({teamAId: "t1", teamBId: ""}, true),
+    false,
+  );
+});
+
+test("isMatchAutoSchedulable libera partida com as duas duplas já decididas", () => {
+  assert.equal(
+    isMatchAutoSchedulable({teamAId: "t1", teamBId: "t2"}, true),
     true,
   );
 });

@@ -128,11 +128,10 @@ abstract final class SchedulePickLogic {
 
   static List<TournamentMatch> sortedForDisplay(List<TournamentMatch> matches) {
     final copy = [...matches];
-    copy.sort((a, b) {
-      final round = a.round.compareTo(b.round);
-      if (round != 0) return round;
-      return a.matchNumber.compareTo(b.matchNumber);
-    });
+    // matchNumber já é a numeração GLOBAL cronológica — não usar `round` como
+    // chave primária: em dupla eliminação, WB/LB/3º lugar/final reiniciam o
+    // round cada um na sua chave (ver ScheduleLogic.buildDaySchedule).
+    copy.sort((a, b) => a.matchNumber.compareTo(b.matchNumber));
     return copy;
   }
 

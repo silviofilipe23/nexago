@@ -215,8 +215,9 @@ class TournamentMatchesRepository {
     items.sort((a, b) {
       final c = a.categoryId.compareTo(b.categoryId);
       if (c != 0) return c;
-      final r = a.round.compareTo(b.round);
-      if (r != 0) return r;
+      // matchNumber já é a numeração GLOBAL cronológica — não usar `round`
+      // como desempate: em dupla eliminação, WB/LB/3º lugar/final reiniciam o
+      // round cada um na sua chave (ver ScheduleLogic.buildDaySchedule).
       return a.matchNumber.compareTo(b.matchNumber);
     });
     return items;

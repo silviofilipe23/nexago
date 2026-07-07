@@ -197,4 +197,91 @@ void main() {
       }
     },
   );
+
+  test(
+    'resolveSelectedCategoryId keeps the selection when it still belongs '
+    'to the gender',
+    () {
+      const categories = [
+        DiscoveryLeagueCategory(
+          id: 'm1',
+          name: 'Masculino Open',
+          genderType: 'male',
+        ),
+        DiscoveryLeagueCategory(
+          id: 'm2',
+          name: 'Masculino Intermediário',
+          genderType: 'male',
+        ),
+      ];
+      expect(
+        resolveSelectedCategoryId(categories, TournamentGenderCat.m, 'm2'),
+        'm2',
+      );
+    },
+  );
+
+  test(
+    'resolveSelectedCategoryId resets to the first option when the '
+    'selection belonged to a different gender',
+    () {
+      const categories = [
+        DiscoveryLeagueCategory(
+          id: 'm1',
+          name: 'Masculino Open',
+          genderType: 'male',
+        ),
+        DiscoveryLeagueCategory(
+          id: 'f1',
+          name: 'Feminino Open',
+          genderType: 'female',
+        ),
+      ];
+      // 'f1' estava selecionado no chip Feminino; usuário trocou pro
+      // Masculino — a seleção antiga não é válida ali.
+      expect(
+        resolveSelectedCategoryId(categories, TournamentGenderCat.m, 'f1'),
+        'm1',
+      );
+    },
+  );
+
+  test(
+    'resolveSelectedCategoryId defaults to the first option when nothing '
+    'is selected yet',
+    () {
+      const categories = [
+        DiscoveryLeagueCategory(
+          id: 'm1',
+          name: 'Masculino Open',
+          genderType: 'male',
+        ),
+        DiscoveryLeagueCategory(
+          id: 'm2',
+          name: 'Masculino Intermediário',
+          genderType: 'male',
+        ),
+      ];
+      expect(
+        resolveSelectedCategoryId(categories, TournamentGenderCat.m, null),
+        'm1',
+      );
+    },
+  );
+
+  test(
+    'resolveSelectedCategoryId falls back to the first category when '
+    'gender is null, and to null when there are no categories',
+    () {
+      const categories = [
+        DiscoveryLeagueCategory(
+          id: 'm1',
+          name: 'Masculino Open',
+          genderType: 'male',
+        ),
+      ];
+      expect(resolveSelectedCategoryId(categories, null, null), 'm1');
+      expect(resolveSelectedCategoryId(const [], null, null), null);
+    },
+  );
 }

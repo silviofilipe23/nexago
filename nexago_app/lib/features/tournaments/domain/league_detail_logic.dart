@@ -136,6 +136,29 @@ List<DiscoveryLeagueCategory> categoriesForGender(
   return categories.isNotEmpty ? [categories.first] : const [];
 }
 
+/// Categoria efetivamente exibida no ranking: mantém [selectedCategoryId] se
+/// ele ainda pertencer às opções do gênero atual; caso contrário (gênero
+/// acabou de trocar, ou a categoria escolhida não existe mais nessa lista)
+/// cai pra primeira opção.
+String? resolveSelectedCategoryId(
+  List<DiscoveryLeagueCategory> categories,
+  TournamentGenderCat? gender,
+  String? selectedCategoryId,
+) {
+  if (gender == null) {
+    return categories.isEmpty ? null : categories.first.id;
+  }
+  final options = categoriesForGender(categories, gender);
+  if (options.isEmpty) {
+    return categories.isEmpty ? null : categories.first.id;
+  }
+  if (selectedCategoryId != null &&
+      options.any((c) => c.id == selectedCategoryId)) {
+    return selectedCategoryId;
+  }
+  return options.first.id;
+}
+
 TournamentGenderCat? initialLeagueGenderFilter(
   List<DiscoveryLeagueCategory> categories,
 ) {

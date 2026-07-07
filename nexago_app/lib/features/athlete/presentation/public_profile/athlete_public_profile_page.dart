@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:nexago_app/core/ui/nexa_share.dart';
 
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/router/routes.dart';
@@ -186,7 +186,8 @@ class _AthletePublicProfilePageState
                         );
                       },
                       onShare: () {
-                        Share.share(
+                        nexaShareText(
+                          context,
                           'Confira o perfil de ${athleteDisplayName(profile)} no NexaGO.',
                         );
                       },

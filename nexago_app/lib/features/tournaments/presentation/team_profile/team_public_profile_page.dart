@@ -95,6 +95,7 @@ class _TeamPublicProfilePageState extends ConsumerState<TeamPublicProfilePage> {
               : buildTeamHeadToHead(
                   matches: history.matches,
                   teamId: widget.teamId,
+                  teamDisplayNames: history.teamDisplayNames,
                 );
           final formedLabel = formatTeamFormedLabel(profile.team.createdAt);
           final isFollowing = isFollowingAsync.valueOrNull ?? false;

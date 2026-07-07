@@ -1,0 +1,482 @@
+/* NexaGO design system — tokens (namespace --nx-) + classes do fluxo de auth.
+   Arquivo dedicado pra não mexer no styles.scss do app (protótipo
+   "NexaGO Atleta - Login" do claude.ai/design). Fontes no index.html. */
+
+:root {
+  /* Superfícies (dark-first) */
+  --nx-bg: #050505;
+  --nx-surface-0: #0b0b0c;
+  --nx-surface-1: #131316;
+  --nx-surface-2: #1b1b1f;
+  --nx-line: rgba(255, 255, 255, 0.08);
+  --nx-line-strong: rgba(255, 255, 255, 0.16);
+
+  /* Marca */
+  --nx-orange-500: #ff6a1a;
+  --nx-orange-400: #ff8a4a;
+  --nx-orange-600: #e5560e;
+  --nx-orange-tint: rgba(255, 106, 26, 0.12);
+
+  /* Texto — dim elevado de 0.40 → 0.55 pra manter AA em texto pequeno sobre #050505 */
+  --nx-text: #f4f4f5;
+  --nx-text-mute: rgba(244, 244, 245, 0.62);
+  --nx-text-dim: rgba(244, 244, 245, 0.55);
+  --nx-text-on-orange: #0a0a0a;
+
+  /* Status */
+  --nx-live: #ff3b30;
+  --nx-win: #2bd17e;
+  --nx-pending: #f4c543;
+
+  /* Tipografia */
+  --nx-font-display: 'Sora', system-ui, sans-serif;
+  --nx-font-ui: 'Inter', system-ui, sans-serif;
+  --nx-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Raios */
+  --nx-r-1: 6px;
+  --nx-r-2: 10px;
+  --nx-r-3: 14px;
+  --nx-r-4: 18px;
+  --nx-r-5: 24px;
+  --nx-r-pill: 999px;
+
+  /* Movimento */
+  --nx-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --nx-d-fast: 140ms;
+  --nx-d-base: 240ms;
+}
+
+/* ── Fluxo de auth: classes compartilhadas ─────────────────── */
+
+.nx-form-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 32px;
+}
+
+.nx-kicker {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--nx-orange-500);
+}
+
+.nx-form-header h1 {
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 30px;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  color: var(--nx-text);
+  margin: 0;
+}
+
+.nx-form-header p {
+  font-family: var(--nx-font-ui);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--nx-text-mute);
+  margin: 0;
+}
+
+.nx-form-header strong {
+  color: var(--nx-text);
+  font-weight: 600;
+}
+
+.nx-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nx-stack-sm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nx-row-end {
+  display: flex;
+  justify-content: flex-end;
+  margin: 12px 0 20px;
+}
+
+.nx-btn-primary {
+  height: 52px;
+  width: 100%;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  border: none;
+  cursor: pointer;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 12px 40px rgba(255, 106, 26, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 180ms var(--nx-ease-out);
+}
+
+.nx-btn-primary:hover:not(:disabled) {
+  background: var(--nx-orange-400);
+}
+
+.nx-btn-primary:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.nx-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.nx-btn-sso {
+  height: 50px;
+  width: 100%;
+  padding: 0 18px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  transition: all 140ms var(--nx-ease-out);
+}
+
+.nx-btn-sso:hover:not(:disabled) {
+  background: var(--nx-surface-1);
+  border-color: var(--nx-line-strong);
+}
+
+.nx-btn-sso:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.nx-btn-sso svg {
+  flex: none;
+}
+
+.nx-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0 16px;
+}
+
+.nx-divider::before,
+.nx-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--nx-line);
+}
+
+.nx-divider span {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.nx-text-link {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--nx-orange-500);
+  text-decoration: none;
+}
+
+.nx-text-link:hover {
+  text-decoration: underline;
+}
+
+.nx-back-link {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--nx-text-mute);
+  margin-bottom: 28px;
+  text-decoration: none;
+}
+
+.nx-back-link:hover {
+  color: var(--nx-text);
+}
+
+.nx-fine {
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--nx-text-dim);
+  text-align: center;
+  margin: 24px 0 0;
+}
+
+.nx-fine strong {
+  color: var(--nx-text-mute);
+  font-weight: 600;
+}
+
+.nx-fine .nx-text-link {
+  font-size: 12.5px;
+}
+
+.nx-alert {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin: 0 0 20px;
+  background: rgba(255, 59, 48, 0.1);
+  border: 1px solid rgba(255, 59, 48, 0.35);
+  border-radius: var(--nx-r-3);
+  font-size: 13px;
+  line-height: 1.5;
+  color: #ff9b94;
+}
+
+.nx-alert svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.nx-alert--success {
+  background: rgba(43, 209, 126, 0.12);
+  border-color: rgba(43, 209, 126, 0.35);
+  color: var(--nx-win);
+  align-items: center;
+}
+
+.nx-notice {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin: 0 0 20px;
+  background: var(--nx-orange-tint);
+  border: 1px solid rgba(255, 106, 26, 0.3);
+  border-radius: var(--nx-r-3);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--nx-text-mute);
+}
+
+.nx-icon-badge {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--nx-r-4);
+  background: var(--nx-orange-tint);
+  border: 1px solid rgba(255, 106, 26, 0.3);
+  display: grid;
+  place-items: center;
+  margin: 0 auto 28px;
+}
+
+.nx-center {
+  text-align: center;
+}
+
+.nx-resend-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 24px;
+  font-size: 13.5px;
+  color: var(--nx-text-mute);
+}
+
+.nx-resend-row .nx-timer {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  color: var(--nx-text-dim);
+  margin-left: 2px;
+}
+
+.nx-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(10, 10, 10, 0.25);
+  border-top-color: #0a0a0a;
+  animation: nx-spin 0.7s linear infinite;
+}
+
+@keyframes nx-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* ── Campo de formulário ────────────────────────────────────── */
+
+.nx-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nx-field-label {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--nx-text-mute);
+  transition: color 140ms var(--nx-ease-out);
+}
+
+.nx-field:focus-within .nx-field-label {
+  color: var(--nx-orange-500);
+}
+
+.nx-field-box {
+  height: 50px;
+  padding: 0 14px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: all 160ms var(--nx-ease-out);
+}
+
+.nx-field:focus-within .nx-field-box {
+  background: var(--nx-surface-1);
+  border-color: var(--nx-orange-500);
+  box-shadow: 0 0 0 4px rgba(255, 106, 26, 0.1);
+}
+
+.nx-field-box.nx-field-box--error {
+  border-color: var(--nx-live);
+}
+
+.nx-field-box input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: var(--nx-font-ui);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--nx-text);
+  letter-spacing: -0.005em;
+  caret-color: var(--nx-orange-500);
+}
+
+.nx-field-box input::placeholder {
+  color: var(--nx-text-dim);
+}
+
+.nx-field-box button {
+  flex: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--nx-text-mute);
+  padding: 6px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.nx-field-msg {
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nx-field-msg--error {
+  color: var(--nx-live);
+}
+
+.nx-field-msg--hint {
+  color: var(--nx-text-dim);
+}
+
+/* ── Medidor de força de senha ──────────────────────────────── */
+
+.nx-strength {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nx-strength-bars {
+  display: flex;
+  gap: 6px;
+}
+
+.nx-strength-bars span {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--nx-line);
+  transition: background 200ms var(--nx-ease-out);
+}
+
+.nx-strength-bars span.is-fraca {
+  background: var(--nx-live);
+}
+.nx-strength-bars span.is-razoavel,
+.nx-strength-bars span.is-boa {
+  background: var(--nx-pending);
+}
+.nx-strength-bars span.is-forte {
+  background: var(--nx-win);
+}
+
+.nx-strength-label {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  min-height: 12px;
+}
+
+.nx-strength-label.is-fraca {
+  color: var(--nx-live);
+}
+.nx-strength-label.is-razoavel,
+.nx-strength-label.is-boa {
+  color: var(--nx-pending);
+}
+.nx-strength-label.is-forte {
+  color: var(--nx-win);
+}

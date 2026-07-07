@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:nexago_app/core/ui/nexa_share.dart';
 
 import '../../organizer/domain/match_ops/match_ops_providers.dart';
 import '../../organizer/domain/match_ops/match_scoring_logic.dart';
@@ -32,7 +32,8 @@ class PublicMatchLivePage extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.share_rounded),
-            onPressed: () => Share.share(
+            onPressed: () => nexaShareText(
+              context,
               publicMatchLivePath(tournamentId, matchId),
             ),
           ),

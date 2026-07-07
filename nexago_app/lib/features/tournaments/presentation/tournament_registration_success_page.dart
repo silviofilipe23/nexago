@@ -15,6 +15,7 @@ import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../../../core/ui/nexa_share.dart';
 import '../data/tournament_inscriptions_repository.dart';
 import '../domain/tournament_detail_model.dart';
 import '../domain/tournament_discovery_models.dart';
@@ -330,7 +331,10 @@ class _TournamentRegistrationSuccessViewState
         return;
       }
 
-      await Share.shareXFiles([XFile(file.path, mimeType: 'image/png')]);
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'image/png')],
+        sharePositionOrigin: nexaSharePositionOrigin(context),
+      );
     } catch (_) {
       if (context.mounted) {
         showAppSnackBar(context, 'Não foi possível compartilhar.');

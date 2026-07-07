@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:nexago_app/core/ui/nexa_share.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/router/routes.dart';
@@ -197,7 +197,7 @@ class BookingSuccessPage extends ConsumerWidget {
       timeRangeLabel: resolved.timeRangeLabel,
       bookingId: id,
     );
-    await Share.share(text);
+    await nexaShareText(context, text);
   }
 
   Future<void> _openMaps(

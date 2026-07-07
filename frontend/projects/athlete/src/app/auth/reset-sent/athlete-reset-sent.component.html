@@ -1,0 +1,40 @@
+<app-auth-shell>
+  <div class="nx-center">
+    <div class="nx-icon-badge">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="var(--nx-orange-500)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="4" width="20" height="16" rx="2" />
+        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+      </svg>
+    </div>
+
+    <header class="nx-form-header">
+      <h1>Confere teu e-mail.</h1>
+      <p>
+        @if (email()) {
+          Se <strong>{{ email() }}</strong> tiver conta, o link de redefinição chega em instantes.
+        } @else {
+          Se o e-mail informado tiver conta, o link de redefinição chega em instantes.
+        }
+      </p>
+    </header>
+
+    @if (webmailUrl(); as url) {
+      <a class="nx-btn-primary" [href]="url" target="_blank" rel="noopener">Abrir e-mail</a>
+    }
+
+    <div class="nx-resend-row">
+      @if (resent()) {
+        <span>Link reenviado.</span>
+      } @else {
+        <span>Não chegou? Olha o spam ou</span>
+        <button type="button" class="nx-text-link" [disabled]="resending()" (click)="resend()">
+          {{ resending() ? 'enviando…' : 'reenviar' }}
+        </button>
+      }
+    </div>
+
+    <p class="nx-fine">
+      <a class="nx-text-link" routerLink="/entrar" [queryParams]="{ redirect: returnUrl() }">Voltar pro login</a>
+    </p>
+  </div>
+</app-auth-shell>

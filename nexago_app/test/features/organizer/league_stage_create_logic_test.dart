@@ -171,7 +171,7 @@ void main() {
         {'id': '', 'name': 'Ignorada'},
         {'name': 'Sem id'},
         {'id': 'c2', 'name': 'Fem Open'},
-      ], 9000);
+      ], 22000);
 
       expect(categories, hasLength(2));
       final first = categories.first;
@@ -183,7 +183,7 @@ void main() {
       expect(first.enabled, isTrue);
 
       final second = categories.last;
-      expect(second.priceCents, 9000); // fallback da liga
+      expect(second.priceCents, 22000); // fallback da liga
       expect(second.bracketSystem, TournamentBracketSystem.groupsThenKnockout);
     });
   });

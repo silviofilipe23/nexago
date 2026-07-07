@@ -1,168 +1,122 @@
-<section class="login-split" (mousemove)="onMouseMove($event)">
-  <div class="login-glow" [style.transform]="glowTransform()"></div>
+<app-auth-shell>
+  <div class="login-panel" [class.login-panel--shake]="formShake()">
+    <header class="nx-form-header">
+      <div class="nx-kicker">Entrar</div>
+      <h1>Bora jogar.</h1>
+      <p>Entre com sua conta NexaGO pra reservar quadras e acompanhar seus torneios.</p>
+    </header>
 
-  <div class="login-brand">
-    <video
-      #brandVideo
-      class="login-brand-video"
-      [muted]="true"
-      [defaultMuted]="true"
-      [volume]="0"
-      playsinline
-      preload="auto"
-      disablePictureInPicture
-      aria-hidden="true"
-    >
-      <source src="/media/login-brand-bg.mp4" type="video/mp4" media="(min-width: 901px)" />
-    </video>
-    <div class="login-brand-scrim" aria-hidden="true"></div>
-    <div class="login-brand-content">
-      <a routerLink="/" class="login-back">← Início</a>
-      <h1 class="brand-headline">Entre e continue sua jornada no esporte</h1>
-      <ul class="brand-list">
-        <li>Inscrições e torneios na sua modalidade</li>
-        <li>Ranking e evolução em um só lugar</li>
-        <li>Reservar espaço para jogar com poucos cliques</li>
-      </ul>
-    </div>
-  </div>
+    @if (contextMessage(); as ctx) {
+      <div class="nx-notice" role="status">{{ ctx }}</div>
+    }
 
-  <div class="login-aside">
-    <div class="login-form-shell glass-panel" [class.form-shake]="formShake()">
-      <a routerLink="/" class="login-back login-back--form-mobile">← Início</a>
-      <h2 class="title-lg form-title">Login</h2>
-      <p class="text-muted form-hint">Faça login para continuar sua jornada no esporte.</p>
+    @if (authError(); as err) {
+      <div class="nx-alert" role="alert">{{ err }}</div>
+    }
 
-      @if (contextMessage(); as ctx) {
-        <p class="form-context" role="status">{{ ctx }}</p>
-      }
+    @if (loginSuccess()) {
+      <div class="nx-alert nx-alert--success" role="status" aria-live="polite">
+        Conta conectada — redirecionando…
+      </div>
+    }
 
-      @if (authError(); as err) {
-        <p class="form-error" role="alert">{{ err }}</p>
-      }
-      @if (resetSent()) {
-        <div class="form-success" role="status">
-          <p class="form-success-title">Te enviamos um link</p>
-          <p class="form-success-body">
-            Confira seu e-mail para redefinir a senha. Se não achar, veja a pasta de spam.
-          </p>
-        </div>
-      }
-
-      @if (loginSuccess()) {
-        <p class="form-success-banner" role="status" aria-live="polite">
-          <span class="login-success-icon" aria-hidden="true">✓</span>
-          Conta conectada — redirecionando…
-        </p>
-      }
-
-      <form [formGroup]="form" (ngSubmit)="submit()" class="login-form" novalidate>
-        <label class="field">
-          <span class="field-label">E-mail</span>
+    <form [formGroup]="form" (ngSubmit)="submit()" class="nx-stack" novalidate>
+      <label class="nx-field">
+        <span class="nx-field-label">E-mail</span>
+        <span class="nx-field-box" [class.nx-field-box--error]="form.controls.email.invalid && form.controls.email.touched">
           <input
-            #emailField
-            class="field-input"
             type="email"
             formControlName="email"
             autocomplete="email"
             inputmode="email"
+            placeholder="voce@email.com"
             [attr.aria-invalid]="form.controls.email.invalid && form.controls.email.touched"
           />
-          @if (form.controls.email.touched && form.controls.email.errors?.['required']) {
-            <span class="field-msg">Obrigatório</span>
-          }
-          @if (form.controls.email.touched && form.controls.email.errors?.['email']) {
-            <span class="field-msg">E-mail inválido</span>
-          }
-        </label>
+        </span>
+        @if (form.controls.email.touched && form.controls.email.errors?.['required']) {
+          <span class="nx-field-msg nx-field-msg--error">Obrigatório</span>
+        }
+        @if (form.controls.email.touched && form.controls.email.errors?.['email']) {
+          <span class="nx-field-msg nx-field-msg--error">E-mail inválido</span>
+        }
+      </label>
 
-        <label class="field">
-          <span class="field-label">Senha</span>
+      <label class="nx-field">
+        <span class="nx-field-label">Senha</span>
+        <span class="nx-field-box" [class.nx-field-box--error]="form.controls.password.invalid && form.controls.password.touched">
           <input
-            #passwordField
-            class="field-input"
-            type="password"
+            [type]="showPassword() ? 'text' : 'password'"
             formControlName="password"
             autocomplete="current-password"
+            placeholder="••••••••"
             [attr.aria-invalid]="form.controls.password.invalid && form.controls.password.touched"
           />
-          @if (form.controls.password.touched && form.controls.password.errors?.['required']) {
-            <span class="field-msg">Obrigatória</span>
-          }
-          @if (form.controls.password.touched && form.controls.password.errors?.['minlength']) {
-            <span class="field-msg">Mínimo 6 caracteres</span>
-          }
-        </label>
-
-        <button
-          type="submit"
-          class="btn-primary login-cta"
-          [disabled]="submitting() || loginSuccess()"
-        >
-          <span
-            class="login-cta-inner"
-            [class.login-cta-inner--busy]="submitting() && !loginSuccess()"
-          >
-            @if (loginSuccess()) {
-              <span class="login-cta-text" aria-hidden="true">✓</span>
-            } @else if (submitting()) {
-              <span class="loader login-loader" aria-hidden="true"></span>
-              <span class="login-cta-text">Entrando…</span>
+          <button type="button" (click)="togglePassword()" [attr.aria-label]="showPassword() ? 'Ocultar senha' : 'Mostrar senha'">
+            @if (showPassword()) {
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
+                <line x1="3" y1="3" x2="21" y2="21" />
+              </svg>
             } @else {
-              <span class="login-cta-text">Entrar</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
+              </svg>
             }
-          </span>
-        </button>
-      </form>
+          </button>
+        </span>
+        @if (form.controls.password.touched && form.controls.password.errors?.['required']) {
+          <span class="nx-field-msg nx-field-msg--error">Obrigatória</span>
+        }
+        @if (form.controls.password.touched && form.controls.password.errors?.['minlength']) {
+          <span class="nx-field-msg nx-field-msg--error">Mínimo 6 caracteres</span>
+        }
+      </label>
 
-      <div class="login-secondary">
-        <button type="button" class="linkish" (click)="forgot()" [disabled]="submitting()">
-          Esqueci a senha
-        </button>
-        <a
-          class="linkish"
-          routerLink="/cadastro"
-          [queryParams]="{ redirect: returnUrl }"
-        >
-          Criar conta
-        </a>
+      <div class="nx-row-end">
+        <a class="nx-text-link" routerLink="/esqueci-senha" [queryParams]="{ redirect: returnUrl }">Esqueceu a senha?</a>
       </div>
 
-      @if (firebaseConfigured()) {
-        <button
-          type="button"
-          class="btn-google"
-          [disabled]="submitting() || loginSuccess()"
-          (click)="google()"
-        >
-          @if (submitting() && !loginSuccess()) {
-            <span class="loader login-loader login-loader--google" aria-hidden="true"></span>
-            <span>Conectando…</span>
-          } @else {
-            <span class="btn-google-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="20" height="20">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                />
-              </svg>
-            </span>
-            <span>Continuar com Google</span>
-          }
+      <button type="submit" class="nx-btn-primary" [disabled]="submitting() || loginSuccess()">
+        @if (submitting() && !loginSuccess()) {
+          <span class="nx-spinner" aria-hidden="true"></span>
+          <span>Entrando…</span>
+        } @else {
+          <span>Entrar</span>
+        }
+      </button>
+    </form>
+
+    @if (firebaseConfigured()) {
+      <div class="nx-divider"><span>ou</span></div>
+
+      <div class="nx-stack-sm">
+        <button type="button" class="nx-btn-sso" [disabled]="submitting() || loginSuccess()" (click)="google()">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
+            <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853" />
+            <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05" />
+            <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335" />
+          </svg>
+          <span>Continuar com Google</span>
         </button>
-      }
-    </div>
+        <button type="button" class="nx-btn-sso" [disabled]="submitting() || loginSuccess()" (click)="apple()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--nx-text)">
+            <path d="M17.05 12.04c-.03-2.96 2.42-4.38 2.53-4.45-1.38-2.02-3.53-2.3-4.29-2.33-1.83-.19-3.57 1.08-4.5 1.08-.94 0-2.36-1.05-3.88-1.02-2 .03-3.84 1.16-4.87 2.95-2.08 3.6-.53 8.93 1.49 11.86.99 1.43 2.16 3.04 3.69 2.99 1.48-.06 2.04-.96 3.83-.96 1.79 0 2.29.96 3.86.93 1.59-.03 2.6-1.46 3.57-2.9 1.13-1.66 1.6-3.27 1.62-3.36-.04-.02-3.11-1.19-3.15-4.79zM14.32 3.65c.82-.99 1.37-2.37 1.22-3.75-1.18.05-2.61.79-3.45 1.78-.75.87-1.41 2.27-1.23 3.62 1.31.1 2.65-.66 3.46-1.65z" />
+          </svg>
+          <span>Continuar com Apple</span>
+        </button>
+      </div>
+    }
+
+    <p class="nx-fine">
+      Novo por aqui?
+      <a class="nx-text-link" routerLink="/cadastro" [queryParams]="{ redirect: returnUrl }">Criar conta grátis</a>
+    </p>
+
+    @if (showDevBypass()) {
+      <button type="button" class="nx-btn-sso" style="margin-top: 12px" (click)="devContinue()">
+        Continuar em modo dev
+      </button>
+    }
   </div>
-</section>
+</app-auth-shell>

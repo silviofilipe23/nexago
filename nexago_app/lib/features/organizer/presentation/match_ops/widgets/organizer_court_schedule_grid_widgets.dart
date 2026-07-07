@@ -84,8 +84,10 @@ class ScheduleGridHeader extends StatelessWidget {
               if (alertCount > 0) ...[
                 Container(
                   margin: const EdgeInsets.only(top: 4, right: 8),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.live.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(999),
@@ -119,10 +121,7 @@ class ScheduleGridHeader extends StatelessWidget {
               ],
             ],
           ),
-          if (dayPicker != null) ...[
-            const SizedBox(height: 10),
-            dayPicker!,
-          ],
+          if (dayPicker != null) ...[const SizedBox(height: 10), dayPicker!],
         ],
       ),
     );
@@ -170,8 +169,7 @@ class ScheduleGridDayPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedLabel =
-        ScheduleGridLogic.programDayDateLabel(selectedDayKey);
+    final selectedLabel = ScheduleGridLogic.programDayDateLabel(selectedDayKey);
 
     if (tournamentDays.length <= 1) {
       return Row(
@@ -225,8 +223,9 @@ class ScheduleGridDayPicker extends StatelessWidget {
                   side: BorderSide(
                     color: selected
                         ? AppColors.brand
-                        : context.themeColors.onSurfaceMuted
-                            .withValues(alpha: 0.2),
+                        : context.themeColors.onSurfaceMuted.withValues(
+                            alpha: 0.2,
+                          ),
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   visualDensity: VisualDensity.compact,
@@ -342,7 +341,8 @@ class ScheduleGridBody extends StatefulWidget {
     TournamentMatch match,
     String courtId,
     DateTime slotStart,
-  ) onDropMatch;
+  )
+  onDropMatch;
   final ScrollController? horizontalScrollController;
 
   @override
@@ -405,11 +405,13 @@ class _ScheduleGridBodyState extends State<ScheduleGridBody> {
     final bottom = top + box.size.height;
 
     if (globalY < top + _autoScrollEdgeSize) {
-      final intensity = ((top + _autoScrollEdgeSize) - globalY) / _autoScrollEdgeSize;
+      final intensity =
+          ((top + _autoScrollEdgeSize) - globalY) / _autoScrollEdgeSize;
       return -_autoScrollMaxSpeed * intensity.clamp(0.0, 1.0);
     }
     if (globalY > bottom - _autoScrollEdgeSize) {
-      final intensity = (globalY - (bottom - _autoScrollEdgeSize)) / _autoScrollEdgeSize;
+      final intensity =
+          (globalY - (bottom - _autoScrollEdgeSize)) / _autoScrollEdgeSize;
       return _autoScrollMaxSpeed * intensity.clamp(0.0, 1.0);
     }
     return 0;
@@ -423,8 +425,10 @@ class _ScheduleGridBodyState extends State<ScheduleGridBody> {
         return;
       }
       final position = _verticalScrollController.position;
-      final next = (position.pixels + _autoScrollDelta)
-          .clamp(0.0, position.maxScrollExtent);
+      final next = (position.pixels + _autoScrollDelta).clamp(
+        0.0,
+        position.maxScrollExtent,
+      );
       if (next == position.pixels) {
         _stopAutoScroll();
         return;
@@ -473,8 +477,9 @@ class _ScheduleGridBodyState extends State<ScheduleGridBody> {
     }
 
     final gridEnd = widget.slots.isNotEmpty
-        ? widget.slots.last
-            .add(const Duration(minutes: ScheduleGridLogic.slotMinutes))
+        ? widget.slots.last.add(
+            const Duration(minutes: ScheduleGridLogic.slotMinutes),
+          )
         : widget.gridStart;
 
     final todayKey = ScheduleLogic.dayKeyFromDate(nexagoEventNow());
@@ -486,8 +491,10 @@ class _ScheduleGridBodyState extends State<ScheduleGridBody> {
         gridEnd: gridEnd,
       );
       if (nowOffset != null) {
-        targetOffset = (nowOffset - ScheduleGridLogic.slotHeight * 2)
-            .clamp(0.0, _verticalScrollController.position.maxScrollExtent);
+        targetOffset = (nowOffset - ScheduleGridLogic.slotHeight * 2).clamp(
+          0.0,
+          _verticalScrollController.position.maxScrollExtent,
+        );
       }
     } else {
       TournamentMatch? firstScheduled;
@@ -506,13 +513,18 @@ class _ScheduleGridBodyState extends State<ScheduleGridBody> {
           match: firstScheduled!,
           gridStart: widget.gridStart,
         );
-        targetOffset =
-            (top - ScheduleGridLogic.slotHeight).clamp(0.0, double.infinity);
+        targetOffset = (top - ScheduleGridLogic.slotHeight).clamp(
+          0.0,
+          double.infinity,
+        );
       }
     }
 
     _verticalScrollController.jumpTo(
-      targetOffset.clamp(0.0, _verticalScrollController.position.maxScrollExtent),
+      targetOffset.clamp(
+        0.0,
+        _verticalScrollController.position.maxScrollExtent,
+      ),
     );
     _scrolledForDayKey = widget.selectedDayKey;
   }
@@ -525,65 +537,65 @@ class _ScheduleGridBodyState extends State<ScheduleGridBody> {
     final gridEnd = slots.isNotEmpty
         ? slots.last.add(const Duration(minutes: ScheduleGridLogic.slotMinutes))
         : gridStart;
-    final showNowLine = widget.selectedDayKey ==
-        ScheduleLogic.dayKeyFromDate(nexagoEventNow());
+    final showNowLine =
+        widget.selectedDayKey == ScheduleLogic.dayKeyFromDate(nexagoEventNow());
 
     return Stack(
       fit: StackFit.expand,
       children: [
         SingleChildScrollView(
-      key: _viewportKey,
-      controller: _verticalScrollController,
-      padding: const EdgeInsets.only(
-        bottom: 16 + kScheduleGridFloatingActionClearance,
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        controller: widget.horizontalScrollController,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: SizedBox(
-          height: gridHeight,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          key: _viewportKey,
+          controller: _verticalScrollController,
+          padding: const EdgeInsets.only(
+            bottom: 16 + kScheduleGridFloatingActionClearance,
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            controller: widget.horizontalScrollController,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: SizedBox(
+              height: gridHeight,
+              child: Stack(
+                clipBehavior: Clip.none,
                 children: [
-                  _ScheduleGridTimeColumn(slots: slots),
-                  for (final court in widget.courts)
-                    _ScheduleGridCourtColumn(
-                      court: court,
-                      slots: slots,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _ScheduleGridTimeColumn(slots: slots),
+                      for (final court in widget.courts)
+                        _ScheduleGridCourtColumn(
+                          court: court,
+                          slots: slots,
+                          gridStart: gridStart,
+                          matches: widget.matchesByCourt[court.id] ?? const [],
+                          categoryLabelsByMatchId:
+                              widget.categoryLabelsByMatchId,
+                          categoryAccentByCategoryId:
+                              widget.categoryAccentByCategoryId,
+                          categoryMatchesByCategoryId:
+                              widget.categoryMatchesByCategoryId,
+                          enrichedByMatchId: widget.enrichedByMatchId,
+                          defaultDurationMin: widget.defaultDurationMin,
+                          draggingMatchId: _draggingMatchId,
+                          savingMatchId: _savingMatchId,
+                          onMatchTap: widget.onMatchTap,
+                          onDropMatch: _handleDropMatch,
+                          onDragStarted: _onDragStarted,
+                          onDragUpdate: _onDragUpdate,
+                          onDragEnded: _onDragEnded,
+                        ),
+                    ],
+                  ),
+                  if (showNowLine)
+                    _ScheduleGridNowLineOverlay(
                       gridStart: gridStart,
-                      matches: widget.matchesByCourt[court.id] ?? const [],
-                      categoryLabelsByMatchId:
-                          widget.categoryLabelsByMatchId,
-                      categoryAccentByCategoryId:
-                          widget.categoryAccentByCategoryId,
-                      categoryMatchesByCategoryId:
-                          widget.categoryMatchesByCategoryId,
-                      enrichedByMatchId: widget.enrichedByMatchId,
-                      defaultDurationMin: widget.defaultDurationMin,
-                      draggingMatchId: _draggingMatchId,
-                      savingMatchId: _savingMatchId,
-                      onMatchTap: widget.onMatchTap,
-                      onDropMatch: _handleDropMatch,
-                      onDragStarted: _onDragStarted,
-                      onDragUpdate: _onDragUpdate,
-                      onDragEnded: _onDragEnded,
+                      gridEnd: gridEnd,
                     ),
                 ],
               ),
-              if (showNowLine)
-                _ScheduleGridNowLineOverlay(
-                  gridStart: gridStart,
-                  gridEnd: gridEnd,
-                ),
-            ],
+            ),
           ),
         ),
-      ),
-    ),
         if (_savingMatchId != null)
           Positioned.fill(
             child: ColoredBox(
@@ -645,7 +657,8 @@ class _ScheduleGridNowLineOverlay extends StatefulWidget {
       _ScheduleGridNowLineOverlayState();
 }
 
-class _ScheduleGridNowLineOverlayState extends State<_ScheduleGridNowLineOverlay> {
+class _ScheduleGridNowLineOverlayState
+    extends State<_ScheduleGridNowLineOverlay> {
   Timer? _timer;
 
   @override
@@ -748,7 +761,7 @@ class ScheduleGridActionBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               clipBehavior: Clip.antiAlias,
               child: OutlinedButton.icon(
-                onPressed: onAuto,
+                onPressed: scheduleEnabled ? onAuto : null,
                 icon: const Icon(Icons.auto_fix_high_rounded, size: 18),
                 label: const Text('Auto'),
                 style: OutlinedButton.styleFrom(
@@ -779,9 +792,12 @@ class ScheduleGridActionBar extends StatelessWidget {
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.brand,
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor:
-                        AppColors.brand.withValues(alpha: 0.45),
-                    disabledForegroundColor: Colors.white.withValues(alpha: 0.8),
+                    disabledBackgroundColor: AppColors.brand.withValues(
+                      alpha: 0.45,
+                    ),
+                    disabledForegroundColor: Colors.white.withValues(
+                      alpha: 0.8,
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
@@ -872,7 +888,8 @@ class _ScheduleGridCourtColumn extends StatelessWidget {
     TournamentMatch match,
     String courtId,
     DateTime slotStart,
-  ) onDropMatch;
+  )
+  onDropMatch;
   final ValueChanged<TournamentMatch> onDragStarted;
   final ValueChanged<DragUpdateDetails> onDragUpdate;
   final VoidCallback onDragEnded;
@@ -982,7 +999,8 @@ class _ScheduleGridDropSlot extends StatelessWidget {
     TournamentMatch match,
     String courtId,
     DateTime slotStart,
-  ) onDropMatch;
+  )
+  onDropMatch;
 
   @override
   Widget build(BuildContext context) {
@@ -1233,7 +1251,9 @@ class _ScheduleGridMatchCard extends StatelessWidget {
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: context.themeColors.surfaceRaised.withValues(alpha: 0.72),
+                color: context.themeColors.surfaceRaised.withValues(
+                  alpha: 0.72,
+                ),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Center(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:nexago_app/core/ui/nexa_share.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
@@ -28,15 +28,22 @@ class OrganizerMatchSummaryPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final matchAsync = ref.watch(organizerMatchByIdProvider((
-      tournamentId: tournamentId,
-      matchId: matchId,
-    )));
+    final matchAsync = ref.watch(
+      organizerMatchByIdProvider((
+        tournamentId: tournamentId,
+        matchId: matchId,
+      )),
+    );
     final auditAsync = ref.watch(organizerMatchAuditLogProvider(matchId));
-    final enrichedMap = ref.watch(organizerMatchCardsByIdProvider(tournamentId));
+    final enrichedMap = ref.watch(
+      organizerMatchCardsByIdProvider(tournamentId),
+    );
     final categories =
-        ref.watch(organizerTournamentDetailProvider(tournamentId)).valueOrNull?.categories ??
-            const [];
+        ref
+            .watch(organizerTournamentDetailProvider(tournamentId))
+            .valueOrNull
+            ?.categories ??
+        const [];
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -96,7 +103,8 @@ class OrganizerMatchSummaryPage extends ConsumerWidget {
                 ),
               ),
               _SummaryBottomBar(
-                onShare: () => Share.share(
+                onShare: () => nexaShareText(
+                  context,
                   'Súmula: ${match.teamsLabel} — ${match.scoreLabel}',
                 ),
                 onAdvance: () =>
@@ -124,13 +132,14 @@ class _SummaryHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final court = match.courtName?.trim() ?? '';
-    final supertitle =
-        court.isNotEmpty ? 'SÚMULA DIGITAL · $court' : 'SÚMULA DIGITAL';
+    final supertitle = court.isNotEmpty
+        ? 'SÚMULA DIGITAL · $court'
+        : 'SÚMULA DIGITAL';
     final title = match.isCompleted
         ? 'Partida encerrada'
         : match.isInProgress
-            ? 'Partida ao vivo'
-            : 'Súmula';
+        ? 'Partida ao vivo'
+        : 'Súmula';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
@@ -209,7 +218,8 @@ class _SummaryMatchCard extends StatelessWidget {
       categoryCompactLabel: categoryLabel,
     );
     final isValidated = match.reportStatus == 'validated';
-    final durationMin = match.matchStartedAt != null && match.matchEndedAt != null
+    final durationMin =
+        match.matchStartedAt != null && match.matchEndedAt != null
         ? match.matchEndedAt!.difference(match.matchStartedAt!).inMinutes
         : null;
     final totalPts = match.sets.fold<int>(0, (sum, s) => sum + s.a + s.b);
@@ -382,8 +392,7 @@ class _SummaryStatsRow extends StatelessWidget {
           _StatCell(value: '$durationMin min', label: 'Duração'),
           if (totalPts > 0) const SizedBox(width: 24),
         ],
-        if (totalPts > 0)
-          _StatCell(value: '$totalPts', label: 'Total pts'),
+        if (totalPts > 0) _StatCell(value: '$totalPts', label: 'Total pts'),
       ],
     );
   }
@@ -457,8 +466,7 @@ class _SummaryHistorySection extends StatelessWidget {
             }
             return Column(
               children: [
-                for (final entry in entries)
-                  _AuditLogEntryTile(entry: entry),
+                for (final entry in entries) _AuditLogEntryTile(entry: entry),
               ],
             );
           },
@@ -525,10 +533,7 @@ class _AuditLogEntryTile extends StatelessWidget {
 }
 
 class _SummaryBottomBar extends StatelessWidget {
-  const _SummaryBottomBar({
-    required this.onShare,
-    required this.onAdvance,
-  });
+  const _SummaryBottomBar({required this.onShare, required this.onAdvance});
 
   final VoidCallback onShare;
   final VoidCallback onAdvance;
@@ -549,22 +554,23 @@ class _SummaryBottomBar extends StatelessWidget {
         top: false,
         child: Row(
           children: [
-            OutlinedButton.icon(
-              onPressed: onShare,
-              icon: const Icon(Icons.share_rounded, size: 18),
-              label: const Text('Compartilhar'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: context.themeColors.onSurface,
-                side: BorderSide(
-                  color: context.themeColors.onSurfaceMuted.withValues(
-                    alpha: 0.28,
-                  ),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              ),
-            ),
-            const SizedBox(width: 10),
+            // TODO: Add share button
+            // OutlinedButton.icon(
+            //   onPressed: onShare,
+            //   icon: const Icon(Icons.share_rounded, size: 18),
+            //   label: const Text('Compartilhar'),
+            //   style: OutlinedButton.styleFrom(
+            //     foregroundColor: context.themeColors.onSurface,
+            //     side: BorderSide(
+            //       color: context.themeColors.onSurfaceMuted.withValues(
+            //         alpha: 0.28,
+            //       ),
+            //     ),
+            //     padding:
+            //         const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            //   ),
+            // ),
+            // const SizedBox(width: 10),
             Expanded(
               child: FilledButton.icon(
                 onPressed: onAdvance,
@@ -669,8 +675,7 @@ String _auditEntrySubtitle(MatchAuditLogEntry entry) {
   final h = local.hour.toString().padLeft(2, '0');
   final m = local.minute.toString().padLeft(2, '0');
   final time = '$h:$m';
-  final actorName =
-      (entry.meta['actorName'] as String?)?.trim() ?? entry.byUid;
+  final actorName = (entry.meta['actorName'] as String?)?.trim() ?? entry.byUid;
   final parts = <String>[];
   if (entry.byRole.isNotEmpty) parts.add(entry.byRole);
   if (actorName.isNotEmpty) parts.add(actorName);

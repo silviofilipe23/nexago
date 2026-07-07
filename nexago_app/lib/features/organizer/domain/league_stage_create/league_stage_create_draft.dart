@@ -3,11 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../league_create/league_create_draft.dart';
 import '../tournament_create/tournament_create_draft.dart';
 
-enum LeagueStageCreateStep {
-  location,
-  categoriesRegistration,
-  review,
-}
+enum LeagueStageCreateStep { location, categoriesRegistration, review }
 
 extension LeagueStageCreateStepX on LeagueStageCreateStep {
   int get index => LeagueStageCreateStep.values.indexOf(this);
@@ -27,7 +23,7 @@ class LeagueStageCategoryDraft {
     this.dispute = TournamentCategoryDispute.dupla,
     this.ageBand = TournamentAgeBand.open,
     this.skillLevel = TournamentSkillLevel.open,
-    this.priceCents = 9000,
+    this.priceCents = 22000,
     this.bracketSystem = TournamentBracketSystem.groupsThenKnockout,
     this.teamsPerGroup = 4,
     this.qualifiersPerGroup = 2,
@@ -95,7 +91,7 @@ class LeagueStageCreateDraft {
     this.sport = TournamentSport.beachVolleyball,
     this.leagueCity = '',
     this.leagueState = '',
-    this.defaultPriceCents = 9000,
+    this.defaultPriceCents = 22000,
     this.rankingTableId = 'state_circuit',
     this.paymentMode = TournamentPaymentMode.appPixCard,
     this.stage = const LeagueStageDraft(id: 'stage-1', order: 1),
@@ -126,8 +122,7 @@ class LeagueStageCreateDraft {
   final DateTime? registrationClosesAt;
   final List<LeagueStageDraft> existingStages;
 
-  int get enabledCategoriesCount =>
-      categories.where((c) => c.enabled).length;
+  int get enabledCategoriesCount => categories.where((c) => c.enabled).length;
 
   int get totalEnabledSpots => categories
       .where((c) => c.enabled)

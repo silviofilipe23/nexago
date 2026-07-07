@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:nexago_app/core/ui/nexa_share.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/formatting/app_date_format.dart';
 import '../../../core/formatting/app_currency_format.dart';
@@ -302,7 +302,8 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             '${DateFormat('HH:mm', 'pt_BR').format(widget.startAt)} - ${DateFormat('HH:mm', 'pt_BR').format(widget.endAt)}',
         bookingId: widget.bookingId,
       );
-      await Share.share(text);
+      if (!mounted) return;
+      await nexaShareText(context, text);
     } finally {
       if (mounted) setState(() => _sharing = false);
     }

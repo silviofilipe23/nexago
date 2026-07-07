@@ -93,10 +93,10 @@ void main() {
       );
       expect(data['countingStagesMode'], 'all_stages');
 
-      final loaded = LeagueCreateMapper.fromFirestore(
-        {...data, 'countingStagesMode': 'all_stages'},
-        'league-x',
-      );
+      final loaded = LeagueCreateMapper.fromFirestore({
+        ...data,
+        'countingStagesMode': 'all_stages',
+      }, 'league-x');
       expect(
         loaded.draft.countingStagesMode,
         LeagueCountingStagesMode.allStages,
@@ -104,15 +104,12 @@ void main() {
     });
 
     test('counting mode defaults to best4Of6 when missing/unknown', () {
-      final loaded = LeagueCreateMapper.fromFirestore(
-        {
-          'name': 'Copa',
-          'seasonStartAt': Timestamp.fromDate(DateTime(2026, 2, 1)),
-          'seasonEndAt': Timestamp.fromDate(DateTime(2026, 10, 1)),
-          'countingStagesMode': 'mystery',
-        },
-        'league-x',
-      );
+      final loaded = LeagueCreateMapper.fromFirestore({
+        'name': 'Copa',
+        'seasonStartAt': Timestamp.fromDate(DateTime(2026, 2, 1)),
+        'seasonEndAt': Timestamp.fromDate(DateTime(2026, 10, 1)),
+        'countingStagesMode': 'mystery',
+      }, 'league-x');
       expect(
         loaded.draft.countingStagesMode,
         LeagueCountingStagesMode.best4Of6,
@@ -120,22 +117,19 @@ void main() {
     });
 
     test('fromFirestore tolerates legacy prize "value" as string', () {
-      final loaded = LeagueCreateMapper.fromFirestore(
-        {
-          'name': 'Copa',
-          'categories': [
-            {
-              'id': 'c1',
-              'maxTeams': 16,
-              'prizes': [
-                {'position': '1', 'value': '90'},
-              ],
-            },
-          ],
-        },
-        'league-x',
-      );
-      expect(loaded.draft.categories.first.prizes.first.valueCents, 9000);
+      final loaded = LeagueCreateMapper.fromFirestore({
+        'name': 'Copa',
+        'categories': [
+          {
+            'id': 'c1',
+            'maxTeams': 16,
+            'prizes': [
+              {'position': '1', 'value': '90'},
+            ],
+          },
+        ],
+      }, 'league-x');
+      expect(loaded.draft.categories.first.prizes.first.valueCents, 22000);
     });
 
     test('fromFirestore restores draft and step', () {
@@ -159,7 +153,7 @@ void main() {
             'ageBand': 'open',
             'level': 'Open',
             'maxTeams': 16,
-            'entryFeeCents': 9000,
+            'entryFeeCents': 22000,
           },
         ],
         'stages': [
@@ -177,7 +171,10 @@ void main() {
       final loaded = LeagueCreateMapper.fromFirestore(data, 'league-1');
       expect(loaded.draft.leagueId, 'league-1');
       expect(loaded.draft.name, 'Circuito Verão');
-      expect(loaded.draft.countingStagesMode, LeagueCountingStagesMode.best3Of5);
+      expect(
+        loaded.draft.countingStagesMode,
+        LeagueCountingStagesMode.best3Of5,
+      );
       expect(loaded.draft.categories, hasLength(1));
       expect(loaded.step, LeagueCreateStep.categories);
     });
@@ -191,9 +188,7 @@ void main() {
         city: 'Goiânia',
         seasonStartAt: DateTime(2026, 4, 1),
         seasonEndAt: DateTime(2026, 4, 30),
-        categories: const [
-          TournamentCategoryDraft(id: 'c1', spots: 16),
-        ],
+        categories: const [TournamentCategoryDraft(id: 'c1', spots: 16)],
         stages: const [
           LeagueStageDraft(
             id: 'stage-1',
@@ -210,9 +205,7 @@ void main() {
 
       final tournament = LeagueStageTournamentFactory.build(
         league: league,
-        stage: league.stages.first.copyWith(
-          dateLabel: 'Abr 2026',
-        ),
+        stage: league.stages.first.copyWith(dateLabel: 'Abr 2026'),
         managerId: 'manager-1',
         tournamentId: 'tournament-1',
       );

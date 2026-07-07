@@ -1822,9 +1822,26 @@ class _QuickScoreNumericFieldState extends State<_QuickScoreNumericField> {
   }
 
   void _handleFocusChange() {
-    if (!_focusNode.hasFocus) {
+    if (_focusNode.hasFocus) {
+      // Seleciona todo o valor ao focar para digitar o placar por cima.
+      _controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _controller.text.length,
+      );
+    } else {
       _commit(_controller.text);
     }
+  }
+
+  /// Validação ao vivo: propaga o valor a cada dígito sem reescrever o texto
+  /// (mantém o cursor). O commit/normalização ocorre ao sair do campo.
+  void _handleChanged(String raw) {
+    final parsed = int.tryParse(raw.trim());
+    final next = (parsed ?? 0).clamp(0, 99);
+    if (next != widget.value) {
+      widget.onChanged(next);
+    }
+    widget.onCommitted?.call();
   }
 
   void _commit(String raw) {
@@ -1890,6 +1907,7 @@ class _QuickScoreNumericFieldState extends State<_QuickScoreNumericField> {
           ),
         ),
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+        onChanged: _handleChanged,
         onSubmitted: _commit,
         onEditingComplete: () => _commit(_controller.text),
       ),

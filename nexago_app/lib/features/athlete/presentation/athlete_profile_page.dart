@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:nexago_app/core/ui/nexa_share.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
@@ -183,7 +183,8 @@ class _AthleteProfileBody extends ConsumerWidget {
   ) async {
     final name = athleteDisplayName(profile);
     final sport = profile.sport.trim().isNotEmpty ? profile.sport.trim() : 'esporte';
-    await Share.share(
+    await nexaShareText(
+      context,
       'Confira meu perfil no NexaGO: $name — $sport',
     );
     final uid = ref.read(authProvider).valueOrNull?.uid;

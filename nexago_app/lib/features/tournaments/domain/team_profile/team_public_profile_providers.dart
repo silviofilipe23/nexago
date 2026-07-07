@@ -16,6 +16,7 @@ final teamMatchHistoryProvider = FutureProvider.autoDispose
 
   final matchRepo = ref.watch(tournamentMatchesRepositoryProvider);
   final tournamentsRepo = ref.read(tournamentsRepositoryProvider);
+  final enrichment = ref.read(tournamentMatchEnrichmentServiceProvider);
 
   final matches = await matchRepo.getByTeamId(id);
   final tournamentIds = <String>{
@@ -26,9 +27,33 @@ final teamMatchHistoryProvider = FutureProvider.autoDispose
       ? const <String, String>{}
       : await tournamentsRepo.getTournamentNames(tournamentIds);
 
+  final opponentTeamIds = <String>{};
+  final descriptionsByTeamId = <String, String>{};
+  for (final match in matches) {
+    final opponentId = match.opponentTeamIdFor(id)?.trim();
+    if (opponentId == null || opponentId.isEmpty) continue;
+    opponentTeamIds.add(opponentId);
+    if (!descriptionsByTeamId.containsKey(opponentId)) {
+      final desc = match.teamAId.trim() == id
+          ? match.teamBDescription?.trim()
+          : match.teamADescription?.trim();
+      if (desc != null && desc.isNotEmpty) {
+        descriptionsByTeamId[opponentId] = desc;
+      }
+    }
+  }
+
+  final teamDisplayNames = opponentTeamIds.isEmpty
+      ? const <String, String>{}
+      : await enrichment.resolveTeamDisplayNames(
+          opponentTeamIds,
+          descriptionsByTeamId: descriptionsByTeamId,
+        );
+
   return TeamMatchHistoryBundle(
     matches: matches,
     tournamentNames: tournamentNames,
+    teamDisplayNames: teamDisplayNames,
   );
 });
 

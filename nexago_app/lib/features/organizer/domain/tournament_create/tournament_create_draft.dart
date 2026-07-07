@@ -203,7 +203,7 @@ class TournamentCreateDraft {
     this.firstMatchAt,
     this.courtsCount = 4,
     this.categories = const [],
-    this.defaultPriceCents = 18000,
+    this.defaultPriceCents = 22000,
     this.registrationOpensAt,
     this.registrationClosesAt,
     this.paymentMode = TournamentPaymentMode.appPixCard,

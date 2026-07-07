@@ -2,14 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../tournament_create/tournament_create_draft.dart';
 
-enum LeagueCreateStep {
-  identity,
-  season,
-  categories,
-  ranking,
-  stages,
-  review,
-}
+enum LeagueCreateStep { identity, season, categories, ranking, stages, review }
 
 extension LeagueCreateStepX on LeagueCreateStep {
   int get index => LeagueCreateStep.values.indexOf(this);
@@ -19,11 +12,7 @@ extension LeagueCreateStepX on LeagueCreateStep {
 
 enum LeagueStageStatus { defined, pending }
 
-enum LeagueCountingStagesMode {
-  best4Of6,
-  best3Of5,
-  allStages,
-}
+enum LeagueCountingStagesMode { best4Of6, best3Of5, allStages }
 
 /// Etapa da temporada (C5).
 @immutable
@@ -106,7 +95,7 @@ class LeagueCreateDraft {
     this.plannedStagesCount = 6,
     this.grandFinalEnabled = true,
     this.categories = const [],
-    this.defaultPriceCents = 9000,
+    this.defaultPriceCents = 22000,
     this.countingStagesMode = LeagueCountingStagesMode.best4Of6,
     this.rankingTableId = 'state_circuit',
     this.rankingPointsByPlace = const {},
@@ -171,8 +160,9 @@ class LeagueCreateDraft {
       sport: sport ?? this.sport,
       name: name ?? this.name,
       organizationName: organizationName ?? this.organizationName,
-      coverImagePath:
-          clearCoverImagePath ? null : (coverImagePath ?? this.coverImagePath),
+      coverImagePath: clearCoverImagePath
+          ? null
+          : (coverImagePath ?? this.coverImagePath),
       description: description ?? this.description,
       city: city ?? this.city,
       state: state ?? this.state,

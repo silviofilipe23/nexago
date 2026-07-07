@@ -78,19 +78,19 @@ abstract final class LeagueCreateMapper {
     final categoriesRaw = data['categories'];
     final categories = categoriesRaw is List
         ? categoriesRaw
-            .whereType<Map>()
-            .map((raw) => _categoryFromMap(Map<String, dynamic>.from(raw)))
-            .whereType<TournamentCategoryDraft>()
-            .toList()
+              .whereType<Map>()
+              .map((raw) => _categoryFromMap(Map<String, dynamic>.from(raw)))
+              .whereType<TournamentCategoryDraft>()
+              .toList()
         : <TournamentCategoryDraft>[];
 
     final stagesRaw = data['stages'];
     final stages = stagesRaw is List
         ? stagesRaw
-            .whereType<Map>()
-            .map((raw) => _stageFromMap(Map<String, dynamic>.from(raw)))
-            .whereType<LeagueStageDraft>()
-            .toList()
+              .whereType<Map>()
+              .map((raw) => _stageFromMap(Map<String, dynamic>.from(raw)))
+              .whereType<LeagueStageDraft>()
+              .toList()
         : <LeagueStageDraft>[];
 
     final pointsRaw = data['rankingPointsByPlace'];
@@ -115,7 +115,7 @@ abstract final class LeagueCreateMapper {
       grandFinalEnabled: data['grandFinalEnabled'] as bool? ?? true,
       categories: categories,
       defaultPriceCents:
-          (data['defaultEntryFeeCents'] as num?)?.toInt() ?? 9000,
+          (data['defaultEntryFeeCents'] as num?)?.toInt() ?? 22000,
       countingStagesMode: _parseCountingMode(
         data['countingStagesMode'] as String?,
       ),
@@ -129,7 +129,8 @@ abstract final class LeagueCreateMapper {
 
     return (
       draft: draft,
-      step: parseLeagueWizardStep(data['wizardStep'] as String?) ??
+      step:
+          parseLeagueWizardStep(data['wizardStep'] as String?) ??
           inferLeagueResumeStep(draft),
     );
   }
@@ -149,23 +150,23 @@ abstract final class LeagueCreateMapper {
       };
 
   static Map<String, dynamic> _stageToMap(LeagueStageDraft stage) => {
-        'id': stage.id,
-        'name': stage.name,
-        'order': stage.order,
-        'status': stage.status.name,
-        'isGrandFinal': stage.isGrandFinal,
-        'locationName': stage.locationName.trim().isEmpty
-            ? null
-            : stage.locationName.trim(),
-        'city': stage.city.trim().isEmpty ? null : stage.city.trim(),
-        'state': stage.state.trim().isEmpty ? null : stage.state.trim(),
-        'startAt':
-            stage.startAt != null ? Timestamp.fromDate(stage.startAt!) : null,
-        'endAt': stage.endAt != null ? Timestamp.fromDate(stage.endAt!) : null,
-        'dateLabel':
-            stage.dateLabel.trim().isEmpty ? null : stage.dateLabel.trim(),
-        'tournamentIds': stage.tournamentIds,
-      };
+    'id': stage.id,
+    'name': stage.name,
+    'order': stage.order,
+    'status': stage.status.name,
+    'isGrandFinal': stage.isGrandFinal,
+    'locationName': stage.locationName.trim().isEmpty
+        ? null
+        : stage.locationName.trim(),
+    'city': stage.city.trim().isEmpty ? null : stage.city.trim(),
+    'state': stage.state.trim().isEmpty ? null : stage.state.trim(),
+    'startAt': stage.startAt != null
+        ? Timestamp.fromDate(stage.startAt!)
+        : null,
+    'endAt': stage.endAt != null ? Timestamp.fromDate(stage.endAt!) : null,
+    'dateLabel': stage.dateLabel.trim().isEmpty ? null : stage.dateLabel.trim(),
+    'tournamentIds': stage.tournamentIds,
+  };
 
   static LeagueStageDraft? _stageFromMap(Map<String, dynamic> map) {
     final id = map['id'] as String?;
@@ -182,9 +183,10 @@ abstract final class LeagueCreateMapper {
       startAt: _timestamp(map['startAt']),
       endAt: _timestamp(map['endAt']),
       dateLabel: (map['dateLabel'] as String?) ?? '',
-      tournamentIds: (map['tournamentIds'] as List?)
-              ?.whereType<String>()
-              .toList(growable: false) ??
+      tournamentIds:
+          (map['tournamentIds'] as List?)?.whereType<String>().toList(
+            growable: false,
+          ) ??
           const [],
     );
   }
@@ -251,7 +253,8 @@ abstract final class LeagueCreateMapper {
     final id = map['id'] as String?;
     if (id == null || id.isEmpty) return null;
 
-    final entryFeeCents = (map['entryFeeCents'] as num?)?.toInt() ??
+    final entryFeeCents =
+        (map['entryFeeCents'] as num?)?.toInt() ??
         (((map['entryFee'] as num?)?.toDouble() ?? 0) * 100).round();
 
     final bracketRaw = map['bracketFormat'] as String?;
@@ -259,11 +262,16 @@ abstract final class LeagueCreateMapper {
     return TournamentCategoryDraft(
       id: id,
       name: (map['categoryName'] as String?) ?? (map['name'] as String?) ?? '',
-      gender: _parseGender(map['genderType'] as String? ?? map['gender'] as String?),
-      dispute: _parseDispute(map['disputeType'] as String? ?? map['dispute'] as String?),
+      gender: _parseGender(
+        map['genderType'] as String? ?? map['gender'] as String?,
+      ),
+      dispute: _parseDispute(
+        map['disputeType'] as String? ?? map['dispute'] as String?,
+      ),
       ageBand: _parseAgeBand(map['ageBand'] as String?),
       skillLevel: _parseSkillLevel(map['level'] as String?),
-      spots: (map['maxTeams'] as num?)?.toInt() ??
+      spots:
+          (map['maxTeams'] as num?)?.toInt() ??
           (map['spotsTotal'] as num?)?.toInt() ??
           16,
       useDefaultPrice: map['useDefaultPrice'] as bool? ?? true,

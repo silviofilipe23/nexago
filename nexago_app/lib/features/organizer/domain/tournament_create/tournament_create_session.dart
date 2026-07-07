@@ -36,13 +36,13 @@ class TournamentCreateSession {
   }
 
   Map<String, dynamic> toJson() => {
-        'version': 2,
-        'managerUid': managerUid,
-        'updatedAt': updatedAt.toIso8601String(),
-        'currentStep': currentStep.name,
-        'isEditingPublished': isEditingPublished,
-        'draft': _draftToJson(draft),
-      };
+    'version': 2,
+    'managerUid': managerUid,
+    'updatedAt': updatedAt.toIso8601String(),
+    'currentStep': currentStep.name,
+    'isEditingPublished': isEditingPublished,
+    'draft': _draftToJson(draft),
+  };
 
   static TournamentCreateSession? fromJson(Map<String, dynamic> json) {
     try {
@@ -80,38 +80,38 @@ class TournamentCreateSession {
 }
 
 Map<String, dynamic> _draftToJson(TournamentCreateDraft draft) => {
-      'tournamentId': draft.tournamentId,
-      'sport': draft.sport.name,
-      'name': draft.name,
-      'coverImagePath': draft.coverImagePath,
-      'coverImageUrl': draft.coverImageUrl,
-      'description': draft.description,
-      'arenaId': draft.arenaId,
-      'locationName': draft.locationName,
-      'locationAddress': draft.locationAddress,
-      'city': draft.city,
-      'state': draft.state,
-      'startAt': draft.startAt?.toIso8601String(),
-      'endAt': draft.endAt?.toIso8601String(),
-      'firstMatchAt': draft.firstMatchAt?.toIso8601String(),
-      'courtsCount': draft.courtsCount,
-      'categories': draft.categories.map(_categoryToJson).toList(),
-      'defaultPriceCents': draft.defaultPriceCents,
-      'registrationOpensAt': draft.registrationOpensAt?.toIso8601String(),
-      'registrationClosesAt': draft.registrationClosesAt?.toIso8601String(),
-      'paymentMode': draft.paymentMode.name,
-      'waitlistEnabled': draft.waitlistEnabled,
-      'inviteConfirmEnabled': draft.inviteConfirmEnabled,
-      'cashPrizesEnabled': draft.cashPrizesEnabled,
-      'regulationPdfPath': draft.regulationPdfPath,
-      'regulationNotes': draft.regulationNotes,
-      'uniformRequired': draft.uniformRequired,
-      'uniformNumberOnShirt': draft.uniformNumberOnShirt,
-      'uniformNameOnShirt': draft.uniformNameOnShirt,
-      'rankingEnabled': draft.rankingEnabled,
-      'rankingTableId': draft.rankingTableId,
-      'visibility': draft.visibility.name,
-    };
+  'tournamentId': draft.tournamentId,
+  'sport': draft.sport.name,
+  'name': draft.name,
+  'coverImagePath': draft.coverImagePath,
+  'coverImageUrl': draft.coverImageUrl,
+  'description': draft.description,
+  'arenaId': draft.arenaId,
+  'locationName': draft.locationName,
+  'locationAddress': draft.locationAddress,
+  'city': draft.city,
+  'state': draft.state,
+  'startAt': draft.startAt?.toIso8601String(),
+  'endAt': draft.endAt?.toIso8601String(),
+  'firstMatchAt': draft.firstMatchAt?.toIso8601String(),
+  'courtsCount': draft.courtsCount,
+  'categories': draft.categories.map(_categoryToJson).toList(),
+  'defaultPriceCents': draft.defaultPriceCents,
+  'registrationOpensAt': draft.registrationOpensAt?.toIso8601String(),
+  'registrationClosesAt': draft.registrationClosesAt?.toIso8601String(),
+  'paymentMode': draft.paymentMode.name,
+  'waitlistEnabled': draft.waitlistEnabled,
+  'inviteConfirmEnabled': draft.inviteConfirmEnabled,
+  'cashPrizesEnabled': draft.cashPrizesEnabled,
+  'regulationPdfPath': draft.regulationPdfPath,
+  'regulationNotes': draft.regulationNotes,
+  'uniformRequired': draft.uniformRequired,
+  'uniformNumberOnShirt': draft.uniformNumberOnShirt,
+  'uniformNameOnShirt': draft.uniformNameOnShirt,
+  'rankingEnabled': draft.rankingEnabled,
+  'rankingTableId': draft.rankingTableId,
+  'visibility': draft.visibility.name,
+};
 
 TournamentCreateDraft? _draftFromJson(
   Map<String, dynamic> json, {
@@ -138,8 +138,9 @@ TournamentCreateDraft? _draftFromJson(
             TournamentBestOf.bestOf3,
           )
         : TournamentBestOf.bestOf3;
-    final legacyFinalBestOf5 =
-        version == 1 ? json['finalBestOf5'] as bool? ?? true : true;
+    final legacyFinalBestOf5 = version == 1
+        ? json['finalBestOf5'] as bool? ?? true
+        : true;
 
     var categories = _categoriesFromJson(
       json['categories'],
@@ -175,7 +176,7 @@ TournamentCreateDraft? _draftFromJson(
       firstMatchAt: _parseDate(json['firstMatchAt']),
       courtsCount: json['courtsCount'] as int? ?? 4,
       categories: categories,
-      defaultPriceCents: json['defaultPriceCents'] as int? ?? 18000,
+      defaultPriceCents: json['defaultPriceCents'] as int? ?? 22000,
       registrationOpensAt: _parseDate(json['registrationOpensAt']),
       registrationClosesAt: _parseDate(json['registrationClosesAt']),
       paymentMode: _enumByName(
@@ -205,33 +206,33 @@ TournamentCreateDraft? _draftFromJson(
 }
 
 Map<String, dynamic> _categoryToJson(TournamentCategoryDraft category) => {
-      'id': category.id,
-      'name': category.name,
-      'gender': category.gender.name,
-      'dispute': category.dispute.name,
-      'ageBand': category.ageBand.name,
-      'ageReference': category.ageReference.name,
-      'ageCustomEnabled': category.ageCustomEnabled,
-      if (category.ageMinYears != null) 'ageMinYears': category.ageMinYears,
-      if (category.ageMaxYears != null) 'ageMaxYears': category.ageMaxYears,
-      'skillLevel': category.skillLevel.name,
-      'spots': category.spots,
-      'useDefaultPrice': category.useDefaultPrice,
-      'priceCents': category.priceCents,
-      'bracketSystem': category.bracketSystem.name,
-      'teamsPerGroup': category.teamsPerGroup,
-      'qualifiersPerGroup': category.qualifiersPerGroup,
-      'bestOf': category.bestOf.name,
-      'finalBestOf5': category.finalBestOf5,
-      'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
-      'prizes': category.prizes.map(_prizeToJson).toList(),
-    };
+  'id': category.id,
+  'name': category.name,
+  'gender': category.gender.name,
+  'dispute': category.dispute.name,
+  'ageBand': category.ageBand.name,
+  'ageReference': category.ageReference.name,
+  'ageCustomEnabled': category.ageCustomEnabled,
+  if (category.ageMinYears != null) 'ageMinYears': category.ageMinYears,
+  if (category.ageMaxYears != null) 'ageMaxYears': category.ageMaxYears,
+  'skillLevel': category.skillLevel.name,
+  'spots': category.spots,
+  'useDefaultPrice': category.useDefaultPrice,
+  'priceCents': category.priceCents,
+  'bracketSystem': category.bracketSystem.name,
+  'teamsPerGroup': category.teamsPerGroup,
+  'qualifiersPerGroup': category.qualifiersPerGroup,
+  'bestOf': category.bestOf.name,
+  'finalBestOf5': category.finalBestOf5,
+  'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
+  'prizes': category.prizes.map(_prizeToJson).toList(),
+};
 
 Map<String, dynamic> _prizeToJson(TournamentCategoryPrizeDraft prize) => {
-      'position': prize.position,
-      'valueCents': prize.valueCents,
-      if (prize.label != null) 'label': prize.label,
-    };
+  'position': prize.position,
+  'valueCents': prize.valueCents,
+  if (prize.label != null) 'label': prize.label,
+};
 
 List<TournamentCategoryDraft> _categoriesFromJson(
   dynamic raw, {
@@ -345,11 +346,7 @@ List<TournamentCategoryPrizeDraft> _prizesFromJson(dynamic raw) {
   }).toList();
 }
 
-T _enumByName<T extends Enum>(
-  List<T> values,
-  String? name,
-  T fallback,
-) {
+T _enumByName<T extends Enum>(List<T> values, String? name, T fallback) {
   if (name == null) return fallback;
   for (final value in values) {
     if (value.name == name) return value;

@@ -2,12 +2,17 @@ import { Injectable, computed, signal } from '@angular/core';
 import { getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import {
   GoogleAuthProvider,
+  OAuthProvider,
+  confirmPasswordReset,
+  createUserWithEmailAndPassword,
   getAuth,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  updateProfile,
+  verifyPasswordResetCode,
   type User,
 } from 'firebase/auth';
 import { environment } from '../../environments/environment';
@@ -90,9 +95,35 @@ export class AuthService {
     await signInWithPopup(auth, provider);
   }
 
+  async signInWithApple(): Promise<void> {
+    const auth = this.ensureAuth();
+    const provider = new OAuthProvider('apple.com');
+    await signInWithPopup(auth, provider);
+  }
+
+  async signUpWithEmail(name: string, email: string, password: string): Promise<void> {
+    const auth = this.ensureAuth();
+    const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    const trimmedName = name.trim();
+    if (trimmedName) {
+      await updateProfile(credential.user, { displayName: trimmedName });
+    }
+  }
+
   async sendPasswordReset(email: string): Promise<void> {
     const auth = this.ensureAuth();
     await sendPasswordResetEmail(auth, email.trim());
+  }
+
+  /** Retorna o e-mail associado ao link de redefinição (lança se o oobCode for inválido/expirado). */
+  async verifyResetCode(oobCode: string): Promise<string> {
+    const auth = this.ensureAuth();
+    return verifyPasswordResetCode(auth, oobCode);
+  }
+
+  async confirmReset(oobCode: string, newPassword: string): Promise<void> {
+    const auth = this.ensureAuth();
+    await confirmPasswordReset(auth, oobCode, newPassword);
   }
 
   async signOutUser(): Promise<void> {

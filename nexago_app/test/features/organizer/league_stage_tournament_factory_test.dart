@@ -10,7 +10,7 @@ LeagueStageCreateDraft _draft() {
   return LeagueStageCreateDraft(
     leagueId: 'league-1',
     leagueName: 'Circuito Verão',
-    defaultPriceCents: 9000,
+    defaultPriceCents: 22000,
     stage: LeagueStageDraft(
       id: 'stage-2',
       name: 'Etapa 2',
@@ -27,14 +27,14 @@ LeagueStageCreateDraft _draft() {
         name: 'Masc Open',
         enabled: true,
         spots: 16,
-        priceCents: 9000,
+        priceCents: 22000,
       ),
       LeagueStageCategoryDraft(
         categoryId: 'c2',
         name: 'Fem Open',
         enabled: false,
         spots: 12,
-        priceCents: 9000,
+        priceCents: 22000,
       ),
     ],
     courtsCount: 6,

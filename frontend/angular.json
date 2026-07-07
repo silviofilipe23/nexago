@@ -284,11 +284,6 @@
             "browser": "projects/athlete/src/main.ts",
             "tsConfig": "projects/athlete/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
-            "stylePreprocessorOptions": {
-              "includePaths": [
-                "projects/site/src"
-              ]
-            },
             "assets": [
               {
                 "glob": "**/*",
@@ -296,7 +291,8 @@
               }
             ],
             "styles": [
-              "projects/athlete/src/styles.scss"
+              "projects/athlete/src/styles.scss",
+              "projects/athlete/src/nx-auth.css"
             ]
           },
           "configurations": {
@@ -309,8 +305,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "8kB",
-                  "maximumError": "12kB"
+                  "maximumWarning": "12kB",
+                  "maximumError": "24kB"
                 }
               ],
               "outputHashing": "all",
@@ -349,11 +345,6 @@
           "options": {
             "tsConfig": "projects/athlete/tsconfig.spec.json",
             "inlineStyleLanguage": "scss",
-            "stylePreprocessorOptions": {
-              "includePaths": [
-                "projects/site/src"
-              ]
-            },
             "assets": [
               {
                 "glob": "**/*",
@@ -361,7 +352,8 @@
               }
             ],
             "styles": [
-              "projects/athlete/src/styles.scss"
+              "projects/athlete/src/styles.scss",
+              "projects/athlete/src/nx-auth.css"
             ]
           }
         }

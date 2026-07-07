@@ -20,6 +20,14 @@ export function mapFirebaseAuthError(error: unknown): string {
       return 'Muitas tentativas. Tente de novo em alguns minutos.';
     case 'auth/network-request-failed':
       return 'Sem conexão. Verifique a internet.';
+    case 'auth/email-already-in-use':
+      return 'Já existe uma conta com este e-mail.';
+    case 'auth/weak-password':
+      return 'Senha muito fraca. Use ao menos 8 caracteres, com maiúscula e número.';
+    case 'auth/expired-action-code':
+      return 'Este link expirou. Peça um novo.';
+    case 'auth/invalid-action-code':
+      return 'Este link já foi usado ou é inválido. Peça um novo.';
     default:
       if (code.startsWith('auth/')) {
         return 'Não foi possível entrar. Tente novamente.';

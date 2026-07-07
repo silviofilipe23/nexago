@@ -1,6 +1,16 @@
 import { environment } from '../../environments/environment';
 
-export type AuthTelemetryEvent = 'login_attempt' | 'login_success' | 'login_error';
+export type AuthTelemetryEvent =
+  | 'login_attempt'
+  | 'login_success'
+  | 'login_error'
+  | 'signup_attempt'
+  | 'signup_success'
+  | 'signup_error'
+  | 'password_reset_request'
+  | 'password_reset_request_error'
+  | 'password_reset_confirm'
+  | 'password_reset_confirm_error';
 
 /** Hook simples para futuro analytics (GA4, etc.). Em dev, loga no console. */
 export function trackAuthEvent(

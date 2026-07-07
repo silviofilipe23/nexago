@@ -33,12 +33,12 @@ class LeagueCreateSession {
   }
 
   Map<String, dynamic> toJson() => {
-        'version': 1,
-        'managerUid': managerUid,
-        'updatedAt': updatedAt.toIso8601String(),
-        'currentStep': currentStep.name,
-        'draft': _draftToJson(draft),
-      };
+    'version': 1,
+    'managerUid': managerUid,
+    'updatedAt': updatedAt.toIso8601String(),
+    'currentStep': currentStep.name,
+    'draft': _draftToJson(draft),
+  };
 
   static LeagueCreateSession? fromJson(Map<String, dynamic> json) {
     try {
@@ -49,8 +49,9 @@ class LeagueCreateSession {
       if (managerUid.isEmpty) return null;
 
       final updatedAtRaw = json['updatedAt'] as String?;
-      final updatedAt =
-          updatedAtRaw != null ? DateTime.tryParse(updatedAtRaw) : null;
+      final updatedAt = updatedAtRaw != null
+          ? DateTime.tryParse(updatedAtRaw)
+          : null;
       if (updatedAt == null) return null;
 
       final currentStep = _parseStep(json['currentStep'] as String?);
@@ -74,30 +75,30 @@ class LeagueCreateSession {
 }
 
 Map<String, dynamic> _draftToJson(LeagueCreateDraft draft) => {
-      'leagueId': draft.leagueId,
-      'sport': draft.sport.name,
-      'name': draft.name,
-      'organizationName': draft.organizationName,
-      'coverImagePath': draft.coverImagePath,
-      'description': draft.description,
-      'city': draft.city,
-      'state': draft.state,
-      'seasonStartAt': draft.seasonStartAt?.toIso8601String(),
-      'seasonEndAt': draft.seasonEndAt?.toIso8601String(),
-      'plannedStagesCount': draft.plannedStagesCount,
-      'grandFinalEnabled': draft.grandFinalEnabled,
-      'categories': draft.categories.map(_categoryToJson).toList(),
-      'defaultPriceCents': draft.defaultPriceCents,
-      'countingStagesMode': draft.countingStagesMode.name,
-      'rankingTableId': draft.rankingTableId,
-      'rankingPointsByPlace': draft.rankingPointsByPlace.map(
-        (k, v) => MapEntry(k, v),
-      ),
-      'grandFinalSpots': draft.grandFinalSpots,
-      'wildcardEnabled': draft.wildcardEnabled,
-      'wildcardSpots': draft.wildcardSpots,
-      'stages': draft.stages.map(_stageToJson).toList(),
-    };
+  'leagueId': draft.leagueId,
+  'sport': draft.sport.name,
+  'name': draft.name,
+  'organizationName': draft.organizationName,
+  'coverImagePath': draft.coverImagePath,
+  'description': draft.description,
+  'city': draft.city,
+  'state': draft.state,
+  'seasonStartAt': draft.seasonStartAt?.toIso8601String(),
+  'seasonEndAt': draft.seasonEndAt?.toIso8601String(),
+  'plannedStagesCount': draft.plannedStagesCount,
+  'grandFinalEnabled': draft.grandFinalEnabled,
+  'categories': draft.categories.map(_categoryToJson).toList(),
+  'defaultPriceCents': draft.defaultPriceCents,
+  'countingStagesMode': draft.countingStagesMode.name,
+  'rankingTableId': draft.rankingTableId,
+  'rankingPointsByPlace': draft.rankingPointsByPlace.map(
+    (k, v) => MapEntry(k, v),
+  ),
+  'grandFinalSpots': draft.grandFinalSpots,
+  'wildcardEnabled': draft.wildcardEnabled,
+  'wildcardSpots': draft.wildcardSpots,
+  'stages': draft.stages.map(_stageToJson).toList(),
+};
 
 LeagueCreateDraft? _draftFromJson(Map<String, dynamic> json) {
   try {
@@ -119,14 +120,16 @@ LeagueCreateDraft? _draftFromJson(Map<String, dynamic> json) {
       plannedStagesCount: json['plannedStagesCount'] as int? ?? 6,
       grandFinalEnabled: json['grandFinalEnabled'] as bool? ?? true,
       categories: _categoriesFromJson(json['categories']),
-      defaultPriceCents: json['defaultPriceCents'] as int? ?? 9000,
+      defaultPriceCents: json['defaultPriceCents'] as int? ?? 22000,
       countingStagesMode: _enumByName(
         LeagueCountingStagesMode.values,
         json['countingStagesMode'] as String?,
         LeagueCountingStagesMode.best4Of6,
       ),
       rankingTableId: json['rankingTableId'] as String? ?? 'state_circuit',
-      rankingPointsByPlace: _rankingPointsFromJson(json['rankingPointsByPlace']),
+      rankingPointsByPlace: _rankingPointsFromJson(
+        json['rankingPointsByPlace'],
+      ),
       grandFinalSpots: json['grandFinalSpots'] as int? ?? 16,
       wildcardEnabled: json['wildcardEnabled'] as bool? ?? false,
       wildcardSpots: json['wildcardSpots'] as int? ?? 2,
@@ -138,19 +141,19 @@ LeagueCreateDraft? _draftFromJson(Map<String, dynamic> json) {
 }
 
 Map<String, dynamic> _stageToJson(LeagueStageDraft stage) => {
-      'id': stage.id,
-      'name': stage.name,
-      'order': stage.order,
-      'status': stage.status.name,
-      'isGrandFinal': stage.isGrandFinal,
-      'locationName': stage.locationName,
-      'city': stage.city,
-      'state': stage.state,
-      'startAt': stage.startAt?.toIso8601String(),
-      'endAt': stage.endAt?.toIso8601String(),
-      'dateLabel': stage.dateLabel,
-      'tournamentIds': stage.tournamentIds,
-    };
+  'id': stage.id,
+  'name': stage.name,
+  'order': stage.order,
+  'status': stage.status.name,
+  'isGrandFinal': stage.isGrandFinal,
+  'locationName': stage.locationName,
+  'city': stage.city,
+  'state': stage.state,
+  'startAt': stage.startAt?.toIso8601String(),
+  'endAt': stage.endAt?.toIso8601String(),
+  'dateLabel': stage.dateLabel,
+  'tournamentIds': stage.tournamentIds,
+};
 
 List<LeagueStageDraft> _stagesFromJson(dynamic raw) {
   if (raw is! List) return const [];
@@ -181,9 +184,10 @@ LeagueStageDraft? _stageFromJson(Map<String, dynamic> json) {
       startAt: _parseDate(json['startAt']),
       endAt: _parseDate(json['endAt']),
       dateLabel: json['dateLabel'] as String? ?? '',
-      tournamentIds: (json['tournamentIds'] as List?)
-              ?.whereType<String>()
-              .toList(growable: false) ??
+      tournamentIds:
+          (json['tournamentIds'] as List?)?.whereType<String>().toList(
+            growable: false,
+          ) ??
           const [],
     );
   } catch (_) {
@@ -197,29 +201,29 @@ Map<String, int> _rankingPointsFromJson(dynamic raw) {
 }
 
 Map<String, dynamic> _categoryToJson(TournamentCategoryDraft category) => {
-      'id': category.id,
-      'name': category.name,
-      'gender': category.gender.name,
-      'dispute': category.dispute.name,
-      'ageBand': category.ageBand.name,
-      'skillLevel': category.skillLevel.name,
-      'spots': category.spots,
-      'useDefaultPrice': category.useDefaultPrice,
-      'priceCents': category.priceCents,
-      'bracketSystem': category.bracketSystem.name,
-      'teamsPerGroup': category.teamsPerGroup,
-      'qualifiersPerGroup': category.qualifiersPerGroup,
-      'bestOf': category.bestOf.name,
-      'finalBestOf5': category.finalBestOf5,
-      'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
-      'prizes': category.prizes.map(_prizeToJson).toList(),
-    };
+  'id': category.id,
+  'name': category.name,
+  'gender': category.gender.name,
+  'dispute': category.dispute.name,
+  'ageBand': category.ageBand.name,
+  'skillLevel': category.skillLevel.name,
+  'spots': category.spots,
+  'useDefaultPrice': category.useDefaultPrice,
+  'priceCents': category.priceCents,
+  'bracketSystem': category.bracketSystem.name,
+  'teamsPerGroup': category.teamsPerGroup,
+  'qualifiersPerGroup': category.qualifiersPerGroup,
+  'bestOf': category.bestOf.name,
+  'finalBestOf5': category.finalBestOf5,
+  'maxRegistrationsPerAthlete': category.maxRegistrationsPerAthlete,
+  'prizes': category.prizes.map(_prizeToJson).toList(),
+};
 
 Map<String, dynamic> _prizeToJson(TournamentCategoryPrizeDraft prize) => {
-      'position': prize.position,
-      'valueCents': prize.valueCents,
-      if (prize.label != null) 'label': prize.label,
-    };
+  'position': prize.position,
+  'valueCents': prize.valueCents,
+  if (prize.label != null) 'label': prize.label,
+};
 
 List<TournamentCategoryDraft> _categoriesFromJson(dynamic raw) {
   if (raw is! List) return const [];
@@ -259,7 +263,7 @@ TournamentCategoryDraft? _categoryFromJson(Map<String, dynamic> json) {
       ),
       spots: json['spots'] as int? ?? 16,
       useDefaultPrice: json['useDefaultPrice'] as bool? ?? true,
-      priceCents: json['priceCents'] as int? ?? 9000,
+      priceCents: json['priceCents'] as int? ?? 22000,
       bracketSystem: _enumByName(
         TournamentBracketSystem.values,
         json['bracketSystem'] as String?,
@@ -293,11 +297,7 @@ List<TournamentCategoryPrizeDraft> _prizesFromJson(dynamic raw) {
   }).toList();
 }
 
-T _enumByName<T extends Enum>(
-  List<T> values,
-  String? name,
-  T fallback,
-) {
+T _enumByName<T extends Enum>(List<T> values, String? name, T fallback) {
   if (name == null) return fallback;
   for (final value in values) {
     if (value.name == name) return value;

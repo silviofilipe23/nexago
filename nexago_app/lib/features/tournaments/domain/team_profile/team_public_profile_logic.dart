@@ -176,6 +176,7 @@ List<TeamCampaignEntry> buildTeamCampaigns({
 List<TeamHeadToHeadEntry> buildTeamHeadToHead({
   required List<TournamentMatch> matches,
   required String teamId,
+  Map<String, String> teamDisplayNames = const {},
 }) {
   final id = teamId.trim();
   if (id.isEmpty) return const [];
@@ -196,7 +197,11 @@ List<TeamHeadToHeadEntry> buildTeamHeadToHead({
     } else if (match.winnerId?.trim().isNotEmpty == true) {
       acc.losses++;
     }
-    acc.opponentLabel = _opponentLabel(match: match, teamId: id);
+    acc.opponentLabel = _opponentLabel(
+      match: match,
+      teamId: id,
+      teamDisplayNames: teamDisplayNames,
+    );
     final played = playedAtForMatch(match);
     if (played != null &&
         (acc.lastPlayedAt == null || played.isAfter(acc.lastPlayedAt!))) {
@@ -288,6 +293,7 @@ int _matchRoundDepth(TournamentMatch match) {
 String _opponentLabel({
   required TournamentMatch match,
   required String teamId,
+  Map<String, String> teamDisplayNames = const {},
 }) {
   final id = teamId.trim();
   final isTeamA = match.teamAId.trim() == id;
@@ -295,8 +301,14 @@ String _opponentLabel({
       ? match.teamBDescription?.trim()
       : match.teamADescription?.trim();
   if (description != null && description.isNotEmpty) return description;
-  final opponentId = match.opponentTeamIdFor(id);
-  if (opponentId != null && opponentId.isNotEmpty) return opponentId;
+  final opponentId = match.opponentTeamIdFor(id)?.trim();
+  if (opponentId != null && opponentId.isNotEmpty) {
+    final resolved = teamDisplayNames[opponentId]?.trim();
+    if (resolved != null && resolved.isNotEmpty && resolved != opponentId) {
+      return resolved;
+    }
+    return opponentId;
+  }
   return 'Adversário';
 }
 

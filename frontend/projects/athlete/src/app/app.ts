@@ -8,9 +8,15 @@ function pathOnly(url: string): string {
   return i >= 0 ? url.slice(0, i) : url;
 }
 
+const SHELL_ROUTE_PREFIXES = ['/painel', '/agenda', '/torneios', '/ligas', '/perfil'];
+const AUTH_ROUTES = ['/entrar', '/cadastro', '/esqueci-senha', '/email-enviado', '/redefinir-senha'];
+
 function chromeHiddenForUrl(url: string): boolean {
   const p = pathOnly(url);
-  return p === '/entrar' || p === '/cadastro';
+  if (AUTH_ROUTES.includes(p)) {
+    return true;
+  }
+  return SHELL_ROUTE_PREFIXES.some((prefix) => p === prefix || p.startsWith(`${prefix}/`));
 }
 
 @Component({

@@ -6,7 +6,7 @@ import 'package:nexago_app/core/ui/app_snackbar.dart';
 import 'package:nexago_app/core/ui/feedback/feedback_page.dart';
 import 'package:nexago_app/core/ui/feedback/feedback_published_share_row.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:nexago_app/core/ui/nexa_share.dart';
 
 class TournamentPublishedArgs {
   const TournamentPublishedArgs({
@@ -36,7 +36,8 @@ class TournamentPublishedPage extends StatelessWidget {
           ? 'Os atletas já podem encontrar e se inscrever. Compartilhe para lotar mais rápido.'
           : 'Você pode voltar depois para revisar e publicar.',
       extraContent: FeedbackPublishedShareRow(
-        onShare: () => Share.share(
+        onShare: () => nexaShareText(
+          context,
           'Inscreva-se no ${args.name}: $_shareLink',
         ),
         onCopyLink: () async {

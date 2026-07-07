@@ -84,8 +84,10 @@ class TeamMatchHistoryBundle {
   const TeamMatchHistoryBundle({
     this.matches = const [],
     this.tournamentNames = const {},
+    this.teamDisplayNames = const {},
   });
 
   final List<TournamentMatch> matches;
   final Map<String, String> tournamentNames;
+  final Map<String, String> teamDisplayNames;
 }

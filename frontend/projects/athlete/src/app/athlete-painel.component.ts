@@ -1,5 +1,5 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import {
   collection,
@@ -16,8 +16,11 @@ import {
 } from 'firebase/firestore';
 import { environment } from '../environments/environment';
 import { AuthService } from './auth/auth.service';
+import { AtPanelShellComponent } from './painel/at-panel-shell.component';
 
 type DashboardTone = 'accent' | 'success' | 'warning' | 'neutral';
+type ChartTab = 'Jogos' | 'Vitórias' | 'XP';
+type KpiTone = 'green' | 'orange';
 
 interface DashboardReservation {
   id: string;
@@ -41,16 +44,6 @@ interface DashboardNotification {
   tone: DashboardTone;
 }
 
-interface DashboardTournament {
-  id: string;
-  name: string;
-  dateLabel: string;
-  cityLabel: string;
-  levelLabel: string;
-  note: string;
-  tone: DashboardTone;
-}
-
 interface DashboardRanking {
   positionLabel: string;
   pointsLabel: string;
@@ -59,28 +52,36 @@ interface DashboardRanking {
   highlightLabel: string;
 }
 
-interface DashboardProfile {
-  fullName: string | null;
-  city: string | null;
-  level: string | null;
-  partnerName: string | null;
-  publicProfileEnabled: boolean;
-  isPro: boolean;
-  emailVerified: boolean;
+interface DashboardKpi {
+  label: string;
+  value: string;
+  delta: string;
+  tone: KpiTone;
+  icon?: 'flame';
 }
 
-interface DashboardChecklistItem {
+interface NetworkActivityItem {
+  id: string;
+  initials: string;
+  hue: number;
+  name: string;
+  message: string;
+  time: string;
+}
+
+interface MissionItem {
   id: string;
   label: string;
-  detail: string;
+  xp: number;
   done: boolean;
 }
 
-interface DashboardMetric {
-  label: string;
-  value: string;
-  note: string;
-  tone: DashboardTone;
+interface MyTournamentItem {
+  id: string;
+  name: string;
+  meta: string;
+  statusLabel: string;
+  statusTone: 'yellow' | 'green';
 }
 
 const PREVIEW_RESERVATIONS: readonly DashboardReservation[] = [
@@ -149,36 +150,6 @@ const PREVIEW_NOTIFICATIONS: readonly DashboardNotification[] = [
   },
 ];
 
-const RECOMMENDED_TOURNAMENTS: readonly DashboardTournament[] = [
-  {
-    id: 'recommended-tournament-1',
-    name: 'Open NexaGO Verao',
-    dateLabel: '12 maio',
-    cityLabel: 'Curitiba, PR',
-    levelLabel: 'Intermediario',
-    note: 'Ultimas vagas para duplas consistentes.',
-    tone: 'warning',
-  },
-  {
-    id: 'recommended-tournament-2',
-    name: 'Circuito Duplas 2x2',
-    dateLabel: '24 maio',
-    cityLabel: 'Sao Paulo, SP',
-    levelLabel: 'Avancado',
-    note: 'Janela boa para quem quer somar pontos.',
-    tone: 'accent',
-  },
-  {
-    id: 'recommended-tournament-3',
-    name: 'Copa Iniciantes Praia',
-    dateLabel: '08 jun',
-    cityLabel: 'Goiania, GO',
-    levelLabel: 'Iniciante',
-    note: 'Ideal para entrar no circuito sem pressao.',
-    tone: 'success',
-  },
-];
-
 const PREVIEW_RANKING: DashboardRanking = {
   positionLabel: '#27',
   pointsLabel: '1.240 pts',
@@ -187,15 +158,76 @@ const PREVIEW_RANKING: DashboardRanking = {
   highlightLabel: 'Seu volume de jogos esta ajudando a ganhar ritmo.',
 };
 
-const PREVIEW_PROFILE: DashboardProfile = {
-  fullName: null,
-  city: 'Goiania',
-  level: 'Intermediario',
-  partnerName: null,
-  publicProfileEnabled: true,
-  isPro: false,
-  emailVerified: true,
+const CHART_MONTHS: readonly string[] = [
+  'Ago', 'Set', 'Out', 'Nov', 'Dez', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul',
+];
+
+const CHART_DATASETS: Record<ChartTab, readonly number[]> = {
+  Jogos: [2, 3, 4, 3, 5, 6, 5, 7, 8, 10, 11, 14],
+  Vitórias: [40, 45, 42, 50, 55, 52, 58, 60, 63, 65, 66, 68],
+  XP: [120, 180, 150, 220, 260, 240, 300, 340, 380, 420, 460, 540],
 };
+
+const CHART_TABS: readonly ChartTab[] = ['Jogos', 'Vitórias', 'XP'];
+const CHART_W = 802;
+const CHART_H = 120;
+
+const NETWORK_ACTIVITY: readonly NetworkActivityItem[] = [
+  {
+    id: 'activity-1',
+    initials: 'EN',
+    hue: 130,
+    name: 'Enzo R.',
+    message: 'está procurando dupla pra hoje 22h em Arena CFC.',
+    time: '14:32',
+  },
+  {
+    id: 'activity-2',
+    initials: 'BR',
+    hue: 280,
+    name: 'Bruno V.',
+    message: 'venceu o desafio e subiu pro Nível 4.',
+    time: '13:05',
+  },
+  {
+    id: 'activity-3',
+    initials: 'CA',
+    hue: 320,
+    name: 'Camila S.',
+    message: 'se inscreveu na Etapa garden.',
+    time: '11:48',
+  },
+  {
+    id: 'activity-4',
+    initials: 'JU',
+    hue: 200,
+    name: 'Júlia P.',
+    message: 'te chamou pro jogo de sábado.',
+    time: '10:22',
+  },
+];
+
+const MISSIONS: readonly MissionItem[] = [
+  { id: 'play', label: 'Jogue 1x hoje', xp: 40, done: false },
+  { id: 'invite', label: 'Convide 1 jogador', xp: 30, done: false },
+];
+
+const MEUS_TORNEIOS: readonly MyTournamentItem[] = [
+  {
+    id: 'my-tournament-1',
+    name: 'Etapa garden',
+    meta: '21/07 · Beach Tennis',
+    statusLabel: 'Inscrito',
+    statusTone: 'yellow',
+  },
+  {
+    id: 'my-tournament-2',
+    name: 'Copa Goiás Beach',
+    meta: '2/6 etapas · Liga',
+    statusLabel: 'Ativo',
+    statusTone: 'green',
+  },
+];
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -229,6 +261,27 @@ function firstWord(value: string | null | undefined): string {
     return 'Atleta';
   }
   return trimmed.split(/\s+/)[0] ?? 'Atleta';
+}
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return 'AT';
+  }
+  const first = parts[0]?.[0] ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
+  return (first + last).toUpperCase() || 'AT';
+}
+
+function formatTodayLabel(now = new Date()): string {
+  const weekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'short' })
+    .format(now)
+    .replace('.', '');
+  const date = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+    .format(now)
+    .replace('.', '');
+  const gmt = -now.getTimezoneOffset() / 60;
+  return `${weekday} · ${date} · GMT${gmt >= 0 ? '+' : ''}${gmt}`;
 }
 
 function greetingByHour(now = new Date()): string {
@@ -272,18 +325,6 @@ function readNumber(data: DocumentData | null | undefined, keys: readonly string
     }
   }
   return null;
-}
-
-function readBoolean(data: DocumentData | null | undefined, keys: readonly string[]): boolean {
-  if (!data) {
-    return false;
-  }
-  for (const key of keys) {
-    if (data[key] === true) {
-      return true;
-    }
-  }
-  return false;
 }
 
 function toDate(value: unknown): Date | null {
@@ -478,58 +519,66 @@ function mapRankingDoc(data: DocumentData | null): DashboardRanking | null {
   };
 }
 
-function buildProfile(
-  userEmailVerified: boolean,
-  authDisplayName: string | null,
-  userDoc: DocumentData | null,
-  profileDoc: DocumentData | null,
-): DashboardProfile {
-  return {
-    fullName:
-      readString(userDoc, ['fullName', 'displayName', 'name']) ??
-      readString(profileDoc, ['fullName', 'displayName', 'name']) ??
-      authDisplayName,
-    city: readString(profileDoc, ['city', 'cidade']) ?? readString(userDoc, ['city', 'cidade']),
-    level:
-      readString(profileDoc, ['level', 'nivel', 'category', 'categoria']) ??
-      readString(userDoc, ['level', 'nivel', 'category', 'categoria']),
-    partnerName:
-      readString(profileDoc, ['favoritePartnerName', 'partnerName', 'duoPartnerName']) ??
-      readString(userDoc, ['favoritePartnerName', 'partnerName']),
-    publicProfileEnabled: readBoolean(profileDoc, ['publicProfileEnabled']),
-    isPro: readBoolean(profileDoc, ['isPro']),
-    emailVerified: userEmailVerified,
-  };
+function mapsSearchUrl(query: string): string {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
+function chartScale(data: readonly number[]): { max: number; min: number } {
+  return { max: Math.max(...data) * 1.15, min: Math.min(...data) * 0.75 };
+}
+
+function buildLinePath(data: readonly number[], w: number, h: number): string {
+  const { max, min } = chartScale(data);
+  const points = data.map((value, index) => {
+    const x = (index / (data.length - 1)) * w;
+    const y = h - ((value - min) / (max - min)) * h;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  return `M${points.join(' L')}`;
+}
+
+function buildAreaPath(linePath: string, w: number, h: number): string {
+  return `${linePath} L${w},${h} L0,${h} Z`;
+}
+
+function lastChartPoint(data: readonly number[], w: number, h: number): { x: number; y: number } {
+  const { max, min } = chartScale(data);
+  const value = data[data.length - 1] ?? 0;
+  return { x: w, y: h - ((value - min) / (max - min)) * h };
 }
 
 @Component({
   selector: 'app-athlete-painel',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, AtPanelShellComponent],
   templateUrl: './athlete-painel.component.html',
   styleUrl: './athlete-painel.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AthletePainelComponent {
   protected readonly auth = inject(AuthService);
-  private readonly router = inject(Router);
   private readonly firestore = createFirestore();
 
   private readonly liveReservationsState = signal<DashboardReservation[]>([]);
   private readonly liveNotificationsState = signal<DashboardNotification[]>([]);
   private readonly liveRankingState = signal<DashboardRanking | null>(null);
-  private readonly liveUserDoc = signal<DocumentData | null>(null);
-  private readonly liveProfileDoc = signal<DocumentData | null>(null);
 
-  protected readonly loadingReservations = signal(false);
-  protected readonly loadingNotifications = signal(false);
-  protected readonly loadingProfile = signal(false);
   protected readonly loadingRanking = signal(false);
   protected readonly syncError = signal<string | null>(null);
 
-  protected readonly recommendedTournaments = RECOMMENDED_TOURNAMENTS;
+  protected readonly networkActivity = NETWORK_ACTIVITY;
+  protected readonly missions = MISSIONS;
+  protected readonly myTournaments = MEUS_TORNEIOS;
+  protected readonly chartTabs = CHART_TABS;
+  protected readonly chartMonths = CHART_MONTHS;
+  protected readonly chartW = CHART_W;
+  protected readonly chartH = CHART_H;
+
+  protected readonly activeChartTab = signal<ChartTab>('Jogos');
 
   protected readonly hasLiveSession = computed(() => this.auth.user() != null);
   protected readonly greeting = computed(() => greetingByHour());
+  protected readonly todayLabel = computed(() => formatTodayLabel());
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
     if (liveUser?.displayName?.trim()) {
@@ -545,6 +594,7 @@ export class AthletePainelComponent {
     return 'Atleta';
   });
   protected readonly firstName = computed(() => firstWord(this.accountLabel()));
+  protected readonly headerInitials = computed(() => initialsOf(this.accountLabel()));
   protected readonly accountSubline = computed(() => {
     if (this.hasLiveSession()) {
       return 'Conta conectada com dados reais de reservas, ranking e notificacoes.';
@@ -560,122 +610,38 @@ export class AthletePainelComponent {
   protected readonly ranking = computed(() =>
     this.hasLiveSession() ? this.liveRankingState() : PREVIEW_RANKING,
   );
-  protected readonly profile = computed(() => {
-    if (!this.hasLiveSession()) {
-      return {
-        ...PREVIEW_PROFILE,
-        fullName: PREVIEW_PROFILE.fullName ?? this.accountLabel(),
-      };
-    }
-
-    const liveUser = this.auth.user();
-    return buildProfile(
-      liveUser?.emailVerified ?? false,
-      liveUser?.displayName?.trim() ?? null,
-      this.liveUserDoc(),
-      this.liveProfileDoc(),
-    );
-  });
   protected readonly nextReservation = computed(() => this.reservations()[0] ?? null);
+  protected readonly nextReservationMapsUrl = computed(() => {
+    const reservation = this.nextReservation();
+    return reservation ? mapsSearchUrl(reservation.arenaName) : null;
+  });
   protected readonly unreadNotifications = computed(
     () => this.notifications().filter((notification) => notification.unread).length,
   );
-  protected readonly checklist = computed<DashboardChecklistItem[]>(() => {
-    const profile = this.profile();
-    return [
-      {
-        id: 'identity',
-        label: 'Nome esportivo pronto',
-        detail: profile.fullName ? profile.fullName : 'Adicione como voce quer aparecer para outras duplas.',
-        done: !!profile.fullName,
-      },
-      {
-        id: 'verification',
-        label: 'Conta validada',
-        detail: profile.emailVerified ? 'Seu e-mail ja foi confirmado.' : 'Confirme o e-mail para reduzir atrito no check-in.',
-        done: profile.emailVerified,
-      },
-      {
-        id: 'level',
-        label: 'Nivel e cidade informados',
-        detail:
-          profile.city && profile.level
-            ? `${profile.city} · ${profile.level}`
-            : 'Preencha cidade e nivel para receber indicacoes melhores.',
-        done: !!profile.city && !!profile.level,
-      },
-      {
-        id: 'visibility',
-        label: 'Perfil publico configurado',
-        detail:
-          profile.publicProfileEnabled || (!!profile.fullName && !!profile.city && !!profile.level)
-            ? 'Sua vitrine publica ja tem base para aparecer no hub.'
-            : 'Complete seus dados para o perfil publico ficar atraente.',
-        done: profile.publicProfileEnabled || (!!profile.fullName && !!profile.city && !!profile.level),
-      },
-      {
-        id: 'pro',
-        label: 'Conta PRO',
-        detail: profile.isPro ? 'Beneficios PRO ativos no momento.' : 'Opcional para liberar recursos premium depois.',
-        done: profile.isPro,
-      },
-    ];
-  });
-  protected readonly checklistProgress = computed(() => {
-    const items = this.checklist();
-    if (items.length === 0) {
-      return 0;
-    }
-    const done = items.filter((item) => item.done).length;
-    return Math.round((done / items.length) * 100);
-  });
-  protected readonly profileHeadline = computed(() => {
-    const profile = this.profile();
-    if (profile.isPro) {
-      return 'Conta PRO ativa';
-    }
-    if (this.checklistProgress() >= 80) {
-      return 'Perfil pronto para convites';
-    }
-    return 'Complete o perfil do atleta';
-  });
-  protected readonly metrics = computed<DashboardMetric[]>(() => {
-    const nextReservation = this.nextReservation();
+
+  protected readonly kpis = computed<DashboardKpi[]>(() => {
     const ranking = this.ranking();
-    const profile = this.profile();
     return [
+      { label: 'Jogos no mês', value: '14', delta: '12%', tone: 'green' },
+      { label: 'Vitórias', value: '68%', delta: '4%', tone: 'green' },
+      { label: 'Sequência', value: '3 dias', delta: 'em jogo', tone: 'orange', icon: 'flame' },
       {
-        label: 'Proximo jogo',
-        value: nextReservation?.dateLabel ?? 'Sem agenda',
-        note: nextReservation ? `${nextReservation.arenaName} · ${nextReservation.timeLabel}` : 'Sua proxima reserva aparece aqui.',
-        tone: nextReservation?.statusTone ?? 'neutral',
-      },
-      {
-        label: 'Ranking',
-        value: ranking?.positionLabel ?? 'Novo',
-        note: ranking ? `${ranking.categoryLabel} · ${ranking.pointsLabel}` : 'Pontuacao entra depois das partidas.',
-        tone: ranking ? 'accent' : 'neutral',
-      },
-      {
-        label: 'Notificacoes',
-        value: `${this.unreadNotifications()}`,
-        note:
-          this.unreadNotifications() > 0
-            ? 'Itens novos aguardando sua atencao.'
-            : 'Sem alertas novos no momento.',
-        tone: this.unreadNotifications() > 0 ? 'warning' : 'success',
-      },
-      {
-        label: 'Perfil',
-        value: `${this.checklistProgress()}%`,
-        note:
-          profile.city && profile.level
-            ? `${profile.city} · ${profile.level}`
-            : 'Finalize seus dados para receber combinacoes melhores.',
-        tone: this.checklistProgress() >= 80 ? 'success' : 'accent',
+        label: 'Ranking municipal',
+        value: ranking?.positionLabel ?? '#412',
+        delta: '18 posições',
+        tone: 'green',
       },
     ];
   });
+
+  protected readonly missionsDone = computed(() => this.missions.filter((mission) => mission.done).length);
+
+  protected readonly chartData = computed(() => CHART_DATASETS[this.activeChartTab()]);
+  protected readonly chartLinePath = computed(() => buildLinePath(this.chartData(), CHART_W, CHART_H));
+  protected readonly chartAreaPath = computed(() =>
+    buildAreaPath(this.chartLinePath(), CHART_W, CHART_H),
+  );
+  protected readonly chartLastPoint = computed(() => lastChartPoint(this.chartData(), CHART_W, CHART_H));
 
   constructor() {
     effect((onCleanup) => {
@@ -686,11 +652,6 @@ export class AthletePainelComponent {
         this.liveReservationsState.set([]);
         this.liveNotificationsState.set([]);
         this.liveRankingState.set(null);
-        this.liveUserDoc.set(null);
-        this.liveProfileDoc.set(null);
-        this.loadingReservations.set(false);
-        this.loadingNotifications.set(false);
-        this.loadingProfile.set(false);
         this.loadingRanking.set(false);
         return;
       }
@@ -700,9 +661,6 @@ export class AthletePainelComponent {
         return;
       }
 
-      this.loadingReservations.set(true);
-      this.loadingNotifications.set(true);
-      this.loadingProfile.set(true);
       this.loadingRanking.set(true);
 
       const bookingsQuery = query(
@@ -724,11 +682,9 @@ export class AthletePainelComponent {
             .map(mapBookingDoc)
             .sort((a, b) => bookingSortValue(a).localeCompare(bookingSortValue(b), 'pt-BR'));
           this.liveReservationsState.set(next);
-          this.loadingReservations.set(false);
         },
         () => {
           this.syncError.set('Nao foi possivel atualizar as reservas agora.');
-          this.loadingReservations.set(false);
         },
       );
 
@@ -736,35 +692,9 @@ export class AthletePainelComponent {
         notificationsQuery,
         (snapshot) => {
           this.liveNotificationsState.set(snapshot.docs.map(mapNotificationDoc));
-          this.loadingNotifications.set(false);
         },
         () => {
           this.syncError.set('Nao foi possivel carregar as notificacoes agora.');
-          this.loadingNotifications.set(false);
-        },
-      );
-
-      const stopUserDoc = onSnapshot(
-        doc(this.firestore, 'users', user.uid),
-        (snapshot) => {
-          this.liveUserDoc.set(snapshot.exists() ? snapshot.data() : null);
-          this.loadingProfile.set(false);
-        },
-        () => {
-          this.syncError.set('Nao foi possivel ler seu perfil basico agora.');
-          this.loadingProfile.set(false);
-        },
-      );
-
-      const stopProfileDoc = onSnapshot(
-        doc(this.firestore, 'athlete_profiles', user.uid),
-        (snapshot) => {
-          this.liveProfileDoc.set(snapshot.exists() ? snapshot.data() : null);
-          this.loadingProfile.set(false);
-        },
-        () => {
-          this.syncError.set('Nao foi possivel ler o perfil completo do atleta agora.');
-          this.loadingProfile.set(false);
         },
       );
 
@@ -783,16 +713,13 @@ export class AthletePainelComponent {
       onCleanup(() => {
         stopBookings();
         stopNotifications();
-        stopUserDoc();
-        stopProfileDoc();
         stopRankingDoc();
       });
     });
   }
 
-  protected async logout(): Promise<void> {
-    await this.auth.signOutUser();
-    await this.router.navigateByUrl('/');
+  protected setChartTab(tab: ChartTab): void {
+    this.activeChartTab.set(tab);
   }
 
   protected jumpTo(sectionId: string): void {

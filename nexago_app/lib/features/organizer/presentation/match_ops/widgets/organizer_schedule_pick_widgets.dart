@@ -130,9 +130,7 @@ class _SchedulePickTabButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected
-          ? AppColors.brand
-          : context.themeColors.surfaceRaised,
+      color: selected ? AppColors.brand : context.themeColors.surfaceRaised,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
@@ -171,8 +169,8 @@ class _SchedulePickTabButton extends StatelessWidget {
                   color: selected
                       ? Colors.white
                       : (tab == SchedulePickTab.ready && count > 0
-                          ? AppColors.pending
-                          : context.themeColors.onSurfaceMuted),
+                            ? AppColors.pending
+                            : context.themeColors.onSurfaceMuted),
                 ),
               ),
             ],
@@ -258,7 +256,9 @@ class _SchedulePickChip extends StatelessWidget {
             style: AppTypography.soraRegular(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: selected ? AppColors.brand : context.themeColors.onSurfaceMuted,
+              color: selected
+                  ? AppColors.brand
+                  : context.themeColors.onSurfaceMuted,
             ),
           ),
         ),
@@ -268,10 +268,7 @@ class _SchedulePickChip extends StatelessWidget {
 }
 
 class SchedulePickSectionHeader extends StatelessWidget {
-  const SchedulePickSectionHeader({
-    super.key,
-    required this.activeTab,
-  });
+  const SchedulePickSectionHeader({super.key, required this.activeTab});
 
   final SchedulePickTab activeTab;
 
@@ -412,10 +409,7 @@ class SchedulePickMatchCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                _SchedulePickTeamRow(
-                  team: teamA,
-                  seed: seedA,
-                ),
+                _SchedulePickTeamRow(team: teamA, seed: seedA),
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Row(
@@ -452,10 +446,7 @@ class SchedulePickMatchCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Expanded(
-                      child: _SchedulePickTeamRow(
-                        team: teamB,
-                        seed: seedB,
-                      ),
+                      child: _SchedulePickTeamRow(team: teamB, seed: seedB),
                     ),
                     if (selectable) ...[
                       const SizedBox(width: 8),
@@ -503,17 +494,17 @@ class SchedulePickMatchCard extends StatelessWidget {
       return (SchedulePickLogic.partialReason.toUpperCase(), AppColors.pending);
     }
     if (SchedulePickLogic.isTentative(match)) {
-      return (SchedulePickLogic.tentativeReason.toUpperCase(), AppColors.pending);
+      return (
+        SchedulePickLogic.tentativeReason.toUpperCase(),
+        AppColors.pending,
+      );
     }
     return ('PRONTA', AppColors.win);
   }
 }
 
 class _SchedulePickTeamRow extends StatelessWidget {
-  const _SchedulePickTeamRow({
-    required this.team,
-    this.seed,
-  });
+  const _SchedulePickTeamRow({required this.team, this.seed});
 
   final LiveTableTeamData team;
   final int? seed;
@@ -633,7 +624,10 @@ class SchedulePickActionBar extends StatelessWidget {
                     alpha: 0.28,
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
             ),
             const SizedBox(width: 10),

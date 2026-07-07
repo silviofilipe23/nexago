@@ -13,11 +13,7 @@ import '../../category_ops/widgets/organizer_team_dual_avatars.dart';
 import 'organizer_match_live_table_widgets.dart';
 
 class ValidatePageHeader extends StatelessWidget {
-  const ValidatePageHeader({
-    super.key,
-    required this.onBack,
-    this.onMore,
-  });
+  const ValidatePageHeader({super.key, required this.onBack, this.onMore});
 
   final VoidCallback onBack;
   final VoidCallback? onMore;
@@ -46,7 +42,6 @@ class ValidatePageHeader extends StatelessWidget {
                     letterSpacing: 0.8,
                   ),
                 ),
-                const SizedBox(height: 4),
                 Text(
                   'Confirmar placar',
                   style: AppTypography.soraRegular(
@@ -59,13 +54,13 @@ class ValidatePageHeader extends StatelessWidget {
               ],
             ),
           ),
-          if (onMore != null)
-            _ValidateIconButton(
-              icon: Icons.more_horiz_rounded,
-              onPressed: onMore!,
-            )
-          else
-            const SizedBox(width: 40),
+          // if (onMore != null)
+          //   _ValidateIconButton(
+          //     icon: Icons.more_horiz_rounded,
+          //     onPressed: onMore!,
+          //   )
+          // else
+          //   const SizedBox(width: 40),
         ],
       ),
     );
@@ -93,9 +88,7 @@ class ValidateReporterCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: context.themeColors.surfaceRaised,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.brand.withValues(alpha: 0.45),
-          ),
+          border: Border.all(color: AppColors.brand.withValues(alpha: 0.45)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,7 +378,9 @@ class _ValidateSetCard extends StatelessWidget {
                   style: AppTypography.mono(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
-                    color: aWins ? AppColors.win : context.themeColors.onSurface,
+                    color: aWins
+                        ? AppColors.win
+                        : context.themeColors.onSurface,
                   ),
                 ),
                 Text(
@@ -464,8 +459,9 @@ class _ValidateConfirmationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor =
-        confirmed ? AppColors.win : context.themeColors.onSurfaceMuted;
+    final statusColor = confirmed
+        ? AppColors.win
+        : context.themeColors.onSurfaceMuted;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
@@ -479,9 +475,7 @@ class _ValidateConfirmationCard extends StatelessWidget {
       child: Column(
         children: [
           Icon(
-            confirmed
-                ? Icons.check_circle_rounded
-                : Icons.schedule_rounded,
+            confirmed ? Icons.check_circle_rounded : Icons.schedule_rounded,
             size: 22,
             color: statusColor,
           ),
@@ -551,7 +545,10 @@ class ValidateActionBar extends StatelessWidget {
                     alpha: 0.28,
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
             ),
             const SizedBox(width: 10),
@@ -567,7 +564,11 @@ class ValidateActionBar extends StatelessWidget {
                           color: Colors.black,
                         ),
                       )
-                    : const Icon(Icons.check_rounded, size: 20, color: Colors.black),
+                    : const Icon(
+                        Icons.check_rounded,
+                        size: 20,
+                        color: Colors.black,
+                      ),
                 label: Text(validating ? 'Validando…' : 'Validar resultado'),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.win,

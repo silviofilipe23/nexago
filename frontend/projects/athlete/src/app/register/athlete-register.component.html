@@ -1,0 +1,108 @@
+<app-auth-shell>
+  <div class="register-panel">
+    <header class="nx-form-header">
+      <div class="nx-kicker">Criar conta</div>
+      <h1>Cria teu perfil de atleta.</h1>
+      <p>Leva menos de 1 minuto. Depois é só completar esporte e cidade.</p>
+    </header>
+
+    @if (authError(); as err) {
+      <div class="nx-alert" role="alert">{{ err }}</div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="submit()" class="nx-stack" novalidate>
+      <label class="nx-field">
+        <span class="nx-field-label">Nome completo</span>
+        <span class="nx-field-box" [class.nx-field-box--error]="form.controls.name.invalid && form.controls.name.touched">
+          <input type="text" formControlName="name" autocomplete="name" placeholder="Marcelo Antunes" />
+        </span>
+        @if (form.controls.name.touched && form.controls.name.errors?.['required']) {
+          <span class="nx-field-msg nx-field-msg--error">Obrigatório</span>
+        }
+      </label>
+
+      <label class="nx-field">
+        <span class="nx-field-label">E-mail</span>
+        <span class="nx-field-box" [class.nx-field-box--error]="form.controls.email.invalid && form.controls.email.touched">
+          <input type="email" formControlName="email" autocomplete="email" inputmode="email" placeholder="voce@email.com" />
+        </span>
+        @if (form.controls.email.touched && form.controls.email.errors?.['required']) {
+          <span class="nx-field-msg nx-field-msg--error">Obrigatório</span>
+        }
+        @if (form.controls.email.touched && form.controls.email.errors?.['email']) {
+          <span class="nx-field-msg nx-field-msg--error">E-mail inválido</span>
+        }
+      </label>
+
+      <div class="nx-stack-sm">
+        <label class="nx-field">
+          <span class="nx-field-label">Senha</span>
+          <span class="nx-field-box" [class.nx-field-box--error]="form.controls.password.invalid && form.controls.password.touched">
+            <input
+              [type]="showPassword() ? 'text' : 'password'"
+              formControlName="password"
+              autocomplete="new-password"
+              placeholder="••••••••"
+            />
+            <button type="button" (click)="togglePassword()" [attr.aria-label]="showPassword() ? 'Ocultar senha' : 'Mostrar senha'">
+              @if (showPassword()) {
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
+                  <line x1="3" y1="3" x2="21" y2="21" />
+                </svg>
+              } @else {
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
+                </svg>
+              }
+            </button>
+          </span>
+          @if (form.controls.password.touched && form.controls.password.errors?.['pattern']) {
+            <span class="nx-field-msg nx-field-msg--error">Mín. 8 caracteres, 1 maiúscula, 1 número</span>
+          }
+        </label>
+        <app-password-strength-meter [password]="form.controls.password.value"></app-password-strength-meter>
+      </div>
+
+      <button type="submit" class="nx-btn-primary" style="margin-top: 8px" [disabled]="submitting()">
+        @if (submitting()) {
+          <span class="nx-spinner" aria-hidden="true"></span>
+          <span>Criando conta…</span>
+        } @else {
+          <span>Criar conta</span>
+        }
+      </button>
+    </form>
+
+    @if (firebaseConfigured()) {
+      <div class="nx-divider"><span>ou</span></div>
+
+      <div class="nx-stack-sm">
+        <button type="button" class="nx-btn-sso" [disabled]="submitting()" (click)="google()">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4" />
+            <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" fill="#34A853" />
+            <path d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05" />
+            <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335" />
+          </svg>
+          <span>Continuar com Google</span>
+        </button>
+        <button type="button" class="nx-btn-sso" [disabled]="submitting()" (click)="apple()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="var(--nx-text)">
+            <path d="M17.05 12.04c-.03-2.96 2.42-4.38 2.53-4.45-1.38-2.02-3.53-2.3-4.29-2.33-1.83-.19-3.57 1.08-4.5 1.08-.94 0-2.36-1.05-3.88-1.02-2 .03-3.84 1.16-4.87 2.95-2.08 3.6-.53 8.93 1.49 11.86.99 1.43 2.16 3.04 3.69 2.99 1.48-.06 2.04-.96 3.83-.96 1.79 0 2.29.96 3.86.93 1.59-.03 2.6-1.46 3.57-2.9 1.13-1.66 1.6-3.27 1.62-3.36-.04-.02-3.11-1.19-3.15-4.79zM14.32 3.65c.82-.99 1.37-2.37 1.22-3.75-1.18.05-2.61.79-3.45 1.78-.75.87-1.41 2.27-1.23 3.62 1.31.1 2.65-.66 3.46-1.65z" />
+          </svg>
+          <span>Continuar com Apple</span>
+        </button>
+      </div>
+    }
+
+    <p class="nx-fine">
+      Ao continuar, você aceita os <strong>Termos</strong> e a <strong>Privacidade</strong> do NexaGO.
+    </p>
+
+    <p class="nx-fine">
+      Já tem conta?
+      <a class="nx-text-link" routerLink="/entrar" [queryParams]="{ redirect: returnUrl }">Entrar</a>
+    </p>
+  </div>
+</app-auth-shell>

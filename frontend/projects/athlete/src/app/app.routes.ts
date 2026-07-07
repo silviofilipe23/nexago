@@ -4,8 +4,8 @@ import { authGuard } from './auth/auth.guard';
 export const routes: Routes = [
   {
     path: '',
-    loadComponent: () =>
-      import('./athlete-home.component').then((m) => m.AthleteHomeComponent),
+    pathMatch: 'full',
+    redirectTo: 'entrar',
   },
   {
     path: 'atletas/:handle',
@@ -23,6 +23,27 @@ export const routes: Routes = [
     path: 'cadastro',
     loadComponent: () =>
       import('./register/athlete-register.component').then((m) => m.AthleteRegisterComponent),
+  },
+  {
+    path: 'esqueci-senha',
+    loadComponent: () =>
+      import('./auth/forgot-password/athlete-forgot-password.component').then(
+        (m) => m.AthleteForgotPasswordComponent,
+      ),
+  },
+  {
+    path: 'email-enviado',
+    loadComponent: () =>
+      import('./auth/reset-sent/athlete-reset-sent.component').then(
+        (m) => m.AthleteResetSentComponent,
+      ),
+  },
+  {
+    path: 'redefinir-senha',
+    loadComponent: () =>
+      import('./auth/reset-password/athlete-reset-password.component').then(
+        (m) => m.AthleteResetPasswordComponent,
+      ),
   },
   {
     path: 'painel',

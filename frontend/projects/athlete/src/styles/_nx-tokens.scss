@@ -1,0 +1,80 @@
+// NexaGO — Design Tokens (nx-)
+// Transcrito 1:1 de tokens.css do projeto de design claude.ai/design "nexago"
+// (id 2936d12d-662f-4ad7-a36d-0760b0b95a86). Fonte da verdade visual pro app athlete.
+// Mobile-first, dark-primary. Não editar valores aqui sem checar o projeto de design.
+
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  /* ── Color · Surfaces (dark-first) ────────────────────────── */
+  --nx-bg: #050505; /* canvas */
+  --nx-surface-0: #0b0b0c; /* card resting */
+  --nx-surface-1: #131316; /* raised */
+  --nx-surface-2: #1b1b1f; /* overlay / sheet */
+  --nx-line: rgba(255, 255, 255, 0.08);
+  --nx-line-strong: rgba(255, 255, 255, 0.16);
+  --nx-glass: rgba(20, 20, 22, 0.62);
+
+  /* ── Color · Brand ──────────────────────────────────────── */
+  --nx-orange-500: #ff6a1a; /* primary */
+  --nx-orange-400: #ff8a4a;
+  --nx-orange-600: #e5560e;
+  --nx-orange-tint: rgba(255, 106, 26, 0.12);
+
+  /* ── Color · Text ───────────────────────────────────────── */
+  --nx-text: #f4f4f5;
+  --nx-text-mute: rgba(244, 244, 245, 0.62);
+  /* 0.55, não 0.40 do tokens.css original: eleva contraste pra AA em texto
+     pequeno sobre #050505 (mesmo ajuste já aplicado no projeto site). */
+  --nx-text-dim: rgba(244, 244, 245, 0.55);
+  --nx-text-on-orange: #0a0a0a;
+
+  /* ── Color · Status ─────────────────────────────────────── */
+  --nx-live: #ff3b30;
+  --nx-win: #2bd17e;
+  --nx-pending: #f4c543;
+
+  /* ── Type ────────────────────────────────────────────────
+     Headlines: Sora (geometric, athletic).
+     UI body:   Inter (legível em tamanhos pequenos).
+     Mono:      JetBrains Mono (numéricos, placar) */
+  --nx-font-display: 'Sora', system-ui, sans-serif;
+  --nx-font-ui: 'Inter', system-ui, sans-serif;
+  --nx-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* ── Spacing (base 4) ───────────────────────────────────── */
+  --nx-s-1: 4px;
+  --nx-s-2: 8px;
+  --nx-s-3: 12px;
+  --nx-s-4: 16px;
+  --nx-s-5: 20px;
+  --nx-s-6: 24px;
+  --nx-s-7: 32px;
+  --nx-s-8: 40px;
+  --nx-s-9: 56px;
+
+  /* ── Radius ─────────────────────────────────────────────── */
+  --nx-r-1: 6px;
+  --nx-r-2: 10px;
+  --nx-r-3: 14px;
+  --nx-r-4: 18px;
+  --nx-r-5: 24px;
+  --nx-r-pill: 999px;
+
+  /* ── Elevation ───────────────────────────────────────────── */
+  --nx-elev-1:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
+  --nx-elev-2:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 8px 24px rgba(0, 0, 0, 0.55);
+  --nx-elev-3:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 24px 60px rgba(0, 0, 0, 0.65);
+  --nx-glow-orange:
+    0 0 0 1px rgba(255, 106, 26, 0.3), 0 12px 40px rgba(255, 106, 26, 0.25);
+
+  /* ── Motion ─────────────────────────────────────────────── */
+  --nx-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --nx-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --nx-d-fast: 140ms;
+  --nx-d-base: 240ms;
+  --nx-d-slow: 420ms;
+}

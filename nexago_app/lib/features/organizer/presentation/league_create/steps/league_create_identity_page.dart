@@ -10,6 +10,7 @@ import '../../../domain/league_create/league_create_draft.dart';
 import '../../../domain/league_create/league_create_providers.dart';
 import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
+import '../../../../athlete/presentation/widgets/br_state_city_fields.dart';
 import '../league_create_navigation.dart';
 import '../league_create_wizard_scaffold.dart';
 import '../../tournament_create/widgets/organizer_form_widgets.dart';
@@ -27,8 +28,6 @@ class _LeagueCreateIdentityPageState
   late final TextEditingController _nameController;
   late final TextEditingController _organizationController;
   late final TextEditingController _descriptionController;
-  late final TextEditingController _cityController;
-  late final TextEditingController _stateController;
 
   @override
   void initState() {
@@ -38,8 +37,6 @@ class _LeagueCreateIdentityPageState
     _organizationController =
         TextEditingController(text: draft.organizationName);
     _descriptionController = TextEditingController(text: draft.description);
-    _cityController = TextEditingController(text: draft.city);
-    _stateController = TextEditingController(text: draft.state);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       syncLeagueWizardStep(ref, LeagueCreateStep.identity);
     });
@@ -50,8 +47,6 @@ class _LeagueCreateIdentityPageState
     _nameController.dispose();
     _organizationController.dispose();
     _descriptionController.dispose();
-    _cityController.dispose();
-    _stateController.dispose();
     super.dispose();
   }
 
@@ -194,23 +189,22 @@ class _LeagueCreateIdentityPageState
                 .setDescription(value),
           ),
           const SizedBox(height: 20),
-          const OrganizerSectionLabel('CIDADE', optional: true),
+          const OrganizerSectionLabel('ESTADO E CIDADE', optional: true),
           const SizedBox(height: 8),
-          OrganizerTextField(
-            controller: _cityController,
-            hintText: 'Goiânia',
-            onChanged: (value) =>
-                ref.read(leagueCreateWizardProvider.notifier).setCity(value),
-          ),
-          const SizedBox(height: 16),
-          const OrganizerSectionLabel('ESTADO', optional: true),
-          const SizedBox(height: 8),
-          OrganizerTextField(
-            controller: _stateController,
-            hintText: 'GO',
-            onChanged: (value) => ref
+          BrStateCityFields(
+            useOrganizerFormStyle: true,
+            selectedState: draft.state.trim().isEmpty ? null : draft.state,
+            selectedCity: draft.city.trim().isEmpty ? null : draft.city,
+            stateValidator: (_) => null,
+            cityValidator: (_) => null,
+            onStateChanged: (value) {
+              final notifier = ref.read(leagueCreateWizardProvider.notifier);
+              notifier.setStateCode((value ?? '').trim().toUpperCase());
+              notifier.setCity('');
+            },
+            onCityChanged: (value) => ref
                 .read(leagueCreateWizardProvider.notifier)
-                .setStateCode(value),
+                .setCity((value ?? '').trim()),
           ),
         ],
       ),

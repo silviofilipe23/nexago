@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:nexago_app/core/ui/nexa_share.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -43,7 +43,7 @@ class _LeagueDetailPageState extends ConsumerState<LeagueDetailPage>
   }
 
   Future<void> _shareLeague(DiscoveryLeague league) async {
-    await Share.share('Confira a liga ${league.name} no NexaGO!');
+    await nexaShareText(context, 'Confira a liga ${league.name} no NexaGO!');
   }
 
   @override

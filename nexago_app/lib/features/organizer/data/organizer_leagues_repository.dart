@@ -50,14 +50,8 @@ class OrganizerLeaguesRepository {
         .limit(20)
         .snapshots()
         .map(
-          (snap) => snap.docs
-              .map(
-                (doc) => {
-                  'id': doc.id,
-                  ...doc.data(),
-                },
-              )
-              .toList(),
+          (snap) =>
+              snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList(),
         );
   }
 
@@ -174,8 +168,9 @@ class OrganizerLeaguesRepository {
       throw StateError('Usuário não autenticado.');
     }
 
-    final snap =
-        await _leagues.doc(id).get(const GetOptions(source: Source.server));
+    final snap = await _leagues
+        .doc(id)
+        .get(const GetOptions(source: Source.server));
     if (!snap.exists) return;
 
     final data = snap.data();
@@ -192,8 +187,9 @@ class OrganizerLeaguesRepository {
     await _leagues.doc(id).delete();
     await _firestore.waitForPendingWrites();
 
-    final verify =
-        await _leagues.doc(id).get(const GetOptions(source: Source.server));
+    final verify = await _leagues
+        .doc(id)
+        .get(const GetOptions(source: Source.server));
     if (verify.exists) {
       throw StateError(
         'Não foi possível remover o rascunho. Verifique sua conexão e permissões.',
@@ -221,8 +217,9 @@ class OrganizerLeaguesRepository {
       throw ArgumentError('Dados da liga incompletos.');
     }
 
-    final definedStages =
-        draft.stages.where((s) => s.status == LeagueStageStatus.defined).toList();
+    final definedStages = draft.stages
+        .where((s) => s.status == LeagueStageStatus.defined)
+        .toList();
     if (definedStages.isEmpty) {
       throw ArgumentError(
         'Defina ao menos uma etapa antes de publicar o circuito.',
@@ -253,11 +250,13 @@ class OrganizerLeaguesRepository {
       stageTournamentIds[stage.id] = _tournaments.doc().id;
     }
 
-    final stagesWithIds = draft.stages.map((stage) {
-      final tournamentId = stageTournamentIds[stage.id];
-      if (tournamentId == null) return stage;
-      return stage.copyWith(tournamentIds: [tournamentId]);
-    }).toList(growable: false);
+    final stagesWithIds = draft.stages
+        .map((stage) {
+          final tournamentId = stageTournamentIds[stage.id];
+          if (tournamentId == null) return stage;
+          return stage.copyWith(tournamentIds: [tournamentId]);
+        })
+        .toList(growable: false);
 
     final leagueDraft = draft.copyWith(
       leagueId: leagueId,
@@ -336,7 +335,7 @@ class OrganizerLeaguesRepository {
     }
 
     final defaultPrice =
-        (data['defaultEntryFeeCents'] as num?)?.toInt() ?? 9000;
+        (data['defaultEntryFeeCents'] as num?)?.toInt() ?? 22000;
     final categoriesRaw = data['categories'];
     final categories = categoriesFromLeagueCategories(
       categoriesRaw is List ? categoriesRaw : const [],
@@ -347,7 +346,8 @@ class OrganizerLeaguesRepository {
     return (
       leagueId: snap.id,
       leagueName: (data['name'] as String?) ?? 'Liga',
-      plannedStagesCount: (data['plannedStagesCount'] as num?)?.toInt() ??
+      plannedStagesCount:
+          (data['plannedStagesCount'] as num?)?.toInt() ??
           existingStages.where((s) => !s.isGrandFinal).length,
       sport: _parseSport(data['sport'] as String?),
       city: (data['city'] as String?) ?? '',
@@ -403,10 +403,11 @@ class OrganizerLeaguesRepository {
       tournamentIds: [tournamentId],
     );
 
-    final mergedStages = LeagueStageTournamentFactory.mergeStageIntoLeagueStages(
-      existingStages: existingStages,
-      updatedStage: definedStage,
-    );
+    final mergedStages =
+        LeagueStageTournamentFactory.mergeStageIntoLeagueStages(
+          existingStages: existingStages,
+          updatedStage: definedStage,
+        );
 
     final batch = _firestore.batch();
     final tournamentRef = _tournaments.doc(tournamentId);
@@ -519,9 +520,9 @@ class OrganizerLeaguesRepository {
     if (!file.existsSync()) {
       throw StateError('Imagem de capa não encontrada.');
     }
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('leagues/$leagueId/cover.jpg');
+    final ref = FirebaseStorage.instance.ref().child(
+      'leagues/$leagueId/cover.jpg',
+    );
     await ref.putFile(file, SettableMetadata(contentType: 'image/jpeg'));
     return ref.getDownloadURL();
   }

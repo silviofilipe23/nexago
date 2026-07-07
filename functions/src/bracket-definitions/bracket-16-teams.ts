@@ -34,7 +34,7 @@ export const BRACKET_16_TEAMS: MatchDefinition[] = [
     { matchNumber: 22, bracket: 'WB', round: 3, teamA: { type: 'WINNER', matchNumber: 15 }, teamB: { type: 'WINNER', matchNumber: 16 } },
 
     // LB R3
-    { matchNumber: 23, bracket: 'LB', round: 3, teamA: { type: 'WINNER', matchNumber: 19 }, teamB: { type: 'LOSER', matchNumber: 20 } },
+    { matchNumber: 23, bracket: 'LB', round: 3, teamA: { type: 'WINNER', matchNumber: 19 }, teamB: { type: 'WINNER', matchNumber: 20 } },
     { matchNumber: 24, bracket: 'LB', round: 3, teamA: { type: 'WINNER', matchNumber: 17 }, teamB: { type: 'WINNER', matchNumber: 18 } },
 
     // LB R4
@@ -45,7 +45,7 @@ export const BRACKET_16_TEAMS: MatchDefinition[] = [
     { matchNumber: 27, bracket: 'WB', round: 4, teamA: { type: 'WINNER', matchNumber: 22 }, teamB: { type: 'WINNER', matchNumber: 21 } },
 
     // LB R5
-    { matchNumber: 28, bracket: 'LB', round: 5, teamA: { type: 'WINNER', matchNumber: 26 }, teamB: { type: 'LOSER', matchNumber: 25 } },
+    { matchNumber: 28, bracket: 'LB', round: 5, teamA: { type: 'WINNER', matchNumber: 26 }, teamB: { type: 'WINNER', matchNumber: 25 } },
 
     // Disputa 3º lugar
     { matchNumber: 29, bracket: 'THIRD_PLACE', round: 1, teamA: { type: 'LOSER', matchNumber: 28 }, teamB: { type: 'LOSER', matchNumber: 27 } },

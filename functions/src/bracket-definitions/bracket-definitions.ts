@@ -133,7 +133,58 @@ export function validateBracketDefinition(def: MatchDefinition[]): void {
     checkSource(m.teamB, m.matchNumber);
   }
 
-  if (!def.some((m) => m.bracket === "FINAL")) {
+  // Perdedor de partida da LB está eliminado — só a disputa de 3º lugar pode
+  // usá-lo (perdedor da final da LB).
+  const byNumber = new Map(def.map((m) => [m.matchNumber, m]));
+  for (const m of def) {
+    for (const src of [m.teamA, m.teamB]) {
+      if (src.type !== "LOSER") continue;
+      const source = byNumber.get(src.matchNumber);
+      if (source?.bracket === "LB" && m.bracket !== "THIRD_PLACE") {
+        throw new Error(
+          `#${m.matchNumber} usa LOSER(#${src.matchNumber}) da LB: perdedor ` +
+            "na LB está eliminado (só o 3º lugar pode usá-lo).",
+        );
+      }
+    }
+  }
+
+  // Vencedor de toda partida (exceto FINAL e 3º lugar) precisa avançar para
+  // alguma partida — um vencedor sem destino trava a chave quando a partida
+  // termina (nenhum slot seguinte é preenchido).
+  for (const m of def) {
+    if (m.bracket === "FINAL" || m.bracket === "THIRD_PLACE") continue;
+    if (!winnerTargets.has(m.matchNumber)) {
+      throw new Error(
+        `WINNER(#${m.matchNumber}) não avança para nenhuma partida.`,
+      );
+    }
+  }
+
+  // matchNumber é a ordem GLOBAL cronológica — o auto-agendamento ordena por
+  // ele. Toda partida só pode depender de partidas com número menor, e a
+  // FINAL é sempre a última.
+  for (const m of def) {
+    for (const src of [m.teamA, m.teamB]) {
+      if (src.type !== "WINNER" && src.type !== "LOSER") continue;
+      if (src.matchNumber >= m.matchNumber) {
+        throw new Error(
+          `#${m.matchNumber} depende de #${src.matchNumber}, que vem depois: ` +
+            "matchNumber deve ser cronológico.",
+        );
+      }
+    }
+  }
+
+  const finalMatch = def.find((m) => m.bracket === "FINAL");
+  if (!finalMatch) {
     throw new Error("Definição sem partida FINAL.");
+  }
+  const maxNumber = Math.max(...def.map((m) => m.matchNumber));
+  if (finalMatch.matchNumber !== maxNumber) {
+    throw new Error(
+      `FINAL (#${finalMatch.matchNumber}) deve ser a última partida ` +
+        `(maior matchNumber é #${maxNumber}).`,
+    );
   }
 }

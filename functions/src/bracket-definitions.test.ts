@@ -83,6 +83,33 @@ describe("validateBracketDefinition", () => {
     assert.throws(() => validateBracketDefinition(def), /inexistente/);
   });
 
+  it("rejects a winner that advances nowhere", () => {
+    const def: MatchDefinition[] = [
+      {matchNumber: 1, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 1}, teamB: {type: "SEED", seed: 2}},
+      {matchNumber: 2, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 3}, teamB: {type: "SEED", seed: 4}},
+      {matchNumber: 3, bracket: "FINAL", round: 1, teamA: {type: "WINNER", matchNumber: 1}, teamB: {type: "LOSER", matchNumber: 1}},
+    ];
+    assert.throws(() => validateBracketDefinition(def), /WINNER\(#2\)/);
+  });
+
+  it("rejects reusing a loser from the LB outside the third place match", () => {
+    const def: MatchDefinition[] = [
+      {matchNumber: 1, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 1}, teamB: {type: "SEED", seed: 2}},
+      {matchNumber: 2, bracket: "LB", round: 1, teamA: {type: "LOSER", matchNumber: 1}, teamB: {type: "BYE"}},
+      {matchNumber: 3, bracket: "FINAL", round: 1, teamA: {type: "WINNER", matchNumber: 1}, teamB: {type: "LOSER", matchNumber: 2}},
+    ];
+    assert.throws(() => validateBracketDefinition(def), /LOSER\(#2\) da LB/);
+  });
+
+  it("rejects a FINAL that is not the last matchNumber", () => {
+    const def: MatchDefinition[] = [
+      {matchNumber: 1, bracket: "WB", round: 1, teamA: {type: "SEED", seed: 1}, teamB: {type: "SEED", seed: 2}},
+      {matchNumber: 2, bracket: "FINAL", round: 1, teamA: {type: "WINNER", matchNumber: 1}, teamB: {type: "BYE"}},
+      {matchNumber: 3, bracket: "THIRD_PLACE", round: 1, teamA: {type: "LOSER", matchNumber: 1}, teamB: {type: "BYE"}},
+    ];
+    assert.throws(() => validateBracketDefinition(def), /FINAL \(#2\)/);
+  });
+
   for (const [numTeams, def] of ALL_BRACKET_DEFINITIONS) {
     it(`accepts bracket-${numTeams}-teams`, () => {
       assert.doesNotThrow(() => validateBracketDefinition(def));

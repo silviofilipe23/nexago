@@ -41,7 +41,7 @@ export const BRACKET_14_TEAMS: MatchDefinition[] = [
     { matchNumber: 23, bracket: 'WB', round: 4, teamA: { type: 'WINNER', matchNumber: 18 }, teamB: { type: 'WINNER', matchNumber: 17 } },
 
     // LB R5
-    { matchNumber: 24, bracket: 'LB', round: 5, teamA: { type: 'WINNER', matchNumber: 22 }, teamB: { type: 'LOSER', matchNumber: 21 } },
+    { matchNumber: 24, bracket: 'LB', round: 5, teamA: { type: 'WINNER', matchNumber: 22 }, teamB: { type: 'WINNER', matchNumber: 21 } },
 
     // Disputa 3º lugar
     { matchNumber: 25, bracket: 'THIRD_PLACE', round: 1, teamA: { type: 'LOSER', matchNumber: 24 }, teamB: { type: 'LOSER', matchNumber: 23 } },

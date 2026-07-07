@@ -15,7 +15,7 @@ export const BRACKET_7_TEAMS: MatchDefinition[] = [
 
     // LB R2
     { matchNumber: 7, bracket: 'LB', round: 2, teamA: { type: 'LOSER', matchNumber: 1 }, teamB: { type: 'LOSER', matchNumber: 5 } },
-    { matchNumber: 8, bracket: 'LB', round: 2, teamA: { type: 'LOSER', matchNumber: 4 }, teamB: { type: 'LOSER', matchNumber: 6 } },
+    { matchNumber: 8, bracket: 'LB', round: 2, teamA: { type: 'LOSER', matchNumber: 4 }, teamB: { type: 'WINNER', matchNumber: 6 } },
 
     // WB R3
     { matchNumber: 9, bracket: 'WB', round: 3, teamA: { type: 'WINNER', matchNumber: 4 }, teamB: { type: 'WINNER', matchNumber: 5 } },

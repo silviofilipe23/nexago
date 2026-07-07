@@ -116,7 +116,10 @@ export class AthleteProfileSettingsComponent {
   protected readonly passwordResetSent = signal(false);
   protected readonly resetError = signal<string | null>(null);
 
-  private readonly loadedUid = signal<string | null>(null);
+  // undefined (not null) so the very first run isn't mistaken for "already loaded" when there's no
+  // user yet (uid is null in that case too) — this bit the dev-auth-bypass path, which never has a
+  // real uid, and left the page stuck on "Carregando perfil..." forever.
+  private readonly loadedUid = signal<string | null | undefined>(undefined);
   private readonly profileState = signal<AthleteProfileData>(EMPTY_PROFILE);
   private readonly rankingLabel = signal<string | null>(null);
 

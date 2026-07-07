@@ -9,11 +9,14 @@ class RankingPageFilter {
     this.mode = RankingListMode.athletes,
     this.year,
     this.gender = RankingGenderFilter.all,
+    this.level,
   });
 
   final RankingListMode mode;
   final int? year;
   final RankingGenderFilter gender;
+  /// Rank de nível selecionado (`null` = todos os níveis).
+  final int? level;
 
   bool get isGeneralMode => year == null;
 
@@ -23,11 +26,13 @@ class RankingPageFilter {
     RankingListMode? mode,
     int? Function()? year,
     RankingGenderFilter? gender,
+    int? Function()? level,
   }) {
     return RankingPageFilter(
       mode: mode ?? this.mode,
       year: year != null ? year() : this.year,
       gender: gender ?? this.gender,
+      level: level != null ? level() : this.level,
     );
   }
 }

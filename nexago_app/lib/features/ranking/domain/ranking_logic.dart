@@ -1,3 +1,6 @@
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile_options.dart';
+
 import 'ranking_constants.dart';
 import 'ranking_list_models.dart';
 import 'ranking_models.dart';
@@ -211,4 +214,56 @@ List<RankingListEntry> filterRankingEntriesBySearch(
   final q = query.trim();
   if (q.isEmpty) return entries;
   return entries.where((e) => e.matchesSearch(q)).toList();
+}
+
+/// Rank de nível do atleta pro ranking geral: resolvido pelo esporte
+/// principal (`levelsBySportFirestore[primarySportFirestoreId]`). Sem
+/// fallback pro nível global legado — perfil sem esporte principal, ou sem
+/// nível registrado nele, fica sem nível resolvido (`null`).
+int? athleteLevelRank(AppUserProfile? profile) {
+  if (profile == null) return null;
+  final sportCode = profile.primarySportFirestoreId;
+  if (sportCode == null || sportCode.isEmpty) return null;
+  return AthleteProfileOptions.levelRank(
+    profile.levelsBySportFirestore[sportCode],
+  );
+}
+
+/// Rank de nível da dupla: o maior entre os dois atletas (mesma regra do
+/// anti-sandbagging — "vale o integrante mais forte"). `null` só quando
+/// nenhum dos dois tem nível resolvido.
+int? teamLevelRank(AppUserProfile? player1, AppUserProfile? player2) {
+  final r1 = athleteLevelRank(player1);
+  final r2 = athleteLevelRank(player2);
+  if (r1 == null) return r2;
+  if (r2 == null) return r1;
+  return r1 > r2 ? r1 : r2;
+}
+
+/// Filtra o ranking de atletas por nível exato (`null` = todos os níveis).
+/// Atleta sem nível resolvido nunca aparece quando um nível específico é
+/// escolhido.
+List<AthleteRankingRow> filterAthleteRowsByLevel(
+  List<AthleteRankingRow> rows,
+  int? levelRank,
+  Map<String, int?> levelRankByAthleteId,
+) {
+  if (levelRank == null) return rows;
+  final filtered = rows
+      .where((row) => levelRankByAthleteId[row.athleteId] == levelRank)
+      .toList();
+  return assignRanks(filtered);
+}
+
+/// Filtra o ranking de duplas por nível exato (`null` = todos os níveis).
+List<TeamRankingRow> filterTeamRowsByLevel(
+  List<TeamRankingRow> rows,
+  int? levelRank,
+  Map<String, int?> levelRankByTeamId,
+) {
+  if (levelRank == null) return rows;
+  final filtered = rows
+      .where((row) => levelRankByTeamId[row.teamId] == levelRank)
+      .toList();
+  return assignTeamRanks(filtered);
 }

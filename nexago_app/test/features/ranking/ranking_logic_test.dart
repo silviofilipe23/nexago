@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import 'package:nexago_app/features/ranking/domain/ranking_constants.dart';
 import 'package:nexago_app/features/ranking/domain/ranking_list_mapper.dart';
 import 'package:nexago_app/features/ranking/domain/ranking_list_models.dart';
@@ -215,6 +216,139 @@ void main() {
       final map = getPointsByPlaceFromTotal(total);
       expect(map.values.fold(0, (a, b) => a + b), total);
       expect(map[1], greaterThan(0));
+    });
+  });
+
+  group('athleteLevelRank', () {
+    test('resolves rank from levelsBySportFirestore of the primary sport', () {
+      const profile = AppUserProfile(
+        uid: 'a1',
+        primarySportFirestoreId: 'VOLEI_PRAIA',
+        levelsBySportFirestore: {'VOLEI_PRAIA': 'intermediario_1'},
+      );
+      expect(athleteLevelRank(profile), 2);
+    });
+
+    test('returns null when there is no primary sport', () {
+      const profile = AppUserProfile(uid: 'a2');
+      expect(athleteLevelRank(profile), isNull);
+    });
+
+    test('returns null when the primary sport has no level registered', () {
+      const profile = AppUserProfile(
+        uid: 'a3',
+        primarySportFirestoreId: 'VOLEI_QUADRA',
+        levelsBySportFirestore: {'VOLEI_PRAIA': 'open'},
+      );
+      expect(athleteLevelRank(profile), isNull);
+    });
+
+    test('returns null for a null profile', () {
+      expect(athleteLevelRank(null), isNull);
+    });
+  });
+
+  group('teamLevelRank', () {
+    test('returns the higher rank between the two athletes', () {
+      const p1 = AppUserProfile(
+        uid: 'p1',
+        primarySportFirestoreId: 'VOLEI_PRAIA',
+        levelsBySportFirestore: {'VOLEI_PRAIA': 'iniciante_1'},
+      );
+      const p2 = AppUserProfile(
+        uid: 'p2',
+        primarySportFirestoreId: 'VOLEI_PRAIA',
+        levelsBySportFirestore: {'VOLEI_PRAIA': 'open'},
+      );
+      expect(teamLevelRank(p1, p2), 5);
+    });
+
+    test('falls back to the resolved player when the other has no level', () {
+      const p1 = AppUserProfile(
+        uid: 'p1',
+        primarySportFirestoreId: 'VOLEI_PRAIA',
+        levelsBySportFirestore: {'VOLEI_PRAIA': 'intermediario_2'},
+      );
+      expect(teamLevelRank(p1, null), 3);
+      expect(teamLevelRank(null, p1), 3);
+    });
+
+    test('returns null when neither athlete has a resolved level', () {
+      expect(teamLevelRank(null, null), isNull);
+    });
+  });
+
+  group('filterAthleteRowsByLevel', () {
+    test('filters and reassigns ranks', () {
+      final rows = [
+        const AthleteRankingRow(
+          rank: 1,
+          athleteId: 'a1',
+          totalPoints: 500,
+          tournamentsCount: 2,
+        ),
+        const AthleteRankingRow(
+          rank: 2,
+          athleteId: 'a2',
+          totalPoints: 400,
+          tournamentsCount: 2,
+        ),
+      ];
+      final filtered = filterAthleteRowsByLevel(rows, 5, {'a1': 2, 'a2': 5});
+      expect(filtered.length, 1);
+      expect(filtered.first.athleteId, 'a2');
+      expect(filtered.first.rank, 1);
+    });
+
+    test(
+      'excludes athletes with unresolved level when a level is selected',
+      () {
+        final rows = [
+          const AthleteRankingRow(
+            rank: 1,
+            athleteId: 'a1',
+            totalPoints: 500,
+            tournamentsCount: 2,
+          ),
+        ];
+        final filtered = filterAthleteRowsByLevel(rows, 5, {'a1': null});
+        expect(filtered, isEmpty);
+      },
+    );
+
+    test('returns all rows unchanged when levelRank is null', () {
+      final rows = [
+        const AthleteRankingRow(
+          rank: 1,
+          athleteId: 'a1',
+          totalPoints: 500,
+          tournamentsCount: 2,
+        ),
+      ];
+      expect(filterAthleteRowsByLevel(rows, null, {'a1': null}), rows);
+    });
+  });
+
+  group('filterTeamRowsByLevel', () {
+    test('filters and reassigns ranks', () {
+      final rows = [
+        const TeamRankingRow(
+          rank: 1,
+          teamId: 't1',
+          totalPoints: 500,
+          tournamentsCount: 2,
+        ),
+        const TeamRankingRow(
+          rank: 2,
+          teamId: 't2',
+          totalPoints: 400,
+          tournamentsCount: 2,
+        ),
+      ];
+      final filtered = filterTeamRowsByLevel(rows, 0, {'t1': 0, 't2': 5});
+      expect(filtered.length, 1);
+      expect(filtered.first.teamId, 't1');
+      expect(filtered.first.rank, 1);
     });
   });
 }

@@ -6,15 +6,25 @@ import 'package:nexago_app/features/athlete/domain/athlete_sports_levels_provide
 void main() {
   group('AthleteProfileOptions.levelRank', () {
     test('rankeia labels, códigos e legados', () {
+      // Escada de 5 níveis (espelho de LEVEL_RANK nas functions): legados
+      // caem no degrau inferior do split — iniciante→0, intermediario→2,
+      // open→5 (ranks 1 e 4 reservados à escada D/C/B/A).
       expect(AthleteProfileOptions.levelRank('Iniciante'), 0);
       expect(AthleteProfileOptions.levelRank('iniciante'), 0);
       expect(AthleteProfileOptions.levelRank('Básico'), 0);
-      expect(AthleteProfileOptions.levelRank('Intermediário'), 1);
-      expect(AthleteProfileOptions.levelRank('intermediario'), 1);
-      expect(AthleteProfileOptions.levelRank('Open'), 2);
-      expect(AthleteProfileOptions.levelRank('open'), 2);
-      expect(AthleteProfileOptions.levelRank('Open / federado'), 2);
-      expect(AthleteProfileOptions.levelRank('livre'), 2);
+      expect(AthleteProfileOptions.levelRank('Iniciante 1'), 0);
+      expect(AthleteProfileOptions.levelRank('Iniciante 2'), 1);
+      expect(AthleteProfileOptions.levelRank('iniciante_2'), 1);
+      expect(AthleteProfileOptions.levelRank('Intermediário'), 2);
+      expect(AthleteProfileOptions.levelRank('intermediario'), 2);
+      expect(AthleteProfileOptions.levelRank('Intermediário 1'), 2);
+      expect(AthleteProfileOptions.levelRank('intermediario_1'), 2);
+      expect(AthleteProfileOptions.levelRank('Intermediário 2'), 3);
+      expect(AthleteProfileOptions.levelRank('intermediario_2'), 3);
+      expect(AthleteProfileOptions.levelRank('Open'), 5);
+      expect(AthleteProfileOptions.levelRank('open'), 5);
+      expect(AthleteProfileOptions.levelRank('Open / federado'), 5);
+      expect(AthleteProfileOptions.levelRank('livre'), 5);
     });
 
     test('ausente/desconhecido → null', () {
@@ -53,8 +63,8 @@ void main() {
         'beach_volleyball': 'Intermediário',
         'beach_tennis': 'Open',
       });
-      expect(state.lockedLevelRankFor('beach_volleyball'), 1);
-      expect(state.lockedLevelRankFor('beach_tennis'), 2);
+      expect(state.lockedLevelRankFor('beach_volleyball'), 2);
+      expect(state.lockedLevelRankFor('beach_tennis'), 5);
     });
 
     test('esporte sem nível salvo → null (primeira definição livre)', () {

@@ -17,15 +17,37 @@ const {resolveCategoryEntryFee} = require("../lib/tournament-registration-guards
 
 const EVENT_TIME_ZONE = "America/Sao_Paulo";
 
+/** Escada de 5 níveis do vôlei — espelho de `category-level-eligibility.ts`. */
 const LEVELS = [
-  {code: "iniciante", label: "Iniciante"},
-  {code: "intermediario", label: "Intermediário"},
+  {code: "iniciante_1", label: "Iniciante 1"},
+  {code: "iniciante_2", label: "Iniciante 2"},
+  {code: "intermediario_1", label: "Intermediário 1"},
+  {code: "intermediario_2", label: "Intermediário 2"},
   {code: "open", label: "Open"},
 ];
 const GENDERS = [
   {type: "male", label: "Masculino", suffix: "masc"},
   {type: "female", label: "Feminino", suffix: "fem"},
 ];
+
+/** Legados da escada de 3 níveis → degrau inferior do split (vôlei). */
+function resolveVolleyballLevelCode(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  const code = raw.trim().toLowerCase();
+  if (LEVELS.some((level) => level.code === code)) return code;
+  switch (code) {
+    case "iniciante":
+    case "basico":
+      return "iniciante_1";
+    case "intermediario":
+      return "intermediario_1";
+    case "open":
+    case "livre":
+      return "open";
+    default:
+      return null;
+  }
+}
 
 const DEFAULT_ENTRY_FEE_CENTS = 18000;
 const MAX_TEAMS_PER_CATEGORY = 16;
@@ -291,21 +313,32 @@ async function findTournamentByName(db, name) {
 }
 
 function athleteLevelCode(userData) {
+  const sportOnboarding = userData.sportOnboarding;
+  if (sportOnboarding && typeof sportOnboarding === "object") {
+    const levelsBySport = sportOnboarding.levelsBySport;
+    if (levelsBySport && typeof levelsBySport === "object") {
+      const code = levelsBySport.VOLEI_PRAIA;
+      const resolved = resolveVolleyballLevelCode(code);
+      if (resolved) return resolved;
+    }
+  }
+
   const bySport = userData.levelsBySportFirestore;
   if (bySport && typeof bySport === "object") {
     const code = bySport.VOLEI_PRAIA;
-    if (typeof code === "string" && code.trim()) return code.trim().toLowerCase();
+    const resolved = resolveVolleyballLevelCode(code);
+    if (resolved) return resolved;
   }
+
   const sportProfile = userData.sportProfile;
   if (sportProfile && typeof sportProfile.level === "string") {
-    return sportProfile.level.trim().toLowerCase();
+    const resolved = resolveVolleyballLevelCode(sportProfile.level);
+    if (resolved) return resolved;
   }
+
   const level = userData.level;
   if (typeof level === "string") {
-    const n = normalizeText(level);
-    if (n === "iniciante") return "iniciante";
-    if (n === "intermediario") return "intermediario";
-    if (n === "open") return "open";
+    return resolveVolleyballLevelCode(normalizeText(level));
   }
   return null;
 }

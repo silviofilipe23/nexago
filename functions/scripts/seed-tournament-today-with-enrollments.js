@@ -26,7 +26,7 @@ const {
 const todayKey = dayKeyInSaoPaulo();
 
 runTournamentEnrollmentSeed({
-  defaultTournamentName: `Torneio seed nexaGO — hoje (${todayKey})`,
+  defaultTournamentName: `Torneio nexaGO — hoje (${todayKey})`,
   buildTournamentDoc: buildTournamentDocToday,
   extraLogLines: () => [`Dia do torneio (SP): ${todayKey}`],
 })

@@ -2,8 +2,9 @@
 /**
  * Seed de atletas de teste: cria contas no Auth + perfil completo em users/{uid}.
  *
- * Gera COUNT atletas por (nível × gênero). Níveis: iniciante, intermediario,
- * open. Gêneros: Masculino, Feminino. Padrão: 32 por combinação (= 192).
+ * Gera COUNT atletas por (nível × gênero). Níveis: escada de 5 do vôlei
+ * (Iniciante 1/2, Intermediário 1/2, Open). Gêneros: Masculino, Feminino.
+ * Padrão: 32 por combinação (= 320).
  *
  * Pré-requisitos (credenciais admin):
  *   gcloud auth application-default login      # ADC
@@ -45,8 +46,10 @@ const auth = admin.auth();
 const db = admin.firestore();
 
 const LEVELS = [
-  {code: "iniciante", label: "Iniciante"},
-  {code: "intermediario", label: "Intermediário"},
+  {code: "iniciante_1", label: "Iniciante 1"},
+  {code: "iniciante_2", label: "Iniciante 2"},
+  {code: "intermediario_1", label: "Intermediário 1"},
+  {code: "intermediario_2", label: "Intermediário 2"},
   {code: "open", label: "Open"},
 ];
 const GENDERS = [

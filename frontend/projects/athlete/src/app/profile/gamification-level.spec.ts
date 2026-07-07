@@ -17,4 +17,10 @@ describe('computeLevelProgress', () => {
   it('handles xp landing exactly on a level boundary', () => {
     expect(computeLevelProgress(100, 1)).toEqual({ xpInLevel: 0, xpForNextLevel: 100, progressRatio: 0 });
   });
+
+  it('ignores a level argument that disagrees with the xp-derived level, keeping xpInLevel + xpForNextLevel === 100', () => {
+    const result = computeLevelProgress(340, 0);
+    expect(result).toEqual({ xpInLevel: 40, xpForNextLevel: 60, progressRatio: 0.4 });
+    expect(result.xpInLevel + result.xpForNextLevel).toBe(100);
+  });
 });

@@ -20,6 +20,8 @@ class AppUserProfile {
     this.city,
     this.state,
     this.roles = const [],
+    this.primarySportFirestoreId,
+    this.levelsBySportFirestore = const {},
   });
 
   final String uid;
@@ -37,13 +39,35 @@ class AppUserProfile {
   final String? city;
   final String? state;
   final List<String> roles;
+  final String? primarySportFirestoreId;
+  /// Nível por esporte em `sportOnboarding.levelsBySport` (código Firestore
+  /// do esporte → código do nível, ex.: `intermediario_1`).
+  final Map<String, String> levelsBySportFirestore;
 
   factory AppUserProfile.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {
-    final data = doc.data() ?? {};
+    return AppUserProfile.fromMap(doc.id, doc.data() ?? {});
+  }
+
+  factory AppUserProfile.fromMap(String uid, Map<String, dynamic> data) {
+    final onboarding = data['sportOnboarding'];
+    String? primarySportFirestoreId;
+    final levelsBySportFirestore = <String, String>{};
+    if (onboarding is Map) {
+      primarySportFirestoreId = _str(onboarding['primarySportId']);
+      final levelsRaw = onboarding['levelsBySport'];
+      if (levelsRaw is Map) {
+        for (final entry in levelsRaw.entries) {
+          final value = entry.value;
+          if (value is String && value.trim().isNotEmpty) {
+            levelsBySportFirestore[entry.key.toString()] = value.trim();
+          }
+        }
+      }
+    }
     return AppUserProfile(
-      uid: doc.id,
+      uid: uid,
       email: _str(data['email']),
       fullName: _str(data['fullName']) ?? _str(data['name']),
       nickname: _str(data['nickname']),
@@ -58,6 +82,8 @@ class AppUserProfile {
       city: _str(data['city']),
       state: _str(data['state']),
       roles: _stringList(data['roles']),
+      primarySportFirestoreId: primarySportFirestoreId,
+      levelsBySportFirestore: levelsBySportFirestore,
     );
   }
 

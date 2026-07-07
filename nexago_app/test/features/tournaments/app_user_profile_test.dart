@@ -82,4 +82,48 @@ void main() {
 
     expect(resolveAppUserDisplayName(profile), 'Silvio');
   });
+
+  group('AppUserProfile.fromMap sportOnboarding parsing', () {
+    test(
+      'parses primary sport and per-sport levels from sportOnboarding',
+      () {
+        final profile = AppUserProfile.fromMap('u1', {
+          'fullName': 'Ana',
+          'sportOnboarding': {
+            'primarySportId': 'VOLEI_PRAIA',
+            'levelsBySport': {
+              'VOLEI_PRAIA': 'intermediario_1',
+              'VOLEI_QUADRA': 'iniciante_2',
+            },
+          },
+        });
+
+        expect(profile.primarySportFirestoreId, 'VOLEI_PRAIA');
+        expect(profile.levelsBySportFirestore, {
+          'VOLEI_PRAIA': 'intermediario_1',
+          'VOLEI_QUADRA': 'iniciante_2',
+        });
+      },
+    );
+
+    test(
+      'defaults to null primary sport and empty levels when sportOnboarding '
+      'is missing',
+      () {
+        final profile = AppUserProfile.fromMap('u2', {'fullName': 'Bruno'});
+        expect(profile.primarySportFirestoreId, isNull);
+        expect(profile.levelsBySportFirestore, isEmpty);
+      },
+    );
+
+    test('ignores non-string level values', () {
+      final profile = AppUserProfile.fromMap('u3', {
+        'sportOnboarding': {
+          'primarySportId': 'VOLEI_PRAIA',
+          'levelsBySport': {'VOLEI_PRAIA': 42},
+        },
+      });
+      expect(profile.levelsBySportFirestore, isEmpty);
+    });
+  });
 }

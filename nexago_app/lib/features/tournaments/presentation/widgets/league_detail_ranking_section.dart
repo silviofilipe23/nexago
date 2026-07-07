@@ -36,6 +36,7 @@ class _LeagueDetailRankingSectionState
     extends ConsumerState<LeagueDetailRankingSection> {
   LeagueRankingViewMode _viewMode = LeagueRankingViewMode.teams;
   TournamentGenderCat? _genderFilter;
+  String? _selectedCategoryId;
 
   @override
   void initState() {
@@ -48,19 +49,35 @@ class _LeagueDetailRankingSectionState
     super.didUpdateWidget(oldWidget);
     if (oldWidget.league.id != widget.league.id) {
       _genderFilter = initialLeagueGenderFilter(widget.league.categories);
+      _selectedCategoryId = null;
     }
   }
 
-  String? get _categoryId {
-    final gender = _genderFilter;
-    if (gender == null) return widget.league.categories.firstOrNull?.id;
-    return categoryForGender(widget.league.categories, gender)?.id;
+  void _onGenderSelected(TournamentGenderCat gender) {
+    setState(() {
+      _genderFilter = gender;
+      _selectedCategoryId = null;
+    });
   }
+
+  void _onCategorySelected(String categoryId) {
+    setState(() => _selectedCategoryId = categoryId);
+  }
+
+  String? get _categoryId => resolveSelectedCategoryId(
+        widget.league.categories,
+        _genderFilter,
+        _selectedCategoryId,
+      );
 
   @override
   Widget build(BuildContext context) {
     final categories = widget.league.categories;
     final categoryId = _categoryId;
+    final gender = _genderFilter;
+    final categoryOptions = gender == null
+        ? const <DiscoveryLeagueCategory>[]
+        : categoriesForGender(categories, gender);
 
     if (categories.isEmpty || categoryId == null) {
       return const SizedBox.shrink();
@@ -160,13 +177,25 @@ class _LeagueDetailRankingSectionState
                   ),
                   selected: _genderFilter == gender,
                   enabled: categoryForGender(categories, gender) != null,
-                  onTap: () => setState(() => _genderFilter = gender),
+                  onTap: () => _onGenderSelected(gender),
                 ),
                 const SizedBox(width: 8),
               ],
             ],
           ),
         ),
+        if (categoryOptions.length > 1)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _CategoryDropdown(
+                categories: categoryOptions,
+                selectedCategoryId: categoryId,
+                onSelected: _onCategorySelected,
+              ),
+            ),
+          ),
         const SizedBox(height: 14),
         rowsAsync.when(
           loading: () => Padding(
@@ -397,6 +426,68 @@ class _GenderChip extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryDropdown extends StatelessWidget {
+  const _CategoryDropdown({
+    required this.categories,
+    required this.selectedCategoryId,
+    required this.onSelected,
+  });
+
+  final List<DiscoveryLeagueCategory> categories;
+  final String? selectedCategoryId;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = categories.firstWhere(
+      (c) => c.id == selectedCategoryId,
+      orElse: () => categories.first,
+    );
+    return PopupMenuButton<String>(
+      initialValue: selected.id,
+      onSelected: onSelected,
+      color: context.themeColors.surfaceRaised,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      itemBuilder: (context) => [
+        for (final category in categories)
+          PopupMenuItem<String>(
+            value: category.id,
+            child: Text(category.name),
+          ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: context.themeColors.outline.withValues(alpha: 0.45),
+          ),
+          color: context.themeColors.surfaceRaised,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              selected.name,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: context.themeColors.onSurface,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.arrow_drop_down_rounded,
+              size: 18,
+              color: context.themeColors.onSurfaceMuted,
+            ),
+          ],
         ),
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:nexago_app/core/profiles/users_repository.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
+import 'package:nexago_app/features/athlete/domain/athlete_profile_options.dart';
 import '../data/ranking_repository.dart';
 import 'ranking_display_helpers.dart';
 import 'ranking_list_models.dart';
@@ -49,13 +50,11 @@ Future<List<RankingListEntry>> buildAthleteRankingListEntries({
   required UsersRepository users,
   required RankingPageFilter filter,
   required String? currentUid,
-  required Future<Map<String, String?>> Function(Iterable<String> uids)
-      athleteLevelsFor,
 }) async {
   var rows = await repo.loadAthleteRanking(year: filter.year);
   if (rows.isEmpty) return const [];
 
-  // Uma leitura em lote cobre filtro de gênero e exibição.
+  // Uma leitura em lote cobre filtro de gênero, nível e exibição.
   final profiles =
       await users.getUsersByIds(rows.map((row) => row.athleteId));
 
@@ -72,12 +71,20 @@ Future<List<RankingListEntry>> buildAthleteRankingListEntries({
   );
   if (rows.isEmpty) return const [];
 
-  final levels = await athleteLevelsFor(rows.map((row) => row.athleteId));
+  final levelRankByAthlete = <String, int?>{
+    for (final row in rows)
+      row.athleteId: athleteLevelRank(profiles[row.athleteId]),
+  };
+  rows = filterAthleteRowsByLevel(rows, filter.level, levelRankByAthlete);
+  if (rows.isEmpty) return const [];
 
   final entries = <RankingListEntry>[];
   for (final row in rows) {
     final profile = profiles[row.athleteId];
-    final level = levels[row.athleteId];
+    final levelRank = athleteLevelRank(profile);
+    final levelLabel = levelRank != null
+        ? AthleteProfileOptions.labelForRank(levelRank)
+        : null;
     entries.add(
       RankingListEntry(
         rank: row.rank,
@@ -85,7 +92,7 @@ Future<List<RankingListEntry>> buildAthleteRankingListEntries({
         tournamentsCount: row.tournamentsCount,
         displayName: rankingDisplayName(profile, row.athleteId),
         subtitle: rankingSubtitle(
-          levelLabel: level,
+          levelLabel: levelLabel,
           tournamentsCount: row.tournamentsCount,
         ),
         isCurrentUser: row.athleteId == currentUid,
@@ -126,6 +133,16 @@ Future<List<RankingListEntry>> buildTeamRankingListEntries({
       if (team.player2Id != null) team.player2Id!,
     ],
   ]);
+
+  final levelRankByTeam = <String, int?>{
+    for (final row in rows)
+      row.teamId: teamLevelRank(
+        profiles[teams[row.teamId]?.player1Id],
+        profiles[teams[row.teamId]?.player2Id],
+      ),
+  };
+  rows = filterTeamRowsByLevel(rows, filter.level, levelRankByTeam);
+  if (rows.isEmpty) return const [];
 
   final entries = <RankingListEntry>[];
   for (final row in rows) {

@@ -1,8 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_providers.dart';
-import 'package:nexago_app/core/firebase/firebase_providers.dart';
 import 'package:nexago_app/core/profiles/users_repository.dart';
 import 'package:nexago_app/core/profiles/app_user_profile.dart';
 import '../../tournaments/domain/compete_hub_models.dart';
@@ -258,39 +256,6 @@ final rankingListEntriesProvider =
   final currentUid = user?.uid.trim();
   final repo = ref.read(rankingRepositoryProvider);
   final users = ref.read(usersRepositoryProvider);
-  final firestore = ref.read(firestoreProvider);
-
-  Future<Map<String, String?>> levelsFor(Iterable<String> uids) async {
-    final unique = uids
-        .map((u) => u.trim())
-        .where((u) => u.isNotEmpty)
-        .toSet()
-        .toList();
-    if (unique.isEmpty) return {};
-
-    const chunkSize = 10;
-    final futures = <Future<QuerySnapshot<Map<String, dynamic>>>>[];
-    for (var i = 0; i < unique.length; i += chunkSize) {
-      final end =
-          (i + chunkSize) > unique.length ? unique.length : (i + chunkSize);
-      futures.add(
-        firestore
-            .collection('athlete_profiles')
-            .where(FieldPath.documentId, whereIn: unique.sublist(i, end))
-            .get(),
-      );
-    }
-
-    final levels = <String, String?>{};
-    for (final snap in await Future.wait(futures)) {
-      for (final doc in snap.docs) {
-        final data = doc.data();
-        final level = data['level'] ?? data['nivel'];
-        levels[doc.id] = level?.toString().trim();
-      }
-    }
-    return levels;
-  }
 
   if (filter.mode == RankingListMode.teams) {
     return buildTeamRankingListEntries(
@@ -306,7 +271,6 @@ final rankingListEntriesProvider =
     users: users,
     filter: filter,
     currentUid: currentUid,
-    athleteLevelsFor: levelsFor,
   );
 });
 

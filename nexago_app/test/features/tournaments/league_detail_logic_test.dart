@@ -37,8 +37,8 @@ DiscoveryTournament _tournament({
     startDate: DateTime(2026, 6, 1),
     categories: const [],
     format: TournamentFormat.dupla,
-    priceLabel: 'R\$ 90',
-    priceValue: 9000,
+    priceLabel: 'R\$ 220',
+    priceValue: 22000,
     spotsLeft: 10,
     spotsTotal: 64,
     status: status,
@@ -86,10 +86,7 @@ void main() {
       't1': _tournament(id: 't1', status: TournamentListingStatus.completed),
       't2': _tournament(id: 't2', status: TournamentListingStatus.open),
     };
-    expect(
-      leagueCompletedStagesLabel(league, tournaments),
-      'APÓS 1 DE 6',
-    );
+    expect(leagueCompletedStagesLabel(league, tournaments), 'APÓS 1 DE 6');
   });
 
   test('leagueGrandFinalBannerText respects spots and month', () {
@@ -109,13 +106,95 @@ void main() {
       DiscoveryLeagueCategory(id: 'm', name: 'Masculino', genderType: 'male'),
       DiscoveryLeagueCategory(id: 'f', name: 'Feminino', genderType: 'female'),
     ];
-    expect(
-      categoryForGender(categories, TournamentGenderCat.m)?.id,
-      'm',
-    );
-    expect(
-      categoryForGender(categories, TournamentGenderCat.f)?.id,
-      'f',
-    );
+    expect(categoryForGender(categories, TournamentGenderCat.m)?.id, 'm');
+    expect(categoryForGender(categories, TournamentGenderCat.f)?.id, 'f');
   });
+
+  test(
+    'categoriesForGender returns every exact genderType match, in order',
+    () {
+      const categories = [
+        DiscoveryLeagueCategory(
+          id: 'm1',
+          name: 'Masculino Open',
+          genderType: 'male',
+        ),
+        DiscoveryLeagueCategory(
+          id: 'f1',
+          name: 'Feminino Open',
+          genderType: 'female',
+        ),
+        DiscoveryLeagueCategory(
+          id: 'm2',
+          name: 'Masculino Intermediário',
+          genderType: 'male',
+        ),
+      ];
+      final result = categoriesForGender(categories, TournamentGenderCat.m);
+      expect(result.map((c) => c.id).toList(), ['m1', 'm2']);
+    },
+  );
+
+  test(
+    'categoriesForGender falls back to name matching when genderType is '
+    'missing',
+    () {
+      const categories = [
+        DiscoveryLeagueCategory(id: 'p1', name: 'Masculino Open'),
+        DiscoveryLeagueCategory(id: 'p2', name: 'Masculino Intermediário'),
+        DiscoveryLeagueCategory(id: 'p3', name: 'Feminino Open'),
+      ];
+      final result = categoriesForGender(categories, TournamentGenderCat.m);
+      expect(result.map((c) => c.id).toList(), ['p1', 'p2']);
+    },
+  );
+
+  test(
+    'categoriesForGender falls back to the first category when nothing '
+    'matches the gender',
+    () {
+      const categories = [
+        DiscoveryLeagueCategory(
+          id: 'only',
+          name: 'Feminino Open',
+          genderType: 'female',
+        ),
+      ];
+      final result = categoriesForGender(categories, TournamentGenderCat.m);
+      expect(result.map((c) => c.id).toList(), ['only']);
+    },
+  );
+
+  test('categoriesForGender returns empty for an empty category list', () {
+    expect(categoriesForGender(const [], TournamentGenderCat.m), isEmpty);
+  });
+
+  test(
+    'categoriesForGender.first always matches categoryForGender',
+    () {
+      const categories = [
+        DiscoveryLeagueCategory(
+          id: 'm1',
+          name: 'Masculino Open',
+          genderType: 'male',
+        ),
+        DiscoveryLeagueCategory(
+          id: 'm2',
+          name: 'Masculino Intermediário',
+          genderType: 'male',
+        ),
+        DiscoveryLeagueCategory(
+          id: 'f1',
+          name: 'Feminino Open',
+          genderType: 'female',
+        ),
+      ];
+      for (final gender in TournamentGenderCat.values) {
+        expect(
+          categoriesForGender(categories, gender).first.id,
+          categoryForGender(categories, gender)?.id,
+        );
+      }
+    },
+  );
 }

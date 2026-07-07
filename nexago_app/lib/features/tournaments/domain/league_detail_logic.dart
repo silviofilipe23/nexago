@@ -106,6 +106,36 @@ DiscoveryLeagueCategory? categoryForGender(
   return categories.isNotEmpty ? categories.first : null;
 }
 
+/// Todas as categorias da liga que pertencem ao gênero informado — ao
+/// contrário de [categoryForGender], que só devolve a primeira. Mesma ordem
+/// de resolução (genderType exato, depois heurística por texto, depois a
+/// primeira categoria da liga como último recurso) pra nunca divergir da
+/// categoria que [categoryForGender] já resolve hoje.
+List<DiscoveryLeagueCategory> categoriesForGender(
+  List<DiscoveryLeagueCategory> categories,
+  TournamentGenderCat gender,
+) {
+  final target = switch (gender) {
+    TournamentGenderCat.m => 'male',
+    TournamentGenderCat.f => 'female',
+    TournamentGenderCat.mix => 'mixed',
+  };
+  final exact = categories.where((c) => c.genderType == target).toList();
+  if (exact.isNotEmpty) return exact;
+
+  final byTag = categories.where((category) {
+    final tag = genderTagFromText(category.genderType ?? category.name);
+    return switch (gender) {
+      TournamentGenderCat.m => tag == 'MASCULINO',
+      TournamentGenderCat.f => tag == 'FEMININO',
+      TournamentGenderCat.mix => tag == 'MISTO',
+    };
+  }).toList();
+  if (byTag.isNotEmpty) return byTag;
+
+  return categories.isNotEmpty ? [categories.first] : const [];
+}
+
 TournamentGenderCat? initialLeagueGenderFilter(
   List<DiscoveryLeagueCategory> categories,
 ) {

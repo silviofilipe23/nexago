@@ -38,6 +38,7 @@ interface AthleteProfileData {
   primarySport: string;
   bio: string;
   publicProfileId: string | null;
+  publicProfileEnabled: boolean;
 }
 
 const EMPTY_PROFILE: AthleteProfileData = {
@@ -48,6 +49,7 @@ const EMPTY_PROFILE: AthleteProfileData = {
   primarySport: 'Volei de praia',
   bio: '',
   publicProfileId: null,
+  publicProfileEnabled: true,
 };
 
 interface StatRow {
@@ -274,6 +276,10 @@ export class AthleteProfileSettingsComponent {
       const whatsappNumber = raw.whatsappNumber.trim();
       const bio = raw.bio.trim();
       const publicProfileId = this.profileState().publicProfileId || buildPublicProfileId(raw.fullName, uid);
+      // Preserva um "false" explícito (ex.: privacidade desativada no app); só liga por padrão
+      // quando o doc nunca teve esse campo — sem isso, "Compartilhar perfil" gera um link que o
+      // perfil público nunca encontra, porque a consulta lá exige publicProfileEnabled == true.
+      const publicProfileEnabled = this.profileState().publicProfileEnabled;
 
       const authInstance = getAuth(getApps()[0]!);
       if (authInstance.currentUser && authInstance.currentUser.uid === uid) {
@@ -297,13 +303,23 @@ export class AthleteProfileSettingsComponent {
             primarySport: raw.primarySport,
             bio,
             publicProfileId,
+            publicProfileEnabled,
             updatedAt: serverTimestamp(),
           },
           { merge: true },
         ),
       ]);
 
-      this.profileState.set({ fullName: raw.fullName, city, state, whatsappNumber, primarySport: raw.primarySport, bio, publicProfileId });
+      this.profileState.set({
+        fullName: raw.fullName,
+        city,
+        state,
+        whatsappNumber,
+        primarySport: raw.primarySport,
+        bio,
+        publicProfileId,
+        publicProfileEnabled,
+      });
       this.saveSuccess.set('Perfil atualizado.');
       this.isEditing.set(false);
     } catch {
@@ -397,6 +413,9 @@ export class AthleteProfileSettingsComponent {
         primarySport: readString(profileData, ['primarySport']) ?? 'Volei de praia',
         bio: readString(profileData, ['bio']) ?? '',
         publicProfileId: readString(profileData, ['publicProfileId', 'athleteId', 'profileIdentifier']),
+        // Só false quando o doc já existe e diz explicitamente false (ex.: privacidade desativada
+        // no app) — um doc novo ou sem esse campo deve poder ser encontrado pelo perfil público.
+        publicProfileEnabled: profileData?.['publicProfileEnabled'] !== false,
       });
     } catch {
       this.saveError.set('Não foi possível carregar seu perfil agora.');

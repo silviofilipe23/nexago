@@ -85,7 +85,7 @@ final friendlyMatchInboxProvider = Provider<AsyncValue<List<FriendlyMatch>>>((re
     return AsyncValue.error(counters.error!, StackTrace.current);
   }
   if (invites.isLoading || counters.isLoading) return const AsyncValue.loading();
-  final merged = [...invites.value ?? [], ...counters.value ?? []]
+  final merged = <FriendlyMatch>[...?invites.value, ...?counters.value]
     ..sort((a, b) => (b.createdAt ?? b.scheduledAt)
         .compareTo(a.createdAt ?? a.scheduledAt));
   return AsyncValue.data(merged);
@@ -100,7 +100,7 @@ final friendlyMatchOutboxProvider = Provider<AsyncValue<List<FriendlyMatch>>>((r
     return AsyncValue.error(counters.error!, StackTrace.current);
   }
   if (sent.isLoading || counters.isLoading) return const AsyncValue.loading();
-  final merged = [...sent.value ?? [], ...counters.value ?? []]
+  final merged = <FriendlyMatch>[...?sent.value, ...?counters.value]
     ..sort((a, b) => (b.createdAt ?? b.scheduledAt)
         .compareTo(a.createdAt ?? a.scheduledAt));
   return AsyncValue.data(merged);

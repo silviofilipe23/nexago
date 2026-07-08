@@ -603,6 +603,12 @@ function requireAuth(uid: string | undefined): string {
   return uid;
 }
 
+export async function deliverFriendlyMatchNotifications(
+  notifications: FriendlyMatchNotification[],
+): Promise<void> {
+  return deliverAll(notifications);
+}
+
 async function deliverAll(notifications: FriendlyMatchNotification[]): Promise<void> {
   for (const notification of notifications) {
     try {

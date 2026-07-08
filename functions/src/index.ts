@@ -256,3 +256,8 @@ export {
   counterFriendlyMatchInvite,
   cancelFriendlyMatch,
 } from "./friendly-match-invite";
+
+export {
+  expireFriendlyMatches,
+  sendFriendlyMatchReminders,
+} from "./friendly-match-sweepers";

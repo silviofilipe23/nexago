@@ -266,3 +266,8 @@ export {
   checkInFriendlyMatch,
   closeFriendlyMatchCheckIns,
 } from "./friendly-match-checkin";
+
+export {
+  submitFriendlyMatchReview,
+  revealFriendlyMatchReviews,
+} from "./friendly-match-review";

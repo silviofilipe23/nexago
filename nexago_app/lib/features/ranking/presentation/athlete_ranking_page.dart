@@ -13,7 +13,7 @@ import '../domain/ranking_providers.dart';
 import 'widgets/ranking_classification_header.dart';
 import 'widgets/ranking_gender_filter_sheet.dart';
 import 'widgets/ranking_how_it_works_sheet.dart';
-import 'widgets/ranking_level_filter_dropdown.dart';
+import 'widgets/ranking_level_filter_chip.dart';
 import 'widgets/ranking_list_tile.dart';
 import 'widgets/ranking_mode_segment.dart';
 import 'widgets/ranking_page_app_bar.dart';
@@ -242,7 +242,7 @@ class _AthleteRankingPageState extends ConsumerState<AthleteRankingPage> {
                     SizedBox(height: 10),
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: RankingLevelFilterDropdown(
+                      child: RankingLevelFilterChip(
                         selectedRank: filter.level,
                         onChanged: (rank) {
                           ref.read(rankingPageFilterProvider.notifier).state =

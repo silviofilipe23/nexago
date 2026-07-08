@@ -986,13 +986,11 @@ service cloud.firestore {
     }
 
     match /arenaBookings/{bookingId} {
-      allow read: if request.auth != null && (
-        resource.data.athleteId == request.auth.uid ||
-        resource.data.bookingAthleteId == request.auth.uid ||
-        (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
-         get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid) ||
-        isSuperAdmin()
-      );
+      // Leitura autenticada ampla: o preview do convite compartilhado
+      // (/convite/:inviteId) relê a reserva ANTES de o convidado ter vínculo
+      // com ela (fetchInvite). Era o comportamento efetivo com o catch-all
+      // antigo; apertar exige repensar o preview do convite primeiro.
+      allow read: if request.auth != null;
       allow create: if request.auth != null && (
         isSuperAdmin() ||
         (
@@ -1004,8 +1002,35 @@ service cloud.firestore {
         resource.data.athleteId == request.auth.uid ||
         (exists(/databases/$(database)/documents/arenas/$(resource.data.arenaId)) &&
          get(/databases/$(database)/documents/arenas/$(resource.data.arenaId)).data.managerUserId == request.auth.uid) ||
-        isSuperAdmin()
+        isSuperAdmin() ||
+        // Convidado aceitando convite de reserva (bookingInvites): só pode
+        // tocar os campos de participação — nunca status/pagamento.
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+          ['confirmedParticipants', 'guestAthleteId', 'guestAthleteName']
+        )
       );
+      allow delete: if false;
+    }
+
+    // Convites de reserva ("Convite para jogar" via link compartilhado).
+    // Antes não havia regra: a leitura vazava pelo catch-all e a escrita
+    // client-side (criar/aceitar) era NEGADA — o fluxo estava quebrado.
+    match /bookingInvites/{inviteId} {
+      // O destinatário é desconhecido até aceitar (link compartilhado).
+      allow read: if request.auth != null;
+      allow create: if request.auth != null &&
+        request.resource.data.invitedByUid == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.bookingId is string &&
+        request.resource.data.expiresAt is timestamp;
+      // Aceite: transição única pending→accepted, aceitante se identifica e
+      // não pode alterar o convite em si.
+      allow update: if request.auth != null &&
+        resource.data.status == 'pending' &&
+        request.resource.data.status == 'accepted' &&
+        request.resource.data.acceptedByUid == request.auth.uid &&
+        request.resource.data.bookingId == resource.data.bookingId &&
+        request.resource.data.invitedByUid == resource.data.invitedByUid;
       allow delete: if false;
     }
 
@@ -1095,7 +1120,10 @@ service cloud.firestore {
               !request.resource.data.roles.hasAny(['admin', 'arena', 'organizer'])
             )
           ) &&
-          (!('superAdmin' in request.resource.data) || request.resource.data.superAdmin == false)
+          (!('superAdmin' in request.resource.data) || request.resource.data.superAdmin == false) &&
+          // Reputação (Bora Jogar) é derivada por Cloud Function — usuário
+          // novo não pode nascer com reputação pré-fabricada.
+          !('reputation' in request.resource.data)
         ) ||
         isAdmin() ||
         isPartnerPreRegistrationCreate(userId)
@@ -1807,15 +1835,15 @@ service cloud.firestore {
         request.resource.data.createdAt is timestamp;
     }
 
-    // Regras padrão para outras coleções (ajuste conforme necessário)
-    // IMPORTANTE: Esta regra NÃO deve interferir com as regras específicas acima
-    // As regras específicas têm prioridade sobre esta regra padrão
-    // Esta regra só se aplica a caminhos que não correspondem às regras acima
+    // NEGAÇÃO padrão para caminhos não mapeados.
+    // ATENÇÃO à semântica do Firestore: quando vários `match` cobrem o mesmo
+    // caminho, os `allow` fazem OR — um catch-all com `allow read` CONCEDE
+    // leitura a tudo e ANULA as restrições específicas acima (foi o que
+    // acontecia aqui: PII de users, convites e avaliações double-blind
+    // ficavam legíveis por qualquer autenticado). Um catch-all só é seguro
+    // negando tudo; coleção nova precisa de regra explícita própria.
     match /{document=**} {
-      // Mantém leitura autenticada, mas bloqueia escrita não mapeada explicitamente.
-      // Isso evita novos caminhos com permissão de escrita aberta por engano.
-      allow read: if request.auth != null;
-      allow write: if false;
+      allow read, write: if false;
     }
   }
 }

@@ -18,24 +18,29 @@ class RankingLevelFilterDropdown extends StatelessWidget {
   /// Ranks unificados da escada de 5 (1 e 4 reservados p/ beach tennis).
   static const _ranks = [0, 1, 2, 3, 5];
 
+  /// Sentinela do menu — `PopupMenuItem(value: null)` não dispara
+  /// `onSelected` (Flutter trata como cancelamento).
+  static const _allLevels = -1;
+
   @override
   Widget build(BuildContext context) {
     final label = selectedRank == null
         ? 'Todos os níveis'
         : AthleteProfileOptions.labelForRank(selectedRank!);
 
-    return PopupMenuButton<int?>(
-      initialValue: selectedRank,
-      onSelected: onChanged,
+    return PopupMenuButton<int>(
+      initialValue: selectedRank ?? _allLevels,
+      onSelected: (value) =>
+          onChanged(value == _allLevels ? null : value),
       color: context.themeColors.surfaceRaised,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       itemBuilder: (context) => [
-        const PopupMenuItem<int?>(
-          value: null,
+        const PopupMenuItem<int>(
+          value: _allLevels,
           child: Text('Todos os níveis'),
         ),
         for (final rank in _ranks)
-          PopupMenuItem<int?>(
+          PopupMenuItem<int>(
             value: rank,
             child: Text(AthleteProfileOptions.labelForRank(rank)),
           ),

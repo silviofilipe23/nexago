@@ -1,0 +1,207 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <header class="rk-page-header">
+    <div class="rk-page-header-titles">
+      <h1>Ranking</h1>
+      <div class="rk-page-header-sub">Pontuação atualizada toda semana</div>
+    </div>
+    <div class="rk-page-header-spacer"></div>
+    <div class="rk-page-header-actions">
+      <label class="rk-search-box">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+        <input
+          #searchInput
+          type="search"
+          placeholder="Buscar…"
+          [value]="queryInput()"
+          (input)="onQueryInput($any($event.target).value)"
+        />
+        <span class="rk-search-kbd" aria-hidden="true">⌘K</span>
+      </label>
+      <button type="button" class="rk-bell" aria-label="Ver notificações">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6" /><path d="M10 20a2.2 2.2 0 0 0 4 0" /></svg>
+        <span class="rk-bell-dot"></span>
+      </button>
+      <a routerLink="/perfil" class="rk-header-avatar">{{ headerInitials() }}</a>
+    </div>
+  </header>
+
+  <div class="rk-body">
+    <div class="rk-toolbar">
+      <div class="rk-tabs" role="tablist" aria-label="Individual ou duplas">
+        <button
+          type="button"
+          role="tab"
+          class="rk-tab"
+          [class.rk-tab--active]="isMode('individual')"
+          [attr.aria-selected]="isMode('individual')"
+          (click)="setMode('individual')"
+        >
+          Individual
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="rk-tab"
+          [class.rk-tab--active]="isMode('doubles')"
+          [attr.aria-selected]="isMode('doubles')"
+          (click)="setMode('doubles')"
+        >
+          Duplas
+        </button>
+      </div>
+
+      <span class="rk-toolbar-divider" aria-hidden="true"></span>
+
+      <label class="rk-filter-btn">
+        <span>{{ sportLabel(sportFilter()) }}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        <select
+          class="rk-native-select"
+          aria-label="Esporte"
+          [value]="sportFilter()"
+          (change)="setSport($any($event.target).value)"
+        >
+          @for (o of sportOptions; track o.chip) {
+            <option [value]="o.chip">{{ o.label }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="rk-filter-btn">
+        <span>{{ levelLabel(levelFilter()) }}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        <select
+          class="rk-native-select"
+          aria-label="Categoria"
+          [value]="levelFilter()"
+          (change)="setLevel($any($event.target).value)"
+        >
+          @for (l of levelOptions; track l) {
+            <option [value]="l">{{ levelLabel(l) }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="rk-filter-btn">
+        <span>{{ cityLabel(cityFilter()) }}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        <select
+          class="rk-native-select"
+          aria-label="Cidade"
+          [value]="cityFilter()"
+          (change)="setCity($any($event.target).value)"
+        >
+          @for (c of cityOptions(); track c) {
+            <option [value]="c">{{ cityLabel(c) }}</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    <div class="rk-main-grid">
+      <div class="rk-col">
+        @if (totalCount() === 0) {
+          <div class="rk-empty-card">
+            <p class="rk-empty-title">Nenhum atleta encontrado</p>
+            <p class="rk-empty-sub">Ajuste os filtros ou a busca para ver mais resultados.</p>
+          </div>
+        } @else {
+          <div class="rk-podium-card">
+            <div class="rk-podium">
+              @for (p of podium(); track p.id) {
+                <div class="rk-podium-place" [attr.data-place]="p.rank">
+                  <span class="rk-podium-badge">{{ p.rank }}</span>
+                  <p class="rk-podium-name">{{ p.name }}</p>
+                  <p class="rk-podium-city">{{ p.city }}</p>
+                  <div class="rk-podium-pedestal">
+                    <span class="rk-podium-points">{{ p.points }}</span>
+                    <span class="rk-podium-points-label">pontos</span>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+
+          @if (restList().length > 0) {
+            <div class="rk-list-card">
+              <div class="rk-list-head">
+                <span class="rk-list-kicker">{{ topLabel() }}</span>
+                <h2 class="rk-list-title">Classificação completa</h2>
+              </div>
+              <div class="rk-list">
+                @for (p of restList(); track p.id) {
+                  <div class="rk-row">
+                    <span class="rk-row-rank">{{ p.rank }}</span>
+                    <span class="rk-row-avatar">{{ rowInitials(p.name) }}</span>
+                    <div class="rk-row-info">
+                      <p class="rk-row-name">{{ p.name }}</p>
+                      <p class="rk-row-city">{{ p.city }}</p>
+                    </div>
+                    <span class="rk-row-level">{{ p.level }}</span>
+                    <span class="rk-row-points">{{ p.points }}</span>
+                    <span class="rk-trend" [attr.data-tone]="trendTone(p.trend)">
+                      @if (trendTone(p.trend) === 'neutral') {
+                        —
+                      } @else {
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" [class.rk-trend-arrow--down]="trendTone(p.trend) === 'down'" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+                        {{ absTrend(p.trend) }}
+                      }
+                    </span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        }
+      </div>
+
+      <div class="rk-col rk-col--side">
+          <div class="rk-card">
+            <div class="rk-card-head">
+              <span class="rk-card-kicker">{{ modeLabel() }}</span>
+              <h2 class="rk-card-title">Sua posição</h2>
+            </div>
+            <div class="rk-self-row">
+              <span class="rk-self-rank">#{{ selfEntry().rank }}</span>
+              <span class="rk-self-avatar">{{ headerInitials() }}</span>
+              <div class="rk-self-info">
+                <p class="rk-self-name">{{ selfEntry().name }}</p>
+                <p class="rk-self-city">{{ selfEntry().city }}</p>
+              </div>
+            </div>
+            <div class="rk-self-stats">
+              <div class="rk-self-points-block">
+                <span class="rk-self-points">{{ selfEntry().points }} pts</span>
+                <span class="rk-self-level">{{ selfEntry().level }}</span>
+              </div>
+              <span class="rk-trend" [attr.data-tone]="trendTone(selfEntry().trend)">
+                @if (trendTone(selfEntry().trend) === 'neutral') {
+                  —
+                } @else {
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" [class.rk-trend-arrow--down]="trendTone(selfEntry().trend) === 'down'" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+                  {{ absTrend(selfEntry().trend) }}
+                }
+              </span>
+            </div>
+          </div>
+
+          <div class="rk-card">
+            <div class="rk-card-head">
+              <h2 class="rk-card-title">Como pontuar</h2>
+            </div>
+            <div class="rk-rule-list">
+              @for (r of scoringRules; track r.id) {
+                <div class="rk-rule-row">
+                  <span class="rk-rule-dot" aria-hidden="true"></span>
+                  <div class="rk-rule-copy">
+                    <p class="rk-rule-title">{{ r.title }}</p>
+                    <p class="rk-rule-detail">{{ r.detail }}</p>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+      </div>
+    </div>
+  </div>
+</app-at-panel-shell>

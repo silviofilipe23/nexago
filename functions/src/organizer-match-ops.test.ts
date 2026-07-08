@@ -3,6 +3,7 @@ import {test} from "node:test";
 
 import {canFillBracketSlot} from "./category-bracket-advance";
 import {
+  compareByMatchNumber,
   isMatchAutoSchedulable,
   shouldPropagateMatchAdvance,
 } from "./organizer-match-ops";
@@ -109,4 +110,49 @@ test("isMatchAutoSchedulable libera partida com as duas duplas já decididas", (
     isMatchAutoSchedulable({teamAId: "t1", teamBId: "t2"}, true),
     true,
   );
+});
+
+test("compareByMatchNumber ordena pela numeração global, não por round por trilha", () => {
+  // Em dupla eliminação, WB, LB, 3º lugar e final reiniciam `round` em 1 cada
+  // um na sua própria trilha. Se a auto-programação ordenasse por round antes
+  // do matchNumber, 3º lugar e final (round 1 nas suas trilhas) entrariam
+  // antes da WB round 2 — regressão que esta função corrige.
+  const matches = [
+    {id: "final", matchNumber: 6, round: 1},
+    {id: "wb-r2", matchNumber: 3, round: 2},
+    {id: "third-place", matchNumber: 5, round: 1},
+    {id: "wb-r1-b", matchNumber: 2, round: 1},
+    {id: "lb-r1", matchNumber: 4, round: 1},
+    {id: "wb-r1-a", matchNumber: 1, round: 1},
+  ];
+
+  const sorted = [...matches].sort(compareByMatchNumber);
+
+  assert.deepEqual(
+    sorted.map((m) => m.id),
+    ["wb-r1-a", "wb-r1-b", "wb-r2", "lb-r1", "third-place", "final"],
+  );
+});
+
+test("compareByMatchNumber coloca a final por último mesmo entrando em primeiro", () => {
+  const matches = [
+    {id: "final", matchNumber: 10},
+    {id: "wb-r1", matchNumber: 1},
+  ];
+
+  const [first, last] = [...matches].sort(compareByMatchNumber);
+
+  assert.equal(first.id, "wb-r1");
+  assert.equal(last.id, "final");
+});
+
+test("compareByMatchNumber trata matchNumber ausente como 0", () => {
+  const matches: Array<{id: string; matchNumber?: number}> = [
+    {id: "a", matchNumber: 5},
+    {id: "b"},
+  ];
+
+  const sorted = [...matches].sort(compareByMatchNumber);
+
+  assert.deepEqual(sorted.map((m) => m.id), ["b", "a"]);
 });

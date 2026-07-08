@@ -1,175 +1,325 @@
 import {
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   ElementRef,
-  Injector,
-  afterNextRender,
   computed,
-  effect,
   inject,
   signal,
-  untracked,
+  viewChild,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
-import gsap from 'gsap';
 import { interval } from 'rxjs';
-import { MOCK_DISCOVERY_LEAGUES, MOCK_DISCOVERY_TOURNAMENTS, MOCK_LIVE_STATS } from './tournament-discovery.mock';
+import { AuthService } from '../auth/auth.service';
+import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { MOCK_DISCOVERY_LEAGUES, MOCK_DISCOVERY_TOURNAMENTS } from './tournament-discovery.mock';
 import type {
+  DiscoveryLeague,
+  DiscoveryLeagueStage,
   DiscoveryTournament,
   FilterCategory,
   FilterFormat,
 } from './tournament-discovery.models';
 import { collectLeagueTournamentIds } from './tournament-league.helpers';
 
+export type CompeteViewTab = 'all' | 'tournaments' | 'leagues';
+export type CompeteBadgeTone = 'enrolled' | 'open' | 'upcoming' | 'live' | 'ended';
+
+export interface CompeteBadge {
+  label: string;
+  tone: CompeteBadgeTone;
+}
+
+export interface CompeteStageView {
+  stage: DiscoveryLeagueStage;
+  state: 'done' | 'current' | 'upcoming';
+}
+
+export interface CompeteLeagueCard {
+  league: DiscoveryLeague;
+  badge: CompeteBadge;
+  stageViews: CompeteStageView[];
+  completedCount: number;
+  dateRangeLabel: string | null;
+  priceRangeLabel: string | null;
+  categories: DiscoveryTournament['categories'];
+  matchesFilters: boolean;
+}
+
+const MONTH_ABBR = [
+  'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez',
+] as const;
+
+const BADGE_PRIORITY: readonly CompeteBadgeTone[] = ['enrolled', 'live', 'open', 'upcoming', 'ended'];
+
+function tournamentBadge(t: DiscoveryTournament, nowMs: number): CompeteBadge {
+  if (t.enrolled) return { label: 'Inscrito', tone: 'enrolled' };
+  if (t.registrationOpensAt && t.registrationOpensAt.getTime() > nowMs) {
+    return { label: 'Em breve', tone: 'upcoming' };
+  }
+  if (t.status === 'live') return { label: 'Ao vivo', tone: 'live' };
+  if (t.status === 'ended') return { label: 'Encerrado', tone: 'ended' };
+  return { label: 'Aberto', tone: 'open' };
+}
+
+function leagueBadge(tournaments: readonly DiscoveryTournament[], nowMs: number): CompeteBadge {
+  if (tournaments.length === 0) return { label: 'Em breve', tone: 'upcoming' };
+  const badges = tournaments.map((t) => tournamentBadge(t, nowMs));
+  for (const tone of BADGE_PRIORITY) {
+    const hit = badges.find((b) => b.tone === tone);
+    if (hit) return hit;
+  }
+  return badges[0]!;
+}
+
+function stageState(tournaments: readonly DiscoveryTournament[], nowMs: number): CompeteStageView['state'] {
+  if (tournaments.length === 0) return 'upcoming';
+  if (tournaments.every((t) => t.status === 'ended')) return 'done';
+  if (tournaments.some((t) => t.status === 'live' || t.startDate.getTime() <= nowMs)) return 'current';
+  return 'upcoming';
+}
+
+function dateRangeLabel(tournaments: readonly DiscoveryTournament[]): string | null {
+  if (tournaments.length === 0) return null;
+  const dates = tournaments.map((t) => t.startDate).sort((a, b) => a.getTime() - b.getTime());
+  const first = dates[0]!;
+  const last = dates[dates.length - 1]!;
+  const firstLabel = `${MONTH_ABBR[first.getMonth()]}`;
+  const lastLabel = `${MONTH_ABBR[last.getMonth()]} ${last.getFullYear()}`;
+  if (first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()) {
+    return lastLabel;
+  }
+  return `${firstLabel} – ${lastLabel}`;
+}
+
+function priceRangeLabel(tournaments: readonly DiscoveryTournament[]): string | null {
+  if (tournaments.length === 0) return null;
+  const cheapest = tournaments.reduce((min, t) => (t.priceValue < min.priceValue ? t : min));
+  return `a partir de ${cheapest.priceLabel}/etapa`;
+}
+
+function hashHue(id: string): number {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) % 360;
+  }
+  return hash < 0 ? hash + 360 : hash;
+}
+
+function heroGradient(id: string): string {
+  const hue = hashHue(id);
+  return `linear-gradient(135deg, hsl(${hue} 55% 26%), hsl(${(hue + 34) % 360} 55% 12%))`;
+}
+
+function titleCase(input: string): string {
+  return input
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function nameFromEmail(email: string | null | undefined): string {
+  const local = email?.split('@')[0]?.trim();
+  return local ? titleCase(local) : 'Atleta';
+}
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'AT';
+  const first = parts[0]?.[0] ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
+  return (first + last).toUpperCase() || 'AT';
+}
+
 @Component({
   selector: 'app-tournament-discovery',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, AtPanelShellComponent],
   templateUrl: './tournament-discovery.component.html',
   styleUrl: './tournament-discovery.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '(document:keydown.meta.k)': 'focusSearch($event)',
+    '(document:keydown.control.k)': 'focusSearch($event)',
+  },
 })
 export class TournamentDiscoveryComponent {
-  private readonly host = inject(ElementRef<HTMLElement>);
-  private readonly injector = inject(Injector);
-  private readonly destroyRef = inject(DestroyRef);
+  private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly liveStats = MOCK_LIVE_STATS;
-  protected readonly playersOnlineLabel = computed(() =>
-    MOCK_LIVE_STATS.playersOnline.toLocaleString('pt-BR'),
-  );
+  protected readonly searchInputRef = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
-  /** Slots para skeleton grid */
+  protected readonly accountLabel = computed(() => {
+    const liveUser = this.auth.user();
+    if (liveUser?.displayName?.trim()) return liveUser.displayName.trim();
+    if (liveUser?.email?.trim()) return nameFromEmail(liveUser.email);
+    const devEmail = this.auth.devEmail();
+    return devEmail?.trim() ? nameFromEmail(devEmail) : 'Atleta';
+  });
+  protected readonly headerInitials = computed(() => initialsOf(this.accountLabel()));
+
   protected readonly skeletonSlots = [1, 2, 3, 4, 5, 6] as const;
+  protected readonly loading = signal(true);
+  protected readonly now = signal(Date.now());
 
+  protected readonly viewTab = signal<CompeteViewTab>('all');
+
+  protected readonly queryInput = signal('');
+  protected readonly filterQuery = signal('');
   protected readonly filterCategory = signal<FilterCategory>('all');
   protected readonly filterFormat = signal<FilterFormat>('all');
   protected readonly filterDateFrom = signal<string>('');
-  protected readonly filterLocation = signal<string>('');
   protected readonly filterPriceMax = signal<number | null>(null);
   protected readonly openOnly = signal(false);
+  protected readonly showMoreFilters = signal(false);
 
-  protected readonly loading = signal(true);
-  protected readonly selectedId = signal<string | null>(null);
-  protected readonly now = signal(Date.now());
-
-  private introDone = false;
-  private filterGen = 0;
+  private queryDebounceHandle: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly allTournaments = signal<DiscoveryTournament[]>([...MOCK_DISCOVERY_TOURNAMENTS]);
+  protected readonly leagues = MOCK_DISCOVERY_LEAGUES;
 
   private readonly leagueTournamentIds = collectLeagueTournamentIds(MOCK_DISCOVERY_LEAGUES);
 
-  protected readonly filteredTournaments = computed(() => {
-    const list = this.allTournaments();
+  protected readonly activeFilterCount = computed(() => {
+    let n = 0;
+    if (this.filterCategory() !== 'all') n++;
+    if (this.filterFormat() !== 'all') n++;
+    if (this.filterDateFrom()) n++;
+    if (this.filterPriceMax() != null) n++;
+    if (this.openOnly()) n++;
+    return n;
+  });
+
+  private passesFilters(t: DiscoveryTournament): boolean {
     const cat = this.filterCategory();
     const fmt = this.filterFormat();
-    const loc = this.filterLocation().trim().toLowerCase();
+    const q = this.filterQuery().trim().toLowerCase();
     const dateFrom = this.filterDateFrom();
     const priceMax = this.filterPriceMax();
     const openOnly = this.openOnly();
 
-    return list.filter((t) => {
-      if (openOnly && t.status !== 'open' && t.status !== 'almost_full' && t.status !== 'live') {
-        return false;
-      }
-      if (cat !== 'all' && !t.categories.includes(cat)) {
-        return false;
-      }
-      if (fmt !== 'all' && t.format !== fmt) {
-        return false;
-      }
-      if (loc && !t.city.toLowerCase().includes(loc) && !t.location.toLowerCase().includes(loc)) {
-        return false;
-      }
-      if (dateFrom) {
-        const from = new Date(dateFrom);
-        if (t.startDate < from) {
-          return false;
-        }
-      }
-      if (priceMax != null && t.priceValue > priceMax) {
-        return false;
-      }
-      return true;
+    if (openOnly && t.status !== 'open' && t.status !== 'almost_full' && t.status !== 'live') return false;
+    if (cat !== 'all' && !t.categories.includes(cat)) return false;
+    if (fmt !== 'all' && t.format !== fmt) return false;
+    if (
+      q &&
+      !t.name.toLowerCase().includes(q) &&
+      !t.city.toLowerCase().includes(q) &&
+      !t.location.toLowerCase().includes(q)
+    ) {
+      return false;
+    }
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      if (t.startDate < from) return false;
+    }
+    if (priceMax != null && t.priceValue > priceMax) return false;
+    return true;
+  }
+
+  protected readonly filteredTournaments = computed(() => this.allTournaments().filter((t) => this.passesFilters(t)));
+
+  protected readonly standaloneTournaments = computed(() =>
+    [...this.filteredTournaments()]
+      .filter((t) => !this.leagueTournamentIds.has(t.id))
+      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime()),
+  );
+
+  protected readonly leagueCards = computed<CompeteLeagueCard[]>(() => {
+    const nowMs = this.now();
+    const filteredIds = new Set(this.filteredTournaments().map((t) => t.id));
+    const byId = new Map(this.allTournaments().map((t) => [t.id, t]));
+
+    return this.leagues.map((league) => {
+      const sortedStages = [...league.stages].sort((a, b) => a.order - b.order);
+      const stageViews: CompeteStageView[] = sortedStages.map((stage) => {
+        const stageTournaments = stage.tournamentIds
+          .map((id) => byId.get(id))
+          .filter((t): t is DiscoveryTournament => !!t);
+        return { stage, state: stageState(stageTournaments, nowMs) };
+      });
+      const allLeagueTournaments = sortedStages
+        .flatMap((s) => s.tournamentIds)
+        .map((id) => byId.get(id))
+        .filter((t): t is DiscoveryTournament => !!t);
+
+      return {
+        league,
+        badge: leagueBadge(allLeagueTournaments, nowMs),
+        stageViews,
+        completedCount: stageViews.filter((s) => s.state === 'done').length,
+        dateRangeLabel: dateRangeLabel(allLeagueTournaments),
+        priceRangeLabel: priceRangeLabel(allLeagueTournaments),
+        categories: [...new Set(allLeagueTournaments.flatMap((t) => t.categories))],
+        matchesFilters: allLeagueTournaments.some((t) => filteredIds.has(t.id)),
+      };
     });
   });
 
-  protected readonly liveNow = computed(() =>
-    this.filteredTournaments().filter((t) => t.status === 'live' && t.liveMatchesNow > 0),
-  );
+  protected readonly visibleLeagueCards = computed(() => this.leagueCards().filter((c) => c.matchesFilters));
 
-  protected readonly trending = computed(() => {
-    const pool = this.filteredTournaments().filter((t) => t.status !== 'ended');
-    return [...pool].sort((a, b) => b.enrolledCount - a.enrolledCount).slice(0, 3);
+  protected readonly tournamentsCountLabel = computed(() => {
+    const n = this.standaloneTournaments().length;
+    return `${n} torneio${n === 1 ? '' : 's'}`;
   });
 
-  /** Ligas/etapas com torneios que passam nos filtros atuais. */
-  protected readonly leagueBlocks = computed(() => {
-    const filtered = this.filteredTournaments();
-    const byId = new Map(filtered.map((t) => [t.id, t]));
-    return MOCK_DISCOVERY_LEAGUES.map((league) => ({
-      league,
-      stages: [...league.stages]
-        .sort((a, b) => a.order - b.order)
-        .map((stage) => {
-          const tournaments = stage.tournamentIds
-            .map((id) => byId.get(id))
-            .filter((t): t is DiscoveryTournament => !!t)
-            .sort((a, b) => {
-              if (a.featured !== b.featured) return a.featured ? -1 : 1;
-              return a.startDate.getTime() - b.startDate.getTime();
-            });
-          return { stage, tournaments };
-        })
-        .filter((x) => x.tournaments.length > 0),
-    })).filter((b) => b.stages.length > 0);
+  protected readonly leagueStagesCountLabel = computed(() => {
+    const n = this.visibleLeagueCards().reduce((sum, c) => sum + c.stageViews.length, 0);
+    return `${n} etapa${n === 1 ? '' : 's'}`;
   });
 
-  /** Torneios que não estão em nenhuma liga (ou lista “Todos” sem duplicar os da liga). */
-  protected readonly gridTournaments = computed(() => {
-    const f = this.filteredTournaments().filter((t) => !this.leagueTournamentIds.has(t.id));
-    const featured = f.filter((t) => t.featured);
-    const rest = f.filter((t) => !t.featured);
-    return { featured, rest };
-  });
+  protected readonly showTournaments = computed(() => this.viewTab() !== 'leagues');
+  protected readonly showLeagues = computed(() => this.viewTab() !== 'tournaments');
 
-  protected readonly standaloneTournamentCount = computed(() => {
-    const g = this.gridTournaments();
-    return g.featured.length + g.rest.length;
+  protected readonly stats = computed(() => {
+    const nowMs = this.now();
+    const tournaments = this.allTournaments();
+    const enrolledStandalone = tournaments.filter((t) => t.enrolled && !this.leagueTournamentIds.has(t.id)).length;
+    const enrolledLeagues = this.leagueCards().filter((c) => c.badge.tone === 'enrolled').length;
+    const aoVivo = tournaments.filter((t) => t.status === 'live').length;
+    const abertos = tournaments.filter((t) => tournamentBadge(t, nowMs).tone === 'open').length;
+    return {
+      inscritos: enrolledStandalone + enrolledLeagues,
+      aoVivo,
+      abertos,
+    };
   });
 
   constructor() {
-    setTimeout(() => this.loading.set(false), 720);
+    setTimeout(() => this.loading.set(false), 500);
 
-    interval(1000)
+    interval(60_000)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.now.set(Date.now()));
 
-    afterNextRender(
-      () => {
-        if (!this.prefersReducedMotion()) {
-          this.playIntro();
-        }
-      },
-      { injector: this.injector },
-    );
+    this.destroyRef.onDestroy(() => clearTimeout(this.queryDebounceHandle));
+  }
 
-    effect(() => {
-      this.filteredTournaments();
-      this.loading();
-      if (this.loading()) return;
-      const gen = ++this.filterGen;
-      untracked(() =>
-        afterNextRender(() => {
-          if (gen !== this.filterGen) return;
-          if (!this.prefersReducedMotion()) {
-            this.animateCards();
-          }
-        }, { injector: this.injector }),
-      );
-    });
+  protected focusSearch(event: Event): void {
+    event.preventDefault();
+    this.searchInputRef()?.nativeElement.focus();
+  }
+
+  protected onQueryInput(value: string): void {
+    this.queryInput.set(value);
+    clearTimeout(this.queryDebounceHandle);
+    this.queryDebounceHandle = setTimeout(() => this.filterQuery.set(value), 250);
+  }
+
+  protected setViewTab(tab: CompeteViewTab): void {
+    this.viewTab.set(tab);
+  }
+
+  protected isViewTab(tab: CompeteViewTab): boolean {
+    return this.viewTab() === tab;
+  }
+
+  protected toggleMoreFilters(): void {
+    this.showMoreFilters.update((v) => !v);
   }
 
   protected setCategory(c: FilterCategory): void {
@@ -188,10 +338,6 @@ export class TournamentDiscoveryComponent {
     this.filterDateFrom.set(v);
   }
 
-  protected onLocationInput(v: string): void {
-    this.filterLocation.set(v);
-  }
-
   protected onPriceMaxInput(v: string): void {
     if (!v) {
       this.filterPriceMax.set(null);
@@ -199,6 +345,14 @@ export class TournamentDiscoveryComponent {
     }
     const n = Number(v);
     this.filterPriceMax.set(Number.isFinite(n) ? n : null);
+  }
+
+  protected resetFilters(): void {
+    this.filterCategory.set('all');
+    this.filterFormat.set('all');
+    this.filterDateFrom.set('');
+    this.filterPriceMax.set(null);
+    this.openOnly.set(false);
   }
 
   protected isCategoryActive(c: FilterCategory): boolean {
@@ -209,116 +363,33 @@ export class TournamentDiscoveryComponent {
     return this.filterFormat() === f;
   }
 
-  protected selectCard(id: string): void {
-    this.selectedId.set(id);
-  }
-
-  protected clearSelection(): void {
-    this.selectedId.set(null);
-  }
-
-  protected scrollToGrid(): void {
-    const el = this.host.nativeElement.querySelector('#td-grid');
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
   protected openTournament(t: DiscoveryTournament): void {
     void this.router.navigate(['/torneios', t.id]);
   }
 
-  protected statusLabel(s: DiscoveryTournament['status']): string {
-    switch (s) {
-      case 'open':
-        return 'Aberto';
-      case 'almost_full':
-        return 'Quase lotado';
-      case 'live':
-        return 'Ao vivo';
-      case 'ended':
-        return 'Finalizado';
-    }
+  protected openLeague(league: DiscoveryLeague): void {
+    void this.router.navigate(['/ligas', league.id]);
   }
 
   protected categoryPill(c: DiscoveryTournament['categories'][number]): string {
     switch (c) {
       case 'M':
-        return 'Masc.';
+        return 'Masc';
       case 'F':
-        return 'Fem.';
+        return 'Fem';
       case 'Mix':
         return 'Misto';
     }
   }
 
-  protected urgencyLabel(t: DiscoveryTournament): string | null {
-    if (t.spotsLeft <= 0) return null;
-    if (t.spotsLeft <= 3) return `Últimas ${t.spotsLeft} vagas`;
-    if (t.spotsLeft <= 8) return `Só ${t.spotsLeft} vagas`;
-    return null;
+  protected tournamentBadge(t: DiscoveryTournament): CompeteBadge {
+    return tournamentBadge(t, this.now());
   }
 
-  protected offerCountdown(t: DiscoveryTournament): string | null {
-    const end = t.offerEndsAt;
-    if (!end) return null;
-    const ms = end.getTime() - this.now();
-    if (ms <= 0) return 'Oferta encerrada';
-    const h = Math.floor(ms / 3600000);
-    const m = Math.floor((ms % 3600000) / 60000);
-    const s = Math.floor((ms % 60000) / 1000);
-    if (h > 48) return `${Math.floor(h / 24)}d ${h % 24}h`;
-    if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
-    return `${m}m ${s.toString().padStart(2, '0')}s`;
+  protected fillPercent(t: DiscoveryTournament): number {
+    if (t.spotsTotal <= 0) return 0;
+    return Math.round(((t.spotsTotal - t.spotsLeft) / t.spotsTotal) * 100);
   }
 
-  protected selectedTournament(): DiscoveryTournament | null {
-    const id = this.selectedId();
-    if (!id) return null;
-    return this.allTournaments().find((t) => t.id === id) ?? null;
-  }
-
-  private prefersReducedMotion(): boolean {
-    return (
-      typeof globalThis.matchMedia === 'function' &&
-      globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches
-    );
-  }
-
-  private playIntro(): void {
-    if (this.introDone) return;
-    this.introDone = true;
-    const root = this.host.nativeElement;
-    const parts = root.querySelectorAll('[data-td-intro]');
-    if (!parts.length) return;
-    gsap.fromTo(
-      parts,
-      { opacity: 0, y: 36 },
-      {
-        opacity: 1,
-        y: 0,
-        duration: 0.65,
-        stagger: 0.1,
-        ease: 'power3.out',
-        clearProps: 'transform',
-      },
-    );
-  }
-
-  private animateCards(): void {
-    const root = this.host.nativeElement;
-    const cards = root.querySelectorAll('.td-card');
-    if (!cards.length) return;
-    gsap.fromTo(
-      cards,
-      { opacity: 0, y: 22, scale: 0.98 },
-      {
-        opacity: 1,
-        y: 0,
-        scale: 1,
-        duration: 0.45,
-        stagger: 0.05,
-        ease: 'power2.out',
-        clearProps: 'transform',
-      },
-    );
-  }
+  protected readonly heroGradient = heroGradient;
 }

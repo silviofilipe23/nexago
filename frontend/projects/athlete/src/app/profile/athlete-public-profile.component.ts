@@ -1,17 +1,6 @@
-import {
-  Component,
-  afterNextRender,
-  computed,
-  DestroyRef,
-  effect,
-  ElementRef,
-  inject,
-  Injector,
-  signal,
-  untracked,
-} from '@angular/core';
-import { RouterLink, ActivatedRoute } from '@angular/router';
-import gsap from 'gsap';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import {
   collection,
@@ -26,8 +15,13 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
-
-export type PublicProfileTabId = 'sobre' | 'jogos' | 'torneios';
+import { MOCK_ATHLETE_DIRECTORY } from '../atletas/athlete-directory.mock';
+import { AuthService } from '../auth/auth.service';
+import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
+import { AthleteGamificationService } from './athlete-gamification.service';
+import { applyCuratedProfileOverrides, buildMockPublicAthleteProfile, getMockProfileExtras } from './public-profile-demo.mock';
+import type { ProfileDemoExtras } from './public-profile-demo.models';
 
 /** Escopo do ranking publico: hub inteiro, liga ou arena especifica. */
 export type PublicRankingScope = 'global' | 'league' | 'arena';
@@ -42,7 +36,7 @@ export interface PublicRankingEntry {
   categoryLabel: string | null;
 }
 
-interface PublicAthleteProfile {
+export interface PublicAthleteProfile {
   uid: string;
   fullName: string;
   handle: string;
@@ -75,11 +69,6 @@ interface PublicAthleteProfile {
   completionScore: number;
   profileStrength: string;
   rankings: PublicRankingEntry[];
-}
-
-interface ReputationBadge {
-  label: string;
-  tone: 'accent' | 'success' | 'warning' | 'neutral';
 }
 
 function createFirestore(): Firestore | null {
@@ -354,57 +343,56 @@ function buildPublicRankingsList(rankingData: DocumentData | null): PublicRankin
   return mergeLegacySingleRankingDoc(rankingData, fromArray);
 }
 
-function buildBadges(profile: PublicAthleteProfile): ReputationBadge[] {
-  const badges: ReputationBadge[] = [];
-  if (profile.completionScore >= 85) {
-    badges.push({ label: 'Perfil premium', tone: 'accent' });
-  }
-  if (profile.lookingForPartner) {
-    badges.push({ label: 'Aberto para dupla', tone: 'success' });
-  }
-  if (profile.openToTournaments) {
-    badges.push({ label: 'Pronto para torneios', tone: 'warning' });
-  }
-  if (profile.achievements.length >= 2) {
-    badges.push({ label: 'Bagagem competitiva', tone: 'neutral' });
-  }
-  return badges;
+function titleCase(input: string): string {
+  return input
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function nameFromEmail(email: string | null | undefined): string {
+  const local = email?.split('@')[0]?.trim();
+  return local ? titleCase(local) : 'Atleta';
+}
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'AT';
+  const first = parts[0]?.[0] ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
+  return (first + last).toUpperCase() || 'AT';
 }
 
 @Component({
   selector: 'app-athlete-public-profile',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, NgTemplateOutlet, AtPanelShellComponent],
   templateUrl: './athlete-public-profile.component.html',
   styleUrl: './athlete-public-profile.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AthletePublicProfileComponent {
   private readonly route = inject(ActivatedRoute);
+  private readonly auth = inject(AuthService);
+  private readonly gamification = inject(AthleteGamificationService);
   private readonly firestore = createFirestore();
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly injector = inject(Injector);
-  private readonly destroyRef = inject(DestroyRef);
-
-  private gsapProfileCtx: gsap.Context | null = null;
-  private introTimeline: gsap.core.Timeline | null = null;
-  private tabTimeline: gsap.core.Timeline | null = null;
-  private lastProfileAnimKey = '';
-  private lastTabAnimated: PublicProfileTabId | null = null;
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly copyFeedback = signal<string | null>(null);
+  protected readonly actionNotice = signal<string | null>(null);
   protected readonly profile = signal<PublicAthleteProfile | null>(null);
-  protected readonly activeTab = signal<PublicProfileTabId>('sobre');
+  protected readonly mockExtras = signal<ProfileDemoExtras | null>(null);
+  protected readonly followed = signal(false);
+
+  private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly handle = computed(() => this.route.snapshot.paramMap.get('handle') ?? '');
   protected readonly profileUrl = computed(() => {
     const origin = typeof location !== 'undefined' ? location.origin : 'https://nexago.app';
     return `${origin}/atletas/${this.handle()}`;
-  });
-  protected readonly badges = computed(() => {
-    const profile = this.profile();
-    return profile ? buildBadges(profile) : [];
   });
   protected readonly sportsHeadline = computed(() => {
     const profile = this.profile();
@@ -414,292 +402,84 @@ export class AthletePublicProfileComponent {
     return profile.sports.join(' · ');
   });
 
+  protected readonly hasSession = computed(() => this.auth.user() != null || this.auth.devEmail() != null);
+
+  protected readonly viewerAccountLabel = computed(() => {
+    const liveUser = this.auth.user();
+    if (liveUser?.displayName?.trim()) return liveUser.displayName.trim();
+    if (liveUser?.email?.trim()) return nameFromEmail(liveUser.email);
+    const devEmail = this.auth.devEmail();
+    return devEmail?.trim() ? nameFromEmail(devEmail) : 'Atleta';
+  });
+  protected readonly viewerInitials = computed(() => initialsOf(this.viewerAccountLabel()));
+
+  protected readonly isSelfProfile = computed(() => {
+    const p = this.profile();
+    const uid = this.auth.user()?.uid;
+    return !!p && !!uid && p.uid === uid;
+  });
+
+  protected readonly demoExtras = computed<ProfileDemoExtras | null>(() => {
+    const mock = this.mockExtras();
+    if (mock) {
+      return mock;
+    }
+    if (!this.isSelfProfile()) {
+      return null;
+    }
+    const summary = this.gamification.summary();
+    if (!summary) {
+      return null;
+    }
+    const achievementViewModels = buildAchievementViewModels(this.gamification.unlockedAchievementIds());
+    return {
+      levelNumber: summary.level,
+      xpInLevel: summary.progress.xpInLevel,
+      xpForNextLevel: summary.progress.xpForNextLevel,
+      xpProgressPercent: Math.round(summary.progress.progressRatio * 100),
+      totalGames: summary.totalGames,
+      wins: null,
+      streakDays: summary.streak,
+      achievementViewModels,
+      unlockedCount: achievementViewModels.filter((a) => a.unlocked).length,
+      achievementTotal: ACHIEVEMENT_CATALOG.length,
+      teams: [],
+      matches: [],
+    };
+  });
+
+  protected readonly primaryRanking = computed(() => this.profile()?.rankings[0] ?? null);
+
+  protected readonly firstName = computed(() => this.profile()?.fullName.split(/\s+/)[0] ?? 'atleta');
+
+  protected readonly backLink = computed<{ label: string; path: string; sourceLabel: string } | null>(() => {
+    const from = this.route.snapshot.queryParamMap.get('from');
+    if (from === 'ranking') {
+      return { label: 'Voltar ao ranking', path: '/ranking', sourceLabel: 'ranking' };
+    }
+    if (from === 'atletas') {
+      return { label: 'Voltar a atletas', path: '/atletas', sourceLabel: 'atletas' };
+    }
+    return null;
+  });
+
   constructor() {
     void this.loadProfile();
-    const tabParam = this.route.snapshot.queryParamMap.get('aba');
-    if (tabParam === 'jogos' || tabParam === 'torneios' || tabParam === 'sobre') {
-      this.activeTab.set(tabParam);
-    }
-
-    this.destroyRef.onDestroy(() => {
-      this.introTimeline?.kill();
-      this.tabTimeline?.kill();
-      this.gsapProfileCtx?.revert();
-      this.gsapProfileCtx = null;
-    });
-
-    effect(() => {
-      const loading = this.loading();
-      const err = this.error();
-      const prof = this.profile();
-      const tab = this.activeTab();
-      const handle = this.handle();
-
-      if (loading && !err) {
-        untracked(() =>
-          afterNextRender(() => this.animateLoadingShell(), { injector: this.injector }),
-        );
-        return;
-      }
-      if (!loading && err) {
-        untracked(() =>
-          afterNextRender(() => this.animateMessageShell(), { injector: this.injector }),
-        );
-        return;
-      }
-      if (!loading && prof) {
-        const key = `${handle}:${prof.uid}`;
-        untracked(() =>
-          afterNextRender(() => this.syncPublicProfileMotion(key, tab), { injector: this.injector }),
-        );
-      }
-    });
-  }
-
-  protected setTab(id: PublicProfileTabId, event?: Event): void {
-    const el = event?.currentTarget;
-    if (el instanceof HTMLElement && !this.prefersReducedMotion()) {
-      gsap.fromTo(
-        el,
-        { scale: 0.97 },
-        { scale: 1, duration: 0.22, ease: 'back.out(2)' },
-      );
-    }
-    this.activeTab.set(id);
-  }
-
-  protected isTab(id: PublicProfileTabId): boolean {
-    return this.activeTab() === id;
-  }
-
-  protected rankingTrack(_index: number, entry: PublicRankingEntry): string {
-    return `${entry.scope}:${entry.scopeRef ?? ''}:${entry.label}`;
-  }
-
-  protected rankingScopePill(entry: PublicRankingEntry): string {
-    switch (entry.scope) {
-      case 'global':
-        return 'Geral';
-      case 'league':
-        return 'Liga';
-      case 'arena':
-        return 'Arena';
-    }
-  }
-
-  private prefersReducedMotion(): boolean {
-    return (
-      typeof globalThis.matchMedia === 'function' &&
-      globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches
-    );
-  }
-
-  private animateLoadingShell(): void {
-    if (this.prefersReducedMotion()) {
-      return;
-    }
-    const root = this.host.nativeElement;
-    const shell = root.querySelector('.public-profile-state');
-    if (!shell) {
-      return;
-    }
-    gsap.fromTo(
-      shell,
-      { opacity: 0, y: 14 },
-      { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out' },
-    );
-    const lines = shell.querySelectorAll('.public-profile-state__eyebrow, h1, .text-muted');
-    gsap.fromTo(
-      lines,
-      { opacity: 0, y: 10 },
-      { opacity: 1, y: 0, duration: 0.42, stagger: 0.07, ease: 'power2.out', delay: 0.06 },
-    );
-  }
-
-  private animateMessageShell(): void {
-    if (this.prefersReducedMotion()) {
-      return;
-    }
-    const root = this.host.nativeElement;
-    const shell = root.querySelector('.public-profile-state');
-    if (!shell) {
-      return;
-    }
-    gsap.fromTo(
-      shell,
-      { opacity: 0, y: 16, scale: 0.99 },
-      { opacity: 1, y: 0, scale: 1, duration: 0.55, ease: 'power3.out' },
-    );
-    const parts = shell.querySelectorAll(
-      '.public-profile-state__eyebrow, h1, .text-muted, .public-profile-state__actions > *',
-    );
-    gsap.fromTo(
-      parts,
-      { opacity: 0, y: 12 },
-      { opacity: 1, y: 0, duration: 0.45, stagger: 0.08, ease: 'power2.out', delay: 0.08 },
-    );
-  }
-
-  private tabPanelTargets(root: HTMLElement, tab: PublicProfileTabId): Element[] {
-    const panel = root.querySelector(`#panel-${tab}`);
-    if (!panel) {
-      return [];
-    }
-    if (tab === 'sobre') {
-      return Array.from(
-        panel.querySelectorAll(
-          '.public-summary-card, .public-profile-main .public-panel, .public-profile-side .public-panel',
-        ),
-      );
-    }
-    return Array.from(panel.querySelectorAll(':scope > section'));
-  }
-
-  private playTabPanelReveal(tab: PublicProfileTabId): void {
-    if (this.prefersReducedMotion()) {
-      return;
-    }
-    const root = this.host.nativeElement;
-    const targets = this.tabPanelTargets(root, tab);
-    if (targets.length === 0) {
-      return;
-    }
-    this.tabTimeline?.kill();
-    this.tabTimeline = gsap.timeline({ defaults: { ease: 'power3.out' } });
-    this.tabTimeline.fromTo(
-      targets,
-      { opacity: 0, y: 22 },
-      { opacity: 1, y: 0, duration: 0.5, stagger: 0.07, clearProps: 'transform' },
-    );
-  }
-
-  private playFullProfileIntro(tab: PublicProfileTabId): void {
-    if (this.prefersReducedMotion()) {
-      return;
-    }
-    const root = this.host.nativeElement;
-    this.introTimeline?.kill();
-    this.tabTimeline?.kill();
-    this.gsapProfileCtx?.revert();
-    this.gsapProfileCtx = null;
-
-    this.gsapProfileCtx = gsap.context(() => {
-      const cover = root.querySelector('.public-profile-hero__cover');
-      const avatar = root.querySelector('.public-profile-hero__avatar, .public-profile-hero__avatar-img');
-      const copyLines = root.querySelectorAll('.public-profile-hero__copy > *');
-      const scores = root.querySelectorAll('.public-profile-hero__rail .public-profile-score');
-      const badges = root.querySelectorAll('.public-profile-badges .public-badge');
-      const tabBar = root.querySelector('.public-profile-tabs');
-      const tabButtons = root.querySelectorAll('.public-profile-tabs__tab');
-      const panelTargets = this.tabPanelTargets(root, tab);
-
-      const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
-      this.introTimeline = tl;
-
-      if (cover) {
-        tl.fromTo(
-          cover,
-          { scale: 1.07, opacity: 0.75 },
-          { scale: 1, opacity: 1, duration: 0.85, ease: 'power2.out' },
-          0,
-        );
-      }
-
-      if (avatar) {
-        tl.fromTo(
-          avatar,
-          { opacity: 0, y: 18, scale: 0.9 },
-          { opacity: 1, y: 0, scale: 1, duration: 0.55 },
-          cover ? '-=0.45' : 0,
-        );
-      }
-
-      if (copyLines.length) {
-        tl.fromTo(
-          copyLines,
-          { opacity: 0, y: 16 },
-          { opacity: 1, y: 0, duration: 0.48, stagger: 0.07 },
-          '-=0.35',
-        );
-      }
-
-      if (scores.length) {
-        tl.fromTo(
-          scores,
-          { opacity: 0, y: 20 },
-          { opacity: 1, y: 0, duration: 0.45, stagger: 0.09 },
-          '-=0.25',
-        );
-      }
-
-      const rankingCards = root.querySelectorAll(
-        '.public-profile-hero__rankings-scroll .public-profile-ranking-card, .public-profile-hero__rankings-empty',
-      );
-      if (rankingCards.length) {
-        tl.fromTo(
-          rankingCards,
-          { opacity: 0, y: 16 },
-          { opacity: 1, y: 0, duration: 0.42, stagger: 0.07 },
-          '-=0.2',
-        );
-      }
-
-      if (badges.length) {
-        tl.fromTo(
-          badges,
-          { opacity: 0, scale: 0.88, y: 8 },
-          { opacity: 1, scale: 1, y: 0, duration: 0.4, stagger: 0.06, ease: 'back.out(1.35)' },
-          '-=0.2',
-        );
-      }
-
-      if (tabBar) {
-        tl.fromTo(
-          tabBar,
-          { opacity: 0, y: 12 },
-          { opacity: 1, y: 0, duration: 0.45 },
-          '-=0.15',
-        );
-      } else if (tabButtons.length) {
-        tl.fromTo(
-          tabButtons,
-          { opacity: 0, y: 10 },
-          { opacity: 1, y: 0, duration: 0.38, stagger: 0.05 },
-          '-=0.15',
-        );
-      }
-
-      if (panelTargets.length) {
-        tl.fromTo(
-          panelTargets,
-          { opacity: 0, y: 24 },
-          { opacity: 1, y: 0, duration: 0.5, stagger: 0.065, clearProps: 'transform' },
-          '-=0.2',
-        );
-      }
-    }, root);
-  }
-
-  private syncPublicProfileMotion(profileKey: string, tab: PublicProfileTabId): void {
-    if (this.prefersReducedMotion()) {
-      return;
-    }
-    if (this.lastProfileAnimKey !== profileKey) {
-      this.lastProfileAnimKey = profileKey;
-      this.lastTabAnimated = tab;
-      this.playFullProfileIntro(tab);
-      return;
-    }
-    if (this.lastTabAnimated === tab) {
-      return;
-    }
-    this.lastTabAnimated = tab;
-    this.playTabPanelReveal(tab);
   }
 
   private async loadProfile(): Promise<void> {
     const profileIdentifier = this.handle().trim();
     const normalizedIdentifier = slugify(profileIdentifier);
+
+    const mockEntry = MOCK_ATHLETE_DIRECTORY.find((entry) => entry.handle === normalizedIdentifier);
+    if (mockEntry) {
+      const profile = applyCuratedProfileOverrides(mockEntry, buildMockPublicAthleteProfile(mockEntry));
+      this.profile.set(profile);
+      this.mockExtras.set(getMockProfileExtras(mockEntry));
+      this.loading.set(false);
+      return;
+    }
+
     if (!environment.production) {
       console.info('[athlete-public-profile] lookup', {
         projectId: environment.firebase.projectId,
@@ -840,5 +620,31 @@ export class AthletePublicProfileComponent {
     } catch {
       this.copyFeedback.set('Nao foi possivel copiar agora.');
     }
+  }
+
+  protected teamInitials(teamName: string): [string, string] {
+    const [a, b] = teamName.split('&').map((part) => part.trim());
+    const first = (a ?? teamName).slice(0, 2).toUpperCase();
+    const second = (b ?? '').slice(0, 2).toUpperCase() || first;
+    return [first, second];
+  }
+
+  protected toggleFollow(): void {
+    this.followed.update((v) => !v);
+  }
+
+  protected sendMessage(): void {
+    this.showNotice('Mensagens diretas chegam em breve por aqui.');
+  }
+
+  protected challenge(): void {
+    const name = this.profile()?.fullName ?? 'este atleta';
+    this.showNotice(`Desafio para ${name} chega em breve por aqui.`);
+  }
+
+  private showNotice(message: string): void {
+    this.actionNotice.set(message);
+    clearTimeout(this.noticeTimeout);
+    this.noticeTimeout = setTimeout(() => this.actionNotice.set(null), 4000);
   }
 }

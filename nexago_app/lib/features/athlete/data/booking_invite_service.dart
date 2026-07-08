@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../domain/booking_invite_model.dart';
+import '../domain/booking_invite_status.dart';
 
 class BookingInviteService {
   const BookingInviteService(this._db);
@@ -60,7 +61,18 @@ class BookingInviteService {
   Future<BookingInvite?> fetchInvite(String inviteId) async {
     final snap = await _db.collection(_collection).doc(inviteId).get();
     if (!snap.exists) return null;
-    return BookingInvite.fromFirestore(snap);
+    final invite = BookingInvite.fromFirestore(snap);
+    if (invite.bookingId.isEmpty) return invite;
+
+    // O documento do convite guarda uma cópia da reserva feita na criação;
+    // relê o status ATUAL para detectar cancelamentos posteriores (o convite
+    // sozinho não sabe disso).
+    final bookingSnap =
+        await _db.collection('arenaBookings').doc(invite.bookingId).get();
+    return invite.copyWith(
+      bookingExists: bookingSnap.exists,
+      bookingStatus: bookingSnap.data()?['status'] as String?,
+    );
   }
 
   Future<void> acceptInvite(
@@ -68,53 +80,81 @@ class BookingInviteService {
     required String acceptedByUid,
     String? acceptedByName,
   }) async {
-    final inviteRef = _db.collection(_collection).doc(inviteId);
-    final inviteSnap = await inviteRef.get();
-    if (!inviteSnap.exists) {
-      throw Exception('Convite não encontrado');
-    }
-    final invite = inviteSnap.data() ?? {};
-    final bookingId = (invite['bookingId'] as String?)?.trim() ?? '';
     final uid = acceptedByUid.trim();
     if (uid.isEmpty) {
       throw Exception('Faça login para aceitar o convite.');
     }
 
-    await inviteRef.update({
-      'status': 'accepted',
-      'acceptedByUid': uid,
-      if (acceptedByName != null && acceptedByName.trim().isNotEmpty)
-        'acceptedByName': acceptedByName.trim(),
-      'acceptedAt': FieldValue.serverTimestamp(),
+    // Transação: relê convite + reserva e valida ANTES de escrever, tudo
+    // atomicamente. Sem isso, duas pessoas aceitando o mesmo convite quase
+    // ao mesmo tempo conseguiam as duas "ganhar" (dupla contagem de
+    // confirmedParticipants e condição de corrida no guestAthleteId).
+    await _db.runTransaction((tx) async {
+      final inviteRef = _db.collection(_collection).doc(inviteId);
+      final inviteSnap = await tx.get(inviteRef);
+      if (!inviteSnap.exists) {
+        throw Exception('Convite não encontrado ou expirado.');
+      }
+      final invite = inviteSnap.data() ?? {};
+      final bookingId = (invite['bookingId'] as String?)?.trim() ?? '';
+      final status = (invite['status'] as String?) ?? 'pending';
+      final expiresAt = (invite['expiresAt'] as Timestamp?)?.toDate();
+
+      DocumentSnapshot<Map<String, dynamic>>? bookingSnap;
+      if (bookingId.isNotEmpty) {
+        bookingSnap =
+            await tx.get(_db.collection('arenaBookings').doc(bookingId));
+      }
+
+      final blockedReason = resolveBookingInviteBlockedReason(
+        inviteStatus: status,
+        inviteExpired:
+            expiresAt != null && DateTime.now().isAfter(expiresAt),
+        bookingExists: bookingSnap?.exists ?? false,
+        bookingStatus: bookingSnap?.data()?['status'] as String?,
+      );
+      if (blockedReason != null) {
+        throw Exception(blockedReason);
+      }
+
+      tx.update(inviteRef, {
+        'status': 'accepted',
+        'acceptedByUid': uid,
+        if (acceptedByName != null && acceptedByName.trim().isNotEmpty)
+          'acceptedByName': acceptedByName.trim(),
+        'acceptedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (bookingId.isEmpty || bookingSnap == null || !bookingSnap.exists) {
+        return;
+      }
+      final booking = bookingSnap.data() ?? {};
+      final ownerId =
+          ((booking['athleteId'] ?? booking['bookingAthleteId']) as String?)
+                  ?.trim() ??
+              '';
+      if (ownerId == uid) return;
+
+      final updates = <String, dynamic>{
+        'confirmedParticipants': FieldValue.increment(1),
+        'guestAthleteId': uid,
+        if (acceptedByName != null && acceptedByName.trim().isNotEmpty)
+          'guestAthleteName': acceptedByName.trim(),
+      };
+
+      final existingGuest = (booking['guestAthleteId'] as String?)?.trim();
+      if (existingGuest != null &&
+          existingGuest.isNotEmpty &&
+          existingGuest != uid) {
+        updates.remove('guestAthleteId');
+        updates.remove('guestAthleteName');
+      }
+
+      tx.set(
+        _db.collection('arenaBookings').doc(bookingId),
+        updates,
+        SetOptions(merge: true),
+      );
     });
-
-    if (bookingId.isEmpty) return;
-
-    final bookingRef = _db.collection('arenaBookings').doc(bookingId);
-    final bookingSnap = await bookingRef.get();
-    if (!bookingSnap.exists) return;
-    final booking = bookingSnap.data() ?? {};
-
-    final ownerId = ((booking['athleteId'] ?? booking['bookingAthleteId']) as String?)
-            ?.trim() ??
-        '';
-    if (ownerId == uid) return;
-
-    final updates = <String, dynamic>{
-      'confirmedParticipants': FieldValue.increment(1),
-      'guestAthleteId': uid,
-      if (acceptedByName != null && acceptedByName.trim().isNotEmpty)
-        'guestAthleteName': acceptedByName.trim(),
-    };
-
-    final existingGuest = (booking['guestAthleteId'] as String?)?.trim();
-    if (existingGuest != null &&
-        existingGuest.isNotEmpty &&
-        existingGuest != uid) {
-      updates.remove('guestAthleteId');
-      updates.remove('guestAthleteName');
-    }
-
-    await bookingRef.set(updates, SetOptions(merge: true));
   }
 }

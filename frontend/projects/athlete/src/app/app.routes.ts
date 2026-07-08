@@ -8,6 +8,12 @@ export const routes: Routes = [
     redirectTo: 'entrar',
   },
   {
+    path: 'atletas',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./atletas/athlete-directory.component').then((m) => m.AthleteDirectoryComponent),
+  },
+  {
     path: 'atletas/:handle',
     loadComponent: () =>
       import('./profile/athlete-public-profile.component').then(
@@ -56,6 +62,30 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () =>
       import('./agenda/athlete-agenda.component').then((m) => m.AthleteAgendaComponent),
+  },
+  {
+    path: 'reservar',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./reservar/athlete-reservar.component').then((m) => m.AthleteReservarComponent),
+  },
+  {
+    path: 'ranking',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./ranking/athlete-ranking.component').then((m) => m.AthleteRankingComponent),
+  },
+  {
+    path: 'equipes',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./equipes/athlete-equipes.component').then((m) => m.AthleteEquipesComponent),
+  },
+  {
+    path: 'equipes/:teamId',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./equipes/team-public-profile.component').then((m) => m.TeamPublicProfileComponent),
   },
   {
     path: 'torneios',

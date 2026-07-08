@@ -8,7 +8,17 @@ function pathOnly(url: string): string {
   return i >= 0 ? url.slice(0, i) : url;
 }
 
-const SHELL_ROUTE_PREFIXES = ['/painel', '/agenda', '/torneios', '/ligas', '/perfil'];
+const SHELL_ROUTE_PREFIXES = [
+  '/painel',
+  '/agenda',
+  '/reservar',
+  '/torneios',
+  '/ligas',
+  '/ranking',
+  '/equipes',
+  '/atletas',
+  '/perfil',
+];
 const AUTH_ROUTES = ['/entrar', '/cadastro', '/esqueci-senha', '/email-enviado', '/redefinir-senha'];
 
 function chromeHiddenForUrl(url: string): boolean {

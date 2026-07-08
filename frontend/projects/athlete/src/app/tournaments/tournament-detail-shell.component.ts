@@ -1,52 +1,68 @@
-import {
-  Component,
-  DestroyRef,
-  ElementRef,
-  Injector,
-  afterNextRender,
-  computed,
-  effect,
-  inject,
-  signal,
-  untracked,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import gsap from 'gsap';
 import { map } from 'rxjs';
+import { AuthService } from '../auth/auth.service';
+import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { MOCK_DISCOVERY_LEAGUES, MOCK_DISCOVERY_TOURNAMENTS } from './tournament-discovery.mock';
 import type { DiscoveryTournament } from './tournament-discovery.models';
 import { leagueContextLabel, resolveLeagueContext } from './tournament-league.helpers';
-import {
-  getTournamentDetailExtra,
-  type BracketPreviewState,
-  type TournamentStageDetail,
-} from './tournament-detail.mock';
+import { getTournamentDetailExtra, type BracketPreviewState } from './tournament-detail.mock';
+
+function titleCase(input: string): string {
+  return input
+    .toLowerCase()
+    .split(/[\s_-]+/)
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function nameFromEmail(email: string | null | undefined): string {
+  const local = email?.split('@')[0]?.trim();
+  return local ? titleCase(local) : 'Atleta';
+}
+
+function hashHue(id: string): number {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) % 360;
+  }
+  return hash < 0 ? hash + 360 : hash;
+}
+
+function heroGradient(id: string): string {
+  const hue = hashHue(id);
+  return `linear-gradient(120deg, hsl(${hue} 55% 20%), hsl(${(hue + 40) % 360} 55% 10%))`;
+}
 
 @Component({
   selector: 'app-tournament-detail-shell',
   standalone: true,
-  imports: [RouterLink],
+  imports: [RouterLink, AtPanelShellComponent],
   templateUrl: './tournament-detail-shell.component.html',
   styleUrl: './tournament-detail-shell.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TournamentDetailShellComponent {
   private readonly route = inject(ActivatedRoute);
-  private readonly host = inject(ElementRef<HTMLElement>);
-  private readonly injector = inject(Injector);
+  private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
 
-  private revealObserver: IntersectionObserver | null = null;
-  private revealScheduledForId: string | null = null;
-
-  private readonly id = toSignal(
-    this.route.paramMap.pipe(map((p) => p.get('id') ?? '')),
-    { initialValue: '' },
-  );
+  private readonly id = toSignal(this.route.paramMap.pipe(map((p) => p.get('id') ?? '')), { initialValue: '' });
 
   protected readonly loading = signal(true);
-  protected readonly activeStageIndex = signal(0);
   protected readonly postLikes = signal<Record<string, number>>({});
+  protected readonly shareFeedback = signal<string | null>(null);
+  private feedbackTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  protected readonly accountLabel = computed(() => {
+    const liveUser = this.auth.user();
+    if (liveUser?.displayName?.trim()) return liveUser.displayName.trim();
+    if (liveUser?.email?.trim()) return nameFromEmail(liveUser.email);
+    const devEmail = this.auth.devEmail();
+    return devEmail?.trim() ? nameFromEmail(devEmail) : 'Atleta';
+  });
 
   protected readonly base = computed((): DiscoveryTournament | null => {
     const id = this.id();
@@ -71,24 +87,18 @@ export class TournamentDetailShellComponent {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
   });
 
-  protected readonly activeStage = computed((): TournamentStageDetail | null => {
-    const stages = this.extra()?.stages ?? [];
-    const i = this.activeStageIndex();
-    return stages[i] ?? stages[0] ?? null;
-  });
-
   protected readonly heroStatus = computed(() => {
     const b = this.base();
-    if (!b) return { emoji: '', label: '', tone: 'neutral' as const };
+    if (!b) return { label: '', tone: 'neutral' as const };
     switch (b.status) {
       case 'open':
-        return { emoji: '🔥', label: 'Inscrições abertas', tone: 'open' as const };
+        return { label: 'Inscrições abertas', tone: 'open' as const };
       case 'almost_full':
-        return { emoji: '⏳', label: 'Últimas vagas', tone: 'urgent' as const };
+        return { label: 'Últimas vagas', tone: 'urgent' as const };
       case 'live':
-        return { emoji: '🔴', label: 'Ao vivo agora', tone: 'live' as const };
+        return { label: 'Ao vivo agora', tone: 'live' as const };
       case 'ended':
-        return { emoji: '✓', label: 'Encerrado', tone: 'ended' as const };
+        return { label: 'Encerrado', tone: 'ended' as const };
     }
   });
 
@@ -97,56 +107,15 @@ export class TournamentDetailShellComponent {
     return this.bracketStateCopy(state);
   });
 
+  protected readonly heroBackground = computed(() => heroGradient(this.base()?.id ?? ''));
+
   constructor() {
-    setTimeout(() => this.loading.set(false), 640);
-
-    effect(() => {
-      const b = this.base();
-      if (this.loading()) {
-        return;
-      }
-      if (!b) {
-        this.revealScheduledForId = null;
-        return;
-      }
-      const id = b.id;
-      if (this.revealScheduledForId === id) {
-        return;
-      }
-      this.revealScheduledForId = id;
-      untracked(() => {
-        afterNextRender(() => {
-          this.setupIntroGsap();
-          this.setupScrollReveal();
-        }, { injector: this.injector });
-      });
-    });
-
-    this.destroyRef.onDestroy(() => {
-      this.revealObserver?.disconnect();
-      this.revealObserver = null;
-    });
-  }
-
-  protected setStage(i: number): void {
-    this.activeStageIndex.set(i);
-    if (this.prefersReducedMotion()) return;
-    afterNextRender(
-      () => {
-        const el = this.host.nativeElement.querySelector('.tdv-stage-panel');
-        if (!el) return;
-        gsap.fromTo(
-          el,
-          { opacity: 0, y: 14 },
-          { opacity: 1, y: 0, duration: 0.45, ease: 'power2.out', clearProps: 'transform' },
-        );
-      },
-      { injector: this.injector },
-    );
+    setTimeout(() => this.loading.set(false), 320);
+    this.destroyRef.onDestroy(() => clearTimeout(this.feedbackTimeout));
   }
 
   protected scrollToCategories(): void {
-    this.host.nativeElement.querySelector('#tdv-categories')?.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('tdv-categories')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   protected likePost(id: string, base: number): void {
@@ -162,6 +131,11 @@ export class TournamentDetailShellComponent {
     return n.toLocaleString('pt-BR');
   }
 
+  protected categoryFillPercent(spotsLeft: number, spotsTotal: number): number {
+    if (spotsTotal <= 0) return 0;
+    return Math.round(((spotsTotal - spotsLeft) / spotsTotal) * 100);
+  }
+
   protected bracketStateCopy(state: BracketPreviewState): string {
     switch (state) {
       case 'soon':
@@ -173,57 +147,26 @@ export class TournamentDetailShellComponent {
     }
   }
 
-  private setupIntroGsap(): void {
-    if (this.prefersReducedMotion()) return;
-    const root = this.host.nativeElement;
-    const parts = root.querySelectorAll('[data-tdv-intro]');
-    if (!parts.length) return;
-    gsap.fromTo(
-      parts,
-      { opacity: 0, y: 32 },
-      {
-        opacity: 1,
-        y: 0,
-        duration: 0.65,
-        stagger: 0.1,
-        ease: 'power3.out',
-        clearProps: 'transform',
-      },
-    );
-  }
-
-  private setupScrollReveal(): void {
-    if (typeof IntersectionObserver === 'undefined') {
-      return;
+  protected async shareTournament(): Promise<void> {
+    const t = this.base();
+    if (!t) return;
+    const origin = typeof location !== 'undefined' ? location.origin : 'https://nexago.app';
+    const url = `${origin}/torneios/${t.id}`;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        this.showFeedback('Link copiado.');
+        return;
+      }
+      this.showFeedback('Copie o link manualmente.');
+    } catch {
+      this.showFeedback('Não foi possível copiar agora.');
     }
-    this.revealObserver?.disconnect();
-
-    const root = this.host.nativeElement;
-    const nodes = root.querySelectorAll('[data-tdv-reveal]');
-    nodes.forEach((n: Element) => n.classList.remove('tdv-reveal--visible'));
-
-    if (!nodes.length) return;
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) {
-            e.target.classList.add('tdv-reveal--visible');
-            io.unobserve(e.target);
-          }
-        }
-      },
-      { threshold: 0.08, rootMargin: '0px 0px -40px 0px' },
-    );
-
-    nodes.forEach((n: Element) => io.observe(n));
-    this.revealObserver = io;
   }
 
-  private prefersReducedMotion(): boolean {
-    return (
-      typeof globalThis.matchMedia === 'function' &&
-      globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches
-    );
+  private showFeedback(message: string): void {
+    this.shareFeedback.set(message);
+    clearTimeout(this.feedbackTimeout);
+    this.feedbackTimeout = setTimeout(() => this.shareFeedback.set(null), 3500);
   }
 }

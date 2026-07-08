@@ -1,5 +1,7 @@
 import type { DocumentData, DocumentSnapshot } from 'firebase/firestore';
 
+import { amenitiesFromFirestore, type ArenaAmenities } from './arena-amenities';
+
 const DEFAULT_IMAGE_URL =
   'https://images.unsplash.com/photo-1612872087720-bb876e2ef67a?w=800&q=80&auto=format&fit=crop';
 
@@ -8,6 +10,7 @@ export interface ArenaListItem {
   name: string;
   locationLabel: string;
   coverUrl: string | null;
+  logoUrl: string | null;
   pricePerHourReais: number;
   description: string | null;
   city: string | null;
@@ -17,6 +20,14 @@ export interface ArenaListItem {
   reviewsCount: number;
   lat: number | null;
   lng: number | null;
+  /** Esportes oferecidos (`courtTypes` no Firestore). */
+  courtTypes: string[];
+  /** Superfícies das quadras (`surfaces` no Firestore). */
+  surfaces: string[];
+  reputationScore: number;
+  onlinePaymentEnabled: boolean;
+  onsitePaymentEnabled: boolean;
+  amenities: ArenaAmenities;
 }
 
 export function arenaListItemFromFirestore(
@@ -48,6 +59,8 @@ export function arenaListItemFromFirestore(
     pickUrl('imageUrl') ??
     pickUrl('heroImageUrl');
 
+  const logoUrl = pickUrl('logoUrl') ?? pickUrl('logo') ?? pickUrl('logoImageUrl');
+
   const price =
     (typeof data['pricePerHourReais'] === 'number' ? data['pricePerHourReais'] : null) ??
     (typeof data['basePriceReais'] === 'number' ? data['basePriceReais'] : null) ??
@@ -65,11 +78,15 @@ export function arenaListItemFromFirestore(
 
   const { lat, lng } = readLatLng(data);
 
+  const courtTypes = readStringArray(data['courtTypes'] ?? data['sports']);
+  const surfaces = readStringArray(data['surfaces']);
+
   return {
     id: doc.id,
     name,
     locationLabel,
     coverUrl,
+    logoUrl,
     pricePerHourReais: price,
     description: typeof data['description'] === 'string' ? data['description'] : null,
     city: city || null,
@@ -79,7 +96,26 @@ export function arenaListItemFromFirestore(
     reviewsCount: typeof data['reviewsCount'] === 'number' ? data['reviewsCount'] : 0,
     lat,
     lng,
+    courtTypes,
+    surfaces,
+    reputationScore: typeof data['reputationScore'] === 'number' ? data['reputationScore'] : 0,
+    onlinePaymentEnabled: data['onlinePaymentEnabled'] !== false,
+    onsitePaymentEnabled: data['onsitePaymentEnabled'] !== false,
+    amenities: amenitiesFromFirestore(data['amenities']),
   };
+}
+
+function readStringArray(raw: unknown): string[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out: string[] = [];
+  for (const e of raw) {
+    if (typeof e === 'string' && e.trim().length > 0) {
+      out.push(e.trim());
+    }
+  }
+  return out;
 }
 
 export function arenaListItemImageUrl(item: ArenaListItem): string {

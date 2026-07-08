@@ -22,6 +22,7 @@ export interface ArenaSearchResult {
   displayPricePerHourReais: number;
   showStartingFrom: boolean;
   hasAvailability: boolean;
+  courtCount: number;
 }
 
 export function requestedMinutesFromTime(requestedTime: string): number {
@@ -78,7 +79,7 @@ async function buildArenaSearchResult(
   const showStartingFrom = minCourtPrice != null;
 
   if (courts.length === 0) {
-    return emptyResult(arena, displayPrice, showStartingFrom);
+    return emptyResult(arena, displayPrice, showStartingFrom, 0);
   }
 
   const allSlots: { slot: ArenaSlot; courtName: string }[] = [];
@@ -101,7 +102,7 @@ async function buildArenaSearchResult(
   }
 
   if (allSlots.length === 0) {
-    return emptyResult(arena, displayPrice, showStartingFrom);
+    return emptyResult(arena, displayPrice, showStartingFrom, courts.length);
   }
 
   const requested = requestedMinutesFromTime(filters.requestedTime);
@@ -139,6 +140,7 @@ async function buildArenaSearchResult(
     displayPricePerHourReais: displayPrice,
     showStartingFrom,
     hasAvailability: picked != null,
+    courtCount: courts.length,
   };
 }
 
@@ -146,6 +148,7 @@ function emptyResult(
   arena: ArenaListItem,
   displayPrice: number,
   showStartingFrom: boolean,
+  courtCount: number,
 ): ArenaSearchResult {
   return {
     arena,
@@ -156,6 +159,7 @@ function emptyResult(
     displayPricePerHourReais: displayPrice,
     showStartingFrom,
     hasAvailability: false,
+    courtCount,
   };
 }
 

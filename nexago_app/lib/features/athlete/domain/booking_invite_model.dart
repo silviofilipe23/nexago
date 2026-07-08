@@ -16,6 +16,8 @@ class BookingInvite {
     required this.status,
     required this.createdAt,
     required this.expiresAt,
+    this.bookingExists = true,
+    this.bookingStatus,
   });
 
   final String id;
@@ -33,9 +35,36 @@ class BookingInvite {
   final DateTime createdAt;
   final DateTime expiresAt;
 
+  /// Estado ATUAL (lido no momento do fetch) da reserva referenciada por
+  /// [bookingId] — os demais campos acima são a cópia feita no momento em
+  /// que o convite foi criado e não refletem cancelamentos posteriores.
+  final bool bookingExists;
+  final String? bookingStatus;
+
   bool get isExpired => DateTime.now().isAfter(expiresAt);
   bool get isAccepted => status == 'accepted';
   bool get isPending => status == 'pending';
+
+  BookingInvite copyWith({bool? bookingExists, String? bookingStatus}) {
+    return BookingInvite(
+      id: id,
+      bookingId: bookingId,
+      arenaId: arenaId,
+      arenaName: arenaName,
+      courtName: courtName,
+      courtId: courtId,
+      date: date,
+      startTime: startTime,
+      endTime: endTime,
+      invitedByUid: invitedByUid,
+      invitedByName: invitedByName,
+      status: status,
+      createdAt: createdAt,
+      expiresAt: expiresAt,
+      bookingExists: bookingExists ?? this.bookingExists,
+      bookingStatus: bookingStatus ?? this.bookingStatus,
+    );
+  }
 
   factory BookingInvite.fromFirestore(DocumentSnapshot<Map<String, dynamic>> snap) {
     final d = snap.data()!;

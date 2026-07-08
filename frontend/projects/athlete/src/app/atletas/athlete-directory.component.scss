@@ -1,0 +1,476 @@
+:host {
+  display: block;
+}
+
+$ad-sport-colors: (
+  beachVolleyball: #ff6a1a,
+  beachTennis: #14b8a6,
+  tennis: #a3e635,
+  padel: #3b82f6,
+  volleyball: #a855f7,
+  football: #2bd17e,
+);
+
+// ── Header ───────────────────────────────────────────────────
+.ad-page-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--nx-line);
+  flex: none;
+
+  @media (max-width: 640px) {
+    padding: 16px;
+  }
+}
+
+.ad-page-header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ad-page-header-titles h1 {
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 21px;
+  letter-spacing: -0.02em;
+  color: var(--nx-text);
+  margin: 0;
+}
+
+.ad-page-header-sub {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.ad-page-header-spacer {
+  flex: 1;
+}
+
+.ad-page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.ad-search-box {
+  width: 240px;
+  height: 38px;
+  padding: 0 8px 0 12px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--nx-text-dim);
+
+  input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--nx-text);
+    font-family: var(--nx-font-ui);
+    font-size: 13px;
+
+    &::placeholder {
+      color: var(--nx-text-dim);
+    }
+  }
+
+  @media (max-width: 760px) {
+    width: 170px;
+  }
+
+  @media (max-width: 560px) {
+    display: none;
+  }
+}
+
+.ad-search-kbd {
+  flex: none;
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--nx-text-dim);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line-strong);
+  border-radius: var(--nx-r-1);
+  padding: 2px 5px;
+}
+
+.ad-bell {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--nx-r-2);
+  position: relative;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--nx-text-mute);
+  flex: none;
+}
+
+.ad-bell-dot {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--nx-orange-500);
+  box-shadow: 0 0 0 2px #070708;
+}
+
+.ad-header-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--nx-orange-tint);
+  border: 1px solid rgba(255, 106, 26, 0.35);
+  display: grid;
+  place-items: center;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--nx-orange-500);
+  text-decoration: none;
+  flex: none;
+}
+
+// ── Body ─────────────────────────────────────────────────────
+.ad-body {
+  flex: 1;
+  padding: 22px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  overflow: auto;
+
+  @media (max-width: 640px) {
+    padding: 16px 16px 32px;
+  }
+}
+
+// ── Filters ──────────────────────────────────────────────────
+.ad-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ad-filter-spacer {
+  flex: 1;
+
+  @media (max-width: 900px) {
+    display: none;
+  }
+}
+
+.ad-filter-btn {
+  position: relative;
+  height: 38px;
+  padding: 0 14px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+}
+
+.ad-native-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  color-scheme: dark;
+}
+
+// ── Section ──────────────────────────────────────────────────
+.ad-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ad-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.ad-section-title {
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--nx-text);
+  margin: 0;
+}
+
+.ad-section-count {
+  font-family: var(--nx-font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+// ── Empty state ──────────────────────────────────────────────
+.ad-empty-card {
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-4);
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+
+.ad-empty-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--nx-text);
+  margin: 0;
+}
+
+.ad-empty-sub {
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  color: var(--nx-text-mute);
+  margin: 0;
+}
+
+// ── Grid + cards ─────────────────────────────────────────────
+.ad-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.ad-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-4);
+  padding: 16px;
+  min-width: 0;
+}
+
+.ad-avatar {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--nx-orange-tint);
+  border: 1px solid rgba(255, 106, 26, 0.35);
+  display: grid;
+  place-items: center;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--nx-orange-500);
+  margin-bottom: 4px;
+}
+
+.ad-card-name {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--nx-text);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ad-card-handle {
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-text-dim);
+  margin: 0 0 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ad-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ad-sport-pill {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--nx-r-pill);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line-strong);
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.ad-sport-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--nx-orange-500);
+  flex: none;
+}
+
+@each $sport, $color in $ad-sport-colors {
+  .ad-sport-dot[data-sport='#{$sport}'] {
+    background: $color;
+  }
+}
+
+.ad-level-pill {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: var(--nx-r-pill);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line-strong);
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.ad-ranking-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--nx-surface-1);
+  border-radius: var(--nx-r-2);
+  margin-top: 2px;
+
+  span {
+    font-family: var(--nx-font-mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--nx-text-dim);
+  }
+
+  strong {
+    font-family: var(--nx-font-display);
+    font-weight: 800;
+    font-size: 14px;
+    color: var(--nx-text);
+  }
+}
+
+.ad-reason {
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  color: var(--nx-text-mute);
+  margin: 0;
+}
+
+.ad-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.ad-btn-ghost {
+  flex: 1;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--nx-r-2);
+  background: transparent;
+  border: 1px solid var(--nx-line-strong);
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 12.5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover {
+    border-color: var(--nx-text-dim);
+  }
+}
+
+.ad-btn-follow {
+  flex: 1;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-orange-500);
+  border: none;
+  color: var(--nx-text-on-orange);
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  white-space: nowrap;
+
+  &:hover {
+    background: var(--nx-orange-400);
+  }
+}
+
+.ad-btn-follow--active {
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line-strong);
+  color: var(--nx-text-mute);
+
+  &:hover {
+    background: var(--nx-surface-1);
+  }
+}

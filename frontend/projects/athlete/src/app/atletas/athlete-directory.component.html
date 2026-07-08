@@ -1,0 +1,181 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <header class="ad-page-header">
+    <div class="ad-page-header-titles">
+      <h1>Atletas</h1>
+      <div class="ad-page-header-sub">Encontre e siga jogadores da comunidade</div>
+    </div>
+    <div class="ad-page-header-spacer"></div>
+    <div class="ad-page-header-actions">
+      <label class="ad-search-box">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+        <input
+          #searchInput
+          type="search"
+          placeholder="Buscar…"
+          [value]="queryInput()"
+          (input)="onQueryInput($any($event.target).value)"
+        />
+        <span class="ad-search-kbd" aria-hidden="true">⌘K</span>
+      </label>
+      <button type="button" class="ad-bell" aria-label="Ver notificações">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6" /><path d="M10 20a2.2 2.2 0 0 0 4 0" /></svg>
+        <span class="ad-bell-dot"></span>
+      </button>
+      <a routerLink="/perfil" class="ad-header-avatar">{{ headerInitials() }}</a>
+    </div>
+  </header>
+
+  <div class="ad-body">
+    <div class="ad-filter-row">
+      <label class="ad-filter-btn">
+        <span>{{ sportLabel(sportFilter()) }}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        <select class="ad-native-select" aria-label="Esporte" [value]="sportFilter()" (change)="setSport($any($event.target).value)">
+          @for (o of sportOptions; track o.chip) {
+            <option [value]="o.chip">{{ o.label }}</option>
+          }
+        </select>
+      </label>
+      <label class="ad-filter-btn">
+        <span>{{ levelLabel(levelFilter()) }}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        <select class="ad-native-select" aria-label="Nível" [value]="levelFilter()" (change)="setLevel($any($event.target).value)">
+          @for (l of levelOptions; track l) {
+            <option [value]="l">{{ levelLabel(l) }}</option>
+          }
+        </select>
+      </label>
+      <label class="ad-filter-btn">
+        <span>{{ cityLabel(cityFilter()) }}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        <select class="ad-native-select" aria-label="Cidade" [value]="cityFilter()" (change)="setCity($any($event.target).value)">
+          @for (c of cityOptions(); track c) {
+            <option [value]="c">{{ cityLabel(c) }}</option>
+          }
+        </select>
+      </label>
+      <label class="ad-filter-btn">
+        <span>{{ distanceLabel(distanceFilter()) }}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        <select class="ad-native-select" aria-label="Distância" [value]="distanceFilter()" (change)="setDistance($any($event.target).value)">
+          @for (d of distanceOptions; track d.km) {
+            <option [value]="d.km">{{ d.label }}</option>
+          }
+        </select>
+      </label>
+
+      <div class="ad-filter-spacer"></div>
+
+      <label class="ad-filter-btn">
+        <span>{{ sortLabel(sortBy()) }}</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+        <select class="ad-native-select" aria-label="Ordenar por" [value]="sortBy()" (change)="setSortBy($any($event.target).value)">
+          @for (s of sortOptions; track s.value) {
+            <option [value]="s.value">{{ s.label }}</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    @if (suggested().length > 0) {
+      <section class="ad-section">
+        <div class="ad-section-head">
+          <h2 class="ad-section-title">Sugeridos pra você</h2>
+          <span class="ad-section-count">Com base no seu jogo</span>
+        </div>
+        <div class="ad-grid">
+          @for (a of suggested(); track a.id) {
+            <article class="ad-card">
+              <span class="ad-avatar">{{ athleteInitials(a.fullName) }}</span>
+              <p class="ad-card-name">{{ a.fullName }}</p>
+              <p class="ad-card-handle">&#64;{{ a.handle }} · {{ a.city }}</p>
+              <div class="ad-pill-row">
+                <span class="ad-sport-pill">
+                  <span class="ad-sport-dot" [attr.data-sport]="a.sport" aria-hidden="true"></span>
+                  {{ sportShortLabel(a.sport) }}
+                </span>
+                <span class="ad-level-pill">{{ a.level }}</span>
+              </div>
+              <div class="ad-ranking-box">
+                <span>Ranking</span>
+                <strong>#{{ a.rankingPosition }}</strong>
+              </div>
+              @if (a.suggestionReason) {
+                <p class="ad-reason">{{ a.suggestionReason }}</p>
+              }
+              <div class="ad-card-actions">
+                <a class="ad-btn-ghost" [routerLink]="['/atletas', a.handle]" [queryParams]="{ from: 'atletas' }">Ver perfil</a>
+                <button
+                  type="button"
+                  class="ad-btn-follow"
+                  [class.ad-btn-follow--active]="isFollowed(a.id)"
+                  (click)="toggleFollow(a.id)"
+                >
+                  @if (isFollowed(a.id)) {
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
+                    <span>Seguindo</span>
+                  } @else {
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    <span>Seguir</span>
+                  }
+                </button>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    }
+
+    <section class="ad-section">
+      <div class="ad-section-head">
+        <h2 class="ad-section-title">Todos os atletas</h2>
+        <span class="ad-section-count">{{ totalRegisteredLabel() }}</span>
+      </div>
+
+      @if (filteredOthers().length === 0) {
+        <div class="ad-empty-card">
+          <p class="ad-empty-title">Nenhum atleta encontrado</p>
+          <p class="ad-empty-sub">Ajuste os filtros ou a busca para ver mais opções.</p>
+        </div>
+      } @else {
+        <div class="ad-grid">
+          @for (a of filteredOthers(); track a.id) {
+            <article class="ad-card">
+              <span class="ad-avatar">{{ athleteInitials(a.fullName) }}</span>
+              <p class="ad-card-name">{{ a.fullName }}</p>
+              <p class="ad-card-handle">&#64;{{ a.handle }} · {{ a.city }}</p>
+              <div class="ad-pill-row">
+                <span class="ad-sport-pill">
+                  <span class="ad-sport-dot" [attr.data-sport]="a.sport" aria-hidden="true"></span>
+                  {{ sportShortLabel(a.sport) }}
+                </span>
+                <span class="ad-level-pill">{{ a.level }}</span>
+              </div>
+              <div class="ad-ranking-box">
+                <span>Ranking</span>
+                <strong>#{{ a.rankingPosition }}</strong>
+              </div>
+              <div class="ad-card-actions">
+                <a class="ad-btn-ghost" [routerLink]="['/atletas', a.handle]" [queryParams]="{ from: 'atletas' }">Ver perfil</a>
+                <button
+                  type="button"
+                  class="ad-btn-follow"
+                  [class.ad-btn-follow--active]="isFollowed(a.id)"
+                  (click)="toggleFollow(a.id)"
+                >
+                  @if (isFollowed(a.id)) {
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
+                    <span>Seguindo</span>
+                  } @else {
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    <span>Seguir</span>
+                  }
+                </button>
+              </div>
+            </article>
+          }
+        </div>
+      }
+    </section>
+  </div>
+</app-at-panel-shell>

@@ -1,0 +1,380 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <header class="rv-page-header">
+    <div class="rv-page-header-titles">
+      <h1>Reservar quadra</h1>
+      <div class="rv-page-header-sub">{{ headerSubtitle() }}</div>
+    </div>
+    <div class="rv-page-header-spacer"></div>
+    <div class="rv-page-header-actions">
+      <a routerLink="/perfil" class="rv-header-avatar">{{ headerInitials() }}</a>
+    </div>
+  </header>
+
+  <div class="rv-body">
+    @if (favoriteNotice(); as notice) {
+      <div class="nx-notice" role="status">{{ notice }}</div>
+    }
+
+    <div class="rv-search-row">
+      <label class="rv-search-box">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+        <input
+          type="search"
+          placeholder="Buscar arena, bairro ou cidade"
+          [value]="queryInput()"
+          (input)="onQueryInput($any($event.target).value)"
+        />
+      </label>
+
+      <label class="rv-date-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+        <span class="rv-date-btn-label" aria-hidden="true">{{ dateChipLabel() }}</span>
+        @if (isToday()) {
+          <span class="rv-badge-hoje" aria-hidden="true">HOJE</span>
+        }
+        <input
+          type="date"
+          class="rv-native-input"
+          aria-label="Data da reserva"
+          [value]="dateInputValue()"
+          (input)="onDateInput($any($event.target).value)"
+        />
+      </label>
+
+      <label class="rv-time-btn">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></svg>
+        <span aria-hidden="true">{{ searchTime() }}</span>
+        <input
+          type="time"
+          class="rv-native-input"
+          aria-label="Horário da reserva"
+          [value]="searchTime()"
+          (input)="onTimeInput($any($event.target).value)"
+        />
+      </label>
+
+      <button
+        type="button"
+        class="rv-filters-btn"
+        [class.rv-filters-btn--active]="showMoreFilters()"
+        (click)="toggleMoreFilters()"
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M8 6v0M4 12h16M14 12v0M4 18h16M10 18v0" /><circle cx="8" cy="6" r="2" fill="currentColor" stroke="none" /><circle cx="14" cy="12" r="2" fill="currentColor" stroke="none" /><circle cx="10" cy="18" r="2" fill="currentColor" stroke="none" /></svg>
+        <span>Mais filtros</span>
+        @if (activeFilterCount() > 0) {
+          <span class="rv-filter-count">{{ activeFilterCount() }}</span>
+        }
+      </button>
+    </div>
+
+    <div class="rv-chip-row" role="group" aria-label="Esporte">
+      @for (opt of sportChipOptions; track opt.chip) {
+        <button
+          type="button"
+          class="rv-chip"
+          [class.rv-chip--active]="filters().sportChip === opt.chip"
+          (click)="setSportChip(opt.chip)"
+        >
+          {{ opt.label }}
+        </button>
+      }
+    </div>
+
+    @if (showMoreFilters()) {
+      <div class="rv-filters-panel">
+        <div class="rv-filters-panel-head">
+          <span class="rv-filters-panel-title">Filtros</span>
+          <button type="button" class="rv-link-btn" (click)="resetFilters()">Limpar</button>
+        </div>
+
+        <div class="rv-filter-section">
+          <span class="rv-filter-label">Raio de busca</span>
+          <label class="rv-switch">
+            <input
+              type="checkbox"
+              [checked]="isRadiusUnlimited()"
+              (change)="setUnlimitedRadius($any($event.target).checked)"
+            />
+            <span class="rv-switch-ui"></span>
+            <span>Sem limite de distância</span>
+          </label>
+          @if (!isRadiusUnlimited()) {
+            <input
+              type="range"
+              class="rv-range"
+              min="1"
+              [max]="maxRadiusKm"
+              [value]="filters().radiusKm"
+              (input)="setRadiusKm($any($event.target).valueAsNumber)"
+            />
+            <span class="rv-filter-caption">até {{ filters().radiusKm }} km</span>
+          } @else {
+            <span class="rv-filter-caption">Qualquer distância</span>
+          }
+        </div>
+
+        <div class="rv-filter-section">
+          <span class="rv-filter-label">Faixa de preço · por hora</span>
+          <div class="rv-chip-row rv-chip-row--wrap">
+            @for (opt of priceBandOptions; track opt.band) {
+              <button
+                type="button"
+                class="rv-chip rv-chip--sm"
+                [class.rv-chip--active]="filters().priceBand === opt.band"
+                (click)="setPriceBand(opt.band)"
+              >
+                {{ opt.label }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="rv-filter-section">
+          <span class="rv-filter-label">Superfície</span>
+          <div class="rv-chip-row rv-chip-row--wrap">
+            @for (s of surfaceOptions; track s) {
+              <button
+                type="button"
+                class="rv-chip rv-chip--sm"
+                [class.rv-chip--active]="filters().surfaces.has(s)"
+                (click)="toggleSurface(s)"
+              >
+                {{ s }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="rv-filter-section">
+          <span class="rv-filter-label">Comodidades</span>
+          <div class="rv-chip-row rv-chip-row--wrap">
+            @for (a of amenityOptions; track a.key) {
+              <button
+                type="button"
+                class="rv-chip rv-chip--sm"
+                [class.rv-chip--active]="filters().amenities[a.key]"
+                (click)="toggleAmenity(a.key)"
+              >
+                {{ a.label }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="rv-filter-section">
+          <span class="rv-filter-label">Pagamento</span>
+          <div class="rv-chip-row rv-chip-row--wrap">
+            @for (p of paymentOptions; track p.method) {
+              <button
+                type="button"
+                class="rv-chip rv-chip--sm"
+                [class.rv-chip--active]="filters().paymentMethods.has(p.method)"
+                (click)="togglePayment(p.method)"
+              >
+                {{ p.label }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <div class="rv-filter-section">
+          <span class="rv-filter-label">Score nexaGO mínimo</span>
+          <input
+            type="range"
+            class="rv-range"
+            min="0"
+            max="100"
+            step="5"
+            [value]="filters().minReputationScore"
+            (input)="setMinScore($any($event.target).valueAsNumber)"
+          />
+          <span class="rv-filter-caption">{{ filters().minReputationScore }}+</span>
+        </div>
+
+        <div class="rv-filter-section">
+          <span class="rv-filter-label">Ordenar por</span>
+          <div class="rv-chip-row rv-chip-row--wrap">
+            @for (s of sortByOptions; track s.sortBy) {
+              <button
+                type="button"
+                class="rv-chip rv-chip--sm"
+                [class.rv-chip--active]="filters().sortBy === s.sortBy"
+                (click)="setSortBy(s.sortBy)"
+              >
+                {{ s.label }}
+              </button>
+            }
+          </div>
+        </div>
+
+        <label class="rv-switch rv-switch--standalone">
+          <input
+            type="checkbox"
+            [checked]="filters().showOnlyFavorites"
+            (change)="toggleShowOnlyFavorites()"
+          />
+          <span class="rv-switch-ui"></span>
+          <span>Mostrar só favoritas</span>
+        </label>
+      </div>
+    }
+
+    <div class="rv-results-head">
+      <span>Arenas perto <span class="rv-results-count">· {{ filteredResults().length }}</span></span>
+    </div>
+
+    @if (loadingResults()) {
+      <div class="rv-grid" aria-busy="true" aria-label="Carregando arenas">
+        @for (s of [1, 2, 3, 4, 5, 6, 7, 8]; track s) {
+          <div class="rv-skeleton-card"><div class="rv-skeleton-shimmer"></div></div>
+        }
+      </div>
+    } @else if (searchError(); as err) {
+      <div class="rv-state-card">
+        <p class="rv-state-title">Não foi possível carregar horários</p>
+        <p class="rv-state-sub">{{ err }}</p>
+        <button type="button" class="rv-btn-primary" (click)="retrySearch()">Tentar de novo</button>
+      </div>
+    } @else if (filteredResults().length === 0) {
+      @if (rawCount() > 0) {
+        <div class="rv-state-card">
+          <p class="rv-state-title">Filtros ocultaram as arenas</p>
+          <p class="rv-state-sub">
+            Temos {{ rawCount() }} arena{{ rawCount() === 1 ? '' : 's' }} na base, mas nenhuma passou nos
+            filtros atuais.
+          </p>
+          <div class="rv-state-actions">
+            <button type="button" class="rv-btn-ghost" (click)="toggleMoreFilters()">Ajustar filtros</button>
+            <button type="button" class="rv-btn-primary" (click)="showAllArenas()">Ver todas</button>
+          </div>
+        </div>
+      } @else {
+        <div class="rv-state-card">
+          <p class="rv-state-title">Nenhuma arena encontrada</p>
+          <p class="rv-state-sub">Ajuste filtros, data ou horário para ver mais opções.</p>
+        </div>
+      }
+    } @else {
+      <div class="rv-grid">
+        @for (item of filteredResults(); track trackByArenaId($index, item)) {
+          <article class="rv-card">
+            <div class="rv-card-hero" [style.background]="heroGradient(item.result.arena.id)">
+              @if (!isImageFailed(item.result.arena.id)) {
+                <img
+                  class="rv-hero-img"
+                  [class.rv-hero-img--loaded]="isImageLoaded(item.result.arena.id)"
+                  [src]="arenaImageUrl(item.result.arena)"
+                  [alt]="item.result.arena.name"
+                  loading="lazy"
+                  decoding="async"
+                  (load)="onImageLoad(item.result.arena.id)"
+                  (error)="onImageError(item.result.arena.id)"
+                />
+              }
+              @if (!isImageLoaded(item.result.arena.id) && !isImageFailed(item.result.arena.id)) {
+                <div class="rv-hero-skeleton" aria-hidden="true"></div>
+              }
+              <span class="rv-hero-pill">{{ courtCountLabel(item.result.courtCount) }}</span>
+              <div class="rv-hero-top-right">
+                <span class="rv-hero-distance">{{ distanceLabel(item.kmDistance) }}</span>
+                <button
+                  type="button"
+                  class="rv-fav-btn"
+                  [class.rv-fav-btn--active]="isFavorite(item.result.arena.id)"
+                  [attr.aria-pressed]="isFavorite(item.result.arena.id)"
+                  [attr.aria-label]="(isFavorite(item.result.arena.id) ? 'Deixar de seguir ' : 'Seguir ') + item.result.arena.name"
+                  [disabled]="pendingFavoriteId() === item.result.arena.id"
+                  (click)="toggleFavorite(item.result.arena.id)"
+                >
+                  @if (isFavorite(item.result.arena.id)) {
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.6 2.3 5 6 5c2 0 3.6 1 6 3.4C14.4 6 16 5 18 5c3.7 0 5.4 3.6 4 6.9-2.5 4.5-10 9.1-10 9.1Z" /></svg>
+                  } @else {
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.6 2.3 5 6 5c2 0 3.6 1 6 3.4C14.4 6 16 5 18 5c3.7 0 5.4 3.6 4 6.9-2.5 4.5-10 9.1-10 9.1Z" /></svg>
+                  }
+                </button>
+              </div>
+              @if (isBestPrice(item.result.arena.id) && item.result.hasAvailability) {
+                <span class="rv-best-price-badge">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 3 14h7l-1 8 11-14h-8l1-6Z" /></svg>
+                  MELHOR PREÇO
+                </span>
+              }
+            </div>
+            <div class="rv-card-body">
+              <div class="rv-card-name-row">
+                <span class="rv-arena-avatar">
+                  <span class="rv-arena-avatar-fallback" aria-hidden="true">{{ arenaInitials(item.result.arena.name) }}</span>
+                  @if (item.result.arena.logoUrl && !isLogoFailed(item.result.arena.id)) {
+                    <img
+                      class="rv-arena-avatar-img"
+                      [src]="item.result.arena.logoUrl"
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      (error)="onLogoError(item.result.arena.id)"
+                    />
+                  }
+                </span>
+                <h3 class="rv-card-name">{{ item.result.arena.name }}</h3>
+              </div>
+              <p class="rv-card-location">
+                {{ item.result.arena.city || item.result.arena.locationLabel }}{{ item.result.arena.state ? ', ' + item.result.arena.state : '' }}
+              </p>
+              <div class="rv-card-rating-row">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1Z" /></svg>
+                <span class="rv-rating-value">{{ ratingLabel(item.result.arena.ratingAverage) }}</span>
+                <span class="rv-dim">{{ reviewsLabel(item.result.arena.reviewsCount) }}</span>
+                <span class="rv-dot" aria-hidden="true">·</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4" /><path d="M7 4h10v6a5 5 0 0 1-10 0V4z" /><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" /></svg>
+                <span class="rv-dim">Score</span>
+                <span class="rv-score-value">{{ item.result.arena.reputationScore }}</span>
+              </div>
+
+              <div class="rv-card-price-row">
+                <span class="rv-price-label">A PARTIR DE</span>
+                <span class="rv-price-value"
+                  >{{ formatPriceWhole(item.result.displayPricePerHourReais) }}<span class="rv-price-suffix">/h</span></span
+                >
+              </div>
+
+              <div class="rv-card-slot-row">
+                <div class="rv-slot-info">
+                  @if (item.result.hasAvailability) {
+                    <span class="rv-slot-next">Próximo: {{ item.result.selectedSlot?.startTime }}</span>
+                  } @else {
+                    <span class="rv-slot-none">Sem disponibilidade</span>
+                  }
+                  <span class="rv-slot-court">{{ courtLineLabel(item.result) }}</span>
+                </div>
+                <button
+                  type="button"
+                  class="rv-btn-primary rv-btn-reservar"
+                  [disabled]="!item.result.hasAvailability"
+                  (click)="openConfirm(item.result)"
+                >
+                  Reservar
+                </button>
+              </div>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </div>
+</app-at-panel-shell>
+
+@if (confirmResult(); as r) {
+  <div class="rv-modal-backdrop" (click)="closeConfirm()">
+    <div class="rv-modal" (click)="$event.stopPropagation()">
+      <h3 class="rv-modal-title">Confirmar reserva</h3>
+      <p class="rv-modal-arena">{{ r.courtName ? r.arena.name + ' · ' + r.courtName : r.arena.name }}</p>
+      <p class="rv-modal-slot">{{ dateChipLabel() }} às {{ r.selectedSlot?.startTime }}</p>
+      <p class="rv-modal-price">{{ formatPriceWhole(r.displayPricePerHourReais) }}/h</p>
+      <p class="rv-modal-note">
+        A confirmação e o pagamento da reserva chegam em breve por aqui. Por enquanto, combine o horário
+        diretamente com a arena.
+      </p>
+      <button type="button" class="rv-btn-primary rv-modal-close" (click)="closeConfirm()">Entendi</button>
+    </div>
+  </div>
+}

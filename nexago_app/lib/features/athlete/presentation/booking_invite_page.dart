@@ -11,6 +11,7 @@ import '../domain/athlete_display_name.dart';
 import '../domain/athlete_profile_providers.dart';
 import '../domain/booking_invite_model.dart';
 import '../domain/booking_invite_providers.dart';
+import '../domain/booking_invite_status.dart';
 
 class BookingInvitePage extends ConsumerStatefulWidget {
   const BookingInvitePage({super.key, required this.inviteId});
@@ -38,8 +39,14 @@ class _BookingInvitePageState extends ConsumerState<BookingInvitePage> {
           if (invite == null) {
             return _ErrorBody(message: 'Convite não encontrado ou expirado.');
           }
-          if (invite.isExpired) {
-            return _ErrorBody(message: 'Este convite expirou.');
+          final blockedReason = resolveBookingInviteBlockedReason(
+            inviteStatus: invite.status,
+            inviteExpired: invite.isExpired,
+            bookingExists: invite.bookingExists,
+            bookingStatus: invite.bookingStatus,
+          );
+          if (blockedReason != null) {
+            return _ErrorBody(message: blockedReason);
           }
           return _InviteBody(
             invite: invite,

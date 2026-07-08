@@ -1,303 +1,250 @@
-@if (base(); as t) {
-  <div class="tdv-page">
-    <div class="tdv-page__bg" aria-hidden="true">
-      <div class="tdv-page__bg-mesh"></div>
-      <div class="tdv-page__bg-sand"></div>
-      <div class="tdv-page__bg-spike"></div>
-      <div class="tdv-page__bg-particles"></div>
-      <div class="tdv-page__bg-vignette"></div>
+<app-at-panel-shell [userName]="accountLabel()">
+  @if (loading()) {
+    <div class="tdv-body">
+      <div class="tdv-skeleton-hero" aria-busy="true"><div class="tdv-skeleton-shimmer"></div></div>
     </div>
+  } @else if (base(); as t) {
+    <div class="tdv-body">
+      <a routerLink="/torneios" class="tdv-back-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+        <span>Voltar a Competir</span>
+      </a>
 
-    <div class="tdv-page__content">
-      @if (loading()) {
-        <div class="tdv-skeleton-hero container-nexago" aria-busy="true">
-          <div class="tdv-skeleton-hero__shimmer"></div>
-          <div class="tdv-skeleton-line tdv-skeleton-line--lg"></div>
-          <div class="tdv-skeleton-line"></div>
-          <div class="tdv-skeleton-line tdv-skeleton-line--sm"></div>
+      @if (shareFeedback(); as fb) {
+        <div class="tdv-notice" role="status">{{ fb }}</div>
+      }
+
+      <div class="tdv-hero" [style.background]="heroBackground()">
+        <span class="tdv-hero-ring" aria-hidden="true"></span>
+        <div class="tdv-hero-top">
+          <div class="tdv-hero-badges">
+            <span class="tdv-hero-status" [attr.data-tone]="heroStatus().tone">{{ heroStatus().label }}</span>
+            <span class="tdv-hero-tag">Torneio · 1 etapa</span>
+          </div>
+          <button type="button" class="tdv-share-btn" (click)="shareTournament()">Compartilhar</button>
         </div>
-      } @else {
-        <!-- HERO -->
-        <header class="tdv-hero">
-          <div class="tdv-hero__top container-nexago" data-tdv-intro>
-            <a routerLink="/torneios" class="tdv-back">← Torneios</a>
-            @if (extra(); as x) {
-              @if (x.rankingValid) {
-                <span class="tdv-hero__badge tdv-pulse-badge">🔥 Ranking válido</span>
-              }
-            }
-          </div>
-          <div class="tdv-hero__inner container-nexago">
-            <div class="tdv-hero__copy" data-tdv-intro>
-              <span class="tdv-hero__status" [attr.data-tone]="heroStatus().tone">
-                {{ heroStatus().emoji }} {{ heroStatus().label }}
-              </span>
-              <h1 class="tdv-hero__title">{{ t.name }}</h1>
-              @if (leagueContextLine(); as leagueLine) {
-                <p class="tdv-hero__league">{{ leagueLine }}</p>
-              }
-              <p class="tdv-hero__loc">📍 {{ t.city }} · {{ t.location }}</p>
-              <p class="tdv-hero__date">{{ t.dateLabel }}</p>
-              <div class="tdv-hero__ctas">
-                <a
-                  [routerLink]="['/torneios', t.id, 'inscricao']"
-                  class="tdv-btn tdv-btn--primary tdv-btn--glow tdv-ripple"
-                >
-                  Inscrever-se agora
-                </a>
-                <button
-                  type="button"
-                  class="tdv-btn tdv-btn--ghost tdv-ripple"
-                  (click)="scrollToCategories()"
-                >
-                  Ver categorias
-                </button>
-              </div>
-            </div>
-          </div>
-        </header>
+        <h1 class="tdv-hero-title">{{ t.name }}</h1>
+        @if (leagueContextLine(); as ll) {
+          <p class="tdv-hero-league">{{ ll }}</p>
+        }
+        <div class="tdv-hero-meta">
+          <a [href]="mapsUrl()" target="_blank" rel="noreferrer" class="tdv-hero-meta-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.4-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.6 12 21 12 21z" /><circle cx="12" cy="10.5" r="2.3" /></svg>
+            <span>{{ t.location }} · {{ t.city }}</span>
+          </a>
+          <span class="tdv-hero-meta-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+            <span>{{ t.dateLabel }}</span>
+          </span>
+        </div>
+      </div>
 
-        @if (extra(); as x) {
-          <!-- INFO CARDS -->
-          <section class="tdv-section container-nexago" data-tdv-reveal>
-            <div class="tdv-info-grid">
-              <a
-                [href]="mapsUrl()"
-                target="_blank"
-                rel="noreferrer"
-                class="tdv-info-card glass-panel tdv-ripple-host"
-              >
-                <span class="tdv-info-card__icon" aria-hidden="true">📍</span>
-                <h2 class="tdv-info-card__title">Local</h2>
-                <p class="tdv-info-card__body">{{ t.location }}</p>
-                <span class="tdv-info-card__cta">Abrir mapa</span>
-                <div class="tdv-info-card__map-preview" aria-hidden="true"></div>
-              </a>
-              <article class="tdv-info-card glass-panel tdv-ripple-host">
-                <span class="tdv-info-card__icon" aria-hidden="true">📅</span>
-                <h2 class="tdv-info-card__title">Datas</h2>
-                <p class="tdv-info-card__body">{{ x.dateDetail }}</p>
-              </article>
-              <article class="tdv-info-card glass-panel tdv-ripple-host">
-                <span class="tdv-info-card__icon" aria-hidden="true">💰</span>
-                <h2 class="tdv-info-card__title">Inscrição</h2>
-                <p class="tdv-info-card__body">A partir de {{ t.priceLabel }} por categoria</p>
-              </article>
-              <article class="tdv-info-card glass-panel tdv-ripple-host">
-                <span class="tdv-info-card__icon" aria-hidden="true">👥</span>
-                <h2 class="tdv-info-card__title">Vagas</h2>
-                <p class="tdv-info-card__body">{{ t.spotsLeft }} restantes de {{ t.spotsTotal }}</p>
-                <div class="tdv-spots-bar">
-                  <span
-                    class="tdv-spots-bar__fill"
-                    [style.width.%]="(t.spotsLeft / t.spotsTotal) * 100"
-                  ></span>
-                </div>
-              </article>
-              <article class="tdv-info-card glass-panel tdv-info-card--wide tdv-ripple-host">
-                <span class="tdv-info-card__icon" aria-hidden="true">🏆</span>
-                <h2 class="tdv-info-card__title">Formato</h2>
-                <p class="tdv-info-card__body">{{ x.formatLabel }}</p>
-                <p class="tdv-info-card__hint">{{ x.prizeHint }}</p>
-              </article>
-            </div>
-          </section>
-
-          <!-- ETAPAS -->
-          @if (x.stages.length > 0) {
-            <section class="tdv-section container-nexago" data-tdv-reveal>
-              <h2 class="tdv-section__title">Etapas do torneio</h2>
-              <p class="tdv-section__sub text-muted">Toque para ver o que acontece em cada fase</p>
-              <div class="tdv-stages-scroll" role="tablist" aria-label="Etapas">
-                @for (st of x.stages; track st.id; let i = $index) {
-                  <button
-                    type="button"
-                    role="tab"
-                    class="tdv-stage-chip"
-                    [class.tdv-stage-chip--active]="activeStageIndex() === i"
-                    [attr.aria-selected]="activeStageIndex() === i"
-                    [attr.data-status]="st.status"
-                    (click)="setStage(i)"
-                  >
-                    <span class="tdv-stage-chip__label">{{ st.label }}</span>
-                    <span class="tdv-stage-chip__date">{{ st.dateLabel }}</span>
-                  </button>
-                }
-              </div>
-              @if (activeStage(); as panel) {
-                <div class="tdv-stage-panel glass-panel" role="tabpanel">
-                  <h3 class="tdv-stage-panel__title">{{ panel.label }}</h3>
-                  <p class="tdv-stage-panel__desc">{{ panel.description }}</p>
-                </div>
-              }
-            </section>
-          }
-
-          <!-- CATEGORIAS -->
-          <section class="tdv-section container-nexago" id="tdv-categories" data-tdv-reveal>
-            <h2 class="tdv-section__title">Categorias</h2>
-            <p class="tdv-section__sub text-muted">Escolha seu nível e garanta sua vaga</p>
-            <div class="tdv-cat-grid">
-              @for (c of x.categories; track c.id) {
-                <article class="tdv-cat-card glass-panel tdv-ripple-host">
-                  <h3 class="tdv-cat-card__name">{{ c.name }}</h3>
-                  <p class="tdv-cat-card__level">{{ c.level }}</p>
-                  <p class="tdv-cat-card__spots">{{ c.spotsLeft }}/{{ c.spotsTotal }} vagas</p>
-                  <p class="tdv-cat-card__price">{{ c.priceLabel }}</p>
-                  <a
-                    [routerLink]="['/torneios', t.id, 'inscricao']"
-                    [queryParams]="{ categoria: c.id }"
-                    class="tdv-btn tdv-btn--cat tdv-ripple"
-                  >
-                    Inscrever-se
-                  </a>
-                </article>
-              }
-            </div>
-          </section>
-
-          <!-- RANKING -->
-          @if (x.rankingValid && x.rankingRows.length > 0) {
-            <section
-              class="tdv-section container-nexago"
-              data-tdv-reveal
-              title="Este torneio vale pontos para o ranking NexaGO"
-            >
-              <div class="tdv-section__head">
-                <h2 class="tdv-section__title">Ranking — preview</h2>
-                <span class="tdv-tooltip" tabindex="0" data-tip="Este torneio vale pontos para o ranking">
-                  ⓘ
-                </span>
-              </div>
-              <div class="tdv-rank-list glass-panel">
-                @for (r of x.rankingRows; track r.rank) {
-                  <div class="tdv-rank-row">
-                    <span class="tdv-rank-row__num">#{{ r.rank }}</span>
-                    <span class="tdv-rank-row__avatar">{{ r.avatarLetter }}</span>
-                    <span class="tdv-rank-row__name">{{ r.name }}</span>
-                    <span class="tdv-rank-row__pts">{{ r.points }} pts</span>
+      @if (extra(); as x) {
+        <div class="tdv-main-grid">
+          <div class="tdv-col">
+            <section class="tdv-card" id="tdv-categories">
+              <span class="tdv-card-kicker">{{ x.categories.length }} categorias abertas</span>
+              <h2 class="tdv-card-title">Categorias</h2>
+              <div class="tdv-cat-list">
+                @for (c of x.categories; track c.id) {
+                  <div class="tdv-cat-row">
+                    <div class="tdv-cat-main">
+                      <h3 class="tdv-cat-name">{{ c.name }}</h3>
+                      <div class="tdv-pill-row">
+                        <span class="tdv-pill tdv-pill--accent">{{ c.genderLabel }}</span>
+                        <span class="tdv-pill">{{ t.format }}</span>
+                        <span class="tdv-pill">{{ c.level }}</span>
+                      </div>
+                      <div class="tdv-progress">
+                        <span [style.width.%]="categoryFillPercent(c.spotsLeft, c.spotsTotal)"></span>
+                      </div>
+                      <div class="tdv-cat-foot">
+                        <span>{{ c.spotsTotal - c.spotsLeft }}/{{ c.spotsTotal }} duplas</span>
+                        <span class="tdv-cat-vagas">{{ c.spotsLeft }} vagas livres</span>
+                      </div>
+                    </div>
+                    <div class="tdv-cat-side">
+                      <div class="tdv-cat-price">
+                        <strong>{{ c.priceLabel }}</strong>
+                        <span>por dupla</span>
+                      </div>
+                      <a [routerLink]="['/torneios', t.id, 'inscricao']" [queryParams]="{ categoria: c.id }" class="tdv-btn-primary">
+                        Inscrever
+                      </a>
+                    </div>
                   </div>
                 }
               </div>
-              <button type="button" class="tdv-btn tdv-btn--ghost tdv-btn--block tdv-ripple">
-                Ver ranking completo
-              </button>
             </section>
-          }
 
-          <!-- POSTS -->
-          @if (x.posts.length > 0) {
-            <section class="tdv-section container-nexago" data-tdv-reveal>
-              <h2 class="tdv-section__title">Na areia</h2>
-              <p class="tdv-section__sub text-muted">Quem já está falando desse torneio</p>
-              <div class="tdv-feed">
-                @for (p of x.posts; track p.id) {
-                  <article class="tdv-post glass-panel">
-                    <div class="tdv-post__media" [style.background]="p.mediaGradient"></div>
-                    <div class="tdv-post__body">
-                      <p class="tdv-post__author">{{ p.athleteName }}</p>
-                      <p class="tdv-post__text">{{ p.text }}</p>
-                      <p class="tdv-post__tag">{{ p.hashtag }}</p>
-                      <div class="tdv-post__actions">
-                        <button
-                          type="button"
-                          class="tdv-post__action tdv-ripple"
-                          (click)="likePost(p.id, p.likes)"
-                        >
-                          ❤️ {{ postLikeCount(p.id, p.likes) }}
-                        </button>
-                        <span class="tdv-post__action">💬 {{ p.comments }}</span>
-                        <button type="button" class="tdv-post__action tdv-ripple">🔗</button>
+            @if (x.stages.length > 0) {
+              <section class="tdv-card">
+                <span class="tdv-card-kicker">{{ x.formatLabel }}</span>
+                <h2 class="tdv-card-title">Formato</h2>
+                <div class="tdv-stage-list">
+                  @for (st of x.stages; track st.id; let i = $index) {
+                    <div class="tdv-stage-step" [attr.data-status]="st.status">
+                      <span class="tdv-stage-num">{{ i + 1 }}</span>
+                      <div class="tdv-stage-copy">
+                        <div class="tdv-stage-head">
+                          <h3>{{ st.label }}</h3>
+                          <span>{{ st.dateLabel }}</span>
+                        </div>
+                        <p>{{ st.description }}</p>
                       </div>
                     </div>
-                  </article>
-                }
-              </div>
-              <button type="button" class="tdv-btn tdv-btn--ghost tdv-btn--block tdv-ripple">
-                Postar no torneio
-              </button>
-            </section>
-          }
+                  }
+                </div>
+              </section>
+            }
 
-          <!-- AO VIVO -->
-          @if (x.hasLiveStream) {
-            <section class="tdv-section container-nexago" data-tdv-reveal>
-              <h2 class="tdv-section__title">
-                <span class="tdv-live-dot"></span>
-                Transmissão
-              </h2>
-              <div class="tdv-live-player glass-panel">
-                <div class="tdv-live-player__preview" aria-hidden="true"></div>
-                <div class="tdv-live-player__overlay">
-                  <span class="tdv-live-pill">🔴 AO VIVO</span>
-                  <p class="tdv-live-player__viewers">{{ viewersLabel(x.liveViewers) }} assistindo</p>
-                  <button type="button" class="tdv-btn tdv-btn--primary tdv-ripple">Assistir agora</button>
+            @if (x.rankingValid && x.rankingRows.length > 0) {
+              <section class="tdv-card">
+                <span class="tdv-card-kicker">Vale pontos pro ranking NexaGO</span>
+                <h2 class="tdv-card-title">Ranking · preview</h2>
+                <div class="tdv-rank-list">
+                  @for (r of x.rankingRows; track r.rank) {
+                    <div class="tdv-rank-row">
+                      <span class="tdv-rank-num">#{{ r.rank }}</span>
+                      <span class="tdv-rank-avatar">{{ r.avatarLetter }}</span>
+                      <span class="tdv-rank-name">{{ r.name }}</span>
+                      <span class="tdv-rank-pts">{{ r.points }} pts</span>
+                    </div>
+                  }
+                </div>
+              </section>
+            }
+
+            @if (x.posts.length > 0) {
+              <section class="tdv-card">
+                <h2 class="tdv-card-title">Na areia</h2>
+                <div class="tdv-post-list">
+                  @for (p of x.posts; track p.id) {
+                    <article class="tdv-post">
+                      <div class="tdv-post-media" [style.background]="p.mediaGradient"></div>
+                      <div class="tdv-post-body">
+                        <p class="tdv-post-author">{{ p.athleteName }}</p>
+                        <p class="tdv-post-text">{{ p.text }}</p>
+                        <p class="tdv-post-tag">{{ p.hashtag }}</p>
+                        <div class="tdv-post-actions">
+                          <button type="button" class="tdv-post-action" (click)="likePost(p.id, p.likes)">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.6 2.3 5 6 5c2 0 3.6 1 6 3.4C14.4 6 16 5 18 5c3.7 0 5.4 3.6 4 6.9-2.5 4.5-10 9.1-10 9.1Z" /></svg>
+                            <span>{{ postLikeCount(p.id, p.likes) }}</span>
+                          </button>
+                          <span class="tdv-post-action">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
+                            <span>{{ p.comments }}</span>
+                          </span>
+                        </div>
+                      </div>
+                    </article>
+                  }
+                </div>
+              </section>
+            }
+
+            @if (x.hasLiveStream) {
+              <section class="tdv-card">
+                <h2 class="tdv-card-title tdv-card-title--live">
+                  <span class="tdv-live-dot" aria-hidden="true"></span>
+                  Transmissão
+                </h2>
+                <div class="tdv-live-player">
+                  <div class="tdv-live-overlay">
+                    <span class="tdv-live-pill">Ao vivo</span>
+                    <p>{{ viewersLabel(x.liveViewers) }} assistindo</p>
+                    <button type="button" class="tdv-btn-primary">Assistir agora</button>
+                  </div>
+                </div>
+              </section>
+            }
+
+            <section class="tdv-card">
+              <span class="tdv-card-kicker">{{ bracketLabel() }}</span>
+              <h2 class="tdv-card-title">Chaves e resultados</h2>
+              <div class="tdv-bracket" [attr.data-state]="x.bracketState">
+                <div class="tdv-bracket-col">
+                  <span class="tdv-bracket-slot">A1</span>
+                  <span class="tdv-bracket-slot">A2</span>
+                </div>
+                <div class="tdv-bracket-col tdv-bracket-col--mid">
+                  <span class="tdv-bracket-slot tdv-bracket-slot--final">SF</span>
+                </div>
+                <div class="tdv-bracket-col">
+                  <span class="tdv-bracket-slot">B1</span>
+                  <span class="tdv-bracket-slot">B2</span>
                 </div>
               </div>
             </section>
-          }
 
-          <!-- CHAVE -->
-          <section class="tdv-section container-nexago" data-tdv-reveal>
-            <h2 class="tdv-section__title">Chaves e resultados</h2>
-            <p class="tdv-section__sub text-muted">{{ bracketLabel() }}</p>
-            <div class="tdv-bracket glass-panel" [attr.data-state]="x.bracketState">
-              <div class="tdv-bracket__mini">
-                <div class="tdv-bracket__col">
-                  <span class="tdv-bracket__slot">A1</span>
-                  <span class="tdv-bracket__slot">A2</span>
+            @if (x.announcements.length > 0) {
+              <section class="tdv-card">
+                <h2 class="tdv-card-title">Comunicados</h2>
+                <div class="tdv-announce-list">
+                  @for (a of x.announcements; track a.id) {
+                    <div class="tdv-announce" [class.tdv-announce--important]="a.important">
+                      <span class="tdv-announce-date">{{ a.dateLabel }}</span>
+                      <h3 class="tdv-announce-title">{{ a.title }}</h3>
+                      <p class="tdv-announce-body">{{ a.body }}</p>
+                    </div>
+                  }
                 </div>
-                <div class="tdv-bracket__col tdv-bracket__col--mid">
-                  <span class="tdv-bracket__slot tdv-bracket__slot--final">SF</span>
+              </section>
+            }
+          </div>
+
+          <div class="tdv-col tdv-col--side">
+            <div class="tdv-card tdv-prize-card">
+              <span class="tdv-card-kicker">Prêmio total em disputa</span>
+              <strong class="tdv-prize-amount">{{ x.totalPrizeLabel ?? '—' }}</strong>
+              <div class="tdv-prize-divider"></div>
+              <span class="tdv-card-kicker">Inscrição a partir de</span>
+              <strong class="tdv-prize-min">{{ t.priceLabel }}</strong>
+              <a [routerLink]="['/torneios', t.id, 'inscricao']" class="tdv-btn-primary tdv-btn-full">
+                Inscrever minha dupla
+              </a>
+            </div>
+
+            @if (x.prizeBreakdown.length > 0) {
+              <div class="tdv-card">
+                <h2 class="tdv-card-title">Premiação por colocação</h2>
+                <div class="tdv-placement-list">
+                  @for (p of x.prizeBreakdown; track p.place) {
+                    <div class="tdv-placement-row">
+                      <span class="tdv-placement-medal" [attr.data-place]="p.place">{{ p.place }}º</span>
+                      <div class="tdv-placement-info">
+                        <p>{{ p.label }}</p>
+                        <span>{{ p.percentLabel }}</span>
+                      </div>
+                      <strong class="tdv-placement-amount">{{ p.amountLabel }}</strong>
+                    </div>
+                  }
                 </div>
-                <div class="tdv-bracket__col">
-                  <span class="tdv-bracket__slot">B1</span>
-                  <span class="tdv-bracket__slot">B2</span>
-                </div>
+              </div>
+            }
+
+            <div class="tdv-trust-row">
+              <div class="tdv-trust-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
+                <span>Pagamento seguro no app</span>
+              </div>
+              <div class="tdv-trust-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2" /><path d="M2.5 20c0-3.4 2.9-6 6.5-6s6.5 2.6 6.5 6" /><path d="M16 4.5c1.8.3 3.2 1.9 3.2 3.7 0 1.9-1.4 3.4-3.2 3.7" /><path d="M17.5 14.3c2.3.5 4 2.5 4 5" /></svg>
+                <span>Lista de espera ativa</span>
+              </div>
+              <div class="tdv-trust-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
+                <span>Reembolso se cancelar</span>
               </div>
             </div>
-            <button type="button" class="tdv-btn tdv-btn--ghost tdv-btn--block tdv-ripple">
-              Ver chave completa
-            </button>
-          </section>
-
-          <!-- COMUNICADOS -->
-          @if (x.announcements.length > 0) {
-            <section class="tdv-section container-nexago tdv-section--last" data-tdv-reveal>
-              <h2 class="tdv-section__title">Comunicados</h2>
-              <ul class="tdv-announce-list">
-                @for (a of x.announcements; track a.id) {
-                  <li
-                    class="tdv-announce glass-panel"
-                    [class.tdv-announce--important]="a.important"
-                  >
-                    <p class="tdv-announce__date">{{ a.dateLabel }}</p>
-                    <h3 class="tdv-announce__title">{{ a.title }}</h3>
-                    <p class="tdv-announce__body">{{ a.body }}</p>
-                  </li>
-                }
-              </ul>
-            </section>
-          }
-        }
-      }
-
-      <!-- Mobile CTA -->
-      @if (!loading()) {
-        <div class="tdv-mobile-cta">
-          <a
-            [routerLink]="['/torneios', t.id, 'inscricao']"
-            class="tdv-btn tdv-btn--primary tdv-btn--glow tdv-ripple tdv-mobile-cta__btn"
-          >
-            🔥 Inscrever-se
-          </a>
+          </div>
         </div>
       }
     </div>
-  </div>
-} @else {
-  <div class="tdv-missing container-nexago">
-    <p>Torneio não encontrado.</p>
-    <a routerLink="/torneios" class="btn-secondary">Voltar à listagem</a>
-  </div>
-}
+  } @else {
+    <div class="tdv-notfound">
+      <p class="tdv-empty-title">Torneio não encontrado</p>
+      <a routerLink="/torneios" class="tdv-btn-ghost">Voltar à listagem</a>
+    </div>
+  }
+</app-at-panel-shell>

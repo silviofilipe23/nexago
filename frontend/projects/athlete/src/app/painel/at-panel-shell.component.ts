@@ -26,6 +26,7 @@ export class AtPanelShellComponent {
 
   readonly userName = input('Atleta');
   readonly userLevel = input<string | null>(null);
+  readonly agendaPendingCount = input(0);
 
   protected readonly initials = computed(() => initialsOf(this.userName()));
 

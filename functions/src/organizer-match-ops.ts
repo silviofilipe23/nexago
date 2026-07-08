@@ -765,6 +765,20 @@ export const advanceBracketWinner = onCall(async (request) => {
   return {ok: true, ...result};
 });
 
+/**
+ * Compara duas partidas pela numeração GLOBAL cronológica (`matchNumber`).
+ * NÃO comparar por `round`: em dupla eliminação, WB, LB, 3º lugar e final têm
+ * cada um sua própria contagem de round reiniciando em 1, então "round" não é
+ * uma sequência global — comparar por ele antes do matchNumber agendava a
+ * final e o 3º lugar (round 1 na sua chave) antes da WB/LB R2.
+ */
+export function compareByMatchNumber(
+  a: {matchNumber?: number},
+  b: {matchNumber?: number},
+): number {
+  return (a.matchNumber ?? 0) - (b.matchNumber ?? 0);
+}
+
 export const autoScheduleTournamentDay = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
@@ -848,15 +862,10 @@ export const autoScheduleTournamentDay = onCall(async (request) => {
 
   // Sequência de jogos: matchNumber já é a numeração GLOBAL cronológica
   // (grupos intercalados 1..N, depois o mata-mata em ordem de dependência).
-  // NÃO ordenar por `round` primeiro: em dupla eliminação, WB, LB, 3º lugar
-  // e final têm cada um sua própria contagem de round reiniciando em 1, então
-  // "round" não é uma sequência global — ordenar por ele antes do matchNumber
-  // agendava a final e o 3º lugar (round 1 na sua chave) antes da WB/LB R2.
-  const sorted = [...unscheduled].sort((a, b) => {
-    const ad = a.data();
-    const bd = b.data();
-    return (ad.matchNumber ?? 0) - (bd.matchNumber ?? 0);
-  });
+  // Ver compareByMatchNumber para o porquê de não ordenar por `round`.
+  const sorted = [...unscheduled].sort((a, b) =>
+    compareByMatchNumber(a.data(), b.data()),
+  );
 
   for (const doc of sorted) {
     const data = doc.data();

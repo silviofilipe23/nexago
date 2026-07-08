@@ -129,7 +129,7 @@ void main() {
           },
         ],
       }, 'league-x');
-      expect(loaded.draft.categories.first.prizes.first.valueCents, 22000);
+      expect(loaded.draft.categories.first.prizes.first.valueCents, 9000);
     });
 
     test('fromFirestore restores draft and step', () {

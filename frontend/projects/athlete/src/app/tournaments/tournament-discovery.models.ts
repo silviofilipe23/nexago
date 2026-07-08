@@ -39,8 +39,10 @@ export interface DiscoveryTournament {
   featured: boolean;
   enrolledCount: number;
   liveMatchesNow: number;
-  /** Fim da janela de promoção / early bird (opcional) */
-  offerEndsAt: Date | null;
+  /** O atleta logado já está inscrito neste torneio. */
+  enrolled: boolean;
+  /** Quando as inscrições ainda não abriram (null = já abertas ou torneio encerrado). */
+  registrationOpensAt: Date | null;
   /** Quando faz parte de uma liga (redundante com MOCK_DISCOVERY_LEAGUES; útil para APIs). */
   leagueId?: string;
   leagueStageId?: string;

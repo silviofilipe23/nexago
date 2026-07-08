@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/auth/account_deletion_error.dart';
 import '../../../core/auth/account_deletion_service.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/active_role_providers.dart';
@@ -88,7 +89,7 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
       Navigator.of(context, rootNavigator: true).pop(); // fecha o progresso
       showAppSnackBar(
         context,
-        'Não foi possível excluir a conta agora. Tente novamente.',
+        friendlyAccountDeletionError(e),
         isError: true,
       );
     }

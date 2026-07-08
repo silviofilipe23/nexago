@@ -13,10 +13,18 @@ export interface TournamentStageDetail {
 export interface TournamentCategoryOffer {
   id: string;
   name: string;
+  genderLabel: string;
   level: string;
   spotsLeft: number;
   spotsTotal: number;
   priceLabel: string;
+}
+
+export interface TournamentPrizePlacement {
+  place: number;
+  label: string;
+  percentLabel: string;
+  amountLabel: string;
 }
 
 export interface RankingPreviewRow {
@@ -53,6 +61,8 @@ export interface TournamentDetailExtended {
   mapQuery: string;
   stages: TournamentStageDetail[];
   categories: TournamentCategoryOffer[];
+  totalPrizeLabel: string | null;
+  prizeBreakdown: TournamentPrizePlacement[];
   rankingRows: RankingPreviewRow[];
   posts: TournamentSocialPost[];
   hasLiveStream: boolean;
@@ -95,6 +105,7 @@ const EXTRA_BY_ID: Record<string, TournamentDetailExtended> = {
       {
         id: 'c1',
         name: 'Masculino Open A',
+        genderLabel: 'Masculino',
         level: 'Avançado',
         spotsLeft: 2,
         spotsTotal: 16,
@@ -103,6 +114,7 @@ const EXTRA_BY_ID: Record<string, TournamentDetailExtended> = {
       {
         id: 'c2',
         name: 'Feminino Open B',
+        genderLabel: 'Feminino',
         level: 'Intermediário',
         spotsLeft: 6,
         spotsTotal: 16,
@@ -111,12 +123,15 @@ const EXTRA_BY_ID: Record<string, TournamentDetailExtended> = {
       {
         id: 'c3',
         name: 'Misto Recreativo',
+        genderLabel: 'Misto',
         level: 'Iniciante',
         spotsLeft: 12,
         spotsTotal: 20,
         priceLabel: 'R$ 200',
       },
     ],
+    totalPrizeLabel: null,
+    prizeBreakdown: [],
     rankingRows: [
       { rank: 1, name: 'Silva / Costa', points: 1840, avatarLetter: 'S' },
       { rank: 2, name: 'Oliveira / Santos', points: 1792, avatarLetter: 'O' },
@@ -197,6 +212,7 @@ const EXTRA_BY_ID: Record<string, TournamentDetailExtended> = {
       {
         id: 'c1',
         name: 'Misto Open',
+        genderLabel: 'Misto',
         level: 'Intermediário',
         spotsLeft: 4,
         spotsTotal: 24,
@@ -205,12 +221,15 @@ const EXTRA_BY_ID: Record<string, TournamentDetailExtended> = {
       {
         id: 'c2',
         name: 'Feminino B',
+        genderLabel: 'Feminino',
         level: 'Intermediário',
         spotsLeft: 10,
         spotsTotal: 16,
         priceLabel: 'R$ 160',
       },
     ],
+    totalPrizeLabel: null,
+    prizeBreakdown: [],
     rankingRows: [
       { rank: 1, name: 'Team Neon', points: 920, avatarLetter: 'T' },
       { rank: 2, name: 'Areia Qente', points: 905, avatarLetter: 'A' },
@@ -242,6 +261,108 @@ const EXTRA_BY_ID: Record<string, TournamentDetailExtended> = {
       },
     ],
   },
+  'open-goiania-beach': {
+    rankingValid: true,
+    dateDetail: '28 a 30 de agosto · Check-in a partir das 7h',
+    formatLabel: 'Duplas · Fase de grupos + mata-mata',
+    prizeHint: 'Premiação em dinheiro + pontos NexaGO Pro',
+    mapQuery: 'Arena ErreJota, Goiânia',
+    stages: [
+      {
+        id: 's1',
+        label: 'Fase de grupos',
+        dateLabel: '28 ago',
+        status: 'upcoming',
+        description: 'Duplas divididas em grupos de 4. Todos jogam entre si.',
+      },
+      {
+        id: 's2',
+        label: 'Classificação',
+        dateLabel: '29 ago',
+        status: 'upcoming',
+        description: 'Os dois primeiros colocados de cada grupo avançam para o mata-mata.',
+      },
+      {
+        id: 's3',
+        label: 'Mata-mata',
+        dateLabel: '30 ago',
+        status: 'upcoming',
+        description: 'Quartas, semis e grande final em eliminação direta.',
+      },
+    ],
+    categories: [
+      {
+        id: 'feminino-pro',
+        name: 'Feminino Pro',
+        genderLabel: 'Feminino',
+        level: 'Pro',
+        spotsLeft: 4,
+        spotsTotal: 16,
+        priceLabel: 'R$ 180',
+      },
+      {
+        id: 'masculino-intermediario',
+        name: 'Masculino Intermediário',
+        genderLabel: 'Masculino',
+        level: 'Intermediário',
+        spotsLeft: 12,
+        spotsTotal: 32,
+        priceLabel: 'R$ 180',
+      },
+      {
+        id: 'misto-iniciante',
+        name: 'Misto Iniciante',
+        genderLabel: 'Misto',
+        level: 'Iniciante',
+        spotsLeft: 18,
+        spotsTotal: 24,
+        priceLabel: 'R$ 150',
+      },
+    ],
+    totalPrizeLabel: 'R$ 9.600',
+    prizeBreakdown: [
+      { place: 1, label: 'Campeões', percentLabel: '55% do prêmio', amountLabel: 'R$ 5.280' },
+      { place: 2, label: 'Vice-campeões', percentLabel: '30% do prêmio', amountLabel: 'R$ 2.880' },
+      { place: 3, label: '3º lugar', percentLabel: '15% do prêmio', amountLabel: 'R$ 1.440' },
+    ],
+    rankingRows: [
+      { rank: 1, name: 'Rafa & Tonho', points: 1840, avatarLetter: 'R' },
+      { rank: 2, name: 'Ana R. & Beto L.', points: 1790, avatarLetter: 'A' },
+      { rank: 3, name: 'Carla M. & Igor M.', points: 1755, avatarLetter: 'C' },
+      { rank: 4, name: 'Diego & Luiz', points: 1688, avatarLetter: 'D' },
+      { rank: 5, name: 'Bruno & Carla A.', points: 1620, avatarLetter: 'B' },
+    ],
+    posts: [
+      {
+        id: 'p1',
+        athleteName: '@arena_errejota',
+        text: 'Quadras prontas pro Open Goiânia Beach! Bora encher a arena.',
+        hashtag: '#OpenGoianiaBeach',
+        likes: 64,
+        comments: 9,
+        mediaGradient: 'linear-gradient(135deg, #0f5132 0%, #14b8a6 100%)',
+      },
+    ],
+    hasLiveStream: false,
+    liveViewers: 0,
+    bracketState: 'soon',
+    announcements: [
+      {
+        id: 'a1',
+        title: 'Documentos obrigatórios',
+        body: 'RG + comprovante de inscrição no check-in. Sem exceções.',
+        important: true,
+        dateLabel: 'Hoje',
+      },
+      {
+        id: 'a2',
+        title: 'Estacionamento',
+        body: 'Parceiro com 20% de desconto para atletas — código NEXAGO20.',
+        important: false,
+        dateLabel: 'Ontem',
+      },
+    ],
+  },
 };
 
 export function getTournamentDetailExtra(id: string, base: DiscoveryTournament): TournamentDetailExtended {
@@ -268,15 +389,20 @@ export function getTournamentDetailExtra(id: string, base: DiscoveryTournament):
           description: 'Formato e chaves divulgados após o fechamento das vagas.',
         },
       ],
-      categories: base.categories.map((cat, i) => ({
-        id: `c-${i}`,
-        name:
-          cat === 'M' ? 'Masculino' : cat === 'F' ? 'Feminino' : 'Misto',
-        level: 'Consulte nível',
-        spotsLeft: base.spotsLeft,
-        spotsTotal: base.spotsTotal,
-        priceLabel: base.priceLabel,
-      })),
+      categories: base.categories.map((cat, i) => {
+        const genderLabel = cat === 'M' ? 'Masculino' : cat === 'F' ? 'Feminino' : 'Misto';
+        return {
+          id: `c-${i}`,
+          name: genderLabel,
+          genderLabel,
+          level: 'Consulte nível',
+          spotsLeft: base.spotsLeft,
+          spotsTotal: base.spotsTotal,
+          priceLabel: base.priceLabel,
+        };
+      }),
+      totalPrizeLabel: null,
+      prizeBreakdown: [],
       rankingRows: [
         { rank: 1, name: 'Dupla A', points: 1200, avatarLetter: 'A' },
         { rank: 2, name: 'Dupla B', points: 1180, avatarLetter: 'B' },

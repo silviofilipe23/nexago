@@ -1126,6 +1126,15 @@ service cloud.firestore {
             !('superAdmin' in request.resource.data) ||
             request.resource.data.superAdmin == resource.data.superAdmin
           ) &&
+          // Reputação do Bora Jogar é derivada por Cloud Function — o dono
+          // não pode criá-la nem alterá-la (anti-spoof).
+          (
+            !('reputation' in request.resource.data) ||
+            (
+              'reputation' in resource.data &&
+              request.resource.data.reputation == resource.data.reputation
+            )
+          ) &&
           athleteLevelsNotDowngraded()
         ) ||
         isSuperAdmin() ||
@@ -1741,6 +1750,17 @@ service cloud.firestore {
 
     // Config de features lida pelo app (ex.: appConfig/friendlyMatch).
     match /appConfig/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Reputação do Bora Jogar: ledger auditável (só o dono lê) e summary
+    // derivado (público, como o espelho em public_profiles). Escrita só CF.
+    match /users/{userId}/reputationEvents/{eventId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+    match /users/{userId}/reputation/{docId} {
       allow read: if request.auth != null;
       allow write: if false;
     }

@@ -380,7 +380,7 @@ describe("cancelFriendlyMatchCore", () => {
     assert.equal(data.cancelledByUid, "b");
   });
 
-  it("cancelar a menos de 6h do jogo marca cancelPenalized", async () => {
+  it("cancelar a menos de 6h do jogo marca cancelPenalized e penaliza a reputação", async () => {
     const fake = new FakeFirestore();
     const matchId = await sendInvite(fake, now); // jogo em now+48h
     await acceptFriendlyMatchInviteCore(db(fake), "b", {matchId}, now);
@@ -388,6 +388,12 @@ describe("cancelFriendlyMatchCore", () => {
     const data = matchData(fake, matchId);
     assert.equal(data.cancelPenalized, true);
     assert.equal(data.cancelledByUid, "a");
+    // Evento de reputação late_cancel aplicado a quem cancelou em cima da hora.
+    assert.ok(fake.store.get(`users/a/reputationEvents/late_cancel_${matchId}`));
+    const summary = fake.store.get("users/a/reputation/summary")!;
+    assert.equal(summary.lateCancellations, 1);
+    // O outro lado não é penalizado.
+    assert.equal(fake.store.get("users/b/reputation/summary"), undefined);
   });
 
   it("não cancela jogo já encerrado", async () => {

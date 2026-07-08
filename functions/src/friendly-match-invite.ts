@@ -16,6 +16,7 @@ import {
   type CompatibilityProfile,
   type FriendlyMatchObjective,
 } from "./friendly-match-logic";
+import {applyReputationEvent, lateCancelEventId} from "./friendly-match-reputation";
 
 /**
  * Bora Jogar — callables do ciclo de convite (enviar, aceitar, recusar,
@@ -590,7 +591,10 @@ export async function cancelFriendlyMatchCore(
     };
   });
 
-  // TODO(F3): quando penalized, aplicar evento de reputação late_cancel_{matchId}.
+  if (result.penalized) {
+    await applyReputationEvent(
+      db, uid, lateCancelEventId(ref.id), "late_cancel", {matchId: ref.id});
+  }
   return {matchId: ref.id, notifications: result.notifications};
 }
 

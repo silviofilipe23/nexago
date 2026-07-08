@@ -44,6 +44,8 @@ const PUBLIC_PROFILE_FIELDS = [
   "category",
   "lookingForPartner",
   "lastActiveAt",
+  // Reputação do Bora Jogar (escrita só por CF; rules travam spoof em users)
+  "reputation",
   "sportOnboarding",
   "sportProfile",
   "isProfileComplete",

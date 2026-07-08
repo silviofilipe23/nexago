@@ -261,3 +261,8 @@ export {
   expireFriendlyMatches,
   sendFriendlyMatchReminders,
 } from "./friendly-match-sweepers";
+
+export {
+  checkInFriendlyMatch,
+  closeFriendlyMatchCheckIns,
+} from "./friendly-match-checkin";

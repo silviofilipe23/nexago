@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../arenas/domain/my_booking_item.dart';
+import '../../../friendly_match/domain/friendly_match_models.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../tournaments/domain/my_tournaments_models.dart';
 import '../../../tournaments/domain/tournament_discovery_models.dart';
@@ -12,6 +13,7 @@ import 'athlete_agenda_models.dart';
 const athleteAgendaRentalAccent = Color(0xFF6EB5FF);
 const athleteAgendaTournamentAccent = Color(0xFF9B8CFF);
 const athleteAgendaChallengeAccent = Color(0xFFFF6B9D);
+const athleteAgendaFriendlyMatchAccent = Color(0xFF57C785);
 
 final _weekdayFmt = DateFormat('EEE', 'pt_BR');
 final _sectionDateFmt = DateFormat('dd/MM', 'pt_BR');
@@ -279,6 +281,30 @@ AthleteAgendaItem? mapTournamentEnrollmentToAgendaItem(
   );
 }
 
+/// Converte um jogo do Bora Jogar (confirmado ou aguardando avaliação) em
+/// item da agenda.
+AthleteAgendaItem mapFriendlyMatchToAgendaItem(
+  FriendlyMatch match, {
+  required String currentUid,
+}) {
+  final other = match.otherName(currentUid);
+  final awaitingReview = match.status == FriendlyMatchStatus.completed;
+  return AthleteAgendaItem(
+    id: 'friendly-${match.id}',
+    kind: AthleteAgendaItemKind.friendlyMatch,
+    startsAt: match.scheduledAt,
+    title: 'Jogo com $other',
+    subtitle:
+        [match.objective.label, match.location.displayLabel].join(' · '),
+    statusLabel: awaitingReview ? 'AVALIAR' : 'CONFIRMADO',
+    accentColor: athleteAgendaFriendlyMatchAccent,
+    friendlyMatch: AthleteAgendaFriendlyMatchPayload(
+      matchId: match.id,
+      otherName: other,
+    ),
+  );
+}
+
 bool isAgendaTournamentAllDayStart(DateTime startsAt) =>
     startsAt.hour == 0 && startsAt.minute == 0;
 
@@ -294,8 +320,14 @@ List<AthleteAgendaItem> mergeAgendaItems({
   required List<AthleteAgendaItem> bookings,
   required List<AthleteAgendaItem> tournaments,
   required List<AthleteAgendaItem> challenges,
+  List<AthleteAgendaItem> friendlyMatches = const [],
 }) {
-  final merged = [...bookings, ...tournaments, ...challenges];
+  final merged = [
+    ...bookings,
+    ...tournaments,
+    ...challenges,
+    ...friendlyMatches,
+  ];
   merged.sort((a, b) => a.startsAt.compareTo(b.startsAt));
   return merged;
 }
@@ -311,6 +343,7 @@ AthleteAgendaFilterCounts countAgendaFilters(List<AthleteAgendaItem> items) {
       case AthleteAgendaItemKind.tournament:
         tournaments++;
       case AthleteAgendaItemKind.challenge:
+      case AthleteAgendaItemKind.friendlyMatch:
         challenges++;
     }
   }
@@ -402,7 +435,9 @@ List<AthleteAgendaItem> filterAgendaItems({
       (i) => i.kind == AthleteAgendaItemKind.tournament,
     ),
     AthleteAgendaFilter.challenges => filtered.where(
-      (i) => i.kind == AthleteAgendaItemKind.challenge,
+      (i) =>
+          i.kind == AthleteAgendaItemKind.challenge ||
+          i.kind == AthleteAgendaItemKind.friendlyMatch,
     ),
   };
 
@@ -458,6 +493,7 @@ AthleteAgendaDaySummary buildDaySummary(
       case AthleteAgendaItemKind.tournament:
         tournaments++;
       case AthleteAgendaItemKind.challenge:
+      case AthleteAgendaItemKind.friendlyMatch:
         challenges++;
     }
     if (item.startsAt.isAfter(clock)) {
@@ -506,6 +542,7 @@ List<AthleteAgendaMonthDay> buildAgendaMonthDayMarkers({
         case AthleteAgendaItemKind.tournament:
           tournaments++;
         case AthleteAgendaItemKind.challenge:
+        case AthleteAgendaItemKind.friendlyMatch:
           challenges++;
       }
     }
@@ -555,6 +592,7 @@ Color dominantAgendaKindColor(List<AthleteAgendaItem> items) {
       case AthleteAgendaItemKind.tournament:
         tournaments++;
       case AthleteAgendaItemKind.challenge:
+      case AthleteAgendaItemKind.friendlyMatch:
         challenges++;
     }
   }
@@ -581,6 +619,7 @@ String buildMonthSummaryDescription(List<AthleteAgendaItem> items) {
       AthleteAgendaItemKind.rental => 'Aluguel',
       AthleteAgendaItemKind.tournament => 'Torneio',
       AthleteAgendaItemKind.challenge => 'Desafio',
+      AthleteAgendaItemKind.friendlyMatch => 'Jogo',
     };
     parts.add('$label · ${item.title}');
   }
@@ -700,6 +739,7 @@ List<AthleteAgendaWeekDay> buildWeekDayStrip({
         case AthleteAgendaItemKind.tournament:
           tournaments++;
         case AthleteAgendaItemKind.challenge:
+        case AthleteAgendaItemKind.friendlyMatch:
           challenges++;
       }
     }

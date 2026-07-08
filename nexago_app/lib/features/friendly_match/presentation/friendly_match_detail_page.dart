@@ -9,6 +9,7 @@ import 'package:nexago_app/core/ui/app_snackbar.dart';
 import 'package:nexago_app/core/ui/app_status_views.dart';
 
 import '../../../core/auth/auth_providers.dart';
+import '../../../core/observability/analytics_service.dart';
 import '../domain/friendly_match_logic.dart';
 import '../domain/friendly_match_models.dart';
 import '../domain/friendly_match_providers.dart';
@@ -105,9 +106,17 @@ class _FriendlyMatchDetailPageState
             uid: uid,
             busy: _busy,
             onAccept: (chosenTime) => _run(
-              () => ref
-                  .read(friendlyMatchServiceProvider)
-                  .acceptInvite(match.id, chosenTime: chosenTime),
+              () async {
+                await ref
+                    .read(friendlyMatchServiceProvider)
+                    .acceptInvite(match.id, chosenTime: chosenTime);
+                await ref
+                    .read(analyticsServiceProvider)
+                    .logFriendlyMatchInviteAccepted(
+                      wasCounter:
+                          match.status == FriendlyMatchStatus.countered,
+                    );
+              },
               success: 'Deu match! Jogo confirmado 🎉',
             ),
             onDecline: () => _run(
@@ -135,6 +144,9 @@ class _FriendlyMatchDetailPageState
               () async {
                 final completed =
                     await ref.read(friendlyMatchServiceProvider).checkIn(match.id);
+                await ref
+                    .read(analyticsServiceProvider)
+                    .logFriendlyMatchCheckedIn();
                 if (mounted && completed) {
                   showAppSnackBar(context, 'Jogo confirmado pelos dois! 🙌');
                 }
@@ -148,12 +160,17 @@ class _FriendlyMatchDetailPageState
               );
               if (result == null) return;
               await _run(
-                () => ref.read(friendlyMatchServiceProvider).submitReview(
-                      matchId: match.id,
-                      stars: result.stars,
-                      tags: result.tags,
-                      comment: result.comment,
-                    ),
+                () async {
+                  await ref.read(friendlyMatchServiceProvider).submitReview(
+                        matchId: match.id,
+                        stars: result.stars,
+                        tags: result.tags,
+                        comment: result.comment,
+                      );
+                  await ref
+                      .read(analyticsServiceProvider)
+                      .logFriendlyMatchReviewSubmitted(stars: result.stars);
+                },
                 success: 'Avaliação enviada. Fica oculta até o outro avaliar.',
               );
             },

@@ -206,6 +206,7 @@ class _AgendaTimelineCard extends ConsumerWidget {
       ),
       AthleteAgendaItemKind.tournament => _TournamentCard(item: item),
       AthleteAgendaItemKind.challenge => _ChallengeCard(item: item),
+      AthleteAgendaItemKind.friendlyMatch => _FriendlyMatchCard(item: item),
     };
   }
 }
@@ -672,6 +673,69 @@ class _ChallengeCard extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: accent,
                   side: BorderSide(color: accent.withValues(alpha: 0.45)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Jogo do Bora Jogar na agenda — leva ao detalhe do match.
+class _FriendlyMatchCard extends StatelessWidget {
+  const _FriendlyMatchCard({required this.item});
+
+  final AthleteAgendaItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = item.accentColor;
+    final matchId = item.friendlyMatch?.matchId;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: matchId == null
+            ? null
+            : () => context.push('/bora-jogar/$matchId'),
+        borderRadius: BorderRadius.circular(agendaTimelineCardRadius),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: agendaTimelineCardDecoration(
+            kind: AthleteAgendaItemKind.friendlyMatch,
+            accent: accent,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _KindBadge(label: 'BORA JOGAR', color: accent),
+                  const Spacer(),
+                  Text(
+                    item.statusLabel,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: accent,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                item.title,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                item.subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: context.themeColors.onSurfaceMuted,
                 ),
               ),
             ],

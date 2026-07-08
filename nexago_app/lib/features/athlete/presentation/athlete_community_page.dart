@@ -12,6 +12,7 @@ import '../../ranking/domain/ranking_providers.dart';
 import '../../tournaments/presentation/widgets/compete_hub/compete_hub_ranking_card.dart';
 import '../../tournaments/presentation/widgets/compete_hub/compete_hub_ranking_row.dart';
 import '../../tournaments/presentation/widgets/compete_hub/compete_hub_section_header.dart';
+import '../../friendly_match/presentation/widgets/friendly_match_summary_card.dart';
 import '../domain/athlete_shell_providers.dart';
 import 'widgets/community/community_feed_section.dart';
 
@@ -67,6 +68,10 @@ class AthleteCommunityPage extends ConsumerWidget {
           padding: EdgeInsets.fromLTRB(20, 8, 20, bottomClearance),
           sliver: SliverList.list(
             children: [
+              // Bora Jogar — some sozinho quando o recurso está desligado.
+              const FriendlyMatchSummaryCard(
+                margin: EdgeInsets.only(bottom: 20),
+              ),
               userRankingAsync.maybeWhen(
                 data: (ranking) => ranking == null
                     ? const SizedBox.shrink()

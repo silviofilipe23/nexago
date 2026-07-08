@@ -55,6 +55,43 @@ class AnalyticsService {
           categoryId: categoryId,
         ),
       );
+
+  // --- Funil do Bora Jogar (match finder) ---
+
+  Future<void> logFriendlyMatchBuilderOpened({String? source}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.friendlyMatchBuilderOpened,
+        parameters: friendlyMatchParams(source: source),
+      );
+
+  Future<void> logFriendlyMatchInviteSent({
+    required String objective,
+    required String sport,
+    required bool hasArena,
+  }) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.friendlyMatchInviteSent,
+        parameters: friendlyMatchParams(
+          objective: objective,
+          sport: sport,
+          hasArena: hasArena,
+        ),
+      );
+
+  Future<void> logFriendlyMatchInviteAccepted({required bool wasCounter}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.friendlyMatchInviteAccepted,
+        parameters: friendlyMatchParams(wasCounter: wasCounter),
+      );
+
+  Future<void> logFriendlyMatchCheckedIn() =>
+      _analytics.logEvent(name: AnalyticsEvents.friendlyMatchCheckedIn);
+
+  Future<void> logFriendlyMatchReviewSubmitted({required int stars}) =>
+      _analytics.logEvent(
+        name: AnalyticsEvents.friendlyMatchReviewSubmitted,
+        parameters: friendlyMatchParams(stars: stars),
+      );
 }
 
 final analyticsServiceProvider = Provider<AnalyticsService>(

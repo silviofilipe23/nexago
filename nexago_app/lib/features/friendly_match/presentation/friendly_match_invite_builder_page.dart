@@ -7,6 +7,7 @@ import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/ui/app_snackbar.dart';
 
+import '../../../core/observability/analytics_service.dart';
 import '../../../core/router/routes.dart';
 import '../../athlete/domain/athlete_firestore_codes.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
@@ -42,6 +43,12 @@ class _FriendlyMatchInviteBuilderPageState
   final _freeTextController = TextEditingController();
   final _messageController = TextEditingController();
   bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    ref.read(analyticsServiceProvider).logFriendlyMatchBuilderOpened();
+  }
 
   @override
   void dispose() {
@@ -115,6 +122,11 @@ class _FriendlyMatchInviteBuilderPageState
         message: _messageController.text,
       );
       if (!mounted) return;
+      ref.read(analyticsServiceProvider).logFriendlyMatchInviteSent(
+            objective: _objective.firestoreValue,
+            sport: sport,
+            hasArena: _arenaId != null,
+          );
       showAppSnackBar(context, 'Convite enviado para ${widget.toName}! 🏐');
       context.pushReplacement(
           AppRoutes.friendlyMatchDetail.replaceFirst(':matchId', matchId));

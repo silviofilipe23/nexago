@@ -53,6 +53,7 @@ Color _resolveTypeAccent({
     AthleteAgendaItemKind.rental => athleteAgendaRentalAccent,
     AthleteAgendaItemKind.tournament => athleteAgendaTournamentAccent,
     AthleteAgendaItemKind.challenge => athleteAgendaChallengeAccent,
+    AthleteAgendaItemKind.friendlyMatch => athleteAgendaFriendlyMatchAccent,
   };
 }
 

@@ -21,6 +21,7 @@ import 'widgets/athlete_home/athlete_home_quick_actions.dart';
 import 'daily_mission_navigation.dart';
 import '../../tournaments/data/my_tournament_registrations_repository.dart';
 import '../../tournaments/presentation/widgets/my_tournaments_home_section.dart';
+import '../../friendly_match/presentation/widgets/friendly_match_summary_card.dart';
 import '../../tournaments/presentation/widgets/pending_tournament_inviter_invites_section.dart';
 
 /// Aba Início do atleta (protótipo 01 — Hoje).
@@ -142,6 +143,13 @@ class AthleteHomePage extends ConsumerWidget {
                       //   ],
                       // ),
                       SizedBox(height: 8),
+                      // Bora Jogar — card vivo; some quando o recurso está
+                      // desligado no appConfig.
+                      const FriendlyMatchSummaryCard(
+                        margin: EdgeInsets.symmetric(
+                          horizontal: athleteHomeHorizontalPadding,
+                        ),
+                      ),
                       const Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: athleteHomeHorizontalPadding,

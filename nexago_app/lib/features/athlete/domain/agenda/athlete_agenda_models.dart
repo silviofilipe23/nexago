@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum AthleteAgendaItemKind { rental, tournament, challenge }
+enum AthleteAgendaItemKind { rental, tournament, challenge, friendlyMatch }
 
 enum AthleteAgendaFilter { all, rentals, tournaments, challenges }
 
@@ -77,6 +77,17 @@ class AthleteAgendaChallengePayload {
   final String challengeId;
 }
 
+/// Jogo avulso do Bora Jogar (confirmado ou aguardando avaliação).
+class AthleteAgendaFriendlyMatchPayload {
+  const AthleteAgendaFriendlyMatchPayload({
+    required this.matchId,
+    required this.otherName,
+  });
+
+  final String matchId;
+  final String otherName;
+}
+
 class AthleteAgendaItem {
   const AthleteAgendaItem({
     required this.id,
@@ -90,6 +101,7 @@ class AthleteAgendaItem {
     this.rental,
     this.tournament,
     this.challenge,
+    this.friendlyMatch,
     this.isMock = false,
   });
 
@@ -104,6 +116,7 @@ class AthleteAgendaItem {
   final AthleteAgendaRentalPayload? rental;
   final AthleteAgendaTournamentPayload? tournament;
   final AthleteAgendaChallengePayload? challenge;
+  final AthleteAgendaFriendlyMatchPayload? friendlyMatch;
   final bool isMock;
 
   bool get isCanceled =>

@@ -14,6 +14,7 @@ import '../../../domain/athlete_discover_providers.dart';
 import '../../../domain/athlete_follow_providers.dart';
 import '../../../domain/athlete_profile_providers.dart';
 import '../../../domain/athlete_public_profile_models.dart';
+import '../../../../friendly_match/domain/friendly_match_providers.dart';
 import '../athlete_profile_avatar.dart';
 
 class AthleteDiscoverCard extends ConsumerWidget {
@@ -146,6 +147,7 @@ class AthleteDiscoverCard extends ConsumerWidget {
                   Expanded(flex: 3, child: _FollowButton(entry: entry)),
                 ],
               ),
+              _BoraJogarButton(entry: entry),
             ],
           ),
         ),
@@ -447,6 +449,53 @@ class _LevelDots extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// CTA do Bora Jogar: leva ao builder de convite com o atleta do card.
+/// Some quando o recurso está desligado, quando o card é do próprio viewer
+/// ou quando não dá para identificar o alvo.
+class _BoraJogarButton extends ConsumerWidget {
+  const _BoraJogarButton({required this.entry});
+
+  final AthleteDiscoverEntry entry;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final config = ref.watch(friendlyMatchConfigProvider).value;
+    final viewerUid = ref.watch(authProvider).value?.uid;
+    if (config == null || !config.enabled) return const SizedBox.shrink();
+    if (entry.userId.isEmpty || entry.userId == viewerUid) {
+      return const SizedBox.shrink();
+    }
+    final label = entry.profile.lookingForPartner
+        ? 'Bora formar dupla'
+        : 'Bora jogar';
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: SizedBox(
+        width: double.infinity,
+        child: FilledButton.tonalIcon(
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.brand.withValues(alpha: 0.12),
+            foregroundColor: AppColors.brand,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+          ),
+          onPressed: () => context.push(
+            Uri(
+              path: AppRoutes.friendlyMatchNew,
+              queryParameters: {
+                'toUid': entry.userId,
+                'toName': entry.displayName,
+              },
+            ).toString(),
+          ),
+          icon: const Icon(Icons.sports_volleyball_rounded, size: 18),
+          label: Text(label),
+        ),
+      ),
     );
   }
 }

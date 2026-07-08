@@ -86,6 +86,14 @@ String? resolveNotificationRoute(Map<String, dynamic> data) {
     return AppRoutes.bookingInvite.replaceAll(':inviteId', inviteId);
   }
 
+  // Bora Jogar (match finder): todos os tipos caem no detalhe do jogo —
+  // a tela se adapta ao status/papel.
+  if (type.startsWith('friendly_match_')) {
+    final matchId = (data['matchId'] as String?)?.trim() ?? '';
+    if (matchId.isEmpty) return AppRoutes.friendlyMatchHub;
+    return AppRoutes.friendlyMatchDetail.replaceAll(':matchId', matchId);
+  }
+
   if (type == 'tournament_bracket_published' ||
       type == 'tournament_cancelled') {
     final bracketUrl = (data['url'] as String?)?.trim();

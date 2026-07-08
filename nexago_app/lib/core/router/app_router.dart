@@ -127,6 +127,9 @@ import '../../features/athlete/presentation/athlete_complete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_edit_profile_page.dart';
 import '../../features/athlete/presentation/athlete_profile_goals_page.dart';
 import '../../features/athlete/presentation/booking_invite_page.dart';
+import '../../features/friendly_match/presentation/friendly_match_detail_page.dart';
+import '../../features/friendly_match/presentation/friendly_match_hub_page.dart';
+import '../../features/friendly_match/presentation/friendly_match_invite_builder_page.dart';
 import '../../features/athlete/presentation/achievements/athlete_achievements_page.dart';
 import '../../features/athlete/presentation/athlete_profile_page.dart';
 import '../../features/athlete/presentation/athlete_settings_page.dart';
@@ -1765,6 +1768,29 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final inviteId = state.pathParameters['inviteId']!;
           return BookingInvitePage(inviteId: inviteId);
+        },
+      ),
+      // Bora Jogar — hub, builder (literal antes do :matchId) e detalhe.
+      GoRoute(
+        path: AppRoutes.friendlyMatchHub,
+        name: AppRouteNames.friendlyMatchHub,
+        builder: (context, state) => const FriendlyMatchHubPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.friendlyMatchNew,
+        name: AppRouteNames.friendlyMatchNew,
+        builder: (context, state) {
+          final toUid = state.uri.queryParameters['toUid'] ?? '';
+          final toName = state.uri.queryParameters['toName'] ?? 'Atleta';
+          return FriendlyMatchInviteBuilderPage(toUid: toUid, toName: toName);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.friendlyMatchDetail,
+        name: AppRouteNames.friendlyMatchDetail,
+        builder: (context, state) {
+          final matchId = state.pathParameters['matchId']!;
+          return FriendlyMatchDetailPage(matchId: matchId);
         },
       ),
     ],

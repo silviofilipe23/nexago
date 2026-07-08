@@ -347,6 +347,13 @@ abstract final class AppRoutes {
   /// Convite para jogar: `/convite/:inviteId`
   static const String bookingInvite = '/convite/:inviteId';
 
+  /// Bora Jogar (match finder): hub, builder e detalhe.
+  /// `friendlyMatchNew` é literal e deve vir ANTES de [friendlyMatchDetail]
+  /// no router (senão "novo" casa como :matchId).
+  static const String friendlyMatchHub = '/bora-jogar';
+  static const String friendlyMatchNew = '/bora-jogar/novo';
+  static const String friendlyMatchDetail = '/bora-jogar/:matchId';
+
   /// Detalhe de torneio: `/torneios/:tournamentId`
   static const String tournamentDetail = '/torneios/:tournamentId';
 
@@ -571,6 +578,9 @@ abstract final class AppRouteNames {
   static const String arenaBookingBlocked = 'arenaBookingBlocked';
   static const String bookingSuccess = 'bookingSuccess';
   static const String bookingInvite = 'bookingInvite';
+  static const String friendlyMatchHub = 'friendlyMatchHub';
+  static const String friendlyMatchNew = 'friendlyMatchNew';
+  static const String friendlyMatchDetail = 'friendlyMatchDetail';
   static const String tournamentDetail = 'tournamentDetail';
   static const String tournamentCategories = 'tournamentCategories';
   static const String tournamentBracket = 'tournamentBracket';

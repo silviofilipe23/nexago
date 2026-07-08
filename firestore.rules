@@ -1718,6 +1718,33 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Bora Jogar — convites/jogos avulsos entre atletas.
+    // Escrita exclusiva via Cloud Functions; leitura só dos participantes.
+    // Os três disjuntos existem para queries por fromUid, toUid OU
+    // participantUids passarem na prova de rules (o motor não deduz que
+    // participantUids == [fromUid, toUid]).
+    match /friendlyMatches/{matchId} {
+      allow read: if request.auth != null && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid == request.auth.uid ||
+        request.auth.uid in resource.data.participantUids
+      );
+      allow create, update, delete: if false;
+
+      // Avaliações double-blind: notas ficam ilegíveis até o reveal (só a
+      // Cloud Function lê/escreve via Admin SDK). Sem este bloco o catch-all
+      // do fim do arquivo daria read a qualquer autenticado.
+      match /privateReviews/{reviewerUid} {
+        allow read, write: if false;
+      }
+    }
+
+    // Config de features lida pelo app (ex.: appConfig/friendlyMatch).
+    match /appConfig/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     // Lista de espera do site público (captura de e-mail pré-lançamento).
     // Criação pública e validada (sem auth); leitura/edição/remoção bloqueadas.
     match /waitlist/{docId} {

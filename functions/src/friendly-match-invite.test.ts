@@ -8,6 +8,7 @@ import {
   cancelFriendlyMatchCore,
   counterFriendlyMatchInviteCore,
   declineFriendlyMatchInviteSlotCore,
+  fillFriendlyMatchSlotCore,
   sendFriendlyMatchInviteCore,
 } from "./friendly-match-invite";
 
@@ -427,6 +428,55 @@ describe("cancelFriendlyMatchCore", () => {
     await assertHttpsError(
       cancelFriendlyMatchCore(db(fake), "a", {matchId}, now),
       "failed-precondition",
+    );
+  });
+});
+
+describe("fillFriendlyMatchSlotCore", () => {
+  const now = Date.UTC(2026, 6, 10, 12, 0, 0);
+
+  it("organizador repõe vaga recusada com outro atleta", async () => {
+    const fake = new FakeFirestore();
+    const matchId = await sendInvite(fake, now, ["b", "c"]);
+    await declineFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now);
+    seedProfile(fake, "e");
+    const result = await fillFriendlyMatchSlotCore(
+      db(fake), "a", {matchId, slotIndex: 0, toUid: "e"}, now);
+    const slots = matchData(fake, matchId).slots as Array<Record<string, unknown>>;
+    assert.equal(slots[0].uid, "e");
+    assert.equal(slots[0].status, "invited");
+    assert.equal(result.notifications[0].userId, "e");
+    assert.equal(result.notifications[0].type, "friendly_match_invite");
+  });
+
+  it("só o organizador pode repor vaga", async () => {
+    const fake = new FakeFirestore();
+    const matchId = await sendInvite(fake, now, ["b"]);
+    await declineFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now);
+    seedProfile(fake, "e");
+    await assertHttpsError(
+      fillFriendlyMatchSlotCore(db(fake), "b", {matchId, slotIndex: 0, toUid: "e"}, now),
+      "permission-denied",
+    );
+  });
+
+  it("não repõe vaga que ainda está invited/accepted", async () => {
+    const fake = new FakeFirestore();
+    const matchId = await sendInvite(fake, now, ["b"]);
+    seedProfile(fake, "e");
+    await assertHttpsError(
+      fillFriendlyMatchSlotCore(db(fake), "a", {matchId, slotIndex: 0, toUid: "e"}, now),
+      "failed-precondition",
+    );
+  });
+
+  it("não permite repor com alguém que já ocupa outra vaga do mesmo jogo", async () => {
+    const fake = new FakeFirestore();
+    const matchId = await sendInvite(fake, now, ["b", "c"]);
+    await declineFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now);
+    await assertHttpsError(
+      fillFriendlyMatchSlotCore(db(fake), "a", {matchId, slotIndex: 0, toUid: "c"}, now),
+      "invalid-argument",
     );
   });
 });

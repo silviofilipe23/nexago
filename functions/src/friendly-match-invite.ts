@@ -176,20 +176,27 @@ function notificationFor(
   return {userId: targetUid, title, body, type, data: {type, matchId}};
 }
 
-/** Convite pendente (vaga invited/countered) entre A e B, em qualquer direção como organizador. */
+/**
+ * Convite pendente (vaga invited/countered) entre A e B, em qualquer direção
+ * como organizador. `excludeMatchId` ignora o próprio jogo sendo modificado
+ * (usado por `fillFriendlyMatchSlotCore`: repor uma vaga com alguém que já
+ * ocupa OUTRA vaga do mesmo jogo é um erro de `invalid-argument` verificado
+ * na transação, não um "convite pendente" de `failed-precondition`).
+ */
 async function hasPendingInviteWith(
   db: Firestore,
   uidA: string,
   uidB: string,
+  excludeMatchId?: string,
 ): Promise<boolean> {
   for (const [organizerUid, otherUid] of [[uidA, uidB], [uidB, uidA]]) {
     const snap = await db
       .collection(MATCHES_COLLECTION)
       .where("organizerUid", "==", organizerUid)
       .where("pendingSlotUids", "array-contains", otherUid)
-      .limit(1)
+      .limit(excludeMatchId ? 5 : 1)
       .get();
-    if (snap.docs.length > 0) return true;
+    if (snap.docs.some((doc) => doc.id !== excludeMatchId)) return true;
   }
   return false;
 }
@@ -681,6 +688,86 @@ export async function cancelFriendlyMatchCore(
       db, uid, lateCancelEventId(ref.id), "late_cancel", {matchId: ref.id});
   }
   return {matchId: ref.id, notifications: result.notifications};
+}
+
+export async function fillFriendlyMatchSlotCore(
+  db: Firestore,
+  uid: string,
+  input: {matchId: string; slotIndex: number; toUid: string},
+  nowMs: number = Date.now(),
+): Promise<FriendlyMatchActionResult> {
+  const ref = matchRef(db, input.matchId);
+  const toUid = typeof input.toUid === "string" ? input.toUid.trim() : "";
+  if (!toUid) throw new HttpsError("invalid-argument", "Escolha um atleta para a vaga.");
+
+  const [organizerSnap, recipientSnap] = await Promise.all([
+    db.doc(`public_profiles/${uid}`).get(),
+    db.doc(`public_profiles/${toUid}`).get(),
+  ]);
+  if (!recipientSnap.exists) throw new HttpsError("not-found", "Atleta não encontrado.");
+  const organizerProfile = (organizerSnap.data() ?? {}) as MatchData;
+  const recipientProfile = recipientSnap.data() as MatchData;
+  const config = await loadFriendlyMatchConfig(db);
+
+  if (await hasPendingInviteWith(db, uid, toUid, ref.id)) {
+    throw new HttpsError("failed-precondition", "Já existe um convite pendente com esse atleta.");
+  }
+
+  const outcome = await db.runTransaction<TransitionOutcome>(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError("not-found", "Jogo não encontrado.");
+    const data = snap.data() as MatchData;
+    if (data.organizerUid !== uid) {
+      throw new HttpsError("permission-denied", "Só o organizador pode repor uma vaga.");
+    }
+    if (data.status !== "filling") {
+      throw new HttpsError("failed-precondition", "Este jogo não aceita mais convites.");
+    }
+    const slots = (data.slots as MatchData[]).slice();
+    const slot = slots[input.slotIndex];
+    if (slot == null || (slot.status !== "declined" && slot.status !== "expired")) {
+      throw new HttpsError("failed-precondition", "Esta vaga não está aberta.");
+    }
+    if (toUid === uid || slots.some((s, i) => i !== input.slotIndex && s.uid === toUid)) {
+      throw new HttpsError("invalid-argument", "Escolha outro atleta para a vaga.");
+    }
+
+    const {score, breakdown} = computeCompatibilityScore({
+      sport: data.sport as string,
+      objective: data.objective as FriendlyMatchObjective,
+      sender: compatibilityProfileOf(organizerProfile),
+      recipient: compatibilityProfileOf(recipientProfile),
+    });
+    slots[input.slotIndex] = {
+      uid: toUid,
+      name: displayNameOf(recipientProfile),
+      photoUrl: photoUrlOf(recipientProfile) ?? null,
+      status: "invited",
+      invitedAt: Timestamp.fromMillis(nowMs),
+      respondedAt: null,
+      expiresAt: Timestamp.fromMillis(nowMs + config.inviteExpirationHours * HOUR_MS),
+      scoreAtSend: score,
+      scoreBreakdown: breakdown,
+    };
+    tx.set(ref, {
+      slots,
+      pendingSlotUids: pendingUidsOf(slots),
+      nextSlotExpiresAt: nextSlotExpiresAtOf(slots),
+      updatedAt: Timestamp.fromMillis(nowMs),
+      history: appendHistory(data, historyEntry("slot_refilled", uid, nowMs)),
+    }, {merge: true});
+    return {
+      kind: "ok", data,
+      notifications: [
+        notificationFor(data, ref.id, toUid, "friendly_match_invite", "Bora jogar? 🏐",
+          `${data.organizerName} te convidou para jogar`),
+      ],
+    };
+  });
+  if (outcome.kind === "expired") {
+    throw new HttpsError("failed-precondition", "Não foi possível repor a vaga.");
+  }
+  return {matchId: ref.id, notifications: outcome.notifications};
 }
 
 // ---------------------------------------------------------------------------

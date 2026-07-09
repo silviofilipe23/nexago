@@ -534,16 +534,29 @@ export async function counterFriendlyMatchInviteCore(
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError("not-found", "Convite não encontrado.");
     const data = snap.data() as MatchData;
-    if (data.status !== "sent") {
+    if ((data.slotsTotal as number) !== 1) {
       throw new HttpsError(
-        "failed-precondition",
-        "Este convite não aceita contraproposta — só há uma rodada.");
+        "failed-precondition", "Contraproposta só é possível em convite a uma pessoa.");
     }
-    if (data.toUid !== uid) {
+    if (data.status !== "filling") {
+      throw new HttpsError("failed-precondition", "Este jogo não está mais aguardando resposta.");
+    }
+    const slots = (data.slots as MatchData[]).slice();
+    const slot = slots[0];
+    if (slot.status !== "invited") {
+      throw new HttpsError(
+        "failed-precondition", "Este convite não aceita contraproposta — só há uma rodada.");
+    }
+    if (slot.uid !== uid) {
       throw new HttpsError("permission-denied", "Não é você quem responde este convite.");
     }
-    if (isInviteExpired((data.expiresAt as Timestamp).toMillis(), nowMs)) {
-      commitExpiredFlip(tx, ref, data, nowMs);
+    if (isInviteExpired((slot.expiresAt as Timestamp).toMillis(), nowMs)) {
+      slots[0] = {...slot, status: "expired"};
+      tx.set(ref, {
+        slots, pendingSlotUids: [], nextSlotExpiresAt: null,
+        updatedAt: Timestamp.fromMillis(nowMs),
+        history: appendHistory(data, historyEntry("slot_expired", uid, nowMs)),
+      }, {merge: true});
       return {kind: "expired"};
     }
 
@@ -555,14 +568,18 @@ export async function counterFriendlyMatchInviteCore(
     };
     if (location) counterProposal.location = location;
     if (message) counterProposal.message = message;
-
-    tx.set(ref, {
+    slots[0] = {
+      ...slot,
       status: "countered",
-      statusUpdatedAt: Timestamp.fromMillis(nowMs),
-      updatedAt: Timestamp.fromMillis(nowMs),
       counterProposal,
       expiresAt: Timestamp.fromMillis(nowMs + config.inviteExpirationHours * HOUR_MS),
-      history: appendHistory(data, historyEntry("countered", uid, nowMs)),
+    };
+    tx.set(ref, {
+      slots,
+      pendingSlotUids: pendingUidsOf(slots),
+      nextSlotExpiresAt: nextSlotExpiresAtOf(slots),
+      updatedAt: Timestamp.fromMillis(nowMs),
+      history: appendHistory(data, historyEntry("slot_countered", uid, nowMs)),
     }, {merge: true});
 
     return {
@@ -570,8 +587,8 @@ export async function counterFriendlyMatchInviteCore(
       data,
       notifications: [
         notificationFor(
-          data, ref.id, data.fromUid as string, "friendly_match_countered",
-          "Contraproposta ⏱", `${data.toName} sugeriu outro horário para o jogo.`),
+          data, ref.id, data.organizerUid as string, "friendly_match_countered",
+          "Contraproposta ⏱", `${slot.name} sugeriu outro horário para o jogo.`),
       ],
     };
   });

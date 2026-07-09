@@ -301,38 +301,41 @@ describe("declineFriendlyMatchInviteCore", () => {
 describe("counterFriendlyMatchInviteCore", () => {
   const now = Date.UTC(2026, 6, 10, 12, 0, 0);
 
-  it("destinatário contrapõe sent → countered, guarda proposta e renova expiração", async () => {
+  it("convidado contrapõe (1:1) → slot countered, guarda proposta e renova expiração", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
+    const matchId = await sendInvite(fake, now, ["b"]);
     const later = now + 3 * HOUR_MS;
     const counterTime = now + 96 * HOUR_MS;
     const result = await counterFriendlyMatchInviteCore(db(fake), "b", {
-      matchId,
-      scheduledAtMs: counterTime,
-      message: "Consigo só no fim de semana",
+      matchId, scheduledAtMs: counterTime, message: "Consigo só no fim de semana",
     }, later);
     const data = matchData(fake, matchId);
-    assert.equal(data.status, "countered");
-    const counter = data.counterProposal as {scheduledAt: Timestamp; proposedByUid: string};
+    const slots = data.slots as Array<Record<string, unknown>>;
+    assert.equal(slots[0].status, "countered");
+    const counter = slots[0].counterProposal as {scheduledAt: Timestamp; proposedByUid: string};
     assert.equal(counter.scheduledAt.toMillis(), counterTime);
     assert.equal(counter.proposedByUid, "b");
-    assert.equal((data.expiresAt as Timestamp).toMillis(), later + 24 * HOUR_MS);
+    assert.equal((slots[0].expiresAt as Timestamp).toMillis(), later + 24 * HOUR_MS);
+    assert.deepEqual(data.pendingSlotUids, ["b"]);
     assert.equal(result.notifications[0].userId, "a");
     assert.equal(result.notifications[0].type, "friendly_match_countered");
   });
 
   it("só há uma rodada de contraproposta", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
-    await counterFriendlyMatchInviteCore(db(fake), "b", {
-      matchId,
-      scheduledAtMs: now + 96 * HOUR_MS,
-    }, now);
+    const matchId = await sendInvite(fake, now, ["b"]);
+    await counterFriendlyMatchInviteCore(db(fake), "b", {matchId, scheduledAtMs: now + 96 * HOUR_MS}, now);
     await assertHttpsError(
-      counterFriendlyMatchInviteCore(db(fake), "a", {
-        matchId,
-        scheduledAtMs: now + 120 * HOUR_MS,
-      }, now),
+      counterFriendlyMatchInviteCore(db(fake), "a", {matchId, scheduledAtMs: now + 120 * HOUR_MS}, now),
+      "failed-precondition",
+    );
+  });
+
+  it("rejeita contraproposta em jogo com mais de 1 vaga", async () => {
+    const fake = new FakeFirestore();
+    const matchId = await sendInvite(fake, now, ["b", "c"]);
+    await assertHttpsError(
+      counterFriendlyMatchInviteCore(db(fake), "b", {matchId, scheduledAtMs: now + 96 * HOUR_MS}, now),
       "failed-precondition",
     );
   });

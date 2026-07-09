@@ -70,7 +70,8 @@ export async function checkInFriendlyMatchCore(
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError("not-found", "Jogo não encontrado.");
     const data = snap.data() as MatchData;
-    if (data.fromUid !== uid && data.toUid !== uid) {
+    const participantUids = data.participantUids as string[];
+    if (!participantUids.includes(uid)) {
       throw new HttpsError("permission-denied", "Você não participa deste jogo.");
     }
     if (data.status !== "confirmed") {
@@ -94,10 +95,9 @@ export async function checkInFriendlyMatchCore(
     if (checkIns[uid] != null) return {kind: "noop"};
     checkIns[uid] = Timestamp.fromMillis(nowMs);
 
-    const otherUid = uid === data.fromUid ? (data.toUid as string) : (data.fromUid as string);
-    const bothPresent = checkIns[otherUid] != null;
+    const allPresent = participantUids.every((p) => checkIns[p] != null);
 
-    if (bothPresent) {
+    if (allPresent) {
       tx.set(ref, {
         status: "completed",
         statusUpdatedAt: Timestamp.fromMillis(nowMs),
@@ -120,37 +120,32 @@ export async function checkInFriendlyMatchCore(
   if (outcome.kind === "noop") return {completed: false, notifications: []};
 
   const data = outcome.data;
-  const fromUid = data.fromUid as string;
-  const toUid = data.toUid as string;
-  const myName = uid === fromUid ? (data.fromName as string) : (data.toName as string);
-  const otherUid = uid === fromUid ? toUid : fromUid;
+  const participantUids = data.participantUids as string[];
+  const nameOf = (p: string): string =>
+    p === data.organizerUid ?
+      (data.organizerName as string) :
+      ((data.slots as MatchData[]).find((s) => s.uid === p)?.name as string ?? "Atleta");
+  const myName = nameOf(uid);
 
   if (outcome.kind === "completed") {
-    // Reputação dos dois — idempotente por match (retry seguro).
-    await applyReputationEvent(
-      db, fromUid, matchCompletedEventId(matchId), "match_completed", {matchId});
-    await applyReputationEvent(
-      db, toUid, matchCompletedEventId(matchId), "match_completed", {matchId});
+    // Reputação de todos — idempotente por match (retry seguro).
+    for (const p of participantUids) {
+      await applyReputationEvent(db, p, matchCompletedEventId(matchId), "match_completed", {matchId});
+    }
     return {
       completed: true,
-      notifications: [
-        notification(
-          fromUid, "friendly_match_completed", matchId,
-          "Jogo confirmado! 🙌", `Como foi jogar com ${data.toName}? Avalie agora.`),
-        notification(
-          toUid, "friendly_match_completed", matchId,
-          "Jogo confirmado! 🙌", `Como foi jogar com ${data.fromName}? Avalie agora.`),
-      ],
+      notifications: participantUids.map((p) => notification(
+        p, "friendly_match_completed", matchId,
+        "Jogo confirmado! 🙌", "Como foi jogar? Avalie a galera agora.")),
     };
   }
 
+  const others = participantUids.filter((p) => p !== uid);
   return {
     completed: false,
-    notifications: [
-      notification(
-        otherUid, "friendly_match_checkin_nudge", matchId,
-        "Check-in feito ✔", `${myName} confirmou presença. Faça seu check-in também!`),
-    ],
+    notifications: others.map((p) => notification(
+      p, "friendly_match_checkin_nudge", matchId,
+      "Check-in feito ✔", `${myName} confirmou presença. Faça seu check-in também!`)),
   };
 }
 

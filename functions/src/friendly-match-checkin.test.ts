@@ -33,6 +33,35 @@ function seedConfirmed(fake: FakeFirestore, id: string, overrides: DocData = {})
   });
 }
 
+// Fixture do novo esquema (organizerUid/slots/participantUids), usada só
+// pelos testes de checkInFriendlyMatchCore abaixo. `closeFriendlyMatchCheckInIfDue`
+// (Task 14) ainda está no esquema antigo (fromUid/toUid) e usa `seedConfirmed`
+// acima — não consolidar os dois fixtures antes daquela migração.
+function seedConfirmedMulti(
+  fake: FakeFirestore,
+  id: string,
+  participantUids: string[],
+  overrides: DocData = {},
+): void {
+  fake.seedDoc(`friendlyMatches/${id}`, {
+    organizerUid: "a",
+    organizerName: "Ana",
+    slots: participantUids.filter((p) => p !== "a").map((uid) => ({
+      uid, name: `Atleta ${uid}`, photoUrl: null, status: "accepted",
+      invitedAt: Timestamp.fromMillis(now - HOUR_MS), respondedAt: Timestamp.fromMillis(now - HOUR_MS),
+      expiresAt: Timestamp.fromMillis(now + HOUR_MS),
+    })),
+    participantUids,
+    status: "confirmed",
+    scheduledAt: Timestamp.fromMillis(gameTime),
+    confirmedTime: Timestamp.fromMillis(gameTime),
+    checkInOpenAt: Timestamp.fromMillis(gameTime - 30 * 60 * 1000),
+    checkInCloseAt: Timestamp.fromMillis(gameTime + 24 * HOUR_MS),
+    history: [],
+    ...overrides,
+  });
+}
+
 async function assertHttpsError(promise: Promise<unknown>, code: string): Promise<void> {
   await assert.rejects(promise, (err: {code?: string}) => {
     assert.equal(err.code, code, `esperava HttpsError ${code}, veio ${err.code}`);
@@ -41,45 +70,51 @@ async function assertHttpsError(promise: Promise<unknown>, code: string): Promis
 }
 
 describe("checkInFriendlyMatchCore", () => {
-  it("primeiro check-in registra presença e cutuca o outro participante", async () => {
+  it("primeiro check-in registra presença e cutuca os demais participantes", async () => {
     const fake = new FakeFirestore();
-    seedConfirmed(fake, "m1");
+    seedConfirmedMulti(fake, "m1", ["a", "b", "c"]);
     const result = await checkInFriendlyMatchCore(db(fake), "a", {matchId: "m1"}, now);
     assert.equal(result.completed, false);
     const data = fake.store.get("friendlyMatches/m1")!;
     assert.equal(data.status, "confirmed");
-    const checkIns = data.checkIns as Record<string, Timestamp>;
-    assert.ok(checkIns.a instanceof Timestamp);
-    assert.equal(result.notifications.length, 1);
-    assert.equal(result.notifications[0].userId, "b");
-    assert.equal(result.notifications[0].type, "friendly_match_checkin_nudge");
+    assert.ok((data.checkIns as Record<string, Timestamp>).a instanceof Timestamp);
+    assert.equal(result.notifications.length, 2);
+    assert.deepEqual(result.notifications.map((n) => n.userId).sort(), ["b", "c"]);
+    assert.ok(result.notifications.every((n) => n.type === "friendly_match_checkin_nudge"));
   });
 
-  it("segundo check-in completa o jogo, agenda o reveal e credita reputação de ambos", async () => {
+  it("último check-in (todos presentes) completa o jogo, agenda reveal e credita reputação de todos", async () => {
     const fake = new FakeFirestore();
-    seedConfirmed(fake, "m1");
+    seedConfirmedMulti(fake, "m1", ["a", "b"]);
     await checkInFriendlyMatchCore(db(fake), "a", {matchId: "m1"}, now);
     const result = await checkInFriendlyMatchCore(db(fake), "b", {matchId: "m1"}, now + 60000);
     assert.equal(result.completed, true);
     const data = fake.store.get("friendlyMatches/m1")!;
     assert.equal(data.status, "completed");
     assert.ok(data.completedAt instanceof Timestamp);
-    assert.equal(
-      (data.reviewRevealAt as Timestamp).toMillis(),
-      now + 60000 + 72 * HOUR_MS,
-    );
-    // Notifica os dois pedindo avaliação.
+    assert.equal((data.reviewRevealAt as Timestamp).toMillis(), now + 60000 + 72 * HOUR_MS);
     assert.equal(result.notifications.length, 2);
     assert.ok(result.notifications.every((n) => n.type === "friendly_match_completed"));
-    // Reputação creditada para os dois, idempotente por match.
     assert.ok(fake.store.get("users/a/reputationEvents/match_completed_m1"));
     assert.ok(fake.store.get("users/b/reputationEvents/match_completed_m1"));
     assert.equal(fake.store.get("users/a/reputation/summary")!.gamesCompleted, 1);
   });
 
+  it("com 3 participantes, precisa dos TRÊS check-ins pra completar", async () => {
+    const fake = new FakeFirestore();
+    seedConfirmedMulti(fake, "m1", ["a", "b", "c"]);
+    await checkInFriendlyMatchCore(db(fake), "a", {matchId: "m1"}, now);
+    const mid = await checkInFriendlyMatchCore(db(fake), "b", {matchId: "m1"}, now);
+    assert.equal(mid.completed, false);
+    assert.equal(fake.store.get("friendlyMatches/m1")!.status, "confirmed");
+    const last = await checkInFriendlyMatchCore(db(fake), "c", {matchId: "m1"}, now);
+    assert.equal(last.completed, true);
+    assert.equal(fake.store.get("friendlyMatches/m1")!.status, "completed");
+  });
+
   it("check-in repetido do mesmo atleta é no-op silencioso", async () => {
     const fake = new FakeFirestore();
-    seedConfirmed(fake, "m1");
+    seedConfirmedMulti(fake, "m1", ["a", "b"]);
     await checkInFriendlyMatchCore(db(fake), "a", {matchId: "m1"}, now);
     const again = await checkInFriendlyMatchCore(db(fake), "a", {matchId: "m1"}, now);
     assert.equal(again.completed, false);
@@ -88,30 +123,18 @@ describe("checkInFriendlyMatchCore", () => {
 
   it("rejeita fora da janela, não participante e status errado", async () => {
     const fake = new FakeFirestore();
-    seedConfirmed(fake, "early", {
-      checkInOpenAt: Timestamp.fromMillis(now + HOUR_MS),
-    });
+    seedConfirmedMulti(fake, "early", ["a", "b"], {checkInOpenAt: Timestamp.fromMillis(now + HOUR_MS)});
     await assertHttpsError(
-      checkInFriendlyMatchCore(db(fake), "a", {matchId: "early"}, now),
-      "failed-precondition",
-    );
-    seedConfirmed(fake, "late", {
-      checkInCloseAt: Timestamp.fromMillis(now - 1),
-    });
+      checkInFriendlyMatchCore(db(fake), "a", {matchId: "early"}, now), "failed-precondition");
+    seedConfirmedMulti(fake, "late", ["a", "b"], {checkInCloseAt: Timestamp.fromMillis(now - 1)});
     await assertHttpsError(
-      checkInFriendlyMatchCore(db(fake), "a", {matchId: "late"}, now),
-      "failed-precondition",
-    );
-    seedConfirmed(fake, "m1");
+      checkInFriendlyMatchCore(db(fake), "a", {matchId: "late"}, now), "failed-precondition");
+    seedConfirmedMulti(fake, "m1", ["a", "b"]);
     await assertHttpsError(
-      checkInFriendlyMatchCore(db(fake), "intruso", {matchId: "m1"}, now),
-      "permission-denied",
-    );
-    seedConfirmed(fake, "pending", {status: "sent"});
+      checkInFriendlyMatchCore(db(fake), "intruso", {matchId: "m1"}, now), "permission-denied");
+    seedConfirmedMulti(fake, "pending", ["a", "b"], {status: "filling"});
     await assertHttpsError(
-      checkInFriendlyMatchCore(db(fake), "a", {matchId: "pending"}, now),
-      "failed-precondition",
-    );
+      checkInFriendlyMatchCore(db(fake), "a", {matchId: "pending"}, now), "failed-precondition");
   });
 });
 

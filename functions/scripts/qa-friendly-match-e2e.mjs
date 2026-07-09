@@ -74,6 +74,17 @@ const M = (f) => ({mapValue: {fields: f}});
 
 function fieldStr(fields, name) { return fields?.[name]?.stringValue; }
 
+// Vagas (`slots`) vêm como array de mapas no formato REST do Firestore —
+// este helper extrai os `fields` da vaga no índice pedido, pra reusar
+// `fieldStr`/leituras diretas em cima dela (ex.: `fieldStr(slotFields(doc, 0), "status")`).
+function slotFields(doc, index) {
+  return doc?.slots?.arrayValue?.values?.[index]?.mapValue?.fields ?? {};
+}
+
+function stringArrayOf(doc, name) {
+  return (doc?.[name]?.arrayValue?.values ?? []).map((v) => v.stringValue);
+}
+
 async function waitFor(label, fn, tries = 20, delayMs = 3000) {
   for (let i = 0; i < tries; i++) {
     const v = await fn();
@@ -119,67 +130,69 @@ ok("appConfig/friendlyMatch legível e enabled=true",
 console.log("== M1: convite → contraproposta → aceite ==");
 const m1Main = ts + 31 * MIN;
 const m1 = await call("sendFriendlyMatchInvite", A.token, {
-  toUid: Bu.uid, sport: "VOLEI_PRAIA", objective: "friendly",
+  toUids: [Bu.uid], sport: "VOLEI_PRAIA", objective: "friendly",
   scheduledAtMs: m1Main, location: {freeText: "Praia de Camburi — QA"},
   message: "QA e2e do Bora Jogar",
 });
 ok("convite enviado", typeof m1.matchId === "string");
 
 let doc = await fsGet(`friendlyMatches/${m1.matchId}`, Bu.token);
-ok("destinatário lê o convite (rules)", fieldStr(doc, "status") === "sent");
-ok("score congelado no envio", doc?.scoreAtSend?.integerValue != null);
+ok("destinatário lê o convite (rules)", fieldStr(doc, "status") === "filling");
+ok("score congelado no envio", slotFields(doc, 0)?.scoreAtSend?.integerValue != null);
 
 await expectError(
   () => call("sendFriendlyMatchInvite", A.token, {
-    toUid: Bu.uid, sport: "VOLEI_PRAIA", objective: "training",
+    toUids: [Bu.uid], sport: "VOLEI_PRAIA", objective: "training",
     scheduledAtMs: ts + 60 * MIN, location: {freeText: "x"},
   }), "FAILED_PRECONDITION", "convite duplicado no par é bloqueado");
 await expectError(
   () => call("sendFriendlyMatchInvite", Bu.token, {
-    toUid: A.uid, sport: "VOLEI_PRAIA", objective: "training",
+    toUids: [A.uid], sport: "VOLEI_PRAIA", objective: "training",
     scheduledAtMs: ts + 60 * MIN, location: {freeText: "x"},
   }), "FAILED_PRECONDITION", "direção inversa também bloqueada");
 await expectError(
-  () => call("acceptFriendlyMatchInvite", A.token, {matchId: m1.matchId}),
+  () => call("acceptFriendlyMatchInviteSlot", A.token, {matchId: m1.matchId}),
   "PERMISSION_DENIED", "remetente não aceita o próprio convite");
 
 const m1Counter = Date.now() + 32 * MIN;
 await call("counterFriendlyMatchInvite", Bu.token,
   {matchId: m1.matchId, scheduledAtMs: m1Counter, message: "Mais tarde?"});
 doc = await fsGet(`friendlyMatches/${m1.matchId}`, A.token);
-ok("contraproposta registrada", fieldStr(doc, "status") === "countered");
+ok("contraproposta registrada", fieldStr(slotFields(doc, 0), "status") === "countered");
 
 await expectError(
   () => call("counterFriendlyMatchInvite", A.token,
     {matchId: m1.matchId, scheduledAtMs: Date.now() + 90 * MIN}),
   "FAILED_PRECONDITION", "só uma rodada de contraproposta");
 
-await call("acceptFriendlyMatchInvite", A.token, {matchId: m1.matchId});
+await call("acceptFriendlyMatchInviteSlot", A.token, {matchId: m1.matchId});
 doc = await fsGet(`friendlyMatches/${m1.matchId}`, A.token);
 ok("remetente aceitou a contraproposta → confirmed", fieldStr(doc, "status") === "confirmed");
 
 console.log("== M2: recusa ==");
 const m2 = await call("sendFriendlyMatchInvite", Bu.token, {
-  toUid: A.uid, sport: "VOLEI_PRAIA", objective: "training",
+  toUids: [A.uid], sport: "VOLEI_PRAIA", objective: "training",
   scheduledAtMs: Date.now() + 45 * MIN, location: {freeText: "Quadra QA 2"},
 });
 await expectError(
-  () => call("declineFriendlyMatchInvite", Bu.token, {matchId: m2.matchId}),
+  () => call("declineFriendlyMatchInviteSlot", Bu.token, {matchId: m2.matchId}),
   "PERMISSION_DENIED", "remetente não recusa o próprio convite");
-await call("declineFriendlyMatchInvite", A.token, {matchId: m2.matchId, reason: "QA"});
+await call("declineFriendlyMatchInviteSlot", A.token, {matchId: m2.matchId, reason: "QA"});
 doc = await fsGet(`friendlyMatches/${m2.matchId}`, Bu.token);
-ok("recusa aplicada", fieldStr(doc, "status") === "declined");
+// Recusar uma vaga não fecha o jogo (o organizador pode repor) — o jogo
+// segue "filling"; quem muda é o status da própria vaga.
+ok("recusa aplicada", fieldStr(slotFields(doc, 0), "status") === "declined");
 
 console.log("== M3: cancelamento tardio penaliza ==");
 const m3 = await call("sendFriendlyMatchInvite", A.token, {
-  toUid: Bu.uid, sport: "VOLEI_PRAIA", objective: "friendly",
+  toUids: [Bu.uid], sport: "VOLEI_PRAIA", objective: "friendly",
   scheduledAtMs: Date.now() + 40 * MIN, location: {freeText: "Quadra QA 3"},
 });
 await expectError(
-  () => call("acceptFriendlyMatchInvite", Bu.token,
+  () => call("acceptFriendlyMatchInviteSlot", Bu.token,
     {matchId: m3.matchId, chosenTimeMs: Date.now() + 999 * MIN}),
   "INVALID_ARGUMENT", "horário fora da proposta é rejeitado");
-await call("acceptFriendlyMatchInvite", Bu.token, {matchId: m3.matchId});
+await call("acceptFriendlyMatchInviteSlot", Bu.token, {matchId: m3.matchId});
 await call("cancelFriendlyMatch", A.token, {matchId: m3.matchId});
 doc = await fsGet(`friendlyMatches/${m3.matchId}`, A.token);
 ok("cancelamento <6h marca cancelPenalized",
@@ -229,21 +242,22 @@ ok("status completed com reviewRevealAt",
 
 console.log("== M1: avaliação double-blind ==");
 const r1 = await call("submitFriendlyMatchReview", A.token,
-  {matchId: m1.matchId, stars: 4, tags: ["pontual"], comment: "QA nota de A"});
+  {matchId: m1.matchId, revieweeUid: Bu.uid, stars: 4, tags: ["pontual"], comment: "QA nota de A"});
 ok("1ª avaliação não revela", r1.revealed === false);
 doc = await fsGet(`friendlyMatches/${m1.matchId}`, Bu.token);
 ok("nota de A invisível para B antes do reveal", doc.reviews == null);
 await expectError(
-  () => call("submitFriendlyMatchReview", A.token, {matchId: m1.matchId, stars: 5}),
+  () => call("submitFriendlyMatchReview", A.token, {matchId: m1.matchId, revieweeUid: Bu.uid, stars: 5}),
   "FAILED_PRECONDITION", "avaliação dupla rejeitada");
 const r2 = await call("submitFriendlyMatchReview", Bu.token,
-  {matchId: m1.matchId, stars: 5, comment: "QA nota de B"});
+  {matchId: m1.matchId, revieweeUid: A.uid, stars: 5, comment: "QA nota de B"});
 ok("2ª avaliação dispara o reveal", r2.revealed === true);
 doc = await fsGet(`friendlyMatches/${m1.matchId}`, A.token);
+// reviews agora é aninhado por par: reviews[reviewerUid][revieweeUid].
 ok("match reviewed com as duas notas",
   fieldStr(doc, "status") === "reviewed" &&
-  doc.reviews?.mapValue?.fields?.[A.uid] != null &&
-  doc.reviews?.mapValue?.fields?.[Bu.uid] != null);
+  doc.reviews?.mapValue?.fields?.[A.uid]?.mapValue?.fields?.[Bu.uid] != null &&
+  doc.reviews?.mapValue?.fields?.[Bu.uid]?.mapValue?.fields?.[A.uid] != null);
 
 console.log("== Reputação final ==");
 const repA = await waitFor("reputação final de A", async () => {
@@ -260,6 +274,52 @@ const pubB = await waitFor("reputação de B espelhada em public_profiles", asyn
 ok("espelho público da reputação de B (score 100, 1 jogo)",
   pubB.score?.integerValue === "100" && pubB.gamesCompleted?.integerValue === "1",
   JSON.stringify(pubB));
+
+console.log("== M4: jogo com 3 vagas — aceite parcial, recusa, reposição ==");
+const C = await signUp(`qa.bora.${ts}.c@nexago.test`, `QaBora!${ts}`, "QA Bora Carla");
+const D = await signUp(`qa.bora.${ts}.d@nexago.test`, `QaBora!${ts}`, "QA Bora Duda");
+console.log(`  C=${C.uid}  D=${D.uid}`);
+await fsPatch(`users/${C.uid}`, profileFields("QA Bora Carla", false), C.token,
+  ["fullName", "role", "city", "state", "gender", "lookingForPartner", "sportOnboarding"]);
+await fsPatch(`users/${D.uid}`, profileFields("QA Bora Duda", false), D.token,
+  ["fullName", "role", "city", "state", "gender", "lookingForPartner", "sportOnboarding"]);
+await waitFor("public_profiles de C", async () => {
+  const f = await fsGet(`public_profiles/${C.uid}`, A.token);
+  return f && !f.denied && fieldStr(f, "fullName") ? f : null;
+});
+await waitFor("public_profiles de D", async () => {
+  const f = await fsGet(`public_profiles/${D.uid}`, A.token);
+  return f && !f.denied && fieldStr(f, "fullName") ? f : null;
+});
+
+// A convida B e C pras 2 vagas do jogo (slots[0]=B, slots[1]=C, na ordem de toUids).
+const m4 = await call("sendFriendlyMatchInvite", A.token, {
+  toUids: [Bu.uid, C.uid], sport: "VOLEI_PRAIA", objective: "friendly",
+  scheduledAtMs: Date.now() + 55 * MIN, location: {freeText: "Quadra QA 4"},
+});
+ok("convite de 3 vagas enviado (organizador + 2 convidados)", typeof m4.matchId === "string");
+
+await call("declineFriendlyMatchInviteSlot", C.token, {matchId: m4.matchId, reason: "QA não posso"});
+doc = await fsGet(`friendlyMatches/${m4.matchId}`, A.token);
+ok("vaga de C recusada (jogo segue filling)",
+  fieldStr(doc, "status") === "filling" && fieldStr(slotFields(doc, 1), "status") === "declined");
+
+await call("fillFriendlyMatchSlot", A.token, {matchId: m4.matchId, slotIndex: 1, toUid: D.uid});
+doc = await fsGet(`friendlyMatches/${m4.matchId}`, D.token);
+ok("vaga reposta com D",
+  fieldStr(slotFields(doc, 1), "status") === "invited" &&
+  fieldStr(slotFields(doc, 1), "uid") === D.uid);
+
+await call("acceptFriendlyMatchInviteSlot", Bu.token, {matchId: m4.matchId});
+await call("acceptFriendlyMatchInviteSlot", D.token, {matchId: m4.matchId});
+doc = await fsGet(`friendlyMatches/${m4.matchId}`, A.token);
+ok("jogo de 3 vagas confirmado após aceite dos 2 restantes", fieldStr(doc, "status") === "confirmed");
+const m4Participants = stringArrayOf(doc, "participantUids");
+ok("participantUids final é [A, B, D] — sem C, que recusou",
+  m4Participants.length === 3 &&
+  m4Participants.includes(A.uid) && m4Participants.includes(Bu.uid) &&
+  m4Participants.includes(D.uid) && !m4Participants.includes(C.uid),
+  JSON.stringify(m4Participants));
 
 console.log(`\n== RESULTADO: ${pass} ok, ${fail} falhas ==`);
 if (failures.length) console.log("Falhas:", failures.join(" | "));

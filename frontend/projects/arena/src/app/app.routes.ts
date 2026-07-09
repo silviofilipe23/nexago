@@ -37,5 +37,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/home/panel-home.component').then((m) => m.PanelHomeComponent),
   },
+  {
+    path: 'painel/agenda',
+    title: 'Agenda — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/agenda/panel-agenda.component').then((m) => m.PanelAgendaComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

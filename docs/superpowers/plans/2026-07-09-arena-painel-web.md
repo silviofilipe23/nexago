@@ -33,6 +33,7 @@ frontend/projects/arena/src/
       panel-home.component.ts                     (APAGAR — placeholder)
       ui/
         icon.component.ts                         (ar-icon)
+        initials.ts                               (initialsOf — compartilhada por shell, Início e Perfil)
         pill.component.ts                         (ar-pill)
         status-dot.component.ts                   (ar-status-dot)
         page-header.component.ts                  (ar-page-header)

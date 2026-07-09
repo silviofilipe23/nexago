@@ -65,9 +65,16 @@ describe("submitFriendlyMatchReviewCore", () => {
     const data = fake.store.get("friendlyMatches/m1")!;
     assert.equal(data.status, "reviewed"); // só 2 participantes: 1 par = grupo inteiro
     assert.ok(data.reviewsRevealedAt instanceof Timestamp);
-    const reviews = data.reviews as Record<string, Record<string, {stars: number}>>;
+    const reviews = data.reviews as Record<string, Record<string, DocData>>;
     assert.equal(reviews.a.b.stars, 5);
     assert.equal(reviews.b.a.stars, 3);
+    // reviews.a.b é reconstruído a partir do doc PRIVADO (otherSnap) — não pode
+    // vazar metadados do doc privado (reviewerUid/revieweeUid/createdAt) para
+    // o mapa público `reviews`.
+    assert.equal(reviews.a.b.reviewerUid, undefined);
+    assert.equal(reviews.a.b.revieweeUid, undefined);
+    assert.equal(reviews.a.b.createdAt, undefined);
+    assert.deepEqual(Object.keys(reviews.a.b).sort(), ["stars"]);
     assert.equal(fake.store.get("users/b/reputation/summary")!.ratingSum, 5);
     assert.equal(fake.store.get("users/a/reputation/summary")!.ratingSum, 3);
     assert.ok(fake.store.get("users/b/reputationEvents/review_received_m1_a_b"));

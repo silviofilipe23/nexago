@@ -143,7 +143,12 @@ export async function submitFriendlyMatchReviewCore(
       return {kind: "waiting"};
     }
 
-    const otherReview = otherSnap.data() as StoredReview;
+    const otherStored = otherSnap.data() as StoredReview;
+    const otherReview: StoredReview = {
+      stars: otherStored.stars,
+      ...(otherStored.tags ? {tags: otherStored.tags} : {}),
+      ...(otherStored.comment ? {comment: otherStored.comment} : {}),
+    };
     const reviews = {
       ...(data.reviews as Record<string, Record<string, StoredReview>> ?? {}),
     };

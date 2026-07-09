@@ -1185,13 +1185,30 @@ git commit -m "feat(arena): componente ar-chart-tabs funcional"
 ## Task 8: `ar-panel-shell`
 
 **Files:**
+- Create: `frontend/projects/arena/src/app/painel/ui/initials.ts`
 - Create: `frontend/projects/arena/src/app/painel/ui/panel-shell.component.ts`
 
 **Interfaces:**
 - Consumes: `IconComponent`/`PanelIconName` (Task 2), `AuthService` (`frontend/projects/arena/src/app/auth/auth.service.ts` — expõe `displayName(): string | null` e `user(): User | null`).
-- Produces: `PanelShellComponent` (`ar-panel-shell`). Sem inputs — calcula a rota ativa internamente a partir do `Router`. Conteúdo projetado via `<ng-content />` (a tela inteira, igual ao `bo-panel-shell`).
+- Produces: `initialsOf(name: string): string` (compartilhada — Tasks 11 e 17 também consomem). `PanelShellComponent` (`ar-panel-shell`). Sem inputs — calcula a rota ativa internamente a partir do `Router`. Conteúdo projetado via `<ng-content />` (a tela inteira, igual ao `bo-panel-shell`).
 
-- [ ] **Step 1: Criar o componente**
+- [ ] **Step 1: Criar o helper compartilhado `initialsOf`**
+
+Extraído para arquivo próprio porque é consumido por três telas (shell, Início, Perfil) — evita duplicar a mesma função três vezes.
+
+```ts
+export function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return '·';
+  }
+  const first = parts[0]![0] ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]![0] ?? '') : '';
+  return (first + last).toUpperCase();
+}
+```
+
+- [ ] **Step 2: Criar o componente**
 
 Sidebar fixa (236px) com: marca, seletor de arena (nome real vindo de `AuthService.displayName()`), nav de 7 itens (rota ativa calculada por comparação exata de path — as 7 rotas são todas irmãs sob `/painel`, sem prefixo em comum além de `/painel` sozinho), item "Configurações" desabilitado, e rodapé com usuário real. Diferente do `bo-panel-shell`: não existe `profileActive`/link redundante no rodapé — "Perfil" já é um item de nav normal, então o rodapé é só apresentacional (sem `routerLink`).
 
@@ -1202,6 +1219,7 @@ import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { IconComponent, type PanelIconName } from './icon.component';
+import { initialsOf } from './initials';
 
 interface PanelNavItem {
   id: string;
@@ -1224,16 +1242,6 @@ const NAV_ITEMS: PanelNavItem[] = [
 function pathOnly(url: string): string {
   const i = url.indexOf('?');
   return i >= 0 ? url.slice(0, i) : url;
-}
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return '·';
-  }
-  const first = parts[0]![0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1]![0] ?? '') : '';
-  return (first + last).toUpperCase();
 }
 
 /** Shell do painel da arena: sidebar fixa (protótipo ArPanelShell/ArSidebar) + conteúdo projetado. */
@@ -1603,16 +1611,17 @@ export class PanelShellComponent {
 }
 ```
 
-- [ ] **Step 2: Verificar que o projeto builda**
+- [ ] **Step 3: Verificar que o projeto builda**
 
 Run: `cd frontend && npx ng build arena --configuration development`
 Expected: build sem erros.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add frontend/projects/arena/src/app/painel/ui/panel-shell.component.ts
-git commit -m "feat(arena): componente ar-panel-shell com sidebar, seletor de arena e nav"
+git add frontend/projects/arena/src/app/painel/ui/initials.ts \
+  frontend/projects/arena/src/app/painel/ui/panel-shell.component.ts
+git commit -m "feat(arena): helper initialsOf + componente ar-panel-shell com sidebar, seletor de arena e nav"
 ```
 
 ---
@@ -2054,7 +2063,7 @@ git commit -m "feat(arena): componente ar-agenda-grid (grade de quadras × horá
 - Modify: `frontend/projects/arena/src/app/app.routes.ts`
 
 **Interfaces:**
-- Consumes: `PanelShellComponent` (Task 8), `PageHeaderComponent`/`PanelCardComponent`/`KpiCardComponent`/`LineChartComponent`/`ChartTabsComponent`/`PillComponent`/`BarRowComponent`/`IconComponent` (Tasks 2–7), `AuthService`.
+- Consumes: `PanelShellComponent` (Task 8), `PageHeaderComponent`/`PanelCardComponent`/`KpiCardComponent`/`LineChartComponent`/`ChartTabsComponent`/`PillComponent`/`BarRowComponent`/`IconComponent` (Tasks 2–7), `initialsOf` (`../ui/initials`, Task 8), `AuthService`.
 - Produces: `PanelHomeComponent` (`ar-panel-home`), rota `painel` (substitui a rota placeholder existente).
 
 - [ ] **Step 1: Apagar o placeholder**
@@ -2075,6 +2084,7 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
+import { initialsOf } from '../ui/initials';
 
 type ChartTab = 'Faturamento' | 'Reservas' | 'Ocupação';
 
@@ -2144,16 +2154,6 @@ function greetingFor(hour: number): string {
     return 'Boa tarde';
   }
   return 'Boa noite';
-}
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return '·';
-  }
-  const first = parts[0]![0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1]![0] ?? '') : '';
-  return (first + last).toUpperCase();
 }
 
 /** Tela Início do painel (protótipo ArInicioScreen): KPIs, gráfico, ocupação, reservas do dia, torneios e avaliações. */
@@ -4414,7 +4414,7 @@ git commit -m "feat(arena): tela Equipe do painel (ar-panel-team)"
 - Modify: `frontend/projects/arena/src/app/app.routes.ts`
 
 **Interfaces:**
-- Consumes: `PanelShellComponent`, `PageHeaderComponent`, `PanelCardComponent`, `PillComponent`, `StatusDotComponent`, `IconComponent` (Tasks 2–8), `AuthService`.
+- Consumes: `PanelShellComponent`, `PageHeaderComponent`, `PanelCardComponent`, `PillComponent`, `StatusDotComponent`, `IconComponent` (Tasks 2–8), `initialsOf` (`../ui/initials`, Task 8), `AuthService`.
 - Produces: `PanelProfileComponent` (`ar-panel-profile`), rota `painel/perfil`. Tela somente leitura — botões "Editar"/"Adicionar" ficam visuais, sem handler.
 
 O nome exibido (título + badge do avatar) usa `AuthService.displayName()` de verdade — é o mesmo dado gravado no cadastro (`createArenaAccount`). Os demais campos (cidade, endereço, descrição, modalidades, horários, contato, stats) não têm modelo de dados ainda, então ficam com o mock do protótipo.
@@ -4425,6 +4425,7 @@ O nome exibido (título + badge do avatar) usa `AuthService.displayName()` de ve
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { AuthService } from '../../auth/auth.service';
 import { IconComponent } from '../ui/icon.component';
+import { initialsOf } from '../ui/initials';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
@@ -4441,16 +4442,6 @@ interface OpeningHour {
   days: string;
   time: string;
   open: boolean;
-}
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return '·';
-  }
-  const first = parts[0]![0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1]![0] ?? '') : '';
-  return (first + last).toUpperCase();
 }
 
 const CITY = 'Aparecida de Goiânia · GO';

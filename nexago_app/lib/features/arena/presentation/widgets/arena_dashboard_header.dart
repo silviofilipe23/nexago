@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -13,10 +14,8 @@ class ArenaDashboardHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final arenaAsync = ref.watch(managedArenaDetailProvider);
-    final arenaName = arenaAsync.maybeWhen(
-          data: (a) => a?.name.trim(),
-          orElse: () => null,
-        ) ??
+    final arenaName =
+        arenaAsync.maybeWhen(data: (a) => a?.name.trim(), orElse: () => null) ??
         'Arena';
 
     return Column(
@@ -31,13 +30,13 @@ class ArenaDashboardHeader extends ConsumerWidget {
                 children: [
                   Text(
                     'GESTOR • ${arenaName.toUpperCase()}',
-                    style: theme.textTheme.labelSmall?.copyWith(
+                    style: AppTypography.mono(
                       color: AppColors.brand,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.8,
+                      fontSize: 11,
                     ),
                   ),
-                  SizedBox(height: 8),
                   Text(
                     'Visão geral',
                     style: theme.textTheme.headlineMedium?.copyWith(
@@ -51,22 +50,10 @@ class ArenaDashboardHeader extends ConsumerWidget {
             ),
             _NotificationButton(
               onPressed: () {
-                showAppSnackBar(
-                  context,
-                  'Notificações em breve.',
-                );
+                showAppSnackBar(context, 'Notificações em breve.');
               },
             ),
           ],
-        ),
-        SizedBox(height: 12),
-        Text(
-          'Acompanhe faturamento, ocupação e tendência da semana num só lugar.',
-          style: theme.textTheme.bodyLarge?.copyWith(
-            color: context.themeColors.onSurfaceMuted,
-            height: 1.45,
-            fontWeight: FontWeight.w500,
-          ),
         ),
       ],
     );

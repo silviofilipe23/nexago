@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -11,10 +12,10 @@ class ArenaSettingsHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final arenaName = ref.watch(managedArenaDetailProvider).maybeWhen(
-          data: (a) => a?.name.trim(),
-          orElse: () => null,
-        ) ??
+    final arenaName =
+        ref
+            .watch(managedArenaDetailProvider)
+            .maybeWhen(data: (a) => a?.name.trim(), orElse: () => null) ??
         'Arena';
 
     return Column(
@@ -22,14 +23,13 @@ class ArenaSettingsHeader extends ConsumerWidget {
       children: [
         Text(
           '${arenaName.toUpperCase()} • OWNER',
-          style: theme.textTheme.labelSmall?.copyWith(
+          style: AppTypography.mono(
             color: AppColors.brand,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
             letterSpacing: 0.8,
-            fontSize: 10,
+            fontSize: 11,
           ),
         ),
-        SizedBox(height: 8),
         Text(
           'Ajustes',
           style: theme.textTheme.headlineMedium?.copyWith(

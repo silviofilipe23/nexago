@@ -151,9 +151,7 @@ class ArenaDashboardPage extends ConsumerWidget {
                                         ],
                                       ),
                                     ),
-                                    SizedBox(
-                                      height: ArenaDashboardTokens.sectionGap,
-                                    ),
+                                    const SizedBox(height: 26),
                                     FadeSlideIn(
                                       duration: const Duration(
                                         milliseconds: 540,

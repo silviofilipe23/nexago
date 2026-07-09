@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
@@ -8,10 +9,7 @@ import '../../domain/arena_providers.dart';
 import '../../domain/arena_schedule_providers.dart';
 
 class ArenaScheduleHeader extends ConsumerWidget {
-  const ArenaScheduleHeader({
-    super.key,
-    required this.onOpenCalendar,
-  });
+  const ArenaScheduleHeader({super.key, required this.onOpenCalendar});
 
   final VoidCallback onOpenCalendar;
 
@@ -19,18 +17,16 @@ class ArenaScheduleHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final arenaAsync = ref.watch(managedArenaDetailProvider);
-    final arenaName = arenaAsync.maybeWhen(
-          data: (a) => a?.name.trim(),
-          orElse: () => null,
-        ) ??
+    final arenaName =
+        arenaAsync.maybeWhen(data: (a) => a?.name.trim(), orElse: () => null) ??
         'Arena';
     final selected = ref.watch(arenaScheduleSelectedDateProvider);
     final stats = ref.watch(arenaScheduleDayStatsProvider);
 
-    final dateLine = DateFormat('EEE d MMM', 'pt_BR')
-        .format(selected)
-        .toUpperCase()
-        .replaceAll('.', '');
+    final dateLine = DateFormat(
+      'EEE d MMM',
+      'pt_BR',
+    ).format(selected).toUpperCase().replaceAll('.', '');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -44,13 +40,13 @@ class ArenaScheduleHeader extends ConsumerWidget {
                 children: [
                   Text(
                     'GESTOR • ${arenaName.toUpperCase()}',
-                    style: theme.textTheme.labelSmall?.copyWith(
+                    style: AppTypography.mono(
                       color: AppColors.brand,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.8,
+                      fontSize: 11,
                     ),
                   ),
-                  SizedBox(height: 8),
                   Text(
                     'Agenda',
                     style: theme.textTheme.headlineMedium?.copyWith(

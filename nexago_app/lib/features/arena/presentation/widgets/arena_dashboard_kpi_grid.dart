@@ -18,14 +18,31 @@ class ArenaDashboardKpiGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     assert(items.length == 4);
     final theme = Theme.of(context);
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 1.35,
-      children: items.map((e) => _KpiTile(item: e, theme: theme)).toList(),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: _KpiTile(item: items[0], theme: theme)),
+              const SizedBox(width: 12),
+              Expanded(child: _KpiTile(item: items[1], theme: theme)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: _KpiTile(item: items[2], theme: theme)),
+              const SizedBox(width: 12),
+              Expanded(child: _KpiTile(item: items[3], theme: theme)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -79,7 +96,7 @@ class _KpiTile extends StatelessWidget {
                   ),
                   child: Icon(item.icon, color: AppColors.brand, size: 20),
                 ),
-                Spacer(),
+                const SizedBox(height: 12),
                 Text(
                   item.label.toUpperCase(),
                   style: theme.textTheme.labelSmall?.copyWith(

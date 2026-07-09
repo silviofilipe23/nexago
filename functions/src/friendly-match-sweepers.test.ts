@@ -6,6 +6,7 @@ import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
 import {
   expireFriendlyMatchSlotIfDue,
   sendFriendlyMatchReminderIfDue,
+  unfillFriendlyMatchIfDue,
 } from "./friendly-match-sweepers";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -156,5 +157,38 @@ describe("sendFriendlyMatchReminderIfDue", () => {
     assert.equal(fake.store.get("friendlyMatches/m1")!.reminder2hAt, null);
     // O de 24h continua agendado.
     assert.ok(fake.store.get("friendlyMatches/m1")!.reminder24hAt instanceof Timestamp);
+  });
+});
+
+describe("unfillFriendlyMatchIfDue", () => {
+  it("scheduledAt passou com jogo ainda em filling → unfilled, avisa organizador e quem já tinha vaga", async () => {
+    const fake = new FakeFirestore();
+    seedFilling(fake, "m1",
+      [slot("b", "Bia", now + HOUR_MS, "accepted"), slot("c", "Caio", now + HOUR_MS)],
+      {scheduledAt: Timestamp.fromMillis(now - 1), participantUids: ["a", "b"]});
+    const result = await unfillFriendlyMatchIfDue(db(fake), "m1", now);
+    assert.equal(result.unfilled, true);
+    assert.equal(fake.store.get("friendlyMatches/m1")!.status, "unfilled");
+    assert.deepEqual(result.notifications.map((n) => n.userId).sort(), ["a", "b"]);
+  });
+
+  it("não fecha antes da hora nem jogo que já saiu de filling; é idempotente", async () => {
+    const fake = new FakeFirestore();
+    seedFilling(fake, "m1", [slot("b", "Bia", now + HOUR_MS)],
+      {scheduledAt: Timestamp.fromMillis(now + HOUR_MS)});
+    const early = await unfillFriendlyMatchIfDue(db(fake), "m1", now);
+    assert.equal(early.unfilled, false);
+
+    seedFilling(fake, "m2", [slot("b", "Bia", now + HOUR_MS)],
+      {status: "confirmed", scheduledAt: Timestamp.fromMillis(now - 1)});
+    const confirmed = await unfillFriendlyMatchIfDue(db(fake), "m2", now);
+    assert.equal(confirmed.unfilled, false);
+
+    seedFilling(fake, "m3", [slot("b", "Bia", now + HOUR_MS)],
+      {scheduledAt: Timestamp.fromMillis(now - 1)});
+    await unfillFriendlyMatchIfDue(db(fake), "m3", now);
+    const again = await unfillFriendlyMatchIfDue(db(fake), "m3", now);
+    assert.equal(again.unfilled, false);
+    assert.equal(again.notifications.length, 0);
   });
 });

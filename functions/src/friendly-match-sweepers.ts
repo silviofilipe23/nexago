@@ -134,6 +134,45 @@ export async function sendFriendlyMatchReminderIfDue(
   };
 }
 
+export async function unfillFriendlyMatchIfDue(
+  db: Firestore,
+  matchId: string,
+  nowMs: number = Date.now(),
+): Promise<{unfilled: boolean; notifications: FriendlyMatchNotification[]}> {
+  const ref = db.collection(MATCHES_COLLECTION).doc(matchId);
+  const outcome = await db.runTransaction<MatchData | null>(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return null;
+    const data = snap.data() as MatchData;
+    if (data.status !== "filling") return null;
+    const scheduledAt = data.scheduledAt as Timestamp;
+    if (scheduledAt.toMillis() > nowMs) return null;
+    tx.set(ref, {
+      status: "unfilled",
+      statusUpdatedAt: Timestamp.fromMillis(nowMs),
+      updatedAt: Timestamp.fromMillis(nowMs),
+      history: appendHistory(data, historyEntry("unfilled", "system", nowMs)),
+    }, {merge: true});
+    return data;
+  });
+
+  if (outcome == null) return {unfilled: false, notifications: []};
+  const stakeholders = new Set<string>([
+    outcome.organizerUid as string,
+    ...(outcome.participantUids as string[]),
+  ]);
+  return {
+    unfilled: true,
+    notifications: [...stakeholders].map((userId) => ({
+      userId,
+      title: "Jogo não fechou a tempo 😕",
+      body: "Não deu pra completar o time antes do horário marcado.",
+      type: "friendly_match_unfilled",
+      data: {type: "friendly_match_unfilled", matchId},
+    })),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Wrappers agendados
 // ---------------------------------------------------------------------------
@@ -187,6 +226,28 @@ export const sendFriendlyMatchReminders = onSchedule(
             matchId: doc.id, kind, error,
           });
         }
+      }
+    }
+  },
+);
+
+export const unfillFriendlyMatches = onSchedule(
+  {schedule: "every 5 minutes", timeZone: TIME_ZONE},
+  async () => {
+    const db = getFirestore();
+    const now = Timestamp.now();
+    const snap = await db
+      .collection(MATCHES_COLLECTION)
+      .where("status", "==", "filling")
+      .where("scheduledAt", "<=", now)
+      .limit(SWEEP_LIMIT)
+      .get();
+    for (const doc of snap.docs) {
+      try {
+        const result = await unfillFriendlyMatchIfDue(db, doc.id, now.toMillis());
+        await deliverFriendlyMatchNotifications(result.notifications);
+      } catch (error) {
+        logger.error("unfillFriendlyMatches: falha ao encerrar", {matchId: doc.id, error});
       }
     }
   },

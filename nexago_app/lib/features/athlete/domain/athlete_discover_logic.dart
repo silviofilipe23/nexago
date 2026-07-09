@@ -1,3 +1,6 @@
+import 'package:flutter/material.dart';
+
+import '../../../core/theme/app_colors.dart';
 import 'athlete_discover_models.dart';
 import 'athlete_firestore_codes.dart';
 import 'athlete_profile.dart';
@@ -166,9 +169,26 @@ List<AthleteDiscoverEntry> sortDiscoverEntries({
   required List<AthleteDiscoverEntry> entries,
   required AthleteDiscoverSort sort,
   AthleteProfile? viewerProfile,
+  String? sportFirestoreId,
 }) {
   final sorted = [...entries];
   switch (sort) {
+    case AthleteDiscoverSort.compatibility:
+      sorted.sort((a, b) {
+        final cmp = computeDiscoverCompatibilityScore(
+          viewer: viewerProfile,
+          target: b.profile,
+          sportFirestoreId: sportFirestoreId,
+        ).compareTo(
+          computeDiscoverCompatibilityScore(
+            viewer: viewerProfile,
+            target: a.profile,
+            sportFirestoreId: sportFirestoreId,
+          ),
+        );
+        if (cmp != 0) return cmp;
+        return a.displayName.compareTo(b.displayName);
+      });
     case AthleteDiscoverSort.ranking:
       sorted.sort((a, b) {
         final ar = a.rankPosition ?? 999999;
@@ -236,6 +256,141 @@ String? sportFirestoreIdForLabel(String label) {
     }
   }
   return null;
+}
+
+String _normalizePlace(String? raw) {
+  if (raw == null) return '';
+  return raw
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[áàâãä]'), 'a')
+      .replaceAll(RegExp(r'[éèêë]'), 'e')
+      .replaceAll(RegExp(r'[íìîï]'), 'i')
+      .replaceAll(RegExp(r'[óòôõö]'), 'o')
+      .replaceAll(RegExp(r'[úùûü]'), 'u')
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
+int _compatibilityLevelPoints({
+  required String sport,
+  required AthleteProfile viewer,
+  required AthleteProfile target,
+}) {
+  final viewerRank = AthleteProfileOptions.levelRank(
+    viewer.levelsBySportFirestore[sport] ??
+        viewer.levelsBySportFirestore[sport.toUpperCase()],
+  );
+  final targetRank = AthleteProfileOptions.levelRank(
+    target.levelsBySportFirestore[sport] ??
+        target.levelsBySportFirestore[sport.toUpperCase()],
+  );
+  if (viewerRank == null || targetRank == null) return 20;
+  final diff = (viewerRank - targetRank).abs();
+  if (diff == 0) return 40;
+  if (diff == 1) return 30;
+  if (diff == 2) return 15;
+  return 5;
+}
+
+int _compatibilityLocationPoints(AthleteProfile viewer, AthleteProfile target) {
+  final cityA = _normalizePlace(viewer.city);
+  final cityB = _normalizePlace(target.city);
+  final stateA = _normalizePlace(viewer.state);
+  final stateB = _normalizePlace(target.state);
+  if (cityA.isEmpty && stateA.isEmpty) return 8;
+  if (cityB.isEmpty && stateB.isEmpty) return 8;
+  if (stateA.isNotEmpty && stateB.isNotEmpty && stateA != stateB) return 0;
+  if (cityA.isNotEmpty && cityB.isNotEmpty && cityA == cityB) return 25;
+  if (stateA.isNotEmpty && stateB.isNotEmpty && stateA == stateB) return 12;
+  return 8;
+}
+
+/// Score 0–100 entre o atleta logado e um perfil discoverable (espelho v1 do
+/// backend do Bora Jogar, objetivo amistoso).
+int computeDiscoverCompatibilityScore({
+  required AthleteProfile? viewer,
+  required AthleteProfile target,
+  String? sportFirestoreId,
+}) {
+  if (viewer == null) return 0;
+  final sport = (sportFirestoreId?.trim().isNotEmpty == true
+          ? sportFirestoreId
+          : viewer.primarySportFirestoreId ?? target.primarySportFirestoreId)
+      ?.trim();
+  if (sport == null || sport.isEmpty) {
+    return _compatibilityLocationPoints(viewer, target) + 34;
+  }
+  final level = _compatibilityLevelPoints(
+    sport: sport,
+    viewer: viewer,
+    target: target,
+  );
+  final location = _compatibilityLocationPoints(viewer, target);
+  const objective = 10;
+  const reputation = 14;
+  return (level + location + objective + reputation).clamp(0, 100);
+}
+
+String discoverLevelDisplayLabel(
+  AthleteProfile profile, {
+  String? sportFirestoreId,
+}) {
+  final sportId = sportFirestoreId ?? profile.primarySportFirestoreId;
+  String? code;
+  if (sportId != null && sportId.isNotEmpty) {
+    code = profile.levelsBySportFirestore[sportId] ??
+        profile.levelsBySportFirestore[sportId.toUpperCase()];
+  }
+  final rank = AthleteProfileOptions.levelRank(code ?? profile.level);
+  if (rank == null) {
+    final label = resolveAthleteLevelLabel(profile, sportFirestoreId: sportId);
+    return label.isNotEmpty ? 'Nível $label' : '';
+  }
+  final numeric = rank >= 5 ? 5.0 : 3.0 + rank * 0.5;
+  return 'Nível ${numeric.toStringAsFixed(1)}';
+}
+
+String discoverStatsLine({
+  required AthleteDiscoverEntry entry,
+  AthleteProfile? viewer,
+  String? sportFirestoreId,
+}) {
+  final parts = <String>[];
+  final level = discoverLevelDisplayLabel(
+    entry.profile,
+    sportFirestoreId: sportFirestoreId,
+  );
+  if (level.isNotEmpty) parts.add(level);
+
+  final distance = entry.proximityDistanceLabel(viewer);
+  if (distance != null && distance.isNotEmpty) {
+    parts.add(distance.replaceAll('.0', '').replaceAll('.1', ''));
+  }
+
+  if (entry.locationLabel.isNotEmpty) parts.add(entry.locationLabel);
+  return parts.join(' · ');
+}
+
+String? discoverContextTag({
+  required AthleteDiscoverEntry entry,
+  AthleteProfile? viewer,
+}) {
+  final distance = entry.proximityDistanceLabel(viewer);
+  if (distance != null &&
+      (distance.startsWith('2.') || distance.startsWith('3.'))) {
+    return 'Perto de você';
+  }
+  final mutual = entry.mutualFollowersCount;
+  if (mutual != null && mutual > 0) {
+    return '$mutual amigo${mutual == 1 ? '' : 's'} em comum';
+  }
+  return null;
+}
+
+Color discoverCompatibilityColor(int score) {
+  if (score >= 90) return AppColors.win;
+  if (score >= 75) return AppColors.pending;
+  return AppColors.brand;
 }
 
 AthleteDiscoverEntry buildDiscoverEntry({

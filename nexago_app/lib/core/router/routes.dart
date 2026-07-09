@@ -200,6 +200,9 @@ abstract final class AppRoutes {
   /// Gamificação amplificada (protótipo Quest).
   static const String athleteQuest = '/athlete/quest';
 
+  /// Trilha de elos (sistema de elos da gamificação).
+  static const String athleteRankTrack = '/athlete/rank';
+
   /// Histórico de partidas e torneios do atleta.
   static const String athleteMatchHistory = '/athlete/history';
 
@@ -513,6 +516,7 @@ abstract final class AppRouteNames {
   static const String athleteChangePassword = 'athleteChangePassword';
   static const String athleteActiveSessions = 'athleteActiveSessions';
   static const String athleteQuest = 'athleteQuest';
+  static const String athleteRankTrack = 'athleteRankTrack';
   static const String athleteMatchHistory = 'athleteMatchHistory';
   static const String athleteMatchDetail = 'athleteMatchDetail';
   static const String athleteMatchPlayByPlay = 'athleteMatchPlayByPlay';

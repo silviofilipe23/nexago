@@ -6,6 +6,9 @@ import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../domain/athlete_quest/athlete_quest_logic.dart';
 import '../../../domain/gamification_models.dart';
+import '../../../domain/sand_rank/sand_rank_catalog.dart';
+import '../../sand_rank/widgets/sand_rank_avatar_frame.dart';
+import '../../sand_rank/widgets/sand_rank_emblem.dart';
 import '../athlete_profile_avatar.dart';
 import '../../widgets/athlete_settings/athlete_settings_helpers.dart';
 
@@ -19,6 +22,8 @@ class AthleteHomeHeader extends StatelessWidget {
     this.onXpTap,
     this.onNotificationsTap,
     this.unreadNotificationCount = 0,
+    this.sandRankEnabled = false,
+    this.sandRankFrameId,
   });
 
   final String displayName;
@@ -28,6 +33,13 @@ class AthleteHomeHeader extends StatelessWidget {
   final VoidCallback? onXpTap;
   final VoidCallback? onNotificationsTap;
   final int unreadNotificationCount;
+
+  /// Com a flag do sistema de elos ligada, o badge numérico do avatar dá
+  /// lugar ao emblema do elo (derivado do XP).
+  final bool sandRankEnabled;
+
+  /// Moldura equipada (`sandRankCosmetics.frameId`) — anel ao redor do avatar.
+  final String? sandRankFrameId;
 
   @override
   Widget build(BuildContext context) {
@@ -179,32 +191,55 @@ class AthleteHomeHeader extends StatelessWidget {
           Positioned(
             left: 0,
             top: 0,
-            child: AthleteProfileAvatar(
-              size: avatarSize,
-              initials: initials,
-              imageUrl: avatarUrl,
-            ),
+            child: sandRankEnabled
+                ? SandRankAvatarFrame(
+                    frameId: sandRankFrameId,
+                    size: avatarSize,
+                    child: AthleteProfileAvatar(
+                      size: avatarSize,
+                      initials: initials,
+                      imageUrl: avatarUrl,
+                    ),
+                  )
+                : AthleteProfileAvatar(
+                    size: avatarSize,
+                    initials: initials,
+                    imageUrl: avatarUrl,
+                  ),
           ),
           Positioned(
             right: 0,
             bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.brand,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.black, width: 2),
-              ),
-              child: Text(
-                '$displayLevel',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.black,
-                  fontSize: 10,
-                  letterSpacing: 0.3,
-                ),
-              ),
-            ),
+            child: sandRankEnabled
+                ? Tooltip(
+                    message:
+                        'Elo ${sandRankLabel(sandRankStepFromXp(summary.xp))}',
+                    child: SandRankEmblem(
+                      rankCode: sandRankStepFromXp(summary.xp).rankCode,
+                      division: sandRankStepFromXp(summary.xp).division,
+                      size: SandRankEmblemSize.badgeCompact,
+                    ),
+                  )
+                : Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.brand,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.black, width: 2),
+                    ),
+                    child: Text(
+                      '$displayLevel',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.black,
+                        fontSize: 10,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ),
           ),
         ],
       ),

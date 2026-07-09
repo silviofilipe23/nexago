@@ -171,6 +171,7 @@ class FriendlyMatch {
     this.reviewSubmittedUids = const [],
     this.reviews = const {},
     this.createdAt,
+    this.viewedByRecipientAt,
   });
 
   final String id;
@@ -202,6 +203,9 @@ class FriendlyMatch {
   final List<String> reviewSubmittedUids;
   final Map<String, FriendlyMatchReview> reviews;
   final DateTime? createdAt;
+
+  /// Quando o destinatário abriu o convite (opcional no Firestore).
+  final DateTime? viewedByRecipientAt;
 
   bool isParticipant(String uid) => uid == fromUid || uid == toUid;
 
@@ -280,6 +284,7 @@ class FriendlyMatch {
               const [],
       reviews: reviews,
       createdAt: _toDateTime(data['createdAt']),
+      viewedByRecipientAt: _toDateTime(data['viewedByRecipientAt']),
     );
   }
 }

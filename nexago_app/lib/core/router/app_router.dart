@@ -142,6 +142,7 @@ import '../../features/arenas/domain/arena_search_filters.dart';
 import '../../features/athlete/presentation/athlete_match_detail_page.dart';
 import '../../features/athlete/presentation/athlete_match_play_by_play_page.dart';
 import '../../features/athlete/presentation/athlete_quest_page.dart';
+import '../../features/athlete/presentation/sand_rank/sand_rank_track_page.dart';
 import '../../features/athlete/presentation/athlete_match_history_page.dart';
 import '../../features/athlete/presentation/athlete_tournament_detail_page.dart';
 import '../../features/athlete/presentation/athlete_privacy_security_page.dart';
@@ -928,6 +929,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.athleteQuest,
         name: AppRouteNames.athleteQuest,
         builder: (context, state) => const AthleteQuestPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.athleteRankTrack,
+        name: AppRouteNames.athleteRankTrack,
+        builder: (context, state) => const SandRankTrackPage(),
       ),
       GoRoute(
         path: AppRoutes.athleteMatchHistory,

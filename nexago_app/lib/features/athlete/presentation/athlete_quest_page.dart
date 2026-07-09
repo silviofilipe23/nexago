@@ -9,8 +9,10 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/athlete_quest/athlete_quest_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/gamification_providers.dart';
+import '../domain/sand_rank/sand_rank_providers.dart';
 import 'widgets/athlete_quest/athlete_quest_daily_missions_section.dart';
 import 'widgets/athlete_quest/athlete_quest_level_card.dart';
+import 'widgets/athlete_quest/athlete_quest_rank_card.dart';
 import 'daily_mission_navigation.dart';
 import 'widgets/athlete_quest/athlete_quest_streak_hero.dart';
 
@@ -23,6 +25,8 @@ class AthleteQuestPage extends ConsumerWidget {
     final theme = Theme.of(context);
     final summaryAsync = ref.watch(gamificationSummaryProvider);
     final questUi = ref.watch(athleteQuestUiProvider);
+    final sandRankEnabled =
+        ref.watch(sandRankEnabledProvider).valueOrNull ?? false;
 
     return Scaffold(
       backgroundColor: context.themeColors.canvas,
@@ -51,7 +55,10 @@ class AthleteQuestPage extends ConsumerWidget {
                 },
               ),
               SizedBox(height: 16),
-              AthleteQuestLevelCard(summary: summary),
+              if (sandRankEnabled)
+                AthleteQuestRankCard(summary: summary)
+              else
+                AthleteQuestLevelCard(summary: summary),
               SizedBox(height: 24),
               AthleteQuestDailyMissionsSection(
                 missions: questUi.missions,

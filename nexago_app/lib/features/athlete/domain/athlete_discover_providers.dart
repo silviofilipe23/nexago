@@ -13,7 +13,7 @@ class AthleteDiscoverState {
     this.rawEntries = const [],
     this.displayEntries = const [],
     this.filters = AthleteDiscoverFilters.defaults,
-    this.sort = AthleteDiscoverSort.ranking,
+    this.sort = AthleteDiscoverSort.compatibility,
     this.searchQuery = '',
     this.isLoading = false,
     this.isLoadingMore = false,
@@ -114,6 +114,7 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
       entries: filtered,
       sort: state.sort,
       viewerProfile: _viewerProfile,
+      sportFirestoreId: state.filters.sportFirestoreId,
     );
   }
 
@@ -292,6 +293,20 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
     }
   }
 
+  Future<void> setSportFilter(String? sportFirestoreId) async {
+    final filters = state.filters.copyWith(sportFirestoreId: sportFirestoreId);
+    state = state.copyWith(filters: filters);
+    if (filters.hasActiveFilters) {
+      if (state.catalogIsComplete) {
+        _publishDisplay(state.rawEntries);
+      } else {
+        await _loadFullCatalog();
+      }
+    } else {
+      await loadInitial();
+    }
+  }
+
   Future<void> applyFilters(AthleteDiscoverFilters filters) async {
     state = state.copyWith(filters: filters);
     if (filters.hasActiveFilters) {
@@ -345,6 +360,7 @@ class AthleteDiscoverNotifier extends AutoDisposeNotifier<AthleteDiscoverState> 
       entries: filtered,
       sort: state.sort,
       viewerProfile: _viewerProfile,
+      sportFirestoreId: draft.sportFirestoreId,
     );
   }
 }

@@ -193,7 +193,6 @@ class _AthleteSettingsPageState extends ConsumerState<AthleteSettingsPage> {
               secondaryName: athleteSecondaryLine(profile),
               email: user.email,
               avatarUrl: profile.avatarUrl,
-              displayLevel: viewData.displayLevel,
               isLoading: profileAsync.isLoading && profileAsync.value == null,
               onEdit: () => context.pushNamed(AppRouteNames.athleteProfileEdit),
             ),

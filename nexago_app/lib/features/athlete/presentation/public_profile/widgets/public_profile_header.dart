@@ -7,6 +7,11 @@ import '../../../../../core/theme/app_typography.dart';
 import '../../../domain/athlete_display_name.dart';
 import '../../../domain/athlete_profile.dart';
 import '../../../domain/athlete_public_profile_models.dart';
+import '../../../domain/sand_rank/sand_rank_catalog.dart';
+import '../../../domain/sand_rank/sand_rank_models.dart';
+import '../../sand_rank/widgets/sand_rank_avatar_frame.dart';
+import '../../sand_rank/widgets/sand_rank_badge.dart';
+import '../../sand_rank/widgets/sand_rank_emblem.dart';
 import '../../widgets/athlete_profile_avatar.dart';
 
 /// Hero do perfil público: capa, avatar centralizado, identidade e tags.
@@ -15,18 +20,27 @@ class PublicProfileHeader extends StatelessWidget {
     super.key,
     required this.profile,
     required this.ranking,
-    required this.displayLevel,
     required this.onBack,
+    this.sandRank,
+    this.sandRankTitleId,
+    this.sandRankFrameId,
   });
 
   static const coverHeight = 240.0;
   static const avatarSize = 104.0;
   static const avatarOverlap = 52.0;
+  static const _avatarEmblemOverflow = 12.0;
 
   final AthleteProfile profile;
   final AthletePublicRankingSnapshot ranking;
-  final int displayLevel;
   final VoidCallback onBack;
+
+  /// Elo público do atleta (badge sob o nome); `null` oculta o badge.
+  final PublicSandRank? sandRank;
+  final String? sandRankTitleId;
+
+  /// Moldura equipada — anel ao redor do avatar central.
+  final String? sandRankFrameId;
 
   @override
   Widget build(BuildContext context) {
@@ -104,11 +118,10 @@ class PublicProfileHeader extends StatelessWidget {
               right: 0,
               child: Align(
                 alignment: Alignment.topCenter,
-                child: AthleteProfileAvatar(
-                  size: avatarSize,
-                  initials: athleteInitials(profile),
-                  imageUrl: profile.avatarUrl,
-                  displayLevel: displayLevel,
+                child: _PublicProfileAvatar(
+                  profile: profile,
+                  sandRank: sandRank,
+                  sandRankFrameId: sandRankFrameId,
                 ),
               ),
             ),
@@ -168,6 +181,13 @@ class PublicProfileHeader extends StatelessWidget {
                   ),
                 ),
               ],
+              if (sandRank != null) ...[
+                SizedBox(height: 10),
+                SandRankBadge(
+                  rank: sandRank,
+                  equippedTitleId: sandRankTitleId,
+                ),
+              ],
               SizedBox(height: 10),
               _InfoRow(
                 ageLabel: ageLabel,
@@ -208,6 +228,62 @@ class PublicProfileHeader extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PublicProfileAvatar extends StatelessWidget {
+  const _PublicProfileAvatar({
+    required this.profile,
+    required this.sandRank,
+    required this.sandRankFrameId,
+  });
+
+  final AthleteProfile profile;
+  final PublicSandRank? sandRank;
+  final String? sandRankFrameId;
+
+  @override
+  Widget build(BuildContext context) {
+    final rank = sandRank;
+    final step = rank != null ? sandRankStepByTrackIndex(rank.trackIndex) : null;
+
+    return SizedBox(
+      width: PublicProfileHeader.avatarSize +
+          PublicProfileHeader._avatarEmblemOverflow,
+      height: PublicProfileHeader.avatarSize +
+          PublicProfileHeader._avatarEmblemOverflow,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            child: SandRankAvatarFrame(
+              frameId: sandRankFrameId,
+              size: PublicProfileHeader.avatarSize,
+              child: AthleteProfileAvatar(
+                size: PublicProfileHeader.avatarSize,
+                initials: athleteInitials(profile),
+                imageUrl: profile.avatarUrl,
+              ),
+            ),
+          ),
+          if (step != null)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Tooltip(
+                message: 'Elo ${sandRankLabel(step)}',
+                child: SandRankEmblem(
+                  rankCode: step.rankCode,
+                  division: step.division,
+                  size: SandRankEmblemSize.badge,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

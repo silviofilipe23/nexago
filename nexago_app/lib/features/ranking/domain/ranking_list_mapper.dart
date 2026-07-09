@@ -100,6 +100,7 @@ Future<List<RankingListEntry>> buildAthleteRankingListEntries({
         initials: rankingInitials(profile, row.athleteId),
         avatarColor: rankingAvatarColor(row.athleteId),
         avatarUrl: rankingAvatarUrl(profile),
+        sandRankTrackIndex: profile?.sandRankTrackIndex,
       ),
     );
   }

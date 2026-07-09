@@ -273,3 +273,9 @@ export {
   submitFriendlyMatchReview,
   revealFriendlyMatchReviews,
 } from "./friendly-match-review";
+
+export {
+  onGamificationSummaryWrittenSyncSandRank,
+  backfillSandRanks,
+  equipSandRankCosmetic,
+} from "./sand-rank-sync";

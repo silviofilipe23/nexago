@@ -7,6 +7,8 @@ import {
 } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 
+import {shieldsPerMonthForTrackIndex} from "./sand-rank-engine";
+
 export const XP_GAME_COMPLETED = 50;
 export const TOURNAMENT_MATCH_WON_EVENT_TYPE = "TOURNAMENT_MATCH_WON";
 
@@ -85,6 +87,12 @@ function dayKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+function monthKey(date: Date): string {
+  const y = date.getFullYear().toString().padStart(4, "0");
+  const m = (date.getMonth() + 1).toString().padStart(2, "0");
+  return `${y}-${m}`;
+}
+
 export function updateStreak(
   currentStreak: number,
   lastGameDate: Date | null,
@@ -106,6 +114,34 @@ export function updateStreak(
     return base + 1;
   }
   return 1;
+}
+
+/**
+ * Streak com Protetor de Sequência (perk da trilha de elos): exatamente um
+ * dia perdido consome 1 escudo e mantém a sequência; 2+ dias resetam.
+ */
+export function updateStreakWithShield(
+  currentStreak: number,
+  lastGameDate: Date | null,
+  now: Date,
+  shieldsAvailable: number,
+): {streak: number; shieldConsumed: boolean} {
+  if (lastGameDate && shieldsAvailable > 0 && currentStreak > 0) {
+    const last = new Date(
+      lastGameDate.getFullYear(),
+      lastGameDate.getMonth(),
+      lastGameDate.getDate(),
+    );
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const days = Math.floor((today.getTime() - last.getTime()) / 86_400_000);
+    if (days === 2) {
+      return {streak: currentStreak + 1, shieldConsumed: true};
+    }
+  }
+  return {
+    streak: updateStreak(currentStreak, lastGameDate, now),
+    shieldConsumed: false,
+  };
 }
 
 export function appendGameCompletionDay(
@@ -150,6 +186,9 @@ interface GamificationSummaryState {
   totalGames: number;
   lastGameDate: Date | null;
   gameCompletionDays: string[];
+  streakShieldsAvailable: number;
+  streakShieldMonthKey: string;
+  highestSandRankTrackIndex: number;
 }
 
 export function parseGamificationSummary(
@@ -163,6 +202,9 @@ export function parseGamificationSummary(
       totalGames: 0,
       lastGameDate: null,
       gameCompletionDays: [],
+      streakShieldsAvailable: 0,
+      streakShieldMonthKey: "",
+      highestSandRankTrackIndex: 0,
     };
   }
 
@@ -177,6 +219,13 @@ export function parseGamificationSummary(
     totalGames: Number(data["totalGames"] ?? 0) || 0,
     lastGameDate: parseFirestoreDate(data["lastGameDate"]),
     gameCompletionDays: parseGameDayKeys(data["gameCompletionDays"]),
+    streakShieldsAvailable: Number(data["streakShieldsAvailable"] ?? 0) || 0,
+    streakShieldMonthKey:
+      typeof data["streakShieldMonthKey"] === "string" ?
+        data["streakShieldMonthKey"] :
+        "",
+    highestSandRankTrackIndex:
+      Number(data["highestSandRankTrackIndex"] ?? 0) || 0,
   };
 }
 
@@ -184,15 +233,35 @@ export function buildStreakActivityFields(
   current: GamificationSummaryState,
   now: Date,
 ): Record<string, unknown> {
-  const nextStreak = updateStreak(current.streak, current.lastGameDate, now);
+  // Replenish lazy mensal dos escudos (perk da trilha de elos).
+  const nowMonth = monthKey(now);
+  const shieldsAvailable =
+    current.streakShieldMonthKey === nowMonth ?
+      current.streakShieldsAvailable :
+      shieldsPerMonthForTrackIndex(current.highestSandRankTrackIndex);
+
+  const {streak: nextStreak, shieldConsumed} = updateStreakWithShield(
+    current.streak,
+    current.lastGameDate,
+    now,
+    shieldsAvailable,
+  );
   const gameDays = appendGameCompletionDay(current.gameCompletionDays, now);
-  return {
+  const fields: Record<string, unknown> = {
     streak: nextStreak,
     lastGameDate: Timestamp.fromDate(now),
     gameCompletionDays: gameDays,
     gamesLast7Days: countGameDaysInWindow(gameDays, 7),
     gamesLast30Days: countGameDaysInWindow(gameDays, 30),
+    streakShieldsAvailable: shieldConsumed ?
+      shieldsAvailable - 1 :
+      shieldsAvailable,
+    streakShieldMonthKey: nowMonth,
   };
+  if (shieldConsumed) {
+    fields["streakShieldUsedAt"] = Timestamp.fromDate(now);
+  }
+  return fields;
 }
 
 export async function awardTournamentMatchWinXpToUser(

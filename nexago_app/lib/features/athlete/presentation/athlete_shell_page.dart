@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/auth_providers.dart';
 import '../../../core/layout/nexa_bottom_nav_bar.dart';
 import '../../../core/layout/shell_tab_bar_collapse.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/daily_mission_sync_provider.dart';
 import '../domain/gamification_models.dart';
+import '../domain/gamification_providers.dart';
+import '../domain/sand_rank/sand_rank_models.dart';
+import '../domain/sand_rank/sand_rank_providers.dart';
 import 'arena_list_page.dart';
+import 'sand_rank/widgets/sand_rank_promotion_sheet.dart';
 import 'widgets/gamification_feedback_sheet.dart';
 import 'athlete_agenda_page.dart';
 import 'athlete_community_page.dart';
@@ -27,6 +32,7 @@ class AthleteShellPage extends ConsumerStatefulWidget {
 
 class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
   late int _index;
+  bool _promotionSheetOpen = false;
 
   static const _titles = <String>[
     'Início',
@@ -69,6 +75,35 @@ class _AthleteShellPageState extends ConsumerState<AthleteShellPage> {
         await showGamificationFeedbackSheet(context, feedback: next);
         if (!mounted) return;
         ref.read(dailyMissionFeedbackProvider.notifier).state = null;
+      });
+    });
+
+    // Celebração de promoção de elo — dispara para recompensas ainda não
+    // vistas (qualquer fonte de XP, incluindo retroativas do backfill).
+    final sandRankEnabled =
+        ref.watch(sandRankEnabledProvider).valueOrNull ?? false;
+    ref.listen<List<UserSandRankReward>>(unseenSandRankRewardsProvider, (
+      previous,
+      next,
+    ) {
+      if (!sandRankEnabled || next.isEmpty || _promotionSheetOpen) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted || _promotionSheetOpen) return;
+        _promotionSheetOpen = true;
+        try {
+          await showSandRankPromotionSheet(context, unseenRewards: next);
+          if (!mounted) return;
+          final userId = ref.read(authProvider).valueOrNull?.uid;
+          if (userId != null && userId.isNotEmpty) {
+            await ref.read(gamificationServiceProvider).markRankRewardsSeen(
+                  userId: userId,
+                  rewardIds:
+                      next.map((r) => r.rewardId).toList(growable: false),
+                );
+          }
+        } finally {
+          _promotionSheetOpen = false;
+        }
       });
     });
 

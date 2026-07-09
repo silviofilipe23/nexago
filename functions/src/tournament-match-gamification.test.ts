@@ -3,11 +3,14 @@ import {test} from "node:test";
 
 import {
   appendGameCompletionDay,
+  buildStreakActivityFields,
   collectWinnerAthleteIds,
   isTournamentMatchCompleted,
+  parseGamificationSummary,
   shouldProcessTournamentMatchXp,
   tournamentMatchXpEventId,
   updateStreak,
+  updateStreakWithShield,
 } from "./tournament-match-gamification";
 
 test("tournamentMatchXpEventId matches client convention", () => {
@@ -71,4 +74,92 @@ test("appendGameCompletionDay keeps rolling window", () => {
   const next = appendGameCompletionDay(days, new Date(2026, 5, 9));
   assert.equal(next.length, 120);
   assert.equal(next[next.length - 1], "2026-06-09");
+});
+
+// —— Protetor de Sequência (perk da trilha de elos) ——
+
+test("updateStreakWithShield consome escudo com exatamente 1 dia perdido", () => {
+  const twoDaysAgo = new Date(2026, 5, 7, 18, 0, 0);
+  const today = new Date(2026, 5, 9, 10, 0, 0);
+  assert.deepEqual(updateStreakWithShield(4, twoDaysAgo, today, 1), {
+    streak: 5,
+    shieldConsumed: true,
+  });
+});
+
+test("updateStreakWithShield não consome com 2+ dias perdidos", () => {
+  const threeDaysAgo = new Date(2026, 5, 6, 18, 0, 0);
+  const today = new Date(2026, 5, 9, 10, 0, 0);
+  assert.deepEqual(updateStreakWithShield(4, threeDaysAgo, today, 2), {
+    streak: 1,
+    shieldConsumed: false,
+  });
+});
+
+test("updateStreakWithShield sem escudo reseta como hoje", () => {
+  const twoDaysAgo = new Date(2026, 5, 7, 18, 0, 0);
+  const today = new Date(2026, 5, 9, 10, 0, 0);
+  assert.deepEqual(updateStreakWithShield(4, twoDaysAgo, today, 0), {
+    streak: 1,
+    shieldConsumed: false,
+  });
+});
+
+test("updateStreakWithShield não gasta escudo em dia consecutivo", () => {
+  const yesterday = new Date(2026, 5, 8, 18, 0, 0);
+  const today = new Date(2026, 5, 9, 10, 0, 0);
+  assert.deepEqual(updateStreakWithShield(4, yesterday, today, 2), {
+    streak: 5,
+    shieldConsumed: false,
+  });
+});
+
+test("buildStreakActivityFields repõe escudos na virada do mês por elo", () => {
+  const fields = buildStreakActivityFields(
+    parseGamificationSummary({
+      xp: 7000,
+      streak: 3,
+      lastGameDate: undefined,
+      streakShieldsAvailable: 0,
+      streakShieldMonthKey: "2026-05",
+      highestSandRankTrackIndex: 12, // Mestre III → 2 escudos/mês
+    }),
+    new Date(2026, 5, 9),
+  );
+  assert.equal(fields["streakShieldsAvailable"], 2);
+  assert.equal(fields["streakShieldMonthKey"], "2026-06");
+});
+
+test("buildStreakActivityFields consome escudo e registra o uso", () => {
+  const fields = buildStreakActivityFields(
+    parseGamificationSummary({
+      xp: 2000,
+      streak: 6,
+      lastGameDate: new Date(2026, 5, 7).toISOString(),
+      streakShieldsAvailable: 1,
+      streakShieldMonthKey: "2026-06",
+      highestSandRankTrackIndex: 6,
+    }),
+    new Date(2026, 5, 9),
+  );
+  assert.equal(fields["streak"], 7);
+  assert.equal(fields["streakShieldsAvailable"], 0);
+  assert.ok(fields["streakShieldUsedAt"]);
+});
+
+test("buildStreakActivityFields abaixo do marco segue sem escudos", () => {
+  const fields = buildStreakActivityFields(
+    parseGamificationSummary({
+      xp: 300,
+      streak: 6,
+      lastGameDate: new Date(2026, 5, 7).toISOString(),
+      streakShieldsAvailable: 0,
+      streakShieldMonthKey: "2026-05",
+      highestSandRankTrackIndex: 2,
+    }),
+    new Date(2026, 5, 9),
+  );
+  assert.equal(fields["streak"], 1);
+  assert.equal(fields["streakShieldsAvailable"], 0);
+  assert.equal(fields["streakShieldUsedAt"], undefined);
 });

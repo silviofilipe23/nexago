@@ -23,7 +23,11 @@ class AthleteQuestStreakHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final streak = summary.streak;
-    final copy = streakHeroCopy(streak);
+    final copy = streakHeroCopy(
+      streak,
+      shieldsAvailable: summary.streakShieldsAvailable,
+      highestSandRankTrackIndex: summary.highestSandRankTrackIndex,
+    );
 
     return Container(
       clipBehavior: Clip.antiAlias,

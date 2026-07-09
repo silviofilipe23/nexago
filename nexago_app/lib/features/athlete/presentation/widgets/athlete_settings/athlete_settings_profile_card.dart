@@ -1,17 +1,19 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../../core/theme/app_typography.dart';
+import '../../../domain/sand_rank/sand_rank_providers.dart';
+import '../../sand_rank/widgets/sand_rank_emblem.dart';
 import 'athlete_settings_helpers.dart';
 
-class AthleteSettingsProfileCard extends StatelessWidget {
+class AthleteSettingsProfileCard extends ConsumerWidget {
   const AthleteSettingsProfileCard({
     super.key,
     required this.name,
     required this.email,
-    required this.displayLevel,
     required this.onEdit,
     this.secondaryName,
     this.avatarUrl,
@@ -22,19 +24,16 @@ class AthleteSettingsProfileCard extends StatelessWidget {
   final String? secondaryName;
   final String? email;
   final String? avatarUrl;
-  final int displayLevel;
   final VoidCallback? onEdit;
   final bool isLoading;
 
   static const double _avatarSize = 52;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final initials = athleteInitialsFromName(name);
-    final emailLine = email?.trim().isNotEmpty == true
-        ? '${email!.trim()} · LV $displayLevel'
-        : 'LV $displayLevel';
+    final emailLine = email?.trim();
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -81,16 +80,18 @@ class AthleteSettingsProfileCard extends StatelessWidget {
                       ),
                     ),
                   ],
-                  SizedBox(height: 4),
-                  Text(
-                    emailLine,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: context.themeColors.onSurfaceMuted,
-                      fontWeight: FontWeight.w500,
+                  if (emailLine != null && emailLine.isNotEmpty) ...[
+                    SizedBox(height: 4),
+                    Text(
+                      emailLine,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: context.themeColors.onSurfaceMuted,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -119,7 +120,7 @@ class AthleteSettingsProfileCard extends StatelessWidget {
   }
 }
 
-class _SettingsProfileAvatar extends StatelessWidget {
+class _SettingsProfileAvatar extends ConsumerWidget {
   const _SettingsProfileAvatar({
     required this.size,
     required this.avatarUrl,
@@ -133,55 +134,89 @@ class _SettingsProfileAvatar extends StatelessWidget {
   final bool isLoading;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final url = avatarUrl?.trim();
+    const emblemSlot = 14.0;
 
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: AppColors.brand.withValues(alpha: 0.5),
-          width: 1.5,
-        ),
-      ),
-      child: ClipOval(
-        child: SizedBox(
-          width: size,
-          height: size,
-          child: isLoading
-              ? ColoredBox(
-                  color: context.themeColors.surfaceRaised,
-                  child: Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.brand,
-                      ),
-                    ),
-                  ),
-                )
-              : url != null && url.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: url,
-                      width: size,
-                      height: size,
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) => _InitialsBadge(
-                        initials: initials,
-                        theme: theme,
-                      ),
-                      errorWidget: (_, __, ___) => _InitialsBadge(
-                        initials: initials,
-                        theme: theme,
-                      ),
-                    )
-                  : _InitialsBadge(initials: initials, theme: theme),
-        ),
+    return SizedBox(
+      width: size + emblemSlot,
+      height: size + emblemSlot,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.brand.withValues(alpha: 0.5),
+                  width: 1.5,
+                ),
+              ),
+              child: ClipOval(
+                child: SizedBox(
+                  width: size,
+                  height: size,
+                  child: isLoading
+                      ? ColoredBox(
+                          color: context.themeColors.surfaceRaised,
+                          child: Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.brand,
+                              ),
+                            ),
+                          ),
+                        )
+                      : url != null && url.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: url,
+                              width: size,
+                              height: size,
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) => _InitialsBadge(
+                                initials: initials,
+                                theme: theme,
+                              ),
+                              errorWidget: (_, __, ___) => _InitialsBadge(
+                                initials: initials,
+                                theme: theme,
+                              ),
+                            )
+                          : _InitialsBadge(
+                              initials: initials,
+                              theme: theme,
+                            ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Consumer(
+              builder: (context, ref, _) {
+                final enabled =
+                    ref.watch(sandRankEnabledProvider).valueOrNull ?? false;
+                if (!enabled) return const SizedBox.shrink();
+
+                final progress = ref.watch(sandRankProgressProvider);
+                return SandRankStepEmblem(
+                  step: progress.current,
+                  size: SandRankEmblemSize.badge,
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

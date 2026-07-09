@@ -1,1 +1,354 @@
-/* You can add global styles to this file, and also import other style files */
+/* NexaGO Arena — estilos globais.
+   Tokens vindos do design system NexaGO (tokens.css do protótipo), namespace --nx-.
+   Classes de fluxo de auth compartilhadas usam o prefixo ar- (paralelo ao bo- do backoffice). */
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  /* Superfícies (dark-first) */
+  --nx-bg: #050505;
+  --nx-surface-0: #0B0B0C;
+  --nx-surface-1: #131316;
+  --nx-surface-2: #1B1B1F;
+  --nx-line: rgba(255, 255, 255, 0.08);
+  --nx-line-strong: rgba(255, 255, 255, 0.16);
+
+  /* Marca */
+  --nx-orange-500: #FF6A1A;
+  --nx-orange-400: #FF8A4A;
+  --nx-orange-600: #E5560E;
+  --nx-orange-tint: rgba(255, 106, 26, 0.12);
+
+  /* Texto — dim elevado de 0.40 → 0.55 pra manter AA em texto pequeno sobre #050505 */
+  --nx-text: #F4F4F5;
+  --nx-text-mute: rgba(244, 244, 245, 0.62);
+  --nx-text-dim: rgba(244, 244, 245, 0.55);
+  --nx-text-on-orange: #0A0A0A;
+
+  /* Status */
+  --nx-live: #FF3B30;
+  --nx-win: #2BD17E;
+  --nx-pending: #F4C543;
+
+  /* Tipografia */
+  --nx-font-display: 'Sora', system-ui, sans-serif;
+  --nx-font-ui: 'Inter', system-ui, sans-serif;
+  --nx-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Raios */
+  --nx-r-1: 6px;
+  --nx-r-2: 10px;
+  --nx-r-3: 14px;
+  --nx-r-4: 18px;
+  --nx-r-5: 24px;
+  --nx-r-pill: 999px;
+
+  /* Movimento */
+  --nx-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --nx-d-fast: 140ms;
+  --nx-d-base: 240ms;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--nx-bg);
+  color: var(--nx-text);
+  font-family: var(--nx-font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+input::placeholder {
+  color: rgba(244, 244, 245, 0.3);
+}
+
+button {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--nx-orange-500);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Fluxo de auth: classes compartilhadas ─────────────────── */
+
+.ar-form-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 32px;
+}
+
+.ar-kicker {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--nx-orange-500);
+}
+
+.ar-form-header h1 {
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 30px;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  color: var(--nx-text);
+  margin: 0;
+}
+
+.ar-form-header p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--nx-text-mute);
+  margin: 0;
+}
+
+.ar-form-header strong {
+  color: var(--nx-text);
+  font-weight: 600;
+}
+
+.ar-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ar-stack-sm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ar-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.ar-row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 14px 0 22px;
+}
+
+.ar-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+.ar-checkbox-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ar-checkbox-box {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  flex: none;
+  border: 1px solid var(--nx-line-strong);
+  background: transparent;
+  display: grid;
+  place-items: center;
+  transition: all 140ms var(--nx-ease-out);
+}
+
+.ar-checkbox-input:checked + .ar-checkbox-box {
+  border-color: var(--nx-orange-500);
+  background: var(--nx-orange-500);
+}
+
+.ar-checkbox-input:focus-visible + .ar-checkbox-box {
+  outline: 2px solid var(--nx-orange-500);
+  outline-offset: 2px;
+}
+
+.ar-btn-primary {
+  height: 52px;
+  width: 100%;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  border: none;
+  cursor: pointer;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 12px 40px rgba(255, 106, 26, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 180ms var(--nx-ease-out);
+  text-decoration: none;
+}
+
+.ar-btn-primary:hover:not(:disabled) {
+  background: var(--nx-orange-400);
+}
+
+.ar-btn-primary:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.ar-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ar-text-link {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--nx-orange-500);
+  text-decoration: none;
+}
+
+.ar-text-link:hover {
+  text-decoration: underline;
+}
+
+.ar-text-link:disabled {
+  color: var(--nx-text-dim);
+  cursor: default;
+  text-decoration: none;
+}
+
+.ar-back-link {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--nx-text-mute);
+  margin-bottom: 28px;
+  text-decoration: none;
+}
+
+.ar-back-link:hover {
+  color: var(--nx-text);
+}
+
+.ar-fine {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--nx-text-dim);
+  text-align: center;
+  margin: 24px 0 0;
+}
+
+.ar-fine strong {
+  color: var(--nx-text-mute);
+  font-weight: 600;
+}
+
+.ar-alert {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin: 0 0 20px;
+  background: rgba(255, 59, 48, 0.1);
+  border: 1px solid rgba(255, 59, 48, 0.35);
+  border-radius: var(--nx-r-3);
+  font-size: 13px;
+  line-height: 1.5;
+  color: #FF9B94;
+}
+
+.ar-alert svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.ar-icon-badge {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--nx-r-4);
+  background: var(--nx-orange-tint);
+  border: 1px solid rgba(255, 106, 26, 0.3);
+  display: grid;
+  place-items: center;
+  margin: 0 auto 28px;
+}
+
+.ar-center {
+  text-align: center;
+}
+
+.ar-resend-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 24px;
+  font-size: 13.5px;
+  color: var(--nx-text-mute);
+}
+
+.ar-resend-row .ar-timer {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  color: var(--nx-text-dim);
+  margin-left: 2px;
+}
+
+.ar-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(10, 10, 10, 0.25);
+  border-top-color: #0A0A0A;
+  animation: ar-spin 0.7s linear infinite;
+}
+
+@keyframes ar-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}

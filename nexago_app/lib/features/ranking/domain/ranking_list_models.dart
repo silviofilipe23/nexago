@@ -55,6 +55,7 @@ class RankingListEntry {
     this.player2Color,
     this.player1AvatarUrl,
     this.player2AvatarUrl,
+    this.sandRankTrackIndex,
   });
 
   final int rank;
@@ -73,6 +74,9 @@ class RankingListEntry {
   final Color? player2Color;
   final String? player1AvatarUrl;
   final String? player2AvatarUrl;
+
+  /// Degrau do elo de gamificação do atleta (linhas individuais).
+  final int? sandRankTrackIndex;
 
   bool get isTeam =>
       player1Initials != null &&

@@ -12,9 +12,8 @@ import '../../domain/athlete_display_name.dart';
 import '../../domain/athlete_profile_providers.dart';
 import '../../domain/athlete_public_profile_models.dart';
 import '../../domain/athlete_public_profile_providers.dart';
-import '../../domain/athlete_quest/athlete_quest_logic.dart';
-import '../../domain/gamification_models.dart';
 import '../../domain/gamification_providers.dart';
+import '../../domain/sand_rank/sand_rank_providers.dart';
 import 'widgets/public_profile_action_row.dart';
 import 'widgets/public_profile_header.dart';
 import 'widgets/public_profile_sports_section.dart';
@@ -75,8 +74,6 @@ class _AthletePublicProfilePageState
   @override
   Widget build(BuildContext context) {
     final profileAsync = ref.watch(athleteProfileByIdProvider(widget.userId));
-    final gamificationAsync =
-        ref.watch(gamificationSummaryByUserIdProvider(widget.userId));
     final rankingAsync = ref.watch(athletePublicRankingProvider(widget.userId));
     final partnersAsync =
         ref.watch(athletePublicPartnersProvider(widget.userId));
@@ -141,10 +138,13 @@ class _AthletePublicProfilePageState
             data: (value) => value,
             orElse: () => false,
           );
-          final displayLevel = gamificationAsync.maybeWhen(
-            data: gamificationDisplayLevel,
-            orElse: () => gamificationDisplayLevel(GamificationSummary.initial()),
-          );
+          final sandRankEnabled =
+              ref.watch(sandRankEnabledProvider).valueOrNull ?? false;
+          final sandRankInfo = sandRankEnabled
+              ? ref
+                  .watch(publicSandRankByUserIdProvider(widget.userId))
+                  .valueOrNull
+              : null;
 
           return RefreshIndicator(
             color: AppColors.brand,
@@ -162,8 +162,10 @@ class _AthletePublicProfilePageState
                   child: PublicProfileHeader(
                     profile: profile,
                     ranking: ranking,
-                    displayLevel: displayLevel,
                     onBack: () => context.pop(),
+                    sandRank: sandRankInfo?.rank,
+                    sandRankTitleId: sandRankInfo?.cosmetics.titleId,
+                    sandRankFrameId: sandRankInfo?.cosmetics.frameId,
                   ),
                 ),
                 SliverToBoxAdapter(

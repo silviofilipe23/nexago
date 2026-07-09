@@ -17,6 +17,9 @@ import '../../domain/athlete_profile_stats_logic.dart';
 import '../../domain/athlete_profile_stats_providers.dart';
 import '../../domain/gamification_models.dart';
 import '../../domain/profile_completion_models.dart';
+import '../../domain/sand_rank/sand_rank_providers.dart';
+import '../sand_rank/widgets/sand_rank_avatar_frame.dart';
+import '../sand_rank/widgets/sand_rank_emblem.dart';
 import 'athlete_profile_avatar.dart';
 import 'athlete_profile_ranking_section.dart';
 import 'athlete_profile_skeleton.dart';
@@ -265,7 +268,6 @@ class AthleteProfileMainView extends StatelessWidget {
       );
     }).toList();
   }
-
 }
 
 /// Topo do perfil: gradiente laranja, ondas e barra de ações.
@@ -390,7 +392,6 @@ class _ProfileHeaderSection extends StatelessWidget {
                     location: location,
                     sport: sport,
                     levelLabel: levelLabel,
-                    displayLevel: displayLevel,
                   ),
                 ),
               ),
@@ -496,7 +497,6 @@ class _ProfileIdentityRow extends StatelessWidget {
     required this.location,
     required this.sport,
     required this.levelLabel,
-    required this.displayLevel,
     this.secondaryName,
   });
 
@@ -507,7 +507,6 @@ class _ProfileIdentityRow extends StatelessWidget {
   final String location;
   final String sport;
   final String levelLabel;
-  final int displayLevel;
 
   @override
   Widget build(BuildContext context) {
@@ -515,8 +514,8 @@ class _ProfileIdentityRow extends StatelessWidget {
 
     const avatarSize = 72.0;
 
-    /// Espaço extra para sombra do avatar + badge de nível sem cortar o círculo.
-    const avatarSlotSize = 84.0;
+    /// Espaço extra para o emblema de elo no canto do avatar.
+    const avatarSlotSize = 88.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -533,34 +532,45 @@ class _ProfileIdentityRow extends StatelessWidget {
                   Positioned(
                     left: 0,
                     top: 0,
-                    child: AthleteProfileAvatar(
-                      size: avatarSize,
-                      imageUrl: avatarUrl,
-                      initials: initials,
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final enabled =
+                            ref.watch(sandRankEnabledProvider).valueOrNull ??
+                            false;
+                        final frameId = enabled
+                            ? ref
+                                  .watch(sandRankCosmeticsProvider)
+                                  .valueOrNull
+                                  ?.frameId
+                            : null;
+                        return SandRankAvatarFrame(
+                          frameId: frameId,
+                          size: avatarSize,
+                          child: AthleteProfileAvatar(
+                            size: avatarSize,
+                            imageUrl: avatarUrl,
+                            initials: initials,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   Positioned(
-                    right: 2,
-                    bottom: 2,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.brand,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.black, width: 2),
-                      ),
-                      child: Text(
-                        'LV $displayLevel',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.black,
-                          fontSize: 10,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
+                    right: 10,
+                    bottom: -2,
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final enabled =
+                            ref.watch(sandRankEnabledProvider).valueOrNull ??
+                            false;
+                        if (!enabled) return const SizedBox.shrink();
+
+                        final progress = ref.watch(sandRankProgressProvider);
+                        return SandRankStepEmblem(
+                          step: progress.current,
+                          size: SandRankEmblemSize.badge,
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -984,8 +994,8 @@ class _AthleteProfilePlaysWithSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final partnersAsync = ref.watch(currentAthletePlayPartnersProvider);
-    final matchCounts = ref.watch(athleteProfilePartnerMatchCountsProvider)
-            .valueOrNull ??
+    final matchCounts =
+        ref.watch(athleteProfilePartnerMatchCountsProvider).valueOrNull ??
         const <String, int>{};
 
     return partnersAsync.when(
@@ -1614,10 +1624,7 @@ class _PlaysWithStrip extends StatelessWidget {
         separatorBuilder: (_, __) => SizedBox(width: 14),
         itemBuilder: (context, index) {
           final p = partners[index];
-          return _PartnerTile(
-            partner: p,
-            onTap: () => onOpenPartner(p.userId),
-          );
+          return _PartnerTile(partner: p, onTap: () => onOpenPartner(p.userId));
         },
       ),
     );

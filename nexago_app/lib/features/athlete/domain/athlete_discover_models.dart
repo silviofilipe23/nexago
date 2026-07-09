@@ -5,7 +5,7 @@ import 'athlete_firestore_codes.dart';
 import 'athlete_profile.dart';
 import 'athlete_public_profile_models.dart';
 
-enum AthleteDiscoverSort { ranking, proximity, level }
+enum AthleteDiscoverSort { compatibility, ranking, proximity, level }
 
 enum AthleteDiscoverGenderFilter { all, male, female }
 

@@ -46,6 +46,9 @@ const PUBLIC_PROFILE_FIELDS = [
   "lastActiveAt",
   // Reputação do Bora Jogar (escrita só por CF; rules travam spoof em users)
   "reputation",
+  // Elo da trilha de gamificação (escrita só por CF; anti-spoof nas rules)
+  "sandRank",
+  "sandRankCosmetics",
   "sportOnboarding",
   "sportProfile",
   "isProfileComplete",

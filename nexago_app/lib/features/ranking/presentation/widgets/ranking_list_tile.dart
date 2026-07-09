@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../athlete/domain/sand_rank/sand_rank_catalog.dart';
+import '../../../athlete/domain/sand_rank/sand_rank_providers.dart';
+import '../../../athlete/presentation/sand_rank/widgets/sand_rank_emblem.dart';
 import '../../domain/ranking_display_helpers.dart';
 import '../../domain/ranking_list_models.dart';
 import 'ranking_podium.dart';
 
-class RankingListTile extends StatelessWidget {
+class RankingListTile extends ConsumerWidget {
   const RankingListTile({
     super.key,
     required this.entry,
@@ -23,8 +27,13 @@ class RankingListTile extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final sandRankEnabled =
+        ref.watch(sandRankEnabledProvider).valueOrNull ?? false;
+    final rankStep = sandRankEnabled && entry.sandRankTrackIndex != null
+        ? sandRankStepByTrackIndex(entry.sandRankTrackIndex!)
+        : null;
 
     return Material(
       color: Colors.transparent,
@@ -71,14 +80,33 @@ class RankingListTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      highlight ? entry.userPositionLabel : entry.displayName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: context.themeColors.onSurface,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            highlight
+                                ? entry.userPositionLabel
+                                : entry.displayName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: context.themeColors.onSurface,
+                            ),
+                          ),
+                        ),
+                        if (rankStep != null) ...[
+                          SizedBox(width: 6),
+                          Tooltip(
+                            message: 'Elo ${sandRankLabel(rankStep)}',
+                            child: SandRankEmblem(
+                              rankCode: rankStep.rankCode,
+                              division: rankStep.division,
+                              size: SandRankEmblemSize.small,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     if (entry.subtitle.isNotEmpty) ...[
                       SizedBox(height: 2),

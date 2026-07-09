@@ -13,6 +13,7 @@ import '../domain/athlete_profile_providers.dart';
 import '../domain/athlete_shell_providers.dart';
 import '../domain/athlete_notifications_providers.dart';
 import '../domain/gamification_providers.dart';
+import '../domain/sand_rank/sand_rank_providers.dart';
 import 'widgets/athlete_home/athlete_home_competitions_section.dart';
 import 'widgets/athlete_home/athlete_home_daily_missions_section.dart';
 import 'widgets/athlete_home/athlete_home_header.dart';
@@ -82,6 +83,13 @@ class AthleteHomePage extends ConsumerWidget {
                     unreadNotificationCount: unreadNotifications,
                     onNotificationsTap: () =>
                         context.pushNamed(AppRouteNames.athleteNotifications),
+                    sandRankEnabled:
+                        ref.watch(sandRankEnabledProvider).valueOrNull ??
+                            false,
+                    sandRankFrameId: ref
+                        .watch(sandRankCosmeticsProvider)
+                        .valueOrNull
+                        ?.frameId,
                   ),
                 ),
                 SliverPadding(

@@ -98,6 +98,7 @@ flutter:
   assets:
     - assets/images/
     - assets/data/br_municipalities_by_uf.json
+    - assets/sand_rank/
 
   fonts:
     - family: Sora

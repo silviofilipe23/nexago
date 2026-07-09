@@ -19,6 +19,26 @@ import { environment } from '../../environments/environment';
 
 const DEV_KEY = 'nexago-athlete-dev-auth';
 
+/** Roles que nunca devem acessar o portal do atleta (papéis de outros portais). */
+const NON_ATHLETE_ROLES = ['admin', 'arena', 'organizer'];
+
+/** Ausência de `role`/`roles` em `users/{uid}` conta como atleta — mesma regra
+ *  usada pelo `firestore.rules` na criação do doc (role é opcional e o padrão
+ *  é atleta). Só bloqueia quando o doc tem, de forma explícita, um papel de
+ *  outro portal. */
+function docHasNonAthleteRole(data: Record<string, unknown> | undefined): boolean {
+  if (!data) return false;
+  const roles = data['roles'];
+  if (Array.isArray(roles) && roles.some((r) => NON_ATHLETE_ROLES.includes(String(r)))) {
+    return true;
+  }
+  const legacyRole = data['role'];
+  if (typeof legacyRole === 'string' && NON_ATHLETE_ROLES.includes(legacyRole)) {
+    return true;
+  }
+  return false;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly firebaseUser = signal<User | null>(null);
@@ -86,19 +106,22 @@ export class AuthService {
 
   async signInWithEmail(email: string, password: string): Promise<void> {
     const auth = this.ensureAuth();
-    await signInWithEmailAndPassword(auth, email.trim(), password);
+    const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+    await this.assertAthleteRole(credential.user.uid);
   }
 
   async signInWithGoogle(): Promise<void> {
     const auth = this.ensureAuth();
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    const credential = await signInWithPopup(auth, provider);
+    await this.assertAthleteRole(credential.user.uid);
   }
 
   async signInWithApple(): Promise<void> {
     const auth = this.ensureAuth();
     const provider = new OAuthProvider('apple.com');
-    await signInWithPopup(auth, provider);
+    const credential = await signInWithPopup(auth, provider);
+    await this.assertAthleteRole(credential.user.uid);
   }
 
   async signUpWithEmail(name: string, email: string, password: string): Promise<void> {
@@ -108,6 +131,33 @@ export class AuthService {
     if (trimmedName) {
       await updateProfile(credential.user, { displayName: trimmedName });
     }
+    // Defesa extra: cobre o caso raro de já existir um users/{uid} com outro
+    // papel (ex.: pré-cadastro por convite) antes do próprio cadastro Auth.
+    await this.assertAthleteRole(credential.user.uid);
+  }
+
+  /** Bloqueia e desloga quem tem papel de outro portal (arena/organizador/admin).
+   *  Doc ausente ou sem `role`/`roles` é tratado como atleta (mesma regra do
+   *  firestore.rules na criação do doc — role é opcional, padrão é atleta). */
+  private async assertAthleteRole(uid: string): Promise<void> {
+    const cfg = environment.firebase;
+    if (cfg == null || (cfg.apiKey ?? '').length === 0) return;
+    try {
+      const [{ doc, getDoc, getFirestore }] = await Promise.all([import('firebase/firestore')]);
+      const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+      const snap = await getDoc(doc(getFirestore(app), 'users', uid));
+      const data = snap.exists() ? (snap.data() as Record<string, unknown>) : undefined;
+      if (!docHasNonAthleteRole(data)) return;
+    } catch {
+      // Falha ao ler o perfil não deve travar o login de um atleta legítimo —
+      // segue sem bloquear; o bloqueio só age quando a checagem POSITIVAMENTE
+      // encontra um papel de outro portal.
+      return;
+    }
+    await this.signOutUser();
+    throw new Error(
+      'Esta conta não é uma conta de atleta. Use o portal correspondente ao seu perfil (arena, organizador ou administrador).',
+    );
   }
 
   async sendPasswordReset(email: string): Promise<void> {

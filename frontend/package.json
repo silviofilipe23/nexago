@@ -12,6 +12,8 @@
     "build:site": "ng build site --configuration production",
     "start:athlete": "ng serve athlete",
     "build:athlete": "ng build athlete --configuration production",
+    "start:arena": "ng serve arena",
+    "build:arena": "ng build arena --configuration production",
     "build:all": "ng run backoffice:build:production && ng run site:build:production && ng run arena:build:production",
     "watch": "ng build backoffice --watch --configuration development",
     "test": "ng test backoffice",

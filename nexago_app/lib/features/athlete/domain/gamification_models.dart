@@ -84,6 +84,8 @@ class GamificationSummary {
     required this.lastGameDate,
     required this.updatedAt,
     this.gameCompletionDays = const [],
+    this.streakShieldsAvailable = 0,
+    this.highestSandRankTrackIndex = 0,
   });
 
   final int xp;
@@ -95,6 +97,12 @@ class GamificationSummary {
 
   /// Dias com atividade (`YYYY-MM-DD`), usados na UI de sequência.
   final List<String> gameCompletionDays;
+
+  /// Protetores de Sequência disponíveis (perk da trilha de elos).
+  final int streakShieldsAvailable;
+
+  /// Maior degrau da trilha de elos já alcançado (fonte: sand-rank-sync).
+  final int highestSandRankTrackIndex;
 
   factory GamificationSummary.initial() {
     return const GamificationSummary(
@@ -133,6 +141,10 @@ class GamificationSummary {
       lastGameDate: parseDate(map['lastGameDate']),
       updatedAt: parseDate(map['updatedAt']),
       gameCompletionDays: gameDays,
+      streakShieldsAvailable:
+          (map['streakShieldsAvailable'] as num?)?.toInt() ?? 0,
+      highestSandRankTrackIndex:
+          (map['highestSandRankTrackIndex'] as num?)?.toInt() ?? 0,
     );
   }
 

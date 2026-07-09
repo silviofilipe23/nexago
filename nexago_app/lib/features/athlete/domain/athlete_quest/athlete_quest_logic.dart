@@ -2,9 +2,9 @@ import '../daily_mission_catalog.dart';
 import '../gamification_models.dart';
 import 'athlete_quest_models.dart';
 
-const _weekdayLabels = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
+import '../sand_rank/sand_rank_catalog.dart';
 
-const _streakShieldTarget = 7;
+const _weekdayLabels = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 
 DateTime _dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);
 
@@ -116,13 +116,25 @@ List<StreakWeekDay> buildStreakWeekDays(
 }
 
 /// Subtítulo do hero de streak (partes em negrito via RichText na UI).
-StreakHeroCopy streakHeroCopy(int streak) {
+///
+/// O escudo (Protetor de Sequência) é o perk da trilha de elos: 1/mês a
+/// partir de Desafiante III, 2/mês a partir de Mestre III.
+StreakHeroCopy streakHeroCopy(
+  int streak, {
+  int shieldsAvailable = 0,
+  int highestSandRankTrackIndex = 0,
+}) {
   final nextDay = streak + 1;
-  final daysToShield =
-      (_streakShieldTarget - streak).clamp(0, _streakShieldTarget);
-  final shieldPart = daysToShield > 0
-      ? 'próximo escudo em ${daysToShield}d'
-      : 'escudo desbloqueado';
+  final String shieldPart;
+  if (shieldsAvailable > 0) {
+    shieldPart = shieldsAvailable == 1
+        ? '1 escudo de proteção'
+        : '$shieldsAvailable escudos de proteção';
+  } else if (highestSandRankTrackIndex >= shieldTrackIndexOnePerMonth) {
+    shieldPart = 'escudo volta mês que vem';
+  } else {
+    shieldPart = 'escudo desbloqueia no elo Desafiante';
+  }
   return StreakHeroCopy(
     lead: 'Jogue hoje pra chegar a ',
     highlightDays: '$nextDay dias',

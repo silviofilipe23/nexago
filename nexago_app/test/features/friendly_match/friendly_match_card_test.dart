@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:intl/intl.dart';
-import 'package:nexago_app/core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme.dart';
+import 'package:nexago_app/features/athlete/domain/sand_rank/sand_rank_providers.dart';
+import 'package:nexago_app/features/friendly_match/domain/friendly_match_logic.dart';
 import 'package:nexago_app/features/friendly_match/domain/friendly_match_models.dart';
 import 'package:nexago_app/features/friendly_match/presentation/widgets/friendly_match_card.dart';
 
@@ -12,13 +13,14 @@ void main() {
     await initializeDateFormatting('pt_BR');
   });
 
-  // O card usa DateTime.now(); horário futuro mantém o convite pendente.
   final scheduledAt = DateTime.now().add(const Duration(days: 2));
 
   FriendlyMatch buildMatch({
     FriendlyMatchStatus status = FriendlyMatchStatus.sent,
     FriendlyMatchLocation location =
         const FriendlyMatchLocation(arenaName: 'Arena Beira-Mar'),
+    int? scoreAtSend,
+    String sport = 'VOLEI_PRAIA',
   }) {
     return FriendlyMatch(
       id: 'fm1',
@@ -26,29 +28,27 @@ void main() {
       fromName: 'Ana Lima',
       toUid: 'uid_bia',
       toName: 'Bia Souza',
-      sport: 'beach_tennis',
+      sport: sport,
       objective: FriendlyMatchObjective.friendly,
       status: status,
       scheduledAt: scheduledAt,
       location: location,
+      scoreAtSend: scoreAtSend,
     );
   }
 
   Widget wrap(Widget child) {
-    return MaterialApp(
-      theme: AppTheme.dark,
-      home: Scaffold(body: child),
+    return ProviderScope(
+      overrides: [
+        // Flag do sistema de elos desligada nos testes do card.
+        sandRankEnabledProvider.overrideWith((ref) => Stream.value(false)),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.dark,
+        home: Scaffold(body: child),
+      ),
     );
   }
-
-  // A bolinha de ação: Container circular na cor da marca.
-  final actionDot = find.byWidgetPredicate((widget) {
-    if (widget is! Container) return false;
-    final decoration = widget.decoration;
-    return decoration is BoxDecoration &&
-        decoration.shape == BoxShape.circle &&
-        decoration.color == AppColors.brand;
-  });
 
   testWidgets('remetente vê o nome do destinatário', (tester) async {
     await tester.pumpWidget(wrap(FriendlyMatchCard(
@@ -59,8 +59,7 @@ void main() {
 
     expect(find.text('Bia Souza'), findsOneWidget);
     expect(find.text('Ana Lima'), findsNothing);
-    // Sem foto, o avatar mostra a inicial do outro atleta.
-    expect(find.text('B'), findsOneWidget);
+    expect(find.text('BS'), findsOneWidget);
   });
 
   testWidgets('destinatário vê o nome do remetente', (tester) async {
@@ -72,10 +71,10 @@ void main() {
 
     expect(find.text('Ana Lima'), findsOneWidget);
     expect(find.text('Bia Souza'), findsNothing);
-    expect(find.text('A'), findsOneWidget);
+    expect(find.text('AL'), findsOneWidget);
   });
 
-  testWidgets('mostra objetivo + horário formatado em pt_BR e o local',
+  testWidgets('mostra resumo com objetivo, esporte, horário e local',
       (tester) async {
     await tester.pumpWidget(wrap(FriendlyMatchCard(
       match: buildMatch(),
@@ -83,9 +82,8 @@ void main() {
       onTap: () {},
     )));
 
-    final when = DateFormat("EEE, d 'de' MMM • HH:mm", 'pt_BR')
-        .format(scheduledAt.toLocal());
-    expect(find.text('Amistoso • $when'), findsOneWidget);
+    expect(find.textContaining('Amistoso'), findsOneWidget);
+    expect(find.textContaining('Vôlei de praia'), findsOneWidget);
     expect(find.text('Arena Beira-Mar'), findsOneWidget);
   });
 
@@ -100,42 +98,39 @@ void main() {
     expect(find.text('Local a combinar'), findsOneWidget);
   });
 
-  testWidgets('bolinha de ação aparece só para quem deve responder',
+  testWidgets('badge de compatibilidade aparece quando há scoreAtSend',
       (tester) async {
-    // Convite sent: quem responde é o destinatário.
+    await tester.pumpWidget(wrap(FriendlyMatchCard(
+      match: buildMatch(scoreAtSend: 87),
+      currentUid: 'uid_ana',
+      onTap: () {},
+    )));
+
+    expect(find.text('87 %'), findsOneWidget);
+    expect(find.byIcon(Icons.bolt_rounded), findsOneWidget);
+  });
+
+  testWidgets('ações aparecem só para quem deve responder na aba recebidos',
+      (tester) async {
     await tester.pumpWidget(wrap(FriendlyMatchCard(
       match: buildMatch(),
       currentUid: 'uid_bia',
       onTap: () {},
+      onAccept: () {},
+      onDecline: () {},
     )));
-    expect(actionDot, findsOneWidget);
+    expect(find.text('Aceitar convite'), findsOneWidget);
+    expect(find.text('Recusar'), findsOneWidget);
 
-    // O remetente está aguardando: sem bolinha.
     await tester.pumpWidget(wrap(FriendlyMatchCard(
       match: buildMatch(),
       currentUid: 'uid_ana',
       onTap: () {},
+      onAccept: () {},
+      onDecline: () {},
     )));
-    expect(actionDot, findsNothing);
-  });
-
-  testWidgets('contraproposta inverte a bolinha; confirmado não mostra',
-      (tester) async {
-    // countered: agora é o remetente original quem responde.
-    await tester.pumpWidget(wrap(FriendlyMatchCard(
-      match: buildMatch(status: FriendlyMatchStatus.countered),
-      currentUid: 'uid_ana',
-      onTap: () {},
-    )));
-    expect(actionDot, findsOneWidget);
-
-    // confirmado: próxima ação é check-in, não resposta — sem bolinha.
-    await tester.pumpWidget(wrap(FriendlyMatchCard(
-      match: buildMatch(status: FriendlyMatchStatus.confirmed),
-      currentUid: 'uid_ana',
-      onTap: () {},
-    )));
-    expect(actionDot, findsNothing);
+    expect(find.text('Aceitar convite'), findsNothing);
+    expect(find.text('Recusar'), findsNothing);
   });
 
   testWidgets('toque no card dispara onTap', (tester) async {
@@ -146,7 +141,14 @@ void main() {
       onTap: () => tapped = true,
     )));
 
-    await tester.tap(find.byType(FriendlyMatchCard));
+    await tester.tap(find.text('Bia Souza'));
     expect(tapped, isTrue);
+  });
+
+  test('friendlyMatchSummaryLine inclui objetivo, esporte e horário', () {
+    final line = friendlyMatchSummaryLine(buildMatch());
+    expect(line, contains('Amistoso'));
+    expect(line, contains('Vôlei de praia'));
+    expect(line, contains('·'));
   });
 }

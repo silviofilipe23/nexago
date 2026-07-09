@@ -14,8 +14,8 @@ import '../domain/friendly_match_logic.dart';
 import '../domain/friendly_match_models.dart';
 import '../domain/friendly_match_providers.dart';
 import 'widgets/friendly_match_counter_sheet.dart';
+import 'widgets/friendly_match_detail_sections.dart';
 import 'widgets/friendly_match_review_sheet.dart';
-import 'widgets/friendly_match_status_chip.dart';
 
 /// Detalhe do jogo — uma tela única que se adapta por status e papel:
 /// responder convite, aguardar, check-in, cancelar, avaliar, ver resultado.
@@ -90,8 +90,44 @@ class _FriendlyMatchDetailPageState
     final uid = ref.watch(authProvider).value?.uid ?? '';
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLowest,
-      appBar: NexaAppBar(title: const Text('Bora Jogar')),
+      backgroundColor: context.themeColors.canvas,
+      appBar: NexaAppBar(
+        backgroundColor: context.themeColors.canvas,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        centerTitle: false,
+        leadingWidth: 52,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: Center(
+            child: Material(
+              color: context.themeColors.surfaceRaised,
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                onTap: () => context.pop(),
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Icon(
+                    Icons.chevron_left_rounded,
+                    color: context.themeColors.onSurface,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        title: Text(
+          'Convite',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: context.themeColors.onSurface,
+                letterSpacing: -0.3,
+              ),
+        ),
+      ),
       body: matchAsync.when(
         loading: () => const AppLoadingView(),
         error: (_, __) =>
@@ -207,12 +243,9 @@ class _MatchBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.themeColors;
-    final theme = Theme.of(context);
     final now = DateTime.now();
     final action = nextActionFor(uid, match, now);
-    final otherName = match.otherName(uid);
-    final dateFormat = DateFormat("EEEE, d 'de' MMMM • HH:mm", 'pt_BR');
-    final scoreLabel = compatibilityLabel(match.scoreAtSend);
+    final dateFormat = DateFormat("EEEE, d 'de' MMMM · HH:mm", 'pt_BR');
 
     // Proposta vigente (contraproposta substitui a original na exibição).
     final counter = match.counterProposal;
@@ -220,127 +253,68 @@ class _MatchBody extends StatelessWidget {
         match.status == FriendlyMatchStatus.countered && counter != null
             ? counter.scheduledAt
             : match.scheduledAt;
+    final effectiveLocation = (match.status == FriendlyMatchStatus.countered &&
+            counter?.location != null)
+        ? counter!.location!.displayLabel
+        : match.location.displayLabel;
+
+    final whenLabel = friendlyMatchDetailWhenLabel(effectiveTime);
+    final alternativeWhenLabels = match.status.isPendingResponse &&
+            match.alternativeTimes.isNotEmpty &&
+            counter == null
+        ? match.alternativeTimes
+            .map((alt) => dateFormat.format(alt.toLocal()).replaceAll('.', ''))
+            .toList()
+        : const <String>[];
+
+    final timelineSteps = friendlyMatchTimelineSteps(
+      match: match,
+      uid: uid,
+      action: action,
+      now: now,
+    );
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
-        // Cabeçalho: com quem, objetivo, status.
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: colors.surfaceCard,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 26,
-                    backgroundColor: AppColors.brand.withValues(alpha: 0.12),
-                    backgroundImage: match.otherPhotoUrl(uid) != null
-                        ? NetworkImage(match.otherPhotoUrl(uid)!)
-                        : null,
-                    child: match.otherPhotoUrl(uid) == null
-                        ? Text(
-                            otherName.isNotEmpty
-                                ? otherName[0].toUpperCase()
-                                : '?',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              color: AppColors.brand,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          otherName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: colors.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          match.objective.label,
-                          style: theme.textTheme.bodySmall
-                              ?.copyWith(color: colors.onSurfaceMuted),
-                        ),
-                      ],
-                    ),
-                  ),
-                  FriendlyMatchStatusChip(
-                    status: match.status,
-                    clientExpired: isClientExpired(match, now),
-                  ),
-                ],
+        FriendlyMatchDetailProfileCard(match: match, uid: uid),
+        const SizedBox(height: 12),
+        FriendlyMatchDetailInfoCard(
+          whenLabel: whenLabel,
+          locationLabel: effectiveLocation,
+          alternativeWhenLabels: alternativeWhenLabels,
+          counterMessage: match.status == FriendlyMatchStatus.countered
+              ? counter?.message
+              : null,
+        ),
+        if (match.message != null &&
+            match.message!.isNotEmpty &&
+            match.status != FriendlyMatchStatus.countered) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: colors.surfaceCard,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: colors.outline.withValues(alpha: 0.12),
               ),
-              if (scoreLabel != null) ...[
-                const SizedBox(height: 12),
-                FriendlyMatchScoreBadge(label: scoreLabel),
-              ],
-              if (match.message != null && match.message!.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Text(
-                  '“${match.message}”',
-                  style: theme.textTheme.bodyMedium?.copyWith(
+            ),
+            child: Text(
+              '“${match.message}”',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     fontStyle: FontStyle.italic,
                     color: colors.onSurfaceMuted,
                   ),
-                ),
-              ],
-            ],
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-
-        // Proposta: quando e onde.
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: colors.surfaceCard,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _InfoRow(
-                icon: Icons.event_rounded,
-                text: dateFormat.format(effectiveTime.toLocal()),
-              ),
-              if (match.status.isPendingResponse &&
-                  match.alternativeTimes.isNotEmpty &&
-                  counter == null)
-                for (final alt in match.alternativeTimes)
-                  _InfoRow(
-                    icon: Icons.more_time_rounded,
-                    text: 'Alternativa: ${dateFormat.format(alt.toLocal())}',
-                  ),
-              _InfoRow(
-                icon: Icons.place_outlined,
-                text: (match.status == FriendlyMatchStatus.countered &&
-                        counter?.location != null)
-                    ? counter!.location!.displayLabel
-                    : match.location.displayLabel,
-              ),
-              if (match.status == FriendlyMatchStatus.countered &&
-                  counter?.message != null)
-                _InfoRow(
-                  icon: Icons.chat_bubble_outline_rounded,
-                  text: '“${counter!.message}”',
-                ),
-            ],
-          ),
-        ),
+        ],
+        if (timelineSteps.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          FriendlyMatchDetailTimeline(steps: timelineSteps),
+        ],
         const SizedBox(height: 16),
-
-        // Área de ação adaptativa.
         ..._actionArea(context, action, counter, effectiveTime),
 
         // Avaliações reveladas.
@@ -379,16 +353,32 @@ class _MatchBody extends StatelessWidget {
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.brand,
+              foregroundColor: AppColors.black,
               padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: busy ? null : () => onAccept(null),
-            child: const Text('Aceitar e confirmar jogo'),
+            child: const Text(
+              'Aceitar e confirmar jogo',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
           ),
           const SizedBox(height: 8),
           if (match.status == FriendlyMatchStatus.sent) ...[
             OutlinedButton(
               onPressed: busy ? null : onCounter,
-              child: const Text('Sugerir outro horário'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Sugerir outro horário',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
             const SizedBox(height: 8),
           ],
@@ -396,23 +386,23 @@ class _MatchBody extends StatelessWidget {
             onPressed: busy ? null : onDecline,
             child: Text(
               'Recusar',
-              style: TextStyle(color: theme.colorScheme.error),
+              style: TextStyle(
+                color: theme.colorScheme.error,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ];
 
       case FriendlyMatchNextAction.waitingResponse:
         return [
-          _Hint(
-            text: match.status == FriendlyMatchStatus.countered
-                ? 'Sua contraproposta foi enviada. Aguardando resposta.'
-                : 'Convite enviado. Aguardando resposta de ${match.otherName(uid)}.',
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: busy ? null : onCancel,
-            child: Text('Retirar convite',
-                style: TextStyle(color: theme.colorScheme.error)),
+          FriendlyMatchDetailOutlineButton(
+            label: match.status == FriendlyMatchStatus.countered
+                ? 'Retirar contraproposta'
+                : 'Retirar convite',
+            onPressed: onCancel,
+            busy: busy,
+            destructive: true,
           ),
         ];
 
@@ -423,11 +413,6 @@ class _MatchBody extends StatelessWidget {
 
       case FriendlyMatchNextAction.waitingCheckInWindow:
         return [
-          _Hint(
-            text: 'Jogo confirmado! O check-in abre 30 minutos antes do horário. '
-                'Sem check-in dos dois, o jogo não conta nem libera avaliação.',
-          ),
-          const SizedBox(height: 8),
           if (match.location.hasArena)
             OutlinedButton.icon(
               onPressed: () =>
@@ -435,11 +420,12 @@ class _MatchBody extends StatelessWidget {
               icon: const Icon(Icons.stadium_outlined, size: 18),
               label: const Text('Reservar quadra na arena'),
             ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: busy ? null : onCancel,
-            child: Text('Cancelar jogo',
-                style: TextStyle(color: theme.colorScheme.error)),
+          if (match.location.hasArena) const SizedBox(height: 8),
+          FriendlyMatchDetailOutlineButton(
+            label: 'Cancelar jogo',
+            onPressed: onCancel,
+            busy: busy,
+            destructive: true,
           ),
         ];
 
@@ -448,58 +434,53 @@ class _MatchBody extends StatelessWidget {
           FilledButton.icon(
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.brand,
+              foregroundColor: AppColors.black,
               padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: busy ? null : onCheckIn,
             icon: const Icon(Icons.where_to_vote_rounded),
-            label: const Text('Fazer check-in — cheguei!'),
+            label: const Text(
+              'Fazer check-in — cheguei!',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
           ),
           const SizedBox(height: 8),
-          _Hint(
-            text:
-                'O jogo só conta quando os DOIS fazem check-in dentro da janela.',
-          ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: busy ? null : onCancel,
-            child: Text('Cancelar jogo',
-                style: TextStyle(color: theme.colorScheme.error)),
+          FriendlyMatchDetailOutlineButton(
+            label: 'Cancelar jogo',
+            onPressed: onCancel,
+            busy: busy,
+            destructive: true,
           ),
         ];
 
       case FriendlyMatchNextAction.checkInWaitingOther:
-        return [
-          _Hint(
-            text: 'Check-in feito ✔ Aguardando o check-in de '
-                '${match.otherName(uid)} para validar o jogo.',
-          ),
-        ];
+        return const [];
 
       case FriendlyMatchNextAction.review:
         return [
           FilledButton.icon(
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.brand,
+              foregroundColor: AppColors.black,
               padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: busy ? null : onReview,
             icon: const Icon(Icons.star_rounded),
-            label: Text('Avaliar ${match.otherName(uid)}'),
-          ),
-          const SizedBox(height: 8),
-          _Hint(
-            text: 'Avaliação double-blind: sua nota fica oculta até o outro '
-                'avaliar (ou o prazo vencer).',
+            label: Text(
+              'Avaliar ${match.otherName(uid)}',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
           ),
         ];
 
       case FriendlyMatchNextAction.reviewWaitingOther:
-        return [
-          _Hint(
-            text: 'Avaliação enviada. As notas serão reveladas quando '
-                '${match.otherName(uid)} avaliar ou o prazo vencer.',
-          ),
-        ];
+        return const [];
 
       case FriendlyMatchNextAction.finished:
         final text = switch (match.status) {
@@ -533,37 +514,6 @@ class _MatchBody extends StatelessWidget {
           ),
         ];
     }
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.themeColors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: AppColors.brand),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colors.onSurface,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

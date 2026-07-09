@@ -161,7 +161,7 @@ class TeamDiscoverNotifier extends AutoDisposeNotifier<TeamDiscoverState> {
   Future<void> refresh() => loadInitial();
 
   Future<void> loadMore() async {
-    if (!state.hasMore || state.isLoadingMore) return;
+    if (state.isSearchMode || !state.hasMore || state.isLoadingMore) return;
     final cursor = state.lastDocumentId;
     if (cursor == null || cursor.isEmpty) return;
 

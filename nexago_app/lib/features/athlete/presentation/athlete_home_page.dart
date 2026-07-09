@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/layout/nexa_bottom_nav_bar.dart';
 import '../../../core/layout/nexa_floating_header.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
@@ -62,6 +63,9 @@ class AthleteHomePage extends ConsumerWidget {
             final unreadNotifications = ref.watch(
               athleteUnreadNotificationsCountProvider,
             );
+            final bottomClearance = nexaBottomNavBarHeight() +
+                MediaQuery.viewPaddingOf(context).bottom +
+                16;
 
             return CustomScrollView(
               controller: ref
@@ -93,7 +97,7 @@ class AthleteHomePage extends ConsumerWidget {
                   ),
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.only(bottom: 28),
+                  padding: EdgeInsets.only(bottom: bottomClearance),
                   sliver: SliverList.list(
                     children: [
                       SizedBox(height: 8),

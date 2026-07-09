@@ -12,13 +12,17 @@ import {
 } from "./friendly-match-reputation";
 
 /**
- * Bora Jogar — avaliação mútua double-blind.
+ * Bora Jogar — avaliação mútua double-blind, par a par, entre N participantes.
  *
- * As notas ficam em `friendlyMatches/{id}/privateReviews/{reviewerUid}`,
+ * As notas ficam em `friendlyMatches/{id}/privateReviews/{reviewerUid}_{revieweeUid}`,
  * ilegíveis para QUALQUER cliente (rules `if false`; só o Admin SDK lê).
- * O reveal — quando ambos avaliam ou o prazo vence — copia as notas para o
- * campo `reviews` do doc principal e fecha o match em `reviewed`. O app só
- * lê o doc principal, então vazar nota antes do reveal é estruturalmente
+ * O reveal acontece POR PAR: assim que os dois lados de um par avaliaram um
+ * ao outro, essa dupla entra no campo público `reviews` (mapa aninhado
+ * `reviews[reviewerUid][revieweeUid]`) — sem esperar o resto do grupo. O
+ * match só fecha em `status: "reviewed"` quando TODOS os pares ordenados de
+ * `participantUids` tiverem sido revelados (checado inspecionando a forma do
+ * próprio mapa `reviews`, sem contador redundante). O app só lê o doc
+ * principal, então vazar nota antes do reveal do par é estruturalmente
  * impossível. Nas transações, TODAS as leituras vêm antes das escritas
  * (exigência do Firestore real).
  */
@@ -77,129 +81,107 @@ function sanitizeReviewInput(input: {
   return review;
 }
 
-/** Update de reveal: copia as notas presentes e fecha o match. */
-function revealUpdate(
-  data: MatchData,
-  reviewsByReviewer: Record<string, StoredReview>,
-  nowMs: number,
-): MatchData {
-  return {
-    status: "reviewed",
-    statusUpdatedAt: Timestamp.fromMillis(nowMs),
-    updatedAt: Timestamp.fromMillis(nowMs),
-    reviews: reviewsByReviewer,
-    reviewsRevealedAt: Timestamp.fromMillis(nowMs),
-    history: appendHistory(data, historyEntry("reviewed", "system", nowMs)),
-  };
-}
-
-/** Efeitos pós-reveal: reputação de cada avaliado + notificações. */
-async function applyRevealEffects(
-  db: Firestore,
-  matchId: string,
-  data: MatchData,
-  reviewsByReviewer: Record<string, StoredReview>,
-): Promise<FriendlyMatchNotification[]> {
-  const notifications: FriendlyMatchNotification[] = [];
-  for (const [reviewerUid, review] of Object.entries(reviewsByReviewer)) {
-    const revieweeUid = reviewerUid === data.fromUid ?
-      (data.toUid as string) : (data.fromUid as string);
-    const reviewerName = reviewerUid === data.fromUid ?
-      (data.fromName as string) : (data.toName as string);
-    await applyReputationEvent(
-      db, revieweeUid, reviewReceivedEventId(matchId, reviewerUid),
-      "review_received", {matchId, stars: review.stars});
-    notifications.push({
-      userId: revieweeUid,
-      title: "Avaliação revelada ⭐",
-      body: `${reviewerName} avaliou o jogo com você. Veja como foi.`,
-      type: "friendly_match_reviewed",
-      data: {type: "friendly_match_reviewed", matchId},
-    });
-  }
-  return notifications;
+/** Verdadeiro quando TODOS os pares ordenados do grupo já foram revelados. */
+function allPairsRevealed(
+  reviews: Record<string, Record<string, unknown>>,
+  participantUids: string[],
+): boolean {
+  return participantUids.every((reviewer) =>
+    participantUids.every((reviewee) =>
+      reviewer === reviewee || reviews[reviewer]?.[reviewee] != null));
 }
 
 export async function submitFriendlyMatchReviewCore(
   db: Firestore,
   uid: string,
-  input: {matchId: string; stars: number; tags?: string[]; comment?: string},
+  input: {matchId: string; revieweeUid: string; stars: number; tags?: string[]; comment?: string},
   nowMs: number = Date.now(),
 ): Promise<{revealed: boolean; notifications: FriendlyMatchNotification[]}> {
   const matchId = typeof input.matchId === "string" ? input.matchId.trim() : "";
   if (!matchId) throw new HttpsError("invalid-argument", "Jogo inválido.");
+  const revieweeUid = typeof input.revieweeUid === "string" ? input.revieweeUid.trim() : "";
   const review = sanitizeReviewInput(input);
   const matchRef = db.collection(MATCHES_COLLECTION).doc(matchId);
 
   type Outcome =
     | {kind: "waiting"}
-    | {kind: "revealed"; data: MatchData; reviews: Record<string, StoredReview>};
+    | {kind: "revealed"; matchId: string; reviewerUid: string; revieweeUid: string;
+       reviewerReview: StoredReview; revieweeReview: StoredReview};
 
   const outcome = await db.runTransaction<Outcome>(async (tx) => {
-    // Leituras primeiro (exigência de transação do Firestore).
     const matchSnap = await tx.get(matchRef);
     if (!matchSnap.exists) throw new HttpsError("not-found", "Jogo não encontrado.");
     const data = matchSnap.data() as MatchData;
-    if (data.fromUid !== uid && data.toUid !== uid) {
+    const participantUids = data.participantUids as string[];
+    if (!participantUids.includes(uid)) {
       throw new HttpsError("permission-denied", "Você não participa deste jogo.");
     }
-    const otherUid = uid === data.fromUid ? (data.toUid as string) : (data.fromUid as string);
-    const myReviewRef = db.doc(`${MATCHES_COLLECTION}/${matchId}/privateReviews/${uid}`);
-    const otherReviewRef = db.doc(`${MATCHES_COLLECTION}/${matchId}/privateReviews/${otherUid}`);
+    if (!revieweeUid || revieweeUid === uid || !participantUids.includes(revieweeUid)) {
+      throw new HttpsError("invalid-argument", "Escolha quem você está avaliando.");
+    }
+    const myReviewRef = db.doc(`${MATCHES_COLLECTION}/${matchId}/privateReviews/${uid}_${revieweeUid}`);
+    const otherReviewRef = db.doc(`${MATCHES_COLLECTION}/${matchId}/privateReviews/${revieweeUid}_${uid}`);
     const [mySnap, otherSnap] = [await tx.get(myReviewRef), await tx.get(otherReviewRef)];
 
     if (data.status !== "completed") {
-      throw new HttpsError(
-        "failed-precondition", "Este jogo não está aguardando avaliação.");
+      throw new HttpsError("failed-precondition", "Este jogo não está aguardando avaliação.");
     }
     const revealAt = data.reviewRevealAt as Timestamp | undefined;
     if (revealAt != null && nowMs >= revealAt.toMillis()) {
-      throw new HttpsError(
-        "failed-precondition", "O prazo de avaliação deste jogo já encerrou.");
+      throw new HttpsError("failed-precondition", "O prazo de avaliação deste jogo já encerrou.");
     }
     if (mySnap.exists) {
-      throw new HttpsError("failed-precondition", "Você já avaliou este jogo.");
+      throw new HttpsError("failed-precondition", "Você já avaliou esta pessoa.");
     }
 
     tx.set(myReviewRef, {
-      ...review,
-      revieweeUid: otherUid,
-      createdAt: Timestamp.fromMillis(nowMs),
+      ...review, reviewerUid: uid, revieweeUid, createdAt: Timestamp.fromMillis(nowMs),
     });
 
-    const submitted = Array.isArray(data.reviewSubmittedUids) ?
-      (data.reviewSubmittedUids as string[]) : [];
-    const newSubmitted = submitted.includes(uid) ? submitted : [...submitted, uid];
-
-    if (otherSnap.exists) {
-      // Ambos avaliaram → reveal imediato na mesma transação.
-      const otherData = otherSnap.data() as StoredReview;
-      const reviews: Record<string, StoredReview> = {
-        [uid]: review,
-        [otherUid]: {
-          stars: otherData.stars,
-          ...(otherData.tags ? {tags: otherData.tags} : {}),
-          ...(otherData.comment ? {comment: otherData.comment} : {}),
-        },
-      };
-      tx.set(matchRef, {
-        reviewSubmittedUids: newSubmitted,
-        ...revealUpdate(data, reviews, nowMs),
-      }, {merge: true});
-      return {kind: "revealed", data, reviews};
+    if (!otherSnap.exists) {
+      tx.set(matchRef, {updatedAt: Timestamp.fromMillis(nowMs)}, {merge: true});
+      return {kind: "waiting"};
     }
 
-    tx.set(matchRef, {
-      reviewSubmittedUids: newSubmitted,
-      updatedAt: Timestamp.fromMillis(nowMs),
-    }, {merge: true});
-    return {kind: "waiting"};
+    const otherReview = otherSnap.data() as StoredReview;
+    const reviews = {
+      ...(data.reviews as Record<string, Record<string, StoredReview>> ?? {}),
+    };
+    reviews[uid] = {...(reviews[uid] ?? {}), [revieweeUid]: review};
+    reviews[revieweeUid] = {...(reviews[revieweeUid] ?? {}), [uid]: otherReview};
+    const done = allPairsRevealed(reviews, participantUids);
+    const update: MatchData = {reviews, updatedAt: Timestamp.fromMillis(nowMs)};
+    if (done) {
+      update.status = "reviewed";
+      update.statusUpdatedAt = Timestamp.fromMillis(nowMs);
+      update.reviewsRevealedAt = Timestamp.fromMillis(nowMs);
+      update.history = appendHistory(data, historyEntry("reviewed", "system", nowMs));
+    }
+    tx.set(matchRef, update, {merge: true});
+    return {
+      kind: "revealed", matchId, reviewerUid: uid, revieweeUid,
+      reviewerReview: review, revieweeReview: otherReview,
+    };
   });
 
   if (outcome.kind === "waiting") return {revealed: false, notifications: []};
-  const notifications = await applyRevealEffects(
-    db, matchId, outcome.data, outcome.reviews);
-  return {revealed: true, notifications};
+  await applyReputationEvent(
+    db, outcome.revieweeUid, reviewReceivedEventId(matchId, outcome.reviewerUid, outcome.revieweeUid),
+    "review_received", {matchId, stars: outcome.reviewerReview.stars});
+  await applyReputationEvent(
+    db, outcome.reviewerUid, reviewReceivedEventId(matchId, outcome.revieweeUid, outcome.reviewerUid),
+    "review_received", {matchId, stars: outcome.revieweeReview.stars});
+  return {
+    revealed: true,
+    notifications: [
+      {userId: outcome.revieweeUid, title: "Avaliação revelada ⭐",
+        body: "Alguém avaliou o jogo com você. Veja como foi.",
+        type: "friendly_match_reviewed", data: {type: "friendly_match_reviewed", matchId}},
+      {userId: outcome.reviewerUid, title: "Avaliação revelada ⭐",
+        body: "Alguém avaliou o jogo com você. Veja como foi.",
+        type: "friendly_match_reviewed", data: {type: "friendly_match_reviewed", matchId}},
+    ],
+  };
 }
 
 export async function revealFriendlyMatchReviewsIfDue(
@@ -249,7 +231,9 @@ export async function revealFriendlyMatchReviewsIfDue(
 export const submitFriendlyMatchReview = onCall(async (request) => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError("unauthenticated", "Faça login para continuar.");
-  const data = request.data as {matchId: string; stars: number; tags?: string[]; comment?: string};
+  const data = request.data as {
+    matchId: string; revieweeUid: string; stars: number; tags?: string[]; comment?: string;
+  };
   const result = await submitFriendlyMatchReviewCore(getFirestore(), uid, data);
   await deliverFriendlyMatchNotifications(result.notifications);
   return {revealed: result.revealed};

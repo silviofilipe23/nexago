@@ -157,14 +157,6 @@ function appendHistory(data: MatchData, entry: MatchData): MatchData[] {
   return [...history, entry];
 }
 
-function otherParticipant(data: MatchData, uid: string): string {
-  return uid === data.fromUid ? (data.toUid as string) : (data.fromUid as string);
-}
-
-function participantName(data: MatchData, uid: string): string {
-  return uid === data.fromUid ? (data.fromName as string) : (data.toName as string);
-}
-
 function notificationFor(
   data: MatchData,
   matchId: string,
@@ -635,26 +627,25 @@ export async function cancelFriendlyMatchCore(
 
   const result = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
-    if (!snap.exists) throw new HttpsError("not-found", "Convite não encontrado.");
+    if (!snap.exists) throw new HttpsError("not-found", "Jogo não encontrado.");
     const data = snap.data() as MatchData;
     const status = data.status as string;
 
     let penalized = false;
-    if (status === "sent" || status === "countered") {
-      // Retirada do convite: só o remetente (o destinatário recusa).
-      if (data.fromUid !== uid) {
+    if (status === "filling") {
+      if (data.organizerUid !== uid) {
         throw new HttpsError(
-          "permission-denied", "Só quem enviou pode retirar o convite.");
+          "permission-denied",
+          "Só o organizador pode cancelar enquanto o jogo está sendo montado.");
       }
     } else if (status === "confirmed") {
-      if (data.fromUid !== uid && data.toUid !== uid) {
+      if (!(data.participantUids as string[]).includes(uid)) {
         throw new HttpsError("permission-denied", "Você não participa deste jogo.");
       }
       penalized = isCancellationPenalized(
         (data.scheduledAt as Timestamp).toMillis(), nowMs, config);
     } else {
-      throw new HttpsError(
-        "failed-precondition", "Este jogo não pode mais ser cancelado.");
+      throw new HttpsError("failed-precondition", "Este jogo não pode mais ser cancelado.");
     }
 
     tx.set(ref, {
@@ -667,19 +658,25 @@ export async function cancelFriendlyMatchCore(
       history: appendHistory(data, historyEntry("cancelled", uid, nowMs)),
     }, {merge: true});
 
-    const cancellerName = participantName(data, uid);
-    const target = otherParticipant(data, uid);
+    const nameOf = (p: string): string =>
+      p === data.organizerUid ?
+        (data.organizerName as string) :
+        ((data.slots as MatchData[]).find((s) => s.uid === p)?.name as string ?? "Atleta");
+    const stakeholders = new Set<string>([
+      ...(data.participantUids as string[]),
+      ...(data.pendingSlotUids as string[] ?? []),
+    ]);
+    stakeholders.delete(uid);
+    const cancellerName = nameOf(uid);
     const wasConfirmed = status === "confirmed";
     return {
       penalized,
-      notifications: [
-        notificationFor(
-          data, ref.id, target, "friendly_match_cancelled",
-          wasConfirmed ? "Jogo cancelado 😕" : "Convite retirado",
-          wasConfirmed ?
-            `${cancellerName} desmarcou o jogo. Bora achar outro?` :
-            `${cancellerName} retirou o convite.`),
-      ],
+      notifications: [...stakeholders].map((target) => notificationFor(
+        data, ref.id, target, "friendly_match_cancelled",
+        wasConfirmed ? "Jogo cancelado 😕" : "Convite retirado",
+        wasConfirmed ?
+          `${cancellerName} desmarcou o jogo. Bora achar outro?` :
+          `${cancellerName} retirou o convite.`)),
     };
   });
 

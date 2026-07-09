@@ -374,20 +374,20 @@ describe("counterFriendlyMatchInviteCore", () => {
 describe("cancelFriendlyMatchCore", () => {
   const now = Date.UTC(2026, 6, 10, 12, 0, 0);
 
-  it("remetente retira convite sent → cancelled sem penalidade", async () => {
+  it("organizador cancela jogo em filling → cancelled sem penalidade, avisa quem já tinha vaga", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
+    const matchId = await sendInvite(fake, now, ["b", "c"]);
+    await acceptFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now);
     const result = await cancelFriendlyMatchCore(db(fake), "a", {matchId}, now);
     const data = matchData(fake, matchId);
     assert.equal(data.status, "cancelled");
     assert.equal(data.cancelPenalized, false);
-    assert.equal(result.notifications[0].userId, "b");
-    assert.equal(result.notifications[0].type, "friendly_match_cancelled");
+    assert.deepEqual(result.notifications.map((n) => n.userId).sort(), ["b", "c"]);
   });
 
-  it("destinatário não cancela convite sent (ele recusa)", async () => {
+  it("convidado não cancela enquanto filling (ele recusa a própria vaga)", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
+    const matchId = await sendInvite(fake, now, ["b"]);
     await assertHttpsError(
       cancelFriendlyMatchCore(db(fake), "b", {matchId}, now),
       "permission-denied",
@@ -396,8 +396,8 @@ describe("cancelFriendlyMatchCore", () => {
 
   it("qualquer participante cancela jogo confirmado; com antecedência não penaliza", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now); // jogo em now+48h
-    await acceptFriendlyMatchInviteCore(db(fake), "b", {matchId}, now);
+    const matchId = await sendInvite(fake, now, ["b"]); // jogo em now+48h
+    await acceptFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now);
     await cancelFriendlyMatchCore(db(fake), "b", {matchId}, now + HOUR_MS);
     const data = matchData(fake, matchId);
     assert.equal(data.status, "cancelled");
@@ -405,26 +405,26 @@ describe("cancelFriendlyMatchCore", () => {
     assert.equal(data.cancelledByUid, "b");
   });
 
-  it("cancelar a menos de 6h do jogo marca cancelPenalized e penaliza a reputação", async () => {
+  it("cancelar a menos de 6h do jogo confirmado marca cancelPenalized e penaliza a reputação", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now); // jogo em now+48h
-    await acceptFriendlyMatchInviteCore(db(fake), "b", {matchId}, now);
+    const matchId = await sendInvite(fake, now, ["b"]); // jogo em now+48h
+    await acceptFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now);
     await cancelFriendlyMatchCore(db(fake), "a", {matchId}, now + 44 * HOUR_MS);
     const data = matchData(fake, matchId);
     assert.equal(data.cancelPenalized, true);
     assert.equal(data.cancelledByUid, "a");
-    // Evento de reputação late_cancel aplicado a quem cancelou em cima da hora.
     assert.ok(fake.store.get(`users/a/reputationEvents/late_cancel_${matchId}`));
-    const summary = fake.store.get("users/a/reputation/summary")!;
-    assert.equal(summary.lateCancellations, 1);
-    // O outro lado não é penalizado.
+    assert.equal(fake.store.get("users/a/reputation/summary")!.lateCancellations, 1);
     assert.equal(fake.store.get("users/b/reputation/summary"), undefined);
   });
 
   it("não cancela jogo já encerrado", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
-    await declineFriendlyMatchInviteCore(db(fake), "b", {matchId}, now);
+    const matchId = await sendInvite(fake, now, ["b"]);
+    await declineFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now);
+    // ainda em filling (vaga só ficou declined) — cancelar continua válido aqui;
+    // simular "já encerrado" via cancelamento direto e nova tentativa:
+    await cancelFriendlyMatchCore(db(fake), "a", {matchId}, now);
     await assertHttpsError(
       cancelFriendlyMatchCore(db(fake), "a", {matchId}, now),
       "failed-precondition",

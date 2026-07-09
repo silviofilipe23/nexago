@@ -4,7 +4,7 @@ import {Timestamp} from "firebase-admin/firestore";
 import type {Firestore} from "firebase-admin/firestore";
 import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
 import {
-  acceptFriendlyMatchInviteCore,
+  acceptFriendlyMatchInviteSlotCore,
   cancelFriendlyMatchCore,
   counterFriendlyMatchInviteCore,
   declineFriendlyMatchInviteCore,
@@ -179,86 +179,100 @@ describe("sendFriendlyMatchInviteCore", () => {
   });
 });
 
-describe("acceptFriendlyMatchInviteCore", () => {
+describe("acceptFriendlyMatchInviteSlotCore", () => {
   const now = Date.UTC(2026, 6, 10, 12, 0, 0);
 
-  it("destinatário aceita convite sent → confirmed com janelas derivadas e notificação", async () => {
+  it("único convidado aceita → confirmed direto, com janelas derivadas e notificação a todos", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
+    const matchId = await sendInvite(fake, now, ["b"]);
     const scheduled = now + 48 * HOUR_MS;
-    const result = await acceptFriendlyMatchInviteCore(db(fake), "b", {matchId}, now);
+    const result = await acceptFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now);
     const data = matchData(fake, matchId);
     assert.equal(data.status, "confirmed");
+    assert.deepEqual((data.participantUids as string[]).sort(), ["a", "b"]);
+    assert.deepEqual(data.pendingSlotUids, []);
     assert.equal((data.confirmedTime as Timestamp).toMillis(), scheduled);
     assert.equal((data.checkInOpenAt as Timestamp).toMillis(), scheduled - 30 * 60 * 1000);
-    assert.equal((data.checkInCloseAt as Timestamp).toMillis(), scheduled + 24 * HOUR_MS);
     assert.equal((data.reminder24hAt as Timestamp).toMillis(), scheduled - 24 * HOUR_MS);
-    const history = data.history as Array<{status: string}>;
-    assert.equal(history.length, 2);
-    assert.equal(result.notifications[0].userId, "a");
-    assert.equal(result.notifications[0].type, "friendly_match_confirmed");
+    assert.equal(result.notifications.length, 2);
+    assert.ok(result.notifications.every((n) => n.type === "friendly_match_confirmed"));
   });
 
-  it("aceita escolhendo um horário alternativo proposto; horário fora da proposta é rejeitado", async () => {
+  it("com 3 vagas: aceite parcial não confirma; último aceite confirma e avisa todo mundo", async () => {
     const fake = new FakeFirestore();
-    const alt = now + 72 * HOUR_MS;
-    const matchId = await sendInvite(fake, now, {alternativeTimesMs: [alt]});
-    await assertHttpsError(
-      acceptFriendlyMatchInviteCore(db(fake), "b", {matchId, chosenTimeMs: now + 99 * HOUR_MS}, now),
-      "invalid-argument",
-    );
-    await acceptFriendlyMatchInviteCore(db(fake), "b", {matchId, chosenTimeMs: alt}, now);
-    assert.equal((matchData(fake, matchId).confirmedTime as Timestamp).toMillis(), alt);
+    const matchId = await sendInvite(fake, now, ["b", "c", "d"]);
+    const r1 = await acceptFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now);
+    assert.equal(matchData(fake, matchId).status, "filling");
+    assert.equal(r1.notifications.length, 1);
+    assert.equal(r1.notifications[0].userId, "a"); // avisa o organizador
+    assert.equal(r1.notifications[0].type, "friendly_match_slot_accepted");
+
+    await acceptFriendlyMatchInviteSlotCore(db(fake), "c", {matchId}, now);
+    const r3 = await acceptFriendlyMatchInviteSlotCore(db(fake), "d", {matchId}, now);
+    const data = matchData(fake, matchId);
+    assert.equal(data.status, "confirmed");
+    assert.deepEqual((data.participantUids as string[]).sort(), ["a", "b", "c", "d"]);
+    assert.equal(r3.notifications.length, 4); // organizador + 3 convidados
+    assert.ok(r3.notifications.every((n) => n.type === "friendly_match_confirmed"));
   });
 
-  it("apenas o destinatário pode aceitar convite sent", async () => {
+  it("quem não tem vaga pendente não pode aceitar", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
+    const matchId = await sendInvite(fake, now, ["b"]);
     await assertHttpsError(
-      acceptFriendlyMatchInviteCore(db(fake), "a", {matchId}, now),
+      acceptFriendlyMatchInviteSlotCore(db(fake), "a", {matchId}, now),
       "permission-denied",
     );
     await assertHttpsError(
-      acceptFriendlyMatchInviteCore(db(fake), "intruso", {matchId}, now),
+      acceptFriendlyMatchInviteSlotCore(db(fake), "intruso", {matchId}, now),
       "permission-denied",
     );
   });
 
-  it("convite vencido vira expired no aceite e a chamada falha", async () => {
+  it("vaga vencida vira expired no aceite e a chamada falha", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
+    const matchId = await sendInvite(fake, now, ["b"]);
     const late = now + 25 * HOUR_MS;
     await assertHttpsError(
-      acceptFriendlyMatchInviteCore(db(fake), "b", {matchId}, late),
+      acceptFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, late),
       "failed-precondition",
     );
-    assert.equal(matchData(fake, matchId).status, "expired");
+    const slots = matchData(fake, matchId).slots as Array<{status: string}>;
+    assert.equal(slots[0].status, "expired");
   });
 
   it("aceite duplo falha na segunda vez", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
-    await acceptFriendlyMatchInviteCore(db(fake), "b", {matchId}, now);
+    const matchId = await sendInvite(fake, now, ["b"]);
+    await acceptFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now);
     await assertHttpsError(
-      acceptFriendlyMatchInviteCore(db(fake), "b", {matchId}, now),
+      acceptFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now),
       "failed-precondition",
     );
   });
 
-  it("após contraproposta, é o remetente quem aceita (o horário da contraproposta)", async () => {
+  it("aceita escolhendo um horário alternativo (1:1); horário fora da proposta é rejeitado", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
-    const counterTime = now + 96 * HOUR_MS;
-    await counterFriendlyMatchInviteCore(db(fake), "b", {
-      matchId,
-      scheduledAtMs: counterTime,
-    }, now);
-    // Destinatário não pode aceitar a própria contraproposta.
+    const alt = now + 72 * HOUR_MS;
+    const matchId = await sendInvite(fake, now, ["b"], {alternativeTimesMs: [alt]});
     await assertHttpsError(
-      acceptFriendlyMatchInviteCore(db(fake), "b", {matchId}, now),
+      acceptFriendlyMatchInviteSlotCore(db(fake), "b", {matchId, chosenTimeMs: now + 99 * HOUR_MS}, now),
+      "invalid-argument",
+    );
+    await acceptFriendlyMatchInviteSlotCore(db(fake), "b", {matchId, chosenTimeMs: alt}, now);
+    assert.equal((matchData(fake, matchId).confirmedTime as Timestamp).toMillis(), alt);
+  });
+
+  it("após contraproposta (1:1), é o organizador quem aceita (o horário da contraproposta)", async () => {
+    const fake = new FakeFirestore();
+    const matchId = await sendInvite(fake, now, ["b"]);
+    const counterTime = now + 96 * HOUR_MS;
+    await counterFriendlyMatchInviteCore(db(fake), "b", {matchId, scheduledAtMs: counterTime}, now);
+    await assertHttpsError(
+      acceptFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now),
       "permission-denied",
     );
-    await acceptFriendlyMatchInviteCore(db(fake), "a", {matchId}, now);
+    await acceptFriendlyMatchInviteSlotCore(db(fake), "a", {matchId}, now);
     const data = matchData(fake, matchId);
     assert.equal(data.status, "confirmed");
     assert.equal((data.confirmedTime as Timestamp).toMillis(), counterTime);

@@ -387,7 +387,17 @@ function assertResponder(data: MatchData, uid: string): void {
   }
 }
 
-export async function acceptFriendlyMatchInviteCore(
+/**
+ * Quem responde a proposta vigente da vaga: quem foi convidado, exceto
+ * quando a vaga está `countered` — aí é o organizador quem responde (a
+ * contraproposta do convidado). Só ocorre `countered` em `slotsTotal === 1`
+ * (Task 6 garante isso).
+ */
+function slotResponderUid(data: MatchData, slot: MatchData): string {
+  return slot.status === "countered" ? (data.organizerUid as string) : (slot.uid as string);
+}
+
+export async function acceptFriendlyMatchInviteSlotCore(
   db: Firestore,
   uid: string,
   input: {matchId: string; chosenTimeMs?: number},
@@ -400,66 +410,87 @@ export async function acceptFriendlyMatchInviteCore(
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError("not-found", "Convite não encontrado.");
     const data = snap.data() as MatchData;
-    assertPendingStatus(data);
-    assertResponder(data, uid);
-    if (isInviteExpired((data.expiresAt as Timestamp).toMillis(), nowMs)) {
-      commitExpiredFlip(tx, ref, data, nowMs);
+    if (data.status !== "filling") {
+      throw new HttpsError("failed-precondition", "Este jogo não está mais aguardando resposta.");
+    }
+    const slots = (data.slots as MatchData[]).slice();
+    const slotIndex = slots.findIndex((s) => slotResponderUid(data, s) === uid);
+    if (slotIndex === -1) {
+      throw new HttpsError("permission-denied", "Você não tem uma vaga pendente neste jogo.");
+    }
+    const slot = slots[slotIndex];
+    if (slot.status !== "invited" && slot.status !== "countered") {
+      throw new HttpsError("failed-precondition", "Esta vaga não está mais aguardando resposta.");
+    }
+    if (isInviteExpired((slot.expiresAt as Timestamp).toMillis(), nowMs)) {
+      slots[slotIndex] = {...slot, status: "expired"};
+      tx.set(ref, {
+        slots,
+        pendingSlotUids: pendingUidsOf(slots),
+        nextSlotExpiresAt: nextSlotExpiresAtOf(slots),
+        updatedAt: Timestamp.fromMillis(nowMs),
+        history: appendHistory(data, historyEntry("slot_expired", uid, nowMs)),
+      }, {merge: true});
       return {kind: "expired"};
     }
 
-    // Proposta vigente: a original em `sent`, a contraproposta em `countered`.
-    const counter = (data.counterProposal ?? null) as MatchData | null;
-    const proposal = data.status === "countered" && counter ? counter : data;
-    const proposalMain = (proposal.scheduledAt as Timestamp).toMillis();
-    const proposalAlts = Array.isArray(proposal.alternativeTimes) ?
-      (proposal.alternativeTimes as Timestamp[]).map((ts) => ts.toMillis()) :
-      [];
+    const counter = (slot.counterProposal ?? null) as MatchData | null;
+    const proposalMain = counter ?
+      (counter.scheduledAt as Timestamp).toMillis() : (data.scheduledAt as Timestamp).toMillis();
+    const proposalAlts = counter && Array.isArray(counter.alternativeTimes) ?
+      (counter.alternativeTimes as Timestamp[]).map((ts) => ts.toMillis()) :
+      Array.isArray(data.alternativeTimes) ?
+        (data.alternativeTimes as Timestamp[]).map((ts) => ts.toMillis()) : [];
     const chosenMs = input.chosenTimeMs ?? proposalMain;
     if (![proposalMain, ...proposalAlts].includes(chosenMs)) {
-      throw new HttpsError(
-        "invalid-argument", "Escolha um dos horários propostos.");
+      throw new HttpsError("invalid-argument", "Escolha um dos horários propostos.");
     }
 
-    const schedule = computeConfirmationSchedule(chosenMs, config, nowMs);
+    slots[slotIndex] = {...slot, status: "accepted", respondedAt: Timestamp.fromMillis(nowMs)};
+    const participantUids = [...(data.participantUids as string[]), slot.uid as string];
+    const allAccepted = slots.every((s) => s.status === "accepted");
+
     const update: MatchData = {
-      status: "confirmed",
-      statusUpdatedAt: Timestamp.fromMillis(nowMs),
+      slots,
+      pendingSlotUids: pendingUidsOf(slots),
+      nextSlotExpiresAt: nextSlotExpiresAtOf(slots),
+      participantUids,
       updatedAt: Timestamp.fromMillis(nowMs),
-      confirmedAt: Timestamp.fromMillis(nowMs),
-      confirmedTime: Timestamp.fromMillis(chosenMs),
-      // `scheduledAt` passa a ser o horário REAL do jogo (agenda/sweepers).
-      scheduledAt: Timestamp.fromMillis(chosenMs),
-      checkInOpenAt: Timestamp.fromMillis(schedule.checkInOpenAtMs),
-      checkInCloseAt: Timestamp.fromMillis(schedule.checkInCloseAtMs),
-      history: appendHistory(data, historyEntry("confirmed", uid, nowMs)),
+      history: appendHistory(data, historyEntry("slot_accepted", uid, nowMs)),
     };
-    if (schedule.reminder24hAtMs != null) {
-      update.reminder24hAt = Timestamp.fromMillis(schedule.reminder24hAtMs);
-    }
-    if (schedule.reminder2hAtMs != null) {
-      update.reminder2hAt = Timestamp.fromMillis(schedule.reminder2hAtMs);
-    }
-    // Contraproposta pode trocar o local.
-    if (data.status === "countered" && counter?.location != null) {
-      update.location = counter.location;
-    }
-    tx.set(ref, update, {merge: true});
+    if (counter?.location != null) update.location = counter.location;
 
-    const accepterName = participantName(data, uid);
-    const target = otherParticipant(data, uid);
-    return {
-      kind: "ok",
-      data,
-      notifications: [
-        notificationFor(
-          data, ref.id, target, "friendly_match_confirmed",
-          "Deu match! 🎉", `${accepterName} topou. Bora jogar!`),
-      ],
-    };
+    const notifications: FriendlyMatchNotification[] = [];
+    if (!allAccepted) {
+      const remaining = slots.filter((s) => s.status !== "accepted").length;
+      notifications.push(notificationFor(
+        data, ref.id, data.organizerUid as string, "friendly_match_slot_accepted",
+        "Vaga confirmada ✅", `${slot.name} topou! Faltam ${remaining} vaga(s).`));
+    } else {
+      const schedule = computeConfirmationSchedule(chosenMs, config, nowMs);
+      update.status = "confirmed";
+      update.statusUpdatedAt = Timestamp.fromMillis(nowMs);
+      update.confirmedAt = Timestamp.fromMillis(nowMs);
+      update.confirmedTime = Timestamp.fromMillis(chosenMs);
+      update.scheduledAt = Timestamp.fromMillis(chosenMs);
+      update.checkInOpenAt = Timestamp.fromMillis(schedule.checkInOpenAtMs);
+      update.checkInCloseAt = Timestamp.fromMillis(schedule.checkInCloseAtMs);
+      if (schedule.reminder24hAtMs != null) update.reminder24hAt = Timestamp.fromMillis(schedule.reminder24hAtMs);
+      if (schedule.reminder2hAtMs != null) update.reminder2hAt = Timestamp.fromMillis(schedule.reminder2hAtMs);
+      update.history = appendHistory(data, historyEntry("confirmed", uid, nowMs));
+      for (const participantUid of participantUids) {
+        notifications.push(notificationFor(
+          data, ref.id, participantUid, "friendly_match_confirmed",
+          "Deu match! 🎉", "Todo mundo confirmou. Bora jogar!"));
+      }
+    }
+
+    tx.set(ref, update, {merge: true});
+    return {kind: "ok", data, notifications};
   });
 
   if (outcome.kind === "expired") {
-    throw new HttpsError("failed-precondition", "Este convite expirou.");
+    throw new HttpsError("failed-precondition", "Esta vaga expirou.");
   }
   return {matchId: ref.id, notifications: outcome.notifications};
 }

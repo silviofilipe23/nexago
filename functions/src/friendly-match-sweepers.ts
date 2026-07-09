@@ -116,18 +116,15 @@ export async function sendFriendlyMatchReminderIfDue(
   if (due == null) return {sent: false, notifications: []};
 
   const title = kind === "24h" ? "Jogo amanhã! 🏐" : "Seu jogo é daqui a pouco ⏰";
-  const participants: Array<[string, string]> = [
-    [due.fromUid as string, due.toName as string],
-    [due.toUid as string, due.fromName as string],
-  ];
+  const participantUids = due.participantUids as string[];
   return {
     sent: true,
-    notifications: participants.map(([userId, otherName]) => ({
+    notifications: participantUids.map((userId) => ({
       userId,
       title,
       body: kind === "24h" ?
-        `Seu jogo com ${otherName} é amanhã. Ainda está de pé?` :
-        `Seu jogo com ${otherName} está chegando. Não esquece o check-in!`,
+        "Seu jogo é amanhã. Ainda está de pé?" :
+        "Seu jogo está chegando. Não esquece o check-in!",
       type: "friendly_match_reminder",
       data: {type: "friendly_match_reminder", matchId, reminderKind: kind},
     })),

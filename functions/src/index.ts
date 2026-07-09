@@ -259,7 +259,8 @@ export {
 } from "./friendly-match-invite";
 
 export {
-  expireFriendlyMatches,
+  expireFriendlyMatchSlots,
+  unfillFriendlyMatches,
   sendFriendlyMatchReminders,
 } from "./friendly-match-sweepers";
 

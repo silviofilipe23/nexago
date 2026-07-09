@@ -16,26 +16,6 @@ function db(fake: FakeFirestore): Firestore {
   return fake as unknown as Firestore;
 }
 
-// NOTE(task-10): `seedMatch` (old fromUid/toUid schema) is kept here because
-// `seedConfirmed` below (sendFriendlyMatchReminderIfDue tests, out of scope
-// for this task per the plan — that's Task 12) still depends on it. Only the
-// expire-related describe block below was migrated to the new slots[] schema
-// via `seedFilling`/`slot`.
-function seedMatch(fake: FakeFirestore, id: string, overrides: DocData = {}): void {
-  fake.seedDoc(`friendlyMatches/${id}`, {
-    fromUid: "a",
-    fromName: "Ana",
-    toUid: "b",
-    toName: "Bia",
-    participantUids: ["a", "b"],
-    status: "sent",
-    scheduledAt: Timestamp.fromMillis(now + 48 * HOUR_MS),
-    expiresAt: Timestamp.fromMillis(now - 1),
-    history: [{status: "sent", actorUid: "a", at: Timestamp.fromMillis(now - 24 * HOUR_MS)}],
-    ...overrides,
-  });
-}
-
 function seedFilling(fake: FakeFirestore, id: string, slots: DocData[], overrides: DocData = {}): void {
   fake.seedDoc(`friendlyMatches/${id}`, {
     organizerUid: "a",
@@ -105,33 +85,36 @@ describe("expireFriendlyMatchSlotIfDue", () => {
 });
 
 describe("sendFriendlyMatchReminderIfDue", () => {
-  function seedConfirmed(fake: FakeFirestore, id: string, overrides: DocData = {}): void {
-    seedMatch(fake, id, {
+  function seedConfirmed(fake: FakeFirestore, id: string, participantUids: string[], overrides: DocData = {}): void {
+    fake.seedDoc(`friendlyMatches/${id}`, {
+      organizerUid: "a",
+      organizerName: "Ana",
+      slots: participantUids.filter((p) => p !== "a").map((uid) => slot(uid, `Atleta ${uid}`, now, "accepted")),
+      participantUids,
       status: "confirmed",
       confirmedTime: Timestamp.fromMillis(now + 20 * HOUR_MS),
       scheduledAt: Timestamp.fromMillis(now + 20 * HOUR_MS),
       reminder24hAt: Timestamp.fromMillis(now - 60 * 1000),
       reminder2hAt: Timestamp.fromMillis(now + 18 * HOUR_MS),
-      expiresAt: Timestamp.fromMillis(now + 100 * HOUR_MS),
+      history: [],
       ...overrides,
     });
   }
 
-  it("lembrete 24h vencido → notifica os DOIS participantes e anula o campo (lock)", async () => {
+  it("lembrete 24h vencido → notifica TODOS os participantes e anula o campo (lock)", async () => {
     const fake = new FakeFirestore();
-    seedConfirmed(fake, "m1");
+    seedConfirmed(fake, "m1", ["a", "b", "c"]);
     const result = await sendFriendlyMatchReminderIfDue(db(fake), "m1", "24h", now);
     assert.equal(result.sent, true);
-    assert.equal(result.notifications.length, 2);
-    const targets = result.notifications.map((n) => n.userId).sort();
-    assert.deepEqual(targets, ["a", "b"]);
+    assert.equal(result.notifications.length, 3);
+    assert.deepEqual(result.notifications.map((n) => n.userId).sort(), ["a", "b", "c"]);
     assert.equal(result.notifications[0].type, "friendly_match_reminder");
     assert.equal(fake.store.get("friendlyMatches/m1")!.reminder24hAt, null);
   });
 
   it("segunda passada não reenvia (campo anulado)", async () => {
     const fake = new FakeFirestore();
-    seedConfirmed(fake, "m1");
+    seedConfirmed(fake, "m1", ["a", "b"]);
     await sendFriendlyMatchReminderIfDue(db(fake), "m1", "24h", now);
     const again = await sendFriendlyMatchReminderIfDue(db(fake), "m1", "24h", now);
     assert.equal(again.sent, false);
@@ -140,22 +123,21 @@ describe("sendFriendlyMatchReminderIfDue", () => {
 
   it("não envia antes da hora nem para jogo que deixou de estar confirmado", async () => {
     const fake = new FakeFirestore();
-    seedConfirmed(fake, "early", {reminder24hAt: Timestamp.fromMillis(now + HOUR_MS)});
+    seedConfirmed(fake, "early", ["a", "b"], {reminder24hAt: Timestamp.fromMillis(now + HOUR_MS)});
     const early = await sendFriendlyMatchReminderIfDue(db(fake), "early", "24h", now);
     assert.equal(early.sent, false);
 
-    seedConfirmed(fake, "gone", {status: "cancelled"});
+    seedConfirmed(fake, "gone", ["a", "b"], {status: "cancelled"});
     const gone = await sendFriendlyMatchReminderIfDue(db(fake), "gone", "24h", now);
     assert.equal(gone.sent, false);
   });
 
   it("lembrete 2h usa o campo próprio", async () => {
     const fake = new FakeFirestore();
-    seedConfirmed(fake, "m1", {reminder2hAt: Timestamp.fromMillis(now - 1)});
+    seedConfirmed(fake, "m1", ["a", "b"], {reminder2hAt: Timestamp.fromMillis(now - 1)});
     const result = await sendFriendlyMatchReminderIfDue(db(fake), "m1", "2h", now);
     assert.equal(result.sent, true);
     assert.equal(fake.store.get("friendlyMatches/m1")!.reminder2hAt, null);
-    // O de 24h continua agendado.
     assert.ok(fake.store.get("friendlyMatches/m1")!.reminder24hAt instanceof Timestamp);
   });
 });

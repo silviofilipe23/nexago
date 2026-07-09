@@ -17,11 +17,12 @@ import {
 /**
  * Bora Jogar — dia do jogo: check-in mútuo manual e fechamento de no-show.
  *
- * `realizado` (completed) exige check-in dos DOIS dentro da janela — um
- * atleta sozinho não forja jogo realizado. Depois que a janela fecha, o
- * sweeper decide: 1 check-in → no_show com penalidade só do ausente;
- * 0 check-ins → no_show sem penalidade (impossível distinguir "não rolou"
- * de "ambos esqueceram"; decisão de produto).
+ * `realizado` (completed) exige check-in de TODOS os `participantUids`
+ * dentro da janela — ninguém forja jogo realizado sozinho. Depois que a
+ * janela fecha, o sweeper decide: ≥1 check-in → no_show penalizando todo
+ * ausente (quem apareceu prova que o jogo era viável); 0 check-ins →
+ * no_show sem penalidade (impossível distinguir "não rolou" de "todo mundo
+ * esqueceu"; decisão de produto).
  */
 
 const MATCHES_COLLECTION = "friendlyMatches";
@@ -156,7 +157,7 @@ export async function closeFriendlyMatchCheckInIfDue(
 ): Promise<{closed: boolean; notifications: FriendlyMatchNotification[]}> {
   const ref = db.collection(MATCHES_COLLECTION).doc(matchId);
 
-  type Outcome = {data: MatchData; absentUids: string[]} | null;
+  type Outcome = {data: MatchData; penalizedUids: string[]; presentCount: number} | null;
 
   const outcome = await db.runTransaction<Outcome>(async (tx) => {
     const snap = await tx.get(ref);
@@ -167,12 +168,11 @@ export async function closeFriendlyMatchCheckInIfDue(
     if (closeAt == null || closeAt.toMillis() > nowMs) return null;
 
     const checkIns = (data.checkIns ?? {}) as Record<string, unknown>;
-    const participants = [data.fromUid as string, data.toUid as string];
-    const absentUids = participants.filter((p) => checkIns[p] == null);
-    // Ambos presentes seria `completed` pelo próprio check-in; defensivo.
-    if (absentUids.length === 0) return null;
-    // Penalidade só quando exatamente um faltou (decisão de produto).
-    const penalizedUids = absentUids.length === 1 ? absentUids : [];
+    const participantUids = data.participantUids as string[];
+    const presentUids = participantUids.filter((p) => checkIns[p] != null);
+    const absentUids = participantUids.filter((p) => checkIns[p] == null);
+    if (absentUids.length === 0) return null; // completed já teria cuidado disso
+    const penalizedUids = presentUids.length > 0 ? absentUids : [];
 
     tx.set(ref, {
       status: "no_show",
@@ -181,44 +181,40 @@ export async function closeFriendlyMatchCheckInIfDue(
       noShowUids: penalizedUids,
       history: appendHistory(data, historyEntry("no_show", "system", nowMs)),
     }, {merge: true});
-    return {data, absentUids: penalizedUids};
+    return {data, penalizedUids, presentCount: presentUids.length};
   });
 
   if (outcome == null) return {closed: false, notifications: []};
+  const {data, penalizedUids, presentCount} = outcome;
+  const participantUids = data.participantUids as string[];
+  const nameOf = (p: string): string =>
+    p === data.organizerUid ?
+      (data.organizerName as string) :
+      ((data.slots as MatchData[]).find((s) => s.uid === p)?.name as string ?? "Atleta");
 
-  const {data, absentUids} = outcome;
-  const fromUid = data.fromUid as string;
-  const toUid = data.toUid as string;
+  for (const p of penalizedUids) {
+    await applyReputationEvent(db, p, noShowEventId(matchId), "no_show", {matchId});
+  }
 
-  if (absentUids.length === 1) {
-    const absentUid = absentUids[0];
-    const presentUid = absentUid === fromUid ? toUid : fromUid;
-    const absentName = absentUid === fromUid ?
-      (data.fromName as string) : (data.toName as string);
-    await applyReputationEvent(
-      db, absentUid, noShowEventId(matchId), "no_show", {matchId});
+  if (presentCount === 0) {
     return {
       closed: true,
-      notifications: [
-        notification(
-          presentUid, "friendly_match_no_show", matchId,
-          "Sentimos muito 😕",
-          `${absentName} não fez check-in e o jogo foi encerrado. Bora buscar outro?`),
-        notification(
-          absentUid, "friendly_match_no_show", matchId,
-          "Você não fez check-in",
-          "O jogo foi encerrado sem a sua presença e sua reputação foi afetada."),
-      ],
+      notifications: participantUids.map((p) => notification(
+        p, "friendly_match_no_show", matchId,
+        "Jogo não confirmado", "Nenhum check-in foi feito e o jogo foi encerrado sem avaliação.")),
     };
   }
 
+  const penalizedSet = new Set(penalizedUids);
+  const penalizedNames = penalizedUids.map(nameOf).join(", ");
   return {
     closed: true,
-    notifications: [fromUid, toUid].map((userId) =>
-      notification(
-        userId, "friendly_match_no_show", matchId,
-        "Jogo não confirmado",
-        "Nenhum check-in foi feito e o jogo foi encerrado sem avaliação.")),
+    notifications: participantUids.map((p) => notification(
+      p, "friendly_match_no_show", matchId,
+      penalizedSet.has(p) ? "Você não fez check-in" : "Sentimos muito 😕",
+      penalizedSet.has(p) ?
+        "O jogo foi encerrado sem a sua presença e sua reputação foi afetada." :
+        `${penalizedNames} não fez check-in e o jogo foi encerrado. Bora buscar outro?`)),
   };
 }
 

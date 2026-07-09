@@ -2746,7 +2746,17 @@ export async function submitFriendlyMatchReviewCore(
       return {kind: "waiting"};
     }
 
-    const otherReview = otherSnap.data() as StoredReview;
+    const otherStored = otherSnap.data() as StoredReview & {
+      reviewerUid?: string; revieweeUid?: string; createdAt?: Timestamp;
+    };
+    // Reconstrói só os campos públicos — o doc privado também carrega
+    // reviewerUid/revieweeUid/createdAt (linha ~2741), que NÃO devem vazar
+    // pro campo público `reviews` (metadado de submissão, não da nota).
+    const otherReview: StoredReview = {
+      stars: otherStored.stars,
+      ...(otherStored.tags ? {tags: otherStored.tags} : {}),
+      ...(otherStored.comment ? {comment: otherStored.comment} : {}),
+    };
     const reviews = {
       ...(data.reviews as Record<string, Record<string, StoredReview>> ?? {}),
     };
@@ -2911,7 +2921,16 @@ export async function revealFriendlyMatchReviewsIfDue(
         const snap = await tx.get(
           db.doc(`${MATCHES_COLLECTION}/${matchId}/privateReviews/${reviewerUid}_${revieweeUid}`));
         if (!snap.exists) continue;
-        const stored = snap.data() as StoredReview;
+        const raw = snap.data() as StoredReview & {
+          reviewerUid?: string; revieweeUid?: string; createdAt?: Timestamp;
+        };
+        // Mesma limpeza da Task 15: o doc privado carrega reviewerUid/
+        // revieweeUid/createdAt, que não devem vazar pro campo público.
+        const stored: StoredReview = {
+          stars: raw.stars,
+          ...(raw.tags ? {tags: raw.tags} : {}),
+          ...(raw.comment ? {comment: raw.comment} : {}),
+        };
         reviews[reviewerUid] = {...(reviews[reviewerUid] ?? {}), [revieweeUid]: stored};
         newlyRevealed.push({reviewerUid, revieweeUid, review: stored});
       }

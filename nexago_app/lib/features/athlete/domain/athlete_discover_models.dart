@@ -18,12 +18,24 @@ class AthleteDiscoverQuickLevel {
   final String label;
 
   static const all = AthleteDiscoverQuickLevel(label: '');
-  static const iniciante = AthleteDiscoverQuickLevel(label: 'Iniciante');
-  static const intermediario = AthleteDiscoverQuickLevel(label: 'Intermediário');
+  static const iniciante = AthleteDiscoverQuickLevel(label: 'Iniciante 1');
+  static const iniciante2 = AthleteDiscoverQuickLevel(label: 'Iniciante 2');
+  static const intermediario = AthleteDiscoverQuickLevel(
+    label: 'Intermediário 1',
+  );
+  static const intermediario2 = AthleteDiscoverQuickLevel(
+    label: 'Intermediário 2',
+  );
   static const open = AthleteDiscoverQuickLevel(label: 'Open');
-  static const pro = AthleteDiscoverQuickLevel(label: 'Pro');
 
-  static const values = [all, iniciante, intermediario, open, pro];
+  static const values = [
+    all,
+    iniciante,
+    iniciante2,
+    intermediario,
+    intermediario2,
+    open,
+  ];
 }
 
 class AthleteDiscoverFilters {

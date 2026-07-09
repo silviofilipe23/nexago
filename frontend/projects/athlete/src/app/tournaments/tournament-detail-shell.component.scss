@@ -262,6 +262,17 @@
   min-width: 0;
 }
 
+.tdv-card--link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+}
+
 .tdv-card-kicker {
   font-family: var(--nx-font-mono);
   font-size: 9px;

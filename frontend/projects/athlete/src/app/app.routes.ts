@@ -137,6 +137,14 @@ export const routes: Routes = [
       import('./tournaments/league-detail-shell.component').then((m) => m.LeagueDetailShellComponent),
   },
   {
+    path: 'torneios/:id/chaves',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./tournaments/tournament-brackets.component').then(
+        (m) => m.TournamentBracketsComponent,
+      ),
+  },
+  {
     path: 'torneios/:id/inscricao/pagamento',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>

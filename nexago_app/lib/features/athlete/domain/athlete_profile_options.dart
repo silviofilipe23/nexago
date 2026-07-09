@@ -16,10 +16,11 @@ abstract final class AthleteProfileOptions {
   /// Escada legada de 3 níveis — segue valendo para esportes sem escada
   /// própria (e para o nível global do perfil).
   static const List<String> levels = [
-    'Iniciante',
-    'Intermediário',
+    'Iniciante 1',
+    'Iniciante 2',
+    'Intermediário 1',
+    'Intermediário 2',
     'Open',
-    // 'Pro',
   ];
 
   /// Escada de 5 níveis do vôlei (praia e quadra) — espelho de
@@ -52,8 +53,8 @@ abstract final class AthleteProfileOptions {
     if (v.isEmpty) return '';
     const legacy = <String, String>{
       'Open / federado': 'Open',
-      'Básico': 'Iniciante',
-      // 'Avançado': 'Pro',
+      'Básico': 'Iniciante 1',
+      'Avançado': 'Intermediário 1',
     };
     if (legacy.containsKey(v)) return legacy[v]!;
     return v;

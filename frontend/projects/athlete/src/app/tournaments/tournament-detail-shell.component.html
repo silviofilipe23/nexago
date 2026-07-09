@@ -159,7 +159,7 @@
               </section>
             }
 
-            <section class="tdv-card">
+            <a [routerLink]="['/torneios', t.id, 'chaves']" class="tdv-card tdv-card--link">
               <span class="tdv-card-kicker">{{ bracketLabel() }}</span>
               <h2 class="tdv-card-title">Chaves e resultados</h2>
               <div class="tdv-bracket" [attr.data-state]="x.bracketState">
@@ -175,7 +175,7 @@
                   <span class="tdv-bracket-slot">B2</span>
                 </div>
               </div>
-            </section>
+            </a>
 
             @if (x.announcements.length > 0) {
               <section class="tdv-card">

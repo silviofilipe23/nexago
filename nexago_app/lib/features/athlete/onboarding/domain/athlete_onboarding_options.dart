@@ -89,21 +89,25 @@ abstract final class AthleteOnboardingOptions {
 
   static const List<OnboardingLevelOption> levels = [
     OnboardingLevelOption(
-      label: 'Iniciante',
+      label: 'Iniciante 1',
       description: 'Estou começando ou jogo pouco tempo.',
     ),
     OnboardingLevelOption(
-      label: 'Intermediário',
+      label: 'Iniciante 2',
       description: 'Jogo com regularidade e tenho boa experiência.',
+    ),
+    OnboardingLevelOption(
+      label: 'Intermediário 1',
+      description: 'Tenho alto nível amador e disputo torneios competitivos.',
+    ),
+    OnboardingLevelOption(
+      label: 'Intermediário 2',
+      description: 'Já domino o básico e jogo com frequência.',
     ),
     OnboardingLevelOption(
       label: 'Open',
       description: 'Tenho alto nível amador e disputo torneios competitivos.',
     ),
-    // OnboardingLevelOption(
-    //   label: 'Pro',
-    //   description: 'Alto nível, torneios profissionais ou federados.',
-    // ),
   ];
 
   /// Escada de 5 níveis do vôlei (praia e quadra) — espelho de

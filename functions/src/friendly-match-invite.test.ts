@@ -27,16 +27,17 @@ function seedProfile(fake: FakeFirestore, uid: string, overrides: DocData = {}):
   });
 }
 
-/** Envia um convite válido de a→b e retorna o id criado. */
+/** Envia um convite válido organizador→[toUids] e retorna o id criado. */
 async function sendInvite(
   fake: FakeFirestore,
   nowMs: number,
+  toUids: string[] = ["b"],
   overrides: Record<string, unknown> = {},
 ): Promise<string> {
   seedProfile(fake, "a");
-  seedProfile(fake, "b");
+  for (const toUid of toUids) seedProfile(fake, toUid);
   const result = await sendFriendlyMatchInviteCore(db(fake), "a", {
-    toUid: "b",
+    toUids,
     sport: "volei_praia",
     objective: "friendly",
     scheduledAtMs: nowMs + 48 * HOUR_MS,
@@ -62,55 +63,69 @@ async function assertHttpsError(promise: Promise<unknown>, code: string): Promis
 describe("sendFriendlyMatchInviteCore", () => {
   const now = Date.UTC(2026, 6, 10, 12, 0, 0);
 
-  it("cria o convite com estado sent, score congelado, expiração e história", async () => {
+  it("cria o jogo 1:1 (slotsTotal=1) com slot invited, score por slot, expiração e história", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
+    const matchId = await sendInvite(fake, now, ["b"]);
     const data = matchData(fake, matchId);
-    assert.equal(data.status, "sent");
-    assert.equal(data.fromUid, "a");
-    assert.equal(data.toUid, "b");
-    assert.deepEqual(data.participantUids, ["a", "b"]);
-    assert.equal(typeof data.scoreAtSend, "number");
-    assert.ok((data.scoreAtSend as number) > 0);
-    assert.ok(data.scoreBreakdown != null);
-    assert.equal((data.expiresAt as Timestamp).toMillis(), now + 24 * HOUR_MS);
+    assert.equal(data.status, "filling");
+    assert.equal(data.organizerUid, "a");
+    assert.equal(data.slotsTotal, 1);
+    assert.deepEqual(data.participantUids, ["a"]);
+    assert.deepEqual(data.pendingSlotUids, ["b"]);
+    const slots = data.slots as Array<Record<string, unknown>>;
+    assert.equal(slots.length, 1);
+    assert.equal(slots[0].uid, "b");
+    assert.equal(slots[0].status, "invited");
+    assert.ok((slots[0].scoreAtSend as number) > 0);
+    assert.equal((slots[0].expiresAt as Timestamp).toMillis(), now + 24 * HOUR_MS);
+    assert.equal((data.nextSlotExpiresAt as Timestamp).toMillis(), now + 24 * HOUR_MS);
     const history = data.history as Array<{status: string; actorUid: string}>;
     assert.equal(history.length, 1);
-    assert.equal(history[0].status, "sent");
-    assert.equal(history[0].actorUid, "a");
+    assert.equal(history[0].status, "filling");
   });
 
-  it("notifica o destinatário com tipo friendly_match_invite e matchId", async () => {
+  it("cria jogo com N vagas — uma notificação por convidado, todas invited", async () => {
     const fake = new FakeFirestore();
     seedProfile(fake, "a");
     seedProfile(fake, "b");
+    seedProfile(fake, "c");
+    seedProfile(fake, "d");
     const result = await sendFriendlyMatchInviteCore(db(fake), "a", {
-      toUid: "b",
+      toUids: ["b", "c", "d"],
       sport: "volei_praia",
       objective: "friendly",
       scheduledAtMs: now + 48 * HOUR_MS,
       location: {freeText: "Praia de Camburi"},
     }, now);
-    assert.equal(result.notifications.length, 1);
-    const notification = result.notifications[0];
-    assert.equal(notification.userId, "b");
-    assert.equal(notification.type, "friendly_match_invite");
-    assert.equal(notification.data.matchId, result.matchId);
+    const data = matchData(fake, result.matchId);
+    assert.equal(data.slotsTotal, 3);
+    assert.deepEqual(data.pendingSlotUids, ["b", "c", "d"]);
+    assert.equal(result.notifications.length, 3);
+    assert.deepEqual(result.notifications.map((n) => n.userId).sort(), ["b", "c", "d"]);
+    assert.ok(result.notifications.every((n) => n.type === "friendly_match_invite"));
   });
 
-  it("rejeita convite para si mesmo", async () => {
+  it("rejeita horários alternativos quando há mais de 1 convidado", async () => {
     const fake = new FakeFirestore();
-    seedProfile(fake, "a");
     await assertHttpsError(
-      sendFriendlyMatchInviteCore(db(fake), "a", {
-        toUid: "a",
-        sport: "volei_praia",
-        objective: "friendly",
-        scheduledAtMs: now + HOUR_MS,
-        location: {freeText: "x"},
-      }, now),
+      sendInvite(fake, now, ["b", "c"], {alternativeTimesMs: [now + 50 * HOUR_MS]}),
       "invalid-argument",
     );
+  });
+
+  it("rejeita lista de convidados vazia, convite a si mesmo e duplicata na mesma lista", async () => {
+    const fake = new FakeFirestore();
+    seedProfile(fake, "a");
+    seedProfile(fake, "b");
+    await assertHttpsError(sendInvite(fake, now, []), "invalid-argument");
+    await assertHttpsError(sendInvite(fake, now, ["a"]), "invalid-argument");
+    await assertHttpsError(sendInvite(fake, now, ["b", "b"]), "invalid-argument");
+  });
+
+  it("rejeita mais que MAX_INVITEES convidados", async () => {
+    const fake = new FakeFirestore();
+    const many = Array.from({length: 11}, (_, i) => `u${i}`);
+    await assertHttpsError(sendInvite(fake, now, many), "invalid-argument");
   });
 
   it("rejeita destinatário sem perfil público", async () => {
@@ -118,26 +133,20 @@ describe("sendFriendlyMatchInviteCore", () => {
     seedProfile(fake, "a");
     await assertHttpsError(
       sendFriendlyMatchInviteCore(db(fake), "a", {
-        toUid: "ghost",
-        sport: "volei_praia",
-        objective: "friendly",
-        scheduledAtMs: now + HOUR_MS,
-        location: {freeText: "x"},
+        toUids: ["ghost"], sport: "volei_praia", objective: "friendly",
+        scheduledAtMs: now + HOUR_MS, location: {freeText: "x"},
       }, now),
       "not-found",
     );
   });
 
-  it("rejeita horário no passado, local vazio, mensagem longa e mais de 2 alternativas", async () => {
+  it("rejeita horário no passado, local vazio e mensagem longa", async () => {
     const fake = new FakeFirestore();
     seedProfile(fake, "a");
     seedProfile(fake, "b");
     const valid = {
-      toUid: "b",
-      sport: "volei_praia",
-      objective: "friendly" as const,
-      scheduledAtMs: now + HOUR_MS,
-      location: {freeText: "x"},
+      toUids: ["b"], sport: "volei_praia", objective: "friendly" as const,
+      scheduledAtMs: now + HOUR_MS, location: {freeText: "x"},
     };
     await assertHttpsError(
       sendFriendlyMatchInviteCore(db(fake), "a", {...valid, scheduledAtMs: now - 1}, now),
@@ -151,36 +160,19 @@ describe("sendFriendlyMatchInviteCore", () => {
       sendFriendlyMatchInviteCore(db(fake), "a", {...valid, message: "x".repeat(301)}, now),
       "invalid-argument",
     );
-    await assertHttpsError(
-      sendFriendlyMatchInviteCore(db(fake), "a", {
-        ...valid,
-        alternativeTimesMs: [now + HOUR_MS, now + 2 * HOUR_MS, now + 3 * HOUR_MS],
-      }, now),
-      "invalid-argument",
-    );
   });
 
-  it("rejeita novo convite enquanto houver convite pendente entre o par (nas duas direções)", async () => {
+  it("rejeita novo convite enquanto houver convite pendente entre organizador e convidado (nas duas direções)", async () => {
     const fake = new FakeFirestore();
-    await sendInvite(fake, now);
-    await assertHttpsError(
-      sendFriendlyMatchInviteCore(db(fake), "a", {
-        toUid: "b",
-        sport: "volei_praia",
-        objective: "friendly",
-        scheduledAtMs: now + HOUR_MS,
-        location: {freeText: "x"},
-      }, now),
-      "failed-precondition",
-    );
-    // Direção inversa também bloqueia.
+    await sendInvite(fake, now, ["b"]);
+    await assertHttpsError(sendInvite(fake, now, ["b"]), "failed-precondition");
+    // Direção inversa também bloqueia: b tentando convidar a.
+    seedProfile(fake, "b");
+    seedProfile(fake, "a");
     await assertHttpsError(
       sendFriendlyMatchInviteCore(db(fake), "b", {
-        toUid: "a",
-        sport: "volei_praia",
-        objective: "friendly",
-        scheduledAtMs: now + HOUR_MS,
-        location: {freeText: "x"},
+        toUids: ["a"], sport: "volei_praia", objective: "friendly",
+        scheduledAtMs: now + HOUR_MS, location: {freeText: "x"},
       }, now),
       "failed-precondition",
     );

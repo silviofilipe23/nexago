@@ -34,7 +34,8 @@ const MATCHES_COLLECTION = "friendlyMatches";
 const HOUR_MS = 60 * 60 * 1000;
 const MAX_MESSAGE_LENGTH = 300;
 const MAX_ALTERNATIVE_TIMES = 2;
-const PENDING_STATUSES = ["sent", "countered"] as const;
+const MAX_INVITEES = 10;
+const PENDING_SLOT_STATUSES = ["invited", "countered"] as const;
 const OBJECTIVES: readonly FriendlyMatchObjective[] = ["training", "friendly", "partner"];
 
 export type FriendlyMatchNotification = {
@@ -52,7 +53,7 @@ export type FriendlyMatchLocation = {
 };
 
 export type SendFriendlyMatchInput = {
-  toUid: string;
+  toUids: string[];
   sport: string;
   objective: FriendlyMatchObjective;
   scheduledAtMs: number;
@@ -175,25 +176,61 @@ function notificationFor(
   return {userId: targetUid, title, body, type, data: {type, matchId}};
 }
 
-/** Convite `sent|countered` pendente entre o par, em qualquer direção. */
-async function hasPendingInviteBetween(
+/** Convite pendente (vaga invited/countered) entre A e B, em qualquer direção como organizador. */
+async function hasPendingInviteWith(
   db: Firestore,
   uidA: string,
   uidB: string,
 ): Promise<boolean> {
-  for (const [fromUid, toUid] of [[uidA, uidB], [uidB, uidA]]) {
-    for (const status of PENDING_STATUSES) {
-      const snap = await db
-        .collection(MATCHES_COLLECTION)
-        .where("fromUid", "==", fromUid)
-        .where("toUid", "==", toUid)
-        .where("status", "==", status)
-        .limit(1)
-        .get();
-      if (snap.docs.length > 0) return true;
-    }
+  for (const [organizerUid, otherUid] of [[uidA, uidB], [uidB, uidA]]) {
+    const snap = await db
+      .collection(MATCHES_COLLECTION)
+      .where("organizerUid", "==", organizerUid)
+      .where("pendingSlotUids", "array-contains", otherUid)
+      .limit(1)
+      .get();
+    if (snap.docs.length > 0) return true;
   }
   return false;
+}
+
+function pendingUidsOf(slots: MatchData[]): string[] {
+  return slots
+    .filter((s) => PENDING_SLOT_STATUSES.includes(s.status as typeof PENDING_SLOT_STATUSES[number]))
+    .map((s) => s.uid as string);
+}
+
+function nextSlotExpiresAtOf(slots: MatchData[]): Timestamp | null {
+  let min: Timestamp | null = null;
+  for (const s of slots) {
+    if (!PENDING_SLOT_STATUSES.includes(s.status as typeof PENDING_SLOT_STATUSES[number])) continue;
+    const at = s.expiresAt as Timestamp;
+    if (min == null || at.toMillis() < min.toMillis()) min = at;
+  }
+  return min;
+}
+
+function sanitizeToUids(raw: unknown, organizerUid: string): string[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new HttpsError("invalid-argument", "Escolha ao menos um atleta para convidar.");
+  }
+  if (raw.length > MAX_INVITEES) {
+    throw new HttpsError("invalid-argument", `Convide no máximo ${MAX_INVITEES} atletas.`);
+  }
+  const seen = new Set<string>();
+  const toUids: string[] = [];
+  for (const value of raw) {
+    const toUid = typeof value === "string" ? value.trim() : "";
+    if (!toUid || toUid === organizerUid) {
+      throw new HttpsError("invalid-argument", "Escolha outro atleta para convidar.");
+    }
+    if (seen.has(toUid)) {
+      throw new HttpsError("invalid-argument", "Não é possível convidar o mesmo atleta duas vezes.");
+    }
+    seen.add(toUid);
+    toUids.push(toUid);
+  }
+  return toUids;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,10 +243,7 @@ export async function sendFriendlyMatchInviteCore(
   input: SendFriendlyMatchInput,
   nowMs: number = Date.now(),
 ): Promise<FriendlyMatchActionResult> {
-  const toUid = typeof input.toUid === "string" ? input.toUid.trim() : "";
-  if (!toUid || toUid === uid) {
-    throw new HttpsError("invalid-argument", "Escolha outro atleta para convidar.");
-  }
+  const toUids = sanitizeToUids(input.toUids, uid);
   const sport = typeof input.sport === "string" ? input.sport.trim() : "";
   if (!sport) {
     throw new HttpsError("invalid-argument", "Informe o esporte do jogo.");
@@ -218,72 +252,88 @@ export async function sendFriendlyMatchInviteCore(
     throw new HttpsError("invalid-argument", "Objetivo do jogo inválido.");
   }
   const scheduledAtMs = requireFutureMs(input.scheduledAtMs, nowMs, "Horário do jogo");
-  const alternativeTimesMs = sanitizeAlternativeTimes(input.alternativeTimesMs, nowMs);
+  if (toUids.length > 1 && input.alternativeTimesMs != null && input.alternativeTimesMs.length > 0) {
+    throw new HttpsError(
+      "invalid-argument", "Horários alternativos só valem para convite a uma pessoa.");
+  }
+  const alternativeTimesMs = toUids.length === 1 ?
+    sanitizeAlternativeTimes(input.alternativeTimesMs, nowMs) : [];
   const location = sanitizeLocation(input.location);
   const message = sanitizeMessage(input.message);
 
-  const [senderSnap, recipientSnap] = await Promise.all([
+  const [senderSnap, ...recipientSnaps] = await Promise.all([
     db.doc(`public_profiles/${uid}`).get(),
-    db.doc(`public_profiles/${toUid}`).get(),
+    ...toUids.map((toUid) => db.doc(`public_profiles/${toUid}`).get()),
   ]);
-  if (!recipientSnap.exists) {
-    throw new HttpsError("not-found", "Atleta não encontrado.");
-  }
+  recipientSnaps.forEach((snap, i) => {
+    if (!snap.exists) throw new HttpsError("not-found", `Atleta não encontrado: ${toUids[i]}`);
+  });
   const senderProfile = (senderSnap.data() ?? {}) as MatchData;
-  const recipientProfile = (recipientSnap.data() ?? {}) as MatchData;
 
-  if (await hasPendingInviteBetween(db, uid, toUid)) {
-    throw new HttpsError(
-      "failed-precondition", "Já existe um convite pendente entre vocês.");
+  for (const toUid of toUids) {
+    if (await hasPendingInviteWith(db, uid, toUid)) {
+      throw new HttpsError(
+        "failed-precondition", "Já existe um convite pendente entre vocês.");
+    }
   }
 
   const config = await loadFriendlyMatchConfig(db);
-  const {score, breakdown} = computeCompatibilityScore({
-    sport,
-    objective: input.objective,
-    sender: compatibilityProfileOf(senderProfile),
-    recipient: compatibilityProfileOf(recipientProfile),
+  const fromName = displayNameOf(senderProfile);
+  const now = Timestamp.fromMillis(nowMs);
+  const expiresAt = Timestamp.fromMillis(nowMs + config.inviteExpirationHours * HOUR_MS);
+
+  const slots: MatchData[] = toUids.map((toUid, i) => {
+    const recipientProfile = recipientSnaps[i].data() as MatchData;
+    const {score, breakdown} = computeCompatibilityScore({
+      sport, objective: input.objective,
+      sender: compatibilityProfileOf(senderProfile),
+      recipient: compatibilityProfileOf(recipientProfile),
+    });
+    const photoUrl = photoUrlOf(recipientProfile);
+    return {
+      uid: toUid,
+      name: displayNameOf(recipientProfile),
+      photoUrl: photoUrl ?? null,
+      status: "invited",
+      invitedAt: now,
+      respondedAt: null,
+      expiresAt,
+      scoreAtSend: score,
+      scoreBreakdown: breakdown,
+    };
   });
 
-  const fromName = displayNameOf(senderProfile);
-  const toName = displayNameOf(recipientProfile);
-  const now = Timestamp.fromMillis(nowMs);
   const doc: MatchData = {
-    fromUid: uid,
-    fromName,
-    toUid,
-    toName,
-    participantUids: [uid, toUid],
+    organizerUid: uid,
+    organizerName: fromName,
+    slotsTotal: toUids.length,
+    slots,
+    participantUids: [uid],
+    pendingSlotUids: pendingUidsOf(slots),
+    nextSlotExpiresAt: nextSlotExpiresAtOf(slots),
     sport,
     objective: input.objective,
     scheduledAt: Timestamp.fromMillis(scheduledAtMs),
     alternativeTimes: alternativeTimesMs.map((ms) => Timestamp.fromMillis(ms)),
     location,
-    scoreAtSend: score,
-    scoreBreakdown: breakdown,
-    status: "sent",
+    status: "filling",
     statusUpdatedAt: now,
-    history: [historyEntry("sent", uid, nowMs)],
-    expiresAt: Timestamp.fromMillis(nowMs + config.inviteExpirationHours * HOUR_MS),
+    history: [historyEntry("filling", uid, nowMs)],
     createdAt: now,
     updatedAt: now,
   };
   const fromPhotoUrl = photoUrlOf(senderProfile);
-  const toPhotoUrl = photoUrlOf(recipientProfile);
-  if (fromPhotoUrl) doc.fromPhotoUrl = fromPhotoUrl;
-  if (toPhotoUrl) doc.toPhotoUrl = toPhotoUrl;
+  if (fromPhotoUrl) doc.organizerPhotoUrl = fromPhotoUrl;
   if (message) doc.message = message;
 
   const ref = await db.collection(MATCHES_COLLECTION).add(doc);
-  const body = input.objective === "partner" ?
-    `${fromName} quer formar dupla com você` :
-    `${fromName} te convidou para jogar`;
-  return {
-    matchId: ref.id,
-    notifications: [
-      notificationFor(doc, ref.id, toUid, "friendly_match_invite", "Bora jogar? 🏐", body),
-    ],
-  };
+  const notifications = slots.map((slot) => {
+    const body = input.objective === "partner" ?
+      `${fromName} quer formar dupla com você` :
+      `${fromName} te convidou para jogar`;
+    return notificationFor(doc, ref.id, slot.uid as string, "friendly_match_invite", "Bora jogar? 🏐", body);
+  });
+  return {matchId: ref.id, notifications};
 }
 
 // ---------------------------------------------------------------------------

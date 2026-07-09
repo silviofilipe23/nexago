@@ -1786,23 +1786,24 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
-    // Bora Jogar — convites/jogos avulsos entre atletas.
-    // Escrita exclusiva via Cloud Functions; leitura só dos participantes.
-    // Os três disjuntos existem para queries por fromUid, toUid OU
-    // participantUids passarem na prova de rules (o motor não deduz que
-    // participantUids == [fromUid, toUid]).
+    // Bora Jogar — convites/jogos avulsos entre atletas (N participantes).
+    // Escrita exclusiva via Cloud Functions; leitura de quem já é
+    // organizador/confirmado (participantUids) OU tem vaga pendente
+    // (pendingSlotUids) — sem o segundo disjunto, quem ainda não respondeu
+    // o próprio convite não conseguiria nem ler pra decidir.
     match /friendlyMatches/{matchId} {
       allow read: if request.auth != null && (
-        resource.data.fromUid == request.auth.uid ||
-        resource.data.toUid == request.auth.uid ||
-        request.auth.uid in resource.data.participantUids
+        resource.data.organizerUid == request.auth.uid ||
+        request.auth.uid in resource.data.participantUids ||
+        request.auth.uid in resource.data.pendingSlotUids
       );
       allow create, update, delete: if false;
 
       // Avaliações double-blind: notas ficam ilegíveis até o reveal (só a
       // Cloud Function lê/escreve via Admin SDK). Sem este bloco o catch-all
-      // do fim do arquivo daria read a qualquer autenticado.
-      match /privateReviews/{reviewerUid} {
+      // do fim do arquivo daria read a qualquer autenticado. Chave composta
+      // reviewerUid_revieweeUid (cada avaliador avalia N-1 pessoas).
+      match /privateReviews/{reviewKey} {
         allow read, write: if false;
       }
     }

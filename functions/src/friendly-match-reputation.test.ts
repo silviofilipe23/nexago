@@ -46,7 +46,7 @@ describe("ids determinísticos de eventos", () => {
     assert.equal(matchCompletedEventId("m1"), "match_completed_m1");
     assert.equal(noShowEventId("m1"), "no_show_m1");
     assert.equal(lateCancelEventId("m1"), "late_cancel_m1");
-    assert.equal(reviewReceivedEventId("m1", "u2", "u3"), "review_received_m1_u2_u3");
+    assert.equal(reviewReceivedEventId("m1", "u2"), "review_received_m1_u2");
   });
 });
 
@@ -80,10 +80,10 @@ describe("applyReputationEvent", () => {
   it("avaliação recebida acumula soma/contagem e recalcula média", async () => {
     const fake = new FakeFirestore();
     await applyReputationEvent(
-      db(fake), "u1", reviewReceivedEventId("m1", "u2", "u9"), "review_received",
+      db(fake), "u1", reviewReceivedEventId("m1", "u2"), "review_received",
       {matchId: "m1", stars: 5});
     await applyReputationEvent(
-      db(fake), "u1", reviewReceivedEventId("m2", "u3", "u9"), "review_received",
+      db(fake), "u1", reviewReceivedEventId("m2", "u3"), "review_received",
       {matchId: "m2", stars: 3});
     const summary = fake.store.get("users/u1/reputation/summary")!;
     assert.equal(summary.ratingSum, 8);

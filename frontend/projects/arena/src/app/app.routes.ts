@@ -35,7 +35,7 @@ export const routes: Routes = [
     title: 'Painel — NexaGO Arena',
     canActivate: [authGuard],
     loadComponent: () =>
-      import('./painel/panel-home.component').then((m) => m.PanelHomeComponent),
+      import('./painel/home/panel-home.component').then((m) => m.PanelHomeComponent),
   },
   { path: '**', redirectTo: '' },
 ];

@@ -251,9 +251,10 @@ export {
 
 export {
   sendFriendlyMatchInvite,
-  acceptFriendlyMatchInvite,
-  declineFriendlyMatchInvite,
+  acceptFriendlyMatchInviteSlot,
+  declineFriendlyMatchInviteSlot,
   counterFriendlyMatchInvite,
+  fillFriendlyMatchSlot,
   cancelFriendlyMatch,
 } from "./friendly-match-invite";
 

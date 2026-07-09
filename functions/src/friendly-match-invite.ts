@@ -804,18 +804,18 @@ export const sendFriendlyMatchInvite = onCall(async (request) => {
   return {matchId: result.matchId};
 });
 
-export const acceptFriendlyMatchInvite = onCall(async (request) => {
+export const acceptFriendlyMatchInviteSlot = onCall(async (request) => {
   const uid = requireAuth(request.auth?.uid);
   const data = request.data as {matchId: string; chosenTimeMs?: number};
-  const result = await acceptFriendlyMatchInviteCore(getFirestore(), uid, data);
+  const result = await acceptFriendlyMatchInviteSlotCore(getFirestore(), uid, data);
   await deliverAll(result.notifications);
   return {matchId: result.matchId};
 });
 
-export const declineFriendlyMatchInvite = onCall(async (request) => {
+export const declineFriendlyMatchInviteSlot = onCall(async (request) => {
   const uid = requireAuth(request.auth?.uid);
   const data = request.data as {matchId: string; reason?: string};
-  const result = await declineFriendlyMatchInviteCore(getFirestore(), uid, data);
+  const result = await declineFriendlyMatchInviteSlotCore(getFirestore(), uid, data);
   await deliverAll(result.notifications);
   return {matchId: result.matchId};
 });
@@ -830,6 +830,14 @@ export const counterFriendlyMatchInvite = onCall(async (request) => {
     message?: string;
   };
   const result = await counterFriendlyMatchInviteCore(getFirestore(), uid, data);
+  await deliverAll(result.notifications);
+  return {matchId: result.matchId};
+});
+
+export const fillFriendlyMatchSlot = onCall(async (request) => {
+  const uid = requireAuth(request.auth?.uid);
+  const data = request.data as {matchId: string; slotIndex: number; toUid: string};
+  const result = await fillFriendlyMatchSlotCore(getFirestore(), uid, data);
   await deliverAll(result.notifications);
   return {matchId: result.matchId};
 });

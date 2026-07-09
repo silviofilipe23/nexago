@@ -354,39 +354,6 @@ function matchRef(db: Firestore, matchId: string): DocumentReference {
   return db.collection(MATCHES_COLLECTION).doc(id);
 }
 
-/** Quem responde a proposta vigente: destinatário em `sent`, remetente em `countered`. */
-function responderOf(data: MatchData): string {
-  return data.status === "sent" ? (data.toUid as string) : (data.fromUid as string);
-}
-
-/** Commita o flip para expired dentro da transação (durável). */
-function commitExpiredFlip(
-  tx: {set: (ref: DocumentReference, data: MatchData, opts: {merge: boolean}) => void},
-  ref: DocumentReference,
-  data: MatchData,
-  nowMs: number,
-): void {
-  tx.set(ref, {
-    status: "expired",
-    statusUpdatedAt: Timestamp.fromMillis(nowMs),
-    updatedAt: Timestamp.fromMillis(nowMs),
-    history: appendHistory(data, historyEntry("expired", "system", nowMs)),
-  }, {merge: true});
-}
-
-function assertPendingStatus(data: MatchData): void {
-  if (!PENDING_STATUSES.includes(data.status as typeof PENDING_STATUSES[number])) {
-    throw new HttpsError(
-      "failed-precondition", "Este convite não está mais aguardando resposta.");
-  }
-}
-
-function assertResponder(data: MatchData, uid: string): void {
-  if (responderOf(data) !== uid) {
-    throw new HttpsError("permission-denied", "Não é você quem responde este convite.");
-  }
-}
-
 /**
  * Quem responde a proposta vigente da vaga: quem foi convidado, exceto
  * quando a vaga está `countered` — aí é o organizador quem responde (a
@@ -495,7 +462,7 @@ export async function acceptFriendlyMatchInviteSlotCore(
   return {matchId: ref.id, notifications: outcome.notifications};
 }
 
-export async function declineFriendlyMatchInviteCore(
+export async function declineFriendlyMatchInviteSlotCore(
   db: Firestore,
   uid: string,
   input: {matchId: string; reason?: string},
@@ -506,38 +473,58 @@ export async function declineFriendlyMatchInviteCore(
     const snap = await tx.get(ref);
     if (!snap.exists) throw new HttpsError("not-found", "Convite não encontrado.");
     const data = snap.data() as MatchData;
-    assertPendingStatus(data);
-    assertResponder(data, uid);
-    if (isInviteExpired((data.expiresAt as Timestamp).toMillis(), nowMs)) {
-      commitExpiredFlip(tx, ref, data, nowMs);
+    if (data.status !== "filling") {
+      throw new HttpsError("failed-precondition", "Este jogo não está mais aguardando resposta.");
+    }
+    const slots = (data.slots as MatchData[]).slice();
+    const slotIndex = slots.findIndex((s) => slotResponderUid(data, s) === uid);
+    if (slotIndex === -1) {
+      throw new HttpsError("permission-denied", "Você não responde a nenhuma vaga neste jogo.");
+    }
+    const slot = slots[slotIndex];
+    if (slot.status !== "invited" && slot.status !== "countered") {
+      throw new HttpsError("failed-precondition", "Esta vaga não está mais aguardando resposta.");
+    }
+    if (isInviteExpired((slot.expiresAt as Timestamp).toMillis(), nowMs)) {
+      slots[slotIndex] = {...slot, status: "expired"};
+      tx.set(ref, {
+        slots,
+        pendingSlotUids: pendingUidsOf(slots),
+        nextSlotExpiresAt: nextSlotExpiresAtOf(slots),
+        updatedAt: Timestamp.fromMillis(nowMs),
+        history: appendHistory(data, historyEntry("slot_expired", uid, nowMs)),
+      }, {merge: true});
       return {kind: "expired"};
     }
 
-    const update: MatchData = {
-      status: "declined",
-      statusUpdatedAt: Timestamp.fromMillis(nowMs),
-      updatedAt: Timestamp.fromMillis(nowMs),
-      history: appendHistory(data, historyEntry("declined", uid, nowMs)),
-    };
     const reason = sanitizeMessage(input.reason);
-    if (reason) update.declineReason = reason;
-    tx.set(ref, update, {merge: true});
+    slots[slotIndex] = {
+      ...slot,
+      status: "declined",
+      respondedAt: Timestamp.fromMillis(nowMs),
+      ...(reason ? {declineReason: reason} : {}),
+    };
+    tx.set(ref, {
+      slots,
+      pendingSlotUids: pendingUidsOf(slots),
+      nextSlotExpiresAt: nextSlotExpiresAtOf(slots),
+      updatedAt: Timestamp.fromMillis(nowMs),
+      history: appendHistory(data, historyEntry("slot_declined", uid, nowMs)),
+    }, {merge: true});
 
-    const declinerName = participantName(data, uid);
-    const target = otherParticipant(data, uid);
     return {
       kind: "ok",
       data,
       notifications: [
         notificationFor(
-          data, ref.id, target, "friendly_match_declined",
-          "Não rolou desta vez", `${declinerName} não pode jogar agora.`),
+          data, ref.id, data.organizerUid as string, "friendly_match_slot_declined",
+          "Vaga recusada", `${slot.name} não pode jogar. Escolha outra pessoa pra vaga.`),
       ],
     };
   });
 
   if (outcome.kind === "expired") {
-    throw new HttpsError("failed-precondition", "Este convite expirou.");
+    throw new HttpsError("failed-precondition", "Esta vaga expirou.");
   }
   return {matchId: ref.id, notifications: outcome.notifications};
 }

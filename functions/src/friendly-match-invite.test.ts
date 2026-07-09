@@ -7,7 +7,7 @@ import {
   acceptFriendlyMatchInviteSlotCore,
   cancelFriendlyMatchCore,
   counterFriendlyMatchInviteCore,
-  declineFriendlyMatchInviteCore,
+  declineFriendlyMatchInviteSlotCore,
   sendFriendlyMatchInviteCore,
 } from "./friendly-match-invite";
 
@@ -279,34 +279,49 @@ describe("acceptFriendlyMatchInviteSlotCore", () => {
   });
 });
 
-describe("declineFriendlyMatchInviteCore", () => {
+describe("declineFriendlyMatchInviteSlotCore", () => {
   const now = Date.UTC(2026, 6, 10, 12, 0, 0);
 
-  it("destinatário recusa sent → declined e notifica remetente", async () => {
+  it("convidado recusa → vaga declined, jogo continua filling, notifica organizador", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
-    const result = await declineFriendlyMatchInviteCore(db(fake), "b", {matchId}, now);
-    assert.equal(matchData(fake, matchId).status, "declined");
+    const matchId = await sendInvite(fake, now, ["b"]);
+    const result = await declineFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now);
+    const data = matchData(fake, matchId);
+    assert.equal(data.status, "filling");
+    const slots = data.slots as Array<{uid: string; status: string}>;
+    assert.equal(slots[0].status, "declined");
+    assert.equal(slots[0].uid, "b");
+    assert.deepEqual(data.pendingSlotUids, []);
     assert.equal(result.notifications[0].userId, "a");
-    assert.equal(result.notifications[0].type, "friendly_match_declined");
+    assert.equal(result.notifications[0].type, "friendly_match_slot_declined");
   });
 
-  it("remetente recusa contraproposta → declined", async () => {
+  it("recusa não derruba as outras vagas do jogo", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
-    await counterFriendlyMatchInviteCore(db(fake), "b", {
-      matchId,
-      scheduledAtMs: now + 96 * HOUR_MS,
-    }, now);
-    await declineFriendlyMatchInviteCore(db(fake), "a", {matchId}, now);
-    assert.equal(matchData(fake, matchId).status, "declined");
+    const matchId = await sendInvite(fake, now, ["b", "c"]);
+    await declineFriendlyMatchInviteSlotCore(db(fake), "b", {matchId}, now);
+    await acceptFriendlyMatchInviteSlotCore(db(fake), "c", {matchId}, now);
+    const data = matchData(fake, matchId);
+    assert.equal(data.status, "filling"); // falta repor a vaga de b
+    const slots = data.slots as Array<{uid: string; status: string}>;
+    assert.equal(slots.find((s) => s.uid === "b")!.status, "declined");
+    assert.equal(slots.find((s) => s.uid === "c")!.status, "accepted");
   });
 
-  it("remetente não pode recusar o próprio convite sent", async () => {
+  it("remetente da contraproposta (organizador, 1:1) também pode recusar", async () => {
     const fake = new FakeFirestore();
-    const matchId = await sendInvite(fake, now);
+    const matchId = await sendInvite(fake, now, ["b"]);
+    await counterFriendlyMatchInviteCore(db(fake), "b", {matchId, scheduledAtMs: now + 96 * HOUR_MS}, now);
+    await declineFriendlyMatchInviteSlotCore(db(fake), "a", {matchId}, now);
+    const slots = matchData(fake, matchId).slots as Array<{status: string}>;
+    assert.equal(slots[0].status, "declined");
+  });
+
+  it("organizador não recusa a própria vaga pendente de outro (não é ele quem responde)", async () => {
+    const fake = new FakeFirestore();
+    const matchId = await sendInvite(fake, now, ["b"]);
     await assertHttpsError(
-      declineFriendlyMatchInviteCore(db(fake), "a", {matchId}, now),
+      declineFriendlyMatchInviteSlotCore(db(fake), "a", {matchId}, now),
       "permission-denied",
     );
   });

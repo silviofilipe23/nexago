@@ -65,5 +65,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/courts/panel-courts.component').then((m) => m.PanelCourtsComponent),
   },
+  {
+    path: 'painel/equipe',
+    title: 'Equipe — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/team/panel-team.component').then((m) => m.PanelTeamComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

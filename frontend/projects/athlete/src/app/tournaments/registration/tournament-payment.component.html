@@ -1,0 +1,112 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  @if (listing(); as t) {
+    <div class="tp-body">
+      <div class="tp-header">
+        <div>
+          <h1 class="tp-title">Pagamento</h1>
+          <p class="tp-subtitle">{{ t.name }} · Sua parcela</p>
+        </div>
+        <a [routerLink]="['/torneios', t.id, 'inscricao']" [queryParams]="backQueryParams()" class="tp-back-link">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+          <span>Voltar</span>
+        </a>
+      </div>
+
+      @if (notice(); as n) {
+        <div class="tp-notice" role="status">{{ n }}</div>
+      }
+
+      <div class="tp-main-grid">
+        <div class="tp-col">
+          <section class="tp-card">
+            <h2 class="tp-card-title">Forma de pagamento</h2>
+            <div class="tp-method-row">
+              <button
+                type="button"
+                class="tp-method-card"
+                [class.tp-method-card--active]="selectedMethod() === 'pix'"
+                (click)="selectMethod('pix')"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v6M12 15v6M3 12h6M15 12h6" /><rect x="9" y="9" width="6" height="6" rx="1.4" transform="rotate(45 12 12)" /></svg>
+                <span>Pix</span>
+              </button>
+              <button
+                type="button"
+                class="tp-method-card"
+                [class.tp-method-card--active]="selectedMethod() === 'card'"
+                (click)="selectMethod('card')"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="M2.5 10h19" /></svg>
+                <span>Cartão de crédito</span>
+              </button>
+            </div>
+
+            @if (selectedMethod() === 'pix') {
+              <div class="tp-pix-block">
+                <div class="tp-qr-placeholder" aria-hidden="true"><span>QR CODE PIX</span></div>
+                <div class="tp-pix-code-row">
+                  <span class="tp-pix-code">Código Pix disponível em breve</span>
+                  <button type="button" class="tp-btn-ghost tp-copy-btn" (click)="copyPixCode()">Copiar</button>
+                </div>
+                <p class="tp-pix-note">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                  O pagamento via Pix ainda não está disponível — em breve por aqui.
+                </p>
+              </div>
+            } @else {
+              <div class="tp-placeholder-block">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="M2.5 10h19" /></svg>
+                <p>Pagamento por cartão de crédito chega em breve por aqui.</p>
+              </div>
+            }
+          </section>
+        </div>
+
+        <div class="tp-col tp-col--side">
+          <div class="tp-card tp-summary-card">
+            <h2 class="tp-card-title">Resumo</h2>
+            <div class="tp-summary-row">
+              <span class="tp-summary-label">Torneio</span>
+              <span class="tp-summary-value">{{ t.name }}</span>
+            </div>
+            <div class="tp-summary-row">
+              <span class="tp-summary-label">Local</span>
+              <span class="tp-summary-value">{{ t.location }} · {{ t.city }}</span>
+            </div>
+            <div class="tp-summary-row">
+              <span class="tp-summary-label">Data</span>
+              <span class="tp-summary-value">{{ t.dateLabel }}</span>
+            </div>
+            <div class="tp-summary-row">
+              <span class="tp-summary-label">Categoria</span>
+              <span class="tp-summary-value">{{ selectedCategory()?.name ?? '—' }}</span>
+            </div>
+            <div class="tp-summary-row">
+              <span class="tp-summary-label">Dupla</span>
+              <span class="tp-summary-value">{{ duoLabel() }}</span>
+            </div>
+            <div class="tp-summary-row">
+              <span class="tp-summary-label">Inscrição total (dupla)</span>
+              <span class="tp-summary-value">R$ {{ totalPriceReais() }}</span>
+            </div>
+            <div class="tp-summary-total-row">
+              <span class="tp-summary-label">Você paga agora</span>
+              <strong class="tp-summary-total">R$ {{ installmentPriceReais() }}</strong>
+            </div>
+            <button type="button" class="tp-btn-primary tp-btn-full" (click)="confirmPayment()">
+              Já paguei, confirmar
+            </button>
+            <p class="tp-defer-note">
+              Este pagamento ainda não é processado de verdade — em breve por aqui.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  } @else if (tournamentId()) {
+    <div class="tp-notfound">
+      <p class="tp-empty-title">Torneio não encontrado.</p>
+      <a routerLink="/torneios" class="tp-btn-ghost">Voltar aos torneios</a>
+    </div>
+  }
+</app-at-panel-shell>

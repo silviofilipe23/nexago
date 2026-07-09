@@ -257,7 +257,13 @@
     } @else {
       <div class="rv-grid">
         @for (item of filteredResults(); track trackByArenaId($index, item)) {
-          <article class="rv-card">
+          <article
+            class="rv-card"
+            [routerLink]="['/reservar', item.result.arena.id]"
+            tabindex="0"
+            role="link"
+            [attr.aria-label]="'Ver detalhes de ' + item.result.arena.name"
+          >
             <div class="rv-card-hero" [style.background]="heroGradient(item.result.arena.id)">
               @if (!isImageFailed(item.result.arena.id)) {
                 <img
@@ -284,7 +290,7 @@
                   [attr.aria-pressed]="isFavorite(item.result.arena.id)"
                   [attr.aria-label]="(isFavorite(item.result.arena.id) ? 'Deixar de seguir ' : 'Seguir ') + item.result.arena.name"
                   [disabled]="pendingFavoriteId() === item.result.arena.id"
-                  (click)="toggleFavorite(item.result.arena.id)"
+                  (click)="$event.stopPropagation(); toggleFavorite(item.result.arena.id)"
                 >
                   @if (isFavorite(item.result.arena.id)) {
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.6 2.3 5 6 5c2 0 3.6 1 6 3.4C14.4 6 16 5 18 5c3.7 0 5.4 3.6 4 6.9-2.5 4.5-10 9.1-10 9.1Z" /></svg>
@@ -350,7 +356,7 @@
                   type="button"
                   class="rv-btn-primary rv-btn-reservar"
                   [disabled]="!item.result.hasAvailability"
-                  (click)="openConfirm(item.result)"
+                  (click)="$event.stopPropagation(); openConfirm(item.result)"
                 >
                   Reservar
                 </button>

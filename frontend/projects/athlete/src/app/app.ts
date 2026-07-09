@@ -19,7 +19,14 @@ const SHELL_ROUTE_PREFIXES = [
   '/atletas',
   '/perfil',
 ];
-const AUTH_ROUTES = ['/entrar', '/cadastro', '/esqueci-senha', '/email-enviado', '/redefinir-senha'];
+const AUTH_ROUTES = [
+  '/entrar',
+  '/cadastro',
+  '/esqueci-senha',
+  '/email-enviado',
+  '/redefinir-senha',
+  '/onboarding',
+];
 
 function chromeHiddenForUrl(url: string): boolean {
   const p = pathOnly(url);

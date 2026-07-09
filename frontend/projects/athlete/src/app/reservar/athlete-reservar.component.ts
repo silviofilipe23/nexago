@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { doc, getDoc, getFirestore, type Firestore } from 'firebase/firestore';
 import {
@@ -154,6 +154,7 @@ export class AthleteReservarComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
@@ -234,6 +235,12 @@ export class AthleteReservarComponent {
   private queryDebounceHandle: ReturnType<typeof setTimeout> | undefined;
 
   constructor() {
+    const initialQuery = this.route.snapshot.queryParamMap.get('q')?.trim();
+    if (initialQuery) {
+      this.queryInput.set(initialQuery);
+      this.filters.update((f) => ({ ...f, query: initialQuery }));
+    }
+
     effect(() => {
       const date = this.searchDate();
       const time = this.searchTime();

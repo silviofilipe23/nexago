@@ -1,0 +1,182 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  @if (loading()) {
+    <div class="bk-body">
+      <div class="bk-skeleton-block"><div class="bk-skeleton-shimmer"></div></div>
+      <div class="bk-skeleton-block"><div class="bk-skeleton-shimmer"></div></div>
+    </div>
+  } @else if (error(); as err) {
+    <div class="bk-notfound">
+      <p class="bk-empty-title">{{ err }}</p>
+      <a [routerLink]="['/reservar']" class="bk-btn-ghost">Voltar à listagem</a>
+    </div>
+  } @else if (arena(); as a) {
+    <div class="bk-body">
+      <div class="bk-header">
+        <div>
+          <h1 class="bk-title">Reservar quadra</h1>
+          <p class="bk-subtitle">{{ a.name }}</p>
+        </div>
+        <a [routerLink]="['/reservar', a.id]" class="bk-back-link">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+          <span>{{ backLabel() }}</span>
+        </a>
+      </div>
+
+      <div class="bk-main-grid">
+        <div class="bk-col">
+          <section class="bk-card">
+            <h2 class="bk-card-title">Data</h2>
+            <div class="bk-date-row">
+              @for (d of weekDates(); track dateKeyOf(d)) {
+                <button
+                  type="button"
+                  class="bk-date-chip"
+                  [class.bk-date-chip--active]="isSelectedDate(d)"
+                  (click)="selectDate(d)"
+                >
+                  <span class="bk-date-weekday">{{ weekdayAbbr[d.getDay()] }}</span>
+                  <span class="bk-date-day">{{ d.getDate() }}</span>
+                  @if (!isSelectedDate(d)) {
+                    <span
+                      class="bk-date-dot"
+                      [class.bk-date-dot--high]="dateAvailability()[dateKeyOf(d)] === 'high'"
+                      [class.bk-date-dot--low]="dateAvailability()[dateKeyOf(d)] === 'low'"
+                      [class.bk-date-dot--none]="dateAvailability()[dateKeyOf(d)] === 'none'"
+                      aria-hidden="true"
+                    ></span>
+                  }
+                </button>
+              }
+            </div>
+          </section>
+
+          <section class="bk-card">
+            <span class="bk-card-kicker">{{ a.courtTypes.join(' · ') }}</span>
+            <h2 class="bk-card-title">Quadra</h2>
+            @if (courtViews().length === 0) {
+              <p class="bk-empty-inline">Nenhuma quadra cadastrada ainda.</p>
+            } @else {
+              <div class="bk-court-grid">
+                @for (c of courtViews(); track c.id) {
+                  <button
+                    type="button"
+                    class="bk-court-card"
+                    [class.bk-court-card--active]="c.id === selectedCourtId()"
+                    [class.bk-court-card--full]="c.isFull"
+                    (click)="selectCourt(c.id)"
+                  >
+                    <span class="bk-court-name">{{ c.name }}</span>
+                    <span class="bk-court-sport">{{ c.sportLabel }}</span>
+                    @if (c.isFull) {
+                      <span class="bk-court-status bk-court-status--full">Lotada</span>
+                    } @else {
+                      <span class="bk-court-status">{{ c.availableCount }} horário{{ c.availableCount === 1 ? '' : 's' }} livre{{ c.availableCount === 1 ? '' : 's' }}</span>
+                    }
+                  </button>
+                }
+              </div>
+            }
+          </section>
+
+          <section class="bk-card">
+            <span class="bk-card-kicker">{{ selectedCourt()?.name }} · {{ weekdayAbbr[selectedDate().getDay()] }} {{ selectedDate().getDate() }}</span>
+            <h2 class="bk-card-title">Horário</h2>
+            @if (slotGroups().length === 0) {
+              <p class="bk-empty-inline">Nenhum horário disponível neste dia.</p>
+            } @else {
+              @for (group of slotGroups(); track group.label) {
+                <div class="bk-slot-group">
+                  <span class="bk-slot-group-label">{{ group.label }}</span>
+                  <div class="bk-slot-list">
+                    @for (view of group.slots; track view.slot.id) {
+                      <button
+                        type="button"
+                        class="bk-slot-row"
+                        [class.bk-slot-row--selected]="view.isSelectedStart || view.isInChain"
+                        [class.bk-slot-row--disabled]="!view.isAvailable || view.isPast"
+                        [disabled]="!view.isAvailable || view.isPast"
+                        (click)="selectStartSlot(view)"
+                      >
+                        <span class="bk-slot-time">{{ view.slot.startTime }} – {{ view.slot.endTime }}</span>
+                        @if (view.isBooked) {
+                          <span class="bk-slot-tag bk-slot-tag--busy">Ocupado</span>
+                        } @else if (view.isBlocked) {
+                          <span class="bk-slot-tag bk-slot-tag--busy">Bloqueado</span>
+                        } @else if (view.isPast) {
+                          <span class="bk-slot-tag bk-slot-tag--busy">Encerrado</span>
+                        } @else {
+                          @if (view.isLast) {
+                            <span class="bk-slot-tag bk-slot-tag--last">ÚLTIMO</span>
+                          }
+                          <span class="bk-slot-price">R$ {{ slotPrice(view) }}</span>
+                        }
+                      </button>
+                    }
+                  </div>
+                </div>
+              }
+            }
+
+            @if (selectedStartSlot()) {
+              <div class="bk-duration-block">
+                <span class="bk-slot-group-label">Duração</span>
+                <div class="bk-duration-row">
+                  @for (opt of durationOptions(); track opt.slots) {
+                    <button
+                      type="button"
+                      class="bk-duration-chip"
+                      [class.bk-duration-chip--active]="durationSlots() === opt.slots"
+                      [disabled]="!opt.enabled"
+                      (click)="selectDuration(opt.slots)"
+                    >
+                      <span class="bk-duration-label">{{ opt.label }}</span>
+                    </button>
+                  }
+                </div>
+              </div>
+            }
+          </section>
+        </div>
+
+        <div class="bk-col bk-col--side">
+          <div class="bk-card bk-summary-card">
+            <h2 class="bk-card-title">Resumo da reserva</h2>
+            <div class="bk-summary-row">
+              <span class="bk-summary-label">Arena</span>
+              <span class="bk-summary-value">{{ a.name }}</span>
+            </div>
+            <div class="bk-summary-row">
+              <span class="bk-summary-label">Quadra</span>
+              <span class="bk-summary-value">
+                @if (selectedCourt(); as sc) {
+                  {{ sc.name }} · {{ courtSportOf(sc) }}
+                } @else {
+                  —
+                }
+              </span>
+            </div>
+            <div class="bk-summary-row">
+              <span class="bk-summary-label">Data</span>
+              <span class="bk-summary-value">{{ weekdayAbbr[selectedDate().getDay()] }}, {{ selectedDate().getDate() }} {{ monthAbbr[selectedDate().getMonth()] }}</span>
+            </div>
+            <div class="bk-summary-row">
+              <span class="bk-summary-label">Horário</span>
+              <span class="bk-summary-value">{{ selectedStartSlot()?.startTime ?? '—' }}</span>
+            </div>
+            <div class="bk-summary-row">
+              <span class="bk-summary-label">Duração</span>
+              <span class="bk-summary-value">{{ selectedStartSlot() ? durationLabel() : '—' }}</span>
+            </div>
+            <div class="bk-summary-total-row">
+              <span class="bk-summary-label">Total</span>
+              <strong class="bk-summary-total">R$ {{ totalPrice() }}</strong>
+            </div>
+            <button type="button" class="bk-btn-primary bk-btn-full" [disabled]="!canContinue()" (click)="continueBooking()">
+              Continuar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</app-at-panel-shell>

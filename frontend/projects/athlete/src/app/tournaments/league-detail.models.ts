@@ -1,101 +1,58 @@
-import type { TournamentGenderCat } from './tournament-discovery.models';
+export type LeagueStageStatus = 'finished' | 'next' | 'upcoming';
 
-export type LeagueSeasonUiStatus = 'in_progress' | 'next_soon' | 'between' | 'ended';
-
-export type LeagueTimelineStatus = 'finished' | 'current' | 'future';
-
-export interface LeagueDetailHero {
-  /** Vídeo em loop (ex.: `/media/login-brand-bg.mp4`) */
-  videoSrc?: string;
+export interface LeagueStage {
+  id: string;
+  order: number;
   name: string;
   city: string;
-  seasonLabel: string;
-  uiStatus: LeagueSeasonUiStatus;
-  /** Ex.: "Temporada em andamento" */
-  statusHeadline: string;
-  /** Ex.: "Próxima etapa em 5 dias" */
-  statusSubline: string;
-}
-
-export interface LeagueTimelineStage {
-  id: string;
-  name: string;
-  shortLabel: string;
   dateLabel: string;
-  dateRangeDetail: string;
-  status: LeagueTimelineStatus;
-  categoriesSummary: string;
-  enrolledApprox: number;
-  /** Torneio principal para CTAs de inscrição / detalhe */
-  primaryTournamentId: string | null;
+  status: LeagueStageStatus;
+  /** Colocação do atleta na etapa (só quando `status === 'finished'`). */
+  placement: number | null;
+  /** Pontos ganhos na etapa (só quando `status === 'finished'`). */
+  points: number | null;
+  /** Torneio real vinculado (permite "Inscrever"/"Detalhes" linkarem pra `/torneios/:id`). */
+  tournamentId: string | null;
 }
 
 export interface LeagueRankingRow {
   rank: number;
-  name: string;
-  points: number;
-  /** Variação de posição desde a última etapa (+ sobe, − desce) */
-  deltaPositions: number;
-  avatarLetter: string;
-  genderScope: TournamentGenderCat;
-  mode: 'pair' | 'individual';
+  duoName: string;
+  isViewer: boolean;
+  /** Pontos por etapa, na mesma ordem de `LeagueDetailData.stages`; `null` = etapa ainda não jogada. */
+  pointsByStage: (number | null)[];
+  total: number;
 }
 
-export interface LeagueStatCard {
+export interface LeagueDetailData {
   id: string;
-  label: string;
-  value: number;
-  suffix?: string;
-}
-
-export interface LeagueNextStageCard {
-  stageName: string;
-  dateLabel: string;
-  location: string;
-  city: string;
-  categoriesLine: string;
-  spotsLeft: number;
-  spotsTotal: number;
-  tournamentId: string;
-  /** ISO 8601 — countdown de fim de inscrições */
-  registrationEndsAt: string;
-  urgent: boolean;
-}
-
-export interface LeagueFeedPost {
-  id: string;
-  athleteName: string;
-  text: string;
-  hashtag: string;
-  likes: number;
-  comments: number;
-  mediaGradient: string;
-}
-
-export interface LeaguePodiumEntry {
-  place: 1 | 2 | 3;
   name: string;
-  subtitle: string;
-}
+  statusLabel: string;
+  formatLabel: string;
+  citiesSummary: string;
+  periodLabel: string;
+  aboutText: string | null;
 
-export interface LeagueProgressionPreview {
-  yourRank: number;
-  yourPoints: number;
-  pointsToTop10: number;
-  topLabel: string;
-}
+  /** Posição do atleta logado na liga (null quando não há dado curado pra essa liga). */
+  yourRank: number | null;
+  yourDuoName: string | null;
+  yourPoints: number | null;
+  nextStageLabel: string | null;
 
-export interface LeagueDetailBundle {
-  hero: LeagueDetailHero;
-  timeline: LeagueTimelineStage[];
-  rankingPairs: LeagueRankingRow[];
-  rankingIndividuals: LeagueRankingRow[];
-  stats: LeagueStatCard[];
-  nextStage: LeagueNextStageCard;
-  feed: LeagueFeedPost[];
-  lastStagePodium: LeaguePodiumEntry[];
-  lastStageTitle: string;
-  progression: LeagueProgressionPreview | null;
-  regulationParagraphs: string[];
-  athletesPreview: { id: string; name: string; handle: string; letter: string }[];
+  stages: LeagueStage[];
+  stagesCompletedLabel: string | null;
+
+  ranking: LeagueRankingRow[];
+
+  prizeTotalLabel: string | null;
+  nextStagePriceLabel: string | null;
+  nextStageTournamentId: string | null;
+
+  categoriesLabel: string | null;
+  rankingCalcLabel: string | null;
+  priceLabel: string | null;
+
+  organizerName: string;
+  organizerInitials: string;
+  organizerVerified: boolean;
 }

@@ -11,6 +11,9 @@ const LIGA_VERAO = 'circuito-verao-nexago-2026';
 const ETAPA_NORDESTE = 'cv-26-nordeste';
 const ETAPA_SUDESTE = 'cv-26-sudeste';
 
+const LIGA_GOIAS_BEACH = 'copa-goias-beach-2026';
+const ETAPA_APARECIDA = 'cgb-26-aparecida';
+
 /** Ligas com etapas; cada etapa lista ids de `MOCK_DISCOVERY_TOURNAMENTS`. */
 export const MOCK_DISCOVERY_LEAGUES: DiscoveryLeague[] = [
   {
@@ -32,6 +35,21 @@ export const MOCK_DISCOVERY_LEAGUES: DiscoveryLeague[] = [
         order: 2,
         dateLabel: 'Jun–jul',
         tournamentIds: ['night-open-sp', 'circuito-verao-rj'],
+      },
+    ],
+  },
+  {
+    id: LIGA_GOIAS_BEACH,
+    name: 'Copa Goiás Beach 2026',
+    seasonLabel: 'Fevereiro a Outubro de 2026',
+    city: '6 cidades · GO/DF',
+    stages: [
+      {
+        id: ETAPA_APARECIDA,
+        name: 'Etapa Aparecida',
+        order: 3,
+        dateLabel: '18 – 20 abr',
+        tournamentIds: ['etapa-aparecida-goias-beach'],
       },
     ],
   },
@@ -185,6 +203,28 @@ export const MOCK_DISCOVERY_TOURNAMENTS: DiscoveryTournament[] = [
     registrationOpensAt: null,
     leagueId: LIGA_VERAO,
     leagueStageId: ETAPA_NORDESTE,
+  },
+  {
+    id: 'etapa-aparecida-goias-beach',
+    name: 'Etapa Aparecida · Copa Goiás Beach',
+    location: 'Arena Aparecida Beach',
+    city: 'Aparecida de Goiânia',
+    dateLabel: '18 – 20 abr',
+    startDate: d(21, 8, 0),
+    categories: ['M', 'F', 'Mix'],
+    format: 'Dupla',
+    priceLabel: 'R$ 90',
+    priceValue: 90,
+    spotsLeft: 28,
+    spotsTotal: 48,
+    status: 'open',
+    featured: false,
+    enrolledCount: 20,
+    liveMatchesNow: 0,
+    enrolled: false,
+    registrationOpensAt: null,
+    leagueId: LIGA_GOIAS_BEACH,
+    leagueStageId: ETAPA_APARECIDA,
   },
 ];
 

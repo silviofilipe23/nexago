@@ -1,0 +1,391 @@
+:host {
+  display: block;
+}
+
+.ob-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+// ── Progress ─────────────────────────────────────────────────
+.ob-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.ob-back-btn {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--nx-r-2);
+  background: transparent;
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text-mute);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+
+  &:hover {
+    color: var(--nx-text);
+    border-color: var(--nx-line-strong);
+  }
+}
+
+.ob-progress-track {
+  flex: 1;
+  display: flex;
+  gap: 5px;
+}
+
+.ob-progress-seg {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--nx-surface-1);
+
+  &--active {
+    background: var(--nx-orange-500);
+  }
+}
+
+.ob-progress-count {
+  flex: none;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--nx-text-dim);
+}
+
+.ob-accent {
+  color: var(--nx-orange-500);
+}
+
+.ob-dim {
+  color: var(--nx-text-dim);
+  font-weight: 400;
+}
+
+// ── Sport grid ───────────────────────────────────────────────
+.ob-sport-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.ob-sport-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+
+  &--active {
+    background: var(--nx-orange-tint);
+    border-color: var(--nx-orange-500);
+    box-shadow: 0 0 0 4px rgba(255, 106, 26, 0.1);
+
+    .ob-sport-icon {
+      color: var(--nx-orange-500);
+    }
+
+    .ob-sport-label {
+      color: var(--nx-orange-500);
+    }
+  }
+}
+
+.ob-sport-check {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  display: grid;
+  place-items: center;
+}
+
+.ob-sport-icon {
+  color: var(--nx-text-mute);
+}
+
+.ob-sport-label {
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 11.5px;
+  text-align: center;
+  line-height: 1.2;
+  padding: 0 4px;
+}
+
+// ── Level / goal rows ────────────────────────────────────────
+.ob-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.ob-level-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 15px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+
+  &--active {
+    background: var(--nx-orange-tint);
+    border-color: var(--nx-orange-500);
+
+    .ob-level-title {
+      color: var(--nx-orange-500);
+    }
+  }
+}
+
+.ob-radio {
+  flex: none;
+  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--nx-line-strong);
+  position: relative;
+
+  &--checked {
+    border-color: var(--nx-orange-500);
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      border-radius: 50%;
+      background: var(--nx-orange-500);
+    }
+  }
+}
+
+.ob-level-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ob-level-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--nx-text);
+}
+
+.ob-level-desc {
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--nx-text-mute);
+}
+
+.ob-goal-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+
+  &--active {
+    background: var(--nx-orange-tint);
+    border-color: var(--nx-orange-500);
+  }
+}
+
+.ob-goal-label {
+  flex: 1;
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--nx-text);
+}
+
+.ob-checkbox {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1.5px solid var(--nx-line-strong);
+  color: var(--nx-text-on-orange);
+  display: grid;
+  place-items: center;
+
+  &--checked {
+    border-color: var(--nx-orange-500);
+    background: var(--nx-orange-500);
+  }
+}
+
+.ob-stack-sm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.ob-stack-sm .nx-btn-primary {
+  width: 100%;
+}
+
+.ob-skip {
+  font-size: 13px;
+}
+
+.ob-continue {
+  margin-top: 4px;
+}
+
+// ── Photo row ────────────────────────────────────────────────
+.ob-photo-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  margin-bottom: 16px;
+}
+
+.ob-photo-placeholder {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--nx-surface-1);
+  border: 1.5px dashed var(--nx-line-strong);
+  color: var(--nx-text-dim);
+  display: grid;
+  place-items: center;
+}
+
+.ob-photo-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ob-photo-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--nx-text);
+}
+
+.ob-photo-hint {
+  font-family: var(--nx-font-ui);
+  font-size: 11px;
+  color: var(--nx-text-mute);
+}
+
+.ob-mini-btn {
+  flex: none;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+}
+
+// ── Gender ───────────────────────────────────────────────────
+.ob-gender-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ob-gender-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.ob-gender-tile {
+  height: 40px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 12.5px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+
+  &--active {
+    background: var(--nx-orange-tint);
+    border-color: var(--nx-orange-500);
+    color: var(--nx-orange-500);
+  }
+}
+
+// ── Concluído ────────────────────────────────────────────────
+.ob-done {
+  text-align: center;
+}
+
+.ob-done-badge {
+  width: 88px;
+  height: 88px;
+  margin: 0 auto 24px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--nx-orange-400), var(--nx-orange-500));
+  box-shadow: 0 0 0 10px rgba(255, 106, 26, 0.1), 0 12px 40px rgba(255, 106, 26, 0.3);
+  color: var(--nx-text-on-orange);
+  display: grid;
+  place-items: center;
+}

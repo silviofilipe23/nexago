@@ -494,6 +494,19 @@
   border-radius: var(--nx-r-4);
   overflow: hidden;
   min-width: 0;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    border-color: var(--nx-line-strong);
+    transform: translateY(-2px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 2px;
+  }
 }
 
 .rv-card-hero {

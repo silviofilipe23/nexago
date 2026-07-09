@@ -1,88 +1,192 @@
-@if (listing()) {
-  <div class="trg-page">
-    <div class="trg-page__bg" aria-hidden="true"></div>
-
-    <header class="trg-topbar">
-      <div class="trg-topbar__inner container-nexago">
-        <div class="trg-topbar__row">
-          <a [routerLink]="['/torneios', id()]" class="trg-back trg-ripple">← Voltar</a>
-          @if (showBack()) {
-            <button type="button" class="trg-back trg-back--ghost trg-ripple" (click)="back()">
-              Etapa anterior
-            </button>
-          }
+<app-at-panel-shell [userName]="accountLabel()">
+  @if (listing(); as t) {
+    <div class="rg-body">
+      <div class="rg-header">
+        <div>
+          <h1 class="rg-title">Inscrever-se</h1>
+          <p class="rg-subtitle">{{ t.name }} · {{ selectedCategory()?.name ?? '—' }}</p>
         </div>
+        <a [routerLink]="['/torneios', t.id]" class="rg-back-link">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+          <span>Voltar ao torneio</span>
+        </a>
+      </div>
 
-        <div class="trg-trust">
-          <span class="trg-chip trg-chip--hot">Últimas vagas</span>
-          <span class="trg-chip">Alta procura</span>
-          <span class="trg-chip trg-chip--data">
-            +{{ displayEnrolled() }} atletas inscritos
-          </span>
-          <span class="trg-chip trg-chip--calm">&lt; 1 min</span>
-        </div>
+      @if (notice(); as n) {
+        <div class="rg-notice" role="status">{{ n }}</div>
+      }
 
-        @if (step() !== 'success') {
-          <div class="trg-progress" aria-label="Progresso da inscrição">
-            <div class="trg-progress__track">
-              <div class="trg-progress__fill" [style.width.%]="progressWidthPct()"></div>
+      <div class="rg-main-grid">
+        <div class="rg-col">
+          <section class="rg-card">
+            <div class="rg-step-title">
+              <span class="rg-step-num">1</span>
+              <h2>Categoria</h2>
             </div>
-            <ol class="trg-progress__labels">
-              @for (lbl of progressLabels; track lbl; let i = $index) {
-                <li
-                  class="trg-progress__label"
-                  [class.trg-progress__label--active]="i <= activeProgressIndex()"
-                  [class.trg-progress__label--current]="i === activeProgressIndex()"
-                >
-                  {{ lbl }}
-                </li>
+
+            @if (selectedCategory(); as cat) {
+              <div class="rg-category-row">
+                <div class="rg-category-info">
+                  <p class="rg-category-name">{{ cat.name }}</p>
+                  <div class="rg-pill-row">
+                    <span class="rg-pill">{{ cat.genderLabel }}</span>
+                    <span class="rg-pill rg-pill--muted">Dupla</span>
+                    <span class="rg-pill rg-pill--muted">{{ cat.level }}</span>
+                  </div>
+                </div>
+                <div class="rg-category-price">
+                  <strong>{{ cat.priceLabel }}</strong>
+                  <button type="button" class="rg-link-btn" (click)="toggleCategoryPicker()">Trocar</button>
+                </div>
+              </div>
+
+              @if (showCategoryPicker() && otherCategories().length > 0) {
+                <div class="rg-category-picker">
+                  @for (c of otherCategories(); track c.id) {
+                    <button type="button" class="rg-category-option" (click)="selectCategory(c.id)">
+                      <span class="rg-category-option-name">{{ c.name }}</span>
+                      <span class="rg-category-option-price">{{ c.priceLabel }}</span>
+                    </button>
+                  }
+                </div>
               }
-            </ol>
+            } @else {
+              <p class="rg-empty-inline">Nenhuma categoria disponível para inscrição.</p>
+            }
+          </section>
+
+          <section class="rg-card">
+            <div class="rg-step-title">
+              <span class="rg-step-num">2</span>
+              <h2>Sua dupla</h2>
+            </div>
+
+            <div class="rg-option-list">
+              @for (duo of duoOptions(); track duo.id) {
+                <button
+                  type="button"
+                  class="rg-option-row"
+                  [class.rg-option-row--active]="selectedDuoId() === duo.id"
+                  (click)="selectDuo(duo.id)"
+                >
+                  <span class="rg-radio" [class.rg-radio--checked]="selectedDuoId() === duo.id" aria-hidden="true"></span>
+                  <span class="rg-duo-avatars" aria-hidden="true">
+                    <span class="rg-duo-avatar">{{ duo.initialsA }}</span>
+                    <span class="rg-duo-avatar rg-duo-avatar--b">{{ duo.initialsB }}</span>
+                  </span>
+                  <span class="rg-option-copy">
+                    <span class="rg-option-title">{{ duo.label }}</span>
+                    <span class="rg-option-desc">{{ duo.meta }}</span>
+                  </span>
+                </button>
+              }
+
+              <button
+                type="button"
+                class="rg-option-row"
+                [class.rg-option-row--active]="isInvitingPartner()"
+                (click)="selectDuo('invite')"
+              >
+                <span class="rg-radio" [class.rg-radio--checked]="isInvitingPartner()" aria-hidden="true"></span>
+                <span class="rg-invite-icon" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+                </span>
+                <span class="rg-option-copy">
+                  <span class="rg-option-title">Convidar novo parceiro</span>
+                  <span class="rg-option-desc">Envie um convite por link ou busca</span>
+                </span>
+              </button>
+            </div>
+
+            @if (isInvitingPartner()) {
+              <div class="rg-invite-block">
+                <span class="rg-invite-link">{{ inviteLink() }}</span>
+                <button type="button" class="rg-btn-ghost" (click)="copyInviteLink()">Copiar link</button>
+              </div>
+            }
+          </section>
+
+          <section class="rg-card">
+            <div class="rg-step-title">
+              <span class="rg-step-num">3</span>
+              <h2>Forma de pagamento</h2>
+            </div>
+
+            <div class="rg-option-list">
+              <button
+                type="button"
+                class="rg-option-row"
+                [class.rg-option-row--active]="paymentOption() === 'split'"
+                (click)="selectPayment('split')"
+              >
+                <span class="rg-radio" [class.rg-radio--checked]="paymentOption() === 'split'" aria-hidden="true"></span>
+                <span class="rg-option-copy">
+                  <span class="rg-option-title">Dividir com o parceiro</span>
+                  <span class="rg-option-desc">Cada um paga R$ {{ installmentPriceReais() }} · inscrição confirma quando os dois pagarem</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                class="rg-option-row"
+                [class.rg-option-row--active]="paymentOption() === 'full'"
+                (click)="selectPayment('full')"
+              >
+                <span class="rg-radio" [class.rg-radio--checked]="paymentOption() === 'full'" aria-hidden="true"></span>
+                <span class="rg-option-copy">
+                  <span class="rg-option-title">Pagar tudo agora</span>
+                  <span class="rg-option-desc">Você paga os R$ {{ totalPriceReais() }} e garante a vaga na hora</span>
+                </span>
+              </button>
+            </div>
+          </section>
+        </div>
+
+        <div class="rg-col rg-col--side">
+          <div class="rg-card rg-summary-card">
+            <h2 class="rg-card-title">Resumo da inscrição</h2>
+            <div class="rg-summary-tournament">
+              <span class="rg-summary-badge" aria-hidden="true"></span>
+              <div>
+                <p class="rg-summary-name">{{ t.name }}</p>
+                <p class="rg-summary-location">{{ t.location }} · {{ t.city }}</p>
+                <p class="rg-summary-date">{{ t.dateLabel }}</p>
+              </div>
+            </div>
+
+            <div class="rg-summary-row">
+              <span class="rg-summary-label">Categoria</span>
+              <span class="rg-summary-value">{{ selectedCategory()?.name ?? '—' }}</span>
+            </div>
+            <div class="rg-summary-row">
+              <span class="rg-summary-label">Dupla</span>
+              <span class="rg-summary-value">{{ duoSummaryLabel() }}</span>
+            </div>
+            <div class="rg-summary-row">
+              <span class="rg-summary-label">Inscrição (por dupla)</span>
+              <span class="rg-summary-value">R$ {{ totalPriceReais() }}</span>
+            </div>
+
+            <div class="rg-summary-total-row">
+              <span class="rg-summary-label">Sua parcela</span>
+              <strong class="rg-summary-total">R$ {{ installmentPriceReais() }}</strong>
+            </div>
+
+            <button type="button" class="rg-btn-primary rg-btn-full" [disabled]="!canConfirm()" (click)="confirmRegistration()">
+              Confirmar inscrição
+            </button>
+
+            <p class="rg-defer-note">
+              A confirmação e o pagamento ainda não são processados de verdade por aqui — em breve.
+            </p>
           </div>
-        }
-
-        @if (tournament(); as ev) {
-          @if (ev.leagueContextLabel) {
-            <p class="trg-event-line trg-event-line--league">{{ ev.leagueContextLabel }}</p>
-          }
-          <p class="trg-event-line">{{ ev.name }} · {{ ev.city }}</p>
-        }
+        </div>
       </div>
-    </header>
-
-    <main class="trg-main container-nexago">
-      <div class="trg-step-wrap" [@trgStepFade]="step()">
-        @switch (step()) {
-          @case ('category') {
-            <app-step-category />
-          }
-          @case ('partner') {
-            <app-step-partner />
-          }
-          @case ('confirmation') {
-            <app-step-confirmation />
-          }
-          @case ('payment') {
-            <app-step-payment />
-          }
-          @case ('success') {
-            <app-step-success />
-          }
-        }
-      </div>
-    </main>
-
-    @if (selectedCategory(); as cat) {
-      <div class="trg-spots-floating card glass-panel" aria-live="polite">
-        <span class="trg-spots-floating__k">Vagas ({{ cat.name }})</span>
-        <span class="trg-spots-floating__v">{{ categorySpots() ?? cat.spotsLeft }}</span>
-      </div>
-    }
-
-  </div>
-} @else if (id()) {
-  <div class="trg-missing container-nexago">
-    <p>Torneio não encontrado.</p>
-    <a routerLink="/torneios" class="trg-link">Voltar aos torneios</a>
-  </div>
-}
+    </div>
+  } @else if (tournamentId()) {
+    <div class="rg-notfound">
+      <p class="rg-empty-title">Torneio não encontrado.</p>
+      <a routerLink="/torneios" class="rg-btn-ghost">Voltar aos torneios</a>
+    </div>
+  }
+</app-at-panel-shell>

@@ -1,0 +1,128 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  @if (loading()) {
+    <div class="pm-body">
+      <div class="pm-skeleton-block"><div class="pm-skeleton-shimmer"></div></div>
+    </div>
+  } @else if (error(); as err) {
+    <div class="pm-notfound">
+      <p class="pm-empty-title">{{ err }}</p>
+      <a [routerLink]="['/reservar', arenaId(), 'agendar']" [queryParams]="backQueryParams()" class="pm-btn-ghost">
+        Voltar à reserva
+      </a>
+    </div>
+  } @else if (arena(); as a) {
+    <div class="pm-body">
+      <div class="pm-header">
+        <div>
+          <h1 class="pm-title">Pagamento</h1>
+          <p class="pm-subtitle">{{ a.name }} · {{ court()?.name }} · {{ courtSportLabel() }}</p>
+        </div>
+        <a [routerLink]="['/reservar', a.id, 'agendar']" [queryParams]="backQueryParams()" class="pm-back-link">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+          <span>Voltar</span>
+        </a>
+      </div>
+
+      @if (notice(); as n) {
+        <div class="pm-notice" role="status">{{ n }}</div>
+      }
+
+      <div class="pm-main-grid">
+        <div class="pm-col">
+          <section class="pm-card">
+            <h2 class="pm-card-title">Forma de pagamento</h2>
+            <div class="pm-method-row">
+              <button
+                type="button"
+                class="pm-method-card"
+                [class.pm-method-card--active]="selectedMethod() === 'pix'"
+                (click)="selectMethod('pix')"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v6M12 15v6M3 12h6M15 12h6" /><rect x="9" y="9" width="6" height="6" rx="1.4" transform="rotate(45 12 12)" /></svg>
+                <span>Pix</span>
+              </button>
+              <button
+                type="button"
+                class="pm-method-card"
+                [class.pm-method-card--active]="selectedMethod() === 'card'"
+                (click)="selectMethod('card')"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="M2.5 10h19" /></svg>
+                <span>Cartão de crédito</span>
+              </button>
+              <button
+                type="button"
+                class="pm-method-card"
+                [class.pm-method-card--active]="selectedMethod() === 'split'"
+                (click)="selectMethod('split')"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3.2" /><circle cx="17" cy="9" r="2.6" /><path d="M2.5 20c0-3.3 2.5-6 5.5-6s5.5 2.7 5.5 6M14.5 20c0-2.6 1.8-4.8 4-5.4" /></svg>
+                <span>Dividir com amigos</span>
+              </button>
+            </div>
+
+            @if (selectedMethod() === 'pix') {
+              <div class="pm-pix-block">
+                <div class="pm-qr-placeholder" aria-hidden="true"><span>QR CODE PIX</span></div>
+                <div class="pm-pix-code-row">
+                  <span class="pm-pix-code">Código Pix disponível em breve</span>
+                  <button type="button" class="pm-btn-ghost pm-copy-btn" (click)="copyPixCode()">Copiar</button>
+                </div>
+                <p class="pm-pix-note">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                  O pagamento via Pix ainda não está disponível — em breve por aqui.
+                </p>
+              </div>
+            } @else if (selectedMethod() === 'card') {
+              <div class="pm-placeholder-block">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="M2.5 10h19" /></svg>
+                <p>Pagamento por cartão de crédito chega em breve por aqui.</p>
+              </div>
+            } @else {
+              <div class="pm-placeholder-block">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3.2" /><circle cx="17" cy="9" r="2.6" /><path d="M2.5 20c0-3.3 2.5-6 5.5-6s5.5 2.7 5.5 6M14.5 20c0-2.6 1.8-4.8 4-5.4" /></svg>
+                <p>Dividir o valor da reserva com quem for jogar com você chega em breve por aqui.</p>
+              </div>
+            }
+          </section>
+        </div>
+
+        <div class="pm-col pm-col--side">
+          <div class="pm-card pm-summary-card">
+            <h2 class="pm-card-title">Resumo</h2>
+            <div class="pm-summary-row">
+              <span class="pm-summary-label">Arena</span>
+              <span class="pm-summary-value">{{ a.name }}</span>
+            </div>
+            <div class="pm-summary-row">
+              <span class="pm-summary-label">Quadra</span>
+              <span class="pm-summary-value">{{ court()?.name }} · {{ courtSportLabel() }}</span>
+            </div>
+            <div class="pm-summary-row">
+              <span class="pm-summary-label">Data</span>
+              <span class="pm-summary-value">{{ dateLabel() }}</span>
+            </div>
+            <div class="pm-summary-row">
+              <span class="pm-summary-label">Horário</span>
+              <span class="pm-summary-value">{{ timeRangeLabel() }}</span>
+            </div>
+            <div class="pm-summary-row">
+              <span class="pm-summary-label">Valor da reserva</span>
+              <span class="pm-summary-value">R$ {{ totalPrice() }}</span>
+            </div>
+            <div class="pm-summary-total-row">
+              <span class="pm-summary-label">Você paga agora</span>
+              <strong class="pm-summary-total">R$ {{ totalPrice() }}</strong>
+            </div>
+            <button type="button" class="pm-btn-primary pm-btn-full" (click)="confirmPayment()">
+              Já paguei, confirmar
+            </button>
+            <p class="pm-defer-note">
+              Este pagamento ainda não é processado de verdade — em breve por aqui.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</app-at-panel-shell>

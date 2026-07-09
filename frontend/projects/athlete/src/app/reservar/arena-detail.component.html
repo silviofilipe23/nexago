@@ -1,0 +1,183 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  @if (loading()) {
+    <div class="ad-body">
+      <div class="ad-skeleton-hero" aria-busy="true"><div class="ad-skeleton-shimmer"></div></div>
+    </div>
+  } @else if (error(); as err) {
+    <div class="ad-notfound">
+      <p class="ad-empty-title">{{ err }}</p>
+      <a routerLink="/reservar" class="ad-btn-ghost">Voltar à listagem</a>
+    </div>
+  } @else if (arena(); as a) {
+    <div class="ad-body">
+      <a routerLink="/reservar" class="ad-back-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+        <span>Voltar a Reservar</span>
+      </a>
+
+      @if (shareFeedback(); as fb) {
+        <div class="ad-notice" role="status">{{ fb }}</div>
+      }
+
+      <div class="ad-hero" [style.background]="heroGradient(a.id)">
+        <span class="ad-hero-ring" aria-hidden="true"></span>
+        @if (heroImageUrl(); as imgUrl) {
+          @if (!heroImageFailed()) {
+            <img
+              class="ad-hero-img"
+              [class.ad-hero-img--loaded]="heroImageLoaded()"
+              [src]="imgUrl"
+              [alt]="a.name"
+              loading="lazy"
+              decoding="async"
+              (load)="onHeroImageLoad()"
+              (error)="onHeroImageError()"
+            />
+            <span class="ad-hero-overlay" aria-hidden="true"></span>
+          }
+        }
+        <div class="ad-hero-actions">
+          <button type="button" class="ad-share-btn" (click)="shareArena()">Compartilhar</button>
+          <button
+            type="button"
+            class="ad-follow-btn"
+            [class.ad-follow-btn--active]="isFavorite()"
+            [disabled]="pendingFavorite()"
+            (click)="toggleFollow()"
+          >
+            @if (isFavorite()) {
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
+              <span>Seguindo</span>
+            } @else {
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+              <span>Seguir</span>
+            }
+          </button>
+        </div>
+      </div>
+
+      <div class="ad-identity">
+        <div class="ad-avatar" [style.background]="heroGradient(a.id)">
+          @if (a.logoUrl) {
+            <img [src]="a.logoUrl" [alt]="a.name" />
+          } @else {
+            <span>{{ arenaInitials(a.name) }}</span>
+          }
+        </div>
+        <div class="ad-identity-copy">
+          <h1 class="ad-name">{{ a.name }}</h1>
+          <div class="ad-rating-row">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" class="ad-star"><path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1Z" /></svg>
+            <span class="ad-rating-value">{{ ratingLabel(a.ratingAverage) }}</span>
+            <span class="ad-dim">({{ a.reviewsCount }} avaliações)</span>
+            <span class="ad-dot" aria-hidden="true">·</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.4-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.6 12 21 12 21z" /><circle cx="12" cy="10.5" r="2.3" /></svg>
+            <span class="ad-dim">{{ a.locationLabel }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="ad-main-grid">
+        <div class="ad-col">
+          <section class="ad-card">
+            <h2 class="ad-card-title">Sobre</h2>
+            <p class="ad-body-text">{{ a.description ?? 'Esta arena ainda não adicionou uma descrição.' }}</p>
+            @if (a.courtTypes.length > 0) {
+              <div class="ad-pill-row">
+                @for (s of a.courtTypes; track s) {
+                  <span class="ad-sport-pill">{{ s }}</span>
+                }
+              </div>
+            }
+          </section>
+
+          @if (amenityLabels().length > 0) {
+            <section class="ad-card">
+              <h2 class="ad-card-title">Comodidades</h2>
+              <div class="ad-amenity-grid">
+                @for (label of amenityLabels(); track label) {
+                  <div class="ad-amenity-item">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
+                    <span>{{ label }}</span>
+                  </div>
+                }
+              </div>
+            </section>
+          }
+
+          <section class="ad-card">
+            <span class="ad-card-kicker">{{ courtViews().length }} quadras</span>
+            <h2 class="ad-card-title">Quadras disponíveis</h2>
+            @if (courtViews().length === 0) {
+              <p class="ad-empty-inline">Nenhuma quadra cadastrada ainda.</p>
+            } @else {
+              <div class="ad-court-list">
+                @for (c of courtViews(); track c.id) {
+                  <div class="ad-court-row">
+                    <div class="ad-court-icon" aria-hidden="true">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 12h18M12 3v18" /></svg>
+                    </div>
+                    <div class="ad-court-info">
+                      <p class="ad-court-name">{{ c.name }}</p>
+                      <p class="ad-court-sport">
+                        <span class="ad-court-dot" aria-hidden="true"></span>
+                        {{ c.sportLabel }}
+                      </p>
+                    </div>
+                    <div class="ad-court-meta">
+                      @if (c.nextSlotLabel) {
+                        <span class="ad-court-next">
+                          <span class="ad-dot-live" aria-hidden="true"></span>
+                          Próx. {{ c.nextSlotLabel }}
+                        </span>
+                      } @else {
+                        <span class="ad-court-next ad-court-next--none">Sem horário hoje</span>
+                      }
+                      <span class="ad-court-price">R$ {{ c.pricePerHourReais }}/h</span>
+                    </div>
+                    <a class="ad-btn-primary" [routerLink]="['/reservar', a.id, 'agendar']" [queryParams]="{ courtId: c.id }">Reservar</a>
+                  </div>
+                }
+              </div>
+            }
+          </section>
+        </div>
+
+        <div class="ad-col ad-col--side">
+          <div class="ad-card ad-price-card">
+            <span class="ad-card-kicker">A partir de</span>
+            <div class="ad-price-row">
+              <strong class="ad-price-value">R$ {{ cheapestPrice() }}<span>/hora</span></strong>
+              @if (earliestSlotLabel(); as s) {
+                <span class="ad-price-next">
+                  <span class="ad-dot-live" aria-hidden="true"></span>
+                  Próx. {{ s }}
+                </span>
+              }
+            </div>
+            <a class="ad-btn-primary ad-btn-full" [routerLink]="['/reservar', a.id, 'agendar']">
+              Reservar quadra
+            </a>
+          </div>
+
+          <div class="ad-card">
+            <h2 class="ad-card-title">Avaliações</h2>
+            @if (a.reviewsCount > 0) {
+              <p class="ad-body-text">{{ a.reviewsCount }} avaliações · nota {{ ratingLabel(a.ratingAverage) }}</p>
+              <p class="ad-empty-inline">Comentários detalhados chegam em breve por aqui.</p>
+            } @else {
+              <p class="ad-empty-inline">Sem avaliações ainda.</p>
+            }
+          </div>
+
+          <div class="ad-card">
+            <h2 class="ad-card-title">Localização</h2>
+            <div class="ad-map-placeholder" aria-hidden="true"><span>MAPA</span></div>
+            <p class="ad-body-text">{{ a.locationLabel }}</p>
+            <a [href]="mapsUrl()" target="_blank" rel="noreferrer" class="ad-btn-ghost ad-btn-full">Ver rotas</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</app-at-panel-shell>

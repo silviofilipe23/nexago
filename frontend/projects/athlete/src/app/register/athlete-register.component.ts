@@ -29,7 +29,7 @@ export class AthleteRegisterComponent {
   protected readonly submitting = signal(false);
   protected readonly authError = signal<string | null>(null);
   protected readonly showPassword = signal(false);
-  returnUrl = '/painel';
+  returnUrl = '/onboarding';
 
   protected readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(2)]],
@@ -39,7 +39,7 @@ export class AthleteRegisterComponent {
 
   constructor() {
     const q = this.route.snapshot.queryParamMap.get('redirect');
-    this.returnUrl = sanitizeReturnUrl(q, '/painel', { trustedOrigins: environment.trustedReturnOrigins });
+    this.returnUrl = sanitizeReturnUrl(q, '/onboarding', { trustedOrigins: environment.trustedReturnOrigins });
     toObservable(this.auth.authReady)
       .pipe(filter((ready) => ready), take(1), takeUntilDestroyed())
       .subscribe(() => {

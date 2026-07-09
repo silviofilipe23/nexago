@@ -1,0 +1,225 @@
+<app-auth-shell>
+  <div class="ob-panel">
+    @if (step() !== 5) {
+      <div class="ob-progress">
+        @if (step() > 1) {
+          <button type="button" class="ob-back-btn" (click)="back()" aria-label="Voltar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6" /></svg>
+          </button>
+        } @else {
+          <a routerLink="/cadastro" class="ob-back-btn" aria-label="Voltar ao cadastro">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6" /></svg>
+          </a>
+        }
+        <div class="ob-progress-track">
+          @for (i of [1, 2, 3, 4]; track i) {
+            <span class="ob-progress-seg" [class.ob-progress-seg--active]="i <= step()"></span>
+          }
+        </div>
+        <span class="ob-progress-count">{{ step() }}/4</span>
+      </div>
+    }
+
+    @if (notice(); as n) {
+      <div class="nx-notice" role="status">{{ n }}</div>
+    }
+
+    @switch (step()) {
+      @case (1) {
+        <header class="nx-form-header">
+          <div class="nx-kicker">Passo 1 de 4</div>
+          <h1>Seu esporte principal?</h1>
+          <p>Escolhe um — aquele que você mais pratica.</p>
+        </header>
+
+        <div class="ob-sport-grid">
+          @for (s of sports; track s.code) {
+            <button
+              type="button"
+              class="ob-sport-tile"
+              [class.ob-sport-tile--active]="selectedSportCode() === s.code"
+              (click)="selectSport(s.code)"
+            >
+              @if (selectedSportCode() === s.code) {
+                <span class="ob-sport-check" aria-hidden="true">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 12.5 5 5 10-11" /></svg>
+                </span>
+              }
+              <span class="ob-sport-icon" aria-hidden="true">
+                @switch (s.icon) {
+                  @case ('ball') {
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 3c3 3 3 15 0 18M3.5 9c4 2 13 2 17 0M3.5 15c4-2 13-2 17 0" /></svg>
+                  }
+                  @case ('racket') {
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="8" rx="6" ry="7" /><path d="M10 15v3M7 21h6M10 4v8M6 8h8" /></svg>
+                  }
+                  @case ('running') {
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="15" cy="5" r="1.8" /><path d="m8 21 3-5 2-3-2-4 4-2 2 4 4 1M11 13l-4 2-3 5" /></svg>
+                  }
+                  @case ('plus') {
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+                  }
+                }
+              </span>
+              <span class="ob-sport-label">{{ s.label }}</span>
+            </button>
+          }
+        </div>
+
+        <button type="button" class="nx-btn-primary ob-continue" (click)="goToStep(2)">Continuar</button>
+      }
+
+      @case (2) {
+        <header class="nx-form-header">
+          <div class="nx-kicker">Passo 2 de 4</div>
+          <h1>Seu nível no <span class="ob-accent">{{ selectedSport().label }}</span>?</h1>
+          <p>Garante partidas e torneios no seu nível.</p>
+        </header>
+
+        <div class="ob-option-list">
+          @for (l of levels; track l.code) {
+            <button
+              type="button"
+              class="ob-level-row"
+              [class.ob-level-row--active]="selectedLevelCode() === l.code"
+              (click)="selectLevel(l.code)"
+            >
+              <span class="ob-radio" [class.ob-radio--checked]="selectedLevelCode() === l.code" aria-hidden="true"></span>
+              <span class="ob-level-copy">
+                <span class="ob-level-title">{{ l.label }}</span>
+                <span class="ob-level-desc">{{ l.desc }}</span>
+              </span>
+            </button>
+          }
+        </div>
+
+        <button type="button" class="nx-btn-primary ob-continue" (click)="goToStep(3)">Continuar</button>
+      }
+
+      @case (3) {
+        <header class="nx-form-header">
+          <div class="nx-kicker">Passo 3 de 4</div>
+          <h1>O que você busca?</h1>
+          <p>Isso personaliza recomendações e notificações.</p>
+        </header>
+
+        <div class="ob-option-list">
+          @for (g of goals; track g.code) {
+            <button type="button" class="ob-goal-row" [class.ob-goal-row--active]="isGoalSelected(g.code)" (click)="toggleGoal(g.code)">
+              <span class="ob-goal-label">{{ g.label }}</span>
+              <span class="ob-checkbox" [class.ob-checkbox--checked]="isGoalSelected(g.code)" aria-hidden="true">
+                @if (isGoalSelected(g.code)) {
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 12.5 5 5 10-11" /></svg>
+                }
+              </span>
+            </button>
+          }
+        </div>
+
+        <div class="ob-stack-sm">
+          <button type="button" class="nx-btn-primary" (click)="goToStep(4)">Continuar</button>
+          <button type="button" class="nx-text-link ob-skip" (click)="goToStep(4)">Pular esta etapa</button>
+        </div>
+      }
+
+      @case (4) {
+        <header class="nx-form-header">
+          <div class="nx-kicker">Passo 4 de 4</div>
+          <h1>Perfil básico</h1>
+          <p>Preenche o essencial pra liberar sua conta.</p>
+        </header>
+
+        @if (submitError(); as err) {
+          <div class="nx-alert" role="alert">{{ err }}</div>
+        }
+
+        <div class="ob-photo-row">
+          <span class="ob-photo-placeholder" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>
+          </span>
+          <span class="ob-photo-copy">
+            <span class="ob-photo-title">Foto de perfil <span class="ob-dim">(opcional)</span></span>
+            <span class="ob-photo-hint">JPG ou PNG · até 2 MB</span>
+          </span>
+          <button type="button" class="ob-mini-btn" (click)="choosePhoto()">Escolher</button>
+        </div>
+
+        <div class="nx-stack">
+          <label class="nx-field">
+            <span class="nx-field-label">Nome completo *</span>
+            <span class="nx-field-box" [class.nx-field-box--error]="nameError()">
+              <input type="text" [value]="name()" (input)="name.set($any($event.target).value)" autocomplete="name" />
+            </span>
+            @if (nameError(); as e) {
+              <span class="nx-field-msg nx-field-msg--error">{{ e }}</span>
+            }
+          </label>
+
+          <label class="nx-field">
+            <span class="nx-field-label">Apelido (opcional)</span>
+            <span class="nx-field-box">
+              <input type="text" [value]="nickname()" (input)="nickname.set($any($event.target).value)" placeholder="Como prefere ser chamado" />
+            </span>
+          </label>
+
+          <label class="nx-field">
+            <span class="nx-field-label">WhatsApp *</span>
+            <span class="nx-field-box" [class.nx-field-box--error]="phoneError()">
+              <input type="tel" [value]="phone()" (input)="phone.set($any($event.target).value)" placeholder="(00) 00000-0000" />
+            </span>
+            @if (phoneError(); as e) {
+              <span class="nx-field-msg nx-field-msg--error">{{ e }}</span>
+            }
+          </label>
+
+          <label class="nx-field">
+            <span class="nx-field-label">Data de nascimento *</span>
+            <span class="nx-field-box" [class.nx-field-box--error]="birthDateError()">
+              <input type="text" [value]="birthDateInput()" (input)="birthDateInput.set($any($event.target).value)" placeholder="dd/mm/aaaa" />
+            </span>
+            @if (birthDateError(); as e) {
+              <span class="nx-field-msg nx-field-msg--error">{{ e }}</span>
+            }
+          </label>
+
+          <div class="ob-gender-field">
+            <span class="nx-field-label">Gênero *</span>
+            <div class="ob-gender-grid">
+              @for (g of genders; track g) {
+                <button type="button" class="ob-gender-tile" [class.ob-gender-tile--active]="gender() === g" (click)="gender.set(g)">
+                  {{ g }}
+                </button>
+              }
+            </div>
+            @if (genderError(); as e) {
+              <span class="nx-field-msg nx-field-msg--error">{{ e }}</span>
+            }
+          </div>
+        </div>
+
+        <button type="button" class="nx-btn-primary ob-continue" [disabled]="submitting()" (click)="submitProfile()">
+          @if (submitting()) {
+            <span class="nx-spinner" aria-hidden="true"></span>
+            <span>Salvando…</span>
+          } @else {
+            <span>Concluir cadastro</span>
+          }
+        </button>
+      }
+
+      @case (5) {
+        <div class="ob-done">
+          <div class="ob-done-badge" aria-hidden="true">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m4.5 12.5 5 5 10-11" /></svg>
+          </div>
+          <header class="nx-form-header nx-center">
+            <div class="nx-kicker">Tudo pronto</div>
+            <h1>Seu perfil está pronto.</h1>
+            <p>Esporte, nível e objetivos configurados. Bora encontrar sua próxima partida.</p>
+          </header>
+          <button type="button" class="nx-btn-primary" (click)="finish()">Entrar no nexaGO</button>
+        </div>
+      }
+    }
+  </div>
+</app-auth-shell>

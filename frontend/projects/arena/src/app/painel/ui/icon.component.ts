@@ -19,7 +19,7 @@ export type PanelIconName =
   | 'star'
   | 'share';
 
-/** Ícones stroke-24 do painel da arena, um componente para evitar repetir SVG. */
+/** Ícones stroke-24 do painel da arena (protótipo Ar\*\/Bo\*\/At\* Ic\*), um componente para evitar repetir SVG. */
 @Component({
   selector: 'ar-icon',
   changeDetection: ChangeDetectionStrategy.OnPush,

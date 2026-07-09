@@ -37,8 +37,10 @@ export function lateCancelEventId(matchId: string): string {
   return `late_cancel_${matchId}`;
 }
 
-export function reviewReceivedEventId(matchId: string, reviewerUid: string): string {
-  return `review_received_${matchId}_${reviewerUid}`;
+export function reviewReceivedEventId(
+  matchId: string, reviewerUid: string, revieweeUid: string,
+): string {
+  return `review_received_${matchId}_${reviewerUid}_${revieweeUid}`;
 }
 
 /**

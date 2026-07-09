@@ -44,5 +44,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/agenda/panel-agenda.component').then((m) => m.PanelAgendaComponent),
   },
+  {
+    path: 'painel/financeiro',
+    title: 'Financeiro — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/finance/panel-finance.component').then((m) => m.PanelFinanceComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

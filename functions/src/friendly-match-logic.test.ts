@@ -2,6 +2,7 @@ import {describe, it} from "node:test";
 import assert from "node:assert/strict";
 import {
   canTransition,
+  canTransitionSlot,
   computeCompatibilityScore,
   computeConfirmationSchedule,
   isCancellationPenalized,
@@ -24,18 +25,12 @@ function profile(overrides: Partial<CompatibilityProfile> = {}): CompatibilityPr
   };
 }
 
-describe("canTransition — máquina de estados", () => {
+describe("canTransition — máquina de estados do jogo", () => {
   it("aceita as transições válidas do ciclo", () => {
     const valid: Array<[string, string]> = [
-      ["sent", "confirmed"],
-      ["sent", "declined"],
-      ["sent", "countered"],
-      ["sent", "expired"],
-      ["sent", "cancelled"],
-      ["countered", "confirmed"],
-      ["countered", "declined"],
-      ["countered", "expired"],
-      ["countered", "cancelled"],
+      ["filling", "confirmed"],
+      ["filling", "cancelled"],
+      ["filling", "unfilled"],
       ["confirmed", "cancelled"],
       ["confirmed", "no_show"],
       ["confirmed", "completed"],
@@ -48,16 +43,15 @@ describe("canTransition — máquina de estados", () => {
 
   it("rejeita transições fora do ciclo e a partir de estados terminais", () => {
     const invalid: Array<[string, string]> = [
-      ["sent", "completed"],
-      ["sent", "reviewed"],
-      ["countered", "countered"],
-      ["confirmed", "declined"],
+      ["filling", "completed"],
+      ["filling", "reviewed"],
+      ["filling", "no_show"],
+      ["confirmed", "unfilled"],
       ["confirmed", "reviewed"],
-      ["declined", "confirmed"],
-      ["expired", "sent"],
+      ["unfilled", "confirmed"],
       ["cancelled", "confirmed"],
       ["no_show", "completed"],
-      ["reviewed", "sent"],
+      ["reviewed", "filling"],
       ["completed", "no_show"],
     ];
     for (const [from, to] of invalid) {
@@ -66,8 +60,40 @@ describe("canTransition — máquina de estados", () => {
   });
 
   it("rejeita estados desconhecidos", () => {
-    assert.equal(canTransition("draft", "sent"), false);
-    assert.equal(canTransition("sent", "banana"), false);
+    assert.equal(canTransition("draft", "filling"), false);
+    assert.equal(canTransition("filling", "banana"), false);
+  });
+});
+
+describe("canTransitionSlot — máquina de estados da vaga", () => {
+  it("aceita as transições válidas", () => {
+    const valid: Array<[string, string]> = [
+      ["invited", "accepted"],
+      ["invited", "declined"],
+      ["invited", "expired"],
+      ["invited", "countered"],
+      ["countered", "accepted"],
+      ["countered", "declined"],
+      ["countered", "expired"],
+      ["declined", "invited"],
+      ["expired", "invited"],
+    ];
+    for (const [from, to] of valid) {
+      assert.equal(canTransitionSlot(from, to), true, `${from} → ${to} deveria ser válida`);
+    }
+  });
+
+  it("rejeita transições fora do ciclo", () => {
+    const invalid: Array<[string, string]> = [
+      ["accepted", "declined"],
+      ["accepted", "invited"],
+      ["declined", "accepted"],
+      ["expired", "accepted"],
+      ["countered", "invited"],
+    ];
+    for (const [from, to] of invalid) {
+      assert.equal(canTransitionSlot(from, to), false, `${from} → ${to} deveria ser inválida`);
+    }
   });
 });
 

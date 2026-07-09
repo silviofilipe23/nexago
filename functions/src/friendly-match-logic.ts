@@ -10,15 +10,15 @@ import {levelRank} from "./category-level-eligibility";
  */
 
 export type FriendlyMatchStatus =
-  | "sent"
-  | "countered"
+  | "filling"
   | "confirmed"
-  | "declined"
-  | "expired"
+  | "unfilled"
   | "cancelled"
   | "no_show"
   | "completed"
   | "reviewed";
+
+export type SlotStatus = "invited" | "accepted" | "declined" | "expired" | "countered";
 
 export type FriendlyMatchObjective = "training" | "friendly" | "partner";
 
@@ -50,16 +50,15 @@ const HOUR_MS = 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
 
 /**
- * Transições válidas da máquina de estados. Estados terminais têm lista
- * vazia. `sent/countered → cancelled` é a retirada do convite pelo remetente.
+ * Transições válidas do JOGO. `filling` substitui `sent`/`countered` de
+ * antes — pelo menos uma vaga ainda não foi aceita. `unfilled` é novo:
+ * `scheduledAt` chegou com o jogo ainda em `filling`.
  */
 export const VALID_TRANSITIONS: Record<FriendlyMatchStatus, readonly FriendlyMatchStatus[]> = {
-  sent: ["confirmed", "declined", "countered", "expired", "cancelled"],
-  countered: ["confirmed", "declined", "expired", "cancelled"],
+  filling: ["confirmed", "cancelled", "unfilled"],
   confirmed: ["cancelled", "no_show", "completed"],
   completed: ["reviewed"],
-  declined: [],
-  expired: [],
+  unfilled: [],
   cancelled: [],
   no_show: [],
   reviewed: [],
@@ -68,6 +67,26 @@ export const VALID_TRANSITIONS: Record<FriendlyMatchStatus, readonly FriendlyMat
 export function canTransition(from: string, to: string): boolean {
   const allowed = VALID_TRANSITIONS[from as FriendlyMatchStatus];
   return allowed != null && allowed.includes(to as FriendlyMatchStatus);
+}
+
+/**
+ * Transições válidas da VAGA dentro de um jogo em `filling`. `countered` só
+ * é alcançável quando o jogo tem uma única vaga (`slotsTotal === 1`) — quem
+ * chama garante isso antes de transicionar, esta função só valida a forma.
+ * `declined`/`expired` voltam pra `invited` quando o organizador repõe a
+ * vaga com outro atleta.
+ */
+export const VALID_SLOT_TRANSITIONS: Record<SlotStatus, readonly SlotStatus[]> = {
+  invited: ["accepted", "declined", "expired", "countered"],
+  countered: ["accepted", "declined", "expired"],
+  accepted: [],
+  declined: ["invited"],
+  expired: ["invited"],
+};
+
+export function canTransitionSlot(from: string, to: string): boolean {
+  const allowed = VALID_SLOT_TRANSITIONS[from as SlotStatus];
+  return allowed != null && allowed.includes(to as SlotStatus);
 }
 
 /** Normaliza cidade/UF para comparação (caixa, acentos, espaços). */

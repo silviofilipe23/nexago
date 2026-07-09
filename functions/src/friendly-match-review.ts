@@ -196,7 +196,8 @@ export async function revealFriendlyMatchReviewsIfDue(
 ): Promise<{revealed: boolean; notifications: FriendlyMatchNotification[]}> {
   const matchRef = db.collection(MATCHES_COLLECTION).doc(matchId);
 
-  type Outcome = {data: MatchData; reviews: Record<string, StoredReview>} | null;
+  type PairReveal = {reviewerUid: string; revieweeUid: string; review: StoredReview};
+  type Outcome = {newlyRevealed: PairReveal[]} | null;
 
   const outcome = await db.runTransaction<Outcome>(async (tx) => {
     const matchSnap = await tx.get(matchRef);
@@ -206,26 +207,54 @@ export async function revealFriendlyMatchReviewsIfDue(
     const revealAt = data.reviewRevealAt as Timestamp | undefined;
     if (revealAt == null || revealAt.toMillis() > nowMs) return null;
 
-    const reviews: Record<string, StoredReview> = {};
-    for (const reviewerUid of [data.fromUid as string, data.toUid as string]) {
-      const snap = await tx.get(
-        db.doc(`${MATCHES_COLLECTION}/${matchId}/privateReviews/${reviewerUid}`));
-      if (snap.exists) {
-        const stored = snap.data() as StoredReview;
-        reviews[reviewerUid] = {
-          stars: stored.stars,
-          ...(stored.tags ? {tags: stored.tags} : {}),
-          ...(stored.comment ? {comment: stored.comment} : {}),
+    const participantUids = data.participantUids as string[];
+    const reviews = {...(data.reviews as Record<string, Record<string, StoredReview>> ?? {})};
+    const newlyRevealed: PairReveal[] = [];
+    for (const reviewerUid of participantUids) {
+      for (const revieweeUid of participantUids) {
+        if (reviewerUid === revieweeUid) continue;
+        if (reviews[reviewerUid]?.[revieweeUid] != null) continue;
+        const snap = await tx.get(
+          db.doc(`${MATCHES_COLLECTION}/${matchId}/privateReviews/${reviewerUid}_${revieweeUid}`));
+        if (!snap.exists) continue;
+        const raw = snap.data() as StoredReview & {
+          reviewerUid?: string; revieweeUid?: string; createdAt?: Timestamp;
         };
+        // Mesma limpeza da Task 15: o doc privado carrega reviewerUid/
+        // revieweeUid/createdAt, que não devem vazar pro campo público.
+        const stored: StoredReview = {
+          stars: raw.stars,
+          ...(raw.tags ? {tags: raw.tags} : {}),
+          ...(raw.comment ? {comment: raw.comment} : {}),
+        };
+        reviews[reviewerUid] = {...(reviews[reviewerUid] ?? {}), [revieweeUid]: stored};
+        newlyRevealed.push({reviewerUid, revieweeUid, review: stored});
       }
     }
-    tx.set(matchRef, revealUpdate(data, reviews, nowMs), {merge: true});
-    return {data, reviews};
+
+    tx.set(matchRef, {
+      status: "reviewed",
+      statusUpdatedAt: Timestamp.fromMillis(nowMs),
+      updatedAt: Timestamp.fromMillis(nowMs),
+      reviews,
+      reviewsRevealedAt: Timestamp.fromMillis(nowMs),
+      history: appendHistory(data, historyEntry("reviewed", "system", nowMs)),
+    }, {merge: true});
+    return {newlyRevealed};
   });
 
   if (outcome == null) return {revealed: false, notifications: []};
-  const notifications = await applyRevealEffects(
-    db, matchId, outcome.data, outcome.reviews);
+  const notifications: FriendlyMatchNotification[] = [];
+  for (const {reviewerUid, revieweeUid, review} of outcome.newlyRevealed) {
+    await applyReputationEvent(
+      db, revieweeUid, reviewReceivedEventId(matchId, reviewerUid, revieweeUid),
+      "review_received", {matchId, stars: review.stars});
+    notifications.push({
+      userId: revieweeUid, title: "Avaliação revelada ⭐",
+      body: "Alguém avaliou o jogo com você. Veja como foi.",
+      type: "friendly_match_reviewed", data: {type: "friendly_match_reviewed", matchId},
+    });
+  }
   return {revealed: true, notifications};
 }
 

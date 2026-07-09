@@ -144,27 +144,45 @@ describe("submitFriendlyMatchReviewCore", () => {
 });
 
 describe("revealFriendlyMatchReviewsIfDue", () => {
-  it("prazo vencido com uma avaliação → revela a que existe e credita só aquele reviewee", async () => {
+  it("prazo vencido com avaliação unilateral → revela a que existe e credita só aquele reviewee", async () => {
     const fake = new FakeFirestore();
-    seedCompleted(fake, "m1");
-    await submitFriendlyMatchReviewCore(db(fake), "a", {matchId: "m1", stars: 4}, now);
+    seedCompleted(fake, "m1", ["a", "b"]);
+    await submitFriendlyMatchReviewCore(db(fake), "a", {matchId: "m1", revieweeUid: "b", stars: 4}, now);
     const result = await revealFriendlyMatchReviewsIfDue(db(fake), "m1", revealAt + 1);
     assert.equal(result.revealed, true);
     const data = fake.store.get("friendlyMatches/m1")!;
     assert.equal(data.status, "reviewed");
-    const reviews = data.reviews as Record<string, {stars: number}>;
-    assert.equal(reviews.a.stars, 4);
+    const reviews = data.reviews as Record<string, Record<string, {stars: number}>>;
+    assert.equal(reviews.a.b.stars, 4);
     assert.equal(reviews.b, undefined);
-    assert.ok(fake.store.get("users/b/reputationEvents/review_received_m1_a"));
+    assert.ok(fake.store.get("users/b/reputationEvents/review_received_m1_a_b"));
     assert.equal(fake.store.get("users/a/reputation/summary"), undefined);
-    // Só quem recebeu avaliação é notificado.
     assert.equal(result.notifications.length, 1);
     assert.equal(result.notifications[0].userId, "b");
   });
 
+  it("com 3 participantes: revela cada par pendente que tiver ao menos uma nota, força status reviewed", async () => {
+    const fake = new FakeFirestore();
+    seedCompleted(fake, "m1", ["a", "b", "c"]);
+    await submitFriendlyMatchReviewCore(db(fake), "a", {matchId: "m1", revieweeUid: "b", stars: 5}, now);
+    await submitFriendlyMatchReviewCore(db(fake), "b", {matchId: "m1", revieweeUid: "a", stars: 4}, now); // par a-b já revela na hora
+    await submitFriendlyMatchReviewCore(db(fake), "a", {matchId: "m1", revieweeUid: "c", stars: 3}, now); // c nunca avaliou a
+    const result = await revealFriendlyMatchReviewsIfDue(db(fake), "m1", revealAt + 1);
+    assert.equal(result.revealed, true);
+    const data = fake.store.get("friendlyMatches/m1")!;
+    assert.equal(data.status, "reviewed");
+    const reviews = data.reviews as Record<string, Record<string, {stars: number}>>;
+    assert.equal(reviews.a.b.stars, 5); // já revelado antes do prazo
+    assert.equal(reviews.a.c.stars, 3); // revelado agora no prazo
+    assert.equal(reviews.c?.a, undefined); // c nunca avaliou, continua ausente
+    assert.equal(reviews.b?.c, undefined);
+    // só quem RECEBEU nota nova no sweep (c) é notificado/creditado por ele
+    assert.ok(fake.store.get("users/c/reputationEvents/review_received_m1_a_c"));
+  });
+
   it("prazo vencido sem avaliações → encerra sem notas nem notificações; idempotente", async () => {
     const fake = new FakeFirestore();
-    seedCompleted(fake, "m1");
+    seedCompleted(fake, "m1", ["a", "b"]);
     const result = await revealFriendlyMatchReviewsIfDue(db(fake), "m1", revealAt + 1);
     assert.equal(result.revealed, true);
     assert.equal(fake.store.get("friendlyMatches/m1")!.status, "reviewed");
@@ -175,7 +193,7 @@ describe("revealFriendlyMatchReviewsIfDue", () => {
 
   it("não revela antes do prazo", async () => {
     const fake = new FakeFirestore();
-    seedCompleted(fake, "m1");
+    seedCompleted(fake, "m1", ["a", "b"]);
     const result = await revealFriendlyMatchReviewsIfDue(db(fake), "m1", revealAt - 1);
     assert.equal(result.revealed, false);
     assert.equal(fake.store.get("friendlyMatches/m1")!.status, "completed");

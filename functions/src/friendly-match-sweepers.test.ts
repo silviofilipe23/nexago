@@ -4,7 +4,7 @@ import {Timestamp} from "firebase-admin/firestore";
 import type {Firestore} from "firebase-admin/firestore";
 import {FakeFirestore, type DocData} from "./fake-firestore.test-helper";
 import {
-  expireFriendlyMatchIfDue,
+  expireFriendlyMatchSlotIfDue,
   sendFriendlyMatchReminderIfDue,
 } from "./friendly-match-sweepers";
 
@@ -15,6 +15,11 @@ function db(fake: FakeFirestore): Firestore {
   return fake as unknown as Firestore;
 }
 
+// NOTE(task-10): `seedMatch` (old fromUid/toUid schema) is kept here because
+// `seedConfirmed` below (sendFriendlyMatchReminderIfDue tests, out of scope
+// for this task per the plan — that's Task 12) still depends on it. Only the
+// expire-related describe block below was migrated to the new slots[] schema
+// via `seedFilling`/`slot`.
 function seedMatch(fake: FakeFirestore, id: string, overrides: DocData = {}): void {
   fake.seedDoc(`friendlyMatches/${id}`, {
     fromUid: "a",
@@ -30,51 +35,71 @@ function seedMatch(fake: FakeFirestore, id: string, overrides: DocData = {}): vo
   });
 }
 
-describe("expireFriendlyMatchIfDue", () => {
-  it("convite sent vencido → expired, história registrada, notifica o remetente", async () => {
+function seedFilling(fake: FakeFirestore, id: string, slots: DocData[], overrides: DocData = {}): void {
+  fake.seedDoc(`friendlyMatches/${id}`, {
+    organizerUid: "a",
+    organizerName: "Ana",
+    slotsTotal: slots.length,
+    slots,
+    participantUids: ["a"],
+    pendingSlotUids: slots.filter((s) => s.status === "invited" || s.status === "countered").map((s) => s.uid),
+    status: "filling",
+    scheduledAt: Timestamp.fromMillis(now + 48 * HOUR_MS),
+    history: [{status: "filling", actorUid: "a", at: Timestamp.fromMillis(now - 24 * HOUR_MS)}],
+    ...overrides,
+  });
+}
+
+function slot(uid: string, name: string, expiresAt: number, status = "invited"): DocData {
+  return {uid, name, photoUrl: null, status, invitedAt: Timestamp.fromMillis(now - 24 * HOUR_MS),
+    respondedAt: null, expiresAt: Timestamp.fromMillis(expiresAt)};
+}
+
+describe("expireFriendlyMatchSlotIfDue", () => {
+  it("vaga invited vencida → expired, história registrada, notifica o organizador", async () => {
     const fake = new FakeFirestore();
-    seedMatch(fake, "m1");
-    const result = await expireFriendlyMatchIfDue(db(fake), "m1", now);
+    seedFilling(fake, "m1", [slot("b", "Bia", now - 1)]);
+    const result = await expireFriendlyMatchSlotIfDue(db(fake), "m1", 0, now);
     assert.equal(result.expired, true);
     const data = fake.store.get("friendlyMatches/m1")!;
-    assert.equal(data.status, "expired");
-    const history = data.history as Array<{status: string; actorUid: string}>;
-    const last = history[history.length - 1];
-    assert.equal(last.status, "expired");
-    assert.equal(last.actorUid, "system");
+    const slots = data.slots as Array<{status: string}>;
+    assert.equal(slots[0].status, "expired");
+    assert.deepEqual(data.pendingSlotUids, []);
     assert.equal(result.notifications.length, 1);
     assert.equal(result.notifications[0].userId, "a");
-    assert.equal(result.notifications[0].type, "friendly_match_expired");
+    assert.equal(result.notifications[0].type, "friendly_match_slot_expired");
   });
 
-  it("contraproposta vencida → notifica o destinatário (dono da proposta vigente)", async () => {
+  it("não expira jogo que já saiu de filling; é idempotente", async () => {
     const fake = new FakeFirestore();
-    seedMatch(fake, "m1", {status: "countered"});
-    const result = await expireFriendlyMatchIfDue(db(fake), "m1", now);
-    assert.equal(result.expired, true);
-    assert.equal(result.notifications[0].userId, "b");
-  });
+    seedFilling(fake, "m1", [slot("b", "Bia", now - 1)], {status: "confirmed"});
+    const result = await expireFriendlyMatchSlotIfDue(db(fake), "m1", 0, now);
+    assert.equal(result.expired, false);
 
-  it("é idempotente e respeita corrida com transição concorrente", async () => {
-    const fake = new FakeFirestore();
-    seedMatch(fake, "m1", {status: "confirmed"});
-    const confirmed = await expireFriendlyMatchIfDue(db(fake), "m1", now);
-    assert.equal(confirmed.expired, false);
-    assert.equal(fake.store.get("friendlyMatches/m1")!.status, "confirmed");
-
-    seedMatch(fake, "m2");
-    await expireFriendlyMatchIfDue(db(fake), "m2", now);
-    const again = await expireFriendlyMatchIfDue(db(fake), "m2", now);
+    seedFilling(fake, "m2", [slot("b", "Bia", now - 1)]);
+    await expireFriendlyMatchSlotIfDue(db(fake), "m2", 0, now);
+    const again = await expireFriendlyMatchSlotIfDue(db(fake), "m2", 0, now);
     assert.equal(again.expired, false);
     assert.equal(again.notifications.length, 0);
   });
 
-  it("não expira convite ainda dentro do prazo (re-checagem na transação)", async () => {
+  it("não expira vaga ainda dentro do prazo", async () => {
     const fake = new FakeFirestore();
-    seedMatch(fake, "m1", {expiresAt: Timestamp.fromMillis(now + HOUR_MS)});
-    const result = await expireFriendlyMatchIfDue(db(fake), "m1", now);
+    seedFilling(fake, "m1", [slot("b", "Bia", now + HOUR_MS)]);
+    const result = await expireFriendlyMatchSlotIfDue(db(fake), "m1", 0, now);
     assert.equal(result.expired, false);
-    assert.equal(fake.store.get("friendlyMatches/m1")!.status, "sent");
+    assert.equal((fake.store.get("friendlyMatches/m1")!.slots as Array<{status: string}>)[0].status, "invited");
+  });
+
+  it("com múltiplas vagas, só expira a vencida e mantém as outras intactas", async () => {
+    const fake = new FakeFirestore();
+    seedFilling(fake, "m1", [slot("b", "Bia", now - 1), slot("c", "Caio", now + HOUR_MS)]);
+    await expireFriendlyMatchSlotIfDue(db(fake), "m1", 0, now);
+    const data = fake.store.get("friendlyMatches/m1")!;
+    const slots = data.slots as Array<{uid: string; status: string}>;
+    assert.equal(slots[0].status, "expired");
+    assert.equal(slots[1].status, "invited");
+    assert.deepEqual(data.pendingSlotUids, ["c"]);
   });
 });
 

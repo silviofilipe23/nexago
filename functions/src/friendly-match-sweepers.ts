@@ -31,45 +31,64 @@ function appendHistory(data: MatchData, entry: MatchData): MatchData[] {
   return [...history, entry];
 }
 
-export async function expireFriendlyMatchIfDue(
+const PENDING_SLOT_STATUSES = ["invited", "countered"] as const;
+
+function pendingUidsOf(slots: MatchData[]): string[] {
+  return slots
+    .filter((s) => PENDING_SLOT_STATUSES.includes(s.status as typeof PENDING_SLOT_STATUSES[number]))
+    .map((s) => s.uid as string);
+}
+
+function nextSlotExpiresAtOf(slots: MatchData[]): Timestamp | null {
+  let min: Timestamp | null = null;
+  for (const s of slots) {
+    if (!PENDING_SLOT_STATUSES.includes(s.status as typeof PENDING_SLOT_STATUSES[number])) continue;
+    const at = s.expiresAt as Timestamp;
+    if (min == null || at.toMillis() < min.toMillis()) min = at;
+  }
+  return min;
+}
+
+export async function expireFriendlyMatchSlotIfDue(
   db: Firestore,
   matchId: string,
+  slotIndex: number,
   nowMs: number = Date.now(),
 ): Promise<{expired: boolean; notifications: FriendlyMatchNotification[]}> {
   const ref = db.collection(MATCHES_COLLECTION).doc(matchId);
-  const expired = await db.runTransaction<MatchData | null>(async (tx) => {
+
+  type Outcome = {data: MatchData; slotName: string} | null;
+  const outcome = await db.runTransaction<Outcome>(async (tx) => {
     const snap = await tx.get(ref);
     if (!snap.exists) return null;
     const data = snap.data() as MatchData;
-    if (data.status !== "sent" && data.status !== "countered") return null;
-    const expiresAt = data.expiresAt as Timestamp | undefined;
+    if (data.status !== "filling") return null;
+    const slots = (data.slots as MatchData[]).slice();
+    const slotData = slots[slotIndex];
+    if (slotData == null || !PENDING_SLOT_STATUSES.includes(
+      slotData.status as typeof PENDING_SLOT_STATUSES[number])) return null;
+    const expiresAt = slotData.expiresAt as Timestamp | undefined;
     if (expiresAt == null || !isInviteExpired(expiresAt.toMillis(), nowMs)) return null;
+    slots[slotIndex] = {...slotData, status: "expired"};
     tx.set(ref, {
-      status: "expired",
-      statusUpdatedAt: Timestamp.fromMillis(nowMs),
+      slots,
+      pendingSlotUids: pendingUidsOf(slots),
+      nextSlotExpiresAt: nextSlotExpiresAtOf(slots),
       updatedAt: Timestamp.fromMillis(nowMs),
-      history: appendHistory(data, historyEntry("expired", "system", nowMs)),
+      history: appendHistory(data, historyEntry("slot_expired", "system", nowMs)),
     }, {merge: true});
-    return data;
+    return {data, slotName: slotData.name as string};
   });
 
-  if (expired == null) return {expired: false, notifications: []};
-
-  // Quem fez a proposta vigente esperava resposta: avisa que ela venceu.
-  const waitingUid = expired.status === "sent" ?
-    (expired.fromUid as string) :
-    (expired.toUid as string);
-  const otherName = waitingUid === expired.fromUid ?
-    (expired.toName as string) :
-    (expired.fromName as string);
+  if (outcome == null) return {expired: false, notifications: []};
   return {
     expired: true,
     notifications: [{
-      userId: waitingUid,
-      title: "Convite expirado",
-      body: `${otherName} não respondeu a tempo. Bora tentar outro horário?`,
-      type: "friendly_match_expired",
-      data: {type: "friendly_match_expired", matchId},
+      userId: outcome.data.organizerUid as string,
+      title: "Convite vencido",
+      body: `${outcome.slotName} não respondeu a tempo. Bora escolher outra pessoa pra vaga?`,
+      type: "friendly_match_slot_expired",
+      data: {type: "friendly_match_slot_expired", matchId},
     }],
   };
 }
@@ -119,23 +138,28 @@ export async function sendFriendlyMatchReminderIfDue(
 // Wrappers agendados
 // ---------------------------------------------------------------------------
 
-export const expireFriendlyMatches = onSchedule(
+export const expireFriendlyMatchSlots = onSchedule(
   {schedule: "every 5 minutes", timeZone: TIME_ZONE},
   async () => {
     const db = getFirestore();
     const now = Timestamp.now();
     const snap = await db
       .collection(MATCHES_COLLECTION)
-      .where("status", "in", ["sent", "countered"])
-      .where("expiresAt", "<=", now)
+      .where("status", "==", "filling")
+      .where("nextSlotExpiresAt", "<=", now)
       .limit(SWEEP_LIMIT)
       .get();
     for (const doc of snap.docs) {
-      try {
-        const result = await expireFriendlyMatchIfDue(db, doc.id, now.toMillis());
-        await deliverFriendlyMatchNotifications(result.notifications);
-      } catch (error) {
-        logger.error("expireFriendlyMatches: falha ao expirar", {matchId: doc.id, error});
+      const slots = (doc.data().slots ?? []) as MatchData[];
+      for (let i = 0; i < slots.length; i++) {
+        try {
+          const result = await expireFriendlyMatchSlotIfDue(db, doc.id, i, now.toMillis());
+          await deliverFriendlyMatchNotifications(result.notifications);
+        } catch (error) {
+          logger.error("expireFriendlyMatchSlots: falha ao expirar vaga", {
+            matchId: doc.id, slotIndex: i, error,
+          });
+        }
       }
     }
   },

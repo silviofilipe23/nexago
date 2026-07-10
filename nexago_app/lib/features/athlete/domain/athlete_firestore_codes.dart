@@ -68,6 +68,7 @@ abstract final class AthleteFirestoreCodes {
 
   static const Map<String, String> _levelFirestoreToLabel = {
     'iniciante': 'Iniciante',
+    'basico': 'Iniciante',
     'intermediario': 'Intermediário',
     'open': 'Open',
     'iniciante_1': 'Iniciante 1',

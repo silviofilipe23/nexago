@@ -66,13 +66,13 @@ void main() {
       expect(result.first.userId, '1');
     });
 
-    test('filters by quick level Intermediário', () {
+    test('filters by quick level Intermediário 1', () {
       final entries = [
         _entry(
-          profile: _profile(id: '1', level: 'Iniciante'),
+          profile: _profile(id: '1', level: 'Iniciante 1'),
         ),
         _entry(
-          profile: _profile(id: '2', level: 'Intermediário'),
+          profile: _profile(id: '2', level: 'Intermediário 1'),
         ),
       ];
       final result = applyDiscoverFilters(

@@ -9,10 +9,12 @@ void main() {
   group('AthleteProfileOptions', () {
     test('normalizeLevel maps legacy labels and preserves unmapped ones', () {
       expect(AthleteProfileOptions.normalizeLevel('Open / federado'), 'Open');
-      expect(AthleteProfileOptions.normalizeLevel('Básico'), 'Iniciante');
-      // Valor legado sem alvo canônico (o nível 'Pro' foi removido) passa
-      // adiante inalterado em vez de virar um nível errado.
-      expect(AthleteProfileOptions.normalizeLevel('Avançado'), 'Avançado');
+      // Escada de 5 níveis: legados mapeiam pro degrau equivalente.
+      expect(AthleteProfileOptions.normalizeLevel('Básico'), 'Iniciante 1');
+      expect(
+        AthleteProfileOptions.normalizeLevel('Avançado'),
+        'Intermediário 1',
+      );
       // Vazio normaliza para vazio.
       expect(AthleteProfileOptions.normalizeLevel(''), '');
     });

@@ -79,17 +79,16 @@ bool _matchesLevel(AthleteProfile profile, AthleteDiscoverFilters filters) {
   final hasLevelFilter = quick.isNotEmpty || filters.levels.isNotEmpty;
   if (hasLevelFilter && !_profileHasDefinedLevel(profile)) return false;
 
-  // O filtro tem 3 buckets legados; níveis da escada de 5 (Iniciante 1/2,
-  // Intermediário 1/2) casam pelo bucket equivalente.
+  // Chips e filtro avançado usam os rótulos finos da escada de 5
+  // (Iniciante 1/2, Intermediário 1/2, Open); comparar direto, sem reduzir
+  // a bucket, senão nenhum nível fino nunca casa com o filtro.
   final resolved = resolveAthleteLevelLabel(profile);
-  final resolvedBucket =
-      AthleteProfileOptions.legacyBucketLabel(resolved) ?? resolved;
   if (quick.isNotEmpty) {
-    if (resolvedBucket.toLowerCase() != quick.toLowerCase()) return false;
+    if (resolved.toLowerCase() != quick.toLowerCase()) return false;
   }
   if (filters.levels.isEmpty) return true;
   return filters.levels.any(
-    (level) => resolvedBucket.toLowerCase() == level.trim().toLowerCase(),
+    (level) => resolved.toLowerCase() == level.trim().toLowerCase(),
   );
 }
 

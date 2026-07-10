@@ -370,6 +370,7 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  text-decoration: none;
   transition: all 140ms var(--nx-ease-out);
 }
 
@@ -407,6 +408,7 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  text-decoration: none;
 }
 
 .ar-ghost-btn:hover {

@@ -1144,11 +1144,21 @@ service cloud.firestore {
           ) &&
           (
             !('role' in request.resource.data) ||
-            request.resource.data.role == resource.data.role
+            // Contas antigas sem `role` gravado (pré 2026-07-06) recebem o
+            // backfill em todo save do app; primeira gravação só pode ser
+            // 'athlete' (evita auto-promoção), depois o valor fica congelado.
+            request.resource.data.role == resource.data.get('role', 'athlete')
           ) &&
           (
             !('roles' in request.resource.data) ||
-            request.resource.data.roles == resource.data.roles
+            (
+              'roles' in resource.data
+                ? request.resource.data.roles == resource.data.roles
+                : (
+                    request.resource.data.roles is list &&
+                    !request.resource.data.roles.hasAny(['admin', 'arena', 'organizer'])
+                  )
+            )
           ) &&
           (
             !('superAdmin' in request.resource.data) ||

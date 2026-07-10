@@ -18,8 +18,12 @@ const NAV_ITEMS: PanelNavItem[] = [
   { id: 'inicio', label: 'Início', icon: 'home', route: '/painel', badge: null },
   { id: 'agenda', label: 'Agenda', icon: 'calendar', route: '/painel/agenda', badge: null },
   { id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro', badge: null },
+  { id: 'comandas', label: 'Comandas', icon: 'bookmark', route: '/painel/comandas', badge: null },
+  { id: 'estoque', label: 'Estoque', icon: 'box', route: '/painel/estoque', badge: null },
+  { id: 'promocoes', label: 'Promoções', icon: 'tag', route: '/painel/promocoes', badge: null },
   { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios', badge: 2 },
   { id: 'quadras', label: 'Quadras', icon: 'courts', route: '/painel/quadras', badge: null },
+  { id: 'ranking', label: 'Ranking', icon: 'ranking', route: '/painel/ranking', badge: null },
   { id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe', badge: null },
   { id: 'perfil', label: 'Perfil', icon: 'person', route: '/painel/perfil', badge: null },
 ];

@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import { BarRowComponent, type BarRowTone } from '../ui/bar-row.component';
 import { IconComponent } from '../ui/icon.component';
@@ -10,6 +11,7 @@ import { PillComponent, type PillTone } from '../ui/pill.component';
 type CourtStatus = 'livre' | 'ocupada' | 'manutencao';
 
 interface Court {
+  id: string;
   name: string;
   sport: string;
   status: CourtStatus;
@@ -32,9 +34,9 @@ const STATUS_TONE: Record<CourtStatus, PillTone> = {
 };
 
 const COURTS: Court[] = [
-  { name: 'Quadra 1', sport: 'Beach Tennis', status: 'livre', preco: 60, ocupacao: 92, reservasHoje: 5, cobertura: 'Coberta' },
-  { name: 'Quadra 2', sport: 'Vôlei de praia', status: 'ocupada', preco: 50, ocupacao: 84, reservasHoje: 4, cobertura: 'Descoberta' },
-  { name: 'Quadra 3', sport: 'Beach Soccer', status: 'manutencao', preco: 80, ocupacao: 0, reservasHoje: 0, cobertura: 'Coberta' },
+  { id: 'q1', name: 'Quadra 1', sport: 'Beach Tennis', status: 'livre', preco: 60, ocupacao: 92, reservasHoje: 5, cobertura: 'Coberta' },
+  { id: 'q2', name: 'Quadra 2', sport: 'Vôlei de praia', status: 'ocupada', preco: 50, ocupacao: 84, reservasHoje: 4, cobertura: 'Descoberta' },
+  { id: 'q3', name: 'Quadra 3', sport: 'Beach Soccer', status: 'manutencao', preco: 80, ocupacao: 0, reservasHoje: 0, cobertura: 'Coberta' },
 ];
 
 /** Tela Quadras do painel (protótipo ArQuadrasScreen): KPIs e grid de cards de quadra. */
@@ -45,7 +47,7 @@ const COURTS: Court[] = [
   template: `
     <ar-panel-shell>
       <ar-page-header title="Quadras" [subtitle]="arenaName() + ' · ' + courts.length + ' quadras cadastradas'">
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary">
+        <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="createCourt()">
           <ar-icon name="plus" [size]="14" />
           Nova quadra
         </button>
@@ -93,7 +95,7 @@ const COURTS: Court[] = [
                 </div>
                 <ar-bar-row label="Ocupação (7d)" [pct]="c.ocupacao" [tone]="occupancyTone(c)" [last]="true" />
                 <div class="card-foot">
-                  <button type="button" class="ar-mini-btn">
+                  <button type="button" class="ar-mini-btn" (click)="editCourt(c.id)">
                     <ar-icon name="edit" [size]="13" />
                     Editar
                   </button>
@@ -261,6 +263,7 @@ const COURTS: Court[] = [
 })
 export class PanelCourtsComponent {
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   protected readonly courts = COURTS;
   protected readonly statusLabel = STATUS_LABEL;
@@ -276,5 +279,13 @@ export class PanelCourtsComponent {
       return 'red';
     }
     return c.ocupacao >= 85 ? 'green' : 'orange';
+  }
+
+  protected createCourt(): void {
+    this.router.navigate(['/painel/quadras/nova']);
+  }
+
+  protected editCourt(id: string): void {
+    this.router.navigate(['/painel/quadras', id, 'editar']);
   }
 }

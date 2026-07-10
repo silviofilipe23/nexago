@@ -21,7 +21,11 @@ export type PanelIconName =
   | 'check'
   | 'alert-triangle'
   | 'clock'
-  | 'bookmark';
+  | 'bookmark'
+  | 'image'
+  | 'tag'
+  | 'box'
+  | 'ranking';
 
 /** Ícones stroke-24 do painel da arena (protótipo Ar\*\/Bo\*\/At\* Ic\*), um componente para evitar repetir SVG. */
 @Component({
@@ -107,6 +111,18 @@ export type PanelIconName =
         }
         @case ('bookmark') {
           <path d="M19 21 12 16l-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+        }
+        @case ('image') {
+          <rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="1.8" /><path d="m5 17 4.5-4.5 3 3 3.5-3.5 3 3" />
+        }
+        @case ('tag') {
+          <path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><path d="M7 7h.01" />
+        }
+        @case ('box') {
+          <path d="M21 8 12 3 3 8v8l9 5 9-5V8Z" /><path d="M3 8l9 5 9-5M12 13v8" />
+        }
+        @case ('ranking') {
+          <path d="M4 20v-6M12 20V6M20 20v-9" />
         }
       }
     </svg>

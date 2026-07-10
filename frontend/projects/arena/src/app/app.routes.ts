@@ -61,6 +61,79 @@ export const routes: Routes = [
       import('./painel/finance/panel-finance.component').then((m) => m.PanelFinanceComponent),
   },
   {
+    path: 'painel/financeiro/relatorios',
+    title: 'Relatórios — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/finance/panel-finance-reports.component').then(
+        (m) => m.PanelFinanceReportsComponent,
+      ),
+  },
+  {
+    path: 'painel/comandas',
+    title: 'Comandas — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/orders/panel-orders.component').then((m) => m.PanelOrdersComponent),
+  },
+  {
+    path: 'painel/comandas/:id',
+    title: 'Comanda — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/orders/panel-order-detail.component').then(
+        (m) => m.PanelOrderDetailComponent,
+      ),
+  },
+  {
+    path: 'painel/estoque',
+    title: 'Estoque — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/stock/panel-stock.component').then((m) => m.PanelStockComponent),
+  },
+  {
+    path: 'painel/estoque/novo',
+    title: 'Novo produto — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/stock/panel-stock-form.component').then((m) => m.PanelStockFormComponent),
+  },
+  {
+    path: 'painel/estoque/:id/editar',
+    title: 'Produto — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/stock/panel-stock-detail.component').then(
+        (m) => m.PanelStockDetailComponent,
+      ),
+  },
+  {
+    path: 'painel/promocoes',
+    title: 'Promoções — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/promotions/panel-promotions.component').then((m) => m.PanelPromotionsComponent),
+  },
+  {
+    path: 'painel/promocoes/nova',
+    title: 'Nova promoção — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/promotions/panel-promotion-form.component').then(
+        (m) => m.PanelPromotionFormComponent,
+      ),
+  },
+  {
+    path: 'painel/promocoes/:id/editar',
+    title: 'Editar promoção — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/promotions/panel-promotion-form.component').then(
+        (m) => m.PanelPromotionFormComponent,
+      ),
+  },
+  {
     path: 'painel/torneios',
     title: 'Torneios — NexaGO Arena',
     canActivate: [authGuard],
@@ -75,6 +148,27 @@ export const routes: Routes = [
       import('./painel/courts/panel-courts.component').then((m) => m.PanelCourtsComponent),
   },
   {
+    path: 'painel/quadras/nova',
+    title: 'Nova quadra — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/courts/panel-court-form.component').then((m) => m.PanelCourtFormComponent),
+  },
+  {
+    path: 'painel/quadras/:id/editar',
+    title: 'Editar quadra — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/courts/panel-court-form.component').then((m) => m.PanelCourtFormComponent),
+  },
+  {
+    path: 'painel/ranking',
+    title: 'Ranking de clientes — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/ranking/panel-ranking.component').then((m) => m.PanelRankingComponent),
+  },
+  {
     path: 'painel/equipe',
     title: 'Equipe — NexaGO Arena',
     canActivate: [authGuard],
@@ -87,6 +181,24 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () =>
       import('./painel/profile/panel-profile.component').then((m) => m.PanelProfileComponent),
+  },
+  {
+    path: 'painel/perfil/horarios',
+    title: 'Horários de funcionamento — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/profile/panel-profile-hours.component').then(
+        (m) => m.PanelProfileHoursComponent,
+      ),
+  },
+  {
+    path: 'painel/perfil/contatos',
+    title: 'Contatos da arena — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/profile/panel-profile-contacts.component').then(
+        (m) => m.PanelProfileContactsComponent,
+      ),
   },
   { path: '**', redirectTo: '' },
 ];

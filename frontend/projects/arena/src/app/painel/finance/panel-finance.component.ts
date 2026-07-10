@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import { BarRowComponent } from '../ui/bar-row.component';
 import { IconComponent } from '../ui/icon.component';
@@ -53,10 +54,14 @@ function formatBRL(n: number): string {
 @Component({
   selector: 'ar-panel-finance',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, LineChartComponent, BarRowComponent, PillComponent, IconComponent],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, LineChartComponent, BarRowComponent, PillComponent, IconComponent, RouterLink],
   template: `
     <ar-panel-shell>
       <ar-page-header title="Financeiro" [subtitle]="arenaName() + ' · saldo e movimentações'">
+        <a routerLink="/painel/financeiro/relatorios" class="ar-mini-btn">
+          <ar-icon name="download" [size]="14" />
+          Relatórios
+        </a>
         <button type="button" class="ar-mini-btn ar-mini-btn-primary">
           <ar-icon name="download" [size]="14" />
           Exportar extrato

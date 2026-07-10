@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
 import { IconComponent } from '../ui/icon.component';
 import { initialsOf } from '../ui/initials';
@@ -41,7 +42,7 @@ const WEEK_VIEWS = 42;
 @Component({
   selector: 'ar-panel-profile',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, StatusDotComponent, IconComponent],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, StatusDotComponent, IconComponent, RouterLink],
   template: `
     <ar-panel-shell>
       <ar-page-header title="Perfil da arena" subtitle="Como os atletas veem a arena no app">
@@ -139,10 +140,10 @@ const WEEK_VIEWS = 42;
             </ar-panel-card>
 
             <ar-panel-card title="Horários de funcionamento">
-              <button type="button" class="ar-ghost-btn" card-actions>
+              <a routerLink="/painel/perfil/horarios" class="ar-ghost-btn" card-actions>
                 <ar-icon name="edit" [size]="13" />
                 Editar
-              </button>
+              </a>
               <div>
                 @for (h of hours; track h.days) {
                   <div class="hour-row">
@@ -157,10 +158,10 @@ const WEEK_VIEWS = 42;
             </ar-panel-card>
 
             <ar-panel-card title="Contato">
-              <button type="button" class="ar-ghost-btn" card-actions>
+              <a routerLink="/painel/perfil/contatos" class="ar-ghost-btn" card-actions>
                 <ar-icon name="edit" [size]="13" />
                 Editar
-              </button>
+              </a>
               <div class="contact-list">
                 <div class="contact-row">
                   <div class="contact-icon whatsapp">

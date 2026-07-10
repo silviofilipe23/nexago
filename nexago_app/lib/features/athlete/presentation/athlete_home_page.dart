@@ -58,12 +58,14 @@ class AthleteHomePage extends ConsumerWidget {
               registrations: registrations,
               bookings: bookings,
             );
-            final name =
-                profile != null ? athleteDisplayName(profile) : 'Atleta';
+            final name = profile != null
+                ? athleteDisplayName(profile)
+                : 'Atleta';
             final unreadNotifications = ref.watch(
               athleteUnreadNotificationsCountProvider,
             );
-            final bottomClearance = nexaBottomNavBarHeight() +
+            final bottomClearance =
+                nexaBottomNavBarHeight() +
                 MediaQuery.viewPaddingOf(context).bottom +
                 16;
 
@@ -88,8 +90,7 @@ class AthleteHomePage extends ConsumerWidget {
                     onNotificationsTap: () =>
                         context.pushNamed(AppRouteNames.athleteNotifications),
                     sandRankEnabled:
-                        ref.watch(sandRankEnabledProvider).valueOrNull ??
-                            false,
+                        ref.watch(sandRankEnabledProvider).valueOrNull ?? false,
                     sandRankFrameId: ref
                         .watch(sandRankCosmeticsProvider)
                         .valueOrNull
@@ -114,7 +115,7 @@ class AthleteHomePage extends ConsumerWidget {
                           onTournamentTap: () {
                             final tournament = switch (featured) {
                               AthleteHomeFeaturedTournament(
-                                :final registration
+                                :final registration,
                               ) =>
                                 registration,
                               _ => null,
@@ -157,11 +158,11 @@ class AthleteHomePage extends ConsumerWidget {
                       SizedBox(height: 8),
                       // Bora Jogar — card vivo; some quando o recurso está
                       // desligado no appConfig.
-                      const FriendlyMatchSummaryCard(
-                        margin: EdgeInsets.symmetric(
-                          horizontal: athleteHomeHorizontalPadding,
-                        ),
-                      ),
+                      // const FriendlyMatchSummaryCard(
+                      //   margin: EdgeInsets.symmetric(
+                      //     horizontal: athleteHomeHorizontalPadding,
+                      //   ),
+                      // ),
                       const Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: athleteHomeHorizontalPadding,

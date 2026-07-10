@@ -25,7 +25,8 @@ class AthleteCommunityPage extends ConsumerWidget {
     final userRankingAsync = ref.watch(competeHubUserRankingProvider);
     final entriesAsync = ref.watch(communityRankingEntriesProvider);
     final snapshotAsync = ref.watch(hubAthleteRankingSnapshotProvider);
-    final bottomClearance = nexaBottomNavBarHeight() +
+    final bottomClearance =
+        nexaBottomNavBarHeight() +
         MediaQuery.viewPaddingOf(context).bottom +
         16;
 
@@ -56,10 +57,10 @@ class AthleteCommunityPage extends ConsumerWidget {
               Text(
                 'Comunidade',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                      color: context.themeColors.onSurface,
-                    ),
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
+                  color: context.themeColors.onSurface,
+                ),
               ),
             ],
           ),
@@ -69,9 +70,9 @@ class AthleteCommunityPage extends ConsumerWidget {
           sliver: SliverList.list(
             children: [
               // Bora Jogar — some sozinho quando o recurso está desligado.
-              const FriendlyMatchSummaryCard(
-                margin: EdgeInsets.only(bottom: 20),
-              ),
+              // const FriendlyMatchSummaryCard(
+              //   margin: EdgeInsets.only(bottom: 20),
+              // ),
               userRankingAsync.maybeWhen(
                 data: (ranking) => ranking == null
                     ? const SizedBox.shrink()
@@ -161,9 +162,7 @@ class _CommunityRankingLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     return const SizedBox(
       height: 220,
-      child: Center(
-        child: CircularProgressIndicator(color: AppColors.brand),
-      ),
+      child: Center(child: CircularProgressIndicator(color: AppColors.brand)),
     );
   }
 }

@@ -383,7 +383,12 @@ export class PanelShellComponent {
 
   protected readonly activeId = computed(() => {
     const path = this.currentPath();
-    return NAV_ITEMS.find((item) => item.route === path)?.id ?? null;
+    const exact = NAV_ITEMS.find((item) => item.route === path);
+    if (exact) {
+      return exact.id;
+    }
+    const nested = NAV_ITEMS.find((item) => item.route !== '/painel' && path.startsWith(item.route + '/'));
+    return nested?.id ?? null;
   });
 
   protected readonly displayName = computed(

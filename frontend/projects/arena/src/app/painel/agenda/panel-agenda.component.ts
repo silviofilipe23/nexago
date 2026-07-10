@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { AgendaGridComponent, type AgendaBooking, type AgendaCourt } from '../ui/agenda-grid.component';
 import { ChartTabsComponent } from '../ui/chart-tabs.component';
 import { IconComponent } from '../ui/icon.component';
@@ -11,6 +12,7 @@ type AgendaView = 'Dia' | 'Semana';
 type ListFilter = 'todas' | 'confirmada' | 'pendente' | 'manutencao';
 
 interface AgendaListRow {
+  id: string;
   time: string;
   court: string;
   client: string;
@@ -56,7 +58,7 @@ const STATUS_TONE: Record<AgendaListRow['status'], PillTone> = {
 
       <div class="body">
         <ar-panel-card class="grid-card">
-          <ar-agenda-grid [courts]="courts" [bookings]="bookings" />
+          <ar-agenda-grid [courts]="courts" [bookings]="bookings" (bookingClick)="openReservation($event)" />
         </ar-panel-card>
 
         <ar-panel-card title="Reservas de hoje" [kicker]="listKicker()" class="list-card">
@@ -68,8 +70,8 @@ const STATUS_TONE: Record<AgendaListRow['status'], PillTone> = {
             }
           </div>
           <div class="list">
-            @for (r of filteredList(); track r.time + r.court) {
-              <div class="agenda-row">
+            @for (r of filteredList(); track r.id) {
+              <div class="agenda-row" [class.clickable]="r.status !== 'manutencao'" (click)="r.status !== 'manutencao' && openReservation(r.id)">
                 <div class="agenda-time">{{ r.time }}</div>
                 <div class="agenda-body">
                   <div class="agenda-title">{{ r.court }}{{ r.client ? ' · ' + r.client : '' }}</div>
@@ -129,6 +131,10 @@ const STATUS_TONE: Record<AgendaListRow['status'], PillTone> = {
       border-bottom: 1px solid var(--nx-line);
     }
 
+    .agenda-row.clickable {
+      cursor: pointer;
+    }
+
     .agenda-row:last-child {
       border-bottom: none;
     }
@@ -168,6 +174,8 @@ const STATUS_TONE: Record<AgendaListRow['status'], PillTone> = {
   `,
 })
 export class PanelAgendaComponent {
+  private readonly router = inject(Router);
+
   protected readonly views: AgendaView[] = ['Dia', 'Semana'];
   protected readonly view = signal<AgendaView>('Dia');
 
@@ -183,23 +191,23 @@ export class PanelAgendaComponent {
   ];
 
   protected readonly bookings: AgendaBooking[] = [
-    { courtId: 'q1', start: 9 * 60, dur: 60, status: 'confirmada', client: 'João S.' },
-    { courtId: 'q1', start: 11 * 60 + 30, dur: 60, status: 'pendente', client: 'Enzo R.' },
-    { courtId: 'q1', start: 16 * 60, dur: 90, status: 'confirmada', client: 'Bruno V.' },
-    { courtId: 'q2', start: 10 * 60, dur: 60, status: 'confirmada', client: 'Maria T.' },
-    { courtId: 'q2', start: 14 * 60, dur: 60, status: 'confirmada', client: 'Camila S.' },
-    { courtId: 'q2', start: 18 * 60, dur: 60, status: 'pendente', client: 'Júlia P.' },
-    { courtId: 'q3', start: 7 * 60, dur: 15 * 60, status: 'manutencao', client: '' },
+    { id: 'r1', courtId: 'q1', start: 9 * 60, dur: 60, status: 'confirmada', client: 'João S.' },
+    { id: 'r3', courtId: 'q1', start: 11 * 60 + 30, dur: 60, status: 'confirmada', client: 'Enzo R.' },
+    { id: 'r5', courtId: 'q1', start: 16 * 60, dur: 90, status: 'confirmada', client: 'Bruno V.' },
+    { id: 'r2', courtId: 'q2', start: 10 * 60, dur: 60, status: 'confirmada', client: 'Maria T.' },
+    { id: 'r4', courtId: 'q2', start: 14 * 60, dur: 60, status: 'confirmada', client: 'Camila S.' },
+    { id: 'r6', courtId: 'q2', start: 18 * 60, dur: 60, status: 'pendente', client: 'Júlia P.' },
+    { id: 'r7', courtId: 'q3', start: 7 * 60, dur: 15 * 60, status: 'manutencao', client: '' },
   ];
 
   private readonly allList: AgendaListRow[] = [
-    { time: '09:00', court: 'Quadra 1', client: 'João S.', sport: 'Beach Tennis', status: 'confirmada' },
-    { time: '10:00', court: 'Quadra 2', client: 'Maria T.', sport: 'Vôlei de praia', status: 'confirmada' },
-    { time: '11:30', court: 'Quadra 1', client: 'Enzo R.', sport: 'Beach Tennis', status: 'pendente' },
-    { time: '14:00', court: 'Quadra 2', client: 'Camila S.', sport: 'Vôlei de praia', status: 'confirmada' },
-    { time: '16:00', court: 'Quadra 1', client: 'Bruno V.', sport: 'Beach Tennis', status: 'confirmada' },
-    { time: '18:00', court: 'Quadra 2', client: 'Júlia P.', sport: 'Vôlei de praia', status: 'pendente' },
-    { time: '07:00', court: 'Quadra 3', client: '', sport: 'Beach Soccer', status: 'manutencao' },
+    { id: 'r1', time: '09:00', court: 'Quadra 1', client: 'João S.', sport: 'Beach Tennis', status: 'confirmada' },
+    { id: 'r2', time: '10:00', court: 'Quadra 2', client: 'Maria T.', sport: 'Vôlei de praia', status: 'confirmada' },
+    { id: 'r3', time: '11:30', court: 'Quadra 1', client: 'Enzo R.', sport: 'Beach Tennis', status: 'confirmada' },
+    { id: 'r4', time: '14:00', court: 'Quadra 2', client: 'Camila S.', sport: 'Vôlei de praia', status: 'confirmada' },
+    { id: 'r5', time: '16:00', court: 'Quadra 1', client: 'Bruno V.', sport: 'Beach Tennis', status: 'confirmada' },
+    { id: 'r6', time: '18:00', court: 'Quadra 2', client: 'Júlia P.', sport: 'Vôlei de praia', status: 'pendente' },
+    { id: 'r7', time: '07:00', court: 'Quadra 3', client: '', sport: 'Beach Soccer', status: 'manutencao' },
   ];
 
   protected readonly filteredList = computed(() => {
@@ -215,4 +223,8 @@ export class PanelAgendaComponent {
     const date = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(now).replace('.', '');
     return `${weekday} · ${date}`;
   });
+
+  protected openReservation(id: string): void {
+    this.router.navigate(['/painel/agenda', id]);
+  }
 }

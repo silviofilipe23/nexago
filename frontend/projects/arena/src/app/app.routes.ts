@@ -45,6 +45,15 @@ export const routes: Routes = [
       import('./painel/agenda/panel-agenda.component').then((m) => m.PanelAgendaComponent),
   },
   {
+    path: 'painel/agenda/:id',
+    title: 'Detalhe da reserva — NexaGO Arena',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./painel/agenda/panel-reservation-detail.component').then(
+        (m) => m.PanelReservationDetailComponent,
+      ),
+  },
+  {
     path: 'painel/financeiro',
     title: 'Financeiro — NexaGO Arena',
     canActivate: [authGuard],

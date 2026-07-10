@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import {
   AGENDA_GRID_END_MIN,
   AGENDA_GRID_START_MIN,
@@ -19,6 +19,7 @@ export interface AgendaCourt {
 }
 
 export interface AgendaBooking {
+  id: string;
   courtId: string;
   start: number;
   dur: number;
@@ -67,7 +68,14 @@ interface RowMark {
             @for (c of courts(); track c.id) {
               <div class="column">
                 @for (b of positionedByCourt()[c.id] ?? []; track b.start) {
-                  <div class="block" [class]="'tone-' + b.status" [style.top.px]="b.top" [style.height.px]="b.height">
+                  <div
+                    class="block"
+                    [class]="'tone-' + b.status"
+                    [class.clickable]="b.status !== 'manutencao'"
+                    [style.top.px]="b.top"
+                    [style.height.px]="b.height"
+                    (click)="b.status !== 'manutencao' && bookingClick.emit(b.id)"
+                  >
                     <div class="block-title">{{ b.label }}</div>
                     @if (b.height > 30) {
                       <div class="block-time">{{ b.timeLabel }}</div>
@@ -188,8 +196,12 @@ interface RowMark {
       border-radius: 8px;
       padding: 5px 8px;
       overflow: hidden;
-      cursor: pointer;
+      cursor: default;
       border: 1px solid;
+    }
+
+    .block.clickable {
+      cursor: pointer;
     }
 
     .block.tone-confirmada {
@@ -255,6 +267,7 @@ interface RowMark {
 export class AgendaGridComponent {
   readonly courts = input.required<AgendaCourt[]>();
   readonly bookings = input.required<AgendaBooking[]>();
+  readonly bookingClick = output<string>();
 
   private readonly nowMinutes = signal(nowInMinutes());
 

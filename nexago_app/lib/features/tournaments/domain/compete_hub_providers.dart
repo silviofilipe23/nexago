@@ -16,12 +16,15 @@ import 'tournament_discovery_providers.dart';
 final competeHubAthletesPreviewProvider =
     FutureProvider.autoDispose<List<CompeteHubAthletePreview>>((ref) async {
   final viewer = ref.watch(athleteProfileProvider).valueOrNull;
-  final user = await ref.watch(authProvider.future);
+  final user = await readFirestoreReadyUser(ref);
+  final uid = user?.uid.trim();
+  if (uid == null || uid.isEmpty) return [];
+
   final profiles = await ref
       .read(athleteDiscoverRepositoryProvider)
       .fetchHubAthletesPreview(
         viewer: viewer,
-        currentUserId: user?.uid,
+        currentUserId: uid,
       );
   final now = DateTime.now();
   return profiles
@@ -31,7 +34,7 @@ final competeHubAthletesPreviewProvider =
 
 final competeHubTeamDiscoverPreviewProvider =
     FutureProvider.autoDispose<List<TeamDiscoverEntry>>((ref) async {
-  final user = await ref.watch(authProvider.future);
+  final user = await readFirestoreReadyUser(ref);
   final uid = user?.uid.trim();
   final following = uid != null && uid.isNotEmpty
       ? await ref.read(teamFollowServiceProvider).fetchFollowingTeamIds(uid)

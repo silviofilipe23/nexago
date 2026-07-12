@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -36,14 +37,35 @@ class AthleteDiscoverRepository {
 
   final _rankingCache = <String, AthletePublicRankingSnapshot>{};
 
+  Query<Map<String, dynamic>> _athleteProfilesPageQuery({required int limit}) {
+    return _users
+        .where('hasAthleteRole', isEqualTo: true)
+        .orderBy(FieldPath.documentId)
+        .limit(limit);
+  }
+
+  Future<bool> _ensureFirestoreAuth() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return false;
+    try {
+      await user.getIdToken();
+    } catch (_) {}
+    return true;
+  }
+
   Future<AthleteDiscoverPageResult> fetchPage({
     String? startAfterDocumentId,
     int limit = pageSize,
   }) async {
-    Query<Map<String, dynamic>> query = _users
-        .where('role', isEqualTo: 'athlete')
-        .orderBy(FieldPath.documentId)
-        .limit(limit);
+    if (!await _ensureFirestoreAuth()) {
+      return const AthleteDiscoverPageResult(
+        profiles: [],
+        lastDocumentId: null,
+        hasMore: false,
+      );
+    }
+
+    Query<Map<String, dynamic>> query = _athleteProfilesPageQuery(limit: limit);
 
     if (startAfterDocumentId != null &&
         startAfterDocumentId.trim().isNotEmpty) {
@@ -352,6 +374,8 @@ class AthleteDiscoverRepository {
     int regionalPoolSize = 50,
     int randomPoolSize = 40,
   }) async {
+    if (!await _ensureFirestoreAuth()) return [];
+
     final regionalPool = <AthleteProfile>[];
     final viewerState = viewer?.state?.trim().toUpperCase();
 

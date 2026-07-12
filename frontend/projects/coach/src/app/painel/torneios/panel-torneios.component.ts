@@ -41,7 +41,7 @@ interface CoachTournamentOverviewItem {
         } @else {
           @for (t of tournaments(); track t.tournamentId) {
             <co-panel-card [title]="t.tournamentName" [kicker]="t.entries.length + ' inscrições'">
-              @for (e of t.entries; track e.registrationId; let last = $last) {
+              @for (e of t.entries; track e.registrationId + '_' + e.athleteUid; let last = $last) {
                 <co-row [title]="athleteName(e.athleteUid)" [sub]="e.categoryId" [last]="last">
                   <co-pill row-trailing [tone]="statusTone(e)">{{ statusLabel(e) }}</co-pill>
                 </co-row>

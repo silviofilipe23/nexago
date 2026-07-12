@@ -79,5 +79,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/atletas/panel-novo-atleta.component').then((m) => m.PanelNovoAtletaComponent),
   },
+  {
+    path: 'convite-atleta/:id',
+    title: 'Convite de treinador — NexaGO Treinador',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./convites/convite-atleta.component').then((m) => m.ConviteAtletaComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

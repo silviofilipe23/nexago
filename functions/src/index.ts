@@ -279,3 +279,5 @@ export {
   backfillSandRanks,
   equipSandRankCosmetic,
 } from "./sand-rank-sync";
+
+export {completeCoachSignup} from "./coach-signup";

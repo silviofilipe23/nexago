@@ -2,10 +2,10 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 /**
- * Shell do fluxo de auth: split com painel de marca à esquerda (protótipo
- * "NexaGO Arena — Login") e formulário centralizado à direita. Reaproveita a
- * mesma linguagem visual do backoffice (bo-auth-shell), com copy da arena.
- * Abaixo de 980px o painel some e a marca aparece compacta acima do card.
+ * Shell do fluxo de auth do treinador: split com painel de marca à esquerda
+ * e formulário centralizado à direita. Reaproveita a mesma linguagem visual
+ * do backoffice (bo-auth-shell). Abaixo de 980px o painel some e a marca
+ * aparece compacta acima do card.
  */
 @Component({
   selector: 'co-auth-shell',

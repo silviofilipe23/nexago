@@ -11,7 +11,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 let nextFieldId = 0;
 
 /**
- * Campo de texto do fluxo de auth (protótipo ArField/BoField). Integra com
+ * Campo de texto do fluxo de auth (protótipo CoField/BoField). Integra com
  * Reactive Forms via ControlValueAccessor; senha ganha o toggle mostrar/ocultar.
  */
 @Component({

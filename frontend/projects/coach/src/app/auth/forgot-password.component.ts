@@ -39,7 +39,7 @@ import { FieldComponent } from './ui/field.component';
         <co-field
           label="E-mail do treinador"
           type="email"
-          placeholder="contato@suaarena.com.br"
+          placeholder="voce@email.com"
           autocomplete="email"
           formControlName="email"
           [error]="emailError()"

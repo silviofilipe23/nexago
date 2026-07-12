@@ -9,7 +9,7 @@ const COLORS = [
   'var(--nx-win)',
 ];
 
-/** Medidor de força de senha (protótipo ArStrengthMeter/BoStrengthMeter). */
+/** Medidor de força de senha (protótipo CoStrengthMeter/BoStrengthMeter). */
 @Component({
   selector: 'co-strength-meter',
   changeDetection: ChangeDetectionStrategy.OnPush,

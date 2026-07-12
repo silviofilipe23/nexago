@@ -16,7 +16,7 @@ import { StrengthMeterComponent } from './ui/strength-meter.component';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [ReactiveFormsModule, RouterLink, AuthShellComponent, FieldComponent, StrengthMeterComponent],
   template: `
-    <co-auth-shell>
+    <co-auth-shell [wide]="true">
       <form [formGroup]="form" (ngSubmit)="submit()">
         <a class="co-back-link" routerLink="/entrar">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

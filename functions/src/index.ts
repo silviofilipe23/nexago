@@ -289,3 +289,5 @@ export {
   cancelCoachAthleteInvite,
 } from "./coach-athlete-invite";
 export {sendCallUp, respondToCallUp} from "./coach-call-up";
+
+export {getCoachTournamentOverview} from "./coach-tournament-overview";

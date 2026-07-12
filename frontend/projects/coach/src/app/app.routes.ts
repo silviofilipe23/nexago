@@ -148,5 +148,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/historico/panel-historico.component').then((m) => m.PanelHistoricoComponent),
   },
+  {
+    path: 'painel/torneios',
+    title: 'Torneios — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/torneios/panel-torneios.component').then((m) => m.PanelTorneiosComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

@@ -46,6 +46,10 @@
       "public": "dist/backoffice/browser"
     },
     {
+      "target": "coach",
+      "public": "dist/coach/browser"
+    },
+    {
       "target": "site",
       "source": "frontend/projects/site",
       "frameworksBackend": {

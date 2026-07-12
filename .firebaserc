@@ -24,6 +24,9 @@
       "hosting": {
         "site": [
           "site-3fbe8"
+        ],
+        "coach": [
+          "coach-dev2"
         ]
       }
     }

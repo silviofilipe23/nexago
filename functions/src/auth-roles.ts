@@ -1,6 +1,6 @@
 import type {UserRecord} from "firebase-admin/auth";
 
-export const ALLOWED_APP_ROLES = ["admin", "organizer", "athlete", "arena"] as const;
+export const ALLOWED_APP_ROLES = ["admin", "organizer", "athlete", "arena", "coach"] as const;
 export type AppRole = (typeof ALLOWED_APP_ROLES)[number];
 
 export function isAllowedRole(r: string): r is AppRole {
@@ -102,6 +102,8 @@ export function applyRolesToClaims(
     out["role"] = "organizer";
   } else if (sorted.includes("arena")) {
     out["role"] = "arena";
+  } else if (sorted.includes("coach")) {
+    out["role"] = "coach";
   } else if (sorted.includes("athlete")) {
     out["role"] = "athlete";
   } else {
@@ -123,6 +125,8 @@ export function firestoreRolesPayload(roles: AppRole[]): Record<string, unknown>
     out["role"] = "organizer";
   } else if (sorted.includes("arena")) {
     out["role"] = "arena";
+  } else if (sorted.includes("coach")) {
+    out["role"] = "coach";
   } else if (sorted.includes("athlete")) {
     out["role"] = "athlete";
   }

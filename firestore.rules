@@ -1877,6 +1877,54 @@ service cloud.firestore {
         request.resource.data.createdAt is timestamp;
     }
 
+    // ── Portal do Treinador (coach) ─────────────────────────────
+    // Dados do treinador são propriedade exclusiva do próprio treinador — é
+    // ownership (uid do path == uid autenticado), não precisa de claim de
+    // papel pra ler/escrever. A claim `coach` só importa pro guard de rota
+    // no frontend. Operações que cruzam usuários (convite, convocação) têm
+    // client write: false — só Cloud Functions (Admin SDK) escrevem.
+    match /coaches/{coachUid} {
+      allow read, write: if request.auth != null && request.auth.uid == coachUid;
+
+      match /squads/{squadId} {
+        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+      }
+      match /athletes/{athleteUid} {
+        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+      }
+      match /trainings/{trainingId} {
+        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+      }
+      // Diferente das outras subcoleções: um atleta CONVOCADO também precisa
+      // ler este doc (pra ver os detalhes antes de responder em /convocacao).
+      // Escrita é sempre false — criação e resposta passam por Cloud Function
+      // (Task 12): a criação faz Promise.all de notificações e a resposta é
+      // de um usuário que não é dono do doc, então nenhum dos dois cabe em
+      // client-write direto.
+      match /callUps/{callUpId} {
+        allow read: if request.auth != null && (
+          request.auth.uid == coachUid ||
+          request.auth.uid in resource.data.recipients
+        );
+        allow write: if false;
+      }
+      match /evaluations/{evalId} {
+        allow read, write: if request.auth != null && request.auth.uid == coachUid;
+      }
+    }
+
+    // Convite de vínculo treinador→atleta. Leitura só de quem participa;
+    // escrita exclusiva via Cloud Function (aceite precisa validar estado e
+    // criar coaches/{coachUid}/athletes/{athleteUid} numa transação).
+    match /coachAthleteInvites/{inviteId} {
+      allow read: if request.auth != null && (
+        resource.data.coachUid == request.auth.uid ||
+        resource.data.athleteUid == request.auth.uid
+      );
+      allow list: if request.auth != null;
+      allow create, update, delete: if false;
+    }
+
     // NEGAÇÃO padrão para caminhos não mapeados.
     // ATENÇÃO à semântica do Firestore: quando vários `match` cobrem o mesmo
     // caminho, os `allow` fazem OR — um catch-all com `allow read` CONCEDE

@@ -141,5 +141,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/avaliacoes/panel-nova-avaliacao.component').then((m) => m.PanelNovaAvaliacaoComponent),
   },
+  {
+    path: 'painel/historico',
+    title: 'Histórico — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/historico/panel-historico.component').then((m) => m.PanelHistoricoComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

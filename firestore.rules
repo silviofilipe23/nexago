@@ -1921,7 +1921,7 @@ service cloud.firestore {
         resource.data.coachUid == request.auth.uid ||
         resource.data.athleteUid == request.auth.uid
       );
-      allow list: if request.auth != null;
+      allow list: if false;
       allow create, update, delete: if false;
     }
 

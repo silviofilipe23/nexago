@@ -65,5 +65,19 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/equipes/panel-nova-equipe.component').then((m) => m.PanelNovaEquipeComponent),
   },
+  {
+    path: 'painel/atletas',
+    title: 'Atletas — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/atletas/panel-atletas.component').then((m) => m.PanelAtletasComponent),
+  },
+  {
+    path: 'painel/atletas/novo',
+    title: 'Convidar atleta — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/atletas/panel-novo-atleta.component').then((m) => m.PanelNovoAtletaComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

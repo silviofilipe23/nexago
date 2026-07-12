@@ -110,6 +110,16 @@ export class AuthService {
     this.roleClaims.set(Array.isArray(roles) ? roles.map(String) : []);
   }
 
+  /** Mantém o displayName do Firebase Auth (usado no rodapé da sidebar) em sincronia com o editado no Perfil. */
+  async updateDisplayName(name: string): Promise<void> {
+    const user = this.auth.currentUser;
+    if (!user) {
+      throw new Error('Usuário não autenticado.');
+    }
+    await updateProfile(user, { displayName: name.trim() });
+    this.displayNameOverride.set(name.trim());
+  }
+
   async signOutUser(): Promise<void> {
     await signOut(this.auth);
   }

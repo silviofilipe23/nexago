@@ -127,5 +127,19 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./convocacao/convocacao.component').then((m) => m.ConvocacaoComponent),
   },
+  {
+    path: 'painel/avaliacoes',
+    title: 'Avaliações — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/avaliacoes/panel-avaliacoes.component').then((m) => m.PanelAvaliacoesComponent),
+  },
+  {
+    path: 'painel/avaliacoes/nova',
+    title: 'Nova avaliação — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/avaliacoes/panel-nova-avaliacao.component').then((m) => m.PanelNovaAvaliacaoComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

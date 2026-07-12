@@ -1,5 +1,6 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getAuth} from "firebase-admin/auth";
+import {getFirestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 
 export interface AthleteSearchResult {
@@ -32,6 +33,12 @@ export const searchAthleteForCoachInvite = onCall(async (request) => {
   const email = (request.data?.email as string | undefined)?.trim().toLowerCase() ?? "";
   if (!email) {
     throw new HttpsError("invalid-argument", "Informe o e-mail do atleta.");
+  }
+
+  const db = getFirestore();
+  const coachSnap = await db.doc(`coaches/${uid}`).get();
+  if (!coachSnap.exists) {
+    throw new HttpsError("permission-denied", "Apenas treinadores podem buscar atletas.");
   }
 
   const auth = getAuth();

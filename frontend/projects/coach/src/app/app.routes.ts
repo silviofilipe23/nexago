@@ -107,5 +107,25 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/presenca/panel-presenca.component').then((m) => m.PanelPresencaComponent),
   },
+  {
+    path: 'painel/convocacoes',
+    title: 'Convocações — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/convocacoes/panel-convocacoes.component').then((m) => m.PanelConvocacoesComponent),
+  },
+  {
+    path: 'painel/convocacoes/nova',
+    title: 'Nova convocação — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/convocacoes/panel-nova-convocacao.component').then((m) => m.PanelNovaConvocacaoComponent),
+  },
+  {
+    path: 'convocacao/:coachUid/:callUpId',
+    title: 'Convocação — NexaGO Treinador',
+    canActivate: [authGuard],
+    loadComponent: () => import('./convocacao/convocacao.component').then((m) => m.ConvocacaoComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

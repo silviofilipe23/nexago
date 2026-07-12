@@ -1,0 +1,541 @@
+/* NexaGO Treinador — estilos globais.
+   Tokens vindos do design system NexaGO (tokens.css do protótipo), namespace --nx-.
+   Classes de fluxo de auth/painel compartilhadas usam o prefixo co- (paralelo ao ar-/bo-). */
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+:root {
+  /* Superfícies (dark-first) */
+  --nx-bg: #050505;
+  --nx-surface-0: #0B0B0C;
+  --nx-surface-1: #131316;
+  --nx-surface-2: #1B1B1F;
+  --nx-line: rgba(255, 255, 255, 0.08);
+  --nx-line-strong: rgba(255, 255, 255, 0.16);
+
+  /* Marca */
+  --nx-orange-500: #FF6A1A;
+  --nx-orange-400: #FF8A4A;
+  --nx-orange-600: #E5560E;
+  --nx-orange-tint: rgba(255, 106, 26, 0.12);
+
+  /* Texto — dim elevado de 0.40 → 0.55 pra manter AA em texto pequeno sobre #050505 */
+  --nx-text: #F4F4F5;
+  --nx-text-mute: rgba(244, 244, 245, 0.62);
+  --nx-text-dim: rgba(244, 244, 245, 0.55);
+  --nx-text-on-orange: #0A0A0A;
+
+  /* Status */
+  --nx-live: #FF3B30;
+  --nx-win: #2BD17E;
+  --nx-pending: #F4C543;
+
+  /* Tipografia */
+  --nx-font-display: 'Sora', system-ui, sans-serif;
+  --nx-font-ui: 'Inter', system-ui, sans-serif;
+  --nx-font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Raios */
+  --nx-r-1: 6px;
+  --nx-r-2: 10px;
+  --nx-r-3: 14px;
+  --nx-r-4: 18px;
+  --nx-r-5: 24px;
+  --nx-r-pill: 999px;
+
+  /* Movimento */
+  --nx-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --nx-d-fast: 140ms;
+  --nx-d-base: 240ms;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--nx-bg);
+  color: var(--nx-text);
+  font-family: var(--nx-font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+input::placeholder {
+  color: rgba(244, 244, 245, 0.3);
+}
+
+button {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--nx-orange-500);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Fluxo de auth: classes compartilhadas ─────────────────── */
+
+.co-form-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 32px;
+}
+
+.co-kicker {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--nx-orange-500);
+}
+
+.co-form-header h1 {
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 30px;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+  color: var(--nx-text);
+  margin: 0;
+}
+
+.co-form-header p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--nx-text-mute);
+  margin: 0;
+}
+
+.co-form-header strong {
+  color: var(--nx-text);
+  font-weight: 600;
+}
+
+.co-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.co-stack-sm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.co-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.co-row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 14px 0 22px;
+}
+
+.co-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+.co-checkbox-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.co-checkbox-box {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  flex: none;
+  border: 1px solid var(--nx-line-strong);
+  background: transparent;
+  display: grid;
+  place-items: center;
+  transition: all 140ms var(--nx-ease-out);
+}
+
+.co-checkbox-input:checked + .co-checkbox-box {
+  border-color: var(--nx-orange-500);
+  background: var(--nx-orange-500);
+}
+
+.co-checkbox-input:focus-visible + .co-checkbox-box {
+  outline: 2px solid var(--nx-orange-500);
+  outline-offset: 2px;
+}
+
+.co-btn-primary {
+  height: 52px;
+  width: 100%;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  border: none;
+  cursor: pointer;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 12px 40px rgba(255, 106, 26, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: all 180ms var(--nx-ease-out);
+  text-decoration: none;
+}
+
+.co-btn-primary:hover:not(:disabled) {
+  background: var(--nx-orange-400);
+}
+
+.co-btn-primary:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.co-btn-primary:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.co-text-link {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--nx-orange-500);
+  text-decoration: none;
+}
+
+.co-text-link:hover {
+  text-decoration: underline;
+}
+
+.co-text-link:disabled {
+  color: var(--nx-text-dim);
+  cursor: default;
+  text-decoration: none;
+}
+
+.co-back-link {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--nx-text-mute);
+  margin-bottom: 28px;
+  text-decoration: none;
+}
+
+.co-back-link:hover {
+  color: var(--nx-text);
+}
+
+.co-fine {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--nx-text-dim);
+  text-align: center;
+  margin: 24px 0 0;
+}
+
+.co-fine strong {
+  color: var(--nx-text-mute);
+  font-weight: 600;
+}
+
+.co-alert {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin: 0 0 20px;
+  background: rgba(255, 59, 48, 0.1);
+  border: 1px solid rgba(255, 59, 48, 0.35);
+  border-radius: var(--nx-r-3);
+  font-size: 13px;
+  line-height: 1.5;
+  color: #FF9B94;
+}
+
+.co-alert svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.co-icon-badge {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--nx-r-4);
+  background: var(--nx-orange-tint);
+  border: 1px solid rgba(255, 106, 26, 0.3);
+  display: grid;
+  place-items: center;
+  margin: 0 auto 28px;
+}
+
+.co-center {
+  text-align: center;
+}
+
+.co-resend-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 24px;
+  font-size: 13.5px;
+  color: var(--nx-text-mute);
+}
+
+.co-resend-row .co-timer {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  color: var(--nx-text-dim);
+  margin-left: 2px;
+}
+
+.co-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(10, 10, 10, 0.25);
+  border-top-color: #0A0A0A;
+  animation: co-spin 0.7s linear infinite;
+}
+
+@keyframes co-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+/* ── Painel: botões e controles compartilhados ─────────────── */
+
+.co-mini-btn {
+  height: 32px;
+  padding: 0 13px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  color: var(--nx-text);
+  border: 1px solid var(--nx-line-strong);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: none;
+  transition: all 140ms var(--nx-ease-out);
+}
+
+.co-mini-btn:hover:not(:disabled) {
+  background: var(--nx-surface-2);
+}
+
+.co-mini-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.co-mini-btn-primary {
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+  border: none;
+  box-shadow: 0 6px 20px rgba(255, 106, 26, 0.2);
+}
+
+.co-mini-btn-primary:hover:not(:disabled) {
+  background: var(--nx-orange-400);
+}
+
+.co-ghost-btn {
+  height: 32px;
+  padding: 0 11px;
+  border-radius: var(--nx-r-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 12.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  text-decoration: none;
+}
+
+.co-ghost-btn:hover {
+  color: var(--nx-text);
+}
+
+.co-search-box {
+  width: 220px;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--nx-text-dim);
+}
+
+.co-search-box span {
+  flex: 1;
+  font-size: 13px;
+}
+
+.co-bell-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--nx-r-2);
+  position: relative;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--nx-text-mute);
+}
+
+.co-bell-btn .dot {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--nx-orange-500);
+  box-shadow: 0 0 0 2px var(--nx-bg);
+}
+
+.co-chart-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-2);
+}
+
+.co-chart-tabs button {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: var(--nx-text-dim);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 11.5px;
+}
+
+.co-chart-tabs button.active {
+  background: var(--nx-surface-2);
+  color: var(--nx-text);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+.co-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.co-chip {
+  flex: none;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--nx-r-pill);
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 140ms var(--nx-ease-out);
+}
+
+.co-chip:hover {
+  background: var(--nx-surface-1);
+  color: var(--nx-text);
+}
+
+.co-chip.active {
+  background: var(--nx-orange-500);
+  border-color: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+}
+
+.co-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  cursor: pointer;
+  color: var(--nx-orange-500);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: -0.005em;
+}
+
+.co-shortcut span {
+  color: var(--nx-text);
+}

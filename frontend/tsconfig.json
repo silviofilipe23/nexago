@@ -50,6 +50,12 @@
     },
     {
       "path": "./projects/backoffice/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/coach/tsconfig.app.json"
+    },
+    {
+      "path": "./projects/coach/tsconfig.spec.json"
     }
   ]
 }

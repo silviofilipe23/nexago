@@ -52,7 +52,7 @@ function pathOnly(url: string): string {
           </div>
         </div>
 
-        <div class="switcher">
+        <div class="switcher" routerLink="/painel/equipes">
           <div class="switcher-avatar" aria-hidden="true">{{ activeSquadInitials() }}</div>
           <div class="switcher-body">
             <div class="switcher-name">{{ activeSquadName() }}</div>

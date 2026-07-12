@@ -10,7 +10,6 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent } from '../ui/pill.component';
-import { RowComponent } from '../ui/row.component';
 import { TabsComponent } from '../ui/tabs.component';
 import { SquadContextService } from '../ui/squad-context.service';
 import { AthletesService, type RosterAthlete } from './athletes.service';
@@ -45,7 +44,6 @@ const STATUS_TONE: Record<string, 'green' | 'red' | 'yellow' | 'dim'> = {
     PanelCardComponent,
     PanelShellComponent,
     PillComponent,
-    RowComponent,
     TabsComponent,
   ],
   template: `

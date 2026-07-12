@@ -120,25 +120,31 @@ export class ConviteAtletaComponent implements OnInit {
       return;
     }
 
-    const snap = await getDoc(doc(this.firestore, 'coachAthleteInvites', this.inviteId));
-    if (!snap.exists()) {
+    try {
+      const snap = await getDoc(doc(this.firestore, 'coachAthleteInvites', this.inviteId));
+      if (!snap.exists()) {
+        this.state.set('not-found');
+        return;
+      }
+
+      const data = snap.data();
+      const myUid = this.auth.user()?.uid;
+      if (data['athleteUid'] !== myUid) {
+        this.state.set('not-mine');
+        return;
+      }
+      if (data['status'] !== 'pending') {
+        this.state.set('not-pending');
+        return;
+      }
+
+      this.invite.set({ coachName: (data['coachName'] as string | undefined) ?? 'Treinador' });
+      this.state.set('ready');
+    } catch {
+      // Firestore rules negam a leitura para um usuário autenticado sem relação com o convite
+      // (nem treinador, nem atleta convidado) — trata como "não encontrado" para não vazar detalhes.
       this.state.set('not-found');
-      return;
     }
-
-    const data = snap.data();
-    const myUid = this.auth.user()?.uid;
-    if (data['athleteUid'] !== myUid) {
-      this.state.set('not-mine');
-      return;
-    }
-    if (data['status'] !== 'pending') {
-      this.state.set('not-pending');
-      return;
-    }
-
-    this.invite.set({ coachName: (data['coachName'] as string | undefined) ?? 'Treinador' });
-    this.state.set('ready');
   }
 
   protected async accept(): Promise<void> {

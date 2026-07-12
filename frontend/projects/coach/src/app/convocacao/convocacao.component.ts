@@ -134,35 +134,41 @@ export class ConvocacaoComponent implements OnInit {
       return;
     }
 
-    const snap = await getDoc(doc(this.firestore, 'coaches', this.coachUid, 'callUps', this.callUpId));
-    if (!snap.exists()) {
-      this.state.set('not-found');
-      return;
-    }
+    try {
+      const snap = await getDoc(doc(this.firestore, 'coaches', this.coachUid, 'callUps', this.callUpId));
+      if (!snap.exists()) {
+        this.state.set('not-found');
+        return;
+      }
 
-    const data = snap.data();
-    const myUid = this.auth.user()?.uid ?? '';
-    const recipients = Array.isArray(data['recipients']) ? (data['recipients'] as string[]) : [];
-    if (!recipients.includes(myUid)) {
+      const data = snap.data();
+      const myUid = this.auth.user()?.uid ?? '';
+      const recipients = Array.isArray(data['recipients']) ? (data['recipients'] as string[]) : [];
+      if (!recipients.includes(myUid)) {
+        this.state.set('not-mine');
+        return;
+      }
+
+      this.callUp.set({
+        coachName: (data['coachName'] as string | undefined) ?? 'Treinador',
+        title: (data['title'] as string | undefined) ?? '',
+        message: (data['message'] as string | undefined) ?? '',
+      });
+
+      const responses = (data['responses'] as Record<string, string> | undefined) ?? {};
+      const mine = responses[myUid];
+      if (mine && mine !== 'aguardando') {
+        this.existingResponse.set(mine as Response);
+        this.state.set('already-responded');
+        return;
+      }
+
+      this.state.set('ready');
+    } catch {
+      // Firestore rules negam a leitura para um usuário autenticado que não é o destinatário
+      // convocado — trata como "não é minha" para não vazar se a convocação existe.
       this.state.set('not-mine');
-      return;
     }
-
-    this.callUp.set({
-      coachName: (data['coachName'] as string | undefined) ?? 'Treinador',
-      title: (data['title'] as string | undefined) ?? '',
-      message: (data['message'] as string | undefined) ?? '',
-    });
-
-    const responses = (data['responses'] as Record<string, string> | undefined) ?? {};
-    const mine = responses[myUid];
-    if (mine && mine !== 'aguardando') {
-      this.existingResponse.set(mine as Response);
-      this.state.set('already-responded');
-      return;
-    }
-
-    this.state.set('ready');
   }
 
   protected async respond(response: Response): Promise<void> {

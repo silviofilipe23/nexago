@@ -51,5 +51,19 @@ export const routes: Routes = [
     canActivate: [authGuard, coachGuard],
     component: PainelPlaceholderComponent,
   },
+  {
+    path: 'painel/equipes',
+    title: 'Equipes — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/equipes/panel-equipes.component').then((m) => m.PanelEquipesComponent),
+  },
+  {
+    path: 'painel/equipes/nova',
+    title: 'Nova equipe — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/equipes/panel-nova-equipe.component').then((m) => m.PanelNovaEquipeComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

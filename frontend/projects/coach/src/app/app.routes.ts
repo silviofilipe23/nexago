@@ -2,11 +2,17 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { Routes } from '@angular/router';
 import { authGuard } from './auth/auth.guard';
 import { coachGuard } from './auth/coach.guard';
+import { PanelShellComponent } from './painel/ui/panel-shell.component';
 
 @Component({
   selector: 'app-painel-placeholder',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<p style="font-family: system-ui; padding: 24px; color: #F4F4F5; background: #050505; min-height: 100dvh; margin: 0;">Painel do treinador — em construção.</p>`,
+  imports: [PanelShellComponent],
+  template: `
+    <co-panel-shell>
+      <p style="font-family: system-ui; padding: 24px; color: var(--nx-text-dim);">Início — em construção (Task 17).</p>
+    </co-panel-shell>
+  `,
 })
 class PainelPlaceholderComponent {}
 

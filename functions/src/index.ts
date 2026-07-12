@@ -281,3 +281,10 @@ export {
 } from "./sand-rank-sync";
 
 export {completeCoachSignup} from "./coach-signup";
+
+export {searchAthleteForCoachInvite} from "./coach-athlete-search";
+export {
+  sendCoachAthleteInvite,
+  acceptCoachAthleteInvite,
+  cancelCoachAthleteInvite,
+} from "./coach-athlete-invite";

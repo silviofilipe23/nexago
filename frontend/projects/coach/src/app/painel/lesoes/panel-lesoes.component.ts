@@ -87,8 +87,6 @@ const STATUS_TONE: Record<InjuryStatus, PillTone> = {
       display: grid;
       grid-template-columns: 1fr 340px;
       gap: 16px;
-      min-height: 0;
-      overflow: hidden;
     }
     .field {
       display: flex;

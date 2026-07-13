@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { AthleteAvatarComponent } from '../ui/athlete-avatar.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
@@ -193,6 +193,18 @@ export class PanelCompararAtletasComponent {
     const uid = this.athleteBUid() ?? this.roster()[1]?.athleteUid ?? null;
     return this.roster().find((a) => a.athleteUid === uid) ?? null;
   });
+
+  constructor() {
+    effect(() => {
+      const roster = this.roster();
+      if (this.athleteAUid() && !roster.some((a) => a.athleteUid === this.athleteAUid())) {
+        this.athleteAUid.set(null);
+      }
+      if (this.athleteBUid() && !roster.some((a) => a.athleteUid === this.athleteBUid())) {
+        this.athleteBUid.set(null);
+      }
+    });
+  }
 
   protected selectAthleteA(uid: string): void {
     this.athleteAUid.set(uid || null);

@@ -261,5 +261,46 @@ export const routes: Routes = [
     canActivate: [authGuard, coachGuard],
     loadComponent: () => import('./painel/ia/panel-ia.component').then((m) => m.PanelIaComponent),
   },
+  {
+    path: 'painel/ia/evolucao-rating',
+    title: 'Evolução do rating — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/ia/panel-evolucao-rating.component').then((m) => m.PanelEvolucaoRatingComponent),
+  },
+  {
+    path: 'painel/ia/recomendacao-categoria',
+    title: 'Recomendação de categoria — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/ia/panel-recomendacao-categoria.component').then(
+        (m) => m.PanelRecomendacaoCategoriaComponent,
+      ),
+  },
+  {
+    path: 'painel/ia/descoberta-talentos',
+    title: 'Descoberta de talentos — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/ia/panel-descoberta-talentos.component').then(
+        (m) => m.PanelDescobertaTalentosComponent,
+      ),
+  },
+  {
+    path: 'painel/ia/gestao-metas',
+    title: 'Gestão de metas — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/ia/panel-gestao-metas.component').then((m) => m.PanelGestaoMetasComponent),
+  },
+  {
+    path: 'painel/ia/analise-pos-torneio',
+    title: 'Análise pós-torneio — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/ia/panel-analise-pos-torneio.component').then(
+        (m) => m.PanelAnalisePosTorneioComponent,
+      ),
+  },
   { path: '**', redirectTo: '' },
 ];

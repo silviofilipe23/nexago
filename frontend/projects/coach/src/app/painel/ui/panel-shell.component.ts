@@ -26,6 +26,7 @@ const NAV_ITEMS: PanelNavItem[] = [
   { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios' },
   { id: 'historico', label: 'Histórico', icon: 'clock', route: '/painel/historico' },
   { id: 'lesoes', label: 'Lesões', icon: 'medical', route: '/painel/lesoes' },
+  { id: 'permissoes', label: 'Permissões', icon: 'gear', route: '/painel/permissoes' },
 ];
 
 function pathOnly(url: string): string {

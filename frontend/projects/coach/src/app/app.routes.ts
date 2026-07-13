@@ -199,5 +199,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/agenda/panel-agenda.component').then((m) => m.PanelAgendaComponent),
   },
+  {
+    path: 'painel/permissoes',
+    title: 'Permissões — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/permissoes/panel-permissoes.component').then((m) => m.PanelPermissoesComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

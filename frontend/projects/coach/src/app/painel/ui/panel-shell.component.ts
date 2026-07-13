@@ -28,6 +28,7 @@ const NAV_ITEMS: PanelNavItem[] = [
   { id: 'lesoes', label: 'Lesões', icon: 'medical', route: '/painel/lesoes' },
   { id: 'permissoes', label: 'Permissões', icon: 'gear', route: '/painel/permissoes' },
   { id: 'financeiro', label: 'Financeiro', icon: 'wallet', route: '/painel/financeiro' },
+  { id: 'comunicacao', label: 'Comunicação', icon: 'chat', route: '/painel/comunicacao' },
 ];
 
 function pathOnly(url: string): string {

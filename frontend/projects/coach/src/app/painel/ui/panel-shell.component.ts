@@ -30,6 +30,7 @@ const NAV_ITEMS: PanelNavItem[] = [
   { id: 'financeiro', label: 'Financeiro', icon: 'wallet', route: '/painel/financeiro' },
   { id: 'comunicacao', label: 'Comunicação', icon: 'chat', route: '/painel/comunicacao' },
   { id: 'biblioteca', label: 'Biblioteca', icon: 'folder', route: '/painel/biblioteca' },
+  { id: 'ia', label: 'IA do treinador', icon: 'sparkle', route: '/painel/ia' },
 ];
 
 function pathOnly(url: string): string {

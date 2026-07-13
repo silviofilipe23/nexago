@@ -21,7 +21,8 @@ export type PanelIconName =
   | 'medical'
   | 'wallet'
   | 'chat'
-  | 'folder';
+  | 'folder'
+  | 'sparkle';
 
 /** Ícones stroke-24 do painel do treinador (protótipo Tr*Ic*), um componente pra evitar repetir SVG. */
 @Component({
@@ -110,6 +111,9 @@ export type PanelIconName =
         }
         @case ('folder') {
           <path d="M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z" />
+        }
+        @case ('sparkle') {
+          <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" />
         }
       }
     </svg>

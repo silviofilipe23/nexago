@@ -76,6 +76,24 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'painel/atletas/plano-evolucao',
+    title: 'Plano de evolução — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/evolucao/panel-plano-evolucao.component').then(
+        (m) => m.PanelPlanoEvolucaoComponent,
+      ),
+  },
+  {
+    path: 'painel/atletas/plano-evolucao/novo',
+    title: 'Novo objetivo — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/evolucao/panel-novo-objetivo.component').then(
+        (m) => m.PanelNovoObjetivoComponent,
+      ),
+  },
+  {
     path: 'convite-atleta/:id',
     title: 'Convite de treinador — NexaGO Treinador',
     canActivate: [authGuard],

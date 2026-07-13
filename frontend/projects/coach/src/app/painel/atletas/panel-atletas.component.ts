@@ -53,6 +53,10 @@ const STATUS_TONE: Record<string, 'green' | 'red' | 'yellow' | 'dim'> = {
           <co-icon name="radar" [size]="14" />
           Comparar atletas
         </a>
+        <a class="co-ghost-btn" routerLink="/painel/atletas/plano-evolucao">
+          <co-icon name="clipboard" [size]="14" />
+          Plano de evolução
+        </a>
         <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/atletas/novo">
           <co-icon name="plus" [size]="14" />
           Convidar atleta

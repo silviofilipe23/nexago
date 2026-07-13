@@ -49,6 +49,10 @@ const STATUS_TONE: Record<string, 'green' | 'red' | 'yellow' | 'dim'> = {
   template: `
     <co-panel-shell>
       <co-page-header title="Gestão de atletas" [subtitle]="subtitle()">
+        <a class="co-ghost-btn" routerLink="/painel/atletas/comparar">
+          <co-icon name="radar" [size]="14" />
+          Comparar atletas
+        </a>
         <a class="co-mini-btn co-mini-btn-primary" routerLink="/painel/atletas/novo">
           <co-icon name="plus" [size]="14" />
           Convidar atleta

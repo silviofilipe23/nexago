@@ -67,6 +67,15 @@ export const routes: Routes = [
       import('./painel/atletas/panel-novo-atleta.component').then((m) => m.PanelNovoAtletaComponent),
   },
   {
+    path: 'painel/atletas/comparar',
+    title: 'Comparar atletas — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/atletas/panel-comparar-atletas.component').then(
+        (m) => m.PanelCompararAtletasComponent,
+      ),
+  },
+  {
     path: 'convite-atleta/:id',
     title: 'Convite de treinador — NexaGO Treinador',
     canActivate: [authGuard],

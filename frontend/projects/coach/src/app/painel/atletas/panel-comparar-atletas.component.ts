@@ -177,6 +177,12 @@ export class PanelCompararAtletasComponent {
     return activeId ? all.filter((a) => a.squadId === activeId) : all;
   });
 
+  private readonly squadTrainings = computed(() => {
+    const activeId = this.squadContext.activeSquadId();
+    const all = this.trainingsService.trainings();
+    return all.filter((t) => !activeId || t.squadId === activeId);
+  });
+
   private readonly evaluationsByAthlete = computed(() =>
     latestTwoByAthlete(this.evaluationsService.evaluations()),
   );
@@ -228,7 +234,7 @@ export class PanelCompararAtletasComponent {
   }
 
   private attendanceFor(athleteUid: string): number | null {
-    return attendanceRate(athleteUid, this.trainingsService.trainings());
+    return attendanceRate(athleteUid, this.squadTrainings());
   }
 
   protected averageForSelected(side: 'a' | 'b'): number | null {

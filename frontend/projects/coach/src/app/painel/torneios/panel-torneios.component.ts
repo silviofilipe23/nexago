@@ -1,7 +1,9 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { getApps } from 'firebase/app';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { AthletesService } from '../atletas/athletes.service';
+import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
@@ -26,10 +28,15 @@ interface CoachTournamentOverviewItem {
 @Component({
   selector: 'co-panel-torneios',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, PanelCardComponent, PanelShellComponent, PillComponent, RowComponent],
+  imports: [RouterLink, IconComponent, PageHeaderComponent, PanelCardComponent, PanelShellComponent, PillComponent, RowComponent],
   template: `
     <co-panel-shell>
-      <co-page-header title="Torneios" [subtitle]="subtitle()" />
+      <co-page-header title="Torneios" [subtitle]="subtitle()">
+        <a class="co-ghost-btn" routerLink="/painel/torneios/estatisticas">
+          <co-icon name="radar" [size]="14" />
+          Estatísticas da equipe
+        </a>
+      </co-page-header>
 
       <div class="body">
         @if (loading()) {

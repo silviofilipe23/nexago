@@ -186,6 +186,13 @@ export const routes: Routes = [
       import('./painel/torneios/panel-torneios.component').then((m) => m.PanelTorneiosComponent),
   },
   {
+    path: 'painel/torneios/estatisticas',
+    title: 'Estatísticas da equipe — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/torneios/panel-estatisticas.component').then((m) => m.PanelEstatisticasComponent),
+  },
+  {
     path: 'painel/perfil',
     title: 'Perfil — NexaGO Treinador',
     canActivate: [authGuard, coachGuard],

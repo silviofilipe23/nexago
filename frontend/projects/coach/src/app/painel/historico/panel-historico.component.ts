@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { AthletesService } from '../atletas/athletes.service';
 import { averageScore } from '../avaliacoes/evaluation-stats';
 import { EvaluationsService } from '../avaliacoes/evaluations.service';
 import { AttendanceStatus, TrainingsService } from '../treinos/trainings.service';
+import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
@@ -25,7 +27,7 @@ const ATTENDANCE_LABEL: Record<AttendanceStatus, string> = {
 @Component({
   selector: 'co-panel-historico',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PageHeaderComponent, PanelCardComponent, PanelShellComponent],
+  imports: [RouterLink, IconComponent, PageHeaderComponent, PanelCardComponent, PanelShellComponent],
   template: `
     <co-panel-shell>
       <co-page-header title="Histórico completo" [subtitle]="subtitle()">
@@ -35,6 +37,10 @@ const ATTENDANCE_LABEL: Record<AttendanceStatus, string> = {
             <option [value]="a.athleteUid">{{ a.displayName }}</option>
           }
         </select>
+        <a class="co-ghost-btn" routerLink="/painel/historico/relatorios">
+          <co-icon name="download" [size]="14" />
+          Relatórios
+        </a>
       </co-page-header>
 
       <div class="body">

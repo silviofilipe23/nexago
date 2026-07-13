@@ -163,6 +163,13 @@ export const routes: Routes = [
       import('./painel/historico/panel-historico.component').then((m) => m.PanelHistoricoComponent),
   },
   {
+    path: 'painel/historico/relatorios',
+    title: 'Relatórios — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/historico/panel-relatorios.component').then((m) => m.PanelRelatoriosComponent),
+  },
+  {
     path: 'painel/lesoes',
     title: 'Lesões — NexaGO Treinador',
     canActivate: [authGuard, coachGuard],

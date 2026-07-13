@@ -2555,7 +2555,7 @@ Run `cd /Users/silviodionizio/Documents/projects/volley/nexago/frontend && npx n
 - [ ] **Step 9: Commit**
 
 ```bash
-cd /Users/silviodionizio/Documents/projects/volley/nexago
+cd /Users/silviodionizio/Documents/projects/volley/nexago/.claude/worktrees/coach-remaining-screens
 git add frontend/projects/coach/src/app/painel/ia/panel-evolucao-rating.component.ts frontend/projects/coach/src/app/painel/ia/panel-recomendacao-categoria.component.ts frontend/projects/coach/src/app/painel/ia/panel-descoberta-talentos.component.ts frontend/projects/coach/src/app/painel/ia/panel-gestao-metas.component.ts frontend/projects/coach/src/app/painel/ia/panel-analise-pos-torneio.component.ts frontend/projects/coach/src/app/app.routes.ts
 git commit -m "feat(coach): add the 5 Inteligência NexaGO diferencial screens (mock)
 

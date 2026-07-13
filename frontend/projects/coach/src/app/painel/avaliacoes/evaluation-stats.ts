@@ -10,6 +10,18 @@ export interface EvaluationScores {
   mental: number;
 }
 
+export const FUNDAMENTALS: { key: keyof EvaluationScores; label: string }[] = [
+  { key: 'saque', label: 'Saque' },
+  { key: 'recepcao', label: 'Recepção' },
+  { key: 'levantamento', label: 'Levantamento' },
+  { key: 'ataque', label: 'Ataque' },
+  { key: 'defesa', label: 'Defesa' },
+  { key: 'bloqueio', label: 'Bloqueio' },
+  { key: 'condicionamento', label: 'Condicionamento' },
+  { key: 'comunicacao', label: 'Comunicação' },
+  { key: 'mental', label: 'Mental' },
+];
+
 export interface Evaluation {
   id: string;
   athleteUid: string;

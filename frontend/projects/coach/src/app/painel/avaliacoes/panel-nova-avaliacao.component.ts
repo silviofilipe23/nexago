@@ -6,20 +6,8 @@ import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { RadarChartComponent } from '../ui/radar-chart.component';
 import { SquadContextService } from '../ui/squad-context.service';
-import type { EvaluationScores } from './evaluation-stats';
+import { FUNDAMENTALS, type EvaluationScores } from './evaluation-stats';
 import { EvaluationsService } from './evaluations.service';
-
-const FUNDAMENTALS: { key: keyof EvaluationScores; label: string }[] = [
-  { key: 'saque', label: 'Saque' },
-  { key: 'recepcao', label: 'Recepção' },
-  { key: 'levantamento', label: 'Levantamento' },
-  { key: 'ataque', label: 'Ataque' },
-  { key: 'defesa', label: 'Defesa' },
-  { key: 'bloqueio', label: 'Bloqueio' },
-  { key: 'condicionamento', label: 'Condicionamento' },
-  { key: 'comunicacao', label: 'Comunicação' },
-  { key: 'mental', label: 'Mental' },
-];
 
 function defaultScores(): EvaluationScores {
   return {

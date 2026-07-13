@@ -1,4 +1,4 @@
-import { averageScore, latestTwoByAthlete, type Evaluation, type EvaluationScores } from './evaluation-stats';
+import { FUNDAMENTALS, averageScore, latestTwoByAthlete, type Evaluation, type EvaluationScores } from './evaluation-stats';
 
 function scores(overrides: Partial<EvaluationScores> = {}): EvaluationScores {
   return {
@@ -35,5 +35,18 @@ describe('latestTwoByAthlete', () => {
     const map = latestTwoByAthlete(evals);
     expect(map.get('a2')?.latest.id).toBe('e3');
     expect(map.get('a2')?.previous).toBeNull();
+  });
+});
+
+describe('FUNDAMENTALS', () => {
+  it('lists all 9 evaluation keys in the fixed prototype order', () => {
+    expect(FUNDAMENTALS.map((f) => f.key)).toEqual([
+      'saque', 'recepcao', 'levantamento', 'ataque', 'defesa',
+      'bloqueio', 'condicionamento', 'comunicacao', 'mental',
+    ]);
+  });
+
+  it('gives every fundamental a non-empty display label', () => {
+    expect(FUNDAMENTALS.every((f) => f.label.trim().length > 0)).toBe(true);
   });
 });

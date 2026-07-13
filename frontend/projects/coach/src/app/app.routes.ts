@@ -248,5 +248,12 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./painel/comunicacao/panel-comunicacao.component').then((m) => m.PanelComunicacaoComponent),
   },
+  {
+    path: 'painel/biblioteca',
+    title: 'Biblioteca — NexaGO Treinador',
+    canActivate: [authGuard, coachGuard],
+    loadComponent: () =>
+      import('./painel/biblioteca/panel-biblioteca.component').then((m) => m.PanelBibliotecaComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

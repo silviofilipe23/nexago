@@ -20,7 +20,8 @@ export type PanelIconName =
   | 'radar'
   | 'medical'
   | 'wallet'
-  | 'chat';
+  | 'chat'
+  | 'folder';
 
 /** Ícones stroke-24 do painel do treinador (protótipo Tr*Ic*), um componente pra evitar repetir SVG. */
 @Component({
@@ -106,6 +107,9 @@ export type PanelIconName =
         }
         @case ('chat') {
           <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />
+        }
+        @case ('folder') {
+          <path d="M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7z" />
         }
       }
     </svg>

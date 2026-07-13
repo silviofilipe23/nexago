@@ -17,7 +17,8 @@ export type PanelIconName =
   | 'check'
   | 'clock'
   | 'clipboard'
-  | 'radar';
+  | 'radar'
+  | 'medical';
 
 /** Ícones stroke-24 do painel do treinador (protótipo Tr*Ic*), um componente pra evitar repetir SVG. */
 @Component({
@@ -94,6 +95,9 @@ export type PanelIconName =
           <circle cx="12" cy="12" r="5" />
           <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
           <path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
+        }
+        @case ('medical') {
+          <rect x="4" y="4" width="16" height="16" rx="3" /><path d="M12 8v8M8 12h8" />
         }
       }
     </svg>

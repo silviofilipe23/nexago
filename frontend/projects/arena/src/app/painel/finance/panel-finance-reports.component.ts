@@ -1,23 +1,29 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
+import { ArenaContextService } from '../data/arena-context.service';
+import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
 import { LineChartComponent } from '../ui/line-chart.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
+import { buildMovementsCsv, downloadCsv } from './finance-csv';
+import { buildDailyTotals, filterMovementsByPeriod, mergeFinanceMovements, type FinancePeriodKey } from './finance-movements';
+import { formatBRL } from './finance.model';
+import { fetchLedgerEntries, fetchWithdrawals } from './finance-repository';
 
-type PeriodKey = '7d' | '30d' | 'month' | 'lastMonth' | 'custom';
-type CourtKey = 'all' | 'q1' | 'q2' | 'q3';
 type GroupKey = 'day' | 'week' | 'month' | 'court' | 'payment';
 type MetricKey = 'revenue' | 'reservations' | 'commands' | 'platformFee' | 'withdrawals';
 type ExportFormat = 'pdf' | 'csv';
 type PreviewMetric = 'revenue' | 'reservations';
+type PeriodOptionKey = FinancePeriodKey | 'custom';
 
 interface ChipOption<T extends string> {
   key: T;
   label: string;
+  disabled?: boolean;
 }
 
 interface RecentReport {
@@ -27,61 +33,58 @@ interface RecentReport {
   format: ExportFormat;
 }
 
-const PERIOD_OPTIONS: ChipOption<PeriodKey>[] = [
+const PERIOD_OPTIONS: ChipOption<PeriodOptionKey>[] = [
   { key: '7d', label: '7 dias' },
   { key: '30d', label: '30 dias' },
   { key: 'month', label: 'Este mês' },
   { key: 'lastMonth', label: 'Mês passado' },
-  { key: 'custom', label: 'Personalizado' },
-];
-
-const COURT_OPTIONS: ChipOption<CourtKey>[] = [
-  { key: 'all', label: 'Todas' },
-  { key: 'q1', label: 'Quadra 1' },
-  { key: 'q2', label: 'Quadra 2' },
-  { key: 'q3', label: 'Quadra 3' },
+  { key: 'custom', label: 'Personalizado', disabled: true },
 ];
 
 const GROUP_OPTIONS: ChipOption<GroupKey>[] = [
   { key: 'day', label: 'Dia' },
-  { key: 'week', label: 'Semana' },
-  { key: 'month', label: 'Mês' },
-  { key: 'court', label: 'Quadra' },
-  { key: 'payment', label: 'Forma de pagamento' },
+  { key: 'week', label: 'Semana', disabled: true },
+  { key: 'month', label: 'Mês', disabled: true },
+  { key: 'court', label: 'Quadra', disabled: true },
+  { key: 'payment', label: 'Forma de pagamento', disabled: true },
 ];
 
 const METRIC_OPTIONS: ChipOption<MetricKey>[] = [
   { key: 'revenue', label: 'Faturamento' },
   { key: 'reservations', label: 'Reservas' },
-  { key: 'commands', label: 'Comandas' },
+  { key: 'commands', label: 'Comandas', disabled: true },
   { key: 'platformFee', label: 'Taxa da plataforma' },
   { key: 'withdrawals', label: 'Saques' },
 ];
 
 const EXPORT_OPTIONS: ChipOption<ExportFormat>[] = [
-  { key: 'pdf', label: 'PDF' },
+  { key: 'pdf', label: 'PDF', disabled: true },
   { key: 'csv', label: 'CSV' },
 ];
 
-const PREVIEW_DAYS = ['Qua', 'Qui', 'Sex', 'Sáb', 'Dom', 'Seg', 'Ter'];
-const REVENUE_PREVIEW = [820, 940, 880, 1120, 990, 1340, 1240];
-const RESERVATIONS_PREVIEW = [16, 19, 17, 22, 18, 26, 24];
+const PREVIEW_METRIC_OPTIONS: ChipOption<PreviewMetric>[] = [
+  { key: 'revenue', label: 'Faturamento' },
+  { key: 'reservations', label: 'Reservas' },
+];
 
 const FORMAT_LABEL: Record<ExportFormat, string> = { pdf: 'PDF', csv: 'CSV' };
 const FORMAT_TONE: Record<ExportFormat, PillTone> = { pdf: 'orange', csv: 'dim' };
 
-function formatBRL(n: number): string {
-  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-}
+const LEDGER_HISTORY_TAKE = 200;
+const WITHDRAWAL_HISTORY_TAKE = 100;
 
-/** Tela "Relatórios customizados" do painel (protótipo ArFinanceReportsScreen): monta e exporta relatórios a partir de período/filtros/métricas. */
+/** Tela "Relatórios" do painel: filtra as mesmas movimentações reais do Financeiro (carteira +
+ *  saques) por período e exporta em CSV. Filtro por quadra e agrupamento por
+ *  semana/mês/forma-de-pagamento ficam desabilitados nesta rodada — não existe registro de
+ *  forma de pagamento por reserva, e filtro por quadra foi deixado fora do escopo (ver spec
+ *  `docs/superpowers/specs/2026-07-14-arena-financeiro-real-design.md`). */
 @Component({
   selector: 'ar-panel-finance-reports',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, LineChartComponent, PillComponent, IconComponent, RouterLink],
   template: `
     <ar-panel-shell>
-      <ar-page-header title="Relatórios" [subtitle]="arenaName() + ' · monte um relatório customizado'">
+      <ar-page-header title="Relatórios" [subtitle]="arenaName() + ' · relatório a partir da carteira e dos saques'">
         <a routerLink="/painel/financeiro" class="back-link">
           <ar-icon name="chevron-right" [size]="14" style="transform: rotate(180deg)" />
           Voltar ao Financeiro
@@ -89,96 +92,123 @@ function formatBRL(n: number): string {
       </ar-page-header>
 
       <div class="body">
-        <div class="col-left">
-          <ar-panel-card title="Período">
-            <div class="field-label">Intervalo</div>
-            <div class="ar-filter-bar">
-              @for (opt of periodOptions; track opt.key) {
-                <button type="button" class="ar-chip" [class.active]="period() === opt.key" (click)="period.set(opt.key)">{{ opt.label }}</button>
-              }
-            </div>
-          </ar-panel-card>
+        @if (arenaNotFound()) {
+          <div class="state-wrap">
+            <ar-panel-card pad="lg">
+              <p class="state-text">Nenhuma arena vinculada à sua conta ainda. Fale com o suporte para concluir o cadastro.</p>
+            </ar-panel-card>
+          </div>
+        } @else if (arenaLoading() || loading()) {
+          <div class="state-wrap">
+            <ar-panel-card pad="lg">
+              <p class="state-text">Carregando histórico…</p>
+            </ar-panel-card>
+          </div>
+        } @else if (errorMessage(); as err) {
+          <div class="state-wrap">
+            <ar-panel-card pad="lg">
+              <p class="state-text">{{ err }}</p>
+              <button type="button" class="ar-mini-btn" (click)="retry()">Tentar de novo</button>
+            </ar-panel-card>
+          </div>
+        } @else {
+          <div class="col-left">
+            <ar-panel-card title="Período">
+              <div class="field-label">Intervalo</div>
+              <div class="ar-filter-bar">
+                @for (opt of periodOptions; track opt.key) {
+                  <button type="button" class="ar-chip" [class.active]="period() === opt.key" [class.disabled]="opt.disabled" (click)="selectPeriod(opt)">
+                    {{ opt.label }}
+                  </button>
+                }
+              </div>
+            </ar-panel-card>
 
-          <ar-panel-card title="Filtros">
-            <div class="field-label">Quadra</div>
-            <div class="ar-filter-bar filter-block">
-              @for (opt of courtOptions; track opt.key) {
-                <button type="button" class="ar-chip" [class.active]="court() === opt.key" (click)="court.set(opt.key)">{{ opt.label }}</button>
-              }
-            </div>
+            <ar-panel-card title="Filtros">
+              <div class="field-label">Quadra</div>
+              <p class="state-text filter-note">Filtro por quadra chega em uma próxima versão — o relatório considera todas.</p>
 
-            <div class="field-label">Agrupar por</div>
-            <div class="ar-filter-bar">
-              @for (opt of groupOptions; track opt.key) {
-                <button type="button" class="ar-chip" [class.active]="groupBy() === opt.key" (click)="groupBy.set(opt.key)">{{ opt.label }}</button>
-              }
-            </div>
-          </ar-panel-card>
+              <div class="field-label">Agrupar por</div>
+              <div class="ar-filter-bar">
+                @for (opt of groupOptions; track opt.key) {
+                  <button type="button" class="ar-chip" [class.active]="groupBy() === opt.key" [class.disabled]="opt.disabled" (click)="selectGroup(opt)">
+                    {{ opt.label }}
+                  </button>
+                }
+              </div>
+            </ar-panel-card>
 
-          <ar-panel-card title="Métricas">
-            <div class="field-label">Incluir no relatório</div>
-            <div class="ar-filter-bar">
-              @for (opt of metricOptions; track opt.key) {
-                <button type="button" class="ar-chip" [class.active]="metrics().has(opt.key)" (click)="toggleMetric(opt.key)">{{ opt.label }}</button>
-              }
-            </div>
-          </ar-panel-card>
+            <ar-panel-card title="Métricas">
+              <div class="field-label">Incluir no relatório</div>
+              <div class="ar-filter-bar">
+                @for (opt of metricOptions; track opt.key) {
+                  <button type="button" class="ar-chip" [class.active]="metrics().has(opt.key)" [class.disabled]="opt.disabled" (click)="toggleMetric(opt.key)">
+                    {{ opt.label }}
+                  </button>
+                }
+              </div>
+            </ar-panel-card>
 
-          <ar-panel-card title="Formato de exportação">
-            <div class="field-label">Arquivo</div>
-            <div class="ar-filter-bar filter-block">
-              @for (opt of exportOptions; track opt.key) {
-                <button type="button" class="ar-chip" [class.active]="exportFormat() === opt.key" (click)="exportFormat.set(opt.key)">{{ opt.label }}</button>
-              }
-            </div>
-            <button type="button" class="ar-mini-btn ar-mini-btn-primary generate-btn" (click)="generateReport()">
-              <ar-icon name="download" [size]="14" />
-              Gerar relatório
-            </button>
-          </ar-panel-card>
-        </div>
+            <ar-panel-card title="Formato de exportação">
+              <div class="field-label">Arquivo</div>
+              <div class="ar-filter-bar filter-block">
+                @for (opt of exportOptions; track opt.key) {
+                  <button type="button" class="ar-chip" [class.active]="exportFormat() === opt.key" [class.disabled]="opt.disabled" (click)="selectExportFormat(opt)">
+                    {{ opt.label }}
+                  </button>
+                }
+              </div>
+              <button type="button" class="ar-mini-btn ar-mini-btn-primary generate-btn" (click)="generateReport()">
+                <ar-icon name="download" [size]="14" />
+                Gerar relatório
+              </button>
+            </ar-panel-card>
+          </div>
 
-        <div class="col-right">
-          <ar-panel-card [kicker]="previewKicker()" title="Prévia">
-            <ar-line-chart [height]="180" [data]="previewData()" [labels]="previewDays" />
-            <div class="legend">
-              @for (opt of previewMetricOptions; track opt.key) {
-                <button type="button" class="ar-chip legend-chip" [class.active]="previewMetric() === opt.key" (click)="previewMetric.set(opt.key)">
-                  <span class="dot"></span>
-                  {{ opt.label }}
-                </button>
-              }
-            </div>
-          </ar-panel-card>
+          <div class="col-right">
+            <ar-panel-card [kicker]="previewKicker()" title="Prévia">
+              <ar-line-chart [height]="180" [data]="previewData()" [labels]="previewDays()" />
+              <div class="legend">
+                @for (opt of previewMetricOptions; track opt.key) {
+                  <button type="button" class="ar-chip legend-chip" [class.active]="previewMetric() === opt.key" (click)="previewMetric.set(opt.key)">
+                    <span class="dot"></span>
+                    {{ opt.label }}
+                  </button>
+                }
+              </div>
+            </ar-panel-card>
 
-          <ar-panel-card title="Resumo do período">
-            <div class="summary-grid">
-              @for (s of summary; track s.label) {
-                <div class="summary-item">
-                  <div class="summary-label">{{ s.label }}</div>
-                  <div class="summary-value">{{ s.value }}</div>
-                </div>
-              }
-            </div>
-          </ar-panel-card>
-
-          <ar-panel-card [kicker]="recentKicker()" title="Relatórios recentes" class="recent-card">
-            <div class="recent-list">
-              @for (r of recentReports(); track r.id) {
-                <div class="recent-row">
-                  <div class="recent-icon">
-                    <ar-icon name="download" [size]="14" />
+            <ar-panel-card title="Resumo do período">
+              <div class="summary-grid">
+                @for (s of summary(); track s.label) {
+                  <div class="summary-item">
+                    <div class="summary-label">{{ s.label }}</div>
+                    <div class="summary-value">{{ s.value }}</div>
                   </div>
-                  <div class="recent-body">
-                    <div class="recent-label">{{ r.label }}</div>
-                    <div class="recent-date">{{ r.generatedLabel }}</div>
+                }
+              </div>
+            </ar-panel-card>
+
+            <ar-panel-card [kicker]="recentKicker()" title="Relatórios recentes" class="recent-card">
+              <div class="recent-list">
+                @for (r of recentReports(); track r.id) {
+                  <div class="recent-row">
+                    <div class="recent-icon">
+                      <ar-icon name="download" [size]="14" />
+                    </div>
+                    <div class="recent-body">
+                      <div class="recent-label">{{ r.label }}</div>
+                      <div class="recent-date">{{ r.generatedLabel }}</div>
+                    </div>
+                    <ar-pill [tone]="formatTone[r.format]">{{ formatLabel[r.format] }}</ar-pill>
                   </div>
-                  <ar-pill [tone]="formatTone[r.format]">{{ formatLabel[r.format] }}</ar-pill>
-                </div>
-              }
-            </div>
-          </ar-panel-card>
-        </div>
+                } @empty {
+                  <p class="state-text">Nenhum relatório gerado nesta sessão ainda.</p>
+                }
+              </div>
+            </ar-panel-card>
+          </div>
+        }
       </div>
     </ar-panel-shell>
   `,
@@ -208,6 +238,20 @@ function formatBRL(n: number): string {
       align-items: start;
     }
 
+    .state-wrap {
+      grid-column: 1 / -1;
+    }
+
+    .state-text {
+      font-size: 13.5px;
+      color: var(--nx-text-mute);
+      margin: 0 0 12px;
+    }
+
+    .filter-note {
+      margin-bottom: 18px;
+    }
+
     .col-left,
     .col-right {
       display: flex;
@@ -235,6 +279,11 @@ function formatBRL(n: number): string {
       margin-top: 16px;
     }
 
+    .ar-chip.disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
     .legend {
       display: flex;
       gap: 8px;
@@ -257,7 +306,7 @@ function formatBRL(n: number): string {
 
     .summary-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
       gap: 16px;
     }
 
@@ -351,75 +400,129 @@ function formatBRL(n: number): string {
 })
 export class PanelFinanceReportsComponent {
   private readonly auth = inject(AuthService);
+  private readonly arenaContext = inject(ArenaContextService);
 
   protected readonly periodOptions = PERIOD_OPTIONS;
-  protected readonly courtOptions = COURT_OPTIONS;
   protected readonly groupOptions = GROUP_OPTIONS;
   protected readonly metricOptions = METRIC_OPTIONS;
   protected readonly exportOptions = EXPORT_OPTIONS;
-  protected readonly previewDays = PREVIEW_DAYS;
+  protected readonly previewMetricOptions = PREVIEW_METRIC_OPTIONS;
   protected readonly formatLabel = FORMAT_LABEL;
   protected readonly formatTone = FORMAT_TONE;
 
-  protected readonly previewMetricOptions: ChipOption<PreviewMetric>[] = [
-    { key: 'revenue', label: 'Faturamento' },
-    { key: 'reservations', label: 'Reservas' },
-  ];
+  protected readonly loading = signal(true);
+  protected readonly errorMessage = signal<string | null>(null);
+  protected readonly arenaLoading = computed(() => this.arenaContext.loading());
+  protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
 
-  protected readonly summary = [
-    { label: 'Faturamento', value: formatBRL(7330) },
-    { label: 'Reservas', value: '146' },
-    { label: 'Comandas', value: '612' },
-    { label: 'Ticket médio', value: formatBRL(50.2) },
-  ];
-
-  protected readonly period = signal<PeriodKey>('30d');
-  protected readonly court = signal<CourtKey>('all');
+  protected readonly period = signal<FinancePeriodKey>('30d');
   protected readonly groupBy = signal<GroupKey>('day');
   protected readonly metrics = signal<Set<MetricKey>>(new Set<MetricKey>(['revenue', 'reservations']));
-  protected readonly exportFormat = signal<ExportFormat>('pdf');
+  protected readonly exportFormat = signal<ExportFormat>('csv');
   protected readonly previewMetric = signal<PreviewMetric>('revenue');
 
-  protected readonly recentReports = signal<RecentReport[]>([
-    { id: 1, label: 'Faturamento por quadra · Jun/2026', generatedLabel: '01 Jul, 08:14', format: 'pdf' },
-    { id: 2, label: 'Reservas × Comandas · 30 dias', generatedLabel: '28 Jun, 17:40', format: 'csv' },
-    { id: 3, label: 'Extrato completo · Q2 2026', generatedLabel: '30 Jun, 09:00', format: 'pdf' },
-  ]);
+  private readonly allMovements = signal<ReturnType<typeof mergeFinanceMovements>>([]);
+  protected readonly recentReports = signal<RecentReport[]>([]);
 
-  protected readonly previewData = computed(() => (this.previewMetric() === 'revenue' ? REVENUE_PREVIEW : RESERVATIONS_PREVIEW));
+  protected readonly periodMovements = computed(() => filterMovementsByPeriod(this.allMovements(), this.period()));
+
+  protected readonly summary = computed(() => {
+    const rows = this.periodMovements();
+    const credits = rows.filter((m) => m.type === 'credit');
+    const debits = rows.filter((m) => m.type === 'debit');
+    const revenue = credits.reduce((s, m) => s + m.amountReais, 0);
+    const reservations = credits.length;
+    const platformFee = credits.reduce((s, m) => s + m.platformFeeReais, 0);
+    const withdrawals = debits.reduce((s, m) => s + m.amountReais, 0);
+    return [
+      { label: 'Faturamento', value: formatBRL(revenue) },
+      { label: 'Reservas', value: String(reservations) },
+      { label: 'Taxa retida', value: formatBRL(platformFee) },
+      { label: 'Ticket médio', value: formatBRL(reservations > 0 ? revenue / reservations : 0) },
+      { label: 'Saques no período', value: formatBRL(withdrawals) },
+    ];
+  });
+
+  private readonly dailyTotals = computed(() => buildDailyTotals(this.allMovements(), 7));
+  protected readonly previewDays = computed(() => this.dailyTotals().map((d) => d.label));
+  protected readonly previewData = computed(() =>
+    this.dailyTotals().map((d) => (this.previewMetric() === 'revenue' ? d.revenue : d.reservations)),
+  );
 
   protected readonly previewKicker = computed(() => {
     const period = this.periodOptions.find((o) => o.key === this.period())!.label;
-    const court = this.courtOptions.find((o) => o.key === this.court())!.label;
-    const group = this.groupOptions.find((o) => o.key === this.groupBy())!.label;
-    return `${period} · ${court} · Agrupado por ${group.toLowerCase()}`;
+    return `${period} · ${this.periodMovements().length} lançamentos`;
   });
 
   protected readonly recentKicker = computed(() => `${this.recentReports().length} gerados`);
+  protected readonly arenaName = computed(() => this.arenaContext.arenaName() ?? this.auth.displayName() ?? 'Arena');
 
-  protected readonly arenaName = computed(() => this.auth.displayName() || 'Arena');
+  constructor() {
+    effect(() => {
+      const arenaId = this.arenaContext.arenaId();
+      if (!arenaId) return;
+      void this.loadHistory(arenaId);
+    });
+  }
 
   protected toggleMetric(key: MetricKey): void {
+    const option = this.metricOptions.find((o) => o.key === key);
+    if (option?.disabled) return;
     this.metrics.update((current) => {
       const next = new Set(current);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
 
-  protected generateReport(): void {
-    const metricLabels = this.metricOptions.filter((o) => this.metrics().has(o.key)).map((o) => o.label);
-    const periodLabel = this.periodOptions.find((o) => o.key === this.period())!.label;
-    const label = `${metricLabels.length ? metricLabels.join(' × ') : 'Relatório'} · ${periodLabel}`;
-    const generatedLabel = new Date().toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  protected selectPeriod(option: ChipOption<PeriodOptionKey>): void {
+    if (option.disabled) return;
+    this.period.set(option.key as FinancePeriodKey);
+  }
 
+  protected selectGroup(option: ChipOption<GroupKey>): void {
+    if (option.disabled) return;
+    this.groupBy.set(option.key);
+  }
+
+  protected selectExportFormat(option: ChipOption<ExportFormat>): void {
+    if (option.disabled) return;
+    this.exportFormat.set(option.key);
+  }
+
+  protected retry(): void {
+    const arenaId = this.arenaContext.arenaId();
+    if (arenaId) void this.loadHistory(arenaId);
+  }
+
+  protected generateReport(): void {
+    const rows = this.periodMovements();
+    const csv = buildMovementsCsv(rows);
+    downloadCsv(`relatorio-financeiro-${this.period()}-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+
+    const periodLabel = this.periodOptions.find((o) => o.key === this.period())!.label;
+    const generatedLabel = new Date().toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
     this.recentReports.update((current) => [
-      { id: Date.now(), label, generatedLabel, format: this.exportFormat() },
+      { id: Date.now(), label: `${periodLabel} · ${rows.length} lançamentos`, generatedLabel, format: 'csv' },
       ...current,
     ]);
+  }
+
+  private async loadHistory(arenaId: string): Promise<void> {
+    this.loading.set(true);
+    this.errorMessage.set(null);
+    try {
+      const db = arenaFirestore();
+      const [ledger, withdrawals] = await Promise.all([
+        fetchLedgerEntries(db, arenaId, LEDGER_HISTORY_TAKE),
+        fetchWithdrawals(db, arenaId, WITHDRAWAL_HISTORY_TAKE),
+      ]);
+      this.allMovements.set(mergeFinanceMovements(ledger, withdrawals));
+    } catch {
+      this.errorMessage.set('Não foi possível carregar o histórico financeiro.');
+    } finally {
+      this.loading.set(false);
+    }
   }
 }

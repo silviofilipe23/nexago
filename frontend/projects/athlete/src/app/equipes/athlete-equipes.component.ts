@@ -1,40 +1,44 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  ElementRef,
-  computed,
-  inject,
-  signal,
-  viewChild,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { ARENA_SPORT_CHIP_OPTIONS, type ArenaSportChip } from '@nexago/arena-discovery';
+import { getApps, initializeApp } from 'firebase/app';
+import { getFirestore, type Firestore } from 'firebase/firestore';
+import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
-import type { FilterLevel } from '../ranking/athlete-ranking.models';
-import { MOCK_DISCOVER_TEAMS, MOCK_MY_TEAMS, MOCK_PARTNER_CANDIDATES } from './athlete-equipes.mock';
-import type { DiscoverTeam, FilterAvailability, MyTeam, PartnerCandidate } from './athlete-equipes.models';
+import type { TeamCard, TeamGenderFilter, TeamLevelFilter } from './athlete-equipes.models';
+import {
+  LEVEL_RANK_OPTIONS,
+  displayNameFrom,
+  filterBySearch,
+  initialsFrom,
+  levelLabelForRank,
+  levelRankFromLabel,
+  matchesGenderFilter,
+  normalizeTeamGender,
+  teamDisplayName,
+  teamInitials,
+} from './teams-logic';
+import { fetchMyTeams, fetchPublicProfilesLite, fetchTeamRankings, fetchTeamsPage, type TeamProfileLite, type TeamRaw } from './teams-repository';
 
-const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante', 'Intermediário', 'Avançado', 'Profissional'];
+interface FilterOption<T> {
+  value: T;
+  label: string;
+}
+
+const GENDER_OPTIONS: readonly FilterOption<TeamGenderFilter>[] = [
+  { value: 'all', label: 'Todos' },
+  { value: 'male', label: 'Masculino' },
+  { value: 'female', label: 'Feminino' },
+  { value: 'mixed', label: 'Misto' },
+];
+
+const LEVEL_OPTIONS: readonly FilterOption<TeamLevelFilter>[] = [
+  { value: null, label: 'Todos os níveis' },
+  ...LEVEL_RANK_OPTIONS.map((rank) => ({ value: rank, label: levelLabelForRank(rank) })),
+];
+
 const CITY_ALL = 'all';
-
-const DISTANCE_OPTIONS: readonly { km: number; label: string }[] = [
-  { km: 5, label: 'Até 5 km' },
-  { km: 10, label: 'Até 10 km' },
-  { km: 25, label: 'Até 25 km' },
-  { km: 50, label: 'Até 50 km' },
-  { km: Infinity, label: 'Qualquer distância' },
-];
-
-const AVAILABILITY_OPTIONS: readonly { tag: FilterAvailability; label: string }[] = [
-  { tag: 'all', label: 'Qualquer horário' },
-  { tag: 'morning', label: 'Manhã' },
-  { tag: 'afternoon', label: 'Tarde' },
-  { tag: 'night', label: 'Noite' },
-  { tag: 'weekend', label: 'Fins de semana' },
-  { tag: 'flexible', label: 'Flexível' },
-];
+const DISCOVER_PAGE_SIZE = 60;
 
 function titleCase(input: string): string {
   return input
@@ -50,7 +54,7 @@ function nameFromEmail(email: string | null | undefined): string {
   return local ? titleCase(local) : 'Atleta';
 }
 
-function initialsOf(name: string): string {
+function initialsOfName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return 'AT';
   const first = parts[0]?.[0] ?? '';
@@ -58,6 +62,18 @@ function initialsOf(name: string): string {
   return (first + last).toUpperCase() || 'AT';
 }
 
+function createFirestore(): Firestore | null {
+  const cfg = environment.firebase;
+  if (cfg == null || (cfg.apiKey ?? '').length === 0) return null;
+  const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+  return getFirestore(app);
+}
+
+/** Tela Equipes do portal do atleta: "Minhas equipes" e "Descobrir equipes" com dados reais
+ *  (`teams`/`teamRankings`/`public_profiles`), espelhando `team_discover_page.dart`. "Buscar
+ *  parceiro" e o envio/aceite de convite de dupla ficam fora do escopo desta tela — no app
+ *  real isso é uma sub-etapa da inscrição em torneio (`tournamentRegistrationInvites`, escrita
+ *  só via Cloud Function), não uma ação isolada daqui; ver spec/memória da sessão. */
 @Component({
   selector: 'app-athlete-equipes',
   standalone: true,
@@ -83,92 +99,98 @@ export class AthleteEquipesComponent {
     const devEmail = this.auth.devEmail();
     return devEmail?.trim() ? nameFromEmail(devEmail) : 'Atleta';
   });
-  protected readonly headerInitials = computed(() => initialsOf(this.accountLabel()));
+  protected readonly headerInitials = computed(() => initialsOfName(this.accountLabel()));
+  protected readonly currentUid = computed(() => this.auth.user()?.uid ?? null);
 
   protected readonly queryInput = signal('');
   protected readonly filterQuery = signal('');
   private queryDebounceHandle: ReturnType<typeof setTimeout> | undefined;
 
-  protected readonly myTeams = signal<MyTeam[]>([...MOCK_MY_TEAMS]);
-  protected readonly discoverTeams = signal<readonly DiscoverTeam[]>(MOCK_DISCOVER_TEAMS);
-  protected readonly partnerCandidates = signal<readonly PartnerCandidate[]>(MOCK_PARTNER_CANDIDATES);
-  protected readonly invitedPartnerIds = signal<ReadonlySet<string>>(new Set());
+  protected readonly genderFilter = signal<TeamGenderFilter>('all');
+  protected readonly levelFilter = signal<TeamLevelFilter>(null);
+  protected readonly cityFilter = signal<string>(CITY_ALL);
 
-  protected readonly eventNotice = signal<string | null>(null);
-  private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
-
-  protected readonly sportOptions = ARENA_SPORT_CHIP_OPTIONS.filter((o) => o.chip !== 'all');
+  protected readonly genderOptions = GENDER_OPTIONS;
   protected readonly levelOptions = LEVEL_OPTIONS;
-  protected readonly distanceOptions = DISTANCE_OPTIONS;
-  protected readonly availabilityOptions = AVAILABILITY_OPTIONS;
 
-  protected readonly teamSportFilter = signal<ArenaSportChip>('beachVolleyball');
-  protected readonly teamLevelFilter = signal<FilterLevel>('all');
-  protected readonly teamCityFilter = signal<string>(CITY_ALL);
+  protected readonly loading = signal(true);
+  protected readonly errorMessage = signal<string | null>(null);
 
-  protected readonly partnerSportFilter = signal<ArenaSportChip>('beachVolleyball');
-  protected readonly partnerLevelFilter = signal<FilterLevel>('all');
-  protected readonly partnerDistanceFilter = signal<number>(Infinity);
-  protected readonly partnerAvailabilityFilter = signal<FilterAvailability>('all');
+  private readonly myTeamsRaw = signal<TeamRaw[]>([]);
+  private readonly discoverTeamsRaw = signal<TeamRaw[]>([]);
+  private readonly rankingsByTeam = signal<ReadonlyMap<string, { points: number; tournamentsCount: number }>>(new Map());
+  private readonly profiles = signal<ReadonlyMap<string, TeamProfileLite>>(new Map());
 
-  protected readonly cityOptions = computed(() => {
-    const cities = [...new Set(this.discoverTeams().map((t) => t.city))].sort((a, b) => a.localeCompare(b));
-    return [CITY_ALL, ...cities];
-  });
+  private buildCard(team: TeamRaw, isMine: boolean): TeamCard {
+    const p1 = team.player1Id ? this.profiles().get(team.player1Id) : undefined;
+    const p2 = team.player2Id ? this.profiles().get(team.player2Id) : undefined;
+    const ranking = this.rankingsByTeam().get(team.teamId);
+    return {
+      teamId: team.teamId,
+      displayName: teamDisplayName(team.teamName, p1?.fullName, p2?.fullName),
+      player1Name: displayNameFrom(p1?.fullName, team.player1Id ?? ''),
+      player2Name: displayNameFrom(p2?.fullName, team.player2Id ?? ''),
+      player1Initials: team.player1Id ? initialsFrom(p1?.fullName, team.player1Id) : '--',
+      player2Initials: team.player2Id ? initialsFrom(p2?.fullName, team.player2Id) : '--',
+      city: p1?.city ?? p2?.city ?? null,
+      points: ranking?.points ?? 0,
+      tournamentsCount: ranking?.tournamentsCount ?? 0,
+      isMine,
+    };
+  }
 
-  protected readonly filteredMyTeams = computed(() => {
-    const q = this.filterQuery().trim().toLowerCase();
-    return this.myTeams().filter((t) => !q || t.name.toLowerCase().includes(q));
-  });
+  private teamLevelRank(team: TeamRaw): number | null {
+    const athleteRank = (uid: string | null): number | null => {
+      const profile = uid ? this.profiles().get(uid) : undefined;
+      const sportId = profile?.primarySportId;
+      if (!sportId) return null;
+      return levelRankFromLabel(profile?.levelsBySport?.[sportId] ?? null);
+    };
+    const r1 = athleteRank(team.player1Id);
+    const r2 = athleteRank(team.player2Id);
+    if (r1 == null) return r2;
+    if (r2 == null) return r1;
+    return Math.max(r1, r2);
+  }
 
-  protected readonly filteredDiscoverTeams = computed(() => {
-    const sport = this.teamSportFilter();
-    const level = this.teamLevelFilter();
-    const city = this.teamCityFilter();
-    const q = this.filterQuery().trim().toLowerCase();
-
-    return this.discoverTeams()
-      .filter((t) => t.sport === sport)
-      .filter((t) => level === 'all' || t.level === level)
-      .filter((t) => city === CITY_ALL || t.city === city)
-      .filter((t) => !q || t.name.toLowerCase().includes(q));
-  });
-
-  protected readonly filteredPartners = computed(() => {
-    const sport = this.partnerSportFilter();
-    const level = this.partnerLevelFilter();
-    const maxKm = this.partnerDistanceFilter();
-    const availability = this.partnerAvailabilityFilter();
-    const q = this.filterQuery().trim().toLowerCase();
-
-    return this.partnerCandidates()
-      .filter((p) => p.sport === sport)
-      .filter((p) => level === 'all' || p.level === level)
-      .filter((p) => p.distanceKm <= maxKm)
-      .filter((p) => availability === 'all' || p.availabilityTag === availability)
-      .filter((p) => !q || p.name.toLowerCase().includes(q));
-  });
-
+  protected readonly myTeamCards = computed(() => this.myTeamsRaw().map((t) => this.buildCard(t, true)));
+  protected readonly filteredMyTeams = computed(() => filterBySearch(this.myTeamCards(), this.filterQuery()));
   protected readonly myTeamsCountLabel = computed(() => {
     const n = this.filteredMyTeams().length;
     return `${n} equipe${n === 1 ? '' : 's'}`;
   });
 
+  protected readonly cityOptions = computed(() => {
+    const cities = [...new Set(this.discoverTeamsRaw().flatMap((t) => [t.player1Id, t.player2Id]).map((uid) => (uid ? this.profiles().get(uid)?.city : null)).filter((c): c is string => !!c))].sort((a, b) => a.localeCompare(b, 'pt'));
+    return [CITY_ALL, ...cities];
+  });
+
+  protected readonly filteredDiscoverTeams = computed(() => {
+    const myIds = new Set(this.myTeamsRaw().map((t) => t.teamId));
+    const gender = this.genderFilter();
+    const level = this.levelFilter();
+    const city = this.cityFilter();
+
+    const filtered = this.discoverTeamsRaw()
+      .filter((t) => !myIds.has(t.teamId))
+      .filter((t) => matchesGenderFilter(gender, normalizeTeamGender(t.gender)))
+      .filter((t) => level == null || this.teamLevelRank(t) === level)
+      .map((t) => this.buildCard(t, false))
+      .filter((c) => city === CITY_ALL || c.city === city);
+
+    return filterBySearch(filtered, this.filterQuery());
+  });
   protected readonly discoverTeamsCountLabel = computed(() => {
     const n = this.filteredDiscoverTeams().length;
     return `${n} equipe${n === 1 ? '' : 's'} na região`;
   });
 
-  protected readonly partnersCountLabel = computed(() => {
-    const n = this.filteredPartners().length;
-    return `${n} atleta${n === 1 ? '' : 's'} próximo${n === 1 ? '' : 's'}`;
-  });
-
   constructor() {
-    this.destroyRef.onDestroy(() => {
-      clearTimeout(this.queryDebounceHandle);
-      clearTimeout(this.noticeTimeout);
+    effect(() => {
+      const uid = this.currentUid();
+      void this.load(uid);
     });
+    this.destroyRef.onDestroy(() => clearTimeout(this.queryDebounceHandle));
   }
 
   protected focusSearch(event: Event): void {
@@ -182,79 +204,69 @@ export class AthleteEquipesComponent {
     this.queryDebounceHandle = setTimeout(() => this.filterQuery.set(value), 250);
   }
 
-  protected setTeamSport(chip: string): void {
-    this.teamSportFilter.set(chip as ArenaSportChip);
+  protected setGender(value: string): void {
+    this.genderFilter.set(value as TeamGenderFilter);
   }
 
-  protected setTeamLevel(level: string): void {
-    this.teamLevelFilter.set(level as FilterLevel);
+  protected setLevel(value: string): void {
+    this.levelFilter.set(value === 'all' ? null : Number(value));
   }
 
-  protected setTeamCity(city: string): void {
-    this.teamCityFilter.set(city);
+  protected setCity(value: string): void {
+    this.cityFilter.set(value);
   }
 
-  protected setPartnerSport(chip: string): void {
-    this.partnerSportFilter.set(chip as ArenaSportChip);
+  protected levelOptionValue(level: TeamLevelFilter): string {
+    return level == null ? 'all' : String(level);
   }
 
-  protected setPartnerLevel(level: string): void {
-    this.partnerLevelFilter.set(level as FilterLevel);
+  protected levelOptionLabel(): string {
+    return this.levelOptions.find((o) => o.value === this.levelFilter())?.label ?? 'Todos os níveis';
   }
 
-  protected setPartnerDistance(km: string): void {
-    this.partnerDistanceFilter.set(Number(km));
-  }
-
-  protected setPartnerAvailability(tag: string): void {
-    this.partnerAvailabilityFilter.set(tag as FilterAvailability);
-  }
-
-  protected sportLabel(chip: ArenaSportChip): string {
-    return this.sportOptions.find((o) => o.chip === chip)?.label ?? chip;
-  }
-
-  protected levelLabel(level: FilterLevel): string {
-    return level === 'all' ? 'Todas categorias' : level;
+  protected genderOptionLabel(): string {
+    return this.genderOptions.find((o) => o.value === this.genderFilter())?.label ?? 'Todos';
   }
 
   protected cityLabel(city: string): string {
     return city === CITY_ALL ? 'Todas as cidades' : city;
   }
 
-  protected distanceLabel(km: number): string {
-    return this.distanceOptions.find((o) => o.km === km)?.label ?? `Até ${km} km`;
+  protected retry(): void {
+    void this.load(this.currentUid());
   }
 
-  protected availabilityLabel(tag: FilterAvailability): string {
-    return this.availabilityOptions.find((o) => o.tag === tag)?.label ?? tag;
-  }
+  private async load(uid: string | null): Promise<void> {
+    this.loading.set(true);
+    this.errorMessage.set(null);
+    try {
+      const db = createFirestore();
+      const projectId = environment.firebase.projectId;
+      if (!db || !projectId) throw new Error('Firebase não configurado');
 
-  protected isInvited(id: string): boolean {
-    return this.invitedPartnerIds().has(id);
-  }
+      const [myTeams, discoverTeams] = await Promise.all([
+        uid ? fetchMyTeams(db, projectId, uid) : Promise.resolve([]),
+        fetchTeamsPage(db, projectId, DISCOVER_PAGE_SIZE),
+      ]);
 
-  protected invitePartner(candidate: PartnerCandidate): void {
-    this.invitedPartnerIds.update((ids) => new Set(ids).add(candidate.id));
-    this.showNotice(`Convite enviado para ${candidate.name}.`);
-  }
+      const allTeams = new Map<string, TeamRaw>();
+      for (const t of [...myTeams, ...discoverTeams]) allTeams.set(t.teamId, t);
+      const teamIds = [...allTeams.keys()];
+      const athleteIds = [...allTeams.values()].flatMap((t) => [t.player1Id, t.player2Id]).filter((id): id is string => id != null);
 
-  protected cancelInvite(team: MyTeam): void {
-    this.myTeams.update((list) => list.filter((t) => t.id !== team.id));
-    this.showNotice('Convite cancelado.');
-  }
+      const [rankings, profiles] = await Promise.all([
+        fetchTeamRankings(db, projectId, teamIds),
+        fetchPublicProfilesLite(db, athleteIds),
+      ]);
 
-  protected challengeTeam(team: { name: string }): void {
-    this.showNotice(`Desafio para ${team.name} chega em breve por aqui.`);
-  }
-
-  protected scrollToPartnerSearch(): void {
-    document.getElementById('eq-partner-search')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  private showNotice(message: string): void {
-    this.eventNotice.set(message);
-    clearTimeout(this.noticeTimeout);
-    this.noticeTimeout = setTimeout(() => this.eventNotice.set(null), 4000);
+      this.myTeamsRaw.set(myTeams);
+      this.discoverTeamsRaw.set(discoverTeams);
+      this.rankingsByTeam.set(rankings);
+      this.profiles.set(profiles);
+    } catch {
+      this.errorMessage.set('Não foi possível carregar as equipes.');
+    } finally {
+      this.loading.set(false);
+    }
   }
 }

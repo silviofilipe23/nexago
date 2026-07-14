@@ -1,39 +1,26 @@
-import type { ArenaSportChip } from '@nexago/arena-discovery';
-import type { DemoMatchResult } from '../profile/public-profile-demo.models';
-import type { RankingLevel } from '../ranking/athlete-ranking.models';
-import type { TeamStatus } from './athlete-equipes.models';
+/** Espelha o perfil público real de uma dupla — `teams` + `teamRankings` + `matches`
+ *  (ganhas/perdidas computadas dos jogos reais, sem o agrupamento por campanha/torneio do
+ *  app nem o head-to-head; lista simples de partidas, mais perto do que o mock já mostrava). */
 
-export interface TeamMemberRef {
-  /** null quando não há perfil de atleta conhecido pra linkar (times gerados por fallback). */
-  handle: string | null;
-  fullName: string;
-  role: string;
-  levelNumber: number;
-}
-
-export interface TeamTitle {
-  id: string;
-  name: string;
-  resultLabel: string;
+export interface TeamMatchRow {
+  matchId: string;
+  opponentName: string;
+  result: 'win' | 'loss';
+  scoreLabel: string;
   dateLabel: string;
 }
 
-export interface TeamPublicProfile {
-  id: string;
-  teamName: string;
-  sport: ArenaSportChip;
-  level: RankingLevel;
-  city: string;
-  status: TeamStatus;
+export interface TeamProfileView {
+  teamId: string;
+  displayName: string;
+  player1Name: string;
+  player2Name: string;
+  player1Initials: string;
+  player2Initials: string;
+  city: string | null;
+  points: number;
+  tournamentsCount: number;
   wins: number;
   losses: number;
-  currentStreakWins: number;
-  rankingPosition: number;
-  rankingPoints: number;
-  togetherSinceLabel: string;
-  bio: string;
-  members: readonly TeamMemberRef[];
-  titles: readonly TeamTitle[];
-  matches: readonly DemoMatchResult[];
-  availabilitySlots: readonly string[];
+  matches: readonly TeamMatchRow[];
 }

@@ -2,7 +2,7 @@
   <header class="eq-page-header">
     <div class="eq-page-header-titles">
       <h1>Equipes</h1>
-      <div class="eq-page-header-sub">Suas duplas fixas e parceiros pra formar times novos</div>
+      <div class="eq-page-header-sub">Suas duplas e outras equipes da região</div>
     </div>
     <div class="eq-page-header-spacer"></div>
     <div class="eq-page-header-actions">
@@ -21,236 +21,139 @@
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6" /><path d="M10 20a2.2 2.2 0 0 0 4 0" /></svg>
         <span class="eq-bell-dot"></span>
       </button>
-      <button type="button" class="eq-new-team-btn" (click)="scrollToPartnerSearch()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-        <span>Nova equipe</span>
-      </button>
     </div>
   </header>
 
   <div class="eq-body">
-    @if (eventNotice(); as notice) {
-      <div class="eq-notice" role="status">{{ notice }}</div>
-    }
-
-    <!-- Minhas equipes -->
-    <section class="eq-section">
-      <div class="eq-section-head">
-        <h2 class="eq-section-title">Minhas equipes</h2>
-        <span class="eq-section-count">{{ myTeamsCountLabel() }}</span>
+    @if (loading()) {
+      <div class="eq-empty-card">
+        <p class="eq-empty-title">Carregando equipes…</p>
       </div>
-
-      @if (filteredMyTeams().length === 0) {
-        <div class="eq-empty-card">
-          <p class="eq-empty-title">Nenhuma equipe ainda</p>
-          <p class="eq-empty-sub">Encontre um parceiro abaixo pra formar sua primeira dupla.</p>
+    } @else if (errorMessage(); as err) {
+      <div class="eq-empty-card">
+        <p class="eq-empty-title">{{ err }}</p>
+        <button type="button" class="eq-filter-btn" (click)="retry()">Tentar de novo</button>
+      </div>
+    } @else {
+      <!-- Minhas equipes -->
+      <section class="eq-section">
+        <div class="eq-section-head">
+          <h2 class="eq-section-title">Minhas equipes</h2>
+          <span class="eq-section-count">{{ myTeamsCountLabel() }}</span>
         </div>
-      } @else {
-        <div class="eq-grid">
-          @for (team of filteredMyTeams(); track team.id) {
-            <article class="eq-team-card">
-              <div class="eq-team-head">
-                <div class="eq-avatar-pair">
-                  <span class="eq-avatar">{{ team.memberAInitials }}</span>
-                  <span class="eq-avatar eq-avatar--second">{{ team.memberBInitials }}</span>
-                </div>
-                <div class="eq-team-info">
-                  <p class="eq-team-name">{{ team.name }}</p>
-                  <p class="eq-team-meta">{{ sportLabel(team.sport) }} · {{ team.level }}</p>
-                </div>
-                <span class="eq-status-pill" [attr.data-status]="team.status">{{ team.status === 'fixed' ? 'Fixa' : 'Convite' }}</span>
-              </div>
 
-              @if (team.status === 'pending') {
-                <p class="eq-pending-note">{{ team.pendingNote }}</p>
-                <div class="eq-team-actions">
-                  <button type="button" class="eq-link-danger" (click)="cancelInvite(team)">Cancelar convite</button>
+        @if (filteredMyTeams().length === 0) {
+          <div class="eq-empty-card">
+            <p class="eq-empty-title">Nenhuma equipe ainda</p>
+            <p class="eq-empty-sub">Você ainda não faz parte de nenhuma dupla registrada.</p>
+          </div>
+        } @else {
+          <div class="eq-grid">
+            @for (team of filteredMyTeams(); track team.teamId) {
+              <article class="eq-team-card">
+                <div class="eq-team-head">
+                  <div class="eq-avatar-pair">
+                    <span class="eq-avatar">{{ team.player1Initials }}</span>
+                    <span class="eq-avatar eq-avatar--second">{{ team.player2Initials }}</span>
+                  </div>
+                  <div class="eq-team-info">
+                    <p class="eq-team-name">{{ team.displayName }}</p>
+                    <p class="eq-team-meta">{{ team.city ?? 'Cidade não informada' }}</p>
+                  </div>
                 </div>
-              } @else {
                 <div class="eq-stat-row">
                   <div class="eq-stat-box">
-                    <span class="eq-stat-value">{{ team.wins }}–{{ team.losses }}</span>
-                    <span class="eq-stat-label">vitórias · derrotas</span>
+                    <span class="eq-stat-value">{{ team.points }}</span>
+                    <span class="eq-stat-label">pontos no ranking</span>
                   </div>
                   <div class="eq-stat-box">
-                    <span class="eq-stat-value">#{{ team.doublesRank }}</span>
-                    <span class="eq-stat-label">ranking duplas</span>
+                    <span class="eq-stat-value">{{ team.tournamentsCount }}</span>
+                    <span class="eq-stat-label">torneios</span>
                   </div>
                 </div>
                 <div class="eq-team-actions">
-                  <a class="eq-btn-ghost" [routerLink]="['/equipes', team.id]" [queryParams]="{ from: 'equipes' }">Ver equipe</a>
-                  <button type="button" class="eq-btn-ghost eq-btn-icon" (click)="challengeTeam(team)">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h7l-1 8 11-14h-7l1-6z" /></svg>
-                    <span>Desafiar com</span>
-                  </button>
+                  <a class="eq-btn-ghost" [routerLink]="['/equipes', team.teamId]">Ver equipe</a>
                 </div>
+              </article>
+            }
+          </div>
+        }
+      </section>
+
+      <!-- Descobrir equipes -->
+      <section class="eq-section">
+        <div class="eq-section-head">
+          <h2 class="eq-section-title">Descobrir equipes</h2>
+          <span class="eq-section-count">{{ discoverTeamsCountLabel() }}</span>
+        </div>
+
+        <div class="eq-filter-row">
+          <label class="eq-filter-btn">
+            <span>{{ genderOptionLabel() }}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+            <select class="eq-native-select" aria-label="Gênero" [value]="genderFilter()" (change)="setGender($any($event.target).value)">
+              @for (g of genderOptions; track g.value) {
+                <option [value]="g.value">{{ g.label }}</option>
               }
-            </article>
-          }
+            </select>
+          </label>
+          <label class="eq-filter-btn">
+            <span>{{ levelOptionLabel() }}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+            <select class="eq-native-select" aria-label="Nível" [value]="levelOptionValue(levelFilter())" (change)="setLevel($any($event.target).value)">
+              @for (l of levelOptions; track l.value) {
+                <option [value]="levelOptionValue(l.value)">{{ l.label }}</option>
+              }
+            </select>
+          </label>
+          <label class="eq-filter-btn">
+            <span>{{ cityLabel(cityFilter()) }}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+            <select class="eq-native-select" aria-label="Cidade" [value]="cityFilter()" (change)="setCity($any($event.target).value)">
+              @for (c of cityOptions(); track c) {
+                <option [value]="c">{{ cityLabel(c) }}</option>
+              }
+            </select>
+          </label>
         </div>
-      }
-    </section>
 
-    <!-- Buscar equipes -->
-    <section class="eq-section">
-      <div class="eq-section-head">
-        <h2 class="eq-section-title">Buscar equipes</h2>
-        <span class="eq-section-count">{{ discoverTeamsCountLabel() }}</span>
-      </div>
-
-      <div class="eq-filter-row">
-        <label class="eq-filter-btn">
-          <span>{{ sportLabel(teamSportFilter()) }}</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-          <select class="eq-native-select" aria-label="Esporte" [value]="teamSportFilter()" (change)="setTeamSport($any($event.target).value)">
-            @for (o of sportOptions; track o.chip) {
-              <option [value]="o.chip">{{ o.label }}</option>
-            }
-          </select>
-        </label>
-        <label class="eq-filter-btn">
-          <span>{{ levelLabel(teamLevelFilter()) }}</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-          <select class="eq-native-select" aria-label="Categoria" [value]="teamLevelFilter()" (change)="setTeamLevel($any($event.target).value)">
-            @for (l of levelOptions; track l) {
-              <option [value]="l">{{ levelLabel(l) }}</option>
-            }
-          </select>
-        </label>
-        <label class="eq-filter-btn">
-          <span>{{ cityLabel(teamCityFilter()) }}</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-          <select class="eq-native-select" aria-label="Cidade" [value]="teamCityFilter()" (change)="setTeamCity($any($event.target).value)">
-            @for (c of cityOptions(); track c) {
-              <option [value]="c">{{ cityLabel(c) }}</option>
-            }
-          </select>
-        </label>
-      </div>
-
-      @if (filteredDiscoverTeams().length === 0) {
-        <div class="eq-empty-card">
-          <p class="eq-empty-title">Nenhuma equipe encontrada</p>
-          <p class="eq-empty-sub">Ajuste os filtros ou a busca para ver mais opções.</p>
-        </div>
-      } @else {
-        <div class="eq-grid">
-          @for (team of filteredDiscoverTeams(); track team.id) {
-            <article class="eq-team-card">
-              <div class="eq-team-head">
-                <div class="eq-avatar-pair">
-                  <span class="eq-avatar">{{ team.memberAInitials }}</span>
-                  <span class="eq-avatar eq-avatar--second">{{ team.memberBInitials }}</span>
+        @if (filteredDiscoverTeams().length === 0) {
+          <div class="eq-empty-card">
+            <p class="eq-empty-title">Nenhuma equipe encontrada</p>
+            <p class="eq-empty-sub">Ajuste os filtros ou a busca para ver mais opções.</p>
+          </div>
+        } @else {
+          <div class="eq-grid">
+            @for (team of filteredDiscoverTeams(); track team.teamId) {
+              <article class="eq-team-card">
+                <div class="eq-team-head">
+                  <div class="eq-avatar-pair">
+                    <span class="eq-avatar">{{ team.player1Initials }}</span>
+                    <span class="eq-avatar eq-avatar--second">{{ team.player2Initials }}</span>
+                  </div>
+                  <div class="eq-team-info">
+                    <p class="eq-team-name">{{ team.displayName }}</p>
+                    <p class="eq-team-meta">{{ team.city ?? 'Cidade não informada' }}</p>
+                  </div>
                 </div>
-                <div class="eq-team-info">
-                  <p class="eq-team-name">{{ team.name }}</p>
-                  <p class="eq-team-meta">{{ sportLabel(team.sport) }} · {{ team.level }}</p>
+                <div class="eq-stat-row">
+                  <div class="eq-stat-box">
+                    <span class="eq-stat-value">{{ team.points }}</span>
+                    <span class="eq-stat-label">pontos no ranking</span>
+                  </div>
+                  <div class="eq-stat-box">
+                    <span class="eq-stat-value">{{ team.tournamentsCount }}</span>
+                    <span class="eq-stat-label">torneios</span>
+                  </div>
                 </div>
-              </div>
-              <div class="eq-stat-row">
-                <div class="eq-stat-box">
-                  <span class="eq-stat-value">{{ team.wins }}–{{ team.losses }}</span>
-                  <span class="eq-stat-label">vitórias · derrotas</span>
+                <div class="eq-team-actions">
+                  <a class="eq-btn-ghost" [routerLink]="['/equipes', team.teamId]">Ver equipe</a>
                 </div>
-                <div class="eq-stat-box">
-                  <span class="eq-stat-value">#{{ team.doublesRank }}</span>
-                  <span class="eq-stat-label">ranking duplas</span>
-                </div>
-              </div>
-              <div class="eq-team-actions">
-                <a class="eq-btn-ghost" [routerLink]="['/equipes', team.id]" [queryParams]="{ from: 'equipes' }">Ver equipe</a>
-                <button type="button" class="eq-btn-ghost eq-btn-icon" (click)="challengeTeam(team)">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h7l-1 8 11-14h-7l1-6z" /></svg>
-                  <span>Desafiar</span>
-                </button>
-              </div>
-            </article>
-          }
-        </div>
-      }
-    </section>
-
-    <!-- Buscar parceiro -->
-    <section class="eq-section" id="eq-partner-search">
-      <div class="eq-section-head">
-        <h2 class="eq-section-title">Buscar parceiro</h2>
-        <span class="eq-section-count">{{ partnersCountLabel() }}</span>
-      </div>
-
-      <div class="eq-filter-row">
-        <label class="eq-filter-btn">
-          <span>{{ sportLabel(partnerSportFilter()) }}</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-          <select class="eq-native-select" aria-label="Esporte" [value]="partnerSportFilter()" (change)="setPartnerSport($any($event.target).value)">
-            @for (o of sportOptions; track o.chip) {
-              <option [value]="o.chip">{{ o.label }}</option>
+              </article>
             }
-          </select>
-        </label>
-        <label class="eq-filter-btn">
-          <span>Nível: {{ levelLabel(partnerLevelFilter()) }}</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-          <select class="eq-native-select" aria-label="Nível" [value]="partnerLevelFilter()" (change)="setPartnerLevel($any($event.target).value)">
-            @for (l of levelOptions; track l) {
-              <option [value]="l">{{ levelLabel(l) }}</option>
-            }
-          </select>
-        </label>
-        <label class="eq-filter-btn">
-          <span>{{ distanceLabel(partnerDistanceFilter()) }}</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-          <select class="eq-native-select" aria-label="Distância" [value]="partnerDistanceFilter()" (change)="setPartnerDistance($any($event.target).value)">
-            @for (d of distanceOptions; track d.km) {
-              <option [value]="d.km">{{ d.label }}</option>
-            }
-          </select>
-        </label>
-        <label class="eq-filter-btn">
-          <span>{{ availabilityLabel(partnerAvailabilityFilter()) }}</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-          <select class="eq-native-select" aria-label="Disponibilidade" [value]="partnerAvailabilityFilter()" (change)="setPartnerAvailability($any($event.target).value)">
-            @for (a of availabilityOptions; track a.tag) {
-              <option [value]="a.tag">{{ a.label }}</option>
-            }
-          </select>
-        </label>
-      </div>
-
-      @if (filteredPartners().length === 0) {
-        <div class="eq-empty-card">
-          <p class="eq-empty-title">Nenhum atleta encontrado</p>
-          <p class="eq-empty-sub">Ajuste os filtros ou a busca para ver mais opções.</p>
-        </div>
-      } @else {
-        <div class="eq-partner-list">
-          @for (p of filteredPartners(); track p.id) {
-            <article class="eq-partner-card">
-              <span class="eq-avatar eq-avatar--solo">{{ p.initials }}</span>
-              <div class="eq-partner-info">
-                <p class="eq-partner-name">{{ p.name }}</p>
-                <p class="eq-partner-loc">{{ p.locationLabel }}</p>
-              </div>
-              <span class="eq-level-pill">{{ p.level }}</span>
-              <p class="eq-partner-note">{{ p.note }}</p>
-              <button
-                type="button"
-                class="eq-btn-invite"
-                [class.eq-btn-invite--sent]="isInvited(p.id)"
-                [disabled]="isInvited(p.id)"
-                (click)="invitePartner(p)"
-              >
-                @if (isInvited(p.id)) {
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
-                  <span>Convite enviado</span>
-                } @else {
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-                  <span>Convidar</span>
-                }
-              </button>
-            </article>
-          }
-        </div>
-      }
-    </section>
+          </div>
+        }
+      </section>
+    }
   </div>
 </app-at-panel-shell>

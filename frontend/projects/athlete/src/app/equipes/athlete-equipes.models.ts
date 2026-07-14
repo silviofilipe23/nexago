@@ -1,45 +1,23 @@
-import type { ArenaSportChip } from '@nexago/arena-discovery';
-import type { RankingLevel } from '../ranking/athlete-ranking.models';
+/** Espelha `teams/{teamId}` (real) — sem recorte por esporte (times não guardam esporte,
+ *  mesma realidade já confirmada no Ranking). Convite de parceiro (formação de dupla nova)
+ *  fica fora do escopo desta tela: no app real isso é uma sub-etapa da inscrição em torneio
+ *  (`tournamentRegistrationInvites`, escrita só via Cloud Function), não uma ação isolada. */
 
-export type TeamStatus = 'fixed' | 'pending';
-export type AvailabilityTag = 'morning' | 'afternoon' | 'night' | 'weekend' | 'flexible';
-export type FilterAvailability = 'all' | AvailabilityTag;
+export type TeamGenderFilter = 'all' | 'male' | 'female' | 'mixed';
 
-export interface MyTeam {
-  id: string;
-  memberAInitials: string;
-  memberBInitials: string;
-  name: string;
-  sport: ArenaSportChip;
-  level: RankingLevel;
-  status: TeamStatus;
-  wins: number;
-  losses: number;
-  doublesRank: number | null;
-  pendingNote: string | null;
-}
+/** Rank unificado de nível — 0/1/2/3/5. `null` = "Todos os níveis". Espelha o mesmo mapeamento
+ *  usado no Ranking (`AthleteProfileOptions.levelRank`). */
+export type TeamLevelFilter = number | null;
 
-export interface DiscoverTeam {
-  id: string;
-  memberAInitials: string;
-  memberBInitials: string;
-  name: string;
-  sport: ArenaSportChip;
-  level: RankingLevel;
-  city: string;
-  wins: number;
-  losses: number;
-  doublesRank: number;
-}
-
-export interface PartnerCandidate {
-  id: string;
-  initials: string;
-  name: string;
-  locationLabel: string;
-  distanceKm: number;
-  level: RankingLevel;
-  sport: ArenaSportChip;
-  availabilityTag: AvailabilityTag;
-  note: string;
+export interface TeamCard {
+  teamId: string;
+  displayName: string;
+  player1Name: string;
+  player2Name: string;
+  player1Initials: string;
+  player2Initials: string;
+  city: string | null;
+  points: number;
+  tournamentsCount: number;
+  isMine: boolean;
 }

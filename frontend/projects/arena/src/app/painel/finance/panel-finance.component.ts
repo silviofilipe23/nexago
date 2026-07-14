@@ -1,6 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
+import { ArenaContextService } from '../data/arena-context.service';
+import { arenaFirestore } from '../data/firestore';
+import { arenaFunctions } from '../data/functions';
+import { formatCentsInputValue, parseBRLInputToCents } from '../stock/product.model';
 import { BarRowComponent } from '../ui/bar-row.component';
 import { IconComponent } from '../ui/icon.component';
 import { LineChartComponent } from '../ui/line-chart.component';
@@ -8,49 +12,39 @@ import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
+import { buildMovementsCsv, downloadCsv } from './finance-csv';
+import { mergeFinanceMovements, movementStatusLabel } from './finance-movements';
+import {
+  ARENA_BOOKING_FEE_PERCENT,
+  ARENA_WALLET_SUMMARY_EMPTY,
+  COURT_REVENUE_EMPTY,
+  formatBRL,
+  roundMoney,
+  type ArenaLedgerEntry,
+  type ArenaWalletSummary,
+  type ArenaWithdrawalItem,
+  type CourtRevenueResult,
+  type FinanceMovementStatus,
+  type FinanceMovementType,
+} from './finance.model';
+import {
+  fetchArenaPayoutPixKey,
+  fetchCourtRevenueAndPending,
+  fetchLedgerEntries,
+  fetchWallet,
+  fetchWithdrawals,
+  requestWithdrawal,
+  setArenaPayoutPixKey,
+} from './finance-repository';
 
-type TxType = 'in' | 'out';
-type TxStatus = 'ok' | 'sent' | 'pend' | 'fail';
-type TxFilter = 'all' | TxType;
+type TxFilter = 'all' | FinanceMovementType;
 
-interface Transaction {
-  id: number;
-  type: TxType;
-  amount: number;
-  label: string;
-  sub: string;
-  date: string;
-  status: TxStatus;
-}
+const STATUS_TONE: Record<FinanceMovementStatus, PillTone> = { ok: 'green', pend: 'yellow', fail: 'red' };
 
-interface FinanceSummary {
-  label: string;
-  labelTone: 'orange' | 'dim';
-  value: string;
-  valueTone: 'text' | 'pending';
-  caption: string;
-  captionTone: 'dim' | 'green';
-}
-
-const TX_STATUS_LABEL: Record<TxStatus, string> = {
-  ok: 'Recebido',
-  sent: 'Enviado',
-  pend: 'Pendente',
-  fail: 'Falhou',
-};
-
-const TX_STATUS_TONE: Record<TxStatus, PillTone> = {
-  ok: 'green',
-  sent: 'green',
-  pend: 'yellow',
-  fail: 'red',
-};
-
-function formatBRL(n: number): string {
-  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-}
-
-/** Tela Financeiro do painel (protótipo ArFinanceiroScreen): saldo, faturamento, movimentações e saque. */
+/** Tela Financeiro do painel: saldo/carteira, movimentações (ledger + saques), solicitação de
+ *  saque via PIX e recebimento por quadra — todos reais, conectados a `arenaWallets`,
+ *  `arenaWithdrawals` e `arenaBookings` (espelhando o app Flutter, sem Cloud Function nova
+ *  além da callable de saque que já existia). */
 @Component({
   selector: 'ar-panel-finance',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -62,92 +56,150 @@ function formatBRL(n: number): string {
           <ar-icon name="download" [size]="14" />
           Relatórios
         </a>
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary">
+        <button
+          type="button"
+          class="ar-mini-btn ar-mini-btn-primary"
+          [disabled]="loading() || filteredMovements().length === 0"
+          (click)="exportStatement()"
+        >
           <ar-icon name="download" [size]="14" />
           Exportar extrato
         </button>
       </ar-page-header>
 
       <div class="body">
-        <div class="summary-row">
-          @for (s of summaries; track s.label) {
-            <ar-panel-card pad="sm" class="summary-card">
-              <div class="summary-label" [class]="'tone-' + s.labelTone">{{ s.label }}</div>
-              <div class="summary-value" [class]="'tone-' + s.valueTone">{{ s.value }}</div>
-              <div class="summary-caption" [class]="'tone-' + s.captionTone">{{ s.caption }}</div>
-            </ar-panel-card>
-          }
-        </div>
+        @if (arenaNotFound()) {
+          <ar-panel-card pad="lg">
+            <p class="state-text">Nenhuma arena vinculada à sua conta ainda. Fale com o suporte para concluir o cadastro.</p>
+          </ar-panel-card>
+        } @else if (arenaLoading() || loading()) {
+          <ar-panel-card pad="lg">
+            <p class="state-text">Carregando financeiro…</p>
+          </ar-panel-card>
+        } @else if (errorMessage(); as err) {
+          <ar-panel-card pad="lg">
+            <p class="state-text">{{ err }}</p>
+            <button type="button" class="ar-mini-btn" (click)="retry()">Tentar de novo</button>
+          </ar-panel-card>
+        } @else {
+          <div class="summary-row">
+            @for (s of summaries(); track s.label) {
+              <ar-panel-card pad="sm" class="summary-card">
+                <div class="summary-label" [class]="'tone-' + s.labelTone">{{ s.label }}</div>
+                <div class="summary-value" [class]="'tone-' + s.valueTone">{{ s.value }}</div>
+                <div class="summary-caption" [class]="'tone-' + s.captionTone">{{ s.caption }}</div>
+              </ar-panel-card>
+            }
+          </div>
 
-        <div class="main-grid">
-          <div class="col-left">
-            <ar-panel-card kicker="Últimos 7 dias" title="Faturamento" class="chart-card">
-              <ar-line-chart [height]="110" [data]="revenueData" [labels]="revenueDays" />
-            </ar-panel-card>
+          <div class="main-grid">
+            <div class="col-left">
+              <ar-panel-card kicker="Últimos 7 dias" title="Faturamento" class="chart-card">
+                <ar-line-chart [height]="110" [data]="revenueData()" [labels]="revenueDays()" />
+              </ar-panel-card>
 
-            <ar-panel-card title="Movimentações" [kicker]="listKicker()" class="tx-card">
-              <div class="ar-filter-bar" card-actions>
-                <button type="button" class="ar-chip" [class.active]="filter() === 'all'" (click)="filter.set('all')">Todos</button>
-                <button type="button" class="ar-chip" [class.active]="filter() === 'in'" (click)="filter.set('in')">Recebimentos</button>
-                <button type="button" class="ar-chip" [class.active]="filter() === 'out'" (click)="filter.set('out')">Saques</button>
-              </div>
+              <ar-panel-card title="Movimentações" [kicker]="listKicker()" class="tx-card">
+                <div class="ar-filter-bar" card-actions>
+                  <button type="button" class="ar-chip" [class.active]="filter() === 'all'" (click)="filter.set('all')">Todos</button>
+                  <button type="button" class="ar-chip" [class.active]="filter() === 'credit'" (click)="filter.set('credit')">Recebimentos</button>
+                  <button type="button" class="ar-chip" [class.active]="filter() === 'debit'" (click)="filter.set('debit')">Saques</button>
+                </div>
 
-              <div class="tx-head">
-                <span></span>
-                <span>Descrição</span>
-                <span>Detalhe</span>
-                <span>Data</span>
-                <span>Status</span>
-                <span class="right">Valor</span>
-              </div>
-              <div class="tx-list">
-                @for (tx of filteredTx(); track tx.id) {
-                  <div class="tx-row">
-                    <div class="tx-icon" [class.in]="tx.type === 'in'">
-                      @if (tx.type === 'in') {
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M12 5v14" /><path d="M5 12l7 7 7-7" />
-                        </svg>
-                      } @else {
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
-                        </svg>
-                      }
+                <div class="tx-head">
+                  <span></span>
+                  <span>Descrição</span>
+                  <span>Detalhe</span>
+                  <span>Data</span>
+                  <span>Status</span>
+                  <span class="right">Valor</span>
+                </div>
+                <div class="tx-list">
+                  @for (tx of filteredMovements(); track tx.id) {
+                    <div class="tx-row">
+                      <div class="tx-icon" [class.in]="tx.type === 'credit'">
+                        @if (tx.type === 'credit') {
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 5v14" /><path d="M5 12l7 7 7-7" />
+                          </svg>
+                        } @else {
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 19V5" /><path d="M5 12l7-7 7 7" />
+                          </svg>
+                        }
+                      </div>
+                      <div class="tx-label">{{ tx.label }}</div>
+                      <div class="tx-sub">{{ tx.sub }}</div>
+                      <div class="tx-date">{{ tx.dateLabel }}</div>
+                      <div><ar-pill [tone]="statusTone[tx.status]">{{ statusLabel(tx) }}</ar-pill></div>
+                      <div class="tx-amount right" [class.in]="tx.type === 'credit'">
+                        {{ tx.type === 'credit' ? '+' : '−' }}{{ formatBRL(tx.amountReais) }}
+                      </div>
                     </div>
-                    <div class="tx-label">{{ tx.label }}</div>
-                    <div class="tx-sub">{{ tx.sub }}</div>
-                    <div class="tx-date">{{ tx.date }}</div>
-                    <div><ar-pill [tone]="statusTone[tx.status]">{{ statusLabel[tx.status] }}</ar-pill></div>
-                    <div class="tx-amount right" [class.in]="tx.type === 'in'">
-                      {{ tx.type === 'in' ? '+' : '−' }}{{ formatBRL(tx.amount) }}
-                    </div>
+                  } @empty {
+                    <p class="state-text">Nenhuma movimentação ainda.</p>
+                  }
+                </div>
+              </ar-panel-card>
+            </div>
+
+            <div class="col-right">
+              <ar-panel-card pad="sm" title="Solicitar saque">
+                <div class="field-label">Valor</div>
+                <div class="amount-field">
+                  <input type="text" inputmode="decimal" [value]="withdrawAmountValue()" (input)="withdrawAmountValue.set($any($event.target).value)" />
+                  <button type="button" class="ar-pill-btn" (click)="setWithdrawAll()">
+                    <ar-pill tone="orange">Sacar tudo</ar-pill>
+                  </button>
+                </div>
+
+                <div class="field-label">Chave PIX</div>
+                @if (editingPixKey()) {
+                  <div class="pix-edit-row">
+                    <input
+                      class="pix-input"
+                      type="text"
+                      placeholder="CPF, e-mail, telefone ou chave aleatória"
+                      [value]="pixKeyValue()"
+                      (input)="pixKeyValue.set($any($event.target).value)"
+                    />
+                    <button type="button" class="ar-mini-btn" (click)="savePixKey()">Salvar</button>
+                  </div>
+                } @else {
+                  <div class="pix-field">
+                    <span>{{ pixKeyValue() || 'Nenhuma chave cadastrada' }}</span>
+                    <button type="button" class="pix-edit-link" (click)="editingPixKey.set(true)">editar</button>
                   </div>
                 }
-              </div>
-            </ar-panel-card>
-          </div>
 
-          <div class="col-right">
-            <ar-panel-card pad="sm" title="Solicitar saque">
-              <div class="field-label">Valor</div>
-              <div class="amount-field">
-                <span>R$ 0,00</span>
-                <ar-pill tone="orange">Sacar tudo</ar-pill>
-              </div>
-              <div class="field-label">Chave PIX</div>
-              <div class="pix-field">9b1213f1-3790…</div>
-              <button type="button" class="ar-mini-btn ar-mini-btn-primary">Solicitar saque</button>
-            </ar-panel-card>
-
-            <ar-panel-card pad="sm" title="Recebimento por quadra">
-              <div class="bars">
-                @for (row of byCourt; track row.label; let last = $last) {
-                  <ar-bar-row [label]="row.label" [sub]="row.sub" [pct]="row.pct" tone="orange" [last]="last" />
+                @if (withdrawError(); as err) {
+                  <p class="withdraw-error">{{ err }}</p>
                 }
-              </div>
-            </ar-panel-card>
+                @if (withdrawNotice(); as notice) {
+                  <p class="withdraw-notice">{{ notice }}</p>
+                }
+
+                <button
+                  type="button"
+                  class="ar-mini-btn ar-mini-btn-primary"
+                  [disabled]="withdrawSaving() || wallet().availableReais <= 0"
+                  (click)="requestWithdraw()"
+                >
+                  {{ withdrawSaving() ? 'Enviando…' : 'Solicitar saque' }}
+                </button>
+              </ar-panel-card>
+
+              <ar-panel-card pad="sm" title="Recebimento por quadra">
+                <div class="bars">
+                  @for (row of byCourt(); track row.label; let last = $last) {
+                    <ar-bar-row [label]="row.label" [sub]="row.sub" [pct]="row.pct" tone="orange" [last]="last" />
+                  } @empty {
+                    <p class="state-text">Sem reservas pagas nos últimos 30 dias.</p>
+                  }
+                </div>
+              </ar-panel-card>
+            </div>
           </div>
-        </div>
+        }
       </div>
     </ar-panel-shell>
   `,
@@ -159,6 +211,12 @@ function formatBRL(n: number): string {
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+    }
+
+    .state-text {
+      font-size: 13.5px;
+      color: var(--nx-text-mute);
+      margin: 0 0 12px;
     }
 
     .summary-row {
@@ -371,14 +429,27 @@ function formatBRL(n: number): string {
       align-items: center;
       padding: 0 12px;
       margin-bottom: 12px;
+      gap: 8px;
     }
 
-    .amount-field span {
+    .amount-field input {
       flex: 1;
+      min-width: 0;
+      border: none;
+      background: transparent;
+      outline: none;
       font-family: var(--nx-font-display);
       font-weight: 600;
       font-size: 16px;
-      color: var(--nx-text-dim);
+      color: var(--nx-text);
+    }
+
+    .ar-pill-btn {
+      border: none;
+      background: transparent;
+      padding: 0;
+      cursor: pointer;
+      flex: none;
     }
 
     .pix-field {
@@ -388,11 +459,55 @@ function formatBRL(n: number): string {
       border: 1px solid var(--nx-line);
       display: flex;
       align-items: center;
+      justify-content: space-between;
+      gap: 8px;
       padding: 0 12px;
       margin-bottom: 14px;
       font-family: var(--nx-font-mono);
       font-size: 11.5px;
       color: var(--nx-text-mute);
+    }
+
+    .pix-edit-link {
+      border: none;
+      background: transparent;
+      color: var(--nx-orange-500);
+      font-family: var(--nx-font-mono);
+      font-size: 10.5px;
+      cursor: pointer;
+      flex: none;
+      padding: 0;
+    }
+
+    .pix-edit-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .pix-input {
+      flex: 1;
+      min-width: 0;
+      height: 40px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      padding: 0 12px;
+      font-family: var(--nx-font-mono);
+      font-size: 11.5px;
+      color: var(--nx-text);
+    }
+
+    .withdraw-error {
+      font-size: 12px;
+      color: var(--nx-live);
+      margin: 0 0 10px;
+    }
+
+    .withdraw-notice {
+      font-size: 12px;
+      color: var(--nx-win);
+      margin: 0 0 10px;
     }
 
     .bars {
@@ -414,44 +529,191 @@ function formatBRL(n: number): string {
 })
 export class PanelFinanceComponent {
   private readonly auth = inject(AuthService);
+  private readonly arenaContext = inject(ArenaContextService);
 
   protected readonly formatBRL = formatBRL;
-  protected readonly statusLabel = TX_STATUS_LABEL;
-  protected readonly statusTone = TX_STATUS_TONE;
+  protected readonly statusLabel = movementStatusLabel;
+  protected readonly statusTone = STATUS_TONE;
+
+  protected readonly arenaLoading = computed(() => this.arenaContext.loading());
+  protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
+  protected readonly loading = signal(true);
+  protected readonly errorMessage = signal<string | null>(null);
 
   protected readonly filter = signal<TxFilter>('all');
 
-  protected readonly revenueData = [820, 940, 880, 1120, 990, 1340, 1240];
-  protected readonly revenueDays = ['Qua', 'Qui', 'Sex', 'Sáb', 'Dom', 'Seg', 'Ter'];
+  protected readonly wallet = signal<ArenaWalletSummary>(ARENA_WALLET_SUMMARY_EMPTY);
+  protected readonly ledger = signal<ArenaLedgerEntry[]>([]);
+  protected readonly withdrawals = signal<ArenaWithdrawalItem[]>([]);
+  protected readonly courtRevenue = signal<CourtRevenueResult>(COURT_REVENUE_EMPTY);
 
-  protected readonly summaries: FinanceSummary[] = [
-    { label: 'Saldo disponível', labelTone: 'orange', value: formatBRL(2340), valueTone: 'text', caption: 'Próx. repasse · 15 Jul', captionTone: 'dim' },
-    { label: 'Recebido no mês', labelTone: 'dim', value: formatBRL(6820), valueTone: 'text', caption: '↑ 12% vs mês anterior', captionTone: 'green' },
-    { label: 'Taxa da plataforma', labelTone: 'dim', value: '6%', valueTone: 'text', caption: `${formatBRL(409)} retidos no mês`, captionTone: 'dim' },
-    { label: 'Pendências', labelTone: 'dim', value: '1', valueTone: 'pending', caption: `${formatBRL(48)} aguardando pagamento`, captionTone: 'dim' },
-  ];
+  protected readonly withdrawAmountValue = signal('0,00');
+  protected readonly pixKeyValue = signal('');
+  protected readonly editingPixKey = signal(false);
+  protected readonly withdrawSaving = signal(false);
+  protected readonly withdrawNotice = signal<string | null>(null);
+  protected readonly withdrawError = signal<string | null>(null);
 
-  protected readonly byCourt = [
-    { label: 'Quadra 1', sub: 'Beach Tennis', pct: 48 },
-    { label: 'Quadra 2', sub: 'Vôlei de praia', pct: 40 },
-    { label: 'Quadra 3', sub: 'Beach Soccer', pct: 12 },
-  ];
-
-  private readonly transactions: Transaction[] = [
-    { id: 1, type: 'in', amount: 98, label: 'Reserva · Quadra 1', sub: 'João S. · Beach Tennis', date: 'Hoje, 09:12', status: 'ok' },
-    { id: 2, type: 'in', amount: 60, label: 'Reserva · Quadra 2', sub: 'Maria T. · Vôlei de praia', date: 'Hoje, 08:40', status: 'ok' },
-    { id: 3, type: 'out', amount: 150, label: 'Saque PIX', sub: 'Chave aleatória · …462f4', date: 'Ontem, 14:00', status: 'sent' },
-    { id: 4, type: 'in', amount: 48, label: 'Reserva · Quadra 1', sub: 'Enzo R. · Beach Tennis', date: 'Ontem, 16:45', status: 'pend' },
-    { id: 5, type: 'in', amount: 72, label: 'Reserva · Quadra 2', sub: 'Camila S. · Vôlei de praia', date: '25 jun, 09:15', status: 'ok' },
-    { id: 6, type: 'out', amount: 60, label: 'Saque PIX', sub: 'Chave aleatória · …9835', date: '23 jun, 08:00', status: 'fail' },
-  ];
-
-  protected readonly filteredTx = computed(() => {
+  protected readonly movements = computed(() => mergeFinanceMovements(this.ledger(), this.withdrawals()));
+  protected readonly filteredMovements = computed(() => {
     const f = this.filter();
-    return f === 'all' ? this.transactions : this.transactions.filter((t) => t.type === f);
+    return f === 'all' ? this.movements() : this.movements().filter((m) => m.type === f);
+  });
+  protected readonly listKicker = computed(() => `${this.filteredMovements().length} lançamentos`);
+
+  protected readonly grossRevenue30d = computed(() => this.courtRevenue().courtRows.reduce((sum, r) => sum + r.totalReais, 0));
+
+  protected readonly feePercent = computed(() => {
+    const status = this.arenaContext.planStatus();
+    const entitled = this.arenaContext.entitled();
+    const effectiveTier = entitled ? status.tier : 'essencial';
+    return effectiveTier === 'pro' || effectiveTier === 'parceiro' ? 0 : ARENA_BOOKING_FEE_PERCENT;
   });
 
-  protected readonly listKicker = computed(() => `${this.filteredTx().length} lançamentos`);
+  protected readonly feeRetained30d = computed(() => roundMoney((this.grossRevenue30d() * this.feePercent()) / 100));
 
-  protected readonly arenaName = computed(() => this.auth.displayName() || 'Arena');
+  protected readonly summaries = computed(() => {
+    const wallet = this.wallet();
+    const pending = this.courtRevenue().pending;
+    return [
+      {
+        label: 'Saldo disponível',
+        labelTone: 'orange' as const,
+        value: formatBRL(wallet.availableReais),
+        valueTone: 'text' as const,
+        caption: wallet.pendingReais > 0 ? `${formatBRL(wallet.pendingReais)} em processamento` : 'Nenhum saque em processamento',
+        captionTone: 'dim' as const,
+      },
+      {
+        label: 'Recebido (30 dias)',
+        labelTone: 'dim' as const,
+        value: formatBRL(this.grossRevenue30d()),
+        valueTone: 'text' as const,
+        caption: `${this.courtRevenue().courtRows.length} quadra(s) com reservas pagas`,
+        captionTone: 'dim' as const,
+      },
+      {
+        label: 'Taxa da plataforma',
+        labelTone: 'dim' as const,
+        value: `${this.feePercent()}%`,
+        valueTone: 'text' as const,
+        caption: `${formatBRL(this.feeRetained30d())} retidos (30 dias)`,
+        captionTone: 'dim' as const,
+      },
+      {
+        label: 'Pendências',
+        labelTone: 'dim' as const,
+        value: String(pending.count),
+        valueTone: pending.count > 0 ? ('pending' as const) : ('text' as const),
+        caption: pending.count > 0 ? `${formatBRL(pending.totalReais)} aguardando pagamento` : 'Nenhuma reserva pendente',
+        captionTone: 'dim' as const,
+      },
+    ];
+  });
+
+  protected readonly revenueData = computed(() => this.courtRevenue().last7Days.map((d) => d.value));
+  protected readonly revenueDays = computed(() => this.courtRevenue().last7Days.map((d) => d.label));
+
+  protected readonly byCourt = computed(() => {
+    const rows = this.courtRevenue().courtRows;
+    const total = this.grossRevenue30d();
+    return rows.map((r) => ({
+      label: r.courtName,
+      sub: formatBRL(r.totalReais),
+      pct: total > 0 ? Math.round((r.totalReais / total) * 100) : 0,
+    }));
+  });
+
+  protected readonly arenaName = computed(() => this.arenaContext.arenaName() ?? this.auth.displayName() ?? 'Arena');
+
+  constructor() {
+    effect(() => {
+      const arenaId = this.arenaContext.arenaId();
+      if (!arenaId) return;
+      void this.loadFinance(arenaId);
+    });
+  }
+
+  protected retry(): void {
+    const arenaId = this.arenaContext.arenaId();
+    if (arenaId) void this.loadFinance(arenaId);
+  }
+
+  protected setWithdrawAll(): void {
+    this.withdrawAmountValue.set(formatCentsInputValue(Math.round(this.wallet().availableReais * 100)));
+  }
+
+  protected async savePixKey(): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    if (!arenaId) return;
+    const key = this.pixKeyValue().trim();
+    if (key.length < 5) {
+      this.withdrawError.set('Informe uma chave PIX válida.');
+      return;
+    }
+    await setArenaPayoutPixKey(arenaFirestore(), arenaId, key);
+    this.editingPixKey.set(false);
+    this.withdrawError.set(null);
+    this.withdrawNotice.set('Chave PIX salva.');
+  }
+
+  protected async requestWithdraw(): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    if (!arenaId) return;
+    const amount = parseBRLInputToCents(this.withdrawAmountValue()) / 100;
+    if (amount <= 0) {
+      this.withdrawError.set('Informe um valor válido para saque.');
+      return;
+    }
+    if (this.pixKeyValue().trim().length < 5) {
+      this.withdrawError.set('Cadastre uma chave PIX antes de solicitar o saque.');
+      this.editingPixKey.set(true);
+      return;
+    }
+
+    this.withdrawSaving.set(true);
+    this.withdrawError.set(null);
+    this.withdrawNotice.set(null);
+    try {
+      const result = await requestWithdrawal(arenaFunctions(), arenaId, amount, this.pixKeyValue().trim());
+      this.withdrawNotice.set(
+        result.message ?? (result.autoProcessed ? 'Saque enviado via PIX.' : 'Saque solicitado — aguardando aprovação da plataforma.'),
+      );
+      this.withdrawAmountValue.set('0,00');
+      await this.loadFinance(arenaId);
+    } catch (e) {
+      this.withdrawError.set(e instanceof Error ? e.message : 'Não foi possível solicitar o saque.');
+    } finally {
+      this.withdrawSaving.set(false);
+    }
+  }
+
+  protected exportStatement(): void {
+    const csv = buildMovementsCsv(this.filteredMovements());
+    downloadCsv(`extrato-financeiro-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+  }
+
+  private async loadFinance(arenaId: string): Promise<void> {
+    this.loading.set(true);
+    this.errorMessage.set(null);
+    try {
+      const db = arenaFirestore();
+      const [wallet, ledger, withdrawals, courtRevenue, pixKey] = await Promise.all([
+        fetchWallet(db, arenaId),
+        fetchLedgerEntries(db, arenaId),
+        fetchWithdrawals(db, arenaId),
+        fetchCourtRevenueAndPending(db, arenaId),
+        fetchArenaPayoutPixKey(db, arenaId),
+      ]);
+      this.wallet.set(wallet);
+      this.ledger.set(ledger);
+      this.withdrawals.set(withdrawals);
+      this.courtRevenue.set(courtRevenue);
+      if (!this.editingPixKey()) this.pixKeyValue.set(pixKey);
+    } catch {
+      this.errorMessage.set('Não foi possível carregar os dados financeiros.');
+    } finally {
+      this.loading.set(false);
+    }
+  }
 }

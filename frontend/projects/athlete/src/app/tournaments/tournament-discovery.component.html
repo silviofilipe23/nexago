@@ -133,6 +133,11 @@
           <div class="cp-skeleton-card"><div class="cp-skeleton-shimmer"></div></div>
         }
       </div>
+    } @else if (errorMessage(); as err) {
+      <div class="cp-empty-card">
+        <p class="cp-empty-title">{{ err }}</p>
+        <button type="button" class="cp-link-btn" (click)="retry()">Tentar de novo</button>
+      </div>
     } @else {
       @if (showTournaments()) {
         <section class="cp-section">

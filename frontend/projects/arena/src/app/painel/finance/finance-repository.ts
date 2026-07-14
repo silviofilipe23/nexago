@@ -12,6 +12,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
+import { WEEKDAY_LABELS } from './finance-movements';
 import {
   ARENA_WALLET_SUMMARY_EMPTY,
   type ArenaLedgerEntry,
@@ -73,11 +74,15 @@ export async function fetchLedgerEntries(db: Firestore, arenaId: string, take = 
       booking: null,
     };
   });
-  await Promise.all(
-    entries.map(async (entry) => {
-      if (entry.bookingId) entry.booking = await fetchBookingRef(db, entry.bookingId);
-    }),
-  );
+
+  // Uma reserva pode gerar mais de um lançamento (ex.: sinal + quitação) — busca cada
+  // reserva uma única vez em vez de repetir a leitura por lançamento.
+  const uniqueBookingIds = [...new Set(entries.map((e) => e.bookingId).filter((id): id is string => id != null))];
+  const bookingRefs = new Map<string, FinanceBookingRef | null>();
+  await Promise.all(uniqueBookingIds.map(async (id) => bookingRefs.set(id, await fetchBookingRef(db, id))));
+  for (const entry of entries) {
+    if (entry.bookingId) entry.booking = bookingRefs.get(entry.bookingId) ?? null;
+  }
   return entries;
 }
 
@@ -102,11 +107,16 @@ export async function fetchWithdrawals(db: Firestore, arenaId: string, take = 20
 
 const COURT_REVENUE_BOOKING_LIMIT = 256; // paridade com arena_dashboard_service.dart:54 — evita índice composto novo.
 const COURT_REVENUE_WINDOW_DAYS = 30;
-const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
+// Constrói a chave a partir de ano/mês/dia LOCAIS (nunca `toISOString`, que converte pra UTC e
+// pode virar o dia em fusos à frente de UTC) — espelha `calendarDateKey` (Flutter),
+// `core/formatting/app_date_format.dart:10-14`.
 function dateKeyDaysAgo(days: number, now: Date): string {
   const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function isCanceledStatus(status: string): boolean {

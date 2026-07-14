@@ -73,6 +73,8 @@ const FORMAT_TONE: Record<ExportFormat, PillTone> = { pdf: 'orange', csv: 'dim' 
 const LEDGER_HISTORY_TAKE = 200;
 const WITHDRAWAL_HISTORY_TAKE = 100;
 
+const CREDIT_METRIC_KEYS: readonly MetricKey[] = ['revenue', 'reservations', 'platformFee'];
+
 /** Tela "Relatórios" do painel: filtra as mesmas movimentações reais do Financeiro (carteira +
  *  saques) por período e exporta em CSV. Filtro por quadra e agrupamento por
  *  semana/mês/forma-de-pagamento ficam desabilitados nesta rodada — não existe registro de
@@ -426,21 +428,37 @@ export class PanelFinanceReportsComponent {
 
   protected readonly periodMovements = computed(() => filterMovementsByPeriod(this.allMovements(), this.period()));
 
+  /** Só entram no relatório (resumo + CSV) os tipos de lançamento cobertos por alguma métrica
+   *  selecionada — créditos (reserva) se Faturamento/Reservas/Taxa estiver marcado, débitos
+   *  (saque) se Saques estiver marcado. */
+  protected readonly reportMovements = computed(() => {
+    const selected = this.metrics();
+    const includeCredits = CREDIT_METRIC_KEYS.some((k) => selected.has(k));
+    const includeDebits = selected.has('withdrawals');
+    return this.periodMovements().filter((m) => (m.type === 'credit' ? includeCredits : includeDebits));
+  });
+
   protected readonly summary = computed(() => {
-    const rows = this.periodMovements();
+    const selected = this.metrics();
+    const rows = this.reportMovements();
     const credits = rows.filter((m) => m.type === 'credit');
-    const debits = rows.filter((m) => m.type === 'debit');
+    // Só saques concluídos (aprovados) contam como dinheiro que já saiu de fato da carteira —
+    // um saque pendente ou rejeitado ainda não moveu saldo real.
+    const debits = rows.filter((m) => m.type === 'debit' && m.status === 'ok');
     const revenue = credits.reduce((s, m) => s + m.amountReais, 0);
     const reservations = credits.length;
     const platformFee = credits.reduce((s, m) => s + m.platformFeeReais, 0);
     const withdrawals = debits.reduce((s, m) => s + m.amountReais, 0);
-    return [
-      { label: 'Faturamento', value: formatBRL(revenue) },
-      { label: 'Reservas', value: String(reservations) },
-      { label: 'Taxa retida', value: formatBRL(platformFee) },
-      { label: 'Ticket médio', value: formatBRL(reservations > 0 ? revenue / reservations : 0) },
-      { label: 'Saques no período', value: formatBRL(withdrawals) },
-    ];
+
+    const cards: { label: string; value: string }[] = [];
+    if (selected.has('revenue')) cards.push({ label: 'Faturamento', value: formatBRL(revenue) });
+    if (selected.has('reservations')) cards.push({ label: 'Reservas', value: String(reservations) });
+    if (selected.has('platformFee')) cards.push({ label: 'Taxa retida', value: formatBRL(platformFee) });
+    if (selected.has('revenue') || selected.has('reservations')) {
+      cards.push({ label: 'Ticket médio', value: formatBRL(reservations > 0 ? revenue / reservations : 0) });
+    }
+    if (selected.has('withdrawals')) cards.push({ label: 'Saques no período', value: formatBRL(withdrawals) });
+    return cards;
   });
 
   private readonly dailyTotals = computed(() => buildDailyTotals(this.allMovements(), 7));
@@ -497,7 +515,7 @@ export class PanelFinanceReportsComponent {
   }
 
   protected generateReport(): void {
-    const rows = this.periodMovements();
+    const rows = this.reportMovements();
     const csv = buildMovementsCsv(rows);
     downloadCsv(`relatorio-financeiro-${this.period()}-${new Date().toISOString().slice(0, 10)}.csv`, csv);
 

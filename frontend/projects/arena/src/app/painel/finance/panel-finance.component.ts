@@ -651,10 +651,14 @@ export class PanelFinanceComponent {
       this.withdrawError.set('Informe uma chave PIX válida.');
       return;
     }
-    await setArenaPayoutPixKey(arenaFirestore(), arenaId, key);
-    this.editingPixKey.set(false);
     this.withdrawError.set(null);
-    this.withdrawNotice.set('Chave PIX salva.');
+    try {
+      await setArenaPayoutPixKey(arenaFirestore(), arenaId, key);
+      this.editingPixKey.set(false);
+      this.withdrawNotice.set('Chave PIX salva.');
+    } catch (e) {
+      this.withdrawError.set(e instanceof Error ? e.message : 'Não foi possível salvar a chave PIX.');
+    }
   }
 
   protected async requestWithdraw(): Promise<void> {
@@ -663,6 +667,10 @@ export class PanelFinanceComponent {
     const amount = parseBRLInputToCents(this.withdrawAmountValue()) / 100;
     if (amount <= 0) {
       this.withdrawError.set('Informe um valor válido para saque.');
+      return;
+    }
+    if (amount > this.wallet().availableReais) {
+      this.withdrawError.set('Valor maior que o saldo disponível.');
       return;
     }
     if (this.pixKeyValue().trim().length < 5) {

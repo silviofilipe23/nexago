@@ -80,7 +80,7 @@ export function filterMovementsByPeriod(
   return movements.filter((m) => m.createdAt != null && m.createdAt >= start && m.createdAt <= end);
 }
 
-const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+export const WEEKDAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
 export interface DailyTotal {
   label: string;

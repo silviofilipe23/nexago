@@ -1,7 +1,6 @@
 import type { ArenaSportChip } from '@nexago/arena-discovery';
 import type { DemoMatchResult } from '../profile/public-profile-demo.models';
-import type { RankingLevel } from '../ranking/athlete-ranking.models';
-import type { TeamStatus } from './athlete-equipes.models';
+import type { RankingLevel, TeamStatus } from './athlete-equipes.models';
 
 export interface TeamMemberRef {
   /** null quando não há perfil de atleta conhecido pra linkar (times gerados por fallback). */

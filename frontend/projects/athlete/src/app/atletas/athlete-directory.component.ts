@@ -12,11 +12,12 @@ import { RouterLink } from '@angular/router';
 import { ARENA_SPORT_CHIP_OPTIONS, type ArenaSportChip } from '@nexago/arena-discovery';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
-import type { FilterLevel } from '../ranking/athlete-ranking.models';
 import { MOCK_ATHLETE_DIRECTORY } from './athlete-directory.mock';
-import type { AthleteDirectoryEntry } from './athlete-directory.models';
+import type { AthleteDirectoryEntry, RankingLevel } from './athlete-directory.models';
 
 export type SortBy = 'ranking' | 'name' | 'level';
+
+type FilterLevel = 'all' | RankingLevel;
 
 const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante', 'Intermediário', 'Avançado', 'Profissional'];
 const LEVEL_ORDER: Record<FilterLevel, number> = {

@@ -12,9 +12,10 @@ import { RouterLink } from '@angular/router';
 import { ARENA_SPORT_CHIP_OPTIONS, type ArenaSportChip } from '@nexago/arena-discovery';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
-import type { FilterLevel } from '../ranking/athlete-ranking.models';
 import { MOCK_DISCOVER_TEAMS, MOCK_MY_TEAMS, MOCK_PARTNER_CANDIDATES } from './athlete-equipes.mock';
-import type { DiscoverTeam, FilterAvailability, MyTeam, PartnerCandidate } from './athlete-equipes.models';
+import type { DiscoverTeam, FilterAvailability, MyTeam, PartnerCandidate, RankingLevel } from './athlete-equipes.models';
+
+type FilterLevel = 'all' | RankingLevel;
 
 const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante', 'Intermediário', 'Avançado', 'Profissional'];
 const CITY_ALL = 'all';

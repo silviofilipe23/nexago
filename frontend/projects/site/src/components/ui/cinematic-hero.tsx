@@ -5,6 +5,13 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { Flame, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  APP_STORE_URL,
+  GOOGLE_PLAY_COMING_SOON,
+  GOOGLE_PLAY_URL,
+  isGooglePlayAvailable,
+} from '@/lib/store-links';
+import { showToast } from '@/components/ui/Toast';
 
 if (typeof window !== 'undefined') {
   gsap.registerPlugin(ScrollTrigger);
@@ -310,19 +317,30 @@ export function CinematicHero({
         .to({}, { duration: 1 })
         .set('.hero-text-wrapper', { autoAlpha: 0 })
         .set('.cta-wrapper', { autoAlpha: 1 })
-        .to({}, { duration: 0.6 })
+        .to({}, { duration: 0.3 })
         .to(['.mockup-scroll-wrapper', '.floating-badge', '.card-left-text', '.card-right-text'], {
           scale: 0.9,
           y: -40,
           z: -200,
           autoAlpha: 0,
           ease: 'power3.in',
-          duration: 1.2,
-          stagger: 0.05,
+          duration: 0.9,
+          stagger: 0.04,
         })
-        .to('.main-card', { width: isMobile ? '92vw' : '85vw', height: isMobile ? '92vh' : '85vh', borderRadius: isMobile ? '32px' : '40px', ease: 'expo.inOut', duration: 1.8 }, 'pullback')
-        .to('.cta-wrapper', { scale: 1, filter: 'blur(0px)', ease: 'expo.inOut', duration: 1.8 }, 'pullback')
-        .to('.main-card', { y: -window.innerHeight - 300, ease: 'power3.in', duration: 1.5 });
+        // Card some junto com o conteúdo — evita shell vazio prolongado.
+        .to(
+          '.main-card',
+          {
+            width: isMobile ? '92vw' : '85vw',
+            height: isMobile ? '92vh' : '85vh',
+            borderRadius: isMobile ? '32px' : '40px',
+            ease: 'expo.inOut',
+            duration: 1.0,
+          },
+          '-=0.55',
+        )
+        .to('.cta-wrapper', { scale: 1, filter: 'blur(0px)', ease: 'expo.inOut', duration: 1.0 }, '<')
+        .to('.main-card', { y: -window.innerHeight - 300, ease: 'power3.in', duration: 0.85 }, '-=0.35');
     }, containerRef);
 
     return () => ctx.revert();
@@ -362,7 +380,9 @@ export function CinematicHero({
         </p>
         <div className="flex flex-col sm:flex-row gap-6">
           <a
-            href="#"
+            href={APP_STORE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             aria-label="Baixar na App Store"
             className="btn-modern-light flex items-center justify-center gap-3 px-8 py-4 rounded-[1.25rem] group focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 focus:ring-offset-background"
           >
@@ -375,9 +395,17 @@ export function CinematicHero({
             </div>
           </a>
           <a
-            href="#"
-            aria-label="Disponível no Google Play"
+            href={isGooglePlayAvailable() ? GOOGLE_PLAY_URL : '#'}
+            onClick={(event) => {
+              if (isGooglePlayAvailable()) return;
+              event.preventDefault();
+              showToast(GOOGLE_PLAY_COMING_SOON);
+            }}
+            aria-label={isGooglePlayAvailable() ? 'Disponível no Google Play' : 'Google Play — em breve'}
             className="btn-modern-dark flex items-center justify-center gap-3 px-8 py-4 rounded-[1.25rem] group focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 focus:ring-offset-background"
+            {...(isGooglePlayAvailable()
+              ? { target: '_blank', rel: 'noopener noreferrer' }
+              : {})}
           >
             <svg className="w-7 h-7 transition-transform group-hover:scale-105" fill="currentColor" viewBox="0 0 512 512" aria-hidden="true">
               <path d="M325.3 234.3L104.6 13l280.8 161.2-60.1 60.1zM47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm425.2 225.6l-58.9-34.1-65.7 64.5 65.7 64.5 60.1-34.1c18-14.3 18-46.5-1.2-60.8zM104.6 499l280.8-161.2-60.1-60.1L104.6 499z" />

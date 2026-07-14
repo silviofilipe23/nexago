@@ -6,9 +6,6 @@
   "targets": {
     "volley-track-2dd3b": {
       "hosting": {
-        "app": [
-          "app-6b72a"
-        ],
         "site": [
           "site-4af00"
         ],
@@ -30,6 +27,12 @@
         ],
         "coach": [
           "coach-dev2"
+        ],
+        "arena": [
+          "arena-dev2"
+        ],
+        "backoffice": [
+          "backoffice-dev2"
         ]
       }
     }

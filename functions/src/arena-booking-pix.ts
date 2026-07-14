@@ -190,7 +190,11 @@ export const createArenaBookingPixPayment = onCall({
   const arenaName = (booking.arenaName as string) || (arena.name as string) || "Arena";
   const courtName = (booking.courtName as string) || "Quadra";
   const dateStr = (booking.date as string) || "";
-  const description = `Reserva ${arenaName} — ${courtName}${dateStr ? ` (${dateStr})` : ""}`;
+  const startTime = (booking.startTime as string) || "";
+  const endTime = (booking.endTime as string) || "";
+  const timeStr = startTime && endTime ? `${startTime}-${endTime}` : startTime;
+  const scheduleStr = [dateStr, timeStr].filter(Boolean).join(" ");
+  const description = `Reserva ${arenaName} — ${courtName} - ${scheduleStr ? ` (${scheduleStr})` : ""}`;
 
   const expiresAtDate = booking.paymentExpiresAt instanceof Timestamp
     ? booking.paymentExpiresAt.toDate()

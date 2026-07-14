@@ -74,7 +74,7 @@ export default async function LigaDetailPage({ params }: Params) {
 
         <Reveal delay={0.05}>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <ButtonLink href="/#download">
+            <ButtonLink href="/torneios">
               Garantir minha vaga
               <ArrowRight className="size-4" aria-hidden="true" />
             </ButtonLink>

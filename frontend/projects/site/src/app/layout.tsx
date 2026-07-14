@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { sora, inter, jetbrains } from '@/lib/fonts';
 import { SiteHeader } from '@/components/sections/SiteHeader';
 import { SiteFooter } from '@/components/sections/SiteFooter';
+import { ToastHost } from '@/components/ui/Toast';
 import '@/styles/globals.css';
 
 const SITE_URL = 'https://nexago.com.br';
@@ -102,6 +103,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SiteHeader />
         {children}
         <SiteFooter />
+        <ToastHost />
       </body>
     </html>
   );

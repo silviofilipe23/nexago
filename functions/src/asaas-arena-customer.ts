@@ -1,6 +1,10 @@
 import {FieldValue, getFirestore} from "firebase-admin/firestore";
 import {getAuth} from "firebase-admin/auth";
-import {fetchAsaas} from "./asaas-client";
+import {
+  fetchAsaas,
+  getAsaasEnvTag,
+  isAsaasInvalidCustomerError,
+} from "./asaas-client";
 import {isValidCpfCnpj, normalizeCpfCnpj} from "./asaas-customer";
 
 type AsaasCustomerResponse = {id?: string};
@@ -67,6 +71,10 @@ export async function getOrCreateArenaAsaasCustomer(params: {
   const snap = await ref.get();
   const cachedId = (snap.data()?.customerId as string | undefined)?.trim() ?? "";
   const cachedCpf = normalizeCpfCnpj(snap.data()?.cpfCnpj as string | undefined);
+  const cachedEnv = (snap.data()?.asaasEnv as string | undefined)?.trim() ?? "";
+  const currentEnv = getAsaasEnvTag();
+  const envMatches = cachedEnv === currentEnv;
+  const externalRef = arenaCustomerExternalRef(params.arenaId);
 
   const arenaName =
     ((await db.collection("arenas").doc(params.arenaId).get()).data()?.name as string | undefined)
@@ -80,15 +88,15 @@ export async function getOrCreateArenaAsaasCustomer(params: {
   const safeEmail = email || `arena+${params.arenaId}@nexago.app`;
   const name = arenaName.slice(0, 80);
 
-  if (cachedId && cachedCpf === digits) {
+  if (cachedId && cachedCpf === digits && envMatches) {
     return cachedId;
   }
 
-  let customerId = cachedId;
+  let customerId = envMatches ? cachedId : "";
   if (!customerId) {
     try {
       const listed = await fetchAsaas<AsaasCustomerListResponse>(
-        `/v3/customers?externalReference=${encodeURIComponent(arenaCustomerExternalRef(params.arenaId))}&limit=1`,
+        `/v3/customers?externalReference=${encodeURIComponent(externalRef)}&limit=1`,
       );
       customerId = listed.data?.[0]?.id?.trim() ?? "";
     } catch {
@@ -97,21 +105,30 @@ export async function getOrCreateArenaAsaasCustomer(params: {
   }
 
   if (customerId) {
-    await fetchAsaas<AsaasCustomerResponse>(`/v3/customers/${encodeURIComponent(customerId)}`, {
-      method: "PUT",
-      body: {name, email: safeEmail, cpfCnpj: digits, notificationDisabled: true},
-    });
-  } else {
+    try {
+      await fetchAsaas<AsaasCustomerResponse>(`/v3/customers/${encodeURIComponent(customerId)}`, {
+        method: "PUT",
+        body: {name, email: safeEmail, cpfCnpj: digits, notificationDisabled: true},
+      });
+    } catch (e) {
+      if (!isAsaasInvalidCustomerError(e)) {
+        throw e;
+      }
+      customerId = "";
+    }
+  }
+
+  if (!customerId) {
     const created = await fetchAsaas<AsaasCustomerResponse>("/v3/customers", {
       method: "POST",
       body: {
         name,
         email: safeEmail,
         cpfCnpj: digits,
-        externalReference: arenaCustomerExternalRef(params.arenaId),
+        externalReference: externalRef,
         notificationDisabled: true,
       },
-      idempotencyKey: `asaas-arena-customer-${params.arenaId}`,
+      idempotencyKey: `asaas-arena-customer-${currentEnv}-${params.arenaId}`,
     });
     customerId = created.id?.trim() ?? "";
   }
@@ -124,6 +141,7 @@ export async function getOrCreateArenaAsaasCustomer(params: {
     customerId,
     cpfCnpj: digits,
     email: safeEmail,
+    asaasEnv: currentEnv,
     updatedAt: FieldValue.serverTimestamp(),
   });
 

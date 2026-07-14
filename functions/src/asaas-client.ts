@@ -36,6 +36,23 @@ export function getAsaasApiBaseUrl(): string {
   return ASAAS_API_URL_PRODUCTION;
 }
 
+/** Tag persistida no cache Firestore — muda ao trocar sandbox ↔ produção. */
+export function getAsaasEnvTag(): "sandbox" | "production" {
+  try {
+    const env = ASAAS_ENV.value()?.trim().toLowerCase();
+    if (env === "sandbox") return "sandbox";
+  } catch {
+    // emulador sem secret
+  }
+  return "production";
+}
+
+export function isAsaasInvalidCustomerError(e: unknown): boolean {
+  if (!(e instanceof AsaasApiError)) return false;
+  if (e.httpStatus === 404) return true;
+  return e.body.includes("invalid_customer");
+}
+
 export function getAsaasApiKey(): string {
   try {
     const key = ASAAS_API_KEY.value()?.trim();

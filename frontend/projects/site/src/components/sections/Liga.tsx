@@ -26,7 +26,7 @@ export function Liga() {
           <div className="relative">
             <div className="inline-flex items-center gap-2 rounded-pill border border-brand/30 bg-brand-tint px-4 py-1.5">
               <CalendarDays className="size-4 text-brand" aria-hidden="true" />
-              <span className="text-xs font-600 tracking-wide text-brand">Liga nexaGO 2025</span>
+              <span className="text-xs font-600 tracking-wide text-brand">Liga nexaGO 2026</span>
             </div>
 
             <h2 className="mt-6 max-w-2xl font-display text-[clamp(2rem,5.5vw,3.75rem)] font-800 leading-[1.02] tracking-tight text-fg">

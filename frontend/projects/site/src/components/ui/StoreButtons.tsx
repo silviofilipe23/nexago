@@ -1,3 +1,14 @@
+'use client';
+
+import type { MouseEvent } from 'react';
+import {
+  APP_STORE_URL,
+  GOOGLE_PLAY_COMING_SOON,
+  GOOGLE_PLAY_URL,
+  isGooglePlayAvailable,
+} from '@/lib/store-links';
+import { showToast } from '@/components/ui/Toast';
+
 function AppleIcon({ className }: { className: string }) {
   return (
     <svg className={className} fill="currentColor" viewBox="0 0 384 512" aria-hidden="true">
@@ -24,6 +35,12 @@ const SIZES = {
   md: { pad: 'px-6 py-3.5', apple: 'size-7', play: 'size-6', top: 'text-[10px]', main: 'text-lg' },
 } as const;
 
+function onGooglePlayClick(event: MouseEvent<HTMLAnchorElement>) {
+  if (isGooglePlayAvailable()) return;
+  event.preventDefault();
+  showToast(GOOGLE_PLAY_COMING_SOON);
+}
+
 export function StoreButtons({
   size = 'md',
   className = '',
@@ -34,16 +51,30 @@ export function StoreButtons({
   itemClassName?: string;
 }) {
   const s = SIZES[size];
+  const playReady = isGooglePlayAvailable();
+
   return (
     <div className={className}>
-      <a href="#" aria-label="Baixar na App Store" className={`${base} ${s.pad} ${itemClassName}`}>
+      <a
+        href={APP_STORE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Baixar na App Store"
+        className={`${base} ${s.pad} ${itemClassName}`}
+      >
         <AppleIcon className={`${s.apple} shrink-0`} />
         <span className="text-left">
           <span className={`block ${s.top} font-600 uppercase tracking-wider text-text-dim`}>Baixar na</span>
           <span className={`block ${s.main} font-700 leading-none tracking-tight`}>App Store</span>
         </span>
       </a>
-      <a href="#" aria-label="Disponível no Google Play" className={`${base} ${s.pad} ${itemClassName}`}>
+      <a
+        href={playReady ? GOOGLE_PLAY_URL : '#'}
+        onClick={onGooglePlayClick}
+        aria-label={playReady ? 'Disponível no Google Play' : 'Google Play — em breve'}
+        className={`${base} ${s.pad} ${itemClassName}`}
+        {...(playReady ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+      >
         <GooglePlayIcon className={`${s.play} shrink-0`} />
         <span className="text-left">
           <span className={`block ${s.top} font-600 uppercase tracking-wider text-text-dim`}>Disponível no</span>

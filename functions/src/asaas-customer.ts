@@ -1,5 +1,9 @@
 import {FieldValue, getFirestore} from "firebase-admin/firestore";
-import {fetchAsaas} from "./asaas-client";
+import {
+  fetchAsaas,
+  getAsaasEnvTag,
+  isAsaasInvalidCustomerError,
+} from "./asaas-client";
 
 type AsaasCustomerResponse = {
   id?: string;
@@ -68,6 +72,37 @@ async function updateAsaasCustomer(
   );
 }
 
+async function findAsaasCustomerByExternalReference(uid: string): Promise<string> {
+  try {
+    const listed = await fetchAsaas<AsaasCustomerListResponse>(
+      `/v3/customers?externalReference=${encodeURIComponent(uid)}&limit=1`,
+    );
+    return listed.data?.[0]?.id?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function createAsaasCustomer(params: {
+  uid: string;
+  name: string;
+  email: string;
+  cpfCnpj: string;
+}): Promise<string> {
+  const created = await fetchAsaas<AsaasCustomerResponse>("/v3/customers", {
+    method: "POST",
+    body: {
+      name: params.name,
+      email: params.email,
+      cpfCnpj: params.cpfCnpj,
+      externalReference: params.uid,
+      notificationDisabled: true,
+    },
+    idempotencyKey: `asaas-customer-${getAsaasEnvTag()}-${params.uid}`,
+  });
+  return created.id?.trim() ?? "";
+}
+
 /**
  * Resolve CPF/CNPJ do atleta (request → Firestore).
  */
@@ -101,42 +136,41 @@ export async function getOrCreateAsaasCustomer(
   const snap = await ref.get();
   const cachedId = (snap.data()?.customerId as string | undefined)?.trim() ?? "";
   const cachedCpf = normalizeCpfCnpj(snap.data()?.cpfCnpj as string | undefined);
+  const cachedEnv = (snap.data()?.asaasEnv as string | undefined)?.trim() ?? "";
+  const currentEnv = getAsaasEnvTag();
+  const envMatches = cachedEnv === currentEnv;
 
   const safeEmail = email.trim() || `athlete+${uid}@nexago.app`;
   const name = (displayName?.trim() || "Atleta NexaGO").slice(0, 80);
 
-  if (cachedId && cachedCpf === digits) {
+  if (cachedId && cachedCpf === digits && envMatches) {
     return cachedId;
   }
 
-  let customerId = cachedId;
+  let customerId = envMatches ? cachedId : "";
 
   if (!customerId) {
-    try {
-      const listed = await fetchAsaas<AsaasCustomerListResponse>(
-        `/v3/customers?externalReference=${encodeURIComponent(uid)}&limit=1`,
-      );
-      customerId = listed.data?.[0]?.id?.trim() ?? "";
-    } catch {
-      // segue para criar
-    }
+    customerId = await findAsaasCustomerByExternalReference(uid);
   }
 
   if (customerId) {
-    await updateAsaasCustomer(customerId, {name, email: safeEmail, cpfCnpj: digits});
-  } else {
-    const created = await fetchAsaas<AsaasCustomerResponse>("/v3/customers", {
-      method: "POST",
-      body: {
-        name,
-        email: safeEmail,
-        cpfCnpj: digits,
-        externalReference: uid,
-        notificationDisabled: true,
-      },
-      idempotencyKey: `asaas-customer-${uid}`,
+    try {
+      await updateAsaasCustomer(customerId, {name, email: safeEmail, cpfCnpj: digits});
+    } catch (e) {
+      if (!isAsaasInvalidCustomerError(e)) {
+        throw e;
+      }
+      customerId = "";
+    }
+  }
+
+  if (!customerId) {
+    customerId = await createAsaasCustomer({
+      uid,
+      name,
+      email: safeEmail,
+      cpfCnpj: digits,
     });
-    customerId = created.id?.trim() ?? "";
   }
 
   if (!customerId) {
@@ -149,6 +183,7 @@ export async function getOrCreateAsaasCustomer(
     customerId,
     cpfCnpj: digits,
     email: safeEmail,
+    asaasEnv: currentEnv,
     updatedAt: FieldValue.serverTimestamp(),
   });
 

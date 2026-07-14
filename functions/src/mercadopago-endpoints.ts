@@ -607,7 +607,11 @@ export const createArenaBookingMercadoPagoPayment = onCall({
   const arenaName = (booking.arenaName as string) || (arena.name as string) || "Arena";
   const courtName = (booking.courtName as string) || "Quadra";
   const dateStr = (booking.date as string) || "";
-  const title = `Reserva ${arenaName} — ${courtName}${dateStr ? ` (${dateStr})` : ""}`;
+  const startTime = (booking.startTime as string) || "";
+  const endTime = (booking.endTime as string) || "";
+  const timeStr = startTime && endTime ? `${startTime}-${endTime}` : startTime;
+  const scheduleStr = [dateStr, timeStr].filter(Boolean).join(" ");
+  const title = `Reserva ${arenaName} — ${courtName} - ${scheduleStr ? ` (${scheduleStr})` : ""}`;
 
   const webAppHost = `${projectIdForUrl}.web.app`;
   const backSuccess = `https://${webAppHost}/arena/${arenaId}/book/success?paid=success&bookingId=${encodeURIComponent(bookingId)}`;

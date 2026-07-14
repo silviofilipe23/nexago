@@ -91,7 +91,7 @@ export function SiteFooter() {
 
         <div className="mt-14 flex flex-col items-start justify-between gap-3 border-t border-line pt-8 sm:flex-row sm:items-center">
           <p className="text-sm text-text-dim">© {new Date().getFullYear()} nexaGO. Todos os direitos reservados.</p>
-          <p className="text-sm text-text-dim">nexaGO · Vôlei de praia</p>
+          <p className="text-sm text-text-dim">nexaGO · Ecossistema esportivo</p>
         </div>
       </div>
     </footer>

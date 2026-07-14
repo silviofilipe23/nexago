@@ -34,10 +34,6 @@
   ],
   "hosting": [
     {
-      "target": "app",
-      "public": "dist/app"
-    },
-    {
       "target": "arena",
       "public": "dist/arena/browser"
     },

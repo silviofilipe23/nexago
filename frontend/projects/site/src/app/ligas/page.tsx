@@ -87,7 +87,7 @@ export default async function LigasPage() {
             Conheça as ligas e garanta sua vaga na próxima etapa.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <ButtonLink href="/#download">
+            <ButtonLink href="/torneios">
               Garantir minha vaga
               <ArrowRight className="size-4" aria-hidden="true" />
             </ButtonLink>

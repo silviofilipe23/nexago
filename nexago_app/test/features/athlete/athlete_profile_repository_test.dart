@@ -1,8 +1,9 @@
 // Testes de regressão do bug "listagem de atletas mostrando só atletas
 // novos": `AthleteProfileRepository.saveProfile()` deve SEMPRE gravar
-// `role`/`roles`/`hasAthleteRole`, mesmo em contas já existentes que nunca
+// `roles`/`hasAthleteRole`, mesmo em contas já existentes que nunca
 // tiveram esses campos, e sem derrubar um `roles` pré-existente (ex.:
-// usuário dual-role atleta+organizador).
+// usuário dual-role atleta+organizador). O campo legado `role` nunca é
+// escrito.
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth_platform_interface/firebase_auth_platform_interface.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -41,7 +42,7 @@ void main() {
 
       final written = firestore.lastWrite('u1');
       expect(written, isNotNull);
-      expect(written!['role'], 'athlete');
+      expect(written!.containsKey('role'), isFalse);
       expect(written['roles'], ['athlete']);
       expect(written['hasAthleteRole'], isTrue);
     });
@@ -60,7 +61,7 @@ void main() {
 
         final written = firestore.lastWrite('u1');
         expect(written, isNotNull);
-        expect(written!['role'], 'athlete');
+        expect(written!.containsKey('role'), isFalse);
         expect(written['roles'], ['athlete']);
         expect(written['hasAthleteRole'], isTrue);
       },
@@ -75,7 +76,6 @@ void main() {
             'u1': {
               'fullName': 'Ana Souza',
               'city': 'Goiânia',
-              'role': 'organizer',
               'roles': ['organizer'],
             },
           },
@@ -86,9 +86,9 @@ void main() {
 
         final written = firestore.lastWrite('u1');
         expect(written, isNotNull);
-        // `role` (legado, singular) sempre vira 'athlete' — quem decide
+        // O legado `role` (singular) nunca é escrito — quem decide
         // dual-role é a lista `roles`.
-        expect(written!['role'], 'athlete');
+        expect(written!.containsKey('role'), isFalse);
         expect(written['roles'], containsAll(<String>['organizer', 'athlete']));
         expect((written['roles'] as List).length, 2);
         expect(written['hasAthleteRole'], isTrue);

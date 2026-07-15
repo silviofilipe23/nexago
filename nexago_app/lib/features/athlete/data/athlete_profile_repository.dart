@@ -72,10 +72,9 @@ class AthleteProfileRepository {
     }
 
     // Garante papel de atleta em todo save (não só na criação), senão
-    // contas que já existiam antes desse campo nunca o recebem — e ficam de
-    // fora de queries por `role`/`hasAthleteRole` para sempre.
+    // contas que já existiam antes desse campo ficam de fora de queries
+    // por `roles`/`hasAthleteRole` para sempre.
     final existingRoles = exists ? (snap.data()?['roles']) : null;
-    data['role'] = 'athlete';
     data['roles'] = <String>{
       if (existingRoles is List) ...existingRoles.whereType<String>(),
       'athlete',

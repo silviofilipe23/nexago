@@ -206,7 +206,7 @@ class AthleteDiscoverRepository {
   }) {
     final resolvedSportId = sportId ?? constraints.sportFirestoreId;
     Query<Map<String, dynamic>> query =
-        _users.where('role', isEqualTo: 'athlete');
+        _users.where('hasAthleteRole', isEqualTo: true);
 
     if (constraints.gender != null) {
       query = query.where('gender', isEqualTo: constraints.gender);

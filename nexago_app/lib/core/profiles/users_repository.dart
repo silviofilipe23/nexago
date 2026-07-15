@@ -168,101 +168,40 @@ class UsersRepository {
       }
     }
 
-    Future<void> mergeAthleteRoleQueries({
-      required Query<Map<String, dynamic>> legacyRoleQuery,
-      required Query<Map<String, dynamic>> rolesArrayQuery,
-    }) async {
-      await mergeQuery(rolesArrayQuery);
-      await mergeQuery(legacyRoleQuery);
-    }
-
     if (roleFilter != null && roleFilter.isNotEmpty) {
-      final useMultiRoleAthleteFilter = roleFilter == kAthleteAppRole;
-
       for (final prefix in nicknameSearchPrefixes(t)) {
-        if (useMultiRoleAthleteFilter) {
-          await mergeAthleteRoleQueries(
-            legacyRoleQuery: _publicProfiles
-                .where('role', isEqualTo: kAthleteAppRole)
-                .where('nickname', isGreaterThanOrEqualTo: prefix)
-                .where('nickname', isLessThan: '$prefix\uf8ff'),
-            rolesArrayQuery: _publicProfiles
-                .where('roles', arrayContains: kAthleteAppRole)
-                .where('nickname', isGreaterThanOrEqualTo: prefix)
-                .where('nickname', isLessThan: '$prefix\uf8ff'),
-          );
-        } else {
-          await mergeQuery(
-            _publicProfiles
-                .where('role', isEqualTo: roleFilter)
-                .where('nickname', isGreaterThanOrEqualTo: prefix)
-                .where('nickname', isLessThan: '$prefix\uf8ff'),
-          );
-        }
-      }
-
-      if (useMultiRoleAthleteFilter) {
-        await mergeAthleteRoleQueries(
-          legacyRoleQuery: _publicProfiles
-              .where('role', isEqualTo: kAthleteAppRole)
-              .where('fullName', isGreaterThanOrEqualTo: t)
-              .where('fullName', isLessThan: '$t\uf8ff'),
-          rolesArrayQuery: _publicProfiles
-              .where('roles', arrayContains: kAthleteAppRole)
-              .where('fullName', isGreaterThanOrEqualTo: t)
-              .where('fullName', isLessThan: '$t\uf8ff'),
-        );
-      } else {
         await mergeQuery(
           _publicProfiles
-              .where('role', isEqualTo: roleFilter)
-              .where('fullName', isGreaterThanOrEqualTo: t)
-              .where('fullName', isLessThan: '$t\uf8ff'),
+              .where('roles', arrayContains: roleFilter)
+              .where('nickname', isGreaterThanOrEqualTo: prefix)
+              .where('nickname', isLessThan: '$prefix\uf8ff'),
         );
       }
+
+      await mergeQuery(
+        _publicProfiles
+            .where('roles', arrayContains: roleFilter)
+            .where('fullName', isGreaterThanOrEqualTo: t)
+            .where('fullName', isLessThan: '$t\uf8ff'),
+      );
 
       // Busca por email fica em `users` (o espelho nao tem email - PII).
       // Apos o aperto das rules este caminho vira no-op para nao-admins e a
       // busca por email devera migrar para uma Cloud Function.
       final emailTerm = t.toLowerCase();
-      if (useMultiRoleAthleteFilter) {
-        await mergeAthleteRoleQueries(
-          legacyRoleQuery: _users
-              .where('role', isEqualTo: kAthleteAppRole)
-              .where('email', isGreaterThanOrEqualTo: emailTerm)
-              .where('email', isLessThan: '$emailTerm\uf8ff'),
-          rolesArrayQuery: _users
-              .where('roles', arrayContains: kAthleteAppRole)
-              .where('email', isGreaterThanOrEqualTo: emailTerm)
-              .where('email', isLessThan: '$emailTerm\uf8ff'),
-        );
-        if (emailTerm != t) {
-          await mergeAthleteRoleQueries(
-            legacyRoleQuery: _users
-                .where('role', isEqualTo: kAthleteAppRole)
-                .where('email', isGreaterThanOrEqualTo: t)
-                .where('email', isLessThan: '$t\uf8ff'),
-            rolesArrayQuery: _users
-                .where('roles', arrayContains: kAthleteAppRole)
-                .where('email', isGreaterThanOrEqualTo: t)
-                .where('email', isLessThan: '$t\uf8ff'),
-          );
-        }
-      } else {
+      await mergeQuery(
+        _users
+            .where('roles', arrayContains: roleFilter)
+            .where('email', isGreaterThanOrEqualTo: emailTerm)
+            .where('email', isLessThan: '$emailTerm\uf8ff'),
+      );
+      if (emailTerm != t) {
         await mergeQuery(
           _users
-              .where('role', isEqualTo: roleFilter)
-              .where('email', isGreaterThanOrEqualTo: emailTerm)
-              .where('email', isLessThan: '$emailTerm\uf8ff'),
+              .where('roles', arrayContains: roleFilter)
+              .where('email', isGreaterThanOrEqualTo: t)
+              .where('email', isLessThan: '$t\uf8ff'),
         );
-        if (emailTerm != t) {
-          await mergeQuery(
-            _users
-                .where('role', isEqualTo: roleFilter)
-                .where('email', isGreaterThanOrEqualTo: t)
-                .where('email', isLessThan: '$t\uf8ff'),
-          );
-        }
       }
     }
 
@@ -294,13 +233,6 @@ class UsersRepository {
         byUid: byUid,
         pageSize: pageSize,
         debugLabel: 'roles[] athlete',
-        maxResults: maxResults,
-      );
-      await _paginateProfiles(
-        query: _publicProfiles.where('role', isEqualTo: kAthleteAppRole),
-        byUid: byUid,
-        pageSize: pageSize,
-        debugLabel: 'role athlete',
         maxResults: maxResults,
       );
     }
@@ -369,7 +301,6 @@ class UsersRepository {
     required String fullName,
     required String gender,
     required String invitedByUid,
-    String role = 'athlete',
     String partnerInviteStatus = 'pending',
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
@@ -396,7 +327,8 @@ class UsersRepository {
       'email': normalizedEmail,
       'fullName': name,
       'gender': gender.trim(),
-      'role': role,
+      'roles': ['athlete'],
+      'hasAthleteRole': true,
       'createdAt': FieldValue.serverTimestamp(),
       'partnerInviteStatus': partnerInviteStatus,
       'invitedByUid': invitedByUid,

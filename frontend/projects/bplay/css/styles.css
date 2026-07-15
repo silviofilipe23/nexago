@@ -167,8 +167,7 @@ button { font: inherit; background: none; border: none; cursor: pointer; color: 
 .header.is-hidden { transform: translateY(-100%); }
 
 /* sobre o hero (antes do scroll) o header fica em tons claros */
-.header:not(.is-scrolled) .nav-link,
-.header:not(.is-scrolled) .logo-text { color: var(--cream); }
+.header:not(.is-scrolled) .nav-link { color: var(--cream); }
 .header:not(.is-scrolled) .header__burger span { background: var(--cream); }
 .header:not(.is-scrolled) .btn--outline {
   border-color: var(--cream);
@@ -176,6 +175,10 @@ button { font: inherit; background: none; border: none; cursor: pointer; color: 
 }
 .header:not(.is-scrolled) .btn--outline::after { background: var(--cream); }
 .header:not(.is-scrolled) .btn--outline:hover { color: var(--dark); }
+.header:not(.is-scrolled) .header__logo-img--light { opacity: 1; }
+.header:not(.is-scrolled) .header__logo-img--dark { opacity: 0; }
+.header.is-scrolled .header__logo-img--light { opacity: 0; }
+.header.is-scrolled .header__logo-img--dark { opacity: 1; }
 .header__burger.is-open span { background: var(--cream) !important; }
 .header__progress {
   position: absolute;
@@ -196,15 +199,23 @@ button { font: inherit; background: none; border: none; cursor: pointer; color: 
   gap: 1.5rem;
 }
 .header__logo {
-  font-family: var(--font-display);
-  font-size: 1.55rem;
-  letter-spacing: .02em;
+  position: relative;
   display: flex;
-  align-items: baseline;
-  gap: .2rem;
+  align-items: center;
+  flex-shrink: 0;
+  width: 148px;
+  height: 52px;
 }
-.logo-mark { color: var(--orange); }
-.logo-text { color: var(--dark); }
+.header__logo-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: left center;
+  transition: opacity .25s ease;
+}
+.header__logo-img--dark { opacity: 0; }
 
 .header__nav { display: flex; gap: 1.6rem; }
 .nav-link {

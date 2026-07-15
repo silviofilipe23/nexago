@@ -1,6 +1,7 @@
+import {FieldValue} from "firebase-admin/firestore";
 import {describe, it} from "node:test";
 import assert from "node:assert/strict";
-import {applyRolesToClaims, firestoreRolesPayload, isAllowedRole} from "./auth-roles";
+import {applyRolesToClaims, firestoreRolesPayload, isAllowedRole, rolesFromClaims} from "./auth-roles";
 
 describe("isAllowedRole", () => {
   it("accepts coach as a valid role", () => {
@@ -9,27 +10,25 @@ describe("isAllowedRole", () => {
 });
 
 describe("applyRolesToClaims", () => {
-  it("sets roles list and legacy role=coach for a coach-only account", () => {
-    const claims = applyRolesToClaims({}, ["coach"]);
+  it("sets the roles list and strips the legacy role claim", () => {
+    const claims = applyRolesToClaims({role: "coach", other: 1}, ["coach"]);
     assert.deepEqual(claims["roles"], ["coach"]);
-    assert.equal(claims["role"], "coach");
+    assert.equal("role" in claims, false);
+    assert.equal(claims["other"], 1);
   });
+});
 
-  it("prefers arena over coach in the legacy role field for multi-role accounts", () => {
-    const claims = applyRolesToClaims({}, ["coach", "arena"]);
-    assert.equal(claims["role"], "arena");
-  });
-
-  it("prefers coach over athlete in the legacy role field", () => {
-    const claims = applyRolesToClaims({}, ["coach", "athlete"]);
-    assert.equal(claims["role"], "coach");
+describe("rolesFromClaims", () => {
+  it("ignores the legacy role claim when reading roles", () => {
+    assert.deepEqual(rolesFromClaims({role: "athlete"}), []);
+    assert.deepEqual(rolesFromClaims({roles: ["athlete"], role: "arena"}), ["athlete"]);
   });
 });
 
 describe("firestoreRolesPayload", () => {
-  it("mirrors the same priority for the Firestore users/{uid} payload", () => {
+  it("firestoreRolesPayload purges the legacy role field", () => {
     const payload = firestoreRolesPayload(["coach", "athlete"]);
     assert.deepEqual(payload["roles"], ["athlete", "coach"]);
-    assert.equal(payload["role"], "coach");
+    assert.ok((payload["role"] as FieldValue).isEqual(FieldValue.delete()));
   });
 });

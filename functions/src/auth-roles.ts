@@ -1,4 +1,5 @@
 import type {UserRecord} from "firebase-admin/auth";
+import {FieldValue} from "firebase-admin/firestore";
 
 export const ALLOWED_APP_ROLES = ["admin", "organizer", "athlete", "arena", "coach"] as const;
 export type AppRole = (typeof ALLOWED_APP_ROLES)[number];
@@ -10,22 +11,14 @@ export function isAllowedRole(r: string): r is AppRole {
 export function rolesFromClaims(claims: {[key: string]: unknown} | undefined): AppRole[] {
   if (!claims) return [];
   const rolesClaim = claims["roles"];
-  if (Array.isArray(rolesClaim)) {
-    const out: AppRole[] = [];
-    for (const x of rolesClaim) {
-      if (typeof x === "string" && isAllowedRole(x) && !out.includes(x)) {
-        out.push(x);
-      }
-    }
-    if (out.length > 0) {
-      return out.sort();
+  if (!Array.isArray(rolesClaim)) return [];
+  const out: AppRole[] = [];
+  for (const x of rolesClaim) {
+    if (typeof x === "string" && isAllowedRole(x) && !out.includes(x)) {
+      out.push(x);
     }
   }
-  const legacy = claims["role"];
-  if (typeof legacy === "string" && isAllowedRole(legacy)) {
-    return [legacy];
-  }
-  return [];
+  return out.sort();
 }
 
 export function hasRoleInClaims(
@@ -47,7 +40,7 @@ export function callerIsOrganizer(user: UserRecord): boolean {
   return hasRoleInClaims(user.customClaims, "admin");
 }
 
-/** Gestor de arena no app mobile (`role` / `roles` contém `arena`). */
+/** Gestor de arena no app mobile (`roles` contém `arena`). */
 export function callerIsArenaManager(user: UserRecord): boolean {
   return hasRoleInClaims(user.customClaims, "arena");
 }
@@ -85,9 +78,8 @@ export function uniqueSortedRoles(roleList: string[]): AppRole[] {
 }
 
 /**
- * Atualiza claims com lista de papéis e campo legado `role`
- * (prioridade admin > organizer > arena > atleta).
- * Remove superAdmin se não houver mais papel admin.
+ * Atualiza claims com a lista de papéis (`roles`) e remove o claim legado
+ * `role`. Remove `superAdmin` se não houver mais papel admin.
  */
 export function applyRolesToClaims(
   previous: Record<string, unknown>,
@@ -96,39 +88,17 @@ export function applyRolesToClaims(
   const out: Record<string, unknown> = {...previous};
   const sorted = uniqueSortedRoles(nextRoles);
   out["roles"] = sorted;
-  if (sorted.includes("admin")) {
-    out["role"] = "admin";
-  } else if (sorted.includes("organizer")) {
-    out["role"] = "organizer";
-  } else if (sorted.includes("arena")) {
-    out["role"] = "arena";
-  } else if (sorted.includes("coach")) {
-    out["role"] = "coach";
-  } else if (sorted.includes("athlete")) {
-    out["role"] = "athlete";
-  } else {
-    delete out["role"];
-  }
+  delete out["role"];
   if (!sorted.includes("admin")) {
     delete out["superAdmin"];
   }
   return out;
 }
 
-/** Campos `roles` e `role` (legado) para gravar em `users/{uid}`. */
+/** Campos de papéis para `users/{uid}` — purga o legado `role` em todo write. */
 export function firestoreRolesPayload(roles: AppRole[]): Record<string, unknown> {
-  const sorted = uniqueSortedRoles(roles);
-  const out: Record<string, unknown> = {roles: sorted};
-  if (sorted.includes("admin")) {
-    out["role"] = "admin";
-  } else if (sorted.includes("organizer")) {
-    out["role"] = "organizer";
-  } else if (sorted.includes("arena")) {
-    out["role"] = "arena";
-  } else if (sorted.includes("coach")) {
-    out["role"] = "coach";
-  } else if (sorted.includes("athlete")) {
-    out["role"] = "athlete";
-  }
-  return out;
+  return {
+    roles: uniqueSortedRoles(roles),
+    role: FieldValue.delete(),
+  };
 }

@@ -3,11 +3,13 @@
  * Remove o campo legado `role` de users/{uid}, public_profiles/{uid} e dos
  * custom claims do Auth, garantindo `roles[]` como única fonte de papéis.
  *
- * Passe A — usuários do Auth: resolve papéis efetivos
- *   (claims.roles → [claims.role] → doc.roles → [doc.role] → ['athlete']),
- *   regrava claims sem `role` e o doc com roles[]/hasAthleteRole/
- *   hasOrganizerRole. Cria doc mínimo quando não existe (mesmo formato que
- *   o app novo grava no cadastro).
+ * Passe A — usuários do Auth: resolve papéis efetivos como a UNIÃO de
+ *   (claims.roles ou [claims.role]) com (doc.roles ou [doc.role]); vazio
+ *   vira ['athlete'] (ajustado 15/07 na review final: união em vez de
+ *   claims-first, evita rebaixamento silencioso quando claims e doc
+ *   discordam), regrava claims sem `role` e o doc com roles[]/
+ *   hasAthleteRole/hasOrganizerRole. Cria doc mínimo quando não existe
+ *   (mesmo formato que o app novo grava no cadastro).
  * Passe B — varredura de users/: docs sem conta no Auth (ex.: pré-cadastro
  *   de parceiro) que ainda tenham `role` ou estejam sem `roles[]`.
  * Passe C — varredura de public_profiles/: deleta `role` remanescente.
@@ -75,17 +77,24 @@ function roleFlags(roles) {
   };
 }
 
-/** claims.roles → [claims.role] → doc.roles → [doc.role] → ['athlete'] */
+/**
+ * União de (claims.roles ou [claims.role]) com (doc.roles ou [doc.role]);
+ * vazio vira ['athlete']. Decisão de 15/07 pós-review: união em vez de
+ * claims-first, pra não rebaixar silenciosamente um usuário cujos claims
+ * ficaram desatualizados mas cujo doc já tem papéis extras (ex.: claims
+ * só ['organizer'], doc ['athlete','organizer'] → mantém os dois).
+ */
 function effectiveRoles(claims, docData) {
-  const fromClaims = normalizeRoles(claims && claims.roles);
-  if (fromClaims.length > 0) return fromClaims;
+  const claimsRoles = normalizeRoles(claims && claims.roles);
   const legacyClaim = legacyRoleOf(claims && claims.role);
-  if (legacyClaim) return [legacyClaim];
-  const fromDoc = normalizeRoles(docData && docData.roles);
-  if (fromDoc.length > 0) return fromDoc;
+  const claimsResolved = claimsRoles.length > 0 ? claimsRoles : (legacyClaim ? [legacyClaim] : []);
+
+  const docRoles = normalizeRoles(docData && docData.roles);
   const legacyDoc = legacyRoleOf(docData && docData.role);
-  if (legacyDoc) return [legacyDoc];
-  return ["athlete"];
+  const docResolved = docRoles.length > 0 ? docRoles : (legacyDoc ? [legacyDoc] : []);
+
+  const union = normalizeRoles([...claimsResolved, ...docResolved]);
+  return union.length > 0 ? union : ["athlete"];
 }
 
 async function passA() {
@@ -122,14 +131,20 @@ async function passA() {
       }
 
       if (docData) {
+        // Doc "limpo" exige também que o array RAW já seja igual ao normalizado — senão
+        // duplicatas/case errado (ex.: ['athlete','athlete'], ['Athlete']) passariam batido
+        // e quebrariam a igualdade/`in` exigida pelas rules depois do backfill.
+        const rawRolesMatchNormalized =
+          JSON.stringify(docData.roles) === JSON.stringify(normalizeRoles(docData.roles));
         const docClean =
+          rawRolesMatchNormalized &&
           JSON.stringify(normalizeRoles(docData.roles)) === JSON.stringify(roles) &&
           docData.role === undefined &&
           docData.hasAthleteRole === roles.includes("athlete") &&
           docData.hasOrganizerRole === roles.includes("organizer");
         if (!docClean) {
           docsUpdated += 1;
-          console.log(`[doc] users/${u.uid}: roles=${JSON.stringify(roles)}, deleta role=${JSON.stringify(docData.role)}`);
+          console.log(`[doc] users/${u.uid}: roles=${JSON.stringify(roles)} (antes roles=${JSON.stringify(docData.roles)}), deleta role=${JSON.stringify(docData.role)}`);
           if (APPLY) {
             await docRef.set(
               {roles, role: FieldValue.delete(), ...roleFlags(roles)},
@@ -181,7 +196,10 @@ async function passB() {
     const flagsWrong =
       data.hasAthleteRole !== flags.hasAthleteRole ||
       data.hasOrganizerRole !== flags.hasOrganizerRole;
-    if (!hasLegacy && roles.length > 0 && !flagsWrong) return false;
+    // Mesmo endurecimento do Passe A: array RAW diferente do normalizado (duplicatas,
+    // case errado) também é sujeira, mesmo sem `role` legado e com as flags corretas.
+    const rawRolesDirty = JSON.stringify(data.roles) !== JSON.stringify(roles);
+    if (!hasLegacy && roles.length > 0 && !flagsWrong && !rawRolesDirty) return false;
     const nextRoles = roles.length > 0 ? roles : effectiveRoles(null, data);
     console.log(`[users-scan] ${doc.id}: roles=${JSON.stringify(nextRoles)}, deleta role=${JSON.stringify(data.role)}`);
     if (APPLY) {

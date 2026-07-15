@@ -68,8 +68,10 @@ Novo `functions/scripts/backfill-remove-legacy-role.js` (padrão dos backfills
 existentes: `--project`, dry-run por padrão, `--yes`, `--limit`). Dois passes:
 
 **Passe A — usuários do Auth** (`listUsers`):
-1. Papéis efetivos: `claims.roles` → senão `[claims.role]` → senão doc
-   (`roles` ou `[role]`) → senão `['athlete']` (mesmo default das rules).
+1. Papéis efetivos: união de (`claims.roles` ou `[claims.role]`) com
+   (doc `roles` ou `[role]`); vazio vira `['athlete']` (mesmo default das
+   rules). *(ajustado 15/07 na review final: união em vez de claims-first,
+   evita rebaixamento silencioso)*
 2. **Claims**: regrava com `roles[]` sem a chave `role`.
 3. **Doc `users/{uid}`** (se existir): `roles[]`, `role: FieldValue.delete()`,
    recalcula `hasAthleteRole`/`hasOrganizerRole`.

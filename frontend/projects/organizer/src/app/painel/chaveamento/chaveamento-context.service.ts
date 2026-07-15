@@ -74,8 +74,10 @@ export class ChaveamentoContextService {
   private async loadTournaments(uid: string): Promise<void> {
     try {
       const tournaments = await listMyTournaments(uid);
+      if (uid !== this.loadedUid) return;
       this.tournaments.set(tournaments);
       if (tournaments.length > 0 && !this.selectedTournamentId()) {
+        if (uid !== this.loadedUid) return;
         this.selectTournament(tournaments[0]!.id);
       }
     } finally {
@@ -95,9 +97,11 @@ export class ChaveamentoContextService {
   }
 
   private async loadMatches(tournamentId: string): Promise<void> {
+    const uid = this.loadedUid;
     this.loadingMatches.set(true);
     try {
       const matches = await listMatches(tournamentId);
+      if (uid !== this.loadedUid) return;
       this.matches.set(matches);
     } finally {
       this.loadingMatches.set(false);

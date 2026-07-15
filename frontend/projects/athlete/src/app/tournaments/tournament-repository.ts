@@ -209,6 +209,10 @@ export interface LeagueRaw {
   name: string;
   seasonLabel: string | null;
   city: string | null;
+  organizationName: string | null;
+  description: string | null;
+  listingStatus: string | null;
+  countingStagesModeRaw: string | null;
   stages: LeagueStageRaw[];
 }
 
@@ -230,6 +234,10 @@ function leagueFromDoc(id: string, data: Record<string, unknown>): LeagueRaw {
     name: stringOf(data, 'name') ?? 'Liga',
     seasonLabel: stringOf(data, 'seasonLabel') ?? stringOf(data, 'season'),
     city: stringOf(data, 'city'),
+    organizationName: stringOf(data, 'organizationName'),
+    description: stringOf(data, 'description'),
+    listingStatus: stringOf(data, 'listingStatus') ?? stringOf(data, 'status'),
+    countingStagesModeRaw: stringOf(data, 'countingStagesMode'),
     stages,
   };
 }

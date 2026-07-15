@@ -1,5 +1,9 @@
 <app-at-panel-shell [userName]="accountLabel()">
-  @if (league(); as l) {
+  @if (loading()) {
+    <div class="lg-body">
+      <div class="lg-notfound"><p class="lg-empty-title">Carregando…</p></div>
+    </div>
+  } @else if (league(); as l) {
     <div class="lg-body">
       <a routerLink="/torneios" class="lg-back-link">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
@@ -34,25 +38,6 @@
 
       <div class="lg-main-grid">
         <div class="lg-col">
-          @if (l.yourRank != null) {
-            <section class="lg-card lg-position-card">
-              <span class="lg-position-rank">#{{ l.yourRank }}</span>
-              <div class="lg-position-copy">
-                <p class="lg-position-name">{{ l.yourDuoName }}</p>
-                <p class="lg-position-sub">
-                  Sua posição na liga
-                  @if (l.nextStageLabel) {
-                    · próxima etapa: {{ l.nextStageLabel }}
-                  }
-                </p>
-              </div>
-              <div class="lg-position-points">
-                <strong>{{ l.yourPoints }}</strong>
-                <span>pts</span>
-              </div>
-            </section>
-          }
-
           <section class="lg-card">
             <span class="lg-card-kicker">{{ l.stages.length }} etapas na temporada</span>
             <h2 class="lg-card-title">Etapas</h2>
@@ -88,10 +73,7 @@
                   </div>
 
                   <div class="lg-stage-action">
-                    @if (s.status === 'finished') {
-                      <span class="lg-stage-placement">{{ s.placement }}º lugar</span>
-                      <span class="lg-stage-points">{{ s.points }} pts</span>
-                    } @else if (s.status === 'next' && s.tournamentId) {
+                    @if (s.status === 'next' && s.tournamentId) {
                       <a class="lg-btn-primary" [routerLink]="['/torneios', s.tournamentId, 'inscricao']">Inscrever</a>
                     } @else if (s.tournamentId) {
                       <a class="lg-link-btn" [routerLink]="['/torneios', s.tournamentId]">Detalhes</a>
@@ -123,14 +105,9 @@
                   </thead>
                   <tbody>
                     @for (row of l.ranking; track row.rank) {
-                      <tr [class.lg-ranking-row--viewer]="row.isViewer">
+                      <tr>
                         <td class="lg-ranking-rank">{{ row.rank }}</td>
-                        <td class="lg-ranking-duo">
-                          {{ row.duoName }}
-                          @if (row.isViewer) {
-                            <span class="lg-dim">· você</span>
-                          }
-                        </td>
+                        <td class="lg-ranking-duo">{{ row.duoName }}</td>
                         @for (pts of row.pointsByStage; track $index) {
                           <td class="lg-ranking-pts">{{ pts ?? '—' }}</td>
                         }
@@ -152,67 +129,42 @@
         </div>
 
         <div class="lg-col lg-col--side">
-          @if (l.prizeTotalLabel || l.nextStagePriceLabel) {
+          @if (l.nextStagePriceLabel) {
             <div class="lg-card lg-prize-card">
-              @if (l.prizeTotalLabel) {
-                <span class="lg-card-kicker">Prêmio total da temporada</span>
-                <strong class="lg-prize-total">{{ l.prizeTotalLabel }}</strong>
-              }
-              @if (l.nextStagePriceLabel) {
-                <div class="lg-prize-next-row">
-                  <div>
-                    <span class="lg-dim">Próxima etapa</span>
-                    <p class="lg-prize-next-price">{{ l.nextStagePriceLabel }}</p>
-                  </div>
-                  @if (l.nextStageTournamentId) {
-                    <a class="lg-btn-primary" [routerLink]="['/torneios', l.nextStageTournamentId, 'inscricao']">
-                      Inscrever na etapa
-                    </a>
-                  }
+              <div class="lg-prize-next-row">
+                <div>
+                  <span class="lg-dim">Próxima etapa</span>
+                  <p class="lg-prize-next-price">{{ l.nextStagePriceLabel }}</p>
                 </div>
-              }
-            </div>
-          }
-
-          @if (l.categoriesLabel || l.rankingCalcLabel || l.priceLabel) {
-            <div class="lg-card">
-              <h2 class="lg-card-title">Formato &amp; pontuação</h2>
-              @if (l.categoriesLabel) {
-                <div class="lg-info-row">
-                  <span class="lg-dim">Categorias</span>
-                  <span>{{ l.categoriesLabel }}</span>
-                </div>
-              }
-              @if (l.rankingCalcLabel) {
-                <div class="lg-info-row">
-                  <span class="lg-dim">Cálculo do ranking</span>
-                  <span>{{ l.rankingCalcLabel }}</span>
-                </div>
-              }
-              @if (l.priceLabel) {
-                <div class="lg-info-row">
-                  <span class="lg-dim">Preço por etapa</span>
-                  <span>{{ l.priceLabel }}</span>
-                </div>
-              }
+                @if (l.nextStageTournamentId) {
+                  <a class="lg-btn-primary" [routerLink]="['/torneios', l.nextStageTournamentId, 'inscricao']">
+                    Inscrever na etapa
+                  </a>
+                }
+              </div>
             </div>
           }
 
           <div class="lg-card">
-            <h2 class="lg-card-title">Organizado por</h2>
-            <div class="lg-organizer-row">
-              <span class="lg-organizer-badge">{{ l.organizerInitials }}</span>
-              <div class="lg-organizer-copy">
-                <p class="lg-organizer-name">
-                  {{ l.organizerName }}
-                  @if (l.organizerVerified) {
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="lg-verified-icon" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
-                  }
-                </p>
-                <p class="lg-organizer-sub">{{ l.organizerVerified ? 'Organizador verificado' : 'Organizador da liga' }}</p>
-              </div>
+            <h2 class="lg-card-title">Formato &amp; pontuação</h2>
+            <div class="lg-info-row">
+              <span class="lg-dim">Cálculo do ranking</span>
+              <span>{{ l.rankingCalcLabel }}</span>
             </div>
           </div>
+
+          @if (l.organizerName) {
+            <div class="lg-card">
+              <h2 class="lg-card-title">Organizado por</h2>
+              <div class="lg-organizer-row">
+                <span class="lg-organizer-badge">{{ organizerInitials() }}</span>
+                <div class="lg-organizer-copy">
+                  <p class="lg-organizer-name">{{ l.organizerName }}</p>
+                  <p class="lg-organizer-sub">Organizador da liga</p>
+                </div>
+              </div>
+            </div>
+          }
         </div>
       </div>
     </div>

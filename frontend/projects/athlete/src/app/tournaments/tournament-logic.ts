@@ -1,7 +1,8 @@
 import type { BracketMatch, BracketMatchStatus, BracketRound, CategoryBracketData, CategoryGroup } from './bracket-results.models';
+import type { LeagueDetailView, LeagueRankingRow, LeagueStage } from './league-detail.models';
 import type { DiscoveryLeague, DiscoveryTournament, TournamentGenderCat, TournamentListingStatus } from './tournament-discovery.models';
 import type { BracketPreviewState, TournamentDetailCategory, TournamentDetailView } from './tournament-detail.models';
-import type { LeagueRaw, MatchRaw, TournamentCategoryRaw, TournamentRaw } from './tournament-repository';
+import type { LeagueRankingRowRaw, LeagueRaw, LeagueStageRaw, MatchRaw, TournamentCategoryRaw, TournamentRaw } from './tournament-repository';
 
 /** Espelha `tournament_detail_logic.dart`/`league_document_mapper.dart` (Flutter) — mapeamento
  *  de dado real (`tournaments`/`leagues`/`matches`) pros modelos que já existiam no mock. */
@@ -363,5 +364,112 @@ export function buildCategoryBracketData(categoryId: string, categoryName: strin
     formatSummaryLabel: bracketFormatLabel(bracketFormatRaw) || 'Chave ainda não gerada',
     groups: hasGroups ? buildCategoryGroups(matches) : [],
     bracketRounds: buildBracketRounds(matches),
+  };
+}
+
+// --- Detalhe da liga ---
+
+export type LeagueCountingMode = 'best4Of6' | 'best3Of5' | 'allStages';
+
+/** Espelha `parseLeagueCountingMode` (Dart). */
+function leagueCountingModeFromRaw(raw: string | null): LeagueCountingMode {
+  if (raw === 'best_3_of_5') return 'best3Of5';
+  if (raw === 'all_stages') return 'allStages';
+  return 'best4Of6';
+}
+
+/** Espelha `leagueCountingModeLabel` (Dart). */
+function leagueCountingModeLabel(mode: LeagueCountingMode): string {
+  switch (mode) {
+    case 'best4Of6':
+      return '4 melhores de 6 etapas';
+    case 'best3Of5':
+      return '3 melhores de 5 etapas';
+    case 'allStages':
+      return 'Todas as etapas contam';
+  }
+}
+
+function leagueStatusLabel(status: TournamentListingStatus): string {
+  switch (status) {
+    case 'open':
+    case 'almost_full':
+      return 'Inscrições abertas';
+    case 'live':
+      return 'Em andamento';
+    case 'ended':
+      return 'Encerrada';
+  }
+}
+
+/** Ordena as etapas e marca a primeira ainda não encerrada como `next` — sem inventar
+ *  colocação/pontos do atleta logado por etapa, que exigiriam uma consulta por etapa não feita
+ *  nesta rodada; ver memória da sessão. */
+export function buildLeagueStages(stages: readonly LeagueStageRaw[], tournamentsByStageId: ReadonlyMap<string, TournamentRaw | null>): LeagueStage[] {
+  const ordered = [...stages].sort((a, b) => a.order - b.order);
+  let nextAssigned = false;
+  return ordered.map((s) => {
+    const tournament = tournamentsByStageId.get(s.id) ?? null;
+    const finished = tournament != null && listingStatusFromRaw(tournament.listingStatus) === 'ended';
+    let status: LeagueStage['status'];
+    if (finished) {
+      status = 'finished';
+    } else if (!nextAssigned) {
+      status = 'next';
+      nextAssigned = true;
+    } else {
+      status = 'upcoming';
+    }
+    return {
+      id: s.id,
+      order: s.order,
+      name: s.name,
+      city: tournament?.city ?? '—',
+      dateLabel: s.dateLabel ?? (tournament?.startAt ? tournament.startAt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }) : '—'),
+      status,
+      tournamentId: s.tournamentIds[0] ?? null,
+    };
+  });
+}
+
+export function buildLeagueRankingRows(rows: readonly LeagueRankingRowRaw[], stages: readonly LeagueStage[]): LeagueRankingRow[] {
+  return [...rows]
+    .sort((a, b) => b.totalPoints - a.totalPoints)
+    .map((r, i) => ({
+      rank: i + 1,
+      duoName: r.displayName,
+      pointsByStage: stages.map((s) => r.pointsByStage[s.id] ?? null),
+      total: r.totalPoints,
+    }));
+}
+
+/** Monta o modelo real da tela de Liga. `tournamentsByStageId` já vem resolvido pelo chamador
+ *  (um doc `tournaments/{id}` por etapa, quando existe) — função pura não faz I/O. Sem prêmio
+ *  total, posição do atleta logado nem organizador "verificado": sem fonte de dado real. */
+export function buildLeagueDetailView(
+  raw: LeagueRaw,
+  tournamentsByStageId: ReadonlyMap<string, TournamentRaw | null>,
+  rankingRaw: readonly LeagueRankingRowRaw[],
+): LeagueDetailView {
+  const stages = buildLeagueStages(raw.stages, tournamentsByStageId);
+  const finishedCount = stages.filter((s) => s.status === 'finished').length;
+  const nextStage = stages.find((s) => s.status === 'next') ?? null;
+  const nextTournament = nextStage ? (tournamentsByStageId.get(nextStage.id) ?? null) : null;
+
+  return {
+    id: raw.id,
+    name: raw.name,
+    statusLabel: leagueStatusLabel(listingStatusFromRaw(raw.listingStatus)),
+    formatLabel: `Liga · ${stages.length} etapa${stages.length === 1 ? '' : 's'}`,
+    citiesSummary: raw.city ?? '—',
+    periodLabel: raw.seasonLabel ?? '',
+    aboutText: raw.description,
+    stages,
+    stagesCompletedLabel: `Após ${finishedCount} de ${stages.length} etapas`,
+    ranking: buildLeagueRankingRows(rankingRaw, stages),
+    nextStagePriceLabel: nextTournament && nextTournament.categories.length > 0 ? priceLabel(Math.min(...nextTournament.categories.map((c) => c.entryFee))) : null,
+    nextStageTournamentId: nextStage?.tournamentId ?? null,
+    rankingCalcLabel: leagueCountingModeLabel(leagueCountingModeFromRaw(raw.countingStagesModeRaw)),
+    organizerName: raw.organizationName,
   };
 }

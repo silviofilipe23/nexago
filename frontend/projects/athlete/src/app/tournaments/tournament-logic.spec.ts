@@ -7,6 +7,9 @@ import {
   buildDiscoveryLeague,
   buildDiscoveryTournament,
   buildGroupStandings,
+  buildLeagueDetailView,
+  buildLeagueRankingRows,
+  buildLeagueStages,
   buildSingleEliminationRounds,
   buildTournamentDetailCategories,
   buildTournamentDetailView,
@@ -15,7 +18,7 @@ import {
   isDoubleEliminationBracketFormat,
   listingStatusFromRaw,
 } from './tournament-logic';
-import type { LeagueRaw, MatchRaw, TournamentCategoryRaw, TournamentRaw } from './tournament-repository';
+import type { LeagueRaw, LeagueRankingRowRaw, LeagueStageRaw, MatchRaw, TournamentCategoryRaw, TournamentRaw } from './tournament-repository';
 
 describe('genderTypeFromRaw', () => {
   it('maps the three real Firestore tags', () => {
@@ -103,6 +106,10 @@ describe('buildDiscoveryLeague', () => {
       name: 'Liga Universitária',
       seasonLabel: 'Temporada 2026',
       city: 'Goiânia',
+      organizationName: null,
+      description: null,
+      listingStatus: null,
+      countingStagesModeRaw: null,
       stages: [
         { id: 's2', name: 'Etapa 2', order: 2, dateLabel: null, tournamentIds: ['t2'] },
         { id: 's1', name: 'Etapa 1', order: 1, dateLabel: null, tournamentIds: ['t1'] },
@@ -284,5 +291,62 @@ describe('buildBracketRounds / buildCategoryGroups / buildCategoryBracketData', 
     expect(data.format).toBe('grupos');
     expect(data.groups.length).toBe(1);
     expect(data.bracketRounds.length).toBe(1);
+  });
+});
+
+describe('buildLeagueStages / buildLeagueRankingRows / buildLeagueDetailView', () => {
+  const stagesRaw: LeagueStageRaw[] = [
+    { id: 's1', name: 'Etapa Goiânia', order: 1, dateLabel: null, tournamentIds: ['t1'] },
+    { id: 's2', name: 'Etapa Anápolis', order: 2, dateLabel: null, tournamentIds: ['t2'] },
+    { id: 's3', name: 'Etapa Trindade', order: 3, dateLabel: null, tournamentIds: [] },
+  ];
+  const endedTournament: TournamentRaw = {
+    id: 't1', name: 'Etapa Goiânia', city: 'Goiânia', locationName: 'Arena X', startAt: new Date('2026-02-21'), endAt: null,
+    format: 'Duplas', capacity: 16, enrolledCount: 16, featured: false, liveMatchesNow: 0, listingStatus: 'ended',
+    leagueId: 'l1', leagueStageId: 's1', leagueStageOrder: 1, leagueStageName: 'Etapa Goiânia', regulationsText: null,
+    categories: [{ categoryId: 'c1', categoryName: 'Open', entryFee: 90, maxTeams: 16, spotsLeft: 0, level: null, genderType: 'MASCULINO', bracketFormat: 'Single Elimination', registrationClosed: true }],
+  };
+  const openTournament: TournamentRaw = { ...endedTournament, id: 't2', listingStatus: 'open', startAt: new Date('2026-04-18') };
+
+  it('marks the first non-ended stage as next, and stages without a tournament as upcoming', () => {
+    const map = new Map([
+      ['s1', endedTournament],
+      ['s2', openTournament],
+      ['s3', null],
+    ]);
+    const stages = buildLeagueStages(stagesRaw, map);
+    expect(stages.map((s) => s.status)).toEqual(['finished', 'next', 'upcoming']);
+    expect(stages[0]!.city).toBe('Goiânia');
+    expect(stages[2]!.city).toBe('—');
+  });
+
+  it('sorts ranking rows by total points desc and aligns per-stage points by stage order', () => {
+    const stages = buildLeagueStages(stagesRaw, new Map([['s1', endedTournament], ['s2', openTournament], ['s3', null]]));
+    const rows: LeagueRankingRowRaw[] = [
+      { entityId: 'd1', displayName: 'Marcelo / Enzo', totalPoints: 700, pointsByStage: { s1: 450, s2: 250 } },
+      { entityId: 'd2', displayName: 'Sá / Toledo', totalPoints: 730, pointsByStage: { s1: 380 } },
+    ];
+    const ranking = buildLeagueRankingRows(rows, stages);
+    expect(ranking[0]!.duoName).toBe('Sá / Toledo');
+    expect(ranking[0]!.rank).toBe(1);
+    expect(ranking[0]!.pointsByStage).toEqual([380, null, null]);
+    expect(ranking[1]!.pointsByStage).toEqual([450, 250, null]);
+  });
+
+  it('builds the full league view: status from listingStatus, price from the next stage tournament, counting-mode label', () => {
+    const raw: LeagueRaw = {
+      id: 'l1', name: 'Copa Goiás Beach', seasonLabel: 'Temporada 2026', city: 'Goiânia',
+      organizationName: 'Federação Goiana', description: 'Circuito estadual.', listingStatus: 'open',
+      countingStagesModeRaw: 'best_3_of_5', stages: stagesRaw,
+    };
+    const map = new Map([['s1', endedTournament], ['s2', openTournament], ['s3', null]]);
+    const view = buildLeagueDetailView(raw, map, []);
+    expect(view.statusLabel).toBe('Inscrições abertas');
+    expect(view.stagesCompletedLabel).toBe('Após 1 de 3 etapas');
+    expect(view.nextStageTournamentId).toBe('t2');
+    expect(view.nextStagePriceLabel).toBe('R$ 90');
+    expect(view.rankingCalcLabel).toBe('3 melhores de 5 etapas');
+    expect(view.organizerName).toBe('Federação Goiana');
+    expect(view.aboutText).toBe('Circuito estadual.');
   });
 });

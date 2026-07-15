@@ -7,24 +7,18 @@ export interface LeagueStage {
   city: string;
   dateLabel: string;
   status: LeagueStageStatus;
-  /** Colocação do atleta na etapa (só quando `status === 'finished'`). */
-  placement: number | null;
-  /** Pontos ganhos na etapa (só quando `status === 'finished'`). */
-  points: number | null;
-  /** Torneio real vinculado (permite "Inscrever"/"Detalhes" linkarem pra `/torneios/:id`). */
   tournamentId: string | null;
 }
 
 export interface LeagueRankingRow {
   rank: number;
   duoName: string;
-  isViewer: boolean;
-  /** Pontos por etapa, na mesma ordem de `LeagueDetailData.stages`; `null` = etapa ainda não jogada. */
+  /** Pontos por etapa, na mesma ordem de `LeagueDetailView.stages`; `null` = etapa ainda sem pontuação lançada. */
   pointsByStage: (number | null)[];
   total: number;
 }
 
-export interface LeagueDetailData {
+export interface LeagueDetailView {
   id: string;
   name: string;
   statusLabel: string;
@@ -33,26 +27,15 @@ export interface LeagueDetailData {
   periodLabel: string;
   aboutText: string | null;
 
-  /** Posição do atleta logado na liga (null quando não há dado curado pra essa liga). */
-  yourRank: number | null;
-  yourDuoName: string | null;
-  yourPoints: number | null;
-  nextStageLabel: string | null;
-
   stages: LeagueStage[];
-  stagesCompletedLabel: string | null;
+  stagesCompletedLabel: string;
 
   ranking: LeagueRankingRow[];
 
-  prizeTotalLabel: string | null;
   nextStagePriceLabel: string | null;
   nextStageTournamentId: string | null;
 
-  categoriesLabel: string | null;
-  rankingCalcLabel: string | null;
-  priceLabel: string | null;
+  rankingCalcLabel: string;
 
-  organizerName: string;
-  organizerInitials: string;
-  organizerVerified: boolean;
+  organizerName: string | null;
 }

@@ -206,13 +206,13 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
           </og-card>
           <og-card pad="sm" flex="1">
             <!-- mock (fase 2): sem agregado anual de arrecadação exposto pelo repositório da carteira -->
-            <div class="og-kpi-label">Arrecadado (ano)</div>
-            <div class="og-kpi-value sm" style="font-size:26px">R$ 13.040</div>
+            <div class="og-kpi-label">Arrecadado (ano) — em breve</div>
+            <div class="og-kpi-value sm" style="font-size:26px">—</div>
           </og-card>
           <og-card pad="sm" flex="1">
             <!-- mock (fase 2): taxas agregadas não expostas (só o extrato paginado do ledger) -->
-            <div class="og-kpi-label">Taxas da plataforma</div>
-            <div class="og-kpi-value sm" style="font-size:26px">R$ 782</div>
+            <div class="og-kpi-label">Taxas da plataforma — em breve</div>
+            <div class="og-kpi-value sm" style="font-size:26px">—</div>
           </og-card>
           <og-card pad="sm" flex="1">
             <div class="og-kpi-label">Pendente de repasse</div>
@@ -653,7 +653,8 @@ export class FinanceiroComponent {
     try {
       const result = await requestWithdrawal(amount, this.payoutPixKey(), this.payoutPixKeyType());
       this.withdrawForm.controls.amount.setValue('');
-      this.withdrawFeedback.set({ ok: true, message: this.resultMessage(result) });
+      const failedPayout = result.status === 'pending' && result.payoutStatus === 'failed';
+      this.withdrawFeedback.set({ ok: !failedPayout, message: this.resultMessage(result) });
     } catch (err) {
       const message = err instanceof OrganizerWalletError ? err.message : 'Não foi possível solicitar o saque.';
       this.withdrawFeedback.set({ ok: false, message });

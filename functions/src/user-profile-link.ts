@@ -65,9 +65,13 @@ export const linkAuthenticatedUserProfile = onCall(async (request) => {
       }
 
       const userData = userSnap.exists ? userSnap.data() || {} : {};
+      const existingRoles = Array.isArray(userData["roles"]) ?
+        (userData["roles"] as unknown[]).filter((r): r is string => typeof r === "string") :
+        [];
       const nextPayload: Record<string, unknown> = {
         email: normalizedEmail,
-        role: typeof userData["role"] === "string" ? userData["role"] : "athlete",
+        roles: existingRoles.length > 0 ? existingRoles : ["athlete"],
+        role: FieldValue.delete(),
         updatedAt: FieldValue.serverTimestamp(),
       };
 
@@ -92,11 +96,15 @@ export const linkAuthenticatedUserProfile = onCall(async (request) => {
       if (legacyUid && legacySnap?.exists) {
         mergedFromLegacy = true;
         const legacyData = legacySnap.data() || {};
+        const legacyRoles = Array.isArray(legacyData["roles"]) ?
+          (legacyData["roles"] as unknown[]).filter((r): r is string => typeof r === "string") :
+          [];
         const mergedPayload: Record<string, unknown> = {
           ...legacyData,
           ...nextPayload,
           email: normalizedEmail,
-          role: typeof nextPayload["role"] === "string" ? nextPayload["role"] : (legacyData["role"] || "athlete"),
+          roles: Array.from(new Set([...legacyRoles, ...(nextPayload["roles"] as string[])])),
+          role: FieldValue.delete(),
           updatedAt: FieldValue.serverTimestamp(),
         };
         delete mergedPayload["uid"];

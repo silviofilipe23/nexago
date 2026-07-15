@@ -15,7 +15,7 @@ import {
 
 /**
  * Substitui todos os papéis do usuário por um único papel (compatível com clients antigos).
- * Grava claim `roles: [role]` e campo legado `role`.
+ * Grava claim `roles: [role]` (o legado `role` é purgado).
  */
 export const setUserRole = onCall(async (request) => {
   const {uid, role} = request.data || {};
@@ -237,63 +237,4 @@ export const setUserRoles = onCall(async (request) => {
   await getFirestore().doc(`users/${uid}`).set(fp, {merge: true});
   logger.info(`setUserRoles ${uid}: ${JSON.stringify(next)}`);
   return {success: true, roles: next};
-});
-
-/**
- * Migração única: preenche claim `roles` e Firestore a partir do claim `role` legado.
- * Apenas super administrador. Idempotente para usuários que já têm `roles`.
- */
-export const migrateUsersToMultiRole = onCall(async (request) => {
-  const callerUid = request.auth?.uid;
-  if (!callerUid) {
-    throw new HttpsError("unauthenticated", "Usuário não autenticado");
-  }
-  const callerUser = await getAuth().getUser(callerUid);
-  if (!callerIsSuperAdmin(callerUser)) {
-    throw new HttpsError("permission-denied", "Apenas o super administrador pode executar a migração.");
-  }
-
-  const auth = getAuth();
-  const db = getFirestore();
-  let updatedAuth = 0;
-  let updatedFirestore = 0;
-  let nextPageToken: string | undefined;
-
-  do {
-    const listResult = await auth.listUsers(1000, nextPageToken);
-    for (const u of listResult.users) {
-      const claims = (u.customClaims || {}) as Record<string, unknown>;
-
-      if (Array.isArray(claims["roles"]) && (claims["roles"] as unknown[]).length > 0) {
-        continue;
-      }
-
-      const existingRoles = rolesFromClaims(claims);
-      const legacy = claims["role"];
-      const sourceRoles: AppRole[] =
-        existingRoles.length > 0 ?
-          existingRoles :
-          (typeof legacy === "string" && isAllowedRole(legacy) ? [legacy as AppRole] : []);
-
-      if (sourceRoles.length === 0) {
-        continue;
-      }
-
-      const nextClaims = applyRolesToClaims(claims, sourceRoles);
-      await auth.setCustomUserClaims(u.uid, nextClaims);
-      updatedAuth += 1;
-
-      const userDoc = await db.doc(`users/${u.uid}`).get();
-      const data = userDoc.data();
-      const docRoles = data?.roles;
-      if (!userDoc.exists || !Array.isArray(docRoles) || docRoles.length === 0) {
-        await db.doc(`users/${u.uid}`).set(firestoreRolesPayload(sourceRoles), {merge: true});
-        updatedFirestore += 1;
-      }
-    }
-    nextPageToken = listResult.pageToken;
-  } while (nextPageToken);
-
-  logger.info(`migrateUsersToMultiRole: auth=${updatedAuth} firestoreDocs=${updatedFirestore}`);
-  return {success: true, updatedAuth, updatedFirestore};
 });

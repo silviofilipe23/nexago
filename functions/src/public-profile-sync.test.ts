@@ -31,6 +31,19 @@ describe("buildPublicProfileData", () => {
     });
   });
 
+  it("never mirrors the legacy role field", () => {
+    const out = buildPublicProfileData({
+      fullName: "Fulano da Silva",
+      role: "athlete",
+      roles: ["athlete"],
+    });
+
+    assert.deepEqual(out, {
+      fullName: "Fulano da Silva",
+      roles: ["athlete"],
+    });
+  });
+
   it("NEVER copies PII fields", () => {
     const out = buildPublicProfileData({
       fullName: "Fulano",

@@ -114,11 +114,8 @@ export function generateKeywords(
 
 function userDocHasRole(data: Record<string, unknown>, role: string): boolean {
   const roles = data.roles;
-  if (Array.isArray(roles) && roles.length > 0) {
-    return roles.some((r) => typeof r === "string" && r.trim().toLowerCase() === role);
-  }
-  const legacy = data.role;
-  return typeof legacy === "string" && legacy.trim().toLowerCase() === role;
+  return Array.isArray(roles) &&
+    roles.some((r) => typeof r === "string" && r.trim().toLowerCase() === role);
 }
 
 function readString(data: Record<string, unknown>, key: string): string {
@@ -233,7 +230,7 @@ export function userSearchSourceFieldsChanged(
   if (!after) return false;
   if (!before) return true;
 
-  const keys = ["fullName", "name", "nickname", "email", "role", "roles"];
+  const keys = ["fullName", "name", "nickname", "email", "roles"];
   for (const key of keys) {
     const b = before[key];
     const a = after[key];

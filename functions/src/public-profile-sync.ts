@@ -26,7 +26,6 @@ const PUBLIC_PROFILE_FIELDS = [
   "city",
   "state",
   // Papéis e busca
-  "role",
   "roles",
   "hasAthleteRole",
   "hasOrganizerRole",

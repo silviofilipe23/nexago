@@ -204,7 +204,6 @@ export {
   addUserRole,
   removeUserRole,
   setUserRoles,
-  migrateUsersToMultiRole,
 } from "./user-role-ops";
 
 

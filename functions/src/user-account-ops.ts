@@ -164,15 +164,12 @@ function backofficeUserMatchesSearch(
   firestoreFullName: string | null,
 ): boolean {
   const roles = rolesFromClaims(u.customClaims);
-  const legacy = u.customClaims?.["role"];
-  const roleStr = typeof legacy === "string" ? legacy : "";
   const pieces: string[] = [
     u.email ?? "",
     u.displayName ?? "",
     u.phoneNumber ?? "",
     firestoreFullName ?? "",
     u.uid,
-    roleStr,
     ...roles,
     ...roles.map((r) => BO_ROLE_SEARCH_LABEL[r]),
   ];
@@ -192,9 +189,7 @@ async function fetchUserFullName(db: FirebaseFirestore.Firestore, uid: string): 
 
 function backofficeRowFromUserRecord(u: UserRecord, fullName: string | null) {
   const roles = rolesFromClaims(u.customClaims);
-  const legacy = u.customClaims?.["role"];
-  const role =
-    typeof legacy === "string" ? legacy : (roles.length > 0 ? roles[0]! : null);
+  const role = roles.length > 0 ? roles[0]! : null;
   return {
     uid: u.uid,
     email: u.email ?? null,
@@ -479,10 +474,9 @@ export const getUserRole = onCall(async (request) => {
   try {
     const user = await getAuth().getUser(uid);
     const roles = rolesFromClaims(user.customClaims);
-    const legacy = user.customClaims?.role;
     return {
       roles,
-      role: typeof legacy === "string" ? legacy : (roles[0] ?? null),
+      role: roles[0] ?? null,
     };
   } catch (error) {
     logger.error("Erro ao obter role:", error);

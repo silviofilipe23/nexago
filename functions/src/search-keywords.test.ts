@@ -58,12 +58,12 @@ describe("search-keywords", () => {
     assert.ok(fields.keywords.includes("atleta"));
   });
 
-  it("buildUserSearchFields uses legacy role when roles empty", () => {
+  it("buildUserSearchFields ignores legacy role field when roles is absent", () => {
     const fields = buildUserSearchFields({
       fullName: "Ana",
       role: "athlete",
     });
-    assert.equal(fields.hasAthleteRole, true);
+    assert.equal(fields.hasAthleteRole, false);
     assert.equal(fields.hasOrganizerRole, false);
   });
 

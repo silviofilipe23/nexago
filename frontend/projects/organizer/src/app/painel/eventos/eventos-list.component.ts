@@ -1,14 +1,56 @@
-import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { OG_EVENTOS, OG_STATUS_LABEL, OG_STATUS_TONE, type OgEvento } from '../data/mock-data';
+import { AuthService } from '../../auth/auth.service';
+import type { OrganizerLeague } from '../data/league.model';
+import { listMyLeagues } from '../data/leagues-repository';
+import { listInscriptions } from '../data/inscriptions-repository';
+import type { OrganizerTournament, OrganizerTournamentStatus } from '../data/tournament.model';
+import { listMyTournaments } from '../data/tournaments-repository';
 import { OgChartTabsComponent } from '../ui/chart-tabs.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 
 type Tab = 'todos' | 'ativos' | 'encerrados';
+type Bucket = 'ativos' | 'encerrados';
+type Tone = 'orange' | 'green' | 'yellow' | 'red' | 'dim';
 
-/** Lista de ligas e torneios organizados, com progresso de inscrição e arrecadação. */
+/** Torneios com um destes status contam como evento ativo (mesmo critério do Início). */
+const ACTIVE_TOURNAMENT_STATUSES: readonly OrganizerTournamentStatus[] = ['inscricoes', 'andamento'];
+/** Teto de torneios consultados em paralelo pra contar inscritos na listagem — evita N+1 sem limite. */
+const MAX_INSCRITOS_FETCH = 20;
+
+const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
+
+const STATUS_LABEL: Record<OrganizerTournamentStatus, string> = {
+  inscricoes: 'Inscrições abertas',
+  andamento: 'Em andamento',
+  concluido: 'Concluído',
+  cancelado: 'Cancelado',
+};
+
+const STATUS_TONE: Record<OrganizerTournamentStatus, Tone> = {
+  inscricoes: 'orange',
+  andamento: 'green',
+  concluido: 'dim',
+  cancelado: 'red',
+};
+
+interface EventoCard {
+  key: string;
+  kind: 'Liga' | 'Torneio';
+  name: string;
+  metaLabel: string;
+  statusLabel: string;
+  statusTone: Tone;
+  inscritos: number | null;
+  vagas: number | null;
+  etapas: number | null;
+  link: string[] | null;
+  bucket: Bucket;
+}
+
+/** Lista de ligas e torneios organizados, com progresso de inscrição por evento. */
 @Component({
   selector: 'og-eventos-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -21,34 +63,56 @@ type Tab = 'todos' | 'ativos' | 'encerrados';
     <div class="og-content">
       <og-chart-tabs [tabs]="tabs" [active]="tab()" (changed)="tab.set($any($event))" />
 
-      <div class="og-eventos-grid">
-        @for (e of list(); track e.id) {
-          <a class="og-evento-card" [routerLink]="['/painel/eventos', e.id]">
-            <div class="og-evento-card-top">
-              <span class="og-evento-card-icon"><og-icon name="trophy" [size]="19" /></span>
-              <og-pill [tone]="statusTone[e.status]">{{ statusLabel[e.status] }}</og-pill>
+      @if (loading()) {
+        <div class="og-eventos-grid">
+          @for (i of [1, 2, 3]; track i) {
+            <div class="og-evento-card">
+              <div class="og-skeleton-line" style="width:40%"></div>
+              <div class="og-skeleton-line" style="width:80%"></div>
+              <div class="og-skeleton-line" style="width:60%"></div>
             </div>
-            <div>
-              <div class="og-evento-card-name">{{ e.name }}</div>
-              <div class="og-evento-card-meta">{{ e.kind }} · {{ e.sport }} · {{ e.inicio }} – {{ e.fim }}</div>
-            </div>
-            <div>
-              <div class="og-evento-card-progress-row">
-                <span>Inscritos</span>
-                <span class="val">{{ e.inscritos }}/{{ e.vagas }}</span>
+          }
+        </div>
+      } @else {
+        <div class="og-eventos-grid">
+          @for (e of filtered(); track e.key) {
+            <a class="og-evento-card" [class.og-evento-card-disabled]="!e.link" [routerLink]="e.link">
+              <div class="og-evento-card-top">
+                <span class="og-evento-card-icon"><og-icon [name]="e.kind === 'Liga' ? 'flag' : 'trophy'" [size]="19" /></span>
+                <og-pill [tone]="e.statusTone">{{ e.statusLabel }}</og-pill>
               </div>
-              <div class="og-progress"><span [style.width.%]="(e.inscritos / e.vagas) * 100"></span></div>
-            </div>
-            <div class="og-evento-card-footer">
               <div>
-                <div class="og-evento-card-footer-label">Arrecadado</div>
-                <div class="og-evento-card-footer-value">R$ {{ e.receita.toLocaleString('pt-BR') }}</div>
+                <div class="og-evento-card-name">{{ e.name }}</div>
+                <div class="og-evento-card-meta">{{ e.metaLabel }}</div>
               </div>
-              <span class="og-ghost-btn">Gerenciar</span>
-            </div>
-          </a>
-        }
-      </div>
+              @if (e.kind === 'Torneio') {
+                <div>
+                  <div class="og-evento-card-progress-row">
+                    <span>Inscritos</span>
+                    <span class="val">{{ e.inscritos ?? '—' }}{{ e.vagas ? '/' + e.vagas : '' }}</span>
+                  </div>
+                  <div class="og-progress"><span [style.width.%]="progressPct(e)"></span></div>
+                </div>
+              } @else {
+                <div class="og-evento-card-progress-row">
+                  <span>Etapas</span>
+                  <span class="val">{{ e.etapas }}</span>
+                </div>
+              }
+              <div class="og-evento-card-footer">
+                <div>
+                  <div class="og-evento-card-footer-label">Arrecadado</div>
+                  <!-- mock (fase 2): arrecadação por evento fica no Financeiro (Task O7); sem dado real por evento ainda -->
+                  <div class="og-evento-card-footer-value">—</div>
+                </div>
+                <span class="og-ghost-btn">{{ e.link ? 'Gerenciar' : 'Sem etapa iniciada' }}</span>
+              </div>
+            </a>
+          } @empty {
+            <p class="og-empty">Nenhum torneio ou liga ainda — crie pelo app nexaGO</p>
+          }
+        </div>
+      }
     </div>
   `,
   styles: `
@@ -67,6 +131,10 @@ type Tab = 'todos' | 'ativos' | 'encerrados';
       gap: 12px;
       text-decoration: none;
       color: inherit;
+    }
+    .og-evento-card-disabled {
+      opacity: 0.6;
+      cursor: default;
     }
     .og-evento-card-top {
       display: flex;
@@ -131,18 +199,129 @@ type Tab = 'todos' | 'ativos' | 'encerrados';
       color: var(--nx-text);
       margin-top: 2px;
     }
+    .og-empty {
+      grid-column: 1 / -1;
+      font-family: var(--nx-font-ui);
+      font-size: 13px;
+      color: var(--nx-text-mute);
+      padding: 8px 0;
+      margin: 0;
+    }
+    .og-skeleton-line {
+      height: 12px;
+      border-radius: 4px;
+      background: var(--nx-surface-1);
+      margin: 8px 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .og-skeleton-line::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, var(--nx-surface-2), transparent);
+      animation: og-shimmer 1.2s infinite;
+    }
+    @keyframes og-shimmer {
+      from {
+        transform: translateX(-100%);
+      }
+      to {
+        transform: translateX(100%);
+      }
+    }
   `,
 })
 export class EventosListComponent {
+  private readonly auth = inject(AuthService);
+
   protected readonly tabs = ['todos', 'ativos', 'encerrados'];
   protected readonly tab = signal<Tab>('todos');
-  protected readonly statusTone = OG_STATUS_TONE;
-  protected readonly statusLabel = OG_STATUS_LABEL;
+  protected readonly loading = signal(true);
 
-  protected readonly list = computed<OgEvento[]>(() => {
-    const t = this.tab();
-    if (t === 'ativos') return OG_EVENTOS.filter((e) => e.status !== 'concluido');
-    if (t === 'encerrados') return OG_EVENTOS.filter((e) => e.status === 'concluido');
-    return OG_EVENTOS;
+  protected readonly tournaments = signal<OrganizerTournament[]>([]);
+  protected readonly leagues = signal<OrganizerLeague[]>([]);
+  protected readonly inscritosPorTorneio = signal<Map<string, number>>(new Map());
+
+  protected readonly cards = computed<EventoCard[]>(() => {
+    const inscritosMap = this.inscritosPorTorneio();
+
+    const torneios: EventoCard[] = this.tournaments().map((t) => ({
+      key: `t:${t.id}`,
+      kind: 'Torneio',
+      name: t.name,
+      metaLabel: `Torneio · ${t.sportLabel} · ${this.dateRangeLabel(t.startAt, t.endAt)}`,
+      statusLabel: STATUS_LABEL[t.status],
+      statusTone: STATUS_TONE[t.status],
+      inscritos: inscritosMap.get(t.id) ?? null,
+      vagas: t.capacity,
+      etapas: null,
+      link: ['/painel/eventos', t.id],
+      bucket: t.status === 'concluido' || t.status === 'cancelado' ? 'encerrados' : 'ativos',
+    }));
+
+    // Ligas não têm status de encerramento no modelo atual — contam sempre como ativas nas abas.
+    const ligas: EventoCard[] = this.leagues().map((l) => {
+      const stageComTorneio = l.stages.find((s) => s.tournamentId);
+      return {
+        key: `l:${l.id}`,
+        kind: 'Liga',
+        name: l.name,
+        metaLabel: `Liga · ${l.sportLabel}${l.seasonLabel ? ' · ' + l.seasonLabel : ''}`,
+        statusLabel: `${l.stages.length} etapa${l.stages.length === 1 ? '' : 's'}`,
+        statusTone: 'dim',
+        inscritos: null,
+        vagas: null,
+        etapas: l.stages.length,
+        link: stageComTorneio?.tournamentId ? ['/painel/eventos', stageComTorneio.tournamentId] : null,
+        bucket: 'ativos',
+      };
+    });
+
+    return [...torneios, ...ligas];
   });
+
+  protected readonly filtered = computed<EventoCard[]>(() => {
+    const t = this.tab();
+    if (t === 'todos') return this.cards();
+    return this.cards().filter((c) => c.bucket === t);
+  });
+
+  constructor() {
+    const uid = this.auth.user()?.uid;
+    if (!uid) {
+      this.loading.set(false);
+      return;
+    }
+    void this.load(uid);
+  }
+
+  private async load(uid: string): Promise<void> {
+    try {
+      const [tournaments, leagues] = await Promise.all([listMyTournaments(uid), listMyLeagues(uid)]);
+      this.tournaments.set(tournaments);
+      this.leagues.set(leagues);
+
+      const active = tournaments.filter((t) => ACTIVE_TOURNAMENT_STATUSES.includes(t.status)).slice(0, MAX_INSCRITOS_FETCH);
+      const rest = tournaments.filter((t) => !active.includes(t)).slice(0, Math.max(0, MAX_INSCRITOS_FETCH - active.length));
+      const toCount = [...active, ...rest];
+      const lists = await Promise.all(toCount.map((t) => listInscriptions(t.id)));
+      const map = new Map<string, number>();
+      toCount.forEach((t, i) => map.set(t.id, lists[i]!.length));
+      this.inscritosPorTorneio.set(map);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  protected dateRangeLabel(start: Date | null, end: Date | null): string {
+    if (!start) return 'Data a definir';
+    if (!end || end.getTime() === start.getTime()) return SHORT_DATE.format(start);
+    return `${SHORT_DATE.format(start)} – ${SHORT_DATE.format(end)}`;
+  }
+
+  protected progressPct(e: EventoCard): number {
+    if (!e.vagas || e.inscritos == null) return 0;
+    return Math.min(100, (e.inscritos / e.vagas) * 100);
+  }
 }

@@ -16,9 +16,11 @@
     "build:arena": "ng build arena --configuration production",
     "start:coach": "ng serve coach",
     "build:coach": "ng build coach --configuration production",
+    "start:organizer": "ng serve organizer",
+    "build:organizer": "ng build organizer --configuration production",
     "start:vegeton": "npx --yes serve projects/vegeton -l 4321",
     "build:vegeton": "rm -rf ../dist/vegeton && mkdir -p ../dist/vegeton && cp -R projects/vegeton/. ../dist/vegeton/",
-    "build:all": "ng run backoffice:build:production && npm --prefix projects/site run build && ng run arena:build:production && ng run coach:build:production && npm run build:vegeton",
+    "build:all": "ng run backoffice:build:production && npm --prefix projects/site run build && ng run arena:build:production && ng run coach:build:production && ng run organizer:build:production && npm run build:vegeton",
     "watch": "ng build backoffice --watch --configuration development",
     "test": "ng test backoffice",
     "test:backoffice": "ng test backoffice"

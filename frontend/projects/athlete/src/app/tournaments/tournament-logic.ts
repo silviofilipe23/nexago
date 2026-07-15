@@ -1,3 +1,4 @@
+import type { BracketMatch, BracketMatchStatus, BracketRound, CategoryBracketData, CategoryGroup } from './bracket-results.models';
 import type { DiscoveryLeague, DiscoveryTournament, TournamentGenderCat, TournamentListingStatus } from './tournament-discovery.models';
 import type { BracketPreviewState, TournamentDetailCategory, TournamentDetailView } from './tournament-detail.models';
 import type { LeagueRaw, MatchRaw, TournamentCategoryRaw, TournamentRaw } from './tournament-repository';
@@ -176,7 +177,7 @@ export function buildTournamentDetailView(raw: TournamentRaw, listingStatus: Tou
 
 // --- Chaves (mata-mata) ---
 
-export interface BracketRound {
+export interface MatchRoundGroup {
   round: number;
   matches: MatchRaw[];
 }
@@ -184,7 +185,7 @@ export interface BracketRound {
 /** Agrupa partidas de mata-mata por `round`, ordenadas por `matchNumber` dentro de cada rodada
  *  — espelha o agrupamento de `tournament_matches_logic.dart` (sem WB/LB, só eliminação
  *  simples nesta rodada; dupla eliminação fica pra uma implementação futura da grade WB/LB). */
-export function buildSingleEliminationRounds(matches: readonly MatchRaw[]): BracketRound[] {
+export function buildSingleEliminationRounds(matches: readonly MatchRaw[]): MatchRoundGroup[] {
   const byRound = new Map<number, MatchRaw[]>();
   for (const m of matches) {
     if (m.isGroupMatch) continue;
@@ -252,4 +253,115 @@ export function buildGroupStandings(matches: readonly MatchRaw[], poolId: string
 
 export function distinctPoolIds(matches: readonly MatchRaw[]): string[] {
   return [...new Set(matches.map((m) => m.poolId).filter((p): p is string => p != null))];
+}
+
+// --- Modelo de exibição de chave/grupos (tela Chaves e resultados) ---
+
+/** Espelha `TournamentMatchStatus` (Dart) — canônico é PascalCase, mas aceita legado
+ *  minúsculo/underscore. Sem times definidos ainda = "a definir" (`tbd`), independente do status. */
+function bracketMatchStatus(m: MatchRaw): BracketMatchStatus {
+  if (!m.teamAId || !m.teamBId) return 'tbd';
+  const key = (m.status ?? '').trim().toLowerCase().replace(/_/g, ' ');
+  if (key === 'completed' || m.winnerId) return 'done';
+  if (key === 'in progress') return 'live';
+  if (key === 'scheduled') return 'scheduled';
+  return 'tbd';
+}
+
+function parseScoreOrNull(result: string): number | null {
+  const n = Number(result.trim());
+  return result.trim().length > 0 && Number.isFinite(n) ? n : null;
+}
+
+function buildBracketMatch(m: MatchRaw): BracketMatch {
+  const status = bracketMatchStatus(m);
+  return {
+    id: m.matchId,
+    status,
+    scheduledLabel: status === 'scheduled' && m.scheduleTime ? m.scheduleTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null,
+    sideA: {
+      duo: m.teamAId ? { id: m.teamAId, name: m.teamAName ?? 'Equipe' } : null,
+      score: parseScoreOrNull(m.resultA),
+      winner: m.winnerId != null && m.winnerId === m.teamAId,
+    },
+    sideB: {
+      duo: m.teamBId ? { id: m.teamBId, name: m.teamBName ?? 'Equipe' } : null,
+      score: parseScoreOrNull(m.resultB),
+      winner: m.winnerId != null && m.winnerId === m.teamBId,
+    },
+  };
+}
+
+function knockoutRoundLabel(distanceFromFinal: number): string {
+  switch (distanceFromFinal) {
+    case 0:
+      return 'Final';
+    case 1:
+      return 'Semifinal';
+    case 2:
+      return 'Quartas de final';
+    case 3:
+      return 'Oitavas de final';
+    case 4:
+      return 'Dezesseisavos de final';
+    default:
+      return `Rodada ${distanceFromFinal + 1}`;
+  }
+}
+
+/** Rodadas de mata-mata com rótulo (Final/Semifinal/Quartas/...) derivado da distância até a
+ *  última rodada — o doc de partida não guarda um nome de rodada. */
+export function buildBracketRounds(matches: readonly MatchRaw[]): BracketRound[] {
+  const rounds = buildSingleEliminationRounds(matches);
+  return rounds.map((r, i) => ({
+    id: `r${r.round}`,
+    label: knockoutRoundLabel(rounds.length - 1 - i),
+    matches: r.matches.map(buildBracketMatch),
+  }));
+}
+
+/** Letra do grupo derivada só da posição (A, B, C…) — mais previsível pro atleta do que o
+ *  `poolId` bruto do Firestore, cujo formato não é padronizado. */
+export function buildCategoryGroups(matches: readonly MatchRaw[]): CategoryGroup[] {
+  return distinctPoolIds(matches)
+    .sort()
+    .map((poolId, i) => ({
+      id: poolId,
+      letter: String.fromCharCode(65 + i),
+      standings: buildGroupStandings(matches, poolId).map((r, idx) => ({
+        rank: idx + 1,
+        duo: { id: r.teamId, name: r.teamName },
+        wins: r.wins,
+        losses: r.losses,
+        setsFor: r.setsFor,
+        setsAgainst: r.setsAgainst,
+      })),
+    }));
+}
+
+/** Monta o modelo de exibição completo de uma categoria a partir das partidas reais. Dupla
+ *  eliminação fica `unsupported` nesta rodada (grade WB/LB não implementada — ver
+ *  `isDoubleEliminationBracketFormat`); os demais formatos combinam grupos (se houver) com o
+ *  mata-mata (se já gerado), sem inventar placeholders "a definir" além dos que os próprios
+ *  matches já representam via times ainda não definidos. */
+export function buildCategoryBracketData(categoryId: string, categoryName: string, bracketFormatRaw: string, matches: readonly MatchRaw[]): CategoryBracketData {
+  if (isDoubleEliminationBracketFormat(bracketFormatRaw)) {
+    return {
+      categoryId,
+      categoryName,
+      format: 'unsupported',
+      formatSummaryLabel: bracketFormatLabel(bracketFormatRaw),
+      groups: [],
+      bracketRounds: [],
+    };
+  }
+  const hasGroups = bracketFormatHasGroupsPhase(bracketFormatRaw);
+  return {
+    categoryId,
+    categoryName,
+    format: hasGroups ? 'grupos' : 'chave',
+    formatSummaryLabel: bracketFormatLabel(bracketFormatRaw) || 'Chave ainda não gerada',
+    groups: hasGroups ? buildCategoryGroups(matches) : [],
+    bracketRounds: buildBracketRounds(matches),
+  };
 }

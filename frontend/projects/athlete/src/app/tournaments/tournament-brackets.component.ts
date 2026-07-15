@@ -1,13 +1,23 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { getApps, initializeApp } from 'firebase/app';
+import { getFirestore, type Firestore } from 'firebase/firestore';
+import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
-import { getCategoryBracketData } from './bracket-results.mock';
 import type { BracketMatch, CategoryBracketData } from './bracket-results.models';
-import { getTournamentDetailExtra, type TournamentCategoryOffer } from './tournament-detail.mock';
-import { MOCK_DISCOVERY_TOURNAMENTS } from './tournament-discovery.mock';
+import type { TournamentDetailCategory } from './tournament-detail.models';
 import type { DiscoveryTournament } from './tournament-discovery.models';
+import { buildCategoryBracketData, buildDiscoveryTournament, buildTournamentDetailCategories } from './tournament-logic';
+import { fetchMatchesByCategory, fetchTournamentById, type TournamentCategoryRaw } from './tournament-repository';
+
+function createFirestore(): Firestore | null {
+  const cfg = environment.firebase;
+  if (cfg == null || (cfg.apiKey ?? '').length === 0) return null;
+  const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+  return getFirestore(app);
+}
 
 function titleCase(input: string): string {
   return input
@@ -57,39 +67,84 @@ export class TournamentBracketsComponent {
 
   protected readonly tournamentId = computed(() => this.route.snapshot.paramMap.get('id') ?? '');
 
-  protected readonly listing = computed<DiscoveryTournament | null>(() => {
-    const id = this.tournamentId();
-    return MOCK_DISCOVERY_TOURNAMENTS.find((t) => t.id === id) ?? null;
-  });
+  protected readonly loading = signal(true);
+  protected readonly listing = signal<DiscoveryTournament | null>(null);
+  protected readonly categories = signal<TournamentDetailCategory[]>([]);
+  private categoriesRaw: readonly TournamentCategoryRaw[] = [];
 
-  protected readonly categories = computed<TournamentCategoryOffer[]>(() => {
-    const listing = this.listing();
-    if (!listing) return [];
-    return getTournamentDetailExtra(listing.id, listing).categories;
-  });
+  protected readonly selectedCategoryId = signal<string | null>(this.route.snapshot.queryParamMap.get('categoria'));
 
-  protected readonly selectedCategoryId = signal<string | null>(
-    this.route.snapshot.queryParamMap.get('categoria'),
-  );
-
-  protected readonly selectedCategory = computed<TournamentCategoryOffer | null>(() => {
+  protected readonly selectedCategory = computed<TournamentDetailCategory | null>(() => {
     const cats = this.categories();
     if (cats.length === 0) return null;
     const id = this.selectedCategoryId();
     return cats.find((c) => c.id === id) ?? cats[0] ?? null;
   });
 
-  protected readonly bracketData = computed<CategoryBracketData | null>(() => {
-    const cat = this.selectedCategory();
-    const tId = this.tournamentId();
-    if (!cat || !tId) return null;
-    return getCategoryBracketData(tId, cat.id, cat.name);
-  });
+  protected readonly loadingBracket = signal(false);
+  protected readonly bracketData = signal<CategoryBracketData | null>(null);
 
   protected readonly initialsOf = initialsOf;
 
+  constructor() {
+    void this.loadTournament();
+  }
+
+  private async loadTournament(): Promise<void> {
+    const id = this.tournamentId();
+    if (!id) {
+      this.loading.set(false);
+      return;
+    }
+    this.loading.set(true);
+    try {
+      const db = createFirestore();
+      if (!db) throw new Error('Firebase não configurado');
+      const raw = await fetchTournamentById(db, id);
+      if (!raw) {
+        this.listing.set(null);
+        return;
+      }
+      this.listing.set(buildDiscoveryTournament(raw, false));
+      this.categoriesRaw = raw.categories;
+      this.categories.set(buildTournamentDetailCategories(raw.categories));
+      const initial = this.selectedCategory();
+      if (initial) {
+        this.selectedCategoryId.set(initial.id);
+        void this.loadBracket(initial.id);
+      }
+    } catch {
+      this.listing.set(null);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
   protected selectCategory(id: string): void {
     this.selectedCategoryId.set(id);
+    void this.loadBracket(id);
+  }
+
+  private async loadBracket(categoryId: string): Promise<void> {
+    const tournamentId = this.tournamentId();
+    const catRaw = this.categoriesRaw.find((c) => c.categoryId === categoryId);
+    const catDisplay = this.categories().find((c) => c.id === categoryId);
+    if (!tournamentId || !catRaw) {
+      this.bracketData.set(null);
+      return;
+    }
+    this.loadingBracket.set(true);
+    try {
+      const db = createFirestore();
+      const projectId = environment.firebase.projectId;
+      if (!db || !projectId) throw new Error('Firebase não configurado');
+      const matches = await fetchMatchesByCategory(db, projectId, tournamentId, categoryId);
+      this.bracketData.set(buildCategoryBracketData(categoryId, catDisplay?.name ?? catRaw.categoryName, catRaw.bracketFormat ?? '', matches));
+    } catch {
+      this.bracketData.set(null);
+    } finally {
+      this.loadingBracket.set(false);
+    }
   }
 
   protected matchPairs(matches: BracketMatch[]): BracketMatch[][] {
@@ -98,10 +153,6 @@ export class TournamentBracketsComponent {
       pairs.push(matches.slice(i, i + 2));
     }
     return pairs;
-  }
-
-  protected matchHasViewer(m: BracketMatch): boolean {
-    return Boolean(m.sideA.duo?.isViewer || m.sideB.duo?.isViewer);
   }
 
   protected exportBracket(): void {

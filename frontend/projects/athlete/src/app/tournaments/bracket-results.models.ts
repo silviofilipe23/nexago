@@ -1,9 +1,9 @@
-export type CategoryBracketFormat = 'chave' | 'grupos';
+/** `unsupported` = dupla eliminação (grade WB/LB não implementada nesta rodada). */
+export type CategoryBracketFormat = 'chave' | 'grupos' | 'unsupported';
 
 export interface BracketDuo {
   id: string;
   name: string;
-  isViewer: boolean;
 }
 
 export interface GroupStanding {
@@ -13,8 +13,6 @@ export interface GroupStanding {
   losses: number;
   setsFor: number;
   setsAgainst: number;
-  points: number;
-  qualifies: boolean;
 }
 
 export interface CategoryGroup {
@@ -52,12 +50,8 @@ export interface CategoryBracketData {
   format: CategoryBracketFormat;
   formatSummaryLabel: string;
 
-  /** Formato `grupos`. */
+  /** Preenchido quando a categoria tem fase de grupos. */
   groups: CategoryGroup[];
-  groupsQualifyNote: string | null;
-  /** Chave eliminatória prévia, preenchida conforme os grupos terminam (formato `grupos`). */
-  eliminationPreviewRounds: BracketRound[];
-
-  /** Formato `chave`. */
+  /** Mata-mata (fase única, ou pós-grupos quando a categoria tem grupos + mata-mata). */
   bracketRounds: BracketRound[];
 }

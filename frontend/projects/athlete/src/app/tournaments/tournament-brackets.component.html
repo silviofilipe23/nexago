@@ -1,5 +1,9 @@
 <app-at-panel-shell [userName]="accountLabel()">
-  @if (listing(); as t) {
+  @if (loading()) {
+    <div class="bx-body">
+      <div class="bx-notfound"><p class="bx-empty-title">Carregando…</p></div>
+    </div>
+  } @else if (listing(); as t) {
     <div class="bx-body">
       <div class="bx-header">
         <div>
@@ -31,88 +35,78 @@
           }
         </div>
 
-        @if (bracketData(); as data) {
-          @if (data.format === 'grupos') {
-            <section class="bx-card">
-              <span class="bx-card-kicker">{{ data.formatSummaryLabel }}</span>
-              <h2 class="bx-card-title">Fase de grupos</h2>
-
-              <div class="bx-groups-grid">
-                @for (g of data.groups; track g.id) {
-                  <div class="bx-group">
-                    <div class="bx-group-header">
-                      <span class="bx-group-letter">{{ g.letter }}</span>
-                      <h3 class="bx-group-name">Grupo {{ g.letter }}</h3>
-                      <span class="bx-group-count">{{ g.standings.length }} duplas</span>
-                    </div>
-                    <table class="bx-standings-table">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Dupla</th>
-                          <th>V</th>
-                          <th>D</th>
-                          <th>Sets</th>
-                          <th>Pts</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (s of g.standings; track s.rank) {
-                          <tr [class.bx-standing-row--qualifies]="s.qualifies">
-                            <td>{{ s.rank }}</td>
-                            <td class="bx-standing-duo">
-                              {{ s.duo.name }}
-                              @if (s.duo.isViewer) {
-                                <span class="bx-dim">· você</span>
-                              }
-                            </td>
-                            <td>{{ s.wins }}</td>
-                            <td>{{ s.losses }}</td>
-                            <td>{{ s.setsFor }}–{{ s.setsAgainst }}</td>
-                            <td class="bx-standing-pts">{{ s.points }}</td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                }
-              </div>
-
-              @if (data.groupsQualifyNote) {
-                <div class="bx-qualify-note">
-                  <span class="bx-qualify-dot" aria-hidden="true"></span>
-                  {{ data.groupsQualifyNote }}
-                </div>
-              }
-            </section>
-
-            <section class="bx-card">
-              <span class="bx-card-kicker">Preenchida conforme os grupos terminam</span>
-              <h2 class="bx-card-title">Eliminatória (prévia)</h2>
-              <ng-container
-                [ngTemplateOutlet]="roundsTpl"
-                [ngTemplateOutletContext]="{ rounds: data.eliminationPreviewRounds }"
-              ></ng-container>
-            </section>
-          } @else if (data.bracketRounds.length > 0) {
-            <section class="bx-card">
-              <div class="bx-bracket-header">
-                <div>
-                  <span class="bx-card-kicker">{{ data.formatSummaryLabel }}</span>
-                  <h2 class="bx-card-title">Chave eliminatória</h2>
-                </div>
-                <button type="button" class="bx-export-link" (click)="exportBracket()">Exportar chave</button>
-              </div>
-              <ng-container
-                [ngTemplateOutlet]="roundsTpl"
-                [ngTemplateOutletContext]="{ rounds: data.bracketRounds }"
-              ></ng-container>
-            </section>
-          } @else {
+        @if (loadingBracket()) {
+          <div class="bx-notfound">
+            <p class="bx-empty-title">Carregando chave…</p>
+          </div>
+        } @else if (bracketData(); as data) {
+          @if (data.format === 'unsupported') {
             <section class="bx-card">
               <p class="bx-empty-title">{{ data.formatSummaryLabel }}</p>
-              <p class="bx-body-text">A chave desta categoria ainda não foi publicada pelo organizador.</p>
+              <p class="bx-body-text">Chave de dupla eliminação ainda não disponível no site — acompanhe pelo app.</p>
             </section>
+          } @else {
+            @if (data.format === 'grupos' && data.groups.length > 0) {
+              <section class="bx-card">
+                <span class="bx-card-kicker">{{ data.formatSummaryLabel }}</span>
+                <h2 class="bx-card-title">Fase de grupos</h2>
+
+                <div class="bx-groups-grid">
+                  @for (g of data.groups; track g.id) {
+                    <div class="bx-group">
+                      <div class="bx-group-header">
+                        <span class="bx-group-letter">{{ g.letter }}</span>
+                        <h3 class="bx-group-name">Grupo {{ g.letter }}</h3>
+                        <span class="bx-group-count">{{ g.standings.length }} duplas</span>
+                      </div>
+                      <table class="bx-standings-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Dupla</th>
+                            <th>V</th>
+                            <th>D</th>
+                            <th>Sets</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (s of g.standings; track s.rank) {
+                            <tr>
+                              <td>{{ s.rank }}</td>
+                              <td class="bx-standing-duo">{{ s.duo.name }}</td>
+                              <td>{{ s.wins }}</td>
+                              <td>{{ s.losses }}</td>
+                              <td>{{ s.setsFor }}–{{ s.setsAgainst }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  }
+                </div>
+              </section>
+            }
+
+            @if (data.bracketRounds.length > 0) {
+              <section class="bx-card">
+                <div class="bx-bracket-header">
+                  <div>
+                    <span class="bx-card-kicker">{{ data.formatSummaryLabel }}</span>
+                    <h2 class="bx-card-title">Chave eliminatória</h2>
+                  </div>
+                  <button type="button" class="bx-export-link" (click)="exportBracket()">Exportar chave</button>
+                </div>
+                <ng-container
+                  [ngTemplateOutlet]="roundsTpl"
+                  [ngTemplateOutletContext]="{ rounds: data.bracketRounds }"
+                ></ng-container>
+              </section>
+            } @else if (data.format !== 'grupos' || data.groups.length === 0) {
+              <section class="bx-card">
+                <p class="bx-empty-title">{{ data.formatSummaryLabel }}</p>
+                <p class="bx-body-text">A chave desta categoria ainda não foi publicada pelo organizador.</p>
+              </section>
+            }
           }
         }
       }
@@ -134,7 +128,7 @@
           @for (pair of matchPairs(round.matches); track $index) {
             <div class="bx-pair" [class.bx-pair--connector]="!isLast && pair.length === 2">
               @for (m of pair; track m.id) {
-                <div class="bx-match" [class.bx-match--viewer]="matchHasViewer(m)" [class.bx-match--live]="m.status === 'live'">
+                <div class="bx-match" [class.bx-match--live]="m.status === 'live'">
                   @if (m.status === 'live') {
                     <span class="bx-live-badge"><span class="bx-live-dot" aria-hidden="true"></span>AO VIVO</span>
                   } @else if (m.scheduledLabel) {
@@ -145,9 +139,6 @@
                     <span class="bx-match-name">
                       @if (m.sideA.duo) {
                         {{ m.sideA.duo.name }}
-                        @if (m.sideA.duo.isViewer) {
-                          <span class="bx-dim">· você</span>
-                        }
                       } @else {
                         <span class="bx-dim">A definir</span>
                       }
@@ -161,9 +152,6 @@
                     <span class="bx-match-name">
                       @if (m.sideB.duo) {
                         {{ m.sideB.duo.name }}
-                        @if (m.sideB.duo.isViewer) {
-                          <span class="bx-dim">· você</span>
-                        }
                       } @else {
                         <span class="bx-dim">A definir</span>
                       }

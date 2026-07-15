@@ -1,6 +1,9 @@
 import {
   bracketFormatHasGroupsPhase,
   bracketFormatLabel,
+  buildBracketRounds,
+  buildCategoryBracketData,
+  buildCategoryGroups,
   buildDiscoveryLeague,
   buildDiscoveryTournament,
   buildGroupStandings,
@@ -227,5 +230,59 @@ describe('buildGroupStandings / distinctPoolIds', () => {
   it('lists distinct pool ids', () => {
     const matches: MatchRaw[] = [{ ...baseMatch, matchId: 'm1', poolId: 'A' }, { ...baseMatch, matchId: 'm2', poolId: 'B' }, { ...baseMatch, matchId: 'm3', poolId: 'A' }];
     expect(distinctPoolIds(matches)).toEqual(['A', 'B']);
+  });
+});
+
+describe('buildBracketRounds / buildCategoryGroups / buildCategoryBracketData', () => {
+  const knockoutMatch: MatchRaw = {
+    matchId: 'm1', categoryId: 'c1', matchType: 'knockout', round: 2, matchNumber: 1, poolId: null, isGroupMatch: false,
+    teamAId: 'ta', teamBId: 'tb', teamAName: 'Time A', teamBName: 'Time B', winnerId: 'ta', resultA: '2', resultB: '1',
+    status: 'Completed', scheduleTime: null,
+  };
+  const semiMatch: MatchRaw = { ...knockoutMatch, matchId: 'm2', round: 1, matchNumber: 1, winnerId: null, resultA: '', resultB: '', status: 'In Progress' };
+  const tbdMatch: MatchRaw = { ...knockoutMatch, matchId: 'm3', round: 1, matchNumber: 2, teamAId: null, teamBId: null, teamAName: null, teamBName: null, winnerId: null, resultA: '', resultB: '', status: 'Scheduled' };
+
+  it('labels the last round Final and the previous one Semifinal, mapping status/score/winner', () => {
+    const rounds = buildBracketRounds([knockoutMatch, semiMatch, tbdMatch]);
+    expect(rounds.map((r) => r.label)).toEqual(['Semifinal', 'Final']);
+    const final = rounds[1]!.matches[0]!;
+    expect(final.status).toBe('done');
+    expect(final.sideA).toEqual({ duo: { id: 'ta', name: 'Time A' }, score: 2, winner: true });
+    expect(final.sideB.winner).toBe(false);
+    const semi = rounds[0]!.matches.find((m) => m.id === 'm2')!;
+    expect(semi.status).toBe('live');
+    const tbd = rounds[0]!.matches.find((m) => m.id === 'm3')!;
+    expect(tbd.status).toBe('tbd');
+    expect(tbd.sideA.duo).toBeNull();
+  });
+
+  it('groups standings by pool with an A/B/C letter derived from position', () => {
+    const groupMatch: MatchRaw = {
+      matchId: 'g1', categoryId: 'c1', matchType: 'group', round: 1, matchNumber: 1, poolId: 'grupo-x', isGroupMatch: true,
+      teamAId: 't1', teamBId: 't2', teamAName: 'Dupla 1', teamBName: 'Dupla 2', winnerId: 't1', resultA: '2', resultB: '0',
+      status: 'Completed', scheduleTime: null,
+    };
+    const groups = buildCategoryGroups([groupMatch]);
+    expect(groups.length).toBe(1);
+    expect(groups[0]!.letter).toBe('A');
+    expect(groups[0]!.standings[0]!.duo).toEqual({ id: 't1', name: 'Dupla 1' });
+  });
+
+  it('marks double-elimination categories as unsupported without building rounds', () => {
+    const data = buildCategoryBracketData('c1', 'Aberto', 'Double Elimination', [knockoutMatch]);
+    expect(data.format).toBe('unsupported');
+    expect(data.bracketRounds).toEqual([]);
+  });
+
+  it('builds groups + knockout for a pool-play-then-elimination category', () => {
+    const groupMatch: MatchRaw = {
+      matchId: 'g1', categoryId: 'c1', matchType: 'group', round: 1, matchNumber: 1, poolId: 'A', isGroupMatch: true,
+      teamAId: 't1', teamBId: 't2', teamAName: 'Dupla 1', teamBName: 'Dupla 2', winnerId: 't1', resultA: '2', resultB: '0',
+      status: 'Completed', scheduleTime: null,
+    };
+    const data = buildCategoryBracketData('c1', 'Aberto', 'Pool Play + SE', [groupMatch, knockoutMatch]);
+    expect(data.format).toBe('grupos');
+    expect(data.groups.length).toBe(1);
+    expect(data.bracketRounds.length).toBe(1);
   });
 });

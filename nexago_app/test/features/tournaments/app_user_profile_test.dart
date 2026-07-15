@@ -22,52 +22,34 @@ void main() {
     expect(safeMatchTeamDescription('Thiago / André'), 'Thiago / André');
   });
 
-  test('appUserHasAthleteRole prioritizes roles array over legacy role field', () {
+  test('appUserHasAthleteRole reads only the roles array', () {
     expect(
       appUserHasAthleteRole(
-        const AppUserProfile(uid: '1', role: 'athlete'),
+        const AppUserProfile(uid: '2', roles: ['arena', 'athlete']),
       ),
       isTrue,
     );
     expect(
       appUserHasAthleteRole(
-        const AppUserProfile(
-          uid: '2',
-          role: 'arena',
-          roles: ['arena', 'athlete'],
-        ),
+        const AppUserProfile(uid: '5', roles: ['athlete', 'organizer']),
       ),
       isTrue,
     );
     expect(
       appUserHasAthleteRole(
-        const AppUserProfile(
-          uid: '5',
-          role: 'organizer',
-          roles: ['athlete', 'organizer'],
-        ),
-      ),
-      isTrue,
-    );
-    expect(
-      appUserHasAthleteRole(
-        const AppUserProfile(uid: '3', role: 'arena', roles: ['arena']),
+        const AppUserProfile(uid: '3', roles: ['arena']),
       ),
       isFalse,
     );
     expect(
       appUserHasAthleteRole(
-        const AppUserProfile(
-          uid: '6',
-          role: 'organizer',
-          roles: ['organizer'],
-        ),
+        const AppUserProfile(uid: '6', roles: ['organizer']),
       ),
       isFalse,
     );
     expect(
       appUserHasAthleteRole(
-        const AppUserProfile(uid: '4', role: 'athlete', roles: ['arena']),
+        const AppUserProfile(uid: '4', roles: []),
       ),
       isFalse,
     );

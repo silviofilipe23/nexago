@@ -13,7 +13,6 @@ class AppUserProfile {
     this.gender,
     this.birthDate,
     this.profilePhotoUrl,
-    this.role,
     this.partnerInviteStatus,
     this.invitedByUid,
     this.invitedAt,
@@ -33,7 +32,6 @@ class AppUserProfile {
   final String? gender;
   final String? birthDate;
   final String? profilePhotoUrl;
-  final String? role;
   final String? partnerInviteStatus;
   final String? invitedByUid;
   final DateTime? invitedAt;
@@ -79,7 +77,6 @@ class AppUserProfile {
       gender: _str(data['gender']),
       birthDate: _str(data['birthDate']),
       profilePhotoUrl: _str(data['profilePhotoUrl']) ?? _str(data['avatarUrl']),
-      role: _str(data['role']),
       partnerInviteStatus: _str(data['partnerInviteStatus']),
       invitedByUid: _str(data['invitedByUid']),
       invitedAt: _timestamp(data['invitedAt']),
@@ -117,7 +114,7 @@ class AppUserProfile {
 
 /// Usuário elegível como parceiro de torneio (papel atleta no perfil Firestore).
 bool appUserHasAthleteRole(AppUserProfile user) {
-  return userDocHasAthleteRole(roles: user.roles, legacyRole: user.role);
+  return userDocHasAthleteRole(roles: user.roles);
 }
 
 /// Evita exibir IDs técnicos (Firestore/Auth) como nome de atleta.

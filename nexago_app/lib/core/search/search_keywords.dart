@@ -99,13 +99,8 @@ class UserSearchFields {
 
 bool _userDocHasRole(Map<String, dynamic> data, String role) {
   final roles = data['roles'];
-  if (roles is List && roles.isNotEmpty) {
-    return roles.any(
-      (r) => r is String && r.trim().toLowerCase() == role,
-    );
-  }
-  final legacy = data['role'];
-  return legacy is String && legacy.trim().toLowerCase() == role;
+  return roles is List &&
+      roles.any((r) => r is String && r.trim().toLowerCase() == role);
 }
 
 String _readString(Map<String, dynamic> data, String key) {

@@ -24,25 +24,19 @@ void main() {
   group('userDocHasAthleteRole', () {
     test('uses roles array when present', () {
       expect(
-        userDocHasAthleteRole(
-          roles: ['arena', 'athlete'],
-          legacyRole: 'arena',
-        ),
+        userDocHasAthleteRole(roles: ['arena', 'athlete']),
         isTrue,
       );
       expect(
-        userDocHasAthleteRole(
-          roles: ['athlete', 'organizer'],
-          legacyRole: 'organizer',
-        ),
+        userDocHasAthleteRole(roles: ['athlete', 'organizer']),
         isTrue,
       );
       expect(
-        userDocHasAthleteRole(roles: ['arena'], legacyRole: 'athlete'),
+        userDocHasAthleteRole(roles: ['arena']),
         isFalse,
       );
       expect(
-        userDocHasAthleteRole(roles: ['organizer'], legacyRole: 'athlete'),
+        userDocHasAthleteRole(roles: ['organizer']),
         isFalse,
       );
     });
@@ -52,21 +46,18 @@ void main() {
         userDocHasRole(
           requiredRole: kOrganizerAppRole,
           roles: ['organizer', 'athlete'],
-          legacyRole: 'athlete',
         ),
         isTrue,
       );
     });
 
-    test('falls back to legacy role when roles is empty', () {
-      expect(
-        userDocHasAthleteRole(legacyRole: 'athlete'),
-        isTrue,
-      );
-      expect(
-        userDocHasAthleteRole(legacyRole: 'arena'),
-        isFalse,
-      );
+    test('roles vazio nao vira atleta implicitamente no doc', () {
+      expect(userDocHasAthleteRole(roles: []), isFalse);
+    });
+
+    test('doc com roles decide sozinho, sem legado', () {
+      expect(userDocHasAthleteRole(roles: ['athlete']), isTrue);
+      expect(userDocHasAthleteRole(roles: ['arena']), isFalse);
     });
   });
 

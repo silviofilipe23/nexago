@@ -57,13 +57,13 @@ void main() {
     expect(fields.keywords, contains('liga3'));
   });
 
-  test('buildUserSearchFields uses legacy role when roles empty', () {
+  test('buildUserSearchFields ignores legacy role field when roles is absent', () {
     final fields = buildUserSearchFields({
       'fullName': 'Ana',
       'role': 'athlete',
     });
 
-    expect(fields.hasAthleteRole, isTrue);
+    expect(fields.hasAthleteRole, isFalse);
     expect(fields.hasOrganizerRole, isFalse);
     expect(fields.keywords, contains('an'));
   });

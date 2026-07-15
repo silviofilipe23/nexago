@@ -2,22 +2,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'app_mobile_role.dart';
 
-/// Valores em `customClaims['roles']` (array) ou legado `role` (string) — alinhado a `functions/src/auth-roles.ts`.
+/// Valores em `customClaims['roles']` (array) — alinhado a `functions/src/auth-roles.ts`.
 const String kArenaAppRole = 'arena';
 const String kAthleteAppRole = 'athlete';
 const String kOrganizerAppRole = 'organizer';
 
-/// Extrai papéis do token.
+/// Extrai papéis do token (claim `roles`).
 List<String> appRolesFromIdToken(IdTokenResult result) {
-  final claims = result.claims;
-  if (claims == null) return [];
-  final roles = claims['roles'];
+  final roles = result.claims?['roles'];
   if (roles is List) {
     return roles.whereType<String>().toList();
-  }
-  final legacy = claims['role'];
-  if (legacy is String && legacy.isNotEmpty) {
-    return [legacy];
   }
   return [];
 }
@@ -26,28 +20,17 @@ bool userHasArenaRole(IdTokenResult result) {
   return appRolesFromIdToken(result).contains(kArenaAppRole);
 }
 
-/// Papéis do documento Firestore: prioriza `roles[]`; usa `role` legado só se vazio.
+/// Papéis do documento Firestore (`roles[]`).
 bool userDocHasRole({
   required String requiredRole,
   List<String> roles = const [],
-  String? legacyRole,
 }) {
   final role = requiredRole.trim().toLowerCase();
-  if (roles.isNotEmpty) {
-    return roles.map((r) => r.trim().toLowerCase()).contains(role);
-  }
-  return legacyRole?.trim().toLowerCase() == role;
+  return roles.map((r) => r.trim().toLowerCase()).contains(role);
 }
 
-bool userDocHasAthleteRole({
-  List<String> roles = const [],
-  String? legacyRole,
-}) {
-  return userDocHasRole(
-    requiredRole: kAthleteAppRole,
-    roles: roles,
-    legacyRole: legacyRole,
-  );
+bool userDocHasAthleteRole({List<String> roles = const []}) {
+  return userDocHasRole(requiredRole: kAthleteAppRole, roles: roles);
 }
 
 bool userHasAthleteRole(IdTokenResult result) {

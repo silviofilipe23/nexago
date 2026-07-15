@@ -243,7 +243,7 @@ export const listBackofficeUsers = onCall({timeoutSeconds: 300}, async (request)
 
   const callerUser = await getAuth().getUser(callerUid);
   if (!callerCanAccessBackoffice(callerUser)) {
-    throw new HttpsError("permission-denied", "Apenas organizadores podem listar usuários.");
+    throw new HttpsError("permission-denied", "Apenas administradores da plataforma podem listar usuários.");
   }
 
   const raw = request.data as {maxResults?: unknown; pageToken?: unknown; search?: unknown} | undefined;

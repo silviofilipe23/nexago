@@ -54,13 +54,17 @@ export function callerCanLinkMercadoPago(user: UserRecord): boolean {
   );
 }
 
-/** Acesso ao backoffice: admin da plataforma, gestor de torneios (`organizer`) ou super admin. */
+/**
+ * Acesso ao backoffice: admin da plataforma ou super admin — **não** a role
+ * `organizer` (gestor de torneios). `organizer` hoje é autoconcedida no
+ * autocadastro do portal do organizador (`completeOrganizerSignup`), então
+ * ela nunca pode ser suficiente pra liberar o backoffice (que expõe PII de
+ * toda a base via `listBackofficeUsers`) — do contrário, qualquer cadastro
+ * público ganharia esse acesso. Também mantém consistência com
+ * `user-role-ops.ts`, que já trata `organizer` como role não autoconcedível.
+ */
 export function callerCanAccessBackoffice(user: UserRecord): boolean {
-  return (
-    callerIsOrganizer(user) ||
-    hasRoleInClaims(user.customClaims, "organizer") ||
-    isSuperAdminClaim(user.customClaims)
-  );
+  return callerIsOrganizer(user) || isSuperAdminClaim(user.customClaims);
 }
 
 export function callerIsSuperAdmin(user: UserRecord): boolean {

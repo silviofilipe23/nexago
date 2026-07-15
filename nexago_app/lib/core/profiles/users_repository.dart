@@ -212,7 +212,8 @@ class UsersRepository {
     return results.take(max).toList();
   }
 
-  /// Lista atletas em `users/` (prioriza `hasAthleteRole`, com fallback legado).
+  /// Lista atletas em `public_profiles/` (prioriza `hasAthleteRole`, com
+  /// fallback pra `roles` array-contains athlete).
   Future<List<AppUserProfile>> listAthleteProfiles({
     int pageSize = 200,
     int? maxResults,

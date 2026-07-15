@@ -2,12 +2,10 @@ rules_version='2'
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Multi-role: claim `roles` (lista); fallback ao claim legado `role` durante migração
+    // Multi-role: claim `roles` (lista) é a única fonte de papéis
     function hasRoleClaim(r) {
-      return request.auth != null && (
-        (request.auth.token.roles is list && r in request.auth.token.roles) ||
-        (('role' in request.auth.token) && request.auth.token.role == r)
-      );
+      return request.auth != null &&
+        request.auth.token.roles is list && r in request.auth.token.roles;
     }
 
     function isAdmin() {
@@ -247,20 +245,14 @@ service cloud.firestore {
     function userDocIsPublicAthlete(resource) {
       return resource != null && (
         resource.data.hasAthleteRole == true ||
-        (resource.data.roles is list && 'athlete' in resource.data.roles) ||
-        resource.data.role == 'athlete'
+        (resource.data.roles is list && 'athlete' in resource.data.roles)
       );
     }
     /** Atleta logado pré-cadastra parceiro sem conta (inscrição em torneio). */
     function authUserHasAthleteProfile() {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'athlete' ||
-          (
-            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles is list &&
-            'athlete' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles
-          )
-        );
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles is list &&
+        'athlete' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles;
     }
     function inviterCanPreRegisterPartner() {
       return request.auth != null && (
@@ -272,20 +264,16 @@ service cloud.firestore {
       return request.auth != null &&
         request.auth.uid != targetUserId &&
         inviterCanPreRegisterPartner() &&
-        request.resource.data.role == 'athlete' &&
+        !('role' in request.resource.data) &&
+        request.resource.data.roles is list &&
+        request.resource.data.roles.hasOnly(['athlete']) &&
+        request.resource.data.roles.size() > 0 &&
         request.resource.data.partnerInviteStatus == 'pending' &&
         request.resource.data.invitedByUid == request.auth.uid &&
         request.resource.data.fullName is string &&
         request.resource.data.fullName.size() > 0 &&
         request.resource.data.email is string &&
         request.resource.data.email.size() > 0 &&
-        (
-          !('roles' in request.resource.data) ||
-          (
-            request.resource.data.roles is list &&
-            request.resource.data.roles.hasOnly(['athlete'])
-          )
-        ) &&
         (!('superAdmin' in request.resource.data) || request.resource.data.superAdmin == false);
     }
     function isPartnerPreRegistrationUpdateByInviter(targetUserId) {
@@ -295,14 +283,10 @@ service cloud.firestore {
         resource.data.invitedByUid == request.auth.uid &&
         request.resource.data.partnerInviteStatus == 'pending' &&
         request.resource.data.invitedByUid == request.auth.uid &&
-        request.resource.data.role == 'athlete' &&
-        (
-          !('roles' in request.resource.data) ||
-          (
-            request.resource.data.roles is list &&
-            request.resource.data.roles.hasOnly(['athlete'])
-          )
-        );
+        !('role' in request.resource.data) &&
+        request.resource.data.roles is list &&
+        request.resource.data.roles.hasOnly(['athlete']) &&
+        request.resource.data.roles.size() > 0;
     }
     // ── Regra "nível só sobe" (anti-sandbagging) ─────────────────────────
     // O próprio atleta nunca reduz um nível já salvo — nem o global
@@ -1112,14 +1096,10 @@ service cloud.firestore {
       allow create: if request.auth != null && (
         (
           request.auth.uid == userId &&
-          (!('role' in request.resource.data) || request.resource.data.role == 'athlete') &&
-          (
-            !('roles' in request.resource.data) ||
-            (
-              request.resource.data.roles is list &&
-              !request.resource.data.roles.hasAny(['admin', 'arena', 'organizer'])
-            )
-          ) &&
+          !('role' in request.resource.data) &&
+          request.resource.data.roles is list &&
+          request.resource.data.roles.hasOnly(['athlete']) &&
+          request.resource.data.roles.size() > 0 &&
           (!('superAdmin' in request.resource.data) || request.resource.data.superAdmin == false) &&
           // Reputação (Bora Jogar) é derivada por Cloud Function — usuário
           // novo não pode nascer com reputação pré-fabricada.
@@ -1129,7 +1109,7 @@ service cloud.firestore {
         isPartnerPreRegistrationCreate(userId)
       );
       
-      // Atualizar: próprio usuário pode atualizar a si mesmo sem alterar role/superAdmin;
+      // Atualizar: próprio usuário pode atualizar a si mesmo sem alterar roles/superAdmin;
       // super admin ou convidador do parceiro pendente
       allow update: if request.auth != null && (
         (
@@ -1142,23 +1122,10 @@ service cloud.firestore {
               request.resource.data.email == request.auth.token.email
             )
           ) &&
-          (
-            !('role' in request.resource.data) ||
-            // Contas antigas sem `role` gravado (pré 2026-07-06) recebem o
-            // backfill em todo save do app; primeira gravação só pode ser
-            // 'athlete' (evita auto-promoção), depois o valor fica congelado.
-            request.resource.data.role == resource.data.get('role', 'athlete')
-          ) &&
+          !('role' in request.resource.data) &&
           (
             !('roles' in request.resource.data) ||
-            (
-              'roles' in resource.data
-                ? request.resource.data.roles == resource.data.roles
-                : (
-                    request.resource.data.roles is list &&
-                    !request.resource.data.roles.hasAny(['admin', 'arena', 'organizer'])
-                  )
-            )
+            request.resource.data.roles == resource.data.roles
           ) &&
           (
             !('superAdmin' in request.resource.data) ||

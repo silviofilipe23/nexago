@@ -281,6 +281,7 @@ export {
 } from "./sand-rank-sync";
 
 export {completeCoachSignup} from "./coach-signup";
+export {completeArenaSignup} from "./arena-signup";
 
 export {searchAthleteForCoachInvite} from "./coach-athlete-search";
 export {

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/formatting/app_currency_format.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../arenas/domain/arena_slot.dart';
 import '../../../arenas/domain/arena_slot_block_reason.dart';
 import '../../domain/arena_schedule_models.dart';
 import '../../domain/arena_slot_detail_providers.dart';
@@ -115,10 +116,10 @@ class ArenaScheduleCourtTile extends ConsumerWidget {
     );
   }
 
-  static (String, Color) _status(dynamic slot) {
+  static (String, Color) _status(ArenaSlot slot) {
     if (slot.isBooked) return ('RESERVADO', AppColors.live);
     if (slot.isBlocked) {
-      if (slot.blockReason?.name == 'aula') {
+      if (slot.blockReason == ArenaSlotBlockReason.aula) {
         return ('AULA', AppColors.pending);
       }
       return ('BLOQUEADO', AppColors.onSurfaceMuted);

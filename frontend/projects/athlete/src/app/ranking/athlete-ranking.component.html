@@ -52,6 +52,15 @@
 
       <span class="rk-toolbar-divider" aria-hidden="true"></span>
 
+      <div class="rk-tabs" role="tablist" aria-label="Geral ou temporada">
+        <button type="button" role="tab" class="rk-tab" [class.rk-tab--active]="period() === 'geral'" (click)="setPeriod('geral')">Geral</button>
+        <button type="button" role="tab" class="rk-tab" [class.rk-tab--active]="period() === 'temporada'" (click)="setPeriod('temporada')">
+          Temporada {{ currentYear }}
+        </button>
+      </div>
+
+      <span class="rk-toolbar-divider" aria-hidden="true"></span>
+
       <label class="rk-filter-btn">
         <span>{{ sportLabel(sportFilter()) }}</span>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
@@ -137,7 +146,7 @@
                       <p class="rk-row-name">{{ p.name }}</p>
                       <p class="rk-row-city">{{ p.city }}</p>
                     </div>
-                    <span class="rk-row-level">{{ p.level }}</span>
+                    <span class="rk-row-level">{{ p.level ?? '—' }}</span>
                     <span class="rk-row-points">{{ p.points }}</span>
                     <span class="rk-trend" [attr.data-tone]="trendTone(p.trend)">
                       @if (trendTone(p.trend) === 'neutral') {
@@ -161,28 +170,32 @@
               <span class="rk-card-kicker">{{ modeLabel() }}</span>
               <h2 class="rk-card-title">Sua posição</h2>
             </div>
-            <div class="rk-self-row">
-              <span class="rk-self-rank">#{{ selfEntry().rank }}</span>
-              <span class="rk-self-avatar">{{ headerInitials() }}</span>
-              <div class="rk-self-info">
-                <p class="rk-self-name">{{ selfEntry().name }}</p>
-                <p class="rk-self-city">{{ selfEntry().city }}</p>
+            @if (selfEntry(); as self) {
+              <div class="rk-self-row">
+                <span class="rk-self-rank">#{{ self.rank }}</span>
+                <span class="rk-self-avatar">{{ headerInitials() }}</span>
+                <div class="rk-self-info">
+                  <p class="rk-self-name">{{ self.name }}</p>
+                  <p class="rk-self-city">{{ self.city }}</p>
+                </div>
               </div>
-            </div>
-            <div class="rk-self-stats">
-              <div class="rk-self-points-block">
-                <span class="rk-self-points">{{ selfEntry().points }} pts</span>
-                <span class="rk-self-level">{{ selfEntry().level }}</span>
+              <div class="rk-self-stats">
+                <div class="rk-self-points-block">
+                  <span class="rk-self-points">{{ self.points }} pts</span>
+                  <span class="rk-self-level">{{ self.level ?? '—' }}</span>
+                </div>
+                <span class="rk-trend" [attr.data-tone]="trendTone(self.trend)">
+                  @if (trendTone(self.trend) === 'neutral') {
+                    —
+                  } @else {
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" [class.rk-trend-arrow--down]="trendTone(self.trend) === 'down'" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+                    {{ absTrend(self.trend) }}
+                  }
+                </span>
               </div>
-              <span class="rk-trend" [attr.data-tone]="trendTone(selfEntry().trend)">
-                @if (trendTone(selfEntry().trend) === 'neutral') {
-                  —
-                } @else {
-                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" [class.rk-trend-arrow--down]="trendTone(selfEntry().trend) === 'down'" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
-                  {{ absTrend(selfEntry().trend) }}
-                }
-              </span>
-            </div>
+            } @else {
+              <p class="rk-self-empty">Você ainda não pontuou em torneios{{ period() === 'temporada' ? ' nesta temporada' : '' }}.</p>
+            }
           </div>
 
           <div class="rk-card">

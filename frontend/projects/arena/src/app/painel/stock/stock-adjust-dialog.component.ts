@@ -1,15 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { ModalComponent } from '../ui/modal.component';
 
-export type StockAdjustType = 'entrada' | 'saida';
+export type StockAdjustMovementType = 'purchase' | 'adjustment' | 'loss';
 
 export interface StockAdjustResult {
-  type: StockAdjustType;
+  type: StockAdjustMovementType;
+  /** Compra/perda: sempre positivo (a direção vem do tipo). Ajuste: já com o sinal escolhido. */
   quantity: number;
-  reason: string;
+  note: string;
 }
 
-/** Modal "Ajustar estoque" (protótipo ArStockAdjustDialog): entrada/saída, quantidade e motivo para um produto específico. */
+/** Modal "Ajustar estoque" (protótipo ArStockAdjustDialog): compra/ajuste/perda, quantidade e motivo
+ *  para um produto específico — espelha `ArenaStockMovementType` (sem `sale`, que só nasce de uma venda). */
 @Component({
   selector: 'ar-stock-adjust-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -17,20 +19,28 @@ export interface StockAdjustResult {
   template: `
     <ar-modal (close)="cancel.emit()">
       <h2 class="title">Ajustar estoque</h2>
-      <div class="subtitle">{{ productName() }} · {{ currentStock() }} {{ unit() }} em estoque</div>
+      <div class="subtitle">{{ productName() }} · {{ currentStock() }} un em estoque</div>
 
       <div class="type-toggle">
-        <button type="button" class="type-btn entrada" [class.active]="type() === 'entrada'" (click)="type.set('entrada')">Entrada</button>
-        <button type="button" class="type-btn saida" [class.active]="type() === 'saida'" (click)="type.set('saida')">Saída</button>
+        <button type="button" class="type-btn purchase" [class.active]="type() === 'purchase'" (click)="type.set('purchase')">Compra</button>
+        <button type="button" class="type-btn adjustment" [class.active]="type() === 'adjustment'" (click)="type.set('adjustment')">Ajuste</button>
+        <button type="button" class="type-btn loss" [class.active]="type() === 'loss'" (click)="type.set('loss')">Perda</button>
       </div>
+
+      @if (type() === 'adjustment') {
+        <div class="sign-toggle">
+          <button type="button" class="sign-btn" [class.active]="sign() === 1" (click)="sign.set(1)">+ Adicionar</button>
+          <button type="button" class="sign-btn" [class.active]="sign() === -1" (click)="sign.set(-1)">− Remover</button>
+        </div>
+      }
 
       <div class="field-label">Quantidade</div>
       <input
         type="number"
         min="0"
         class="input-box qty-input"
-        [value]="quantity()"
-        (input)="quantity.set($any($event.target).valueAsNumber || 0)"
+        [value]="magnitude()"
+        (input)="magnitude.set(Math.abs($any($event.target).valueAsNumber || 0))"
       />
 
       <div class="field-label">Motivo</div>
@@ -38,8 +48,8 @@ export interface StockAdjustResult {
         type="text"
         class="input-box reason-input"
         placeholder="Ex.: Compra · Fornecedor"
-        [value]="reason()"
-        (input)="reason.set($any($event.target).value)"
+        [value]="note()"
+        (input)="note.set($any($event.target).value)"
       />
 
       <div class="actions">
@@ -69,12 +79,20 @@ export interface StockAdjustResult {
 
     .type-toggle {
       display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .sign-toggle {
+      display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      gap: 10px;
       margin-bottom: 18px;
     }
 
-    .type-btn {
+    .type-btn,
+    .sign-btn {
       height: 46px;
       border-radius: var(--nx-r-3);
       background: var(--nx-surface-1);
@@ -82,22 +100,30 @@ export interface StockAdjustResult {
       color: var(--nx-text-mute);
       font-family: var(--nx-font-display);
       font-weight: 700;
-      font-size: 14px;
+      font-size: 13.5px;
       cursor: pointer;
       transition: all 140ms var(--nx-ease-out);
     }
 
-    .type-btn:hover {
+    .type-btn:hover,
+    .sign-btn:hover {
       background: var(--nx-surface-2);
     }
 
-    .type-btn.entrada.active {
+    .type-btn.purchase.active,
+    .sign-btn.active {
       background: rgba(43, 209, 126, 0.12);
       border-color: var(--nx-win);
       color: var(--nx-win);
     }
 
-    .type-btn.saida.active {
+    .type-btn.adjustment.active {
+      background: rgba(255, 149, 0, 0.12);
+      border-color: var(--nx-orange-500);
+      color: var(--nx-orange-500);
+    }
+
+    .type-btn.loss.active {
       background: rgba(255, 59, 48, 0.1);
       border-color: var(--nx-live);
       color: var(--nx-live);
@@ -154,21 +180,23 @@ export interface StockAdjustResult {
 export class StockAdjustDialogComponent {
   readonly productName = input.required<string>();
   readonly currentStock = input.required<number>();
-  readonly unit = input('un');
 
   readonly cancel = output<void>();
   readonly confirmed = output<StockAdjustResult>();
 
-  protected readonly type = signal<StockAdjustType>('entrada');
-  protected readonly quantity = signal(0);
-  protected readonly reason = signal('');
+  protected readonly Math = Math;
+  protected readonly type = signal<StockAdjustMovementType>('purchase');
+  protected readonly sign = signal<1 | -1>(1);
+  protected readonly magnitude = signal(0);
+  protected readonly note = signal('');
 
-  protected readonly canConfirm = computed(() => this.quantity() > 0 && this.reason().trim().length > 0);
+  protected readonly canConfirm = computed(() => this.magnitude() > 0 && this.note().trim().length > 0);
 
   protected confirm(): void {
     if (!this.canConfirm()) {
       return;
     }
-    this.confirmed.emit({ type: this.type(), quantity: this.quantity(), reason: this.reason() });
+    const quantity = this.type() === 'adjustment' ? this.magnitude() * this.sign() : this.magnitude();
+    this.confirmed.emit({ type: this.type(), quantity, note: this.note().trim() });
   }
 }

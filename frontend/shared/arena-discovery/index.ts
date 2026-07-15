@@ -69,3 +69,6 @@ export type { UserCoords } from './geo-distance';
 export { haversineDistanceKm, kmFromUserToArena } from './geo-distance';
 
 export { toggleFavoriteArena, watchFavoriteArenaIds } from './favorites-repository';
+
+export type { ArenaPromotion } from './arena-promotion';
+export { arenaPromotionFromFirestore, promotionMatches, promotionApplyToSlot } from './arena-promotion';

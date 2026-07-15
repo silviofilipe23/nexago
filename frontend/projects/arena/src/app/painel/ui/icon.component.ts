@@ -25,7 +25,11 @@ export type PanelIconName =
   | 'image'
   | 'tag'
   | 'box'
-  | 'ranking';
+  | 'ranking'
+  | 'card'
+  | 'repeat'
+  | 'users'
+  | 'log-out';
 
 /** Ícones stroke-24 do painel da arena (protótipo Ar\*\/Bo\*\/At\* Ic\*), um componente para evitar repetir SVG. */
 @Component({
@@ -123,6 +127,20 @@ export type PanelIconName =
         }
         @case ('ranking') {
           <path d="M4 20v-6M12 20V6M20 20v-9" />
+        }
+        @case ('card') {
+          <rect x="2" y="5" width="20" height="14" rx="2.5" /><path d="M2 10h20M6 15h4" />
+        }
+        @case ('repeat') {
+          <path d="M17 2.5 20.5 6 17 9.5" /><path d="M20.5 6H7a4.5 4.5 0 0 0-4.5 4.5V12" />
+          <path d="M7 21.5 3.5 18 7 14.5" /><path d="M3.5 18H17a4.5 4.5 0 0 0 4.5-4.5V12" />
+        }
+        @case ('users') {
+          <circle cx="8.5" cy="8" r="3.3" /><path d="M2 20c0-3.6 2.9-6.3 6.5-6.3s6.5 2.7 6.5 6.3" />
+          <path d="M15.8 8a3.3 3.3 0 1 1 0 6.6M17.5 13.9c2.6.6 4.5 2.9 4.5 6.1" />
+        }
+        @case ('log-out') {
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><path d="M10 17l5-5-5-5" /><path d="M15 12H3" />
         }
       }
     </svg>

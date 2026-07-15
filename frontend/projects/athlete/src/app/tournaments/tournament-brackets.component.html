@@ -25,7 +25,7 @@
               [class.bx-tab--active]="selectedCategory()?.id === c.id"
               (click)="selectCategory(c.id)"
             >
-              <span>{{ c.name }}</span>
+              <span>{{ c.categoryName }}</span>
               <span class="bx-tab-format">{{ c.id === selectedCategory()?.id && bracketData()?.format === 'grupos' ? 'Grupos' : 'Chave' }}</span>
             </button>
           }

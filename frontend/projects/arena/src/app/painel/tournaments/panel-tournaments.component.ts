@@ -1,110 +1,131 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { AuthService } from '../../auth/auth.service';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ArenaContextService } from '../data/arena-context.service';
+import { arenaFirestore } from '../data/firestore';
 import { ChartTabsComponent } from '../ui/chart-tabs.component';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
+import type { ArenaLeagueSummary } from './league.model';
+import { fetchArenaLeagues } from './leagues-repository';
+import type { ArenaTournament, ArenaTournamentStatus } from './tournament.model';
+import { fetchArenaTournaments } from './tournaments-repository';
+import { environment } from '../../../environments/environment';
 
-type TournamentStatus = 'inscricoes' | 'andamento' | 'concluido';
 type TournamentTab = 'ativos' | 'encerrados';
 
-interface Tournament {
-  name: string;
-  sport: string;
-  date: string;
-  status: TournamentStatus;
-  inscritos: number;
-  vagas: number;
-  receita: number;
-}
-
-const STATUS_LABEL: Record<TournamentStatus, string> = {
+const STATUS_LABEL: Record<ArenaTournamentStatus, string> = {
   inscricoes: 'Inscrições abertas',
   andamento: 'Em andamento',
   concluido: 'Concluído',
 };
 
-const STATUS_TONE: Record<TournamentStatus, PillTone> = {
+const STATUS_TONE: Record<ArenaTournamentStatus, PillTone> = {
   inscricoes: 'orange',
   andamento: 'green',
   concluido: 'dim',
 };
 
-const TOURNAMENTS: Tournament[] = [
-  { name: 'Etapa garden', sport: 'Beach Tennis', date: '21 Jul', status: 'inscricoes', inscritos: 18, vagas: 24, receita: 1080 },
-  { name: 'Copa Goiás Beach', sport: 'Vôlei de praia', date: '04 Ago', status: 'inscricoes', inscritos: 20, vagas: 32, receita: 1400 },
-  { name: 'Desafio de Verão', sport: 'Beach Soccer', date: '14 Jun', status: 'concluido', inscritos: 16, vagas: 16, receita: 960 },
-  { name: 'Torneio de Abertura', sport: 'Beach Tennis', date: '02 Mai', status: 'concluido', inscritos: 12, vagas: 16, receita: 720 },
-];
+function formatBRL(n: number): string {
+  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+}
 
-/** Tela Torneios do painel (protótipo ArTorneiosScreen): KPIs, abas e grid de cards. */
+/** Tela Torneios & ligas do painel: torneios reais sediados nesta arena (`tournaments` filtrado
+ *  por `arenaId`) + ligas que têm ao menos uma etapa aqui (achadas indiretamente via esses
+ *  torneios, já que `leagues` não guarda referência de arena). Sem "Criar torneio"/"Gerenciar" —
+ *  torneios e ligas só podem ser criados/editados por contas organizador (rules exigem
+ *  `managerId == uid` + role `organizer`); a arena só sedia e acompanha. */
 @Component({
   selector: 'ar-panel-tournaments',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, ChartTabsComponent, PillComponent, IconComponent],
   template: `
     <ar-panel-shell>
-      <ar-page-header title="Torneios & eventos" [subtitle]="arenaName() + ' · competições organizadas na casa'">
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary">
-          <ar-icon name="plus" [size]="14" />
-          Criar torneio
-        </button>
-      </ar-page-header>
+      <ar-page-header title="Torneios & ligas" [subtitle]="arenaName() + ' · competições sediadas na casa'" />
 
       <div class="body">
-        <div class="kpi-row">
-          <ar-panel-card pad="sm" class="kpi-card">
-            <div class="kpi-label">Torneios ativos</div>
-            <div class="kpi-value">{{ activeCount() }}</div>
-          </ar-panel-card>
-          <ar-panel-card pad="sm" class="kpi-card">
-            <div class="kpi-label">Inscritos no total</div>
-            <div class="kpi-value">{{ totalEnrolled() }}</div>
-          </ar-panel-card>
-          <ar-panel-card pad="sm" class="kpi-card">
-            <div class="kpi-label">Arrecadado (ano)</div>
-            <div class="kpi-value">R$ {{ totalRevenue().toLocaleString('pt-BR') }}</div>
-          </ar-panel-card>
-        </div>
-
-        <ar-chart-tabs [tabs]="tabs" [active]="tab()" (change)="tab.set($any($event))" />
-
-        <div class="grid-wrap">
-          <div class="grid">
-            @for (t of list(); track t.name) {
-              <div class="card">
-                <div class="card-head">
-                  <div class="card-icon">
-                    <ar-icon name="trophy" [size]="19" />
-                  </div>
-                  <ar-pill [tone]="statusTone[t.status]">{{ statusLabel[t.status] }}</ar-pill>
-                </div>
-                <div>
-                  <div class="card-title">{{ t.name }}</div>
-                  <div class="card-meta">{{ t.sport }} · {{ t.date }}</div>
-                </div>
-                <div>
-                  <div class="progress-head">
-                    <span>Inscritos</span>
-                    <span class="progress-count">{{ t.inscritos }}/{{ t.vagas }}</span>
-                  </div>
-                  <div class="progress-track">
-                    <div class="progress-fill" [style.width.%]="pct(t)"></div>
-                  </div>
-                </div>
-                <div class="card-foot">
-                  <div>
-                    <div class="foot-label">Arrecadado</div>
-                    <div class="foot-value">R$ {{ t.receita.toLocaleString('pt-BR') }}</div>
-                  </div>
-                  <button type="button" class="ar-ghost-btn">Gerenciar</button>
-                </div>
-              </div>
-            }
+        @if (arenaNotFound()) {
+          <p class="state-text">Nenhuma arena vinculada à sua conta ainda.</p>
+        } @else if (arenaLoading() || loading()) {
+          <p class="state-text">Carregando torneios…</p>
+        } @else if (loadError(); as err) {
+          <p class="state-text">{{ err }}</p>
+        } @else {
+          <div class="kpi-row">
+            <ar-panel-card pad="sm" class="kpi-card">
+              <div class="kpi-label">Torneios ativos</div>
+              <div class="kpi-value">{{ activeCount() }}</div>
+            </ar-panel-card>
+            <ar-panel-card pad="sm" class="kpi-card">
+              <div class="kpi-label">Inscritos no total</div>
+              <div class="kpi-value">{{ totalEnrolled() }}</div>
+            </ar-panel-card>
+            <ar-panel-card pad="sm" class="kpi-card">
+              <div class="kpi-label">Arrecadado (ano)</div>
+              <div class="kpi-value">{{ formatBRL(totalRevenueYear()) }}</div>
+            </ar-panel-card>
           </div>
-        </div>
+
+          <ar-chart-tabs [tabs]="tabs" [active]="tab()" (change)="tab.set($any($event))" />
+
+          <div class="grid-wrap">
+            <div class="grid">
+              @for (t of list(); track t.id) {
+                <div class="card">
+                  <div class="card-head">
+                    <div class="card-icon">
+                      <ar-icon name="trophy" [size]="19" />
+                    </div>
+                    <ar-pill [tone]="statusTone[t.status]">{{ statusLabel[t.status] }}</ar-pill>
+                  </div>
+                  <div>
+                    <div class="card-title">{{ t.name }}</div>
+                    <div class="card-meta">{{ t.sport }} · {{ t.dateLabel }}</div>
+                  </div>
+                  <div>
+                    <div class="progress-head">
+                      <span>Inscritos</span>
+                      <span class="progress-count">{{ t.enrolledCount }}/{{ t.capacity || '—' }}</span>
+                    </div>
+                    <div class="progress-track">
+                      <div class="progress-fill" [style.width.%]="pct(t)"></div>
+                    </div>
+                  </div>
+                  <div class="card-foot">
+                    <div class="foot-label">Arrecadado</div>
+                    <div class="foot-value">{{ formatBRL(t.collectedReais) }}</div>
+                  </div>
+                </div>
+              } @empty {
+                <p class="state-text">Nenhum torneio {{ tab() === 'ativos' ? 'ativo' : 'encerrado' }} nesta arena ainda.</p>
+              }
+            </div>
+          </div>
+
+          @if (leagues().length > 0) {
+            <div class="leagues-section">
+              <h2 class="section-title">Ligas com etapa nesta arena</h2>
+              <div class="grid">
+                @for (l of leagues(); track l.id) {
+                  <div class="card">
+                    <div class="card-head">
+                      <div class="card-icon">
+                        <ar-icon name="ranking" [size]="19" />
+                      </div>
+                    </div>
+                    <div>
+                      <div class="card-title">{{ l.name }}</div>
+                      <div class="card-meta">{{ l.sport }} · {{ l.city }}</div>
+                    </div>
+                    <div class="foot-label">Etapas nesta arena</div>
+                    <div class="foot-value">{{ l.stagesHereCount }} de {{ l.stagesTotalCount }}</div>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        }
       </div>
     </ar-panel-shell>
   `,
@@ -116,6 +137,17 @@ const TOURNAMENTS: Tournament[] = [
       flex-direction: column;
       gap: 16px;
       overflow: hidden;
+      overflow-y: auto;
+      scrollbar-width: none;
+    }
+
+    .body::-webkit-scrollbar {
+      display: none;
+    }
+
+    .state-text {
+      font-size: 13.5px;
+      color: var(--nx-text-mute);
     }
 
     .kpi-row {
@@ -146,14 +178,7 @@ const TOURNAMENTS: Tournament[] = [
     }
 
     .grid-wrap {
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
-      scrollbar-width: none;
-    }
-
-    .grid-wrap::-webkit-scrollbar {
-      display: none;
+      flex: none;
     }
 
     .grid {
@@ -236,9 +261,6 @@ const TOURNAMENTS: Tournament[] = [
     }
 
     .card-foot {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
       padding-top: 10px;
       border-top: 1px solid var(--nx-line);
     }
@@ -259,6 +281,22 @@ const TOURNAMENTS: Tournament[] = [
       margin-top: 2px;
     }
 
+    .leagues-section {
+      flex: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-top: 8px;
+    }
+
+    .section-title {
+      font-family: var(--nx-font-display);
+      font-weight: 800;
+      font-size: 16px;
+      color: var(--nx-text);
+      margin: 0;
+    }
+
     @media (max-width: 1180px) {
       .grid {
         grid-template-columns: repeat(2, 1fr);
@@ -277,28 +315,62 @@ const TOURNAMENTS: Tournament[] = [
   `,
 })
 export class PanelTournamentsComponent {
-  private readonly auth = inject(AuthService);
+  private readonly arenaContext = inject(ArenaContextService);
 
   protected readonly statusLabel = STATUS_LABEL;
   protected readonly statusTone = STATUS_TONE;
   protected readonly tabs: TournamentTab[] = ['ativos', 'encerrados'];
   protected readonly tab = signal<TournamentTab>('ativos');
+  protected readonly formatBRL = formatBRL;
 
-  private readonly tournaments = TOURNAMENTS;
+  protected readonly arenaLoading = computed(() => this.arenaContext.loading());
+  protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
+  protected readonly arenaName = computed(() => this.arenaContext.arenaName() ?? 'Arena');
+
+  protected readonly tournaments = signal<ArenaTournament[]>([]);
+  protected readonly leagues = signal<ArenaLeagueSummary[]>([]);
+  protected readonly loading = signal(true);
+  protected readonly loadError = signal<string | null>(null);
 
   protected readonly list = computed(() =>
     this.tab() === 'ativos'
-      ? this.tournaments.filter((t) => t.status !== 'concluido')
-      : this.tournaments.filter((t) => t.status === 'concluido'),
+      ? this.tournaments().filter((t) => t.status !== 'concluido')
+      : this.tournaments().filter((t) => t.status === 'concluido'),
   );
 
-  protected readonly activeCount = computed(() => this.tournaments.filter((t) => t.status !== 'concluido').length);
-  protected readonly totalEnrolled = computed(() => this.tournaments.reduce((sum, t) => sum + t.inscritos, 0));
-  protected readonly totalRevenue = computed(() => this.tournaments.reduce((sum, t) => sum + t.receita, 0));
+  protected readonly activeCount = computed(() => this.tournaments().filter((t) => t.status !== 'concluido').length);
+  protected readonly totalEnrolled = computed(() => this.tournaments().reduce((sum, t) => sum + t.enrolledCount, 0));
+  protected readonly totalRevenueYear = computed(() => {
+    const year = new Date().getFullYear();
+    return this.tournaments()
+      .filter((t) => (t.startAt?.getFullYear() ?? year) === year)
+      .reduce((sum, t) => sum + t.collectedReais, 0);
+  });
 
-  protected readonly arenaName = computed(() => this.auth.displayName() || 'Arena');
+  constructor() {
+    effect(() => {
+      const arenaId = this.arenaContext.arenaId();
+      if (!arenaId) return;
+      void this.load(arenaId);
+    });
+  }
 
-  protected pct(t: Tournament): number {
-    return Math.round((t.inscritos / t.vagas) * 100);
+  private async load(arenaId: string): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
+    try {
+      const db = arenaFirestore();
+      const tournaments = await fetchArenaTournaments(db, environment.firebase.projectId!, arenaId);
+      this.tournaments.set(tournaments);
+      this.leagues.set(await fetchArenaLeagues(db, tournaments));
+    } catch {
+      this.loadError.set('Não foi possível carregar os torneios.');
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  protected pct(t: ArenaTournament): number {
+    return t.capacity > 0 ? Math.round((t.enrolledCount / t.capacity) * 100) : 0;
   }
 }

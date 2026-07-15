@@ -4,29 +4,42 @@ import {
   DestroyRef,
   ElementRef,
   computed,
+  effect,
   inject,
   signal,
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ARENA_SPORT_CHIP_OPTIONS, type ArenaSportChip } from '@nexago/arena-discovery';
+import { getApps, initializeApp } from 'firebase/app';
+import { getFirestore, type Firestore } from 'firebase/firestore';
+import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { levelBucketOf, fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import {
-  MOCK_RANKING_DOUBLES,
-  MOCK_RANKING_INDIVIDUAL,
-  MOCK_SELF_DOUBLES,
-  MOCK_SELF_INDIVIDUAL,
-  RANKING_SCORING_RULES,
-} from './athlete-ranking.mock';
-import type { FilterLevel, RankingMode, RankingParticipant } from './athlete-ranking.models';
+  fetchAthleteRankingGeneral,
+  fetchTeamRankingGeneral,
+  fetchTournamentCategoryResultsByYear,
+  sumBestNPoints,
+} from '../data/rankings-repository';
+import { fetchTeamsByIds, teamIsLookingForPartner, type ArenaTeam } from '../data/teams-repository';
+import { RANKING_SCORING_RULES } from './athlete-ranking.models';
+import type { FilterLevel, RankingMode, RankingParticipant, RankingPeriod } from './athlete-ranking.models';
 
 export interface RankingRow extends RankingParticipant {
   rank: number;
 }
 
-const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante', 'Intermediário', 'Avançado', 'Profissional'];
+const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante', 'Intermediário', 'Open'];
 const CITY_ALL = 'all';
+
+function createFirestore(): Firestore | null {
+  const cfg = environment.firebase;
+  if (cfg == null || (cfg.apiKey ?? '').length === 0) return null;
+  const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+  return getFirestore(app);
+}
 
 function titleCase(input: string): string {
   return input
@@ -56,6 +69,17 @@ function trendTone(trend: number): 'up' | 'down' | 'neutral' {
   return 'neutral';
 }
 
+function teamDisplayName(team: ArenaTeam, p1: AthletePublicProfile | undefined, p2: AthletePublicProfile | undefined): string {
+  if (team.teamName) return team.teamName;
+  const a = p1?.displayName?.split(' ')[0] ?? 'Atleta';
+  const b = p2?.displayName?.split(' ')[0] ?? 'Atleta';
+  return `${a} / ${b}`;
+}
+
+/** Ranking real: `athleteRankings`/`teamRankings` (modo Geral, soma tudo) ou
+ *  `tournamentCategoryResults` do ano corrente (modo Temporada, melhores 5) — espelha
+ *  `loadAthleteRankingGeneral`/`getResultsByYear` (Flutter). Sem dado de "trend" (variação de
+ *  posição) no backend hoje — sempre 0, sem seta. */
 @Component({
   selector: 'app-athlete-ranking',
   standalone: true,
@@ -71,6 +95,7 @@ function trendTone(trend: number): 'up' | 'down' | 'neutral' {
 export class AthleteRankingComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly firestore = createFirestore();
 
   protected readonly searchInputRef = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
@@ -84,6 +109,8 @@ export class AthleteRankingComponent {
   protected readonly headerInitials = computed(() => initialsOf(this.accountLabel()));
 
   protected readonly mode = signal<RankingMode>('individual');
+  protected readonly period = signal<RankingPeriod>('geral');
+  protected readonly currentYear = new Date().getFullYear();
 
   protected readonly queryInput = signal('');
   protected readonly filterQuery = signal('');
@@ -96,16 +123,11 @@ export class AthleteRankingComponent {
   protected readonly sportOptions = ARENA_SPORT_CHIP_OPTIONS.filter((o) => o.chip !== 'all');
   protected readonly levelOptions = LEVEL_OPTIONS;
 
-  protected readonly allParticipants = computed<readonly RankingParticipant[]>(() =>
-    this.mode() === 'individual' ? MOCK_RANKING_INDIVIDUAL : MOCK_RANKING_DOUBLES,
-  );
-
-  protected readonly selfEntry = computed(() =>
-    this.mode() === 'individual' ? MOCK_SELF_INDIVIDUAL : MOCK_SELF_DOUBLES,
-  );
+  protected readonly loading = signal(true);
+  protected readonly allParticipants = signal<readonly RankingParticipant[]>([]);
 
   protected readonly cityOptions = computed(() => {
-    const cities = [...new Set(this.allParticipants().map((p) => p.city))].sort((a, b) => a.localeCompare(b));
+    const cities = [...new Set(this.allParticipants().map((p) => p.city).filter((c) => c.length > 0))].sort((a, b) => a.localeCompare(b));
     return [CITY_ALL, ...cities];
   });
 
@@ -130,10 +152,123 @@ export class AthleteRankingComponent {
   protected readonly topLabel = computed(() => `Top ${this.totalCount()} da região`);
   protected readonly modeLabel = computed(() => (this.mode() === 'individual' ? 'Ranking individual' : 'Ranking de duplas'));
 
+  protected readonly selfEntry = computed(() => {
+    const uid = this.auth.user()?.uid;
+    if (!uid) return null;
+    const row = this.rankedList().find((p) => p.id === uid);
+    return row ? { rank: row.rank, name: row.name, city: row.city, points: row.points, level: row.level, trend: row.trend } : null;
+  });
+
   protected readonly scoringRules = RANKING_SCORING_RULES;
 
   constructor() {
     this.destroyRef.onDestroy(() => clearTimeout(this.queryDebounceHandle));
+
+    effect(() => {
+      const mode = this.mode();
+      const period = this.period();
+      void this.loadRanking(mode, period);
+    });
+  }
+
+  private async loadRanking(mode: RankingMode, period: RankingPeriod): Promise<void> {
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    if (!db || !projectId) {
+      this.allParticipants.set([]);
+      this.loading.set(false);
+      return;
+    }
+
+    this.loading.set(true);
+    try {
+      if (period === 'geral') {
+        if (mode === 'individual') {
+          const rows = await fetchAthleteRankingGeneral(db, projectId);
+          const profiles = await fetchPublicProfilesByIds(db, rows.map((r) => r.id));
+          this.allParticipants.set(
+            rows.map((r) => this.participantFromAthlete(r.id, r.totalPoints, profiles.get(r.id))),
+          );
+        } else {
+          const rows = await fetchTeamRankingGeneral(db, projectId);
+          const teams = await fetchTeamsByIds(db, projectId, rows.map((r) => r.id));
+          const profileIds = [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]);
+          const profiles = await fetchPublicProfilesByIds(db, profileIds);
+          this.allParticipants.set(
+            rows
+              .filter((r) => teams.has(r.id))
+              .map((r) => this.participantFromTeam(r.id, r.totalPoints, teams.get(r.id)!, profiles)),
+          );
+        }
+      } else {
+        const results = await fetchTournamentCategoryResultsByYear(db, projectId, this.currentYear);
+        const teamIds = [...new Set(results.map((r) => r.teamId).filter((id) => id))];
+        const teams = await fetchTeamsByIds(db, projectId, teamIds);
+        const profileIds = [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]);
+        const profiles = await fetchPublicProfilesByIds(db, profileIds);
+
+        const pointsByTeam = new Map<string, number[]>();
+        for (const r of results) {
+          if (!r.teamId) continue;
+          (pointsByTeam.get(r.teamId) ?? pointsByTeam.set(r.teamId, []).get(r.teamId)!).push(r.pointsEarned);
+        }
+
+        if (mode === 'doubles') {
+          this.allParticipants.set(
+            [...pointsByTeam.entries()]
+              .filter(([teamId]) => teams.has(teamId))
+              .map(([teamId, points]) => this.participantFromTeam(teamId, sumBestNPoints(points), teams.get(teamId)!, profiles)),
+          );
+        } else {
+          const pointsByAthlete = new Map<string, number[]>();
+          for (const [teamId, points] of pointsByTeam) {
+            const team = teams.get(teamId);
+            if (!team) continue;
+            for (const athleteId of [team.player1Id, team.player2Id]) {
+              (pointsByAthlete.get(athleteId) ?? pointsByAthlete.set(athleteId, []).get(athleteId)!).push(...points);
+            }
+          }
+          this.allParticipants.set(
+            [...pointsByAthlete.entries()].map(([athleteId, points]) =>
+              this.participantFromAthlete(athleteId, sumBestNPoints(points), profiles.get(athleteId)),
+            ),
+          );
+        }
+      }
+    } catch {
+      this.allParticipants.set([]);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  private participantFromAthlete(id: string, points: number, profile: AthletePublicProfile | undefined): RankingParticipant {
+    return {
+      id,
+      name: profile?.displayName ?? `Atleta (…${id.slice(-6)})`,
+      city: profile?.city ?? '',
+      points,
+      level: levelBucketOf(profile?.levelCode ?? null),
+      sport: profile?.sportChip ?? 'beachVolleyball',
+      trend: 0,
+    };
+  }
+
+  private participantFromTeam(id: string, points: number, team: ArenaTeam, profiles: Map<string, AthletePublicProfile>): RankingParticipant {
+    if (teamIsLookingForPartner(team)) {
+      return { id, name: 'Dupla incompleta', city: '', points, level: null, sport: 'beachVolleyball', trend: 0 };
+    }
+    const p1 = profiles.get(team.player1Id);
+    const p2 = profiles.get(team.player2Id);
+    return {
+      id,
+      name: teamDisplayName(team, p1, p2),
+      city: p1?.city ?? p2?.city ?? '',
+      points,
+      level: levelBucketOf(p1?.levelCode ?? p2?.levelCode ?? null),
+      sport: p1?.sportChip ?? p2?.sportChip ?? 'beachVolleyball',
+      trend: 0,
+    };
   }
 
   protected focusSearch(event: Event): void {
@@ -154,6 +289,10 @@ export class AthleteRankingComponent {
 
   protected isMode(mode: RankingMode): boolean {
     return this.mode() === mode;
+  }
+
+  protected setPeriod(period: RankingPeriod): void {
+    this.period.set(period);
   }
 
   protected setSport(chip: string): void {

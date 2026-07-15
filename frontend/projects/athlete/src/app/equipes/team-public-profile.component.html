@@ -1,5 +1,9 @@
 <app-at-panel-shell [userName]="accountLabel()">
-  @if (team(); as t) {
+  @if (loading()) {
+    <div class="tp-notfound">
+      <p class="tp-empty-title">Carregando equipe…</p>
+    </div>
+  } @else if (team(); as t) {
     <header class="tp-page-header">
       <div class="tp-page-header-titles">
         <h1>Perfil da equipe</h1>
@@ -14,20 +18,6 @@
         <button type="button" class="tp-btn-ghost" (click)="sendMessage()">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
           <span>Mensagem</span>
-        </button>
-        <button
-          type="button"
-          class="tp-btn-ghost"
-          [class.tp-btn-ghost--active]="followed()"
-          (click)="toggleFollow()"
-        >
-          @if (followed()) {
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
-            <span>Seguindo</span>
-          } @else {
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-            <span>Seguir</span>
-          }
         </button>
         <button type="button" class="tp-btn-primary" (click)="challengeTeam()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h7l-1 8 11-14h-7l1-6z" /></svg>
@@ -50,12 +40,14 @@
                 <span class="tp-avatar tp-avatar--second">{{ teamInitials(t.teamName)[1] }}</span>
               </span>
               <h2 class="tp-name">{{ t.teamName }}</h2>
-              <p class="tp-meta">{{ t.status === 'fixed' ? 'Dupla fixa' : 'Convite pendente' }} · {{ t.city }}</p>
+              <p class="tp-meta">Dupla fixa{{ t.city ? ' · ' + t.city : '' }}</p>
               <div class="tp-pill-row">
                 <span class="tp-sport-pill">{{ sportLabel(t.sport) }}</span>
-                <span class="tp-level-pill">{{ t.level }}</span>
+                <span class="tp-level-pill">{{ t.level ?? '—' }}</span>
               </div>
-              <span class="tp-ranking-pill">#{{ t.rankingPosition }} ranking duplas</span>
+              @if (t.rankingPosition) {
+                <span class="tp-ranking-pill">#{{ t.rankingPosition }} ranking duplas</span>
+              }
             </div>
 
             <div class="tp-stat-list">
@@ -63,13 +55,8 @@
               <div class="tp-stat-row"><span>Derrotas</span><strong>{{ t.losses }}</strong></div>
               <div class="tp-stat-row"><span>Sequência atual</span><strong>{{ t.currentStreakWins }} vitórias</strong></div>
               <div class="tp-stat-row"><span>Pontos no ranking</span><strong>{{ pointsLabel(t.rankingPoints) }}</strong></div>
-              <div class="tp-stat-row"><span>Juntos desde</span><strong>{{ t.togetherSinceLabel }}</strong></div>
+              <div class="tp-stat-row"><span>Juntos há</span><strong>{{ t.togetherSinceLabel }}</strong></div>
             </div>
-          </div>
-
-          <div class="tp-card">
-            <h2 class="tp-card-title">Sobre a equipe</h2>
-            <p class="tp-body-text">{{ t.bio }}</p>
           </div>
 
           <div class="tp-card">
@@ -81,9 +68,8 @@
                   <span class="tp-member-avatar">{{ m.fullName.charAt(0) }}</span>
                   <div class="tp-member-info">
                     <p class="tp-member-name">{{ m.fullName }}</p>
-                    <p class="tp-member-role">{{ m.role }}</p>
                   </div>
-                  <span class="tp-member-level">Nível {{ m.levelNumber }}</span>
+                  <span class="tp-member-level">{{ m.levelLabel }}</span>
                   @if (m.handle; as h) {
                     <a class="tp-member-link" [routerLink]="['/atletas', h]" [queryParams]="{ from: 'equipes' }">Ver perfil</a>
                   }
@@ -103,8 +89,6 @@
                   <div class="tp-title-card">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4" /><path d="M7 4h10v6a5 5 0 0 1-10 0V4z" /><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" /></svg>
                     <p class="tp-title-name">{{ ti.name }}</p>
-                    <p class="tp-title-result">{{ ti.resultLabel }}</p>
-                    <p class="tp-title-date">{{ ti.dateLabel }}</p>
                   </div>
                 }
               </div>
@@ -114,12 +98,9 @@
           <div class="tp-card">
             <div class="tp-match-card-head">
               <div>
-                <span class="tp-card-kicker">Últimos 30 dias</span>
+                <span class="tp-card-kicker">Partidas recentes</span>
                 <h2 class="tp-card-title">Histórico de partidas</h2>
               </div>
-              @if (t.matches.length > 0) {
-                <button type="button" class="tp-see-all" (click)="viewAllMatches()">Ver tudo</button>
-              }
             </div>
             @if (t.matches.length === 0) {
               <p class="tp-empty-inline">Sem partidas registradas ainda.</p>
@@ -137,20 +118,6 @@
                       <span class="tp-match-date">{{ m.dateLabel }}</span>
                     </div>
                   </div>
-                }
-              </div>
-            }
-          </div>
-
-          <div class="tp-card">
-            <span class="tp-card-kicker">Pra combinar desafios</span>
-            <h2 class="tp-card-title">Disponibilidade</h2>
-            @if (t.availabilitySlots.length === 0) {
-              <p class="tp-empty-inline">Sem horários informados ainda.</p>
-            } @else {
-              <div class="tp-availability-row">
-                @for (slot of t.availabilitySlots; track slot) {
-                  <span class="tp-availability-chip">{{ slot }}</span>
                 }
               </div>
             }

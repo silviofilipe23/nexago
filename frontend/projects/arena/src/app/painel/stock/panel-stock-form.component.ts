@@ -1,24 +1,17 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { ArenaContextService } from '../data/arena-context.service';
+import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
+import { ARENA_PRODUCT_CATEGORIES, ARENA_PRODUCT_CATEGORY_LABEL, parseBRLInputToCents, type ArenaProductCategory } from './product.model';
+import { createProduct } from './products-repository';
 
-type StockCategory = 'Bebida' | 'Snack' | 'Material' | 'Aluguel';
-
-const CATEGORY_OPTIONS: StockCategory[] = ['Bebida', 'Snack', 'Material', 'Aluguel'];
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
-/** Tela Novo produto do painel (protótipo ArStockFormScreen): cadastro de item de estoque com informações, preço/custo e estoque inicial. */
+/** Tela Novo produto do painel: cadastro de item de estoque em `arenas/{arenaId}/products`.
+ *  Sem upload de foto (Storage não integrado ainda) — usa `emoji` como identificador visual,
+ *  que é o campo real do schema (`ArenaProduct.emoji`). */
 @Component({
   selector: 'ar-panel-stock-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -28,51 +21,52 @@ function readFileAsDataUrl(file: File): Promise<string> {
       <ar-page-header title="Novo produto" subtitle="Cadastrar item no estoque da arena">
         <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="!canSave()" (click)="save()">
           <ar-icon name="check" [size]="14" />
-          Salvar produto
+          {{ saving() ? 'Salvando…' : 'Salvar produto' }}
         </button>
       </ar-page-header>
 
       <div class="body">
         <div class="form-col">
+          @if (errorMessage(); as err) {
+            <div class="error-banner">{{ err }}</div>
+          }
+
           <ar-panel-card title="Informações básicas">
-            <div class="photo-row">
-              <label class="dropzone" (dragover)="$event.preventDefault()" (drop)="handleDrop($event)">
-                <input type="file" accept="image/*" class="sr-only" (change)="handleFileChange($event)" />
-                @if (photoDataUrl(); as url) {
-                  <img [src]="url" alt="Foto do produto" />
-                } @else {
-                  <ar-icon name="image" [size]="22" style="color: var(--nx-text-dim)" />
-                }
-              </label>
-              <div class="photo-hint">Arraste uma foto do produto<br />ou clique para escolher um arquivo</div>
-            </div>
-
-            <div class="field-label">Nome do produto</div>
-            <input
-              type="text"
-              class="input-box name-input"
-              placeholder="Ex.: Água mineral 500ml"
-              [value]="name()"
-              (input)="name.set($any($event.target).value)"
-            />
-
             <div class="row-2">
               <div>
-                <div class="field-label">Categoria</div>
-                <div class="ar-filter-bar">
-                  @for (opt of categoryOptions; track opt) {
-                    <button type="button" class="ar-chip" [class.active]="category() === opt" (click)="category.set(opt)">{{ opt }}</button>
-                  }
-                </div>
+                <div class="field-label">Nome do produto</div>
+                <input
+                  type="text"
+                  class="input-box"
+                  placeholder="Ex.: Água mineral 500ml"
+                  [value]="name()"
+                  (input)="name.set($any($event.target).value)"
+                />
               </div>
               <div>
-                <div class="field-label">Unidade de medida</div>
-                <input type="text" class="input-box" [value]="unit()" (input)="unit.set($any($event.target).value)" />
+                <div class="field-label">Emoji (identificação visual)</div>
+                <input
+                  type="text"
+                  class="input-box"
+                  maxlength="8"
+                  placeholder="💧"
+                  [value]="emoji()"
+                  (input)="emoji.set($any($event.target).value)"
+                />
               </div>
+            </div>
+
+            <div class="field-label row-gap">Categoria</div>
+            <div class="ar-filter-bar">
+              @for (opt of categoryOptions; track opt) {
+                <button type="button" class="ar-chip" [class.active]="category() === opt" (click)="category.set(opt)">
+                  {{ categoryLabel[opt] }}
+                </button>
+              }
             </div>
           </ar-panel-card>
 
-          <ar-panel-card title="Preço e custo">
+          <ar-panel-card title="Preço e estoque">
             <div class="row-2">
               <div>
                 <div class="field-label">Preço de venda</div>
@@ -82,24 +76,27 @@ function readFileAsDataUrl(file: File): Promise<string> {
                 </div>
               </div>
               <div>
-                <div class="field-label">Custo unitário</div>
-                <div class="price-box">
-                  <span>R$</span>
-                  <input type="text" inputmode="decimal" [value]="costValue()" (input)="costValue.set($any($event.target).value)" />
-                </div>
+                <div class="field-label">Quantidade inicial</div>
+                <input
+                  type="number"
+                  min="0"
+                  class="input-box"
+                  [value]="initialStock()"
+                  (input)="initialStock.set($any($event.target).valueAsNumber || 0)"
+                />
               </div>
             </div>
-          </ar-panel-card>
 
-          <ar-panel-card title="Estoque inicial">
-            <div class="row-2">
-              <div>
-                <div class="field-label">Quantidade inicial</div>
-                <input type="number" min="0" class="input-box" [value]="initialStock()" (input)="initialStock.set($any($event.target).valueAsNumber || 0)" />
-              </div>
+            <div class="row-2 row-gap">
               <div>
                 <div class="field-label">Estoque mínimo (alerta)</div>
-                <input type="number" min="0" class="input-box" [value]="minStock()" (input)="minStock.set($any($event.target).valueAsNumber || 0)" />
+                <input
+                  type="number"
+                  min="0"
+                  class="input-box"
+                  [value]="minStock()"
+                  (input)="minStock.set($any($event.target).valueAsNumber || 0)"
+                />
               </div>
             </div>
           </ar-panel-card>
@@ -124,58 +121,13 @@ function readFileAsDataUrl(file: File): Promise<string> {
       gap: 16px;
     }
 
-    .photo-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-
-    .dropzone {
-      width: 120px;
-      height: 120px;
-      flex: none;
+    .error-banner {
       border-radius: var(--nx-r-2);
-      border: 1px dashed var(--nx-line-strong);
-      background: var(--nx-surface-1);
-      display: grid;
-      place-items: center;
-      cursor: pointer;
-      overflow: hidden;
-      transition: border-color 140ms var(--nx-ease-out);
-    }
-
-    .dropzone:hover {
-      border-color: var(--nx-orange-500);
-    }
-
-    .dropzone:focus-within {
-      outline: 2px solid var(--nx-orange-500);
-      outline-offset: 2px;
-    }
-
-    .dropzone img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .sr-only {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-
-    .photo-hint {
+      border: 1px solid var(--nx-live);
+      background: rgba(255, 59, 48, 0.08);
+      color: var(--nx-live);
+      padding: 10px 14px;
       font-size: 13px;
-      line-height: 1.5;
-      color: var(--nx-text-dim);
     }
 
     .field-label {
@@ -185,6 +137,10 @@ function readFileAsDataUrl(file: File): Promise<string> {
       text-transform: uppercase;
       color: var(--nx-text-dim);
       margin-bottom: 10px;
+    }
+
+    .row-gap {
+      margin-top: 18px;
     }
 
     .input-box {
@@ -203,10 +159,6 @@ function readFileAsDataUrl(file: File): Promise<string> {
     .input-box:focus {
       outline: none;
       border-color: var(--nx-orange-500);
-    }
-
-    .name-input {
-      margin-bottom: 18px;
     }
 
     .row-2 {
@@ -252,49 +204,54 @@ function readFileAsDataUrl(file: File): Promise<string> {
       .row-2 {
         grid-template-columns: 1fr;
       }
-
-      .photo-row {
-        flex-direction: column;
-        align-items: flex-start;
-      }
     }
   `,
 })
 export class PanelStockFormComponent {
   private readonly router = inject(Router);
+  private readonly arenaContext = inject(ArenaContextService);
 
-  protected readonly categoryOptions = CATEGORY_OPTIONS;
+  protected readonly categoryOptions = ARENA_PRODUCT_CATEGORIES;
+  protected readonly categoryLabel = ARENA_PRODUCT_CATEGORY_LABEL;
 
   protected readonly name = signal('');
-  protected readonly category = signal<StockCategory>('Bebida');
-  protected readonly unit = signal('un');
+  protected readonly category = signal<ArenaProductCategory>('bebidas');
+  protected readonly emoji = signal('');
   protected readonly priceValue = signal('0,00');
-  protected readonly costValue = signal('0,00');
   protected readonly initialStock = signal(0);
   protected readonly minStock = signal(0);
-  protected readonly photoDataUrl = signal<string | null>(null);
 
-  protected readonly canSave = computed(() => this.name().trim().length > 0);
+  protected readonly saving = signal(false);
+  protected readonly errorMessage = signal<string | null>(null);
 
-  protected async handleFileChange(event: Event): Promise<void> {
-    const file = (event.target as HTMLInputElement).files?.[0];
-    if (file) {
-      this.photoDataUrl.set(await readFileAsDataUrl(file));
-    }
-  }
+  protected readonly canSave = computed(() => this.name().trim().length > 0 && !this.saving());
 
-  protected async handleDrop(event: DragEvent): Promise<void> {
-    event.preventDefault();
-    const file = event.dataTransfer?.files?.[0];
-    if (file) {
-      this.photoDataUrl.set(await readFileAsDataUrl(file));
-    }
-  }
-
-  protected save(): void {
+  protected async save(): Promise<void> {
     if (!this.canSave()) {
       return;
     }
-    this.router.navigate(['/painel/estoque']);
+    const arenaId = this.arenaContext.arenaId();
+    if (!arenaId) {
+      this.errorMessage.set('Não encontramos a arena da sua conta. Recarregue a página.');
+      return;
+    }
+    this.saving.set(true);
+    this.errorMessage.set(null);
+    try {
+      await createProduct(arenaFirestore(), arenaId, {
+        name: this.name().trim(),
+        category: this.category(),
+        active: true,
+        priceCents: parseBRLInputToCents(this.priceValue()),
+        stockQuantity: Math.max(0, Math.round(this.initialStock())),
+        minStockQuantity: Math.max(0, Math.round(this.minStock())),
+        emoji: this.emoji().trim() || undefined,
+      });
+      void this.router.navigate(['/painel/estoque']);
+    } catch (err) {
+      this.errorMessage.set(err instanceof Error ? err.message : 'Não foi possível salvar o produto.');
+    } finally {
+      this.saving.set(false);
+    }
   }
 }

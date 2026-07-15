@@ -477,6 +477,13 @@
   margin-top: 12px;
 }
 
+.tdv-btn-primary--disabled {
+  background: var(--nx-surface-2, #2a2a2a);
+  color: var(--nx-text-dim, #888);
+  pointer-events: none;
+  cursor: default;
+}
+
 .tdv-btn-ghost {
   height: 38px;
   padding: 0 18px;

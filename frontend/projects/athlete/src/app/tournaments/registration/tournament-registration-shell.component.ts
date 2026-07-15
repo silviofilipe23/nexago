@@ -1,20 +1,20 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { getApps, initializeApp } from 'firebase/app';
+import { getFirestore, type Firestore } from 'firebase/firestore';
+import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
-import { MOCK_DISCOVERY_TOURNAMENTS } from '../tournament-discovery.mock';
-import type { DiscoveryTournament } from '../tournament-discovery.models';
-import { getTournamentDetailExtra, type TournamentCategoryOffer } from '../tournament-detail.mock';
-
-export type PaymentSplitOption = 'split' | 'full';
-
-export interface DuoOption {
-  id: string;
-  label: string;
-  meta: string;
-  initialsA: string;
-  initialsB: string;
-}
+import { athleteFunctions } from '../../data/functions';
+import { searchAthleteDirectory, type AthletePublicProfile } from '../../data/public-profiles-repository';
+import {
+  fetchMyRegistrationForCategory,
+  registerSolo,
+  sendPartnerInvite,
+  TournamentRegistrationError,
+  type AthleteTournamentRegistration,
+} from '../../data/tournament-registrations-repository';
+import { fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../../data/tournaments-repository';
 
 function titleCase(input: string): string {
   return input
@@ -38,13 +38,26 @@ function initialsOf(name: string): string {
   return (first + last).toUpperCase() || 'AT';
 }
 
-function parsePriceLabelToReais(label: string): number {
-  const digits = label.replace(/\D/g, '');
-  if (!digits) return 0;
-  const n = Number.parseInt(digits, 10);
-  return Number.isFinite(n) ? n : 0;
+function createFirestore(): Firestore | null {
+  const cfg = environment.firebase;
+  if (cfg == null || (cfg.apiKey ?? '').length === 0) return null;
+  const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+  return getFirestore(app);
 }
 
+function genderLabelOf(cat: TournamentCategoryOffer['genderType']): string {
+  return cat === 'F' ? 'Feminino' : cat === 'Mix' ? 'Misto' : 'Masculino';
+}
+
+function formatBRL(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+/** Inscrição real: **solo primeiro** (`registerSoloTournament`), depois convite de parceiro
+ *  (`sendTournamentPartnerInvite` — o parceiro aceita pelo convite, é aí que o doc `teams` é
+ *  criado). Isso é bem diferente do fluxo antigo do mock ("escolher entre duplas fixas") — não
+ *  existe "duo pré-existente" pra escolher, times só nascem de um convite aceito. Pagamento
+ *  fica pra próxima tela (`tournament-payment`). */
 @Component({
   selector: 'app-tournament-registration-shell',
   standalone: true,
@@ -58,7 +71,9 @@ export class TournamentRegistrationShellComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly firestore = createFirestore();
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
+  private searchDebounceHandle: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
@@ -70,95 +85,78 @@ export class TournamentRegistrationShellComponent {
 
   protected readonly tournamentId = computed(() => this.route.snapshot.paramMap.get('id') ?? '');
 
-  protected readonly listing = computed<DiscoveryTournament | null>(() => {
-    const id = this.tournamentId();
-    return MOCK_DISCOVERY_TOURNAMENTS.find((t) => t.id === id) ?? null;
-  });
+  protected readonly loading = signal(true);
+  protected readonly listing = signal<TournamentSummary | null>(null);
+  protected readonly categories = computed<TournamentCategoryOffer[]>(() => this.listing()?.categories ?? []);
 
-  protected readonly categories = computed<TournamentCategoryOffer[]>(() => {
-    const listing = this.listing();
-    if (!listing) return [];
-    return getTournamentDetailExtra(listing.id, listing).categories;
-  });
-
-  protected readonly selectedCategoryId = signal<string | null>(
-    this.route.snapshot.queryParamMap.get('categoria'),
-  );
-
+  protected readonly selectedCategoryId = signal<string | null>(this.route.snapshot.queryParamMap.get('categoria'));
   protected readonly selectedCategory = computed<TournamentCategoryOffer | null>(() => {
     const cats = this.categories();
     if (cats.length === 0) return null;
     const id = this.selectedCategoryId();
     return cats.find((c) => c.id === id) ?? cats[0] ?? null;
   });
-
   protected readonly otherCategories = computed(() => {
     const current = this.selectedCategory();
     return this.categories().filter((c) => c.id !== current?.id);
   });
-
   protected readonly showCategoryPicker = signal(false);
 
-  protected readonly duoOptions = computed<DuoOption[]>(() => {
-    const me = this.accountLabel();
-    return [
-      {
-        id: 'duo-fixed-1',
-        label: `${me} & Bruno V.`,
-        meta: 'Dupla fixa · Intermediário',
-        initialsA: initialsOf(me),
-        initialsB: 'BR',
-      },
-      {
-        id: 'duo-fixed-2',
-        label: `${me} & Enzo`,
-        meta: 'Dupla fixa · Iniciante',
-        initialsA: initialsOf(me),
-        initialsB: 'EN',
-      },
-    ];
-  });
+  protected readonly registration = signal<AthleteTournamentRegistration | null>(null);
+  protected readonly registering = signal(false);
 
-  protected readonly selectedDuoId = signal<string>('duo-fixed-1');
-  protected readonly isInvitingPartner = computed(() => this.selectedDuoId() === 'invite');
-
-  protected readonly selectedDuo = computed(
-    () => this.duoOptions().find((d) => d.id === this.selectedDuoId()) ?? null,
-  );
-
-  protected readonly duoSummaryLabel = computed(() => {
-    if (this.isInvitingPartner()) return 'Convite pendente';
-    return this.selectedDuo()?.label ?? '—';
-  });
-
-  protected readonly paymentOption = signal<PaymentSplitOption>('split');
-
-  protected readonly totalPriceReais = computed(() => {
-    const cat = this.selectedCategory();
-    return cat ? parsePriceLabelToReais(cat.priceLabel) : 0;
-  });
-
-  protected readonly installmentPriceReais = computed(() => {
-    const total = this.totalPriceReais();
-    return this.paymentOption() === 'split' ? Math.max(1, Math.round(total / 2)) : total;
-  });
-
-  protected readonly inviteLink = computed(() => {
-    const origin = typeof location !== 'undefined' ? location.origin : 'https://nexago.app';
-    const cat = this.selectedCategory();
-    const catQuery = cat ? `?categoria=${cat.id}` : '';
-    return `${origin}/torneios/${this.tournamentId()}/inscricao${catQuery}`;
-  });
+  protected readonly partnerQuery = signal('');
+  protected readonly partnerResults = signal<AthletePublicProfile[]>([]);
+  protected readonly searchingPartner = signal(false);
+  protected readonly invitingId = signal<string | null>(null);
 
   protected readonly notice = signal<string | null>(null);
-  protected readonly canConfirm = computed(
-    () => this.selectedCategory() != null && (this.isInvitingPartner() || this.selectedDuo() != null),
-  );
-
+  protected readonly genderLabel = genderLabelOf;
+  protected readonly priceLabel = (c: TournamentCategoryOffer) => formatBRL(c.entryFee);
   protected readonly initialsOf = initialsOf;
 
   constructor() {
-    this.destroyRef.onDestroy(() => clearTimeout(this.noticeTimeout));
+    this.destroyRef.onDestroy(() => {
+      clearTimeout(this.noticeTimeout);
+      clearTimeout(this.searchDebounceHandle);
+    });
+
+    effect(() => {
+      const id = this.tournamentId();
+      void this.loadTournament(id);
+    });
+
+    effect(() => {
+      const category = this.selectedCategory();
+      void this.loadRegistration(category);
+    });
+  }
+
+  private async loadTournament(id: string): Promise<void> {
+    const db = this.firestore;
+    if (!db || !id) {
+      this.listing.set(null);
+      this.loading.set(false);
+      return;
+    }
+    this.loading.set(true);
+    try {
+      this.listing.set(await fetchTournament(db, id));
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  private async loadRegistration(category: TournamentCategoryOffer | null): Promise<void> {
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    const uid = this.auth.user()?.uid;
+    const tournamentId = this.tournamentId();
+    if (!db || !projectId || !uid || !category || !tournamentId) {
+      this.registration.set(null);
+      return;
+    }
+    this.registration.set(await fetchMyRegistrationForCategory(db, projectId, uid, tournamentId, category.id));
   }
 
   protected selectCategory(id: string): void {
@@ -170,36 +168,73 @@ export class TournamentRegistrationShellComponent {
     this.showCategoryPicker.update((v) => !v);
   }
 
-  protected selectDuo(id: string): void {
-    this.selectedDuoId.set(id);
-  }
-
-  protected selectPayment(opt: PaymentSplitOption): void {
-    this.paymentOption.set(opt);
-  }
-
-  protected async copyInviteLink(): Promise<void> {
+  protected async registerSoloForCategory(): Promise<void> {
+    const category = this.selectedCategory();
+    const tournamentId = this.tournamentId();
+    if (!category || !tournamentId || this.registering()) return;
+    this.registering.set(true);
     try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(this.inviteLink());
-        this.showNotice('Link de convite copiado.');
-        return;
-      }
-      this.showNotice('Copie o link manualmente: ' + this.inviteLink());
-    } catch {
-      this.showNotice('Não foi possível copiar agora.');
+      const result = await registerSolo(athleteFunctions(), tournamentId, category.id);
+      this.registration.set({ id: result.registrationId, tournamentId, categoryId: category.id, teamId: null, partnerPending: true, isPaid: false, waitlist: false });
+      this.showNotice('Inscrição criada! Agora convide seu parceiro.');
+    } catch (err) {
+      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível concluir a inscrição.');
+    } finally {
+      this.registering.set(false);
     }
   }
 
-  protected confirmRegistration(): void {
-    if (!this.canConfirm()) return;
-    const cat = this.selectedCategory();
+  protected onPartnerQueryInput(value: string): void {
+    this.partnerQuery.set(value);
+    clearTimeout(this.searchDebounceHandle);
+    this.searchDebounceHandle = setTimeout(() => void this.searchPartners(value), 300);
+  }
+
+  private async searchPartners(term: string): Promise<void> {
+    const db = this.firestore;
+    if (!db || term.trim().length < 2) {
+      this.partnerResults.set([]);
+      return;
+    }
+    this.searchingPartner.set(true);
+    try {
+      const uid = this.auth.user()?.uid;
+      const results = await searchAthleteDirectory(db, term);
+      this.partnerResults.set(results.filter((p) => p.id !== uid));
+    } finally {
+      this.searchingPartner.set(false);
+    }
+  }
+
+  protected async invitePartner(candidate: AthletePublicProfile): Promise<void> {
+    const category = this.selectedCategory();
+    const tournamentId = this.tournamentId();
+    if (!category || !tournamentId || this.invitingId()) return;
+    this.invitingId.set(candidate.id);
+    try {
+      await sendPartnerInvite(athleteFunctions(), {
+        tournamentId,
+        categoryId: category.id,
+        inviteeUid: candidate.id,
+        inviteeName: candidate.displayName,
+        inviterName: this.accountLabel(),
+      });
+      this.showNotice(`Convite enviado para ${candidate.displayName}.`);
+      this.partnerResults.set([]);
+      this.partnerQuery.set('');
+    } catch (err) {
+      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível enviar o convite.');
+    } finally {
+      this.invitingId.set(null);
+    }
+  }
+
+  protected goToPayment(): void {
+    const reg = this.registration();
+    const category = this.selectedCategory();
+    if (!reg || !category) return;
     void this.router.navigate(['/torneios', this.tournamentId(), 'inscricao', 'pagamento'], {
-      queryParams: {
-        categoria: cat?.id ?? null,
-        duo: this.selectedDuoId(),
-        payment: this.paymentOption(),
-      },
+      queryParams: { registro: reg.id, categoria: category.id },
     });
   }
 

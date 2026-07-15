@@ -1,206 +1,160 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { ArenaContextService } from '../data/arena-context.service';
+import { arenaFirestore } from '../data/firestore';
+import { fetchCourtsList } from '../courts/courts-repository';
+import type { ArenaCourt } from '../courts/court.model';
 import { IconComponent } from '../ui/icon.component';
+import { ModalComponent } from '../ui/modal.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
+import { ToggleComponent } from '../ui/toggle.component';
+import { dateToInputValue, inputValueToDate, PROMO_WEEKDAYS, PROMO_WEEKDAY_LABEL } from './promotion.model';
+import { createPromotion, deletePromotion, fetchAllPromotions, updatePromotion } from './promotions-repository';
 
-type DiscountType = 'percent' | 'fixed';
-type CourtScope = 'Todas' | 'Quadra 1' | 'Quadra 2' | 'Quadra 3';
-
-interface PromotionFormData {
-  name: string;
-  scope: CourtScope;
-  days: boolean[];
-  timeStart: string;
-  timeEnd: string;
-  validityStart: string;
-  validityEnd: string;
-  discountType: DiscountType;
-  discountValue: string;
-  usageLimit: string;
-}
-
-const SCOPE_OPTIONS: CourtScope[] = ['Todas', 'Quadra 1', 'Quadra 2', 'Quadra 3'];
-const DAY_SHORT_LABELS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-const REFERENCE_PRICE = 60;
-
-const DEFAULT_FORM: PromotionFormData = {
-  name: '',
-  scope: 'Todas',
-  days: [true, true, true, true, true, false, false],
-  timeStart: '14:00',
-  timeEnd: '17:00',
-  validityStart: 'Hoje',
-  validityEnd: '',
-  discountType: 'percent',
-  discountValue: '20',
-  usageLimit: '',
-};
-
-const MOCK_PROMOTIONS: Record<string, PromotionFormData> = {
-  p1: { ...DEFAULT_FORM, name: 'Happy Hour da Tarde', scope: 'Todas' },
-  p2: {
-    name: 'Domingo em Dobro',
-    scope: 'Quadra 2',
-    days: [false, false, false, false, false, false, true],
-    timeStart: '08:00',
-    timeEnd: '12:00',
-    validityStart: 'Hoje',
-    validityEnd: '',
-    discountType: 'fixed',
-    discountValue: '15',
-    usageLimit: '40',
-  },
-  p3: {
-    name: 'Madrugada Beach Tennis',
-    scope: 'Quadra 1',
-    days: [false, false, false, false, true, true, false],
-    timeStart: '06:00',
-    timeEnd: '08:00',
-    validityStart: '15 Jul',
-    validityEnd: '',
-    discountType: 'percent',
-    discountValue: '30',
-    usageLimit: '',
-  },
-  p4: {
-    name: 'Volta às Aulas',
-    scope: 'Todas',
-    days: [true, true, true, true, true, false, false],
-    timeStart: '09:00',
-    timeEnd: '12:00',
-    validityStart: '01 Jun',
-    validityEnd: '30 Jun',
-    discountType: 'percent',
-    discountValue: '15',
-    usageLimit: '60',
-  },
-};
-
-function formatDiscount(type: DiscountType, value: number): string {
-  return type === 'percent' ? `${value}%` : `R$${value}`;
-}
-
-function formatBRL(n: number): string {
-  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-}
+type DiscountKind = 'percent' | 'fixed';
 
 function parseNumber(raw: string): number {
   return Number(raw.replace(',', '.')) || 0;
 }
 
-/** Tela Nova/Editar promoção do painel (protótipo ArPromoFormScreen): informações básicas, dias/horários e desconto com prévia ao vivo. */
+/** Tela Nova/Editar promoção: CRUD real em `arenas/{arenaId}/promotions`. Sem "limite de
+ *  usos" — não existe contagem de resgate no backend. Alvo é por quadra específica (real),
+ *  não por esporte (não existe essa opção no schema). Dias são ISO 1-7 (seg-dom); nenhum
+ *  selecionado = vale todos os dias. */
 @Component({
   selector: 'ar-panel-promotion-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, IconComponent],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, IconComponent, ToggleComponent, ModalComponent],
   template: `
     <ar-panel-shell>
       <ar-page-header [title]="headerTitle()" subtitle="Desconto automático em dias e horários definidos">
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="!canSave()" (click)="save()">
+        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="!canSave() || saving()" (click)="save()">
           <ar-icon name="check" [size]="14" />
-          Salvar promoção
+          {{ saving() ? 'Salvando…' : 'Salvar promoção' }}
         </button>
       </ar-page-header>
 
       <div class="body">
-        <div class="col-left">
-          <ar-panel-card title="Informações básicas">
-            <div class="field-label">Nome da promoção</div>
-            <input
-              type="text"
-              class="input-box name-input"
-              placeholder="Ex.: Happy Hour da Tarde"
-              [value]="name()"
-              (input)="name.set($any($event.target).value)"
-            />
+        @if (loading()) {
+          <p class="state-text">Carregando…</p>
+        } @else {
+          <div class="col-left">
+            @if (errorMessage(); as err) {
+              <div class="error-banner">{{ err }}</div>
+            }
 
-            <div class="field-label">Quadras aplicáveis</div>
-            <div class="ar-filter-bar">
-              @for (opt of scopeOptions; track opt) {
-                <button type="button" class="ar-chip" [class.active]="scope() === opt" (click)="scope.set(opt)">{{ opt }}</button>
+            <ar-panel-card title="Informações básicas">
+              <div class="field-label">Nome da promoção</div>
+              <input
+                type="text"
+                class="input-box name-input"
+                placeholder="Ex.: Happy Hour da Tarde"
+                [value]="label()"
+                (input)="label.set($any($event.target).value)"
+              />
+
+              <div class="field-label">Ativa</div>
+              <ar-toggle [checked]="active()" (changed)="active.set($event)" />
+            </ar-panel-card>
+
+            <ar-panel-card title="Quadras aplicáveis">
+              <div class="ar-filter-bar filter-block">
+                <button type="button" class="ar-chip" [class.active]="allCourts()" (click)="setAllCourts(true)">Todas as quadras</button>
+                <button type="button" class="ar-chip" [class.active]="!allCourts()" (click)="setAllCourts(false)">Quadras específicas</button>
+              </div>
+              @if (!allCourts()) {
+                <div class="ar-filter-bar">
+                  @for (c of courts(); track c.id) {
+                    <button type="button" class="ar-chip" [class.active]="selectedCourtIds().includes(c.id)" (click)="toggleCourt(c.id)">
+                      {{ c.name }}
+                    </button>
+                  } @empty {
+                    <p class="hint">Nenhuma quadra cadastrada ainda.</p>
+                  }
+                </div>
               }
-            </div>
-          </ar-panel-card>
+            </ar-panel-card>
 
-          <ar-panel-card title="Quando aplicar">
-            <div class="field-label">Dias da semana</div>
-            <div class="ar-filter-bar filter-block">
-              @for (label of dayLabels; track $index) {
-                <button type="button" class="ar-chip" [class.active]="days().has($index)" (click)="toggleDay($index)">{{ label }}</button>
-              }
-            </div>
-
-            <div class="row-2">
-              <div>
-                <div class="field-label">Horário inicial</div>
-                <input type="time" class="input-box" [value]="timeStart()" (input)="timeStart.set($any($event.target).value)" />
+            <ar-panel-card title="Quando aplicar">
+              <div class="field-label">Dias da semana</div>
+              <p class="hint">Nenhum dia selecionado = vale todos os dias.</p>
+              <div class="ar-filter-bar filter-block">
+                @for (d of weekdayOptions; track d) {
+                  <button type="button" class="ar-chip" [class.active]="weekdays().includes(d)" (click)="toggleWeekday(d)">{{ weekdayLabel[d] }}</button>
+                }
               </div>
-              <div>
-                <div class="field-label">Horário final</div>
-                <input type="time" class="input-box" [value]="timeEnd()" (input)="timeEnd.set($any($event.target).value)" />
+
+              <div class="row-2">
+                <div>
+                  <div class="field-label">Horário inicial</div>
+                  <input type="time" class="input-box" [value]="startTime()" (input)="startTime.set($any($event.target).value)" />
+                </div>
+                <div>
+                  <div class="field-label">Horário final</div>
+                  <input type="time" class="input-box" [value]="endTime()" (input)="endTime.set($any($event.target).value)" />
+                </div>
               </div>
-            </div>
 
-            <div class="row-2 row-gap">
-              <div>
-                <div class="field-label">Início da vigência</div>
-                <input type="text" class="input-box" placeholder="Hoje" [value]="validityStart()" (input)="validityStart.set($any($event.target).value)" />
+              <div class="row-2 row-gap">
+                <div>
+                  <div class="field-label">Início da vigência (opcional)</div>
+                  <input type="date" class="input-box" [value]="validFrom()" (input)="validFrom.set($any($event.target).value)" />
+                </div>
+                <div>
+                  <div class="field-label">Fim da vigência (opcional)</div>
+                  <input type="date" class="input-box" [value]="validUntil()" (input)="validUntil.set($any($event.target).value)" />
+                </div>
               </div>
-              <div>
-                <div class="field-label">Fim da vigência (opcional)</div>
-                <input type="text" class="input-box" placeholder="Sem data final" [value]="validityEnd()" (input)="validityEnd.set($any($event.target).value)" />
+            </ar-panel-card>
+
+            <ar-panel-card title="Desconto">
+              <div class="type-toggle">
+                <button type="button" class="type-btn" [class.active]="discountKind() === 'percent'" (click)="discountKind.set('percent')">% Percentual</button>
+                <button type="button" class="type-btn" [class.active]="discountKind() === 'fixed'" (click)="discountKind.set('fixed')">R$ Valor fixo/h</button>
               </div>
-            </div>
-          </ar-panel-card>
 
-          <ar-panel-card title="Desconto">
-            <div class="type-toggle">
-              <button type="button" class="type-btn" [class.active]="discountType() === 'percent'" (click)="discountType.set('percent')">% Percentual</button>
-              <button type="button" class="type-btn" [class.active]="discountType() === 'fixed'" (click)="discountType.set('fixed')">R$ Valor fixo</button>
-            </div>
+              <div class="field-label">{{ discountKind() === 'percent' ? 'Desconto (%)' : 'Preço fixo por hora (R$)' }}</div>
+              <input type="text" inputmode="decimal" class="input-box" [value]="discountValue()" (input)="discountValue.set($any($event.target).value)" />
+            </ar-panel-card>
 
-            <div class="row-2">
-              <div>
-                <div class="field-label">{{ discountFieldLabel() }}</div>
-                <input type="text" inputmode="decimal" class="input-box" [value]="discountValue()" (input)="discountValue.set($any($event.target).value)" />
-              </div>
-              <div>
-                <div class="field-label">Limite de usos (opcional)</div>
-                <input type="text" inputmode="numeric" class="input-box" placeholder="Ilimitado" [value]="usageLimit()" (input)="usageLimit.set($any($event.target).value)" />
-              </div>
-            </div>
-          </ar-panel-card>
-        </div>
-
-        <div class="col-right">
-          <ar-panel-card title="Resumo">
-            <div class="resumo-name">{{ name() || 'Nome da promoção' }}</div>
-            <div class="resumo-meta">{{ scope() }} · {{ daysLabel() || 'nenhum dia selecionado' }}</div>
-            <div class="resumo-highlight">
-              <div class="field-label tone-orange">Desconto aplicado</div>
-              <div class="resumo-value">{{ discountDisplay() }}</div>
-              <div class="resumo-time">{{ timeStart() }}-{{ timeEnd() }}</div>
-            </div>
-          </ar-panel-card>
-
-          <ar-panel-card title="Exemplo de preço">
-            <div class="price-row">
-              <span>Preço normal</span>
-              <span class="price-old">{{ formatBRL(referencePrice) }}</span>
-            </div>
-            <div class="price-row">
-              <span>Com promoção</span>
-              <span class="price-new">{{ formatBRL(discountedPrice()) }}</span>
-            </div>
-          </ar-panel-card>
-
-          <div class="hint-box">
-            O desconto aparece automaticamente para o cliente ao escolher um horário elegível — sem necessidade de cupom.
+            @if (isEdit()) {
+              <button type="button" class="remove-link" (click)="showRemoveConfirm.set(true)">
+                <ar-icon name="alert-triangle" [size]="14" />
+                Remover promoção
+              </button>
+            }
           </div>
-        </div>
+
+          <div class="col-right">
+            <ar-panel-card title="Resumo">
+              <div class="resumo-name">{{ label() || 'Nome da promoção' }}</div>
+              <div class="resumo-meta">{{ allCourts() ? 'Todas as quadras' : selectedCourtIds().length + ' quadra(s)' }}</div>
+              <div class="resumo-highlight">
+                <div class="field-label tone-orange">Desconto aplicado</div>
+                <div class="resumo-value">{{ discountKind() === 'percent' ? discountValue() + '%' : 'R$ ' + discountValue() + '/h' }}</div>
+                <div class="resumo-time">{{ startTime() }}-{{ endTime() }}</div>
+              </div>
+            </ar-panel-card>
+
+            <div class="hint-box">O desconto aparece automaticamente pro cliente ao escolher um horário elegível — sem necessidade de cupom.</div>
+          </div>
+        }
       </div>
+
+      @if (showRemoveConfirm()) {
+        <ar-modal (close)="showRemoveConfirm.set(false)">
+          <h2 class="confirm-title">Remover promoção?</h2>
+          <p class="confirm-body">"{{ label() }}" será removida e deixa de aparecer pros clientes imediatamente.</p>
+          <div class="confirm-actions">
+            <button type="button" class="ar-ghost-btn" [disabled]="removing()" (click)="showRemoveConfirm.set(false)">Cancelar</button>
+            <button type="button" class="ar-mini-btn danger-btn" [disabled]="removing()" (click)="remove()">
+              {{ removing() ? 'Removendo…' : 'Remover promoção' }}
+            </button>
+          </div>
+        </ar-modal>
+      }
     </ar-panel-shell>
   `,
   styles: `
@@ -212,6 +166,20 @@ function parseNumber(raw: string): number {
       gap: 16px;
       align-items: start;
       overflow: auto;
+    }
+
+    .state-text {
+      font-size: 13.5px;
+      color: var(--nx-text-mute);
+    }
+
+    .error-banner {
+      border-radius: var(--nx-r-2);
+      border: 1px solid var(--nx-live);
+      background: rgba(255, 59, 48, 0.08);
+      color: var(--nx-live);
+      padding: 10px 14px;
+      font-size: 12.5px;
     }
 
     .col-left,
@@ -233,6 +201,12 @@ function parseNumber(raw: string): number {
 
     .field-label.tone-orange {
       color: var(--nx-orange-500);
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--nx-text-dim);
+      margin: 0 0 12px;
     }
 
     .filter-block {
@@ -338,32 +312,6 @@ function parseNumber(raw: string): number {
       margin-top: 4px;
     }
 
-    .price-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 0;
-    }
-
-    .price-row span:first-child {
-      font-size: 13px;
-      color: var(--nx-text-mute);
-    }
-
-    .price-old {
-      font-family: var(--nx-font-mono);
-      font-size: 14px;
-      color: var(--nx-text-dim);
-      text-decoration: line-through;
-    }
-
-    .price-new {
-      font-family: var(--nx-font-display);
-      font-weight: 800;
-      font-size: 18px;
-      color: var(--nx-win);
-    }
-
     .hint-box {
       padding: 14px 16px;
       border-radius: var(--nx-r-3);
@@ -372,6 +320,59 @@ function parseNumber(raw: string): number {
       font-size: 12.5px;
       line-height: 1.55;
       color: var(--nx-text-dim);
+    }
+
+    .remove-link {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 4px 0;
+      color: var(--nx-live);
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .remove-link:hover {
+      text-decoration: underline;
+    }
+
+    .confirm-title {
+      font-family: var(--nx-font-display);
+      font-weight: 800;
+      font-size: 19px;
+      color: var(--nx-text);
+      margin: 0 0 10px;
+    }
+
+    .confirm-body {
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: var(--nx-text-mute);
+      margin: 0 0 22px;
+    }
+
+    .confirm-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 16px;
+    }
+
+    .danger-btn {
+      height: 44px;
+      padding: 0 20px;
+      background: var(--nx-live);
+      color: #fff;
+      border: none;
+    }
+
+    .danger-btn:hover:not(:disabled) {
+      background: #ff564c;
     }
 
     @media (max-width: 1180px) {
@@ -388,67 +389,143 @@ function parseNumber(raw: string): number {
   `,
 })
 export class PanelPromotionFormComponent {
+  private readonly arenaContext = inject(ArenaContextService);
   private readonly router = inject(Router);
 
   readonly id = input<string | null>(null);
 
-  protected readonly scopeOptions = SCOPE_OPTIONS;
-  protected readonly dayLabels = DAY_SHORT_LABELS;
-  protected readonly referencePrice = REFERENCE_PRICE;
-  protected readonly formatBRL = formatBRL;
-
-  private readonly promoData = computed(() => (this.id() ? (MOCK_PROMOTIONS[this.id()!] ?? null) : null));
+  protected readonly weekdayOptions = PROMO_WEEKDAYS;
+  protected readonly weekdayLabel = PROMO_WEEKDAY_LABEL;
 
   protected readonly isEdit = computed(() => this.id() != null);
-
-  protected readonly name = linkedSignal(() => this.promoData()?.name ?? DEFAULT_FORM.name);
-  protected readonly scope = linkedSignal<CourtScope>(() => this.promoData()?.scope ?? DEFAULT_FORM.scope);
-  protected readonly days = linkedSignal(() => {
-    const source = this.promoData()?.days ?? DEFAULT_FORM.days;
-    return new Set(source.map((active, i) => (active ? i : -1)).filter((i) => i >= 0));
-  });
-  protected readonly timeStart = linkedSignal(() => this.promoData()?.timeStart ?? DEFAULT_FORM.timeStart);
-  protected readonly timeEnd = linkedSignal(() => this.promoData()?.timeEnd ?? DEFAULT_FORM.timeEnd);
-  protected readonly validityStart = linkedSignal(() => this.promoData()?.validityStart ?? DEFAULT_FORM.validityStart);
-  protected readonly validityEnd = linkedSignal(() => this.promoData()?.validityEnd ?? DEFAULT_FORM.validityEnd);
-  protected readonly discountType = linkedSignal<DiscountType>(() => this.promoData()?.discountType ?? DEFAULT_FORM.discountType);
-  protected readonly discountValue = linkedSignal(() => this.promoData()?.discountValue ?? DEFAULT_FORM.discountValue);
-  protected readonly usageLimit = linkedSignal(() => this.promoData()?.usageLimit ?? DEFAULT_FORM.usageLimit);
-
   protected readonly headerTitle = computed(() => (this.isEdit() ? 'Editar promoção' : 'Nova promoção'));
 
-  protected readonly daysLabel = computed(() =>
-    this.dayLabels.filter((_, i) => this.days().has(i)).join(', '),
-  );
+  protected readonly loading = signal(true);
+  protected readonly errorMessage = signal<string | null>(null);
+  protected readonly saving = signal(false);
+  protected readonly removing = signal(false);
+  protected readonly showRemoveConfirm = signal(false);
 
-  protected readonly discountFieldLabel = computed(() => (this.discountType() === 'percent' ? 'Desconto (%)' : 'Desconto (R$)'));
+  protected readonly courts = signal<ArenaCourt[]>([]);
 
-  protected readonly discountDisplay = computed(() => formatDiscount(this.discountType(), parseNumber(this.discountValue())));
+  protected readonly label = signal('');
+  protected readonly active = signal(true);
+  protected readonly allCourts = signal(true);
+  protected readonly selectedCourtIds = signal<string[]>([]);
+  protected readonly weekdays = signal<number[]>([]);
+  protected readonly startTime = signal('14:00');
+  protected readonly endTime = signal('17:00');
+  protected readonly validFrom = signal('');
+  protected readonly validUntil = signal('');
+  protected readonly discountKind = signal<DiscountKind>('percent');
+  protected readonly discountValue = signal('20');
 
-  protected readonly discountedPrice = computed(() => {
-    const value = parseNumber(this.discountValue());
-    const result = this.discountType() === 'percent' ? this.referencePrice * (1 - value / 100) : this.referencePrice - value;
-    return Math.max(0, result);
-  });
+  protected readonly canSave = computed(() => this.label().trim().length > 0 && parseNumber(this.discountValue()) > 0 && !this.saving());
 
-  protected readonly canSave = computed(() => this.name().trim().length > 0 && this.days().size > 0);
-
-  protected toggleDay(index: number): void {
-    this.days.update((current) => {
-      const next = new Set(current);
-      if (next.has(index)) {
-        next.delete(index);
-      } else {
-        next.add(index);
-      }
-      return next;
+  constructor() {
+    effect(() => {
+      const arenaId = this.arenaContext.arenaId();
+      const promoId = this.id();
+      if (!arenaId) return;
+      void this.load(arenaId, promoId);
     });
   }
 
-  protected save(): void {
-    if (!this.canSave()) {
-      return;
+  private async load(arenaId: string, promoId: string | null): Promise<void> {
+    this.loading.set(true);
+    this.errorMessage.set(null);
+    try {
+      const db = arenaFirestore();
+      const [courts, promotions] = await Promise.all([fetchCourtsList(db, arenaId), promoId ? fetchAllPromotions(db, arenaId) : Promise.resolve([])]);
+      this.courts.set(courts);
+
+      const promo = promoId ? promotions.find((p) => p.id === promoId) ?? null : null;
+      if (promo) {
+        this.label.set(promo.label);
+        this.active.set(promo.active);
+        this.allCourts.set(promo.courtIds.length === 0);
+        this.selectedCourtIds.set(promo.courtIds);
+        this.weekdays.set(promo.weekdays);
+        this.startTime.set(promo.startTime);
+        this.endTime.set(promo.endTime);
+        this.validFrom.set(dateToInputValue(promo.validFrom));
+        this.validUntil.set(dateToInputValue(promo.validUntil));
+        if (promo.fixedPricePerHourReais != null) {
+          this.discountKind.set('fixed');
+          this.discountValue.set(String(promo.fixedPricePerHourReais));
+        } else if (promo.discountPercent != null) {
+          this.discountKind.set('percent');
+          this.discountValue.set(String(promo.discountPercent));
+        }
+      }
+    } catch {
+      this.errorMessage.set('Não foi possível carregar a promoção.');
+    } finally {
+      this.loading.set(false);
     }
-    this.router.navigate(['/painel/promocoes']);
+  }
+
+  protected setAllCourts(value: boolean): void {
+    this.allCourts.set(value);
+  }
+
+  protected toggleCourt(courtId: string): void {
+    this.selectedCourtIds.update((current) => (current.includes(courtId) ? current.filter((id) => id !== courtId) : [...current, courtId]));
+  }
+
+  protected toggleWeekday(day: number): void {
+    this.weekdays.update((current) => (current.includes(day) ? current.filter((d) => d !== day) : [...current, day]));
+  }
+
+  protected async save(): Promise<void> {
+    if (!this.canSave()) return;
+    const arenaId = this.arenaContext.arenaId();
+    if (!arenaId) return;
+
+    const value = parseNumber(this.discountValue());
+    this.saving.set(true);
+    this.errorMessage.set(null);
+    try {
+      const input = {
+        label: this.label(),
+        active: this.active(),
+        courtIds: this.allCourts() ? [] : this.selectedCourtIds(),
+        weekdays: this.weekdays(),
+        startTime: this.startTime(),
+        endTime: this.endTime(),
+        discountPercent: this.discountKind() === 'percent' ? value : null,
+        fixedPricePerHourReais: this.discountKind() === 'fixed' ? value : null,
+        validFrom: inputValueToDate(this.validFrom()),
+        validUntil: inputValueToDate(this.validUntil()),
+      };
+      const promoId = this.id();
+      if (promoId) {
+        await updatePromotion(arenaFirestore(), arenaId, promoId, input);
+      } else {
+        await createPromotion(arenaFirestore(), arenaId, input);
+      }
+      void this.router.navigate(['/painel/promocoes']);
+    } catch (err) {
+      this.errorMessage.set(err instanceof Error ? err.message : 'Não foi possível salvar a promoção.');
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  protected async remove(): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    const promoId = this.id();
+    if (!arenaId || !promoId) return;
+
+    this.removing.set(true);
+    try {
+      await deletePromotion(arenaFirestore(), arenaId, promoId);
+      this.showRemoveConfirm.set(false);
+      void this.router.navigate(['/painel/promocoes']);
+    } catch (err) {
+      this.errorMessage.set(err instanceof Error ? err.message : 'Não foi possível remover a promoção.');
+    } finally {
+      this.removing.set(false);
+    }
   }
 }

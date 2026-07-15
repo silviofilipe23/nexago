@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
+import { ArenaContextService } from '../data/arena-context.service';
 import { IconComponent, type PanelIconName } from './icon.component';
 import { initialsOf } from './initials';
 
@@ -17,15 +18,19 @@ interface PanelNavItem {
 const NAV_ITEMS: PanelNavItem[] = [
   { id: 'inicio', label: 'Início', icon: 'home', route: '/painel', badge: null },
   { id: 'agenda', label: 'Agenda', icon: 'calendar', route: '/painel/agenda', badge: null },
+  { id: 'reservas', label: 'Reservas', icon: 'clock', route: '/painel/reservas', badge: null },
+  { id: 'horarios-fixos', label: 'Horários fixos', icon: 'repeat', route: '/painel/horarios-fixos', badge: null },
   { id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro', badge: null },
   { id: 'comandas', label: 'Comandas', icon: 'bookmark', route: '/painel/comandas', badge: null },
   { id: 'estoque', label: 'Estoque', icon: 'box', route: '/painel/estoque', badge: null },
   { id: 'promocoes', label: 'Promoções', icon: 'tag', route: '/painel/promocoes', badge: null },
   { id: 'torneios', label: 'Torneios', icon: 'trophy', route: '/painel/torneios', badge: 2 },
   { id: 'quadras', label: 'Quadras', icon: 'courts', route: '/painel/quadras', badge: null },
+  { id: 'avaliacoes', label: 'Avaliações', icon: 'star', route: '/painel/avaliacoes', badge: null },
+  { id: 'seguidores', label: 'Seguidores', icon: 'users', route: '/painel/seguidores', badge: null },
   { id: 'ranking', label: 'Ranking', icon: 'ranking', route: '/painel/ranking', badge: null },
   { id: 'equipe', label: 'Equipe', icon: 'team', route: '/painel/equipe', badge: null },
-  { id: 'perfil', label: 'Perfil', icon: 'person', route: '/painel/perfil', badge: null },
+  { id: 'planos', label: 'Planos', icon: 'card', route: '/painel/planos', badge: null },
 ];
 
 function pathOnly(url: string): string {
@@ -53,14 +58,20 @@ function pathOnly(url: string): string {
           </div>
         </div>
 
-        <div class="switcher">
-          <div class="switcher-avatar" aria-hidden="true">{{ initials() }}</div>
+        <a class="switcher" routerLink="/painel/perfil" title="Ver perfil">
+          <div class="switcher-avatar" aria-hidden="true">{{ arenaInitials() }}</div>
           <div class="switcher-body">
             <div class="switcher-name">{{ arenaName() }}</div>
-            <div class="switcher-meta">1 unidade</div>
           </div>
-          <ar-icon name="chevron-right" [size]="13" style="color: var(--nx-text-dim); transform: rotate(90deg)" />
-        </div>
+          <ar-icon name="chevron-right" [size]="13" style="color: var(--nx-text-dim)" />
+        </a>
+
+        @if (hasMultipleArenas()) {
+          <a class="switch-arena-link" routerLink="/painel/selecionar-arena">
+            <ar-icon name="repeat" [size]="12" />
+            Trocar arena
+          </a>
+        }
 
         <nav class="nav">
           <div class="nav-kicker">Operação</div>
@@ -82,13 +93,13 @@ function pathOnly(url: string): string {
           <span>Configurações</span>
         </div>
 
-        <div class="user-row">
-          <div class="avatar" aria-hidden="true">{{ initials() }}</div>
+        <a class="user-row" routerLink="/painel/perfil" title="Ver perfil">
+          <div class="avatar" aria-hidden="true">{{ userInitials() }}</div>
           <div class="who">
             <div class="who-name">{{ displayName() }}</div>
             <div class="who-role">Gestor</div>
           </div>
-        </div>
+        </a>
       </aside>
 
       <div class="content">
@@ -102,26 +113,31 @@ function pathOnly(url: string): string {
     }
 
     .shell {
-      min-height: 100dvh;
+      height: 100dvh;
       display: grid;
       grid-template-columns: 236px 1fr;
       background: var(--nx-bg);
       color: var(--nx-text);
+      overflow: hidden;
     }
 
     .sidebar {
+      height: 100%;
       background: #070708;
       border-right: 1px solid var(--nx-line);
       display: flex;
       flex-direction: column;
-      padding: 20px 14px;
+      padding: 16px 14px;
+      overflow: hidden;
+      box-sizing: border-box;
     }
 
     .brand {
       display: flex;
       align-items: center;
       gap: 11px;
-      padding: 2px 8px 0;
+      padding: 0 8px;
+      flex: none;
     }
 
     .mark {
@@ -166,12 +182,19 @@ function pathOnly(url: string): string {
       display: flex;
       align-items: center;
       gap: 9px;
-      margin-top: 18px;
-      padding: 8px 10px;
+      margin-top: 12px;
+      padding: 7px 10px;
       border-radius: var(--nx-r-2);
       cursor: pointer;
       background: var(--nx-surface-1);
       border: 1px solid var(--nx-line);
+      flex: none;
+      text-decoration: none;
+      transition: background 140ms var(--nx-ease-out);
+    }
+
+    .switcher:hover {
+      background: var(--nx-surface-2);
     }
 
     .switcher-avatar {
@@ -203,18 +226,32 @@ function pathOnly(url: string): string {
       text-overflow: ellipsis;
     }
 
-    .switcher-meta {
-      font-family: var(--nx-font-mono);
-      font-size: 8.5px;
-      font-weight: 600;
+    .switch-arena-link {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+      padding: 0 10px;
       color: var(--nx-text-dim);
+      font-family: var(--nx-font-mono);
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-decoration: none;
+      flex: none;
+    }
+
+    .switch-arena-link:hover {
+      color: var(--nx-orange-500);
     }
 
     .nav {
       display: flex;
       flex-direction: column;
-      gap: 2px;
-      margin-top: 22px;
+      gap: 1px;
+      margin-top: 14px;
+      min-height: 0;
+      overflow: hidden;
     }
 
     .nav-kicker {
@@ -225,20 +262,22 @@ function pathOnly(url: string): string {
       text-transform: uppercase;
       color: var(--nx-text-dim);
       padding: 0 12px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
+      flex: none;
     }
 
     .nav-item {
       display: flex;
       align-items: center;
       gap: 12px;
-      height: 40px;
+      height: 34px;
+      flex: none;
       padding: 0 12px;
       border-radius: var(--nx-r-2);
       color: var(--nx-text-mute);
       font-family: var(--nx-font-display);
       font-weight: 600;
-      font-size: 13.5px;
+      font-size: 13px;
       letter-spacing: -0.005em;
       position: relative;
       text-decoration: none;
@@ -299,15 +338,25 @@ function pathOnly(url: string): string {
 
     .spacer {
       flex: 1;
+      min-height: 0;
     }
 
     .user-row {
-      margin-top: 14px;
-      padding-top: 14px;
+      margin-top: 10px;
+      padding-top: 10px;
       border-top: 1px solid var(--nx-line);
       display: flex;
       align-items: center;
       gap: 10px;
+      flex: none;
+      cursor: pointer;
+      text-decoration: none;
+      border-radius: var(--nx-r-2);
+      transition: background 140ms var(--nx-ease-out);
+    }
+
+    .user-row:hover {
+      background: var(--nx-surface-1);
     }
 
     .avatar {
@@ -356,7 +405,8 @@ function pathOnly(url: string): string {
       display: flex;
       flex-direction: column;
       min-width: 0;
-      min-height: 100dvh;
+      height: 100%;
+      overflow-y: auto;
     }
 
     @media (max-width: 900px) {
@@ -373,6 +423,7 @@ function pathOnly(url: string): string {
 export class PanelShellComponent {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
+  private readonly arenaContext = inject(ArenaContextService);
 
   protected readonly navItems = NAV_ITEMS;
 
@@ -395,11 +446,15 @@ export class PanelShellComponent {
     return nested?.id ?? null;
   });
 
-  protected readonly displayName = computed(
-    () => this.auth.displayName() || this.auth.user()?.email || 'Conta',
-  );
+  /** Identidade da pessoa logada (gestor) — NÃO usar `auth.displayName()` aqui: esse campo do
+   *  Firebase Auth guarda o nome da ARENA no cadastro self-service (`createArenaAccount`) e o
+   *  nome da pessoa só em contas provisionadas por admin, então é ambíguo. O e-mail é o único
+   *  identificador que é sempre da pessoa, nos dois fluxos. */
+  protected readonly displayName = computed(() => this.auth.user()?.email || 'Conta');
 
-  protected readonly arenaName = computed(() => this.auth.displayName() || 'Arena');
+  protected readonly arenaName = computed(() => this.arenaContext.arenaName() ?? 'Minha arena');
+  protected readonly hasMultipleArenas = computed(() => this.arenaContext.managedArenas().length > 1);
 
-  protected readonly initials = computed(() => initialsOf(this.displayName()));
+  protected readonly userInitials = computed(() => initialsOf(this.displayName()));
+  protected readonly arenaInitials = computed(() => initialsOf(this.arenaName()));
 }

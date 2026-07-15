@@ -6,9 +6,8 @@ export interface AthleteDirectoryEntry {
   handle: string;
   fullName: string;
   city: string;
-  distanceKm: number;
   sport: ArenaSportChip;
-  level: RankingLevel;
-  rankingPosition: number;
-  suggestionReason: string | null;
+  level: RankingLevel | null;
+  /** `null` = atleta ainda sem pontuação em torneios (não aparece no ranking geral). */
+  rankingPosition: number | null;
 }

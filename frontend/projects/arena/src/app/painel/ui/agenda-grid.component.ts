@@ -10,7 +10,10 @@ import {
   nowInMinutes,
 } from './agenda-grid-math';
 
-export type AgendaBookingStatus = 'confirmada' | 'pendente' | 'manutencao';
+/** `available` = horário livre (clicável pra bloquear); `bloqueado` = horário específico
+ *  bloqueado pelo gestor (clicável pra desbloquear); `manutencao` = quadra inteira fora do ar
+ *  (não é por horário, não clicável — ver `ArenaCourt.status`). */
+export type AgendaBlockStatus = 'available' | 'confirmada' | 'pendente' | 'bloqueado' | 'manutencao';
 
 export interface AgendaCourt {
   id: string;
@@ -18,16 +21,16 @@ export interface AgendaCourt {
   sport: string;
 }
 
-export interface AgendaBooking {
+export interface AgendaBlock {
   id: string;
   courtId: string;
   start: number;
   dur: number;
-  status: AgendaBookingStatus;
+  status: AgendaBlockStatus;
   client: string;
 }
 
-interface PositionedBooking extends AgendaBooking {
+interface PositionedBlock extends AgendaBlock {
   top: number;
   height: number;
   label: string;
@@ -40,7 +43,10 @@ interface RowMark {
   label: string;
 }
 
-/** Grade de quadras × horário (protótipo ArAgendaGrade), com blocos de reserva posicionados por cálculo. */
+const NON_CLICKABLE: ReadonlySet<AgendaBlockStatus> = new Set(['manutencao']);
+
+/** Grade de quadras × horário (protótipo ArAgendaGrade), com blocos posicionados por cálculo —
+ *  inclui horários disponíveis (clicáveis pra bloquear) além de reservados/bloqueados. */
 @Component({
   selector: 'ar-agenda-grid',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -71,10 +77,10 @@ interface RowMark {
                   <div
                     class="block"
                     [class]="'tone-' + b.status"
-                    [class.clickable]="b.status !== 'manutencao'"
+                    [class.clickable]="isClickable(b.status)"
                     [style.top.px]="b.top"
                     [style.height.px]="b.height"
-                    (click)="b.status !== 'manutencao' && bookingClick.emit(b.id)"
+                    (click)="isClickable(b.status) && blockClick.emit(b.id)"
                   >
                     <div class="block-title">{{ b.label }}</div>
                     @if (b.height > 30) {
@@ -204,6 +210,21 @@ interface RowMark {
       cursor: pointer;
     }
 
+    .block.tone-available {
+      background: transparent;
+      border: 1px dashed var(--nx-line-strong);
+    }
+
+    .block.tone-available:hover {
+      background: var(--nx-surface-1);
+      border-color: var(--nx-text-dim);
+    }
+
+    .block.tone-available .block-title,
+    .block.tone-available .block-time {
+      color: var(--nx-text-dim);
+    }
+
     .block.tone-confirmada {
       background: rgba(43, 209, 126, 0.12);
       border-color: rgba(43, 209, 126, 0.35);
@@ -214,6 +235,12 @@ interface RowMark {
       background: rgba(244, 197, 67, 0.12);
       border-color: rgba(244, 197, 67, 0.35);
       border-left: 3px solid var(--nx-pending);
+    }
+
+    .block.tone-bloqueado {
+      background: rgba(255, 106, 26, 0.08);
+      border-color: rgba(255, 106, 26, 0.3);
+      border-left: 3px solid var(--nx-orange-500);
     }
 
     .block.tone-manutencao {
@@ -266,8 +293,8 @@ interface RowMark {
 })
 export class AgendaGridComponent {
   readonly courts = input.required<AgendaCourt[]>();
-  readonly bookings = input.required<AgendaBooking[]>();
-  readonly bookingClick = output<string>();
+  readonly blocks = input.required<AgendaBlock[]>();
+  readonly blockClick = output<string>();
 
   private readonly nowMinutes = signal(nowInMinutes());
 
@@ -284,18 +311,22 @@ export class AgendaGridComponent {
     }),
   );
 
-  protected readonly positionedByCourt = computed<Record<string, PositionedBooking[]>>(() => {
-    const result: Record<string, PositionedBooking[]> = {};
-    for (const b of this.bookings()) {
+  protected readonly positionedByCourt = computed<Partial<Record<string, PositionedBlock[]>>>(() => {
+    const result: Partial<Record<string, PositionedBlock[]>> = {};
+    for (const b of this.blocks()) {
       const top = minutesToRowOffset(b.start) + 1;
       const height = (b.dur / AGENDA_SLOT_MIN) * AGENDA_ROW_HEIGHT - 3;
-      const label = b.status === 'manutencao' ? 'Manutenção' : b.client;
+      const label = b.status === 'available' ? 'Disponível' : b.status === 'manutencao' ? 'Manutenção' : b.status === 'bloqueado' ? 'Bloqueado' : b.client;
       const timeLabel = `${formatMinutes(b.start)}–${formatMinutes(b.start + b.dur)}`;
-      const positioned: PositionedBooking = { ...b, top, height, label, timeLabel };
+      const positioned: PositionedBlock = { ...b, top, height, label, timeLabel };
       (result[b.courtId] ??= []).push(positioned);
     }
     return result;
   });
+
+  protected isClickable(status: AgendaBlockStatus): boolean {
+    return !NON_CLICKABLE.has(status);
+  }
 
   /** -1 quando a hora atual está fora da janela 07:00–22:00 (linha "agora" não aparece). */
   protected readonly nowOffset = computed(() => {

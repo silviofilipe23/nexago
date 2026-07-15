@@ -1,110 +1,100 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { Router } from '@angular/router';
-import { AuthService } from '../../auth/auth.service';
-import { BarRowComponent, type BarRowTone } from '../ui/bar-row.component';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
+import { ArenaContextService } from '../data/arena-context.service';
+import { maxCourtsFor } from '../data/arena-plan.model';
+import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
+import { ARENA_COURT_STATUS_LABEL, type ArenaCourt, type ArenaCourtStatus } from './court.model';
+import { fetchCourtsList } from './courts-repository';
 
-type CourtStatus = 'livre' | 'ocupada' | 'manutencao';
+const STATUS_TONE: Record<ArenaCourtStatus, PillTone> = { active: 'green', maintenance: 'yellow' };
 
-interface Court {
-  id: string;
-  name: string;
-  sport: string;
-  status: CourtStatus;
-  preco: number;
-  ocupacao: number;
-  reservasHoje: number;
-  cobertura: string;
+function formatBRL(n: number): string {
+  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 }
 
-const STATUS_LABEL: Record<CourtStatus, string> = {
-  livre: 'Livre agora',
-  ocupada: 'Ocupada agora',
-  manutencao: 'Em manutenção',
-};
-
-const STATUS_TONE: Record<CourtStatus, PillTone> = {
-  livre: 'green',
-  ocupada: 'orange',
-  manutencao: 'dim',
-};
-
-const COURTS: Court[] = [
-  { id: 'q1', name: 'Quadra 1', sport: 'Beach Tennis', status: 'livre', preco: 60, ocupacao: 92, reservasHoje: 5, cobertura: 'Coberta' },
-  { id: 'q2', name: 'Quadra 2', sport: 'Vôlei de praia', status: 'ocupada', preco: 50, ocupacao: 84, reservasHoje: 4, cobertura: 'Descoberta' },
-  { id: 'q3', name: 'Quadra 3', sport: 'Beach Soccer', status: 'manutencao', preco: 80, ocupacao: 0, reservasHoje: 0, cobertura: 'Coberta' },
-];
-
-/** Tela Quadras do painel (protótipo ArQuadrasScreen): KPIs e grid de cards de quadra. */
+/** Tela Quadras do painel: CRUD real de `arenas/{arenaId}/courts`. Sem "ocupação"/"reservas
+ *  hoje"/"cobertura" — nenhum desses campos existe no schema real (ocupação é derivada de
+ *  reservas, não persistida na quadra). Limite de quadras por plano (Essencial=2,
+ *  Pro/Parceiro=ilimitado) já reforçado nas rules — a UI só ajuda a não bater de frente. */
 @Component({
   selector: 'ar-panel-courts',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, BarRowComponent, PillComponent, IconComponent],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, RouterLink],
   template: `
     <ar-panel-shell>
-      <ar-page-header title="Quadras" [subtitle]="arenaName() + ' · ' + courts.length + ' quadras cadastradas'">
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="createCourt()">
+      <ar-page-header title="Quadras" [subtitle]="headerSubtitle()">
+        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="atCap()" (click)="createCourt()">
           <ar-icon name="plus" [size]="14" />
           Nova quadra
         </button>
       </ar-page-header>
 
       <div class="body">
-        <div class="kpi-row">
-          <ar-panel-card pad="sm" class="kpi-card">
-            <div class="kpi-label">Ocupação média</div>
-            <div class="kpi-value">78%</div>
-          </ar-panel-card>
-          <ar-panel-card pad="sm" class="kpi-card">
-            <div class="kpi-label">Quadras livres agora</div>
-            <div class="kpi-value tone-green">{{ freeCount() }}</div>
-          </ar-panel-card>
-          <ar-panel-card pad="sm" class="kpi-card">
-            <div class="kpi-label">Em manutenção</div>
-            <div class="kpi-value tone-pending">{{ maintenanceCount() }}</div>
-          </ar-panel-card>
-        </div>
+        @if (arenaNotFound()) {
+          <p class="state-text">Nenhuma arena vinculada à sua conta ainda.</p>
+        } @else if (arenaLoading() || loading()) {
+          <p class="state-text">Carregando quadras…</p>
+        } @else if (loadError(); as err) {
+          <p class="state-text">{{ err }}</p>
+        } @else {
+          @if (atCap()) {
+            <div class="cap-banner">
+              Limite de {{ maxCourts() }} quadras do plano Essencial atingido — faça upgrade em
+              <a routerLink="/painel/planos" class="link">Planos</a> pra cadastrar mais.
+            </div>
+          }
 
-        <div class="grid-wrap">
-          <div class="grid">
-            @for (c of courts; track c.name) {
-              <div class="card">
-                <div class="card-head">
-                  <div class="card-icon">
-                    <ar-icon name="courts" [size]="20" />
+          <div class="kpi-row">
+            <ar-panel-card pad="sm" class="kpi-card">
+              <div class="kpi-label">Quadras cadastradas</div>
+              <div class="kpi-value">{{ courts().length }}</div>
+            </ar-panel-card>
+            <ar-panel-card pad="sm" class="kpi-card">
+              <div class="kpi-label">Ativas</div>
+              <div class="kpi-value tone-green">{{ activeCount() }}</div>
+            </ar-panel-card>
+            <ar-panel-card pad="sm" class="kpi-card">
+              <div class="kpi-label">Em manutenção</div>
+              <div class="kpi-value tone-pending">{{ maintenanceCount() }}</div>
+            </ar-panel-card>
+          </div>
+
+          <div class="grid-wrap">
+            <div class="grid">
+              @for (c of courts(); track c.id) {
+                <div class="card">
+                  <div class="card-head">
+                    <div class="card-icon">
+                      <ar-icon name="courts" [size]="20" />
+                    </div>
+                    <ar-pill [tone]="statusTone[c.status]">{{ statusLabel[c.status] }}</ar-pill>
                   </div>
-                  <ar-pill [tone]="statusTone[c.status]">{{ statusLabel[c.status] }}</ar-pill>
-                </div>
-                <div>
-                  <div class="card-title">{{ c.name }}</div>
-                  <div class="card-meta">{{ c.sport }} · {{ c.cobertura }}</div>
-                </div>
-                <div class="stat-grid">
+                  <div>
+                    <div class="card-title">{{ c.name }}</div>
+                    <div class="card-meta">{{ c.types.join(', ') || 'Sem modalidade' }}</div>
+                  </div>
                   <div class="stat-box">
                     <div class="stat-label">Preço/h</div>
-                    <div class="stat-value">R$ {{ c.preco }}</div>
+                    <div class="stat-value">{{ c.basePricePerHourReais != null ? formatBRL(c.basePricePerHourReais) : 'Não definido' }}</div>
                   </div>
-                  <div class="stat-box">
-                    <div class="stat-label">Reservas hoje</div>
-                    <div class="stat-value">{{ c.reservasHoje }}</div>
+                  <div class="card-foot">
+                    <button type="button" class="ar-mini-btn" (click)="editCourt(c.id)">
+                      <ar-icon name="edit" [size]="13" />
+                      Editar
+                    </button>
                   </div>
                 </div>
-                <ar-bar-row label="Ocupação (7d)" [pct]="c.ocupacao" [tone]="occupancyTone(c)" [last]="true" />
-                <div class="card-foot">
-                  <button type="button" class="ar-mini-btn" (click)="editCourt(c.id)">
-                    <ar-icon name="edit" [size]="13" />
-                    Editar
-                  </button>
-                  <button type="button" class="ar-ghost-btn">Ver agenda</button>
-                </div>
-              </div>
-            }
+              } @empty {
+                <p class="state-text">Nenhuma quadra cadastrada ainda.</p>
+              }
+            </div>
           </div>
-        </div>
+        }
       </div>
     </ar-panel-shell>
   `,
@@ -116,6 +106,25 @@ const COURTS: Court[] = [
       flex-direction: column;
       gap: 16px;
       overflow: hidden;
+    }
+
+    .state-text {
+      font-size: 13.5px;
+      color: var(--nx-text-mute);
+    }
+
+    .link {
+      color: var(--nx-orange-500);
+    }
+
+    .cap-banner {
+      flex: none;
+      border-radius: var(--nx-r-2);
+      border: 1px solid var(--nx-line-strong);
+      background: var(--nx-surface-1);
+      padding: 10px 14px;
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
     }
 
     .kpi-row {
@@ -211,13 +220,7 @@ const COURTS: Court[] = [
       margin-top: 3px;
     }
 
-    .stat-grid {
-      display: flex;
-      gap: 10px;
-    }
-
     .stat-box {
-      flex: 1;
       padding: 10px 12px;
       border-radius: var(--nx-r-2);
       background: var(--nx-surface-1);
@@ -262,26 +265,55 @@ const COURTS: Court[] = [
   `,
 })
 export class PanelCourtsComponent {
-  private readonly auth = inject(AuthService);
+  private readonly arenaContext = inject(ArenaContextService);
   private readonly router = inject(Router);
 
-  protected readonly courts = COURTS;
-  protected readonly statusLabel = STATUS_LABEL;
+  protected readonly statusLabel = ARENA_COURT_STATUS_LABEL;
   protected readonly statusTone = STATUS_TONE;
+  protected readonly formatBRL = formatBRL;
 
-  protected readonly freeCount = computed(() => this.courts.filter((c) => c.status === 'livre').length);
-  protected readonly maintenanceCount = computed(() => this.courts.filter((c) => c.status === 'manutencao').length);
+  protected readonly arenaLoading = computed(() => this.arenaContext.loading());
+  protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
 
-  protected readonly arenaName = computed(() => this.auth.displayName() || 'Arena');
+  protected readonly courts = signal<ArenaCourt[]>([]);
+  protected readonly loading = signal(true);
+  protected readonly loadError = signal<string | null>(null);
 
-  protected occupancyTone(c: Court): BarRowTone {
-    if (c.ocupacao === 0) {
-      return 'red';
+  protected readonly activeCount = computed(() => this.courts().filter((c) => c.status === 'active').length);
+  protected readonly maintenanceCount = computed(() => this.courts().filter((c) => c.status === 'maintenance').length);
+
+  protected readonly maxCourts = computed(() => maxCourtsFor(this.arenaContext.planStatus().tier, this.arenaContext.entitled()));
+  protected readonly atCap = computed(() => {
+    const max = this.maxCourts();
+    return max != null && this.courts().length >= max;
+  });
+
+  protected readonly headerSubtitle = computed(
+    () => `${this.arenaContext.arenaName() ?? 'Arena'} · ${this.courts().length} quadras cadastradas`,
+  );
+
+  constructor() {
+    effect(() => {
+      const arenaId = this.arenaContext.arenaId();
+      if (!arenaId) return;
+      void this.load(arenaId);
+    });
+  }
+
+  private async load(arenaId: string): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
+    try {
+      this.courts.set(await fetchCourtsList(arenaFirestore(), arenaId));
+    } catch {
+      this.loadError.set('Não foi possível carregar as quadras.');
+    } finally {
+      this.loading.set(false);
     }
-    return c.ocupacao >= 85 ? 'green' : 'orange';
   }
 
   protected createCourt(): void {
+    if (this.atCap()) return;
     this.router.navigate(['/painel/quadras/nova']);
   }
 

@@ -1,276 +1,170 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, linkedSignal, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { AuthService } from '../../auth/auth.service';
+import { ArenaContextService } from '../data/arena-context.service';
+import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
 import { ModalComponent } from '../ui/modal.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
+import {
+  ARENA_PRODUCT_CATEGORIES,
+  ARENA_PRODUCT_CATEGORY_LABEL,
+  ARENA_PRODUCT_STOCK_STATUS_LABEL,
+  formatCentsBRL,
+  formatCentsInputValue,
+  formatMovementDate,
+  formatSignedQuantityDelta,
+  movementHistoryTitle,
+  parseBRLInputToCents,
+  productStockBarFillRatio,
+  productStockStatus,
+  type ArenaProduct,
+  type ArenaProductCategory,
+  type ArenaProductStockStatus,
+  type ArenaStockMovement,
+} from './product.model';
+import { deactivateProduct, deleteProduct, fetchMovements, fetchProduct, registerStockMovement, updateProduct } from './products-repository';
 import { StockAdjustDialogComponent, type StockAdjustResult } from './stock-adjust-dialog.component';
 
-type StockCategory = 'Bebida' | 'Snack' | 'Material' | 'Aluguel';
-type StockLevel = 'em_estoque' | 'estoque_baixo' | 'esgotado';
+const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', low: 'yellow', out: 'red' };
 
-interface Movement {
-  date: string;
-  reason: string;
-  qty: number;
-}
-
-interface ProductDetail {
-  name: string;
-  category: StockCategory;
-  price: number;
-  cost: number;
-  unit: string;
-  minStock: number;
-  stock: number;
-  movements: Movement[];
-}
-
-const LEVEL_LABEL: Record<StockLevel, string> = {
-  em_estoque: 'Em estoque',
-  estoque_baixo: 'Estoque baixo',
-  esgotado: 'Esgotado',
-};
-
-const LEVEL_TONE: Record<StockLevel, PillTone> = {
-  em_estoque: 'green',
-  estoque_baixo: 'yellow',
-  esgotado: 'red',
-};
-
-const MOCK_PRODUCTS: Record<string, ProductDetail> = {
-  e1: {
-    name: 'Água mineral 500ml',
-    category: 'Bebida',
-    price: 6,
-    cost: 2.8,
-    unit: 'un',
-    minStock: 24,
-    stock: 84,
-    movements: [{ date: 'Hoje, 09:05', reason: 'Venda · Comanda #048', qty: -4 }],
-  },
-  e2: {
-    name: 'Isotônico 500ml',
-    category: 'Bebida',
-    price: 9,
-    cost: 4.5,
-    unit: 'un',
-    minStock: 20,
-    stock: 46,
-    movements: [
-      { date: 'Hoje, 09:12', reason: 'Venda · Comanda #048', qty: -2 },
-      { date: 'Ontem, 18:40', reason: 'Venda · Comanda #045', qty: -3 },
-      { date: '28 jun, 10:00', reason: 'Compra · Fornecedor Águas GO', qty: 50 },
-    ],
-  },
-  e3: {
-    name: 'Refrigerante lata',
-    category: 'Bebida',
-    price: 7,
-    cost: 3.2,
-    unit: 'un',
-    minStock: 15,
-    stock: 12,
-    movements: [{ date: 'Ontem, 14:00', reason: 'Venda · Comanda #041', qty: -6 }],
-  },
-  e4: {
-    name: 'Barrinha de cereal',
-    category: 'Snack',
-    price: 8,
-    cost: 3.6,
-    unit: 'un',
-    minStock: 10,
-    stock: 5,
-    movements: [{ date: '29 jun, 11:20', reason: 'Venda · Comanda #039', qty: -3 }],
-  },
-  e5: {
-    name: 'Banana',
-    category: 'Snack',
-    price: 4,
-    cost: 1.5,
-    unit: 'un',
-    minStock: 10,
-    stock: 0,
-    movements: [{ date: '27 jun, 16:00', reason: 'Venda · Comanda #030', qty: -10 }],
-  },
-  e6: {
-    name: 'Bola Beach Tennis (dupla)',
-    category: 'Material',
-    price: 45,
-    cost: 22,
-    unit: 'un',
-    minStock: 6,
-    stock: 18,
-    movements: [{ date: '20 jun, 09:00', reason: 'Compra · Fornecedor SportBall', qty: 12 }],
-  },
-  e7: {
-    name: 'Luva de proteção',
-    category: 'Material',
-    price: 32,
-    cost: 15,
-    unit: 'un',
-    minStock: 4,
-    stock: 9,
-    movements: [{ date: '18 jun, 10:30', reason: 'Compra · Fornecedor SportBall', qty: 10 }],
-  },
-  e8: {
-    name: 'Aluguel raquete Beach Tennis',
-    category: 'Aluguel',
-    price: 25,
-    cost: 60,
-    unit: 'un',
-    minStock: 5,
-    stock: 14,
-    movements: [{ date: 'Hoje, 08:30', reason: 'Devolução · Comanda #047', qty: 1 }],
-  },
-};
-
-const CATEGORY_OPTIONS: StockCategory[] = ['Bebida', 'Snack', 'Material', 'Aluguel'];
-
-function formatBRL(n: number): string {
-  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-}
-
-function levelOf(stock: number, minStock: number): StockLevel {
-  if (stock === 0) {
-    return 'esgotado';
-  }
-  return stock <= minStock ? 'estoque_baixo' : 'em_estoque';
-}
-
-/** Tela Detalhe do produto (protótipo ArStockDetailScreen): dados editáveis, movimentações, nível de estoque e valor imobilizado. */
+/** Tela Detalhe do produto: edição real, histórico de movimentações e desativar/excluir,
+ *  conectada a `arenas/{arenaId}/products/{id}` e `arenas/{arenaId}/stockMovements`.
+ *  Sem custo/margem (não existe no schema) e sem o fluxo de "desfazer exclusão" com timer do
+ *  app Flutter — aqui desativar/excluir é direto, com confirmação. */
 @Component({
   selector: 'ar-panel-stock-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, ModalComponent, StockAdjustDialogComponent],
   template: `
     <ar-panel-shell>
-      <ar-page-header [title]="name()" [subtitle]="'Estoque · ' + category()">
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="save()">
-          <ar-icon name="check" [size]="14" />
-          Salvar alterações
-        </button>
+      <ar-page-header [title]="name() || 'Produto'" [subtitle]="'Estoque · ' + categoryLabel[category()]">
+        @if (product(); as p) {
+          <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="saving() || readOnly()" (click)="save()">
+            <ar-icon name="check" [size]="14" />
+            {{ saving() ? 'Salvando…' : 'Salvar alterações' }}
+          </button>
+        }
       </ar-page-header>
 
       <div class="body">
-        <div class="col-left">
-          <ar-panel-card title="Dados do produto">
-            <div class="photo-row">
-              <div class="thumb" aria-hidden="true"></div>
-              <div>
-                <div class="product-title">{{ name() }}</div>
-                <div class="product-hint">Arraste uma imagem para substituir a foto</div>
-              </div>
-            </div>
+        @if (loading()) {
+          <p class="state-text">Carregando produto…</p>
+        } @else if (loadError(); as err) {
+          <p class="state-text">{{ err }}</p>
+        } @else if (product(); as p) {
+          @if (readOnly()) {
+            <div class="readonly-banner">Seu plano atual não inclui edição de estoque — fale com o suporte para fazer upgrade.</div>
+          }
+          @if (saveError(); as serr) {
+            <div class="error-banner">{{ serr }}</div>
+          }
 
-            <div class="row-2">
-              <div>
-                <div class="field-label">Nome</div>
-                <input type="text" class="input-box" [value]="name()" (input)="name.set($any($event.target).value)" />
-              </div>
-              <div>
-                <div class="field-label">Categoria</div>
-                <div class="ar-filter-bar">
-                  @for (opt of categoryOptions; track opt) {
-                    <button type="button" class="ar-chip" [class.active]="category() === opt" (click)="category.set(opt)">{{ opt }}</button>
-                  }
+          <div class="col-left">
+            <ar-panel-card title="Dados do produto">
+              <div class="row-2">
+                <div>
+                  <div class="field-label">Nome</div>
+                  <input type="text" class="input-box" [value]="name()" (input)="name.set($any($event.target).value)" [disabled]="readOnly()" />
+                </div>
+                <div>
+                  <div class="field-label">Emoji</div>
+                  <input type="text" maxlength="8" class="input-box" [value]="emoji()" (input)="emoji.set($any($event.target).value)" [disabled]="readOnly()" />
                 </div>
               </div>
-            </div>
 
-            <div class="row-2 row-gap">
-              <div>
-                <div class="field-label">Preço de venda</div>
-                <div class="price-box">
-                  <span>R$</span>
-                  <input type="text" inputmode="decimal" [value]="priceValue()" (input)="priceValue.set($any($event.target).value)" />
+              <div class="field-label row-gap">Categoria</div>
+              <div class="ar-filter-bar">
+                @for (opt of categoryOptions; track opt) {
+                  <button type="button" class="ar-chip" [class.active]="category() === opt" [disabled]="readOnly()" (click)="category.set(opt)">
+                    {{ categoryLabel[opt] }}
+                  </button>
+                }
+              </div>
+
+              <div class="row-2 row-gap">
+                <div>
+                  <div class="field-label">Preço de venda</div>
+                  <div class="price-box">
+                    <span>R$</span>
+                    <input type="text" inputmode="decimal" [value]="priceValue()" (input)="priceValue.set($any($event.target).value)" [disabled]="readOnly()" />
+                  </div>
+                </div>
+                <div>
+                  <div class="field-label">Estoque mínimo</div>
+                  <input
+                    type="number"
+                    min="0"
+                    class="input-box"
+                    [value]="minStock()"
+                    (input)="minStock.set($any($event.target).valueAsNumber || 0)"
+                    [disabled]="readOnly()"
+                  />
                 </div>
               </div>
-              <div>
-                <div class="field-label">Custo unitário</div>
-                <div class="price-box">
-                  <span>R$</span>
-                  <input type="text" inputmode="decimal" [value]="costValue()" (input)="costValue.set($any($event.target).value)" />
-                </div>
+            </ar-panel-card>
+
+            <ar-panel-card [kicker]="movementsKicker()" title="Movimentações" class="movements-card">
+              <div class="table-head">
+                <span>Data</span>
+                <span>Motivo</span>
+                <span class="right">Qtd</span>
               </div>
-            </div>
-
-            <div class="row-2 row-gap">
-              <div>
-                <div class="field-label">Unidade</div>
-                <input type="text" class="input-box" [value]="unit()" (input)="unit.set($any($event.target).value)" />
+              <div class="table-list">
+                @for (m of movements(); track m.id) {
+                  <div class="table-row">
+                    <div class="mv-date">{{ formatMovementDate(m.createdAt) }}</div>
+                    <div class="mv-reason">{{ movementHistoryTitle(m) }}</div>
+                    <div class="mv-qty right" [class.positive]="m.quantityDelta > 0">{{ formatSignedQuantityDelta(m.quantityDelta) }}</div>
+                  </div>
+                } @empty {
+                  <p class="state-text">Nenhuma movimentação registrada ainda.</p>
+                }
               </div>
-              <div>
-                <div class="field-label">Estoque mínimo</div>
-                <input type="number" min="0" class="input-box" [value]="minStock()" (input)="minStock.set($any($event.target).valueAsNumber || 0)" />
+            </ar-panel-card>
+          </div>
+
+          <div class="col-right">
+            <ar-panel-card title="Nível de estoque">
+              <ar-pill card-actions [tone]="statusTone[status()]">{{ statusLabel[status()] }}</ar-pill>
+              <div class="stock-value">{{ p.stockQuantity }} <span class="unit">un</span></div>
+
+              <div class="field-label bar-label">Estoque atual <span class="bar-pct">{{ stockPercent() }}%</span></div>
+              <div class="bar-track">
+                <div class="bar-fill" [class]="'tone-' + status()" [style.width.%]="stockPercent()"></div>
               </div>
-            </div>
-          </ar-panel-card>
+              <div class="bar-caption">Mínimo recomendado: {{ minStock() }} un</div>
+            </ar-panel-card>
 
-          <ar-panel-card [kicker]="movementsKicker()" title="Movimentações" class="movements-card">
-            <div class="table-head">
-              <span>Data</span>
-              <span>Motivo</span>
-              <span class="right">Qtd</span>
-            </div>
-            <div class="table-list">
-              @for (m of movements(); track m.date + m.reason) {
-                <div class="table-row">
-                  <div class="mv-date">{{ m.date }}</div>
-                  <div class="mv-reason">{{ m.reason }}</div>
-                  <div class="mv-qty right" [class.positive]="m.qty > 0">{{ m.qty > 0 ? '+' : '' }}{{ m.qty }}</div>
-                </div>
-              }
-            </div>
-          </ar-panel-card>
-        </div>
+            <ar-panel-card title="Valor em estoque">
+              <div class="imobilizado-row">
+                <span>Valor de venda total</span>
+                <span class="value">{{ formatBRL(p.priceCents * p.stockQuantity) }}</span>
+              </div>
+            </ar-panel-card>
 
-        <div class="col-right">
-          <ar-panel-card title="Nível de estoque">
-            <ar-pill card-actions [tone]="levelTone[level()]">{{ levelLabel[level()] }}</ar-pill>
-            <div class="stock-value">{{ stock() }} <span class="unit">{{ unit() }}</span></div>
+            <button type="button" class="ar-mini-btn adjust-btn" [disabled]="readOnly()" (click)="showAdjust.set(true)">
+              <ar-icon name="box" [size]="14" />
+              Ajustar estoque
+            </button>
 
-            <div class="field-label bar-label">Estoque atual <span class="bar-pct">{{ stockPercent() }}%</span></div>
-            <div class="bar-track">
-              <div class="bar-fill" [class]="'tone-' + level()" [style.width.%]="stockPercent()"></div>
-            </div>
-            <div class="bar-caption">Mínimo recomendado: {{ minStock() }} {{ unit() }}</div>
-          </ar-panel-card>
-
-          <ar-panel-card title="Valor imobilizado">
-            <div class="imobilizado-row">
-              <span>Custo total</span>
-              <span class="value">{{ formatBRL(costTotal()) }}</span>
-            </div>
-            <div class="imobilizado-row">
-              <span>Valor de venda</span>
-              <span class="value">{{ formatBRL(saleTotal()) }}</span>
-            </div>
-            <div class="imobilizado-row">
-              <span>Margem</span>
-              <span class="value tone-green">{{ margin() }}%</span>
-            </div>
-          </ar-panel-card>
-
-          <button type="button" class="ar-mini-btn adjust-btn" (click)="showAdjust.set(true)">
-            <ar-icon name="box" [size]="14" />
-            Ajustar estoque
-          </button>
-
-          <button type="button" class="remove-link" (click)="showRemoveConfirm.set(true)">
-            <ar-icon name="alert-triangle" [size]="14" />
-            Remover produto
-          </button>
-        </div>
+            <button type="button" class="remove-link" (click)="showRemoveConfirm.set(true)">
+              <ar-icon name="alert-triangle" [size]="14" />
+              Remover produto
+            </button>
+          </div>
+        } @else {
+          <p class="state-text">Produto não encontrado.</p>
+        }
       </div>
 
       @if (showAdjust()) {
         <ar-stock-adjust-dialog
           [productName]="name()"
-          [currentStock]="stock()"
-          [unit]="unit()"
+          [currentStock]="product()?.stockQuantity ?? 0"
           (cancel)="showAdjust.set(false)"
           (confirmed)="applyAdjustment($event)"
         />
@@ -280,11 +174,18 @@ function levelOf(stock: number, minStock: number): StockLevel {
         <ar-modal (close)="showRemoveConfirm.set(false)">
           <h2 class="confirm-title">Remover produto?</h2>
           <p class="confirm-body">
-            "{{ name() }}" será removido do estoque da arena. Esta ação não pode ser desfeita.
+            "{{ name() }}" será removido do estoque da arena.
+            @if (movements().length > 0) {
+              Como já tem movimentações registradas, o recomendado é <strong>desativar</strong> (mantém o histórico e some da lista).
+              Excluir de vez apaga o produto, mas não o histórico já registrado.
+            } @else {
+              Esta ação não pode ser desfeita.
+            }
           </p>
           <div class="confirm-actions">
-            <button type="button" class="ar-ghost-btn" (click)="showRemoveConfirm.set(false)">Cancelar</button>
-            <button type="button" class="ar-mini-btn danger-btn" (click)="removeProduct()">Remover produto</button>
+            <button type="button" class="ar-ghost-btn" [disabled]="removing()" (click)="showRemoveConfirm.set(false)">Cancelar</button>
+            <button type="button" class="ar-mini-btn" [disabled]="removing()" (click)="deactivate()">Desativar</button>
+            <button type="button" class="ar-mini-btn danger-btn" [disabled]="removing()" (click)="hardDelete()">Excluir definitivamente</button>
           </div>
         </ar-modal>
       }
@@ -301,41 +202,37 @@ function levelOf(stock: number, minStock: number): StockLevel {
       overflow: auto;
     }
 
+    .state-text {
+      font-size: 13.5px;
+      color: var(--nx-text-mute);
+    }
+
+    .readonly-banner,
+    .error-banner {
+      grid-column: 1 / -1;
+      border-radius: var(--nx-r-2);
+      padding: 10px 14px;
+      font-size: 12.5px;
+    }
+
+    .readonly-banner {
+      border: 1px solid var(--nx-line-strong);
+      background: var(--nx-surface-1);
+      color: var(--nx-text-mute);
+    }
+
+    .error-banner {
+      border: 1px solid var(--nx-live);
+      background: rgba(255, 59, 48, 0.08);
+      color: var(--nx-live);
+    }
+
     .col-left,
     .col-right {
       display: flex;
       flex-direction: column;
       gap: 16px;
       min-width: 0;
-    }
-
-    .photo-row {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-
-    .thumb {
-      width: 76px;
-      height: 76px;
-      flex: none;
-      border-radius: var(--nx-r-2);
-      background: var(--nx-surface-1);
-      border: 1px solid var(--nx-line);
-    }
-
-    .product-title {
-      font-family: var(--nx-font-display);
-      font-weight: 700;
-      font-size: 16px;
-      color: var(--nx-text);
-    }
-
-    .product-hint {
-      font-size: 12.5px;
-      color: var(--nx-text-dim);
-      margin-top: 4px;
     }
 
     .field-label {
@@ -508,15 +405,15 @@ function levelOf(stock: number, minStock: number): StockLevel {
       border-radius: 4px;
     }
 
-    .bar-fill.tone-em_estoque {
+    .bar-fill.tone-ok {
       background: var(--nx-win);
     }
 
-    .bar-fill.tone-estoque_baixo {
+    .bar-fill.tone-low {
       background: var(--nx-pending);
     }
 
-    .bar-fill.tone-esgotado {
+    .bar-fill.tone-out {
       background: var(--nx-live);
     }
 
@@ -543,10 +440,6 @@ function levelOf(stock: number, minStock: number): StockLevel {
       font-weight: 700;
       font-size: 14px;
       color: var(--nx-text);
-    }
-
-    .imobilizado-row .value.tone-green {
-      color: var(--nx-win);
     }
 
     .adjust-btn {
@@ -592,7 +485,8 @@ function levelOf(stock: number, minStock: number): StockLevel {
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 16px;
+      gap: 12px;
+      flex-wrap: wrap;
     }
 
     .danger-btn {
@@ -622,63 +516,151 @@ function levelOf(stock: number, minStock: number): StockLevel {
 })
 export class PanelStockDetailComponent {
   private readonly router = inject(Router);
+  private readonly auth = inject(AuthService);
+  private readonly arenaContext = inject(ArenaContextService);
 
   readonly id = input.required<string>();
 
-  protected readonly categoryOptions = CATEGORY_OPTIONS;
-  protected readonly formatBRL = formatBRL;
-  protected readonly levelLabel = LEVEL_LABEL;
-  protected readonly levelTone = LEVEL_TONE;
+  protected readonly categoryOptions = ARENA_PRODUCT_CATEGORIES;
+  protected readonly categoryLabel = ARENA_PRODUCT_CATEGORY_LABEL;
+  protected readonly statusLabel = ARENA_PRODUCT_STOCK_STATUS_LABEL;
+  protected readonly statusTone = STATUS_TONE;
+  protected readonly formatBRL = formatCentsBRL;
+  protected readonly formatMovementDate = formatMovementDate;
+  protected readonly formatSignedQuantityDelta = formatSignedQuantityDelta;
+  protected readonly movementHistoryTitle = movementHistoryTitle;
+
+  protected readonly loading = signal(true);
+  protected readonly loadError = signal<string | null>(null);
+  protected readonly saving = signal(false);
+  protected readonly saveError = signal<string | null>(null);
+  protected readonly removing = signal(false);
 
   protected readonly showAdjust = signal(false);
   protected readonly showRemoveConfirm = signal(false);
 
-  private readonly productData = computed(() => MOCK_PRODUCTS[this.id()] ?? null);
+  protected readonly product = signal<ArenaProduct | null>(null);
+  protected readonly movements = signal<ArenaStockMovement[]>([]);
 
-  protected readonly name = linkedSignal(() => this.productData()?.name ?? 'Produto');
-  protected readonly category = linkedSignal<StockCategory>(() => this.productData()?.category ?? 'Bebida');
-  protected readonly priceValue = linkedSignal(() => (this.productData()?.price ?? 0).toFixed(2).replace('.', ','));
-  protected readonly costValue = linkedSignal(() => (this.productData()?.cost ?? 0).toFixed(2).replace('.', ','));
-  protected readonly unit = linkedSignal(() => this.productData()?.unit ?? 'un');
-  protected readonly minStock = linkedSignal(() => this.productData()?.minStock ?? 0);
-  protected readonly stock = linkedSignal(() => this.productData()?.stock ?? 0);
-  protected readonly movements = linkedSignal(() => this.productData()?.movements ?? []);
+  protected readonly readOnly = computed(() => !this.arenaContext.hasCapability('estoque'));
+
+  protected readonly name = linkedSignal(() => this.product()?.name ?? '');
+  protected readonly category = linkedSignal<ArenaProductCategory>(() => this.product()?.category ?? 'bebidas');
+  protected readonly emoji = linkedSignal(() => this.product()?.emoji ?? '');
+  protected readonly priceValue = linkedSignal(() => formatCentsInputValue(this.product()?.priceCents ?? 0));
+  protected readonly minStock = linkedSignal(() => this.product()?.minStockQuantity ?? 0);
 
   protected readonly movementsKicker = computed(() => `${this.movements().length} lançamentos recentes`);
-
-  protected readonly level = computed(() => levelOf(this.stock(), this.minStock()));
-
+  protected readonly status = computed(() => {
+    const p = this.product();
+    return p ? productStockStatus(p) : 'out';
+  });
   protected readonly stockPercent = computed(() => {
-    const target = this.minStock() * 3;
-    if (target <= 0) {
-      return this.stock() > 0 ? 100 : 0;
+    const p = this.product();
+    return p ? Math.round(productStockBarFillRatio(p) * 100) : 0;
+  });
+
+  constructor() {
+    effect(() => {
+      const arenaId = this.arenaContext.arenaId();
+      const productId = this.id();
+      if (!arenaId || !productId) return;
+      void this.loadAll(arenaId, productId);
+    });
+  }
+
+  private async loadAll(arenaId: string, productId: string): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
+    try {
+      const [product, movements] = await Promise.all([
+        fetchProduct(arenaFirestore(), arenaId, productId),
+        fetchMovements(arenaFirestore(), arenaId, productId),
+      ]);
+      this.product.set(product);
+      this.movements.set(movements);
+    } catch {
+      this.loadError.set('Não foi possível carregar o produto.');
+    } finally {
+      this.loading.set(false);
     }
-    return Math.min(100, Math.round((this.stock() / target) * 100));
-  });
+  }
 
-  private readonly priceNumber = computed(() => Number(this.priceValue().replace(',', '.')) || 0);
-  private readonly costNumber = computed(() => Number(this.costValue().replace(',', '.')) || 0);
+  protected async save(): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    const p = this.product();
+    if (!arenaId || !p || this.readOnly()) {
+      return;
+    }
+    if (!this.name().trim()) {
+      this.saveError.set('Informe o nome do produto.');
+      return;
+    }
+    this.saving.set(true);
+    this.saveError.set(null);
+    try {
+      await updateProduct(arenaFirestore(), arenaId, p.id, {
+        name: this.name().trim(),
+        category: this.category(),
+        active: p.active,
+        priceCents: parseBRLInputToCents(this.priceValue()),
+        stockQuantity: p.stockQuantity,
+        minStockQuantity: Math.max(0, Math.round(this.minStock())),
+        emoji: this.emoji().trim() || undefined,
+      });
+      void this.router.navigate(['/painel/estoque']);
+    } catch (err) {
+      this.saveError.set(err instanceof Error ? err.message : 'Não foi possível salvar as alterações.');
+    } finally {
+      this.saving.set(false);
+    }
+  }
 
-  protected readonly costTotal = computed(() => this.costNumber() * this.stock());
-  protected readonly saleTotal = computed(() => this.priceNumber() * this.stock());
-  protected readonly margin = computed(() => {
-    const price = this.priceNumber();
-    return price > 0 ? Math.round(((price - this.costNumber()) / price) * 100) : 0;
-  });
-
-  protected applyAdjustment(result: StockAdjustResult): void {
-    const delta = result.type === 'entrada' ? result.quantity : -result.quantity;
-    this.stock.set(Math.max(0, this.stock() + delta));
-    this.movements.update((current) => [{ date: 'Agora', reason: result.reason, qty: delta }, ...current]);
+  protected async applyAdjustment(result: StockAdjustResult): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    const p = this.product();
+    const uid = this.auth.user()?.uid;
     this.showAdjust.set(false);
+    if (!arenaId || !p || !uid) {
+      return;
+    }
+    try {
+      await registerStockMovement(arenaFirestore(), arenaId, p.id, result.type, result.quantity, uid, result.note);
+      await this.loadAll(arenaId, p.id);
+    } catch (err) {
+      this.saveError.set(err instanceof Error ? err.message : 'Não foi possível registrar a movimentação.');
+    }
   }
 
-  protected save(): void {
-    this.router.navigate(['/painel/estoque']);
+  protected async deactivate(): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    const p = this.product();
+    if (!arenaId || !p) return;
+    this.removing.set(true);
+    try {
+      await deactivateProduct(arenaFirestore(), arenaId, p.id);
+      this.showRemoveConfirm.set(false);
+      void this.router.navigate(['/painel/estoque']);
+    } catch (err) {
+      this.saveError.set(err instanceof Error ? err.message : 'Não foi possível desativar o produto.');
+    } finally {
+      this.removing.set(false);
+    }
   }
 
-  protected removeProduct(): void {
-    this.showRemoveConfirm.set(false);
-    this.router.navigate(['/painel/estoque']);
+  protected async hardDelete(): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    const p = this.product();
+    if (!arenaId || !p) return;
+    this.removing.set(true);
+    try {
+      await deleteProduct(arenaFirestore(), arenaId, p.id);
+      this.showRemoveConfirm.set(false);
+      void this.router.navigate(['/painel/estoque']);
+    } catch (err) {
+      this.saveError.set(err instanceof Error ? err.message : 'Não foi possível excluir o produto.');
+    } finally {
+      this.removing.set(false);
+    }
   }
 }

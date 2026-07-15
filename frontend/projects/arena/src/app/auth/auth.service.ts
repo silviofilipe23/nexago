@@ -16,7 +16,22 @@ import {
   type Auth,
   type User,
 } from 'firebase/auth';
+import { getFunctions, httpsCallable, type Functions } from 'firebase/functions';
 import { environment } from '../../environments/environment';
+
+/** Papéis (roles[]/role legado) que autorizam login no portal arena. */
+const ARENA_ROLE = 'arena';
+
+/** Só autoriza quando o doc TEM, de forma explícita, a role `arena` — allowlist,
+ *  diferente do blocklist do portal atleta: aqui doc ausente ou sem a role não conta. */
+function docHasArenaRole(data: Record<string, unknown> | undefined): boolean {
+  if (!data) return false;
+  const roles = data['roles'];
+  if (Array.isArray(roles) && roles.some((r) => String(r) === ARENA_ROLE)) {
+    return true;
+  }
+  return data['role'] === ARENA_ROLE;
+}
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -46,10 +61,37 @@ export class AuthService {
     return getAuth(this.app);
   }
 
+  private get functions(): Functions {
+    return getFunctions(this.app);
+  }
+
   /** `remember=false` derruba a sessão ao fechar o navegador (browserSessionPersistence). */
   async signInWithEmail(email: string, password: string, remember: boolean): Promise<void> {
     await setPersistence(this.auth, remember ? browserLocalPersistence : browserSessionPersistence);
-    await signInWithEmailAndPassword(this.auth, email.trim(), password);
+    const credential = await signInWithEmailAndPassword(this.auth, email.trim(), password);
+    await this.assertArenaRole(credential.user.uid);
+  }
+
+  /** Só deixa entrar quem tem a role `arena` em `users/{uid}` (allowlist — ao
+   *  contrário do portal atleta, ausência de role NÃO passa). Falha de leitura
+   *  também bloqueia (fail-closed): este portal expõe dados sensíveis de
+   *  gestão/financeiro, então não dá pra deixar passar sem confirmar a role. */
+  private async assertArenaRole(uid: string): Promise<void> {
+    let hasArenaRole: boolean;
+    try {
+      const [{ doc, getDoc, getFirestore }] = await Promise.all([import('firebase/firestore')]);
+      const snap = await getDoc(doc(getFirestore(this.app), 'users', uid));
+      const data = snap.exists() ? (snap.data() as Record<string, unknown>) : undefined;
+      hasArenaRole = docHasArenaRole(data);
+    } catch {
+      await this.signOutUser();
+      throw new Error('Não foi possível verificar sua conta. Tente novamente.');
+    }
+    if (hasArenaRole) return;
+    await this.signOutUser();
+    throw new Error(
+      'Esta conta não é uma conta de arena. Use o portal correspondente ao seu perfil.',
+    );
   }
 
   async sendPasswordReset(email: string): Promise<void> {
@@ -80,11 +122,21 @@ export class AuthService {
     await confirmPasswordReset(this.auth, code, newPassword);
   }
 
-  /** Cria a conta da arena (etapa "Cadastrar arena"). Dados de perfil (CNPJ, cidade, WhatsApp)
-   *  ainda não têm um destino no backend — ficam só no formulário por enquanto. */
+  /** Cria a conta da arena (etapa "Cadastrar arena") e completa o autocadastro via
+   *  Cloud Function, que define a claim/role `arena` e mirra em `users/{uid}` — o
+   *  client nunca escreve role diretamente (firestore.rules recusa). Dados de perfil
+   *  (CNPJ, cidade, WhatsApp) ainda não têm um destino no backend — ficam só no
+   *  formulário por enquanto. */
   async createArenaAccount(email: string, password: string, arenaName: string): Promise<void> {
+    const trimmedName = arenaName.trim();
     const credential = await createUserWithEmailAndPassword(this.auth, email.trim(), password);
-    await updateProfile(credential.user, { displayName: arenaName.trim() });
+    await updateProfile(credential.user, { displayName: trimmedName });
+
+    const complete = httpsCallable(this.functions, 'completeArenaSignup');
+    await complete({ arenaName: trimmedName });
+    await credential.user.getIdToken(true);
+
+    await this.assertArenaRole(credential.user.uid);
   }
 
   async signOutUser(): Promise<void> {

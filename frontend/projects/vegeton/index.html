@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VEGETON Beach Club – Vôlei de Praia</title>
+  <meta name="description" content="Vegeton Beach Club — onde o vôlei de praia encontra experiência. Viva a energia da areia." />
+  <meta property="og:title" content="VEGETON Beach Club – Vôlei de Praia" />
+  <meta property="og:description" content="Onde o vôlei de praia encontra experiência. Viva a energia da areia." />
+  <meta property="og:image" content="assets/logo.png" />
+  <link rel="icon" type="image/png" href="assets/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ======================= HEADER ======================= -->
+  <header class="site-header" id="site-header">
+    <a href="#" class="logo" aria-label="Vegeton Beach Club — início">
+      <img class="logo__img" src="assets/logo-transparente.png" alt="Vegeton Beach Club" />
+    </a>
+    <nav class="site-header__nav" aria-label="Principal">
+      <ul>
+        <li><a href="#estrutura">Quadras</a></li>
+        <li><a href="#arena">Torneios</a></li>
+        <li><a href="#valores">Valores</a></li>
+        <li><a href="#sobre">Sobre</a></li>
+        <li><a href="#footer">Contato</a></li>
+      </ul>
+    </nav>
+    <div class="site-header__actions">
+      <a href="#" class="btn btn--outline-light">Agende uma aula</a>
+      <a href="#" class="btn btn--primary">Reserve uma quadra</a>
+    </div>
+    <button class="menu-toggle" id="menu-open" aria-label="Abrir menu" aria-expanded="false">
+      <span class="menu-toggle__icon"><i></i><i></i><i></i></span>
+      <span class="menu-toggle__label">Menu</span>
+    </button>
+  </header>
+
+  <!-- ======================= MENU OVERLAY ======================= -->
+  <nav class="offcanvas" id="offcanvas" aria-hidden="true">
+    <div class="offcanvas__header">
+      <a href="#" class="logo logo--light" aria-label="Vegeton Beach Club — início">
+        <img class="logo__img" src="assets/logo-transparente.png" alt="Vegeton Beach Club" />
+      </a>
+      <button class="menu-close" id="menu-close" aria-label="Fechar menu">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M4 4 L20 20 M20 4 L4 20"/>
+        </svg>
+      </button>
+    </div>
+    <ul class="offcanvas__nav">
+      <li><a href="#estrutura">Quadras</a></li>
+      <li><a href="#arena">Torneios</a></li>
+      <li><a href="#valores">Valores</a></li>
+      <li><a href="#">Grupos de WhatsApp</a></li>
+      <li><a href="#sobre">Sobre</a></li>
+      <li><a href="#">Parceiros</a></li>
+      <li><a href="#footer">Contato</a></li>
+    </ul>
+    <div class="offcanvas__actions">
+      <a href="#" class="btn btn--light">Agende uma aula</a>
+      <a href="#" class="btn btn--outline-light">Reserve uma quadra</a>
+    </div>
+  </nav>
+  <div class="offcanvas-backdrop" id="offcanvas-backdrop"></div>
+
+  <main>
+
+    <!-- ======================= HERO ======================= -->
+    <section class="c-hero" id="hero">
+      <div class="c-hero__background">
+        <!-- Quando houver vídeo: <video playsinline muted loop autoplay><source src="assets/hero.mp4" type="video/mp4"></video> -->
+        <img src="assets/gen-hero-spike.jpg" alt="" aria-hidden="true" />
+      </div>
+      <div class="c-hero__wrapper">
+        <h1 class="c-hero__title">
+          <span class="line-mask"><span class="line">ENERGIA</span></span>
+          <span class="line-mask"><span class="line">DA AREIA</span></span>
+        </h1>
+        <div class="c-hero__box" aria-hidden="true"></div>
+      </div>
+      <div class="lines" aria-hidden="true"><i></i><i></i><i></i></div>
+    </section>
+
+    <!-- ======================= NOSSA HISTÓRIA ======================= -->
+    <section class="c-split c-split--light" id="sobre">
+      <div class="container">
+        <p class="eyebrow" data-reveal>Nossa história</p>
+        <h2 class="heading-xl" data-split>Onde o vôlei de praia encontra experiência</h2>
+        <div class="body-copy" data-reveal>
+          <p>No Vegeton Beach Club acreditamos que uma arena deve oferecer muito mais do que quadras. Criamos um espaço pensado para quem vive o esporte: estrutura moderna, ambiente acolhedor, torneios organizados, conforto para atletas e espectadores e uma comunidade apaixonada pelo vôlei de praia.</p>
+          <p>Aqui, cada treino é uma oportunidade de evolução. Cada campeonato é uma experiência. E cada visita é um momento para reunir amigos, celebrar conquistas e criar novas histórias.</p>
+        </div>
+        <div class="btn-row" data-reveal>
+          <a href="#" class="btn btn--dark">Agende uma aula</a>
+          <a href="#" class="btn btn--outline-dark">Reserve uma quadra</a>
+        </div>
+        <figure class="media" data-image-reveal>
+          <img src="assets/foto-quadras.jpg" alt="Quadras de areia do Vegeton Beach Club" />
+        </figure>
+      </div>
+      <div class="lines lines--light" aria-hidden="true"><i></i><i></i><i></i></div>
+    </section>
+
+    <!-- ======================= MAIS QUE UMA ARENA ======================= -->
+    <section class="c-dark" id="arena">
+      <div class="container">
+        <h2 class="heading-lg" data-split>Mais que uma arena</h2>
+        <p class="body-copy" data-reveal>Mais do que receber partidas, queremos fazer parte da trajetória de cada atleta que passa por nossas quadras. Seja para competir, treinar, aprender ou simplesmente aproveitar um bom momento, o Vegeton é o lugar onde a paixão pelo esporte encontra pessoas que compartilham o mesmo espírito.</p>
+        <ul class="arrow-links" data-reveal>
+          <li>
+            <a href="#" class="arrow-link">
+              <span>Torneios e eventos</span>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 17 L17 7 M9 7 h8 v8"/></svg>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="arrow-link">
+              <span>Solicite uma proposta</span>
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 17 L17 7 M9 7 h8 v8"/></svg>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- full-bleed parallax image -->
+    <section class="c-fullbleed">
+      <div class="c-fullbleed__inner" data-parallax>
+        <img src="assets/gen-silhueta.jpg" alt="Silhuetas de jogadores saltando na rede ao entardecer" />
+      </div>
+    </section>
+
+    <!-- ======================= ESTRUTURA (cards pinados) ======================= -->
+    <section class="c-clubs" id="estrutura">
+      <div class="c-clubs__bg" aria-hidden="true"></div>
+      <div class="c-clubs__layout">
+        <p class="c-clubs__label">[Estrutura Vegeton]</p>
+        <div class="c-clubs__stack">
+          <article class="club-card" data-card="1">
+            <div class="club-card__numbers"><span class="current">01</span><span class="total"> - 04</span></div>
+            <h3 class="club-card__title">QUADRAS<br />DE AREIA</h3>
+            <figure class="club-card__media">
+              <img src="assets/foto-quadras.jpg" alt="Quadras de areia com iluminação para jogos noturnos" />
+            </figure>
+            <p class="club-card__description">Quadras preparadas para treinos e competições — do primeiro saque do iniciante à disputa de alto nível, com areia e estrutura cuidadas em cada detalhe.</p>
+            <a href="#" class="club-card__link" aria-label="Quadras de areia"></a>
+          </article>
+          <article class="club-card" data-card="2">
+            <div class="club-card__numbers"><span class="current">02</span><span class="total"> - 04</span></div>
+            <h3 class="club-card__title">PÁTIO &amp;<br />CONVIVÊNCIA</h3>
+            <figure class="club-card__media">
+              <img src="assets/foto-patio.jpg" alt="Pátio coberto ao lado das quadras" />
+            </figure>
+            <p class="club-card__description">Pátio amplo e espaços de convivência confortáveis que fazem qualquer pessoa querer permanecer mesmo depois do último ponto.</p>
+            <a href="#" class="club-card__link" aria-label="Pátio e convivência"></a>
+          </article>
+          <article class="club-card" data-card="3">
+            <div class="club-card__numbers"><span class="current">03</span><span class="total"> - 04</span></div>
+            <h3 class="club-card__title">ARENA DE<br />EVENTOS</h3>
+            <figure class="club-card__media">
+              <img src="assets/foto-torneio.jpg" alt="Arena durante um torneio de vôlei de praia" />
+            </figure>
+            <p class="club-card__description">Torneios, clínicas e encontros que vão muito além da competição — cada campeonato é uma celebração do vôlei de praia e da energia que ele proporciona.</p>
+            <a href="#" class="club-card__link" aria-label="Arena de eventos"></a>
+          </article>
+          <article class="club-card" data-card="4">
+            <div class="club-card__numbers"><span class="current">04</span><span class="total"> - 04</span></div>
+            <h3 class="club-card__title">VESTIÁRIOS<br />&amp; CONFORTO</h3>
+            <figure class="club-card__media">
+              <img src="assets/foto-vestiario.jpg" alt="Vestiários modernos do Vegeton Beach Club" />
+            </figure>
+            <p class="club-card__description">Estrutura moderna e ambientes pensados no detalhe — conforto de verdade antes e depois do jogo, para atletas e visitantes.</p>
+            <a href="#" class="club-card__link" aria-label="Vestiários e conforto"></a>
+          </article>
+        </div>
+        <p class="c-clubs__label c-clubs__label--right">[Continue rolando]</p>
+      </div>
+    </section>
+
+    <!-- ======================= COMUNIDADE ======================= -->
+    <section class="c-split c-split--light" id="comunidade">
+      <div class="container">
+        <p class="eyebrow" data-reveal>Depois do último ponto</p>
+        <h2 class="heading-xl" data-split>Um lugar para ficar, mesmo depois do jogo</h2>
+        <div class="body-copy" data-reveal>
+          <p>Todos os dias recebemos iniciantes dando seus primeiros saques, atletas em busca de evolução técnica e jogadores experientes em partidas de alto nível. O resultado é uma comunidade que transforma cada treino em uma oportunidade de criar novas amizades.</p>
+        </div>
+        <div class="btn-row" data-reveal>
+          <a href="#estrutura" class="btn btn--primary">Conheça a estrutura</a>
+        </div>
+        <figure class="media" data-image-reveal>
+          <img src="assets/foto-patio.jpg" alt="Pátio de convivência ao lado das quadras" />
+        </figure>
+      </div>
+      <div class="lines lines--light" aria-hidden="true"><i></i><i></i><i></i></div>
+    </section>
+
+    <!-- ======================= NOSSOS VALORES ======================= -->
+    <section class="c-dark" id="valores">
+      <div class="container">
+        <p class="eyebrow eyebrow--light" data-reveal>Nossos valores</p>
+        <h2 class="heading-xl" data-split>O que<br />nos move</h2>
+        <ul class="values-list">
+          <li data-reveal>
+            <span class="values-list__num">01</span>
+            <div>
+              <h3>Comunidade</h3>
+              <p>Pessoas sempre em primeiro lugar.</p>
+            </div>
+          </li>
+          <li data-reveal>
+            <span class="values-list__num">02</span>
+            <div>
+              <h3>Esporte para todos</h3>
+              <p>Do iniciante ao atleta de alto rendimento.</p>
+            </div>
+          </li>
+          <li data-reveal>
+            <span class="values-list__num">03</span>
+            <div>
+              <h3>Excelência</h3>
+              <p>Estrutura, organização e atendimento de qualidade.</p>
+            </div>
+          </li>
+          <li data-reveal>
+            <span class="values-list__num">04</span>
+            <div>
+              <h3>Respeito</h3>
+              <p>Dentro e fora das quadras.</p>
+            </div>
+          </li>
+          <li data-reveal>
+            <span class="values-list__num">05</span>
+            <div>
+              <h3>Experiência</h3>
+              <p>Cada visita deve ser memorável.</p>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ======================= NOSSA PROMESSA ======================= -->
+    <section class="c-dark c-dark--divider" id="promessa">
+      <div class="container">
+        <p class="eyebrow eyebrow--light" data-reveal>Nossa promessa</p>
+        <h2 class="heading-xl" data-split>O esporte é<br />apenas o começo</h2>
+        <div class="body-copy" data-reveal>
+          <p>No Vegeton, cada partida conta uma história. Cada ponto comemorado, cada parceria formada e cada sorriso depois do jogo reforçam aquilo que nos move: oferecer um lugar onde as pessoas tenham vontade de voltar.</p>
+          <p>Bem-vindo ao Vegeton Beach Club. Sua casa na areia.</p>
+        </div>
+        <div class="btn-row" data-reveal>
+          <a href="#footer" class="btn btn--primary">Fale conosco</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- full-bleed parallax image -->
+    <section class="c-fullbleed">
+      <div class="c-fullbleed__inner" data-parallax>
+        <img src="assets/gen-bola-areia.jpg" alt="Bola de vôlei azul e amarela sobre a areia dourada" />
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ======================= FOOTER ======================= -->
+  <footer class="site-footer" id="footer">
+    <div class="site-footer__grid">
+      <div class="site-footer__contact">
+        <a href="#" class="logo logo--light logo--footer" aria-label="Vegeton Beach Club — início">
+          <img class="logo__img" src="assets/logo-transparente.png" alt="Vegeton Beach Club" />
+        </a>
+        <p>Dúvidas, sugestões ou vontade de entrar em quadra? Estamos aqui para ajudar.</p>
+        <p class="site-footer__contact-links">
+          <a href="tel:+5500000000000">+55 (00) 00000-0000</a><br />
+          <a href="mailto:contato@vegetonbeachclub.com.br">contato@vegetonbeachclub.com.br</a>
+        </p>
+      </div>
+      <nav class="site-footer__nav" aria-label="Rodapé">
+        <ul>
+          <li><a href="#estrutura">Quadras</a></li>
+          <li><a href="#arena">Torneios</a></li>
+          <li><a href="#valores">Valores</a></li>
+          <li><a href="#sobre">Sobre</a></li>
+        </ul>
+        <ul>
+          <li><a href="#footer">Contato</a></li>
+          <li><a href="#">Notícias</a></li>
+          <li><a href="#">Trabalhe conosco</a></li>
+          <li><a href="#">FAQ</a></li>
+        </ul>
+      </nav>
+      <div class="site-footer__book">
+        <a href="#" class="arrow-link arrow-link--big">
+          <span>Reserve uma quadra</span>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 17 L17 7 M9 7 h8 v8"/></svg>
+        </a>
+      </div>
+      <div class="site-footer__social">
+        <p>Fique conectado</p>
+        <div class="site-footer__icons">
+          <a href="#" aria-label="Facebook"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M13.5 21v-7h2.3l.4-3h-2.7V9.1c0-.9.3-1.5 1.6-1.5h1.2V4.9c-.2 0-1-.1-1.8-.1-1.8 0-3 1.1-3 3.1V11H9v3h2.5v7h2z"/></svg></a>
+          <a href="#" aria-label="Instagram"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="12" cy="12" r="3.5"/><circle cx="16.8" cy="7.2" r="1" fill="currentColor" stroke="none"/></svg></a>
+          <a href="#" aria-label="LinkedIn"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6.5 8.5A1.5 1.5 0 1 0 6.5 5a1.5 1.5 0 0 0 0 3.5zM5 10h3v9H5v-9zm5 0h2.8v1.3h.1c.4-.7 1.4-1.5 2.9-1.5 3 0 3.6 2 3.6 4.5V19h-3v-4.2c0-1 0-2.3-1.4-2.3s-1.7 1.1-1.7 2.2V19h-3v-9z"/></svg></a>
+        </div>
+      </div>
+    </div>
+    <div class="site-footer__legal">
+      <span>Copyright 2026 Vegeton Beach Club — Todos os direitos reservados</span>
+      <a href="#">Termos e condições</a>
+      <a href="#">Privacidade</a>
+      <a href="#">Cookies</a>
+      <a href="#" id="cookie-prefs">Preferências de cookies</a>
+    </div>
+  </footer>
+
+  <!-- ======================= CTA FIXO ======================= -->
+  <a href="#" class="sticky-cta" id="sticky-cta">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
+      <circle cx="12" cy="12" r="9"/><path d="M4 7c3 2 5 4 5 5s-2 3-5 5M20 7c-3 2-5 4-5 5s2 3 5 5"/>
+    </svg>
+    <span>Reserve uma quadra</span>
+  </a>
+
+  <!-- ======================= COOKIE BANNER ======================= -->
+  <div class="cookie-banner" id="cookie-banner" role="dialog" aria-label="Consentimento de cookies" hidden>
+    <div class="cookie-banner__logo">
+      <img src="assets/logo.png" alt="Vegeton Beach Club" />
+    </div>
+    <h3>Este site usa cookies</h3>
+    <p>Usamos cookies para personalizar conteúdo, oferecer recursos de redes sociais e analisar o tráfego. Ajuste suas preferências abaixo.</p>
+    <div class="cookie-banner__actions">
+      <button class="btn btn--ghost" data-cookie="reject">Recusar tudo</button>
+      <button class="btn btn--ghost" data-cookie="selection">Permitir seleção</button>
+      <button class="btn btn--primary" data-cookie="accept">Aceitar tudo</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

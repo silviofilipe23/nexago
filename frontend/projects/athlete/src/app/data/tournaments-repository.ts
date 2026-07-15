@@ -1,0 +1,306 @@
+import { collection, doc, documentId, getDoc, getDocs, query, where, type Firestore } from 'firebase/firestore';
+
+/** `tournaments/{id}` (top-level, leitura pública) — espelha `TournamentDocumentMapper`
+ *  (Flutter). Sem paginação: a coleção inteira é lida e filtrada/ordenada em memória (mesma
+ *  escolha do app — "bounded query", não é uma tabela grande). */
+
+function toDate(v: unknown): Date | null {
+  const t = v as { toDate?: () => Date } | undefined;
+  if (typeof t?.toDate === 'function') return t.toDate();
+  if (typeof v === 'string') {
+    const parsed = new Date(v);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+}
+
+function optionalStr(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
+function numberOf(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string' && v.trim()) {
+    const n = Number(v.replace(/[^\d.,-]/g, '').replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+export type TournamentGenderCat = 'M' | 'F' | 'Mix';
+
+export interface TournamentPrize {
+  position: number;
+  value: number;
+  label: string | null;
+}
+
+function prizesOf(raw: unknown): TournamentPrize[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((p) => {
+      if (!p || typeof p !== 'object') return null;
+      const o = p as Record<string, unknown>;
+      const position = numberOf(o['position']);
+      const value = numberOf(o['value']) ?? 0;
+      if (position == null) return null;
+      return { position, value, label: optionalStr(o['label']) };
+    })
+    .filter((p): p is TournamentPrize => p != null);
+}
+
+function genderCatOf(raw: unknown): TournamentGenderCat {
+  const v = optionalStr(raw)?.toLowerCase() ?? '';
+  if (v.includes('fem') || v === 'f') return 'F';
+  if (v.includes('mist') || v.includes('mix')) return 'Mix';
+  return 'M';
+}
+
+export interface TournamentCategoryOffer {
+  id: string;
+  categoryName: string;
+  entryFee: number;
+  maxTeams: number;
+  spotsLeft: number;
+  level: string | null;
+  genderType: TournamentGenderCat;
+  bracketFormat: string;
+  registrationClosed: boolean;
+  isCompleted: boolean;
+  prizes: TournamentPrize[];
+  qualifiersPerGroup: number;
+}
+
+function categoryOfferFromRaw(raw: unknown): TournamentCategoryOffer | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const id = optionalStr(o['categoryId']) ?? optionalStr(o['id']) ?? optionalStr(o['categoryName']) ?? optionalStr(o['name']);
+  if (!id) return null;
+  const maxTeams = numberOf(o['maxTeams']) ?? numberOf(o['spotsTotal']) ?? numberOf(o['capacity']) ?? 0;
+  const qualifiers = numberOf(o['qualifiersPerGroup']) ?? 2;
+  return {
+    id,
+    categoryName: optionalStr(o['categoryName']) ?? optionalStr(o['name']) ?? id,
+    entryFee: numberOf(o['entryFee']) ?? 0,
+    maxTeams,
+    spotsLeft: numberOf(o['spotsLeft']) ?? maxTeams,
+    level: optionalStr(o['level']),
+    genderType: genderCatOf(o['genderType']),
+    bracketFormat: optionalStr(o['bracketFormat']) ?? 'single elimination',
+    registrationClosed: o['registrationClosed'] === true,
+    isCompleted: o['isCompleted'] === true,
+    prizes: prizesOf(o['prizes']),
+    qualifiersPerGroup: Math.min(99, Math.max(1, qualifiers)),
+  };
+}
+
+/** `scheduled|open|bracketsReady|almostFull|live|completed|ended` — espelha
+ *  `listingStatusFromRaw`/`resolveListingStatus` (Flutter), colapsado pra 4 estados na UI. */
+export type TournamentRawStatus = 'scheduled' | 'open' | 'bracketsReady' | 'almostFull' | 'live' | 'completed' | 'ended';
+export type TournamentListingStatus = 'open' | 'almost_full' | 'live' | 'ended';
+
+function rawStatusFromString(raw: string | null): TournamentRawStatus | null {
+  const v = raw?.toLowerCase().trim() ?? '';
+  if (!v) return null;
+  if (v.includes('draft') || v.includes('programado')) return 'scheduled';
+  if (v.includes('cancel')) return 'ended';
+  if (v.includes('closed') || v.includes('inscri') && v.includes('encerr')) return 'bracketsReady';
+  if (v.includes('brackets ready') || v.includes('chaves prontas')) return 'bracketsReady';
+  if (v.includes('almost') || v.includes('quase lotado')) return 'almostFull';
+  if (v.includes('progress') || v.includes('andamento') || v === 'live' || v.includes('ao vivo')) return 'live';
+  if (v.includes('completed') || v.includes('conclu')) return 'completed';
+  if (v.includes('ended') || v.includes('encerrado') || v.includes('finalizado')) return 'ended';
+  if (v.includes('open') || v.includes('aberta')) return 'open';
+  return null;
+}
+
+export interface TournamentSummary {
+  id: string;
+  name: string;
+  city: string;
+  location: string;
+  locationAddress: string | null;
+  dateLabel: string | null;
+  startAt: Date | null;
+  endAt: Date | null;
+  format: 'Dupla' | 'Individual';
+  capacity: number;
+  enrolledCount: number;
+  featured: boolean;
+  liveMatchesNow: number;
+  rawStatus: TournamentRawStatus | null;
+  /** Rascunho ou cancelado — some da listagem pública mas o `rawStatus` colapsado não distingue
+   *  "cancelado" de "encerrado" (`isPubliclyListedTournament`). */
+  isDraftOrCancelled: boolean;
+  leagueId: string | null;
+  leagueStageId: string | null;
+  leagueStageOrder: number | null;
+  leagueStageName: string | null;
+  coverUrl: string | null;
+  managerId: string | null;
+  regulationsText: string | null;
+  sport: string | null;
+  paymentMode: 'appPixCard' | 'directWithOrganizer';
+  organizerPix: { key: string; keyType: string; recipientName: string; city: string } | null;
+  waitlistEnabled: boolean;
+  tournamentPrizes: TournamentPrize[];
+  categories: TournamentCategoryOffer[];
+}
+
+function organizerPixOf(raw: unknown): TournamentSummary['organizerPix'] {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const key = optionalStr(o['key']);
+  if (!key) return null;
+  return {
+    key,
+    keyType: optionalStr(o['keyType']) ?? 'random',
+    recipientName: optionalStr(o['recipientName']) ?? '',
+    city: optionalStr(o['city']) ?? '',
+  };
+}
+
+function summaryFromDoc(id: string, data: Record<string, unknown>): TournamentSummary {
+  const categories = Array.isArray(data['categories']) ? data['categories'].map(categoryOfferFromRaw).filter((c): c is TournamentCategoryOffer => c != null) : [];
+  const capacity = numberOf(data['capacity']) || categories.reduce((sum, c) => sum + c.maxTeams, 0);
+  const statusRaw = (optionalStr(data['listingStatus']) ?? optionalStr(data['status']) ?? '').toLowerCase();
+  return {
+    id,
+    name: optionalStr(data['name']) ?? 'Torneio',
+    city: optionalStr(data['city']) ?? '',
+    location: optionalStr(data['locationName']) ?? optionalStr(data['location']) ?? optionalStr(data['venueName']) ?? '',
+    locationAddress: optionalStr(data['locationAddress']),
+    dateLabel: optionalStr(data['dateLabel']),
+    startAt: toDate(data['startAt']) ?? toDate(data['startDate']),
+    endAt: toDate(data['endAt']) ?? toDate(data['endDate']),
+    format: optionalStr(data['format'])?.toLowerCase().includes('individual') ? 'Individual' : 'Dupla',
+    capacity,
+    enrolledCount: numberOf(data['enrolledCount']) ?? 0,
+    featured: data['featured'] === true,
+    liveMatchesNow: numberOf(data['liveMatchesNow']) ?? 0,
+    rawStatus: rawStatusFromString(statusRaw),
+    isDraftOrCancelled: statusRaw.includes('draft') || statusRaw.includes('programado') || statusRaw.includes('cancel'),
+    leagueId: optionalStr(data['leagueId']),
+    leagueStageId: optionalStr(data['leagueStageId']),
+    leagueStageOrder: numberOf(data['leagueStageOrder']),
+    leagueStageName: optionalStr(data['leagueStageName']),
+    coverUrl: optionalStr(data['coverUrl']) ?? optionalStr(data['imageUrl']) ?? optionalStr(data['coverImageUrl']) ?? optionalStr(data['posterUrl']) ?? optionalStr(data['thumbnailUrl']),
+    managerId: optionalStr(data['managerId']),
+    regulationsText: optionalStr(data['regulationsText']),
+    sport: optionalStr(data['sport']),
+    paymentMode: optionalStr(data['paymentMode']) === 'directWithOrganizer' ? 'directWithOrganizer' : 'appPixCard',
+    organizerPix: organizerPixOf(data['organizerPix']),
+    waitlistEnabled: data['waitlistEnabled'] !== false,
+    tournamentPrizes: prizesOf(data['prizes']),
+    categories,
+  };
+}
+
+/** Espelha `resolveListingStatus` (Flutter), colapsado pros 4 estados que a UI usa:
+ *  `scheduled`→open (com `registrationOpensAt`), `bracketsReady`→almost_full (inscrição
+ *  fechada, ainda não é o dia), `completed`→ended. */
+export function tournamentListingStatus(t: Pick<TournamentSummary, 'startAt' | 'endAt' | 'rawStatus' | 'liveMatchesNow' | 'enrolledCount' | 'capacity'>, now = new Date()): TournamentListingStatus {
+  const raw = resolveTournamentRawStatus(t, now);
+  switch (raw) {
+    case 'scheduled':
+    case 'open':
+      return 'open';
+    case 'bracketsReady':
+    case 'almostFull':
+      return 'almost_full';
+    case 'live':
+      return 'live';
+    case 'completed':
+    case 'ended':
+      return 'ended';
+  }
+}
+
+function resolveTournamentRawStatus(
+  t: Pick<TournamentSummary, 'startAt' | 'endAt' | 'rawStatus' | 'liveMatchesNow' | 'enrolledCount' | 'capacity'>,
+  now: Date,
+): TournamentRawStatus {
+  if (t.rawStatus === 'completed' || t.rawStatus === 'ended') return t.rawStatus;
+  if (t.liveMatchesNow > 0) return 'live';
+  const end = t.endAt ?? t.startAt;
+  if (t.rawStatus === 'live') return end && now > end ? 'completed' : 'live';
+  if (end && now > end) return 'completed';
+  if (t.startAt) {
+    const sameDay = now.toDateString() === t.startAt.toDateString();
+    if (sameDay && (t.rawStatus === 'open' || t.rawStatus === 'almostFull')) return 'live';
+  }
+  if (t.rawStatus) return t.rawStatus;
+  const spotsLeft = t.capacity - t.enrolledCount;
+  if (spotsLeft <= 0) return 'completed';
+  if (spotsLeft <= 5) return 'almostFull';
+  if (t.startAt && t.startAt.getTime() - now.getTime() < 2 * 60 * 60_000 && t.startAt.getTime() - now.getTime() > 0) return 'live';
+  return 'open';
+}
+
+/** `registrationOpensAt`: quando o torneio ainda está `scheduled`, a UI mostra "Em breve" até
+ *  a data de início (não existe um campo dedicado de abertura de inscrição no schema). */
+export function registrationOpensAt(t: Pick<TournamentSummary, 'rawStatus' | 'startAt'>): Date | null {
+  return t.rawStatus === 'scheduled' ? t.startAt : null;
+}
+
+/** Torneios ocultos da listagem pública — rascunho/cancelado (`isPubliclyListedTournament`). */
+function isPubliclyListed(t: Pick<TournamentSummary, 'isDraftOrCancelled'>): boolean {
+  return !t.isDraftOrCancelled;
+}
+
+export async function fetchAllTournaments(db: Firestore): Promise<TournamentSummary[]> {
+  const snap = await getDocs(collection(db, 'tournaments'));
+  return snap.docs.map((d) => summaryFromDoc(d.id, d.data() as Record<string, unknown>)).filter((t) => isPubliclyListed(t));
+}
+
+export async function fetchTournament(db: Firestore, id: string): Promise<TournamentSummary | null> {
+  const snap = await getDoc(doc(db, 'tournaments', id));
+  if (!snap.exists()) return null;
+  return summaryFromDoc(snap.id, snap.data() as Record<string, unknown>);
+}
+
+export async function fetchTournamentSummariesByIds(db: Firestore, ids: readonly string[]): Promise<Map<string, TournamentSummary>> {
+  const unique = [...new Set(ids.filter((id) => id.trim().length > 0))];
+  const result = new Map<string, TournamentSummary>();
+  if (unique.length === 0) return result;
+
+  const chunkPromises: Promise<void>[] = [];
+  for (let i = 0; i < unique.length; i += 10) {
+    const chunk = unique.slice(i, i + 10);
+    chunkPromises.push(
+      getDocs(query(collection(db, 'tournaments'), where(documentId(), 'in', chunk))).then((snap) => {
+        for (const d of snap.docs) result.set(d.id, summaryFromDoc(d.id, d.data() as Record<string, unknown>));
+      }),
+    );
+  }
+  await Promise.all(chunkPromises);
+  return result;
+}
+
+export async function fetchTournamentNamesByIds(db: Firestore, ids: readonly string[]): Promise<Map<string, string>> {
+  const summaries = await fetchTournamentSummariesByIds(db, ids);
+  const result = new Map<string, string>();
+  for (const [id, s] of summaries) result.set(id, s.name);
+  return result;
+}
+
+/** Contagem de inscritos por categoria vinda de `inscriptions` (mais fresca que `spotsLeft` do
+ *  doc do torneio, que pode estar desatualizado) — espelha `categoryEnrolledCount`. */
+export async function fetchCategoryEnrolledCounts(db: Firestore, projectId: string, tournamentId: string): Promise<Map<string, number>> {
+  const snap = await getDocs(query(collection(db, 'artifacts', projectId, 'public', 'data', 'inscriptions'), where('tournamentId', '==', tournamentId)));
+  const counts = new Map<string, number>();
+  for (const d of snap.docs) {
+    const categoryId = optionalStr((d.data() as Record<string, unknown>)['categoryId']);
+    if (!categoryId) continue;
+    counts.set(categoryId, (counts.get(categoryId) ?? 0) + 1);
+  }
+  return counts;
+}
+
+export function tournamentIsLive(t: Pick<TournamentSummary, 'startAt' | 'endAt' | 'rawStatus' | 'liveMatchesNow' | 'enrolledCount' | 'capacity'>, now = new Date()): boolean {
+  return tournamentListingStatus(t, now) === 'live';
+}
+
+export function tournamentIsCompleted(t: Pick<TournamentSummary, 'startAt' | 'endAt' | 'rawStatus' | 'liveMatchesNow' | 'enrolledCount' | 'capacity'>, now = new Date()): boolean {
+  return tournamentListingStatus(t, now) === 'ended';
+}

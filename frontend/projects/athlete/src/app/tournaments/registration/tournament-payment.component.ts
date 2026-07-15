@@ -1,13 +1,24 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { getApps, initializeApp } from 'firebase/app';
+import { getFirestore, type Firestore } from 'firebase/firestore';
+import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
-import { MOCK_DISCOVERY_TOURNAMENTS } from '../tournament-discovery.mock';
-import type { DiscoveryTournament } from '../tournament-discovery.models';
-import { getTournamentDetailExtra, type TournamentCategoryOffer } from '../tournament-detail.mock';
-import type { DuoOption, PaymentSplitOption } from './tournament-registration-shell.component';
+import { athleteFunctions } from '../../data/functions';
+import {
+  cancelPendingRegistrationPix,
+  confirmFreeRegistration,
+  createRegistrationPixPayment,
+  fetchMyRegistrationForCategory,
+  reserveDirectOrganizerRegistration,
+  TournamentRegistrationError,
+  type AthleteTournamentRegistration,
+  type PixPaymentResult,
+} from '../../data/tournament-registrations-repository';
+import { fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../../data/tournaments-repository';
 
-export type TournamentPaymentMethod = 'pix' | 'card';
+export type PaymentAmountType = 'share' | 'full';
 
 function titleCase(input: string): string {
   return input
@@ -23,21 +34,26 @@ function nameFromEmail(email: string | null | undefined): string {
   return local ? titleCase(local) : 'Atleta';
 }
 
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return 'AT';
-  const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
-  return (first + last).toUpperCase() || 'AT';
+function createFirestore(): Firestore | null {
+  const cfg = environment.firebase;
+  if (cfg == null || (cfg.apiKey ?? '').length === 0) return null;
+  const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+  return getFirestore(app);
 }
 
-function parsePriceLabelToReais(label: string): number {
-  const digits = label.replace(/\D/g, '');
-  if (!digits) return 0;
-  const n = Number.parseInt(digits, 10);
-  return Number.isFinite(n) ? n : 0;
+function formatBRL(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function onlyDigits(v: string): string {
+  return v.replace(/\D/g, '');
+}
+
+/** Pagamento real: PIX via Asaas (`createTournamentRegistrationPixPayment`, exige CPF) quando
+ *  `paymentMode==='appPixCard'`, ou reserva sem cobrança online quando
+ *  `paymentMode==='directWithOrganizer'` (o acerto é direto com o organizador, mostrando só a
+ *  chave Pix dele). **Não existe pagamento por cartão de crédito em lugar nenhum do fluxo real**
+ *  — a opção "cartão" do mock foi removida, não é um corte de escopo, é reflexo do que existe. */
 @Component({
   selector: 'app-tournament-payment',
   standalone: true,
@@ -50,6 +66,7 @@ export class TournamentPaymentComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly firestore = createFirestore();
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
 
   protected readonly accountLabel = computed(() => {
@@ -61,95 +78,139 @@ export class TournamentPaymentComponent {
   });
 
   protected readonly tournamentId = computed(() => this.route.snapshot.paramMap.get('id') ?? '');
+  protected readonly categoryIdParam = computed(() => this.route.snapshot.queryParamMap.get('categoria'));
 
-  protected readonly queryParams = computed(() => {
-    const qp = this.route.snapshot.queryParamMap;
-    return {
-      categoria: qp.get('categoria'),
-      duo: qp.get('duo'),
-      payment: (qp.get('payment') === 'full' ? 'full' : 'split') as PaymentSplitOption,
-    };
-  });
+  protected readonly backQueryParams = computed(() => ({ categoria: this.categoryIdParam() }));
 
-  protected readonly listing = computed<DiscoveryTournament | null>(() => {
-    const id = this.tournamentId();
-    return MOCK_DISCOVERY_TOURNAMENTS.find((t) => t.id === id) ?? null;
-  });
-
-  protected readonly categories = computed<TournamentCategoryOffer[]>(() => {
-    const listing = this.listing();
-    if (!listing) return [];
-    return getTournamentDetailExtra(listing.id, listing).categories;
-  });
+  protected readonly loading = signal(true);
+  protected readonly listing = signal<TournamentSummary | null>(null);
+  protected readonly registration = signal<AthleteTournamentRegistration | null>(null);
 
   protected readonly selectedCategory = computed<TournamentCategoryOffer | null>(() => {
-    const cats = this.categories();
-    if (cats.length === 0) return null;
-    const id = this.queryParams().categoria;
+    const cats = this.listing()?.categories ?? [];
+    const id = this.categoryIdParam();
     return cats.find((c) => c.id === id) ?? cats[0] ?? null;
   });
 
-  protected readonly duoOptions = computed<DuoOption[]>(() => {
-    const me = this.accountLabel();
-    return [
-      {
-        id: 'duo-fixed-1',
-        label: `${me} & Bruno V.`,
-        meta: 'Dupla fixa · Intermediário',
-        initialsA: initialsOf(me),
-        initialsB: 'BR',
-      },
-      {
-        id: 'duo-fixed-2',
-        label: `${me} & Enzo`,
-        meta: 'Dupla fixa · Iniciante',
-        initialsA: initialsOf(me),
-        initialsB: 'EN',
-      },
-    ];
-  });
-
-  protected readonly duoLabel = computed(() => {
-    const duoId = this.queryParams().duo;
-    if (duoId === 'invite') return 'Convite pendente';
-    return this.duoOptions().find((d) => d.id === duoId)?.label ?? '—';
-  });
-
-  protected readonly totalPriceReais = computed(() => {
-    const cat = this.selectedCategory();
-    return cat ? parsePriceLabelToReais(cat.priceLabel) : 0;
-  });
-
-  protected readonly installmentPriceReais = computed(() => {
-    const total = this.totalPriceReais();
-    return this.queryParams().payment === 'split' ? Math.max(1, Math.round(total / 2)) : total;
-  });
-
-  protected readonly selectedMethod = signal<TournamentPaymentMethod>('pix');
+  protected readonly amountType = signal<PaymentAmountType>('full');
+  protected readonly cpf = signal('');
   protected readonly notice = signal<string | null>(null);
+  protected readonly processing = signal(false);
+  protected readonly pixResult = signal<PixPaymentResult | null>(null);
 
-  protected readonly backQueryParams = computed(() => {
-    const p = this.queryParams();
-    return { categoria: p.categoria };
-  });
+  protected readonly totalPriceReais = computed(() => this.selectedCategory()?.entryFee ?? 0);
+  protected readonly amountDueReais = computed(() => (this.amountType() === 'share' ? this.totalPriceReais() / 2 : this.totalPriceReais()));
 
   constructor() {
     this.destroyRef.onDestroy(() => clearTimeout(this.noticeTimeout));
+    effect(() => {
+      const id = this.tournamentId();
+      void this.loadData(id);
+    });
   }
 
-  protected selectMethod(method: TournamentPaymentMethod): void {
-    this.selectedMethod.set(method);
+  private async loadData(id: string): Promise<void> {
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    const uid = this.auth.user()?.uid;
+    if (!db || !projectId || !id) {
+      this.listing.set(null);
+      this.loading.set(false);
+      return;
+    }
+    this.loading.set(true);
+    try {
+      const tournament = await fetchTournament(db, id);
+      this.listing.set(tournament);
+      const categoryId = this.categoryIdParam() ?? tournament?.categories[0]?.id;
+      if (uid && categoryId) {
+        this.registration.set(await fetchMyRegistrationForCategory(db, projectId, uid, id, categoryId));
+      }
+    } finally {
+      this.loading.set(false);
+    }
   }
 
-  protected copyPixCode(): void {
-    this.showNotice('O código Pix ainda não está disponível — em breve por aqui.');
+  protected setAmountType(type: PaymentAmountType): void {
+    this.amountType.set(type);
+    this.pixResult.set(null);
   }
 
-  protected confirmPayment(): void {
-    this.showNotice(
-      'A confirmação de pagamento chega em breve por aqui. Por enquanto, combine com o organizador do torneio.',
-    );
+  protected onCpfInput(value: string): void {
+    this.cpf.set(onlyDigits(value).slice(0, 11));
   }
+
+  protected async generatePix(): Promise<void> {
+    const reg = this.registration();
+    if (!reg || this.processing()) return;
+    if (this.cpf().length !== 11) {
+      this.showNotice('Informe um CPF válido (11 dígitos) para gerar o Pix.');
+      return;
+    }
+    this.processing.set(true);
+    try {
+      const result = await createRegistrationPixPayment(athleteFunctions(), reg.id, this.amountType(), this.cpf());
+      this.pixResult.set(result);
+    } catch (err) {
+      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível gerar o Pix.');
+    } finally {
+      this.processing.set(false);
+    }
+  }
+
+  protected async cancelPix(): Promise<void> {
+    const reg = this.registration();
+    if (!reg) return;
+    try {
+      await cancelPendingRegistrationPix(athleteFunctions(), reg.id);
+      this.pixResult.set(null);
+      this.showNotice('Pix cancelado.');
+    } catch (err) {
+      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível cancelar.');
+    }
+  }
+
+  protected async copyPixCode(): Promise<void> {
+    const code = this.pixResult()?.qrCode;
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      this.showNotice('Código Pix copiado.');
+    } catch {
+      this.showNotice('Não foi possível copiar — copie manualmente.');
+    }
+  }
+
+  protected async confirmFree(): Promise<void> {
+    const reg = this.registration();
+    if (!reg || this.processing()) return;
+    this.processing.set(true);
+    try {
+      const result = await confirmFreeRegistration(athleteFunctions(), reg.id);
+      this.registration.update((r) => (r ? { ...r, isPaid: result.isPaid } : r));
+      this.showNotice(result.isPaid ? 'Inscrição confirmada!' : 'Sua parte foi confirmada — aguardando seu parceiro.');
+    } catch (err) {
+      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível confirmar.');
+    } finally {
+      this.processing.set(false);
+    }
+  }
+
+  protected async reserveDirect(): Promise<void> {
+    const reg = this.registration();
+    if (!reg || this.processing()) return;
+    this.processing.set(true);
+    try {
+      const result = await reserveDirectOrganizerRegistration(athleteFunctions(), reg.id);
+      this.showNotice(result.bothAthletesReserved ? 'Reserva confirmada dos dois lados!' : 'Sua reserva foi registrada — combine o pagamento com o organizador.');
+    } catch (err) {
+      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível reservar.');
+    } finally {
+      this.processing.set(false);
+    }
+  }
+
+  protected readonly formatBRL = formatBRL;
 
   private showNotice(message: string): void {
     this.notice.set(message);

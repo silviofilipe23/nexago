@@ -54,5 +54,4 @@ export interface LeagueDetailData {
 
   organizerName: string;
   organizerInitials: string;
-  organizerVerified: boolean;
 }

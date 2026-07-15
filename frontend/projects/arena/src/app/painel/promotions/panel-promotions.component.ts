@@ -1,41 +1,29 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import type { ArenaPromotion } from '@nexago/arena-discovery';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { AuthService } from '../../auth/auth.service';
+import { ArenaContextService } from '../data/arena-context.service';
+import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
+import {
+  derivePromoStatus,
+  formatDiscount,
+  formatWeekdays,
+  PROMO_STATUS_LABEL,
+  type PromoDisplayStatus,
+} from './promotion.model';
+import { fetchAllPromotions } from './promotions-repository';
 
-type PromoStatus = 'ativa' | 'agendada' | 'expirada';
-type DiscountType = 'percent' | 'fixed';
-type StatusFilter = 'todas' | PromoStatus;
+type StatusFilter = 'todas' | PromoDisplayStatus;
 
-interface Promotion {
-  id: string;
-  name: string;
-  scope: string;
-  discountType: DiscountType;
-  discountValue: number;
-  days: boolean[];
-  timeStart: string;
-  timeEnd: string;
-  usageLabel: string;
-  status: PromoStatus;
-}
-
-const DAY_LABELS = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
-
-const STATUS_LABEL: Record<PromoStatus, string> = {
-  ativa: 'Ativa',
-  agendada: 'Agendada',
-  expirada: 'Expirada',
-};
-
-const STATUS_TONE: Record<PromoStatus, PillTone> = {
+const STATUS_TONE: Record<PromoDisplayStatus, PillTone> = {
   ativa: 'green',
   agendada: 'yellow',
   expirada: 'dim',
+  pausada: 'dim',
 };
 
 const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
@@ -43,141 +31,89 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
   { key: 'ativa', label: 'Ativas' },
   { key: 'agendada', label: 'Agendadas' },
   { key: 'expirada', label: 'Expiradas' },
+  { key: 'pausada', label: 'Pausadas' },
 ];
 
-const PROMOTIONS: Promotion[] = [
-  {
-    id: 'p1',
-    name: 'Happy Hour da Tarde',
-    scope: 'Todas',
-    discountType: 'percent',
-    discountValue: 20,
-    days: [true, true, true, true, true, false, false],
-    timeStart: '14:00',
-    timeEnd: '17:00',
-    usageLabel: '38 usos',
-    status: 'ativa',
-  },
-  {
-    id: 'p2',
-    name: 'Domingo em Dobro',
-    scope: 'Quadra 2, 3',
-    discountType: 'fixed',
-    discountValue: 15,
-    days: [false, false, false, false, false, false, true],
-    timeStart: '08:00',
-    timeEnd: '12:00',
-    usageLabel: '12 usos de 40',
-    status: 'ativa',
-  },
-  {
-    id: 'p3',
-    name: 'Madrugada Beach Tennis',
-    scope: 'Quadra 1',
-    discountType: 'percent',
-    discountValue: 30,
-    days: [false, false, false, false, true, true, false],
-    timeStart: '06:00',
-    timeEnd: '08:00',
-    usageLabel: '0 usos · começa 15 Jul',
-    status: 'agendada',
-  },
-  {
-    id: 'p4',
-    name: 'Volta às Aulas',
-    scope: 'Todas',
-    discountType: 'percent',
-    discountValue: 15,
-    days: [true, true, true, true, true, false, false],
-    timeStart: '09:00',
-    timeEnd: '12:00',
-    usageLabel: '64 usos de 60',
-    status: 'expirada',
-  },
-];
-
-function formatDiscount(type: DiscountType, value: number): string {
-  return type === 'percent' ? `${value}%` : `R$${value}`;
-}
-
-/** Tela Promoções do painel (protótipo ArPromocoesScreen): KPIs e tabela de descontos automáticos por dia/horário. */
+/** Tela Promoções do painel: CRUD real de `arenas/{arenaId}/promotions` (Pro/Parceiro pra
+ *  criar/editar; excluir é livre). Sem "usos no mês"/"horário mais fraco"/"receita
+ *  incremental" — não existe contagem de resgate de promoção no backend, eram só protótipo.
+ *  Status "agendada"/"expirada" são derivados de validFrom/validUntil, não persistidos. */
 @Component({
   selector: 'ar-panel-promotions',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent],
   template: `
     <ar-panel-shell>
-      <ar-page-header title="Promoções" [subtitle]="arenaName() + ' · descontos por dia e horário'">
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="createPromotion()">
+      <ar-page-header title="Promoções" [subtitle]="headerSubtitle()">
+        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="readOnly()" (click)="createPromotion()">
           <ar-icon name="plus" [size]="14" />
           Nova promoção
         </button>
       </ar-page-header>
 
       <div class="body">
-        <div class="summary-row">
-          <ar-panel-card pad="sm" class="summary-card">
-            <div class="summary-label tone-orange">Promoções ativas</div>
-            <div class="summary-value">{{ activeCount() }}</div>
+        @if (arenaNotFound()) {
+          <p class="state-text">Nenhuma arena vinculada à sua conta ainda.</p>
+        } @else if (arenaLoading() || loading()) {
+          <p class="state-text">Carregando promoções…</p>
+        } @else if (loadError(); as err) {
+          <p class="state-text">{{ err }}</p>
+        } @else if (showPaywall()) {
+          <ar-panel-card pad="lg">
+            <p class="paywall-title">Promoções são um recurso dos planos Pro e Parceiro</p>
+            <p class="state-text">Fale com o suporte para fazer upgrade e liberar descontos automáticos por dia/horário.</p>
           </ar-panel-card>
-          <ar-panel-card pad="sm" class="summary-card">
-            <div class="summary-label tone-dim">Usos no mês</div>
-            <div class="summary-value">114</div>
-          </ar-panel-card>
-          <ar-panel-card pad="sm" class="summary-card">
-            <div class="summary-label tone-dim">Horário mais fraco</div>
-            <div class="summary-value">Ter · 14h–17h</div>
-            <div class="summary-caption tone-dim">28% de ocupação média</div>
-          </ar-panel-card>
-          <ar-panel-card pad="sm" class="summary-card">
-            <div class="summary-label tone-dim">Receita incremental</div>
-            <div class="summary-value tone-green">R$ 1.860</div>
-            <div class="summary-caption tone-dim">Reservas geradas via promo</div>
-          </ar-panel-card>
-        </div>
+        } @else {
+          @if (readOnly()) {
+            <div class="readonly-banner">Seu plano atual não inclui criar/editar promoções — fale com o suporte para fazer upgrade.</div>
+          }
 
-        <ar-panel-card [kicker]="listKicker()" title="Promoções" class="table-card">
-          <div class="ar-filter-bar" card-actions>
-            @for (f of statusFilters; track f.key) {
-              <button type="button" class="ar-chip" [class.active]="filter() === f.key" (click)="filter.set(f.key)">{{ f.label }}</button>
-            }
+          <div class="summary-row">
+            <ar-panel-card pad="sm" class="summary-card">
+              <div class="summary-label tone-orange">Promoções ativas</div>
+              <div class="summary-value">{{ activeCount() }}</div>
+            </ar-panel-card>
           </div>
 
-          <div class="table-head">
-            <span>Promoção</span>
-            <span>Desconto</span>
-            <span>Dias</span>
-            <span>Horário</span>
-            <span>Uso</span>
-            <span>Status</span>
-            <span></span>
-          </div>
-          <div class="table-list">
-            @for (p of filteredPromotions(); track p.id) {
-              <div class="table-row">
-                <div>
-                  <div class="promo-name">{{ p.name }}</div>
-                  <div class="promo-scope">{{ p.scope }}</div>
+          <ar-panel-card [kicker]="listKicker()" title="Promoções" class="table-card">
+            <div class="ar-filter-bar" card-actions>
+              @for (f of statusFilters; track f.key) {
+                <button type="button" class="ar-chip" [class.active]="filter() === f.key" (click)="filter.set(f.key)">{{ f.label }}</button>
+              }
+            </div>
+
+            <div class="table-head">
+              <span>Promoção</span>
+              <span>Desconto</span>
+              <span>Dias</span>
+              <span>Horário</span>
+              <span>Status</span>
+              <span></span>
+            </div>
+            <div class="table-list">
+              @for (row of filteredPromotions(); track row.promo.id) {
+                <div class="table-row">
+                  <div>
+                    <div class="promo-name">{{ row.promo.label }}</div>
+                    <div class="promo-scope">{{ scopeLabel(row.promo) }}</div>
+                  </div>
+                  <div class="promo-discount">{{ formatDiscount(row.promo) }}</div>
+                  <div class="promo-days">{{ formatWeekdays(row.promo.weekdays) }}</div>
+                  <div class="promo-time">{{ row.promo.startTime }}-{{ row.promo.endTime }}</div>
+                  <div><ar-pill [tone]="statusTone[row.status]">{{ statusLabel[row.status] }}</ar-pill></div>
+                  <div class="promo-actions">
+                    <button type="button" class="ar-mini-btn" (click)="editPromotion(row.promo.id)">
+                      <ar-icon name="edit" [size]="13" />
+                      Editar
+                    </button>
+                  </div>
                 </div>
-                <div class="promo-discount">{{ formatDiscount(p.discountType, p.discountValue) }}</div>
-                <div class="day-pills">
-                  @for (d of dayLabels; track $index) {
-                    <span class="day-pill" [class.active]="p.days[$index]">{{ d }}</span>
-                  }
-                </div>
-                <div class="promo-time">{{ p.timeStart }}-{{ p.timeEnd }}</div>
-                <div class="promo-usage">{{ p.usageLabel }}</div>
-                <div><ar-pill [tone]="statusTone[p.status]">{{ statusLabel[p.status] }}</ar-pill></div>
-                <div class="promo-actions">
-                  <button type="button" class="ar-mini-btn" (click)="editPromotion(p.id)">
-                    <ar-icon name="edit" [size]="13" />
-                    Editar
-                  </button>
-                </div>
-              </div>
-            }
-          </div>
-        </ar-panel-card>
+              } @empty {
+                <p class="state-text empty-text">Nenhuma promoção por aqui.</p>
+              }
+            </div>
+          </ar-panel-card>
+        }
       </div>
     </ar-panel-shell>
   `,
@@ -191,6 +127,33 @@ function formatDiscount(type: DiscountType, value: number): string {
       overflow: auto;
     }
 
+    .state-text {
+      font-size: 13.5px;
+      color: var(--nx-text-mute);
+      margin: 0;
+    }
+
+    .empty-text {
+      margin: 12px 0;
+    }
+
+    .paywall-title {
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--nx-text);
+      margin: 0 0 8px;
+    }
+
+    .readonly-banner {
+      border-radius: var(--nx-r-2);
+      border: 1px solid var(--nx-line-strong);
+      background: var(--nx-surface-1);
+      padding: 10px 14px;
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
+    }
+
     .summary-row {
       display: flex;
       gap: 16px;
@@ -199,6 +162,7 @@ function formatDiscount(type: DiscountType, value: number): string {
 
     .summary-card {
       flex: 1;
+      max-width: 240px;
     }
 
     .summary-label {
@@ -207,14 +171,7 @@ function formatDiscount(type: DiscountType, value: number): string {
       font-weight: 600;
       letter-spacing: 0.16em;
       text-transform: uppercase;
-    }
-
-    .summary-label.tone-orange {
       color: var(--nx-orange-500);
-    }
-
-    .summary-label.tone-dim {
-      color: var(--nx-text-dim);
     }
 
     .summary-value {
@@ -226,20 +183,6 @@ function formatDiscount(type: DiscountType, value: number): string {
       margin-top: 8px;
     }
 
-    .summary-value.tone-green {
-      color: var(--nx-win);
-    }
-
-    .summary-caption {
-      font-family: var(--nx-font-mono);
-      font-size: 11px;
-      margin-top: 6px;
-    }
-
-    .summary-caption.tone-dim {
-      color: var(--nx-text-dim);
-    }
-
     .table-card {
       flex: 1;
       min-height: 0;
@@ -248,7 +191,7 @@ function formatDiscount(type: DiscountType, value: number): string {
     .table-head,
     .table-row {
       display: grid;
-      grid-template-columns: 1.8fr 90px 190px 110px 150px 110px 100px;
+      grid-template-columns: 1.8fr 110px 190px 110px 110px 100px;
       gap: 12px;
       align-items: center;
     }
@@ -302,33 +245,8 @@ function formatDiscount(type: DiscountType, value: number): string {
       color: var(--nx-orange-500);
     }
 
-    .day-pills {
-      display: flex;
-      gap: 4px;
-    }
-
-    .day-pill {
-      width: 22px;
-      height: 22px;
-      border-radius: 6px;
-      display: grid;
-      place-items: center;
-      font-family: var(--nx-font-mono);
-      font-size: 9.5px;
-      font-weight: 700;
-      background: var(--nx-surface-1);
-      border: 1px solid var(--nx-line);
-      color: var(--nx-text-dim);
-    }
-
-    .day-pill.active {
-      background: var(--nx-orange-tint);
-      border-color: rgba(255, 106, 26, 0.35);
-      color: var(--nx-orange-500);
-    }
-
-    .promo-time,
-    .promo-usage {
+    .promo-days,
+    .promo-time {
       font-family: var(--nx-font-mono);
       font-size: 12px;
       color: var(--nx-text-mute);
@@ -347,30 +265,65 @@ function formatDiscount(type: DiscountType, value: number): string {
   `,
 })
 export class PanelPromotionsComponent {
-  private readonly auth = inject(AuthService);
+  private readonly arenaContext = inject(ArenaContextService);
   private readonly router = inject(Router);
 
   protected readonly formatDiscount = formatDiscount;
-  protected readonly dayLabels = DAY_LABELS;
-  protected readonly statusLabel = STATUS_LABEL;
+  protected readonly formatWeekdays = formatWeekdays;
+  protected readonly statusLabel = PROMO_STATUS_LABEL;
   protected readonly statusTone = STATUS_TONE;
   protected readonly statusFilters = STATUS_FILTERS;
-  protected readonly promotions = PROMOTIONS;
 
+  protected readonly arenaLoading = computed(() => this.arenaContext.loading());
+  protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
+  protected readonly readOnly = computed(() => !this.arenaContext.hasCapability('promocoes'));
+
+  protected readonly promotions = signal<ArenaPromotion[]>([]);
+  protected readonly loading = signal(true);
+  protected readonly loadError = signal<string | null>(null);
   protected readonly filter = signal<StatusFilter>('todas');
+
+  protected readonly rows = computed(() => this.promotions().map((promo) => ({ promo, status: derivePromoStatus(promo) })));
 
   protected readonly filteredPromotions = computed(() => {
     const f = this.filter();
-    return f === 'todas' ? this.promotions : this.promotions.filter((p) => p.status === f);
+    return f === 'todas' ? this.rows() : this.rows().filter((r) => r.status === f);
   });
 
-  protected readonly listKicker = computed(() => `${this.filteredPromotions().length} de ${this.promotions.length}`);
+  protected readonly listKicker = computed(() => `${this.filteredPromotions().length} de ${this.promotions().length}`);
+  protected readonly activeCount = computed(() => this.rows().filter((r) => r.status === 'ativa').length);
+  protected readonly showPaywall = computed(() => this.readOnly() && this.promotions().length === 0);
 
-  protected readonly activeCount = computed(() => this.promotions.filter((p) => p.status === 'ativa').length);
+  protected readonly headerSubtitle = computed(
+    () => `${this.arenaContext.arenaName() ?? 'Arena'} · descontos por dia e horário`,
+  );
 
-  protected readonly arenaName = computed(() => this.auth.displayName() || 'Arena');
+  constructor() {
+    effect(() => {
+      const arenaId = this.arenaContext.arenaId();
+      if (!arenaId) return;
+      void this.load(arenaId);
+    });
+  }
+
+  private async load(arenaId: string): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
+    try {
+      this.promotions.set(await fetchAllPromotions(arenaFirestore(), arenaId));
+    } catch {
+      this.loadError.set('Não foi possível carregar as promoções.');
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  protected scopeLabel(promo: ArenaPromotion): string {
+    return promo.courtIds.length === 0 ? 'Todas as quadras' : `${promo.courtIds.length} quadra${promo.courtIds.length === 1 ? '' : 's'}`;
+  }
 
   protected createPromotion(): void {
+    if (this.readOnly()) return;
     this.router.navigate(['/painel/promocoes/nova']);
   }
 

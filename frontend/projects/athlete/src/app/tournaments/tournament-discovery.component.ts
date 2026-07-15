@@ -10,10 +10,15 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, RouterLink } from '@angular/router';
+import { getApps, initializeApp } from 'firebase/app';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 import { interval } from 'rxjs';
+import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
-import { MOCK_DISCOVERY_LEAGUES, MOCK_DISCOVERY_TOURNAMENTS } from './tournament-discovery.mock';
+import { fetchAllLeagues, type League } from '../data/leagues-repository';
+import { fetchMyRegistrations } from '../data/tournament-registrations-repository';
+import { fetchAllTournaments, registrationOpensAt, tournamentListingStatus, type TournamentSummary } from '../data/tournaments-repository';
 import type {
   DiscoveryLeague,
   DiscoveryLeagueStage,
@@ -22,6 +27,60 @@ import type {
   FilterFormat,
 } from './tournament-discovery.models';
 import { collectLeagueTournamentIds } from './tournament-league.helpers';
+
+function createFirestore(): Firestore | null {
+  const cfg = environment.firebase;
+  if (cfg == null || (cfg.apiKey ?? '').length === 0) return null;
+  const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+  return getFirestore(app);
+}
+
+function formatBRL(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function dateLabelFrom(d: Date | null): string {
+  if (!d) return 'Data a confirmar';
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(d);
+}
+
+function discoveryTournamentFromSummary(s: TournamentSummary, myTournamentIds: ReadonlySet<string>): DiscoveryTournament {
+  const cheapestFee = s.categories.length > 0 ? Math.min(...s.categories.map((c) => c.entryFee)) : 0;
+  const spotsLeftFromCategories = s.categories.reduce((sum, c) => sum + c.spotsLeft, 0);
+  const spotsLeft = s.categories.length > 0 ? spotsLeftFromCategories : Math.max(0, s.capacity - s.enrolledCount);
+  return {
+    id: s.id,
+    name: s.name,
+    location: s.location,
+    city: s.city,
+    dateLabel: s.dateLabel ?? dateLabelFrom(s.startAt),
+    startDate: s.startAt ?? new Date(0),
+    categories: s.categories.length > 0 ? [...new Set(s.categories.map((c) => c.genderType))] : ['M'],
+    format: s.format,
+    priceLabel: formatBRL(cheapestFee),
+    priceValue: cheapestFee,
+    spotsLeft,
+    spotsTotal: s.capacity,
+    status: tournamentListingStatus(s),
+    featured: s.featured,
+    enrolledCount: s.enrolledCount,
+    liveMatchesNow: s.liveMatchesNow,
+    enrolled: myTournamentIds.has(s.id),
+    registrationOpensAt: registrationOpensAt(s),
+    leagueId: s.leagueId ?? undefined,
+    leagueStageId: s.leagueStageId ?? undefined,
+  };
+}
+
+function discoveryLeagueFromLeague(l: League): DiscoveryLeague {
+  return {
+    id: l.id,
+    name: l.name,
+    seasonLabel: l.seasonLabel ?? undefined,
+    city: l.city ?? undefined,
+    stages: l.stages.map((s) => ({ id: s.id, name: s.name, order: s.order, dateLabel: s.dateLabel ?? undefined, tournamentIds: s.tournamentIds })),
+  };
+}
 
 export type CompeteViewTab = 'all' | 'tournaments' | 'leagues';
 export type CompeteBadgeTone = 'enrolled' | 'open' | 'upcoming' | 'live' | 'ended';
@@ -179,10 +238,12 @@ export class TournamentDiscoveryComponent {
 
   private queryDebounceHandle: ReturnType<typeof setTimeout> | undefined;
 
-  protected readonly allTournaments = signal<DiscoveryTournament[]>([...MOCK_DISCOVERY_TOURNAMENTS]);
-  protected readonly leagues = MOCK_DISCOVERY_LEAGUES;
+  private readonly firestore = createFirestore();
 
-  private readonly leagueTournamentIds = collectLeagueTournamentIds(MOCK_DISCOVERY_LEAGUES);
+  protected readonly allTournaments = signal<DiscoveryTournament[]>([]);
+  protected readonly leagues = signal<DiscoveryLeague[]>([]);
+
+  private readonly leagueTournamentIds = computed(() => collectLeagueTournamentIds(this.leagues()));
 
   protected readonly activeFilterCount = computed(() => {
     let n = 0;
@@ -225,7 +286,7 @@ export class TournamentDiscoveryComponent {
 
   protected readonly standaloneTournaments = computed(() =>
     [...this.filteredTournaments()]
-      .filter((t) => !this.leagueTournamentIds.has(t.id))
+      .filter((t) => !this.leagueTournamentIds().has(t.id))
       .sort((a, b) => a.startDate.getTime() - b.startDate.getTime()),
   );
 
@@ -234,7 +295,7 @@ export class TournamentDiscoveryComponent {
     const filteredIds = new Set(this.filteredTournaments().map((t) => t.id));
     const byId = new Map(this.allTournaments().map((t) => [t.id, t]));
 
-    return this.leagues.map((league) => {
+    return this.leagues().map((league) => {
       const sortedStages = [...league.stages].sort((a, b) => a.order - b.order);
       const stageViews: CompeteStageView[] = sortedStages.map((stage) => {
         const stageTournaments = stage.tournamentIds
@@ -278,7 +339,7 @@ export class TournamentDiscoveryComponent {
   protected readonly stats = computed(() => {
     const nowMs = this.now();
     const tournaments = this.allTournaments();
-    const enrolledStandalone = tournaments.filter((t) => t.enrolled && !this.leagueTournamentIds.has(t.id)).length;
+    const enrolledStandalone = tournaments.filter((t) => t.enrolled && !this.leagueTournamentIds().has(t.id)).length;
     const enrolledLeagues = this.leagueCards().filter((c) => c.badge.tone === 'enrolled').length;
     const aoVivo = tournaments.filter((t) => t.status === 'live').length;
     const abertos = tournaments.filter((t) => tournamentBadge(t, nowMs).tone === 'open').length;
@@ -290,13 +351,36 @@ export class TournamentDiscoveryComponent {
   });
 
   constructor() {
-    setTimeout(() => this.loading.set(false), 500);
+    void this.loadData();
 
     interval(60_000)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.now.set(Date.now()));
 
     this.destroyRef.onDestroy(() => clearTimeout(this.queryDebounceHandle));
+  }
+
+  private async loadData(): Promise<void> {
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    if (!db || !projectId) {
+      this.loading.set(false);
+      return;
+    }
+    this.loading.set(true);
+    try {
+      const uid = this.auth.user()?.uid ?? null;
+      const [tournaments, leagues, registrations] = await Promise.all([
+        fetchAllTournaments(db),
+        fetchAllLeagues(db),
+        uid ? fetchMyRegistrations(db, projectId, uid) : Promise.resolve([]),
+      ]);
+      const myTournamentIds = new Set(registrations.map((r) => r.tournamentId));
+      this.allTournaments.set(tournaments.map((t) => discoveryTournamentFromSummary(t, myTournamentIds)));
+      this.leagues.set(leagues.map(discoveryLeagueFromLeague));
+    } finally {
+      this.loading.set(false);
+    }
   }
 
   protected focusSearch(event: Event): void {

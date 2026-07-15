@@ -4,36 +4,28 @@ import {
   DestroyRef,
   ElementRef,
   computed,
+  effect,
   inject,
   signal,
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ARENA_SPORT_CHIP_OPTIONS, type ArenaSportChip } from '@nexago/arena-discovery';
+import { getApps, initializeApp } from 'firebase/app';
+import { getFirestore, type Firestore } from 'firebase/firestore';
+import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { fetchAthleteDirectoryPage, fetchPublicProfilesByIds, levelBucketOf, searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
+import { fetchAthleteRankingGeneral } from '../data/rankings-repository';
 import type { FilterLevel } from '../ranking/athlete-ranking.models';
-import { MOCK_ATHLETE_DIRECTORY } from './athlete-directory.mock';
 import type { AthleteDirectoryEntry } from './athlete-directory.models';
 
 export type SortBy = 'ranking' | 'name' | 'level';
 
-const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante', 'Intermediário', 'Avançado', 'Profissional'];
-const LEVEL_ORDER: Record<FilterLevel, number> = {
-  all: -1,
-  Profissional: 0,
-  Avançado: 1,
-  Intermediário: 2,
-  Iniciante: 3,
-};
+const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante', 'Intermediário', 'Open'];
+const LEVEL_ORDER: Record<FilterLevel, number> = { all: -1, Open: 0, Intermediário: 1, Iniciante: 2 };
 const CITY_ALL = 'all';
-
-const DISTANCE_OPTIONS: readonly { km: number; label: string }[] = [
-  { km: 10, label: 'Até 10 km' },
-  { km: 25, label: 'Até 25 km' },
-  { km: 50, label: 'Até 50 km' },
-  { km: Infinity, label: 'Qualquer distância' },
-];
 
 const SORT_OPTIONS: readonly { value: SortBy; label: string }[] = [
   { value: 'ranking', label: 'Ranking' },
@@ -49,6 +41,13 @@ const SPORT_SHORT_LABEL: Partial<Record<ArenaSportChip, string>> = {
   volleyball: 'Vôlei indoor',
   football: 'Futebol',
 };
+
+function createFirestore(): Firestore | null {
+  const cfg = environment.firebase;
+  if (cfg == null || (cfg.apiKey ?? '').length === 0) return null;
+  const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+  return getFirestore(app);
+}
 
 function titleCase(input: string): string {
   return input
@@ -72,6 +71,22 @@ function initialsOf(name: string): string {
   return (first + last).toUpperCase() || 'AT';
 }
 
+function entryFromProfile(profile: AthletePublicProfile, rank: number | null): AthleteDirectoryEntry {
+  return {
+    id: profile.id,
+    handle: profile.handle ?? profile.id,
+    fullName: profile.displayName,
+    city: profile.city ?? '',
+    sport: profile.sportChip,
+    level: levelBucketOf(profile.levelCode),
+    rankingPosition: rank,
+  };
+}
+
+/** Busca de atletas real: `public_profiles` paginado (`hasAthleteRole==true`, cursor por id do
+ *  doc) ou `keywords array-contains` quando há termo de busca — espelha
+ *  `AthleteDiscoverRepository` (Flutter). Sem "sugeridos pra você"/distância real (dependeriam
+ *  de grafo de seguidores e geolocalização, nenhum dos dois existe hoje). */
 @Component({
   selector: 'app-athlete-directory',
   standalone: true,
@@ -87,6 +102,7 @@ function initialsOf(name: string): string {
 export class AthleteDirectoryComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly firestore = createFirestore();
 
   protected readonly searchInputRef = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
@@ -105,44 +121,36 @@ export class AthleteDirectoryComponent {
 
   protected readonly sportOptions = ARENA_SPORT_CHIP_OPTIONS.filter((o) => o.chip !== 'all');
   protected readonly levelOptions = LEVEL_OPTIONS;
-  protected readonly distanceOptions = DISTANCE_OPTIONS;
   protected readonly sortOptions = SORT_OPTIONS;
 
   protected readonly sportFilter = signal<ArenaSportChip>('beachVolleyball');
   protected readonly levelFilter = signal<FilterLevel>('all');
   protected readonly cityFilter = signal<string>(CITY_ALL);
-  protected readonly distanceFilter = signal<number>(Infinity);
   protected readonly sortBy = signal<SortBy>('ranking');
 
-  protected readonly allAthletes = signal<readonly AthleteDirectoryEntry[]>(MOCK_ATHLETE_DIRECTORY);
-  protected readonly followedIds = signal<ReadonlySet<string>>(new Set());
+  protected readonly loading = signal(true);
+  protected readonly allAthletes = signal<readonly AthleteDirectoryEntry[]>([]);
+  private nextCursor: string | null = null;
+  protected readonly hasMore = signal(false);
+  protected readonly loadingMore = signal(false);
+  private rankPositionById = new Map<string, number>();
 
   protected readonly cityOptions = computed(() => {
-    const cities = [...new Set(this.allAthletes().map((a) => a.city))].sort((a, b) => a.localeCompare(b));
+    const cities = [...new Set(this.allAthletes().map((a) => a.city).filter((c) => c.length > 0))].sort((a, b) => a.localeCompare(b));
     return [CITY_ALL, ...cities];
-  });
-
-  protected readonly suggested = computed(() => {
-    const q = this.filterQuery().trim().toLowerCase();
-    return this.allAthletes()
-      .filter((a) => a.suggestionReason != null)
-      .filter((a) => !q || a.fullName.toLowerCase().includes(q));
   });
 
   protected readonly filteredOthers = computed(() => {
     const sport = this.sportFilter();
     const level = this.levelFilter();
     const city = this.cityFilter();
-    const maxKm = this.distanceFilter();
     const q = this.filterQuery().trim().toLowerCase();
     const sort = this.sortBy();
 
     const list = this.allAthletes()
-      .filter((a) => a.suggestionReason == null)
       .filter((a) => a.sport === sport)
       .filter((a) => level === 'all' || a.level === level)
       .filter((a) => city === CITY_ALL || a.city === city)
-      .filter((a) => a.distanceKm <= maxKm)
       .filter((a) => !q || a.fullName.toLowerCase().includes(q));
 
     return [...list].sort((a, b) => {
@@ -150,21 +158,77 @@ export class AthleteDirectoryComponent {
         case 'name':
           return a.fullName.localeCompare(b.fullName, 'pt');
         case 'level':
-          return LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level] || a.rankingPosition - b.rankingPosition;
+          return LEVEL_ORDER[a.level ?? 'all'] - LEVEL_ORDER[b.level ?? 'all'] || (a.rankingPosition ?? Infinity) - (b.rankingPosition ?? Infinity);
         case 'ranking':
         default:
-          return a.rankingPosition - b.rankingPosition;
+          return (a.rankingPosition ?? Infinity) - (b.rankingPosition ?? Infinity);
       }
     });
   });
 
   protected readonly totalRegisteredLabel = computed(() => {
     const n = this.allAthletes().length;
-    return `${n} cadastrado${n === 1 ? '' : 's'}`;
+    return `${n} carregado${n === 1 ? '' : 's'}`;
   });
 
   constructor() {
     this.destroyRef.onDestroy(() => clearTimeout(this.queryDebounceHandle));
+
+    effect(() => {
+      const q = this.filterQuery();
+      void this.reload(q);
+    });
+  }
+
+  private async reload(term: string): Promise<void> {
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    if (!db || !projectId) {
+      this.allAthletes.set([]);
+      this.loading.set(false);
+      return;
+    }
+
+    this.loading.set(true);
+    try {
+      if (this.rankPositionById.size === 0) {
+        const ranking = await fetchAthleteRankingGeneral(db, projectId);
+        ranking.forEach((r, i) => this.rankPositionById.set(r.id, i + 1));
+      }
+
+      if (term.trim()) {
+        const profiles = await searchAthleteDirectory(db, term);
+        this.allAthletes.set(profiles.map((p) => entryFromProfile(p, this.rankPositionById.get(p.id) ?? null)));
+        this.hasMore.set(false);
+        this.nextCursor = null;
+      } else {
+        const page = await fetchAthleteDirectoryPage(db, null);
+        this.allAthletes.set(page.profiles.map((p) => entryFromProfile(p, this.rankPositionById.get(p.id) ?? null)));
+        this.nextCursor = page.nextCursor;
+        this.hasMore.set(page.nextCursor != null);
+      }
+    } catch {
+      this.allAthletes.set([]);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  protected async loadMore(): Promise<void> {
+    const db = this.firestore;
+    if (!db || !this.nextCursor || this.loadingMore()) return;
+    this.loadingMore.set(true);
+    try {
+      const page = await fetchAthleteDirectoryPage(db, this.nextCursor);
+      this.allAthletes.update((current) => [
+        ...current,
+        ...page.profiles.map((p) => entryFromProfile(p, this.rankPositionById.get(p.id) ?? null)),
+      ]);
+      this.nextCursor = page.nextCursor;
+      this.hasMore.set(page.nextCursor != null);
+    } finally {
+      this.loadingMore.set(false);
+    }
   }
 
   protected focusSearch(event: Event): void {
@@ -190,10 +254,6 @@ export class AthleteDirectoryComponent {
     this.cityFilter.set(city);
   }
 
-  protected setDistance(km: string): void {
-    this.distanceFilter.set(Number(km));
-  }
-
   protected setSortBy(value: string): void {
     this.sortBy.set(value as SortBy);
   }
@@ -214,25 +274,8 @@ export class AthleteDirectoryComponent {
     return city === CITY_ALL ? 'Todas as cidades' : city;
   }
 
-  protected distanceLabel(km: number): string {
-    return this.distanceOptions.find((o) => o.km === km)?.label ?? `Até ${km} km`;
-  }
-
   protected sortLabel(value: SortBy): string {
     return `Ordenar: ${this.sortOptions.find((o) => o.value === value)?.label ?? value}`;
-  }
-
-  protected isFollowed(id: string): boolean {
-    return this.followedIds().has(id);
-  }
-
-  protected toggleFollow(id: string): void {
-    this.followedIds.update((ids) => {
-      const next = new Set(ids);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   }
 
   protected readonly athleteInitials = initialsOf;

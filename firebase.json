@@ -46,6 +46,10 @@
       "public": "dist/coach/browser"
     },
     {
+      "target": "vegeton",
+      "public": "dist/vegeton"
+    },
+    {
       "target": "site",
       "source": "frontend/projects/site",
       "frameworksBackend": {

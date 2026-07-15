@@ -1,190 +1,195 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, linkedSignal, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { AuthService } from '../../auth/auth.service';
+import { ArenaContextService } from '../data/arena-context.service';
+import {
+  ARENA_AMENITY_KEYS,
+  ARENA_AMENITY_LABEL,
+  ARENA_SPORT_OPTIONS,
+  ARENA_SURFACE_OPTIONS,
+  type ArenaProfile,
+} from '../data/arena-profile.model';
+import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
-import { initialsOf } from '../ui/initials';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
-import { PillComponent } from '../ui/pill.component';
-import { StatusDotComponent } from '../ui/status-dot.component';
+import { ToggleComponent } from '../ui/toggle.component';
+import { fetchArenaProfile, saveArenaBasicInfo } from './arena-profile-repository';
 
-interface ProfileStat {
-  label: string;
-  value: string | number;
-  accent: boolean;
+function initialsOfName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '·';
+  const first = parts[0]![0] ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]![0] ?? '') : '';
+  return (first + last).toUpperCase();
 }
 
-interface OpeningHour {
-  days: string;
-  time: string;
-  open: boolean;
-}
-
-const CITY = 'Aparecida de Goiânia · GO';
-const ADDRESS = 'Esq com – Rua Moscou, Av. Francisco Inácio Ferreira, qd 29 – LT 01';
-const FULL_CITY = 'Aparecida de Goiânia · GO · 74968-570';
-const DESCRIPTION = 'Um lugar aconchegante, cheio de charme. Ótimo para um vôlei e se divertir com os amigos.';
-const SPORTS = ['Vôlei de praia', 'Beach Tennis', 'Beach Soccer'];
-const HOURS: OpeningHour[] = [
-  { days: 'Seg – Sex', time: '07:00 – 22:00', open: true },
-  { days: 'Sáb – Dom', time: '06:00 – 20:00', open: true },
-  { days: 'Feriados', time: '08:00 – 18:00', open: false },
-];
-const WHATSAPP = '+55 62 9 9999-9999';
-const INSTAGRAM = '@arenacfc';
-const RATING = 4.8;
-const REVIEWS = 23;
-const FOLLOWERS = 6;
-const WEEK_VIEWS = 42;
-
-/** Tela Perfil do painel (protótipo ArPerfilScreen): como os atletas veem a arena no app — somente leitura. */
+/** Tela Perfil do painel: dados reais de `arenas/{arenaId}` (nome, descrição, modalidades,
+ *  superfícies, comodidades, pagamento, capa/logo), editáveis inline. Avaliação/avaliações são
+ *  agregadas por Cloud Function (só leitura). Sem "seguidores"/"visitas da semana"/"completude
+ *  do perfil" — não existe nenhum desses campos no backend, eram só protótipo. Sem upload de
+ *  foto (Storage não integrado) — capa/logo aceitam colar uma URL, mesma solução crua do Flutter. */
 @Component({
   selector: 'ar-panel-profile',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, StatusDotComponent, IconComponent, RouterLink],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, IconComponent, ToggleComponent, RouterLink],
   template: `
     <ar-panel-shell>
       <ar-page-header title="Perfil da arena" subtitle="Como os atletas veem a arena no app">
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary">
-          <ar-icon name="edit" [size]="14" />
-          Editar perfil
+        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="saving() || loading()" (click)="save()">
+          <ar-icon name="check" [size]="14" />
+          {{ saving() ? 'Salvando…' : 'Salvar alterações' }}
         </button>
       </ar-page-header>
 
       <div class="body">
-        <div class="main-grid">
-          <div class="col-left">
-            <div class="cover">
-              <svg width="100%" height="150" viewBox="0 0 1000 150" preserveAspectRatio="none" class="cover-svg">
-                <defs>
-                  <radialGradient id="arProfileG1" cx="24%" cy="45%">
-                    <stop offset="0%" stop-color="#FF6A1A" stop-opacity="0.45" />
-                    <stop offset="100%" stop-color="#FF6A1A" stop-opacity="0" />
-                  </radialGradient>
-                  <radialGradient id="arProfileG2" cx="82%" cy="30%">
-                    <stop offset="0%" stop-color="#2BD17E" stop-opacity="0.22" />
-                    <stop offset="100%" stop-color="#2BD17E" stop-opacity="0" />
-                  </radialGradient>
-                </defs>
-                <rect width="1000" height="150" fill="#0d0d0e" />
-                <rect width="1000" height="150" fill="url(#arProfileG1)" />
-                <rect width="1000" height="150" fill="url(#arProfileG2)" />
-                @for (x of coverLines; track x) {
-                  <line [attr.x1]="x" y1="0" [attr.x2]="x" y2="150" stroke="rgba(255,255,255,0.04)" />
-                }
-              </svg>
-              <div class="cover-edit">
-                <ar-icon name="edit" [size]="13" />
-                Editar capa
-              </div>
-            </div>
-
-            <div class="identity">
-              <div class="identity-avatar">{{ initials() }}</div>
-              <div class="identity-body">
-                <div class="identity-name-row">
-                  <h1>{{ arenaName() }}</h1>
-                  <ar-pill tone="green">Perfil público ativo</ar-pill>
-                </div>
-                <div class="identity-city">{{ city }}</div>
-              </div>
-            </div>
-
-            <div class="stats-row">
-              @for (s of stats; track s.label) {
-                <div class="stat" [class.accent]="s.accent">
-                  <div class="stat-value">{{ s.value }}</div>
-                  <div class="stat-label">{{ s.label }}</div>
-                </div>
+        @if (arenaNotFound()) {
+          <p class="state-text">Nenhuma arena vinculada à sua conta ainda. Fale com o suporte para concluir o cadastro.</p>
+        } @else if (arenaLoading() || loading()) {
+          <p class="state-text">Carregando perfil…</p>
+        } @else if (loadError(); as err) {
+          <p class="state-text">{{ err }}</p>
+        } @else if (profile()) {
+          <div class="main-grid">
+            <div class="col-left">
+              @if (saveError(); as serr) {
+                <div class="error-banner">{{ serr }}</div>
               }
+
+              <div class="cover">
+                @if (coverUrl().trim()) {
+                  <img [src]="coverUrl()" alt="" class="cover-img" />
+                } @else {
+                  <svg width="100%" height="150" viewBox="0 0 1000 150" preserveAspectRatio="none" class="cover-svg">
+                    <defs>
+                      <radialGradient id="arProfileG1" cx="24%" cy="45%">
+                        <stop offset="0%" stop-color="#FF6A1A" stop-opacity="0.45" />
+                        <stop offset="100%" stop-color="#FF6A1A" stop-opacity="0" />
+                      </radialGradient>
+                      <radialGradient id="arProfileG2" cx="82%" cy="30%">
+                        <stop offset="0%" stop-color="#2BD17E" stop-opacity="0.22" />
+                        <stop offset="100%" stop-color="#2BD17E" stop-opacity="0" />
+                      </radialGradient>
+                    </defs>
+                    <rect width="1000" height="150" fill="#0d0d0e" />
+                    <rect width="1000" height="150" fill="url(#arProfileG1)" />
+                    <rect width="1000" height="150" fill="url(#arProfileG2)" />
+                  </svg>
+                }
+              </div>
+
+              <div class="identity">
+                <div class="identity-avatar">{{ initials() }}</div>
+                <div class="identity-body">
+                  <div class="identity-name-row">
+                    <h1>{{ name() || 'Nome da arena' }}</h1>
+                  </div>
+                  <div class="identity-city">{{ profile()!.city }}{{ profile()!.state ? ' · ' + profile()!.state : '' }}</div>
+                </div>
+              </div>
+
+              <div class="stats-row">
+                <div class="stat accent">
+                  <div class="stat-value">{{ profile()!.ratingAverage.toFixed(1) }}</div>
+                  <div class="stat-label">avaliação</div>
+                </div>
+                <div class="stat">
+                  <div class="stat-value">{{ profile()!.reviewsCount }}</div>
+                  <div class="stat-label">avaliações</div>
+                </div>
+              </div>
+
+              <ar-panel-card title="Dados básicos">
+                <div class="field-label">Nome da arena</div>
+                <input type="text" class="input-box" [value]="name()" (input)="name.set($any($event.target).value)" />
+
+                <div class="field-label row-gap">Descrição</div>
+                <textarea class="input-box textarea" rows="3" [value]="description()" (input)="description.set($any($event.target).value)"></textarea>
+
+                <div class="row-2 row-gap">
+                  <div>
+                    <div class="field-label">URL da capa</div>
+                    <input type="text" class="input-box" placeholder="https://…" [value]="coverUrl()" (input)="coverUrl.set($any($event.target).value)" />
+                  </div>
+                  <div>
+                    <div class="field-label">URL do logo</div>
+                    <input type="text" class="input-box" placeholder="https://…" [value]="logoUrl()" (input)="logoUrl.set($any($event.target).value)" />
+                  </div>
+                </div>
+              </ar-panel-card>
+
+              <ar-panel-card title="Modalidades">
+                <div class="field-label">Esportes</div>
+                <div class="chip-row">
+                  @for (s of sportOptions; track s) {
+                    <button type="button" class="ar-chip" [class.active]="courtTypes().includes(s)" (click)="toggleSport(s)">{{ s }}</button>
+                  }
+                </div>
+
+                <div class="field-label row-gap">Superfícies</div>
+                <div class="chip-row">
+                  @for (s of surfaceOptions; track s) {
+                    <button type="button" class="ar-chip" [class.active]="surfaces().includes(s)" (click)="toggleSurface(s)">{{ s }}</button>
+                  }
+                </div>
+              </ar-panel-card>
+
+              <ar-panel-card title="Comodidades">
+                <div class="amenities-list">
+                  @for (key of amenityKeys; track key) {
+                    <div class="amenity-row">
+                      <span>{{ amenityLabel[key] }}</span>
+                      <ar-toggle [checked]="amenities()[key]" (changed)="setAmenity(key, $event)" />
+                    </div>
+                  }
+                </div>
+              </ar-panel-card>
             </div>
 
-            <ar-panel-card title="Descrição">
-              <button type="button" class="ar-ghost-btn" card-actions>
-                <ar-icon name="edit" [size]="13" />
-                Editar
-              </button>
-              <p class="text">{{ description }}</p>
-            </ar-panel-card>
+            <div class="col-right">
+              <ar-panel-card title="Formas de pagamento">
+                <div class="amenity-row">
+                  <span>Pagamento online (Pix)</span>
+                  <ar-toggle [checked]="onlinePaymentEnabled()" (changed)="onlinePaymentEnabled.set($event)" />
+                </div>
+                <div class="amenity-row">
+                  <span>Pagamento no local</span>
+                  <ar-toggle [checked]="onsitePaymentEnabled()" (changed)="onsitePaymentEnabled.set($event)" />
+                </div>
+              </ar-panel-card>
 
-            <ar-panel-card title="Modalidades">
-              <button type="button" class="ar-ghost-btn" card-actions>
-                <ar-icon name="plus" [size]="13" />
-                Adicionar
-              </button>
-              <div class="sports">
-                @for (s of sports; track s) {
-                  <ar-pill tone="orange">{{ s }}</ar-pill>
+              <ar-panel-card title="Horários de funcionamento">
+                <a routerLink="/painel/perfil/horarios" class="ar-ghost-btn" card-actions>
+                  <ar-icon name="edit" [size]="13" />
+                  Editar
+                </a>
+                @if (courtsCount() > 0) {
+                  <p class="text">{{ courtsCount() }} quadra{{ courtsCount() === 1 ? '' : 's' }} cadastrada{{ courtsCount() === 1 ? '' : 's' }}.</p>
+                } @else {
+                  <p class="text">Nenhuma quadra cadastrada ainda — cadastre quadras antes de definir horários.</p>
                 }
-              </div>
-            </ar-panel-card>
+              </ar-panel-card>
 
-            <ar-panel-card title="Endereço">
-              <button type="button" class="ar-ghost-btn" card-actions>
-                <ar-icon name="edit" [size]="13" />
-                Editar
-              </button>
-              <p class="text address">{{ address }}</p>
-              <div class="full-city">{{ fullCity }}</div>
-            </ar-panel-card>
-          </div>
-
-          <div class="col-right">
-            <ar-panel-card title="Completude do perfil">
-              <ar-pill tone="orange" card-actions>80%</ar-pill>
-              <div class="completeness-track">
-                <div class="completeness-fill"></div>
-              </div>
-              <div class="completeness-hint">Adicione fotos das quadras para completar +20%.</div>
-            </ar-panel-card>
-
-            <ar-panel-card title="Horários de funcionamento">
-              <a routerLink="/painel/perfil/horarios" class="ar-ghost-btn" card-actions>
-                <ar-icon name="edit" [size]="13" />
-                Editar
-              </a>
-              <div>
-                @for (h of hours; track h.days) {
-                  <div class="hour-row">
-                    <div class="hour-days">
-                      <ar-status-dot [tone]="h.open ? 'green' : 'yellow'" [size]="6" />
-                      <span>{{ h.days }}</span>
+              <ar-panel-card title="Contato">
+                <a routerLink="/painel/perfil/contatos" class="ar-ghost-btn" card-actions>
+                  <ar-icon name="edit" [size]="13" />
+                  Editar
+                </a>
+                <div class="contact-list">
+                  <div class="contact-row">
+                    <div class="contact-icon whatsapp">
+                      <ar-icon name="mail" [size]="15" />
                     </div>
-                    <span class="hour-time">{{ h.time }}</span>
-                  </div>
-                }
-              </div>
-            </ar-panel-card>
-
-            <ar-panel-card title="Contato">
-              <a routerLink="/painel/perfil/contatos" class="ar-ghost-btn" card-actions>
-                <ar-icon name="edit" [size]="13" />
-                Editar
-              </a>
-              <div class="contact-list">
-                <div class="contact-row">
-                  <div class="contact-icon whatsapp">
-                    <ar-icon name="mail" [size]="15" />
-                  </div>
-                  <div>
-                    <div class="contact-label">WhatsApp</div>
-                    <div class="contact-value">{{ whatsapp }}</div>
+                    <div>
+                      <div class="contact-label">WhatsApp</div>
+                      <div class="contact-value">{{ profile()!.whatsapp || 'Não informado' }}</div>
+                    </div>
                   </div>
                 </div>
-                <div class="contact-row">
-                  <div class="contact-icon instagram">
-                    <ar-icon name="share" [size]="15" />
-                  </div>
-                  <div>
-                    <div class="contact-label">Instagram</div>
-                    <div class="contact-value">{{ instagram }}</div>
-                  </div>
-                </div>
-              </div>
-            </ar-panel-card>
+              </ar-panel-card>
+            </div>
           </div>
-        </div>
+        }
       </div>
     </ar-panel-shell>
   `,
@@ -198,6 +203,21 @@ const WEEK_VIEWS = 42;
 
     .body::-webkit-scrollbar {
       display: none;
+    }
+
+    .state-text {
+      font-size: 13.5px;
+      color: var(--nx-text-mute);
+    }
+
+    .error-banner {
+      border-radius: var(--nx-r-2);
+      border: 1px solid var(--nx-live);
+      background: rgba(255, 59, 48, 0.08);
+      color: var(--nx-live);
+      padding: 10px 14px;
+      font-size: 12.5px;
+      margin-bottom: 4px;
     }
 
     .main-grid {
@@ -220,6 +240,7 @@ const WEEK_VIEWS = 42;
       overflow: hidden;
       border-radius: var(--nx-r-4);
       flex: none;
+      background: var(--nx-surface-1);
     }
 
     .cover-svg {
@@ -228,23 +249,11 @@ const WEEK_VIEWS = 42;
       display: block;
     }
 
-    .cover-edit {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 12px;
-      border-radius: var(--nx-r-2);
-      background: rgba(11, 11, 12, 0.72);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--nx-line-strong);
-      color: var(--nx-text);
-      cursor: pointer;
-      font-family: var(--nx-font-display);
-      font-weight: 600;
-      font-size: 12px;
+    .cover-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
     }
 
     .identity {
@@ -274,12 +283,6 @@ const WEEK_VIEWS = 42;
     .identity-body {
       margin-top: 40px;
       min-width: 0;
-    }
-
-    .identity-name-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
     }
 
     .identity-name-row h1 {
@@ -337,73 +340,80 @@ const WEEK_VIEWS = 42;
     }
 
     .text {
-      font-size: 13.5px;
-      line-height: 1.6;
+      font-size: 13px;
+      line-height: 1.5;
       color: var(--nx-text-mute);
       margin: 0;
     }
 
-    .address {
-      margin: 0 0 6px;
-      font-size: 13px;
-    }
-
-    .full-city {
-      font-size: 12px;
+    .field-label {
+      font-family: var(--nx-font-mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
       color: var(--nx-text-dim);
+      margin-bottom: 10px;
     }
 
-    .sports {
+    .row-gap {
+      margin-top: 18px;
+    }
+
+    .input-box {
+      width: 100%;
+      height: 46px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      color: var(--nx-text);
+      font-family: var(--nx-font-ui);
+      font-size: 14px;
+      padding: 0 14px;
+      box-sizing: border-box;
+    }
+
+    .input-box:focus {
+      outline: none;
+      border-color: var(--nx-orange-500);
+    }
+
+    .textarea {
+      height: auto;
+      padding: 12px 14px;
+      resize: vertical;
+      font-family: var(--nx-font-ui);
+    }
+
+    .row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .chip-row {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
     }
 
-    .completeness-track {
-      height: 8px;
-      border-radius: 4px;
-      background: var(--nx-surface-1);
-      overflow: hidden;
-      margin-bottom: 10px;
+    .amenities-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
 
-    .completeness-fill {
-      width: 80%;
-      height: 100%;
-      border-radius: 4px;
-      background: var(--nx-orange-500);
-    }
-
-    .completeness-hint {
-      font-size: 12px;
-      color: var(--nx-text-dim);
-    }
-
-    .hour-row {
+    .amenity-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 10px 0;
       border-bottom: 1px solid var(--nx-line);
-    }
-
-    .hour-row:last-child {
-      border-bottom: none;
-    }
-
-    .hour-days {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12.5px;
+      font-size: 13px;
       color: var(--nx-text-mute);
     }
 
-    .hour-time {
-      font-family: var(--nx-font-mono);
-      font-weight: 700;
-      font-size: 12.5px;
-      color: var(--nx-text);
+    .amenity-row:last-child {
+      border-bottom: none;
     }
 
     .contact-list {
@@ -432,11 +442,6 @@ const WEEK_VIEWS = 42;
       color: #25d366;
     }
 
-    .contact-icon.instagram {
-      background: var(--nx-orange-tint);
-      color: var(--nx-orange-500);
-    }
-
     .contact-label {
       font-family: var(--nx-font-display);
       font-weight: 600;
@@ -458,25 +463,96 @@ const WEEK_VIEWS = 42;
   `,
 })
 export class PanelProfileComponent {
-  private readonly auth = inject(AuthService);
+  private readonly arenaContext = inject(ArenaContextService);
 
-  protected readonly city = CITY;
-  protected readonly address = ADDRESS;
-  protected readonly fullCity = FULL_CITY;
-  protected readonly description = DESCRIPTION;
-  protected readonly sports = SPORTS;
-  protected readonly hours = HOURS;
-  protected readonly whatsapp = WHATSAPP;
-  protected readonly instagram = INSTAGRAM;
-  protected readonly coverLines = [120, 280, 440, 600, 760, 920];
+  protected readonly sportOptions = ARENA_SPORT_OPTIONS;
+  protected readonly surfaceOptions = ARENA_SURFACE_OPTIONS;
+  protected readonly amenityKeys = ARENA_AMENITY_KEYS;
+  protected readonly amenityLabel = ARENA_AMENITY_LABEL;
 
-  protected readonly stats: ProfileStat[] = [
-    { label: 'avaliação', value: RATING, accent: true },
-    { label: 'avaliações', value: REVIEWS, accent: false },
-    { label: 'seguidores', value: FOLLOWERS, accent: false },
-    { label: 'visitas/sem', value: WEEK_VIEWS, accent: false },
-  ];
+  protected readonly arenaLoading = computed(() => this.arenaContext.loading());
+  protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
+  protected readonly courtsCount = computed(() => this.arenaContext.courtsCount());
 
-  protected readonly arenaName = computed(() => this.auth.displayName() || 'Arena');
-  protected readonly initials = computed(() => initialsOf(this.arenaName()));
+  protected readonly profile = signal<ArenaProfile | null>(null);
+  protected readonly loading = signal(true);
+  protected readonly loadError = signal<string | null>(null);
+  protected readonly saving = signal(false);
+  protected readonly saveError = signal<string | null>(null);
+
+  protected readonly name = linkedSignal(() => this.profile()?.name ?? '');
+  protected readonly description = linkedSignal(() => this.profile()?.description ?? '');
+  protected readonly coverUrl = linkedSignal(() => this.profile()?.coverUrl ?? '');
+  protected readonly logoUrl = linkedSignal(() => this.profile()?.logoUrl ?? '');
+  protected readonly courtTypes = linkedSignal(() => this.profile()?.courtTypes ?? []);
+  protected readonly surfaces = linkedSignal(() => this.profile()?.surfaces ?? []);
+  protected readonly amenities = linkedSignal(() => this.profile()?.amenities ?? {
+    parking: false,
+    lockerRoom: false,
+    coveredCourt: false,
+    bar: false,
+    racketRental: false,
+  });
+  protected readonly onlinePaymentEnabled = linkedSignal(() => this.profile()?.onlinePaymentEnabled ?? true);
+  protected readonly onsitePaymentEnabled = linkedSignal(() => this.profile()?.onsitePaymentEnabled ?? true);
+
+  protected readonly initials = computed(() => initialsOfName(this.name() || 'Arena'));
+
+  constructor() {
+    effect(() => {
+      const arenaId = this.arenaContext.arenaId();
+      if (!arenaId) return;
+      void this.load(arenaId);
+    });
+  }
+
+  private async load(arenaId: string): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
+    try {
+      this.profile.set(await fetchArenaProfile(arenaFirestore(), arenaId));
+    } catch {
+      this.loadError.set('Não foi possível carregar o perfil.');
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  protected toggleSport(sport: string): void {
+    this.courtTypes.update((current) => (current.includes(sport) ? current.filter((s) => s !== sport) : [...current, sport]));
+  }
+
+  protected toggleSurface(surface: string): void {
+    this.surfaces.update((current) => (current.includes(surface) ? current.filter((s) => s !== surface) : [...current, surface]));
+  }
+
+  protected setAmenity(key: keyof ArenaProfile['amenities'], value: boolean): void {
+    this.amenities.update((current) => ({ ...current, [key]: value }));
+  }
+
+  protected async save(): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    if (!arenaId) return;
+
+    this.saving.set(true);
+    this.saveError.set(null);
+    try {
+      await saveArenaBasicInfo(arenaFirestore(), arenaId, {
+        name: this.name(),
+        description: this.description(),
+        coverUrl: this.coverUrl(),
+        logoUrl: this.logoUrl(),
+        courtTypes: this.courtTypes(),
+        surfaces: this.surfaces(),
+        amenities: this.amenities(),
+        onlinePaymentEnabled: this.onlinePaymentEnabled(),
+        onsitePaymentEnabled: this.onsitePaymentEnabled(),
+      });
+      await this.load(arenaId);
+    } catch (err) {
+      this.saveError.set(err instanceof Error ? err.message : 'Não foi possível salvar o perfil.');
+    } finally {
+      this.saving.set(false);
+    }
+  }
 }

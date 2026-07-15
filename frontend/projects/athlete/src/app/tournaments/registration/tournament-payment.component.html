@@ -1,10 +1,14 @@
 <app-at-panel-shell [userName]="accountLabel()">
-  @if (listing(); as t) {
+  @if (loading()) {
+    <div class="tp-body">
+      <p class="tp-defer-note">Carregando…</p>
+    </div>
+  } @else if (listing(); as t) {
     <div class="tp-body">
       <div class="tp-header">
         <div>
           <h1 class="tp-title">Pagamento</h1>
-          <p class="tp-subtitle">{{ t.name }} · Sua parcela</p>
+          <p class="tp-subtitle">{{ t.name }} · {{ selectedCategory()?.categoryName ?? '—' }}</p>
         </div>
         <a [routerLink]="['/torneios', t.id, 'inscricao']" [queryParams]="backQueryParams()" class="tp-back-link">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
@@ -18,48 +22,82 @@
 
       <div class="tp-main-grid">
         <div class="tp-col">
-          <section class="tp-card">
-            <h2 class="tp-card-title">Forma de pagamento</h2>
-            <div class="tp-method-row">
-              <button
-                type="button"
-                class="tp-method-card"
-                [class.tp-method-card--active]="selectedMethod() === 'pix'"
-                (click)="selectMethod('pix')"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v6M12 15v6M3 12h6M15 12h6" /><rect x="9" y="9" width="6" height="6" rx="1.4" transform="rotate(45 12 12)" /></svg>
-                <span>Pix</span>
+          @if (!registration()) {
+            <section class="tp-card">
+              <p class="tp-defer-note">Você ainda não tem uma inscrição nesta categoria.</p>
+              <a [routerLink]="['/torneios', t.id, 'inscricao']" [queryParams]="backQueryParams()" class="tp-btn-primary">Voltar pra inscrição</a>
+            </section>
+          } @else if (totalPriceReais() === 0) {
+            <section class="tp-card">
+              <h2 class="tp-card-title">Inscrição gratuita</h2>
+              <p class="tp-defer-note">Essa categoria não cobra taxa de inscrição — só confirme sua presença.</p>
+              <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="confirmFree()">
+                {{ processing() ? 'Confirmando…' : 'Confirmar inscrição gratuita' }}
               </button>
-              <button
-                type="button"
-                class="tp-method-card"
-                [class.tp-method-card--active]="selectedMethod() === 'card'"
-                (click)="selectMethod('card')"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="M2.5 10h19" /></svg>
-                <span>Cartão de crédito</span>
-              </button>
-            </div>
-
-            @if (selectedMethod() === 'pix') {
-              <div class="tp-pix-block">
-                <div class="tp-qr-placeholder" aria-hidden="true"><span>QR CODE PIX</span></div>
-                <div class="tp-pix-code-row">
-                  <span class="tp-pix-code">Código Pix disponível em breve</span>
-                  <button type="button" class="tp-btn-ghost tp-copy-btn" (click)="copyPixCode()">Copiar</button>
+            </section>
+          } @else if (t.paymentMode === 'directWithOrganizer') {
+            <section class="tp-card">
+              <h2 class="tp-card-title">Pagamento direto com o organizador</h2>
+              <p class="tp-defer-note">Esse torneio não recebe pagamento pelo app — combine com o organizador usando a chave Pix abaixo.</p>
+              @if (t.organizerPix; as pix) {
+                <div class="tp-pix-block">
+                  <div class="tp-pix-code-row">
+                    <span class="tp-pix-code">{{ pix.key }} ({{ pix.keyType }})</span>
+                  </div>
+                  @if (pix.recipientName) {
+                    <p class="tp-defer-note">{{ pix.recipientName }} · {{ pix.city }}</p>
+                  }
                 </div>
-                <p class="tp-pix-note">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
-                  O pagamento via Pix ainda não está disponível — em breve por aqui.
-                </p>
+              }
+              <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="reserveDirect()">
+                {{ processing() ? 'Registrando…' : 'Já paguei, marcar como reservado' }}
+              </button>
+            </section>
+          } @else {
+            <section class="tp-card">
+              <h2 class="tp-card-title">Forma de pagamento</h2>
+              <div class="tp-method-row">
+                <button type="button" class="tp-method-card tp-method-card--active">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v6M12 15v6M3 12h6M15 12h6" /><rect x="9" y="9" width="6" height="6" rx="1.4" transform="rotate(45 12 12)" /></svg>
+                  <span>Pix</span>
+                </button>
               </div>
-            } @else {
-              <div class="tp-placeholder-block">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="M2.5 10h19" /></svg>
-                <p>Pagamento por cartão de crédito chega em breve por aqui.</p>
+
+              <div class="tp-method-row">
+                <button type="button" class="tp-method-card" [class.tp-method-card--active]="amountType() === 'full'" (click)="setAmountType('full')">
+                  <span>Pagar tudo ({{ formatBRL(totalPriceReais()) }})</span>
+                </button>
+                <button type="button" class="tp-method-card" [class.tp-method-card--active]="amountType() === 'share'" (click)="setAmountType('share')">
+                  <span>Dividir com parceiro ({{ formatBRL(totalPriceReais() / 2) }})</span>
+                </button>
               </div>
-            }
-          </section>
+
+              @if (!pixResult()) {
+                <div class="tp-pix-block">
+                  <label class="tp-cpf-label">CPF (necessário pra gerar o Pix)</label>
+                  <input type="text" inputmode="numeric" class="tp-cpf-input" placeholder="Somente números" [value]="cpf()" (input)="onCpfInput($any($event.target).value)" />
+                  <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="generatePix()">
+                    {{ processing() ? 'Gerando…' : 'Gerar código Pix' }}
+                  </button>
+                </div>
+              } @else {
+                <div class="tp-pix-block">
+                  @if (pixResult()!.qrCodeBase64) {
+                    <img class="tp-qr-placeholder" [src]="'data:image/png;base64,' + pixResult()!.qrCodeBase64" alt="QR Code Pix" />
+                  }
+                  <div class="tp-pix-code-row">
+                    <span class="tp-pix-code">{{ pixResult()!.qrCode }}</span>
+                    <button type="button" class="tp-btn-ghost tp-copy-btn" (click)="copyPixCode()">Copiar</button>
+                  </div>
+                  <p class="tp-pix-note">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                    Pague no app do seu banco — a confirmação é automática assim que o Pix cair.
+                  </p>
+                  <button type="button" class="tp-btn-ghost" (click)="cancelPix()">Cancelar este Pix</button>
+                </div>
+              }
+            </section>
+          }
         </div>
 
         <div class="tp-col tp-col--side">
@@ -75,35 +113,27 @@
             </div>
             <div class="tp-summary-row">
               <span class="tp-summary-label">Data</span>
-              <span class="tp-summary-value">{{ t.dateLabel }}</span>
+              <span class="tp-summary-value">{{ t.dateLabel ?? 'A confirmar' }}</span>
             </div>
             <div class="tp-summary-row">
               <span class="tp-summary-label">Categoria</span>
-              <span class="tp-summary-value">{{ selectedCategory()?.name ?? '—' }}</span>
-            </div>
-            <div class="tp-summary-row">
-              <span class="tp-summary-label">Dupla</span>
-              <span class="tp-summary-value">{{ duoLabel() }}</span>
+              <span class="tp-summary-value">{{ selectedCategory()?.categoryName ?? '—' }}</span>
             </div>
             <div class="tp-summary-row">
               <span class="tp-summary-label">Inscrição total (dupla)</span>
-              <span class="tp-summary-value">R$ {{ totalPriceReais() }}</span>
+              <span class="tp-summary-value">{{ formatBRL(totalPriceReais()) }}</span>
             </div>
-            <div class="tp-summary-total-row">
-              <span class="tp-summary-label">Você paga agora</span>
-              <strong class="tp-summary-total">R$ {{ installmentPriceReais() }}</strong>
-            </div>
-            <button type="button" class="tp-btn-primary tp-btn-full" (click)="confirmPayment()">
-              Já paguei, confirmar
-            </button>
-            <p class="tp-defer-note">
-              Este pagamento ainda não é processado de verdade — em breve por aqui.
-            </p>
+            @if (totalPriceReais() > 0 && t.paymentMode !== 'directWithOrganizer') {
+              <div class="tp-summary-total-row">
+                <span class="tp-summary-label">Você paga agora</span>
+                <strong class="tp-summary-total">{{ formatBRL(amountDueReais()) }}</strong>
+              </div>
+            }
           </div>
         </div>
       </div>
     </div>
-  } @else if (tournamentId()) {
+  } @else {
     <div class="tp-notfound">
       <p class="tp-empty-title">Torneio não encontrado.</p>
       <a routerLink="/torneios" class="tp-btn-ghost">Voltar aos torneios</a>

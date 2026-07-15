@@ -3,12 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../core/formatting/app_currency_format.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../athlete/domain/daily_mission_sync_provider.dart';
-import '../../../core/layout/app_scaffold.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
@@ -24,6 +24,7 @@ import '../domain/arena_booking_quote.dart';
 import '../domain/arenas_providers.dart';
 import '../domain/booking_providers.dart';
 import 'booking_success_page.dart';
+import 'widgets/booking_confirm/booking_confirm_app_bar.dart';
 import 'widgets/booking_confirm/booking_confirm_cancellation_card.dart';
 import 'widgets/booking_confirm/booking_confirm_hero_card.dart';
 import 'widgets/booking_confirm/booking_confirm_observations_field.dart';
@@ -268,6 +269,14 @@ class _ArenaBookingConfirmPageState
     return _paymentChoice;
   }
 
+  void _onBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(AppRoutes.arenaSlots.replaceAll(':arenaId', widget.arenaId));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -292,23 +301,16 @@ class _ArenaBookingConfirmPageState
     }
 
     if (args == null || !args.isValid || args.arenaId != widget.arenaId) {
-      return AppScaffold(
-        title: 'Confirmar',
+      return Scaffold(
+        backgroundColor: context.themeColors.canvas,
+        appBar: BookingConfirmAppBar(onBack: _onBack),
         body: AppEmptyView(
           icon: Icons.event_busy_rounded,
           title: 'Dados incompletos',
           subtitle:
               'Volte à seleção de horários e escolha arena, data e quadra novamente.',
           actionLabel: 'Voltar aos horários',
-          onAction: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(
-                AppRoutes.arenaSlots.replaceAll(':arenaId', widget.arenaId),
-              );
-            }
-          },
+          onAction: _onBack,
         ),
       );
     }
@@ -331,10 +333,10 @@ class _ArenaBookingConfirmPageState
         ? 'Confirmar e pagar'
         : 'Confirmar reserva';
 
-    return AppScaffold(
-      title: 'Confirmar reserva',
-      body: SafeArea(
-        child: LayoutBuilder(
+    return Scaffold(
+      backgroundColor: context.themeColors.canvas,
+      appBar: BookingConfirmAppBar(onBack: _onBack),
+      body: LayoutBuilder(
           builder: (context, constraints) {
             final maxW = constraints.maxWidth > 560
                 ? 520.0
@@ -472,18 +474,7 @@ class _ArenaBookingConfirmPageState
                                   child: TextButton(
                                     onPressed: _submitting
                                         ? null
-                                        : () {
-                                            if (context.canPop()) {
-                                              context.pop();
-                                            } else {
-                                              context.go(
-                                                AppRoutes.arenaSlots.replaceAll(
-                                                  ':arenaId',
-                                                  widget.arenaId,
-                                                ),
-                                              );
-                                            }
-                                          },
+                                        : _onBack,
                                     child: const Text('Alterar horário'),
                                   ),
                                 ),
@@ -521,7 +512,6 @@ class _ArenaBookingConfirmPageState
             );
           },
         ),
-      ),
     );
   }
 }

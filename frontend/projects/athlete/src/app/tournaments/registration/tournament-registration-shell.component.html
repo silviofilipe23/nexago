@@ -1,10 +1,14 @@
 <app-at-panel-shell [userName]="accountLabel()">
-  @if (listing(); as t) {
+  @if (loading()) {
+    <div class="rg-body">
+      <p class="rg-empty-inline">Carregando…</p>
+    </div>
+  } @else if (listing(); as t) {
     <div class="rg-body">
       <div class="rg-header">
         <div>
           <h1 class="rg-title">Inscrever-se</h1>
-          <p class="rg-subtitle">{{ t.name }} · {{ selectedCategory()?.name ?? '—' }}</p>
+          <p class="rg-subtitle">{{ t.name }} · {{ selectedCategory()?.categoryName ?? '—' }}</p>
         </div>
         <a [routerLink]="['/torneios', t.id]" class="rg-back-link">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
@@ -27,16 +31,20 @@
             @if (selectedCategory(); as cat) {
               <div class="rg-category-row">
                 <div class="rg-category-info">
-                  <p class="rg-category-name">{{ cat.name }}</p>
+                  <p class="rg-category-name">{{ cat.categoryName }}</p>
                   <div class="rg-pill-row">
-                    <span class="rg-pill">{{ cat.genderLabel }}</span>
+                    <span class="rg-pill">{{ genderLabel(cat.genderType) }}</span>
                     <span class="rg-pill rg-pill--muted">Dupla</span>
-                    <span class="rg-pill rg-pill--muted">{{ cat.level }}</span>
+                    @if (cat.level) {
+                      <span class="rg-pill rg-pill--muted">{{ cat.level }}</span>
+                    }
                   </div>
                 </div>
                 <div class="rg-category-price">
-                  <strong>{{ cat.priceLabel }}</strong>
-                  <button type="button" class="rg-link-btn" (click)="toggleCategoryPicker()">Trocar</button>
+                  <strong>{{ priceLabel(cat) }}</strong>
+                  @if (otherCategories().length > 0) {
+                    <button type="button" class="rg-link-btn" (click)="toggleCategoryPicker()">Trocar</button>
+                  }
                 </div>
               </div>
 
@@ -44,8 +52,8 @@
                 <div class="rg-category-picker">
                   @for (c of otherCategories(); track c.id) {
                     <button type="button" class="rg-category-option" (click)="selectCategory(c.id)">
-                      <span class="rg-category-option-name">{{ c.name }}</span>
-                      <span class="rg-category-option-price">{{ c.priceLabel }}</span>
+                      <span class="rg-category-option-name">{{ c.categoryName }}</span>
+                      <span class="rg-category-option-price">{{ priceLabel(c) }}</span>
                     </button>
                   }
                 </div>
@@ -58,87 +66,49 @@
           <section class="rg-card">
             <div class="rg-step-title">
               <span class="rg-step-num">2</span>
-              <h2>Sua dupla</h2>
+              <h2>Sua inscrição</h2>
             </div>
 
-            <div class="rg-option-list">
-              @for (duo of duoOptions(); track duo.id) {
-                <button
-                  type="button"
-                  class="rg-option-row"
-                  [class.rg-option-row--active]="selectedDuoId() === duo.id"
-                  (click)="selectDuo(duo.id)"
-                >
-                  <span class="rg-radio" [class.rg-radio--checked]="selectedDuoId() === duo.id" aria-hidden="true"></span>
-                  <span class="rg-duo-avatars" aria-hidden="true">
-                    <span class="rg-duo-avatar">{{ duo.initialsA }}</span>
-                    <span class="rg-duo-avatar rg-duo-avatar--b">{{ duo.initialsB }}</span>
-                  </span>
-                  <span class="rg-option-copy">
-                    <span class="rg-option-title">{{ duo.label }}</span>
-                    <span class="rg-option-desc">{{ duo.meta }}</span>
-                  </span>
-                </button>
+            @if (!registration()) {
+              <p class="rg-empty-inline">Você ainda não se inscreveu nesta categoria — a vaga é reservada assim que você confirma, e você convida seu parceiro depois.</p>
+              <button type="button" class="rg-btn-primary" [disabled]="registering() || !selectedCategory()" (click)="registerSoloForCategory()">
+                {{ registering() ? 'Inscrevendo…' : 'Reservar minha vaga' }}
+              </button>
+            } @else if (registration()!.partnerPending) {
+              <p class="rg-empty-inline">Vaga reservada! Agora busque e convide seu parceiro de dupla.</p>
+              <input
+                type="search"
+                class="rg-search-input"
+                placeholder="Buscar atleta por nome…"
+                [value]="partnerQuery()"
+                (input)="onPartnerQueryInput($any($event.target).value)"
+              />
+              @if (searchingPartner()) {
+                <p class="rg-empty-inline">Buscando…</p>
+              } @else if (partnerResults().length > 0) {
+                <div class="rg-option-list">
+                  @for (p of partnerResults(); track p.id) {
+                    <div class="rg-option-row">
+                      <span class="rg-duo-avatars" aria-hidden="true">
+                        <span class="rg-duo-avatar">{{ initialsOf(p.displayName) }}</span>
+                      </span>
+                      <span class="rg-option-copy">
+                        <span class="rg-option-title">{{ p.displayName }}</span>
+                        <span class="rg-option-desc">{{ p.city || 'Cidade não informada' }}</span>
+                      </span>
+                      <button type="button" class="rg-btn-ghost" [disabled]="invitingId() === p.id" (click)="invitePartner(p)">
+                        {{ invitingId() === p.id ? 'Enviando…' : 'Convidar' }}
+                      </button>
+                    </div>
+                  }
+                </div>
               }
-
-              <button
-                type="button"
-                class="rg-option-row"
-                [class.rg-option-row--active]="isInvitingPartner()"
-                (click)="selectDuo('invite')"
-              >
-                <span class="rg-radio" [class.rg-radio--checked]="isInvitingPartner()" aria-hidden="true"></span>
-                <span class="rg-invite-icon" aria-hidden="true">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
-                </span>
-                <span class="rg-option-copy">
-                  <span class="rg-option-title">Convidar novo parceiro</span>
-                  <span class="rg-option-desc">Envie um convite por link ou busca</span>
-                </span>
-              </button>
-            </div>
-
-            @if (isInvitingPartner()) {
-              <div class="rg-invite-block">
-                <span class="rg-invite-link">{{ inviteLink() }}</span>
-                <button type="button" class="rg-btn-ghost" (click)="copyInviteLink()">Copiar link</button>
-              </div>
+            } @else if (!registration()!.isPaid) {
+              <p class="rg-empty-inline">Dupla completa! Falta só o pagamento pra confirmar a vaga.</p>
+              <button type="button" class="rg-btn-primary" (click)="goToPayment()">Ir para pagamento</button>
+            } @else {
+              <p class="rg-empty-inline">Inscrição confirmada e paga — nos vemos na quadra! 🎾</p>
             }
-          </section>
-
-          <section class="rg-card">
-            <div class="rg-step-title">
-              <span class="rg-step-num">3</span>
-              <h2>Forma de pagamento</h2>
-            </div>
-
-            <div class="rg-option-list">
-              <button
-                type="button"
-                class="rg-option-row"
-                [class.rg-option-row--active]="paymentOption() === 'split'"
-                (click)="selectPayment('split')"
-              >
-                <span class="rg-radio" [class.rg-radio--checked]="paymentOption() === 'split'" aria-hidden="true"></span>
-                <span class="rg-option-copy">
-                  <span class="rg-option-title">Dividir com o parceiro</span>
-                  <span class="rg-option-desc">Cada um paga R$ {{ installmentPriceReais() }} · inscrição confirma quando os dois pagarem</span>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                class="rg-option-row"
-                [class.rg-option-row--active]="paymentOption() === 'full'"
-                (click)="selectPayment('full')"
-              >
-                <span class="rg-radio" [class.rg-radio--checked]="paymentOption() === 'full'" aria-hidden="true"></span>
-                <span class="rg-option-copy">
-                  <span class="rg-option-title">Pagar tudo agora</span>
-                  <span class="rg-option-desc">Você paga os R$ {{ totalPriceReais() }} e garante a vaga na hora</span>
-                </span>
-              </button>
-            </div>
           </section>
         </div>
 
@@ -150,40 +120,39 @@
               <div>
                 <p class="rg-summary-name">{{ t.name }}</p>
                 <p class="rg-summary-location">{{ t.location }} · {{ t.city }}</p>
-                <p class="rg-summary-date">{{ t.dateLabel }}</p>
+                <p class="rg-summary-date">{{ t.dateLabel ?? 'Data a confirmar' }}</p>
               </div>
             </div>
 
             <div class="rg-summary-row">
               <span class="rg-summary-label">Categoria</span>
-              <span class="rg-summary-value">{{ selectedCategory()?.name ?? '—' }}</span>
+              <span class="rg-summary-value">{{ selectedCategory()?.categoryName ?? '—' }}</span>
             </div>
             <div class="rg-summary-row">
-              <span class="rg-summary-label">Dupla</span>
-              <span class="rg-summary-value">{{ duoSummaryLabel() }}</span>
+              <span class="rg-summary-label">Status</span>
+              <span class="rg-summary-value">
+                @if (!registration()) {
+                  Não inscrito
+                } @else if (registration()!.partnerPending) {
+                  Falta parceiro
+                } @else if (!registration()!.isPaid) {
+                  Aguardando pagamento
+                } @else {
+                  Confirmada
+                }
+              </span>
             </div>
-            <div class="rg-summary-row">
-              <span class="rg-summary-label">Inscrição (por dupla)</span>
-              <span class="rg-summary-value">R$ {{ totalPriceReais() }}</span>
-            </div>
-
-            <div class="rg-summary-total-row">
-              <span class="rg-summary-label">Sua parcela</span>
-              <strong class="rg-summary-total">R$ {{ installmentPriceReais() }}</strong>
-            </div>
-
-            <button type="button" class="rg-btn-primary rg-btn-full" [disabled]="!canConfirm()" (click)="confirmRegistration()">
-              Confirmar inscrição
-            </button>
-
-            <p class="rg-defer-note">
-              A confirmação e o pagamento ainda não são processados de verdade por aqui — em breve.
-            </p>
+            @if (selectedCategory(); as cat) {
+              <div class="rg-summary-row">
+                <span class="rg-summary-label">Inscrição (por dupla)</span>
+                <span class="rg-summary-value">{{ priceLabel(cat) }}</span>
+              </div>
+            }
           </div>
         </div>
       </div>
     </div>
-  } @else if (tournamentId()) {
+  } @else {
     <div class="rg-notfound">
       <p class="rg-empty-title">Torneio não encontrado.</p>
       <a routerLink="/torneios" class="rg-btn-ghost">Voltar aos torneios</a>

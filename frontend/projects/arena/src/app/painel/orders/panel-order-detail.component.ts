@@ -1,201 +1,220 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, signal, viewChild, type ElementRef } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, linkedSignal, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { AuthService } from '../../auth/auth.service';
+import { ArenaContextService } from '../data/arena-context.service';
+import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
+import { formatCentsInputValue, formatMovementDate, parseBRLInputToCents, type ArenaProduct } from '../stock/product.model';
+import { fetchProducts } from '../stock/products-repository';
+import {
+  ARENA_COMANDA_PAYMENT_METHOD_LABEL,
+  ARENA_COMANDA_STATUS_LABEL,
+  comandaItemReverseBlockReason,
+  comandaRemainingCents,
+  comandaStatusIsActive,
+  formatCentsBRL,
+  formatComandaNumber,
+  type ArenaComanda,
+  type ArenaComandaItem,
+  type ArenaComandaPayment,
+  type ArenaComandaPaymentMethod,
+} from './comanda.model';
+import { addItemsBatch, fetchComanda, fetchComandaItems, fetchComandaPayments, registerPayment, reverseComandaItem } from './comandas-repository';
 
-type PaymentMethod = 'Pix' | 'Cartão' | 'Dinheiro';
+const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 'cash', 'wallet', 'other'];
 
-interface OrderItem {
-  id: string;
-  name: string;
-  category: string;
-  qty: number;
-  price: number;
-}
-
-interface OrderDetail {
-  location: string;
-  sport: string;
-  client: string;
-  openedLabel: string;
-  items: OrderItem[];
-  payment: PaymentMethod;
-}
-
-const PAYMENT_OPTIONS: PaymentMethod[] = ['Pix', 'Cartão', 'Dinheiro'];
-
-const DEFAULT_ORDER: OrderDetail = {
-  location: '—',
-  sport: '',
-  client: 'Novo cliente',
-  openedLabel: 'Aberta agora',
-  items: [],
-  payment: 'Pix',
-};
-
-const MOCK_ORDERS: Record<string, OrderDetail> = {
-  c048: {
-    location: 'Quadra 1',
-    sport: 'Beach Tennis',
-    client: 'Grupo Rafael S.',
-    openedLabel: 'Aberta há 1h 20min',
-    payment: 'Pix',
-    items: [
-      { id: 'i1', name: 'Água mineral 500ml', category: 'Bebida', qty: 3, price: 6 },
-      { id: 'i2', name: 'Isotônico 500ml', category: 'Bebida', qty: 2, price: 9 },
-      { id: 'i3', name: 'Aluguel de raquete · Beach Tennis', category: 'Material', qty: 1, price: 25 },
-    ],
-  },
-  c047: {
-    location: 'Quadra 3',
-    sport: 'Vôlei de praia',
-    client: 'Camila T. e Bruna L.',
-    openedLabel: 'Aberta há 35min',
-    payment: 'Pix',
-    items: [
-      { id: 'i1', name: 'Isotônico 500ml', category: 'Bebida', qty: 2, price: 9 },
-      { id: 'i2', name: 'Barrinha de cereal', category: 'Snack', qty: 1, price: 8 },
-    ],
-  },
-  c046: {
-    location: 'Balcão',
-    sport: '',
-    client: 'Cliente avulso',
-    openedLabel: 'Aberta há 8min',
-    payment: 'Dinheiro',
-    items: [
-      { id: 'i1', name: 'Água mineral 500ml', category: 'Bebida', qty: 2, price: 6 },
-      { id: 'i2', name: 'Refrigerante lata', category: 'Bebida', qty: 1, price: 7 },
-    ],
-  },
-  c045: {
-    location: 'Balcão',
-    sport: '',
-    client: 'Enzo Ribeiro',
-    openedLabel: 'Fechada às 17:40',
-    payment: 'Cartão',
-    items: [{ id: 'i1', name: 'Isotônico 500ml', category: 'Bebida', qty: 4, price: 9 }],
-  },
-  c044: {
-    location: 'Quadra 2',
-    sport: 'Vôlei de praia',
-    client: 'Maria Tavares',
-    openedLabel: 'Fechada às 15:10',
-    payment: 'Pix',
-    items: [
-      { id: 'i1', name: 'Bola Beach Tennis (dupla)', category: 'Material', qty: 1, price: 45 },
-      { id: 'i2', name: 'Isotônico 500ml', category: 'Bebida', qty: 4, price: 9 },
-    ],
-  },
-};
-
-function formatBRL(n: number): string {
-  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-}
-
-/** Tela Detalhe da comanda (protótipo ArComandaDetalheScreen): itens lançados, cliente/local, resumo e fechamento com forma de pagamento. */
+/** Tela Detalhe da comanda: itens reais de `arenaComandas/{id}/items` (adicionar baixa
+ *  estoque via `addItemsBatch`, estornar via `reverseComandaItem`) e pagamentos reais via
+ *  `registerPayment`. Adicionar item exige plano Pro/Parceiro; estornar item e receber
+ *  pagamento continuam liberados mesmo com plano rebaixado (mesma regra do Flutter/rules). */
 @Component({
   selector: 'ar-panel-order-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, IconComponent],
   template: `
     <ar-panel-shell>
-      <ar-page-header [title]="'Comanda #' + code()" [subtitle]="location() + ' · ' + openedLabel()">
-        <button type="button" class="ar-mini-btn" (click)="focusAddItem()">
-          <ar-icon name="plus" [size]="14" />
-          Adicionar item
-        </button>
-      </ar-page-header>
+      <ar-page-header [title]="headerTitle()" [subtitle]="headerSubtitle()" />
 
       <div class="body">
-        <div class="col-left">
-          <ar-panel-card [kicker]="itemsKicker()" title="Itens">
-            <div class="table-head">
-              <span>Produto</span>
-              <span class="right">Qtd</span>
-              <span class="right">Preço</span>
-              <span class="right">Subtotal</span>
-              <span></span>
-            </div>
-            <div class="table-list">
-              @for (it of items(); track it.id) {
-                <div class="table-row">
-                  <div class="item-cell">
-                    <div class="thumb" aria-hidden="true"></div>
-                    <div>
-                      <div class="item-name">{{ it.name }}</div>
-                      <div class="item-category">{{ it.category }}</div>
+        @if (loading()) {
+          <p class="state-text">Carregando comanda…</p>
+        } @else if (loadError(); as err) {
+          <p class="state-text">{{ err }}</p>
+        } @else if (comanda(); as c) {
+          <div class="col-left">
+            <ar-panel-card [kicker]="itemsKicker()" title="Itens">
+              <div class="table-head">
+                <span>Produto</span>
+                <span class="right">Qtd</span>
+                <span class="right">Preço</span>
+                <span class="right">Subtotal</span>
+                <span></span>
+              </div>
+              <div class="table-list">
+                @for (it of items(); track it.id) {
+                  <div class="table-row">
+                    <div class="item-cell">
+                      <div class="thumb" aria-hidden="true">{{ it.emoji }}</div>
+                      <div>
+                        <div class="item-name">{{ it.productName }}</div>
+                        <div class="item-category">{{ it.source === 'app' ? 'App' : 'Balcão' }} · {{ it.addedByName }}</div>
+                      </div>
                     </div>
+                    <div class="right item-qty">x{{ it.quantity }}</div>
+                    <div class="right item-price">{{ formatBRL(it.unitPriceCents) }}</div>
+                    <div class="right item-subtotal">{{ formatBRL(it.lineTotalCents) }}</div>
+                    <button
+                      type="button"
+                      class="remove-btn"
+                      [disabled]="reversingId() === it.id || !!reverseBlockReason(c, it)"
+                      [title]="reverseBlockReason(c, it) ?? 'Estornar item'"
+                      (click)="reverseItem(c, it)"
+                      aria-label="Estornar item"
+                    >
+                      ×
+                    </button>
                   </div>
-                  <div class="right item-qty">x{{ it.qty }}</div>
-                  <div class="right item-price">{{ formatBRL(it.price) }}</div>
-                  <div class="right item-subtotal">{{ formatBRL(it.price * it.qty) }}</div>
-                  <button type="button" class="remove-btn" (click)="removeItem(it.id)" aria-label="Remover item">×</button>
+                } @empty {
+                  <p class="state-text">Nenhum item lançado ainda.</p>
+                }
+              </div>
+
+              @if (itemError(); as ierr) {
+                <div class="error-banner">{{ ierr }}</div>
+              }
+
+              @if (canAddItem()) {
+                <div class="add-block">
+                  <div class="search-box">
+                    <ar-icon name="search" [size]="15" style="color: var(--nx-text-dim)" />
+                    <input
+                      type="text"
+                      placeholder="Buscar produto do estoque para adicionar…"
+                      [value]="addQuery()"
+                      (input)="onAddQueryInput($any($event.target).value)"
+                    />
+                  </div>
+                  @if (addSuggestions().length > 0) {
+                    <div class="suggestions">
+                      @for (p of addSuggestions(); track p.id) {
+                        <button type="button" class="suggestion-row" (click)="selectProduct(p)">
+                          <span>{{ p.emoji }} {{ p.name }}</span>
+                          <span>{{ formatBRL(p.priceCents) }}</span>
+                        </button>
+                      }
+                    </div>
+                  }
+                  @if (selectedProduct(); as sp) {
+                    <div class="selected-row">
+                      <span class="selected-name">{{ sp.name }}</span>
+                      <input
+                        type="number"
+                        min="1"
+                        class="qty-input-sm"
+                        [value]="addQuantity()"
+                        (input)="addQuantity.set(Math.max(1, $any($event.target).valueAsNumber || 1))"
+                      />
+                      <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="adding()" (click)="confirmAddItem(c)">
+                        {{ adding() ? 'Adicionando…' : 'Adicionar' }}
+                      </button>
+                      <button type="button" class="ar-ghost-btn" (click)="selectedProduct.set(null)">Cancelar</button>
+                    </div>
+                  }
+                </div>
+              } @else if (readOnly()) {
+                <p class="state-text readonly-hint">Seu plano atual não permite adicionar itens — fale com o suporte para fazer upgrade.</p>
+              }
+            </ar-panel-card>
+          </div>
+
+          <div class="col-right">
+            <ar-panel-card title="Cliente">
+              <div class="client-row">
+                <div class="thumb client-thumb" aria-hidden="true"></div>
+                <div>
+                  <div class="client-name">{{ c.customerName }}</div>
+                  <div class="client-meta">{{ statusLabel[c.status] }}{{ c.customerWhatsapp ? ' · ' + c.customerWhatsapp : '' }}</div>
+                </div>
+              </div>
+            </ar-panel-card>
+
+            <ar-panel-card title="Resumo">
+              <div class="summary-row">
+                <span>Consumo</span>
+                <span class="value">{{ formatBRL(c.itemsTotalCents) }}</span>
+              </div>
+              @if (c.rentalCents > 0) {
+                <div class="summary-row">
+                  <span>Locação</span>
+                  <span class="value">{{ formatBRL(c.rentalCents) }}</span>
                 </div>
               }
-            </div>
-
-            <div class="add-row">
-              <ar-icon name="plus" [size]="14" style="color: var(--nx-text-dim)" />
-              <input
-                #addItemInput
-                type="text"
-                placeholder="Buscar produto do estoque para adicionar…"
-                [value]="newItemName()"
-                (input)="newItemName.set($any($event.target).value)"
-                (keydown.enter)="addItem()"
-              />
-            </div>
-          </ar-panel-card>
-        </div>
-
-        <div class="col-right">
-          <ar-panel-card title="Cliente / local">
-            <div class="client-row">
-              <div class="thumb client-thumb" aria-hidden="true"></div>
-              <div>
-                <div class="client-name">{{ client() }}</div>
-                <div class="client-meta">{{ location() }}{{ sport() ? ' · ' + sport() : '' }}</div>
+              <div class="summary-divider"></div>
+              <div class="summary-row total-row">
+                <span>Total</span>
+                <span class="value total-value">{{ formatBRL(c.totalCents) }}</span>
               </div>
-            </div>
-          </ar-panel-card>
+              <div class="summary-row">
+                <span>Pago</span>
+                <span class="value tone-green">{{ formatBRL(c.paidCents) }}</span>
+              </div>
+              <div class="summary-row">
+                <span>Restante</span>
+                <span class="value">{{ formatBRL(remainingCents()) }}</span>
+              </div>
+            </ar-panel-card>
 
-          <ar-panel-card title="Resumo">
-            <div class="summary-row">
-              <span>Subtotal</span>
-              <span class="value">{{ formatBRL(subtotal()) }}</span>
-            </div>
-            <div class="summary-row">
-              <span>Taxa de serviço</span>
-              <span class="value dim">—</span>
-            </div>
-            <div class="summary-divider"></div>
-            <div class="summary-row total-row">
-              <span>Total</span>
-              <span class="value total-value">{{ formatBRL(total()) }}</span>
-            </div>
-          </ar-panel-card>
-
-          <ar-panel-card title="Forma de pagamento">
-            <div class="payment-list">
-              @for (opt of paymentOptions; track opt) {
-                <button type="button" class="payment-btn" [class.active]="payment() === opt" (click)="payment.set(opt)">
-                  {{ opt }}
-                  @if (payment() === opt) {
-                    <ar-icon name="check" [size]="15" />
+            @if (payments().length > 0) {
+              <ar-panel-card title="Pagamentos recebidos">
+                <div class="payment-history">
+                  @for (p of payments(); track p.id) {
+                    <div class="payment-row">
+                      <span>{{ paymentMethodLabel[p.method] }}</span>
+                      <span class="dim">{{ formatMovementDate(p.createdAt) }}</span>
+                      <span class="value">{{ formatBRL(p.amountCents) }}</span>
+                    </div>
                   }
-                </button>
-              }
-            </div>
-          </ar-panel-card>
+                </div>
+              </ar-panel-card>
+            }
 
-          <button type="button" class="close-btn" (click)="closeOrder()">
-            <ar-icon name="cash" [size]="15" />
-            Fechar comanda e cobrar
-          </button>
-        </div>
+            @if (canPay()) {
+              <ar-panel-card title="Registrar pagamento">
+                @if (payError(); as perr) {
+                  <div class="error-banner">{{ perr }}</div>
+                }
+                <div class="payment-list">
+                  @for (m of paymentMethods; track m) {
+                    <button type="button" class="payment-btn" [class.active]="paymentMethod() === m" (click)="paymentMethod.set(m)">
+                      {{ paymentMethodLabel[m] }}
+                      @if (paymentMethod() === m) {
+                        <ar-icon name="check" [size]="15" />
+                      }
+                    </button>
+                  }
+                </div>
+
+                <div class="field-label row-gap">Valor</div>
+                <div class="price-box">
+                  <span>R$</span>
+                  <input type="text" inputmode="decimal" [value]="paymentAmountValue()" (input)="paymentAmountValue.set($any($event.target).value)" />
+                </div>
+
+                <button type="button" class="close-btn" [disabled]="paying()" (click)="submitPayment(c)">
+                  <ar-icon name="cash" [size]="15" />
+                  {{ paying() ? 'Registrando…' : 'Registrar pagamento' }}
+                </button>
+              </ar-panel-card>
+            } @else if (c.status === 'closed') {
+              <p class="state-text">Comanda fechada — totalmente paga.</p>
+            }
+          </div>
+        } @else {
+          <p class="state-text">Comanda não encontrada.</p>
+        }
       </div>
     </ar-panel-shell>
   `,
@@ -208,6 +227,25 @@ function formatBRL(n: number): string {
       gap: 16px;
       align-items: start;
       overflow: auto;
+    }
+
+    .state-text {
+      font-size: 13.5px;
+      color: var(--nx-text-mute);
+    }
+
+    .readonly-hint {
+      margin-top: 14px;
+    }
+
+    .error-banner {
+      border-radius: var(--nx-r-2);
+      border: 1px solid var(--nx-live);
+      background: rgba(255, 59, 48, 0.08);
+      color: var(--nx-live);
+      padding: 10px 14px;
+      font-size: 12.5px;
+      margin-top: 12px;
     }
 
     .col-left,
@@ -259,6 +297,9 @@ function formatBRL(n: number): string {
       border-radius: var(--nx-r-2);
       background: var(--nx-surface-1);
       border: 1px solid var(--nx-line);
+      display: grid;
+      place-items: center;
+      font-size: 16px;
     }
 
     .item-name {
@@ -306,22 +347,31 @@ function formatBRL(n: number): string {
       place-items: center;
     }
 
-    .remove-btn:hover {
+    .remove-btn:hover:not(:disabled) {
       background: rgba(255, 59, 48, 0.12);
     }
 
-    .add-row {
+    .remove-btn:disabled {
+      color: var(--nx-text-dim);
+      cursor: not-allowed;
+    }
+
+    .add-block {
       margin-top: 14px;
+    }
+
+    .search-box {
       height: 46px;
       border-radius: var(--nx-r-2);
       border: 1px dashed var(--nx-line-strong);
+      background: transparent;
       display: flex;
       align-items: center;
       gap: 10px;
       padding: 0 14px;
     }
 
-    .add-row input {
+    .search-box input {
       flex: 1;
       min-width: 0;
       background: transparent;
@@ -330,6 +380,62 @@ function formatBRL(n: number): string {
       color: var(--nx-text);
       font-family: var(--nx-font-ui);
       font-size: 13.5px;
+    }
+
+    .suggestions {
+      margin-top: 8px;
+      border: 1px solid var(--nx-line);
+      border-radius: var(--nx-r-2);
+      overflow: hidden;
+    }
+
+    .suggestion-row {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--nx-surface-0);
+      border: none;
+      border-bottom: 1px solid var(--nx-line);
+      color: var(--nx-text);
+      font-size: 13px;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .suggestion-row:last-child {
+      border-bottom: none;
+    }
+
+    .suggestion-row:hover {
+      background: var(--nx-surface-1);
+    }
+
+    .selected-row {
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .selected-name {
+      flex: 1;
+      min-width: 0;
+      font-size: 13.5px;
+      color: var(--nx-text);
+    }
+
+    .qty-input-sm {
+      width: 64px;
+      height: 40px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      color: var(--nx-text);
+      text-align: center;
+      font-family: var(--nx-font-ui);
+      font-size: 14px;
     }
 
     .client-row {
@@ -375,9 +481,8 @@ function formatBRL(n: number): string {
       color: var(--nx-text);
     }
 
-    .summary-row .value.dim {
-      color: var(--nx-text-dim);
-      font-weight: 500;
+    .summary-row .value.tone-green {
+      color: var(--nx-win);
     }
 
     .summary-divider {
@@ -390,6 +495,33 @@ function formatBRL(n: number): string {
       font-family: var(--nx-font-display);
       font-weight: 800;
       font-size: 20px;
+      color: var(--nx-text);
+    }
+
+    .payment-history {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .payment-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
+    }
+
+    .payment-row .dim {
+      color: var(--nx-text-dim);
+      font-family: var(--nx-font-mono);
+      font-size: 11.5px;
+    }
+
+    .payment-row .value {
+      font-family: var(--nx-font-mono);
+      font-weight: 700;
       color: var(--nx-text);
     }
 
@@ -426,7 +558,51 @@ function formatBRL(n: number): string {
       color: var(--nx-orange-500);
     }
 
+    .field-label {
+      font-family: var(--nx-font-mono);
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--nx-text-dim);
+      margin-bottom: 10px;
+    }
+
+    .row-gap {
+      margin-top: 16px;
+    }
+
+    .price-box {
+      height: 46px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 14px;
+      box-sizing: border-box;
+      margin-bottom: 16px;
+    }
+
+    .price-box span {
+      font-family: var(--nx-font-mono);
+      font-size: 13px;
+      color: var(--nx-text-dim);
+    }
+
+    .price-box input {
+      flex: 1;
+      min-width: 0;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--nx-text);
+      font-family: var(--nx-font-ui);
+      font-size: 14px;
+    }
+
     .close-btn {
+      width: 100%;
       height: 52px;
       border-radius: var(--nx-r-3);
       background: var(--nx-orange-500);
@@ -444,8 +620,13 @@ function formatBRL(n: number): string {
       transition: background 140ms var(--nx-ease-out);
     }
 
-    .close-btn:hover {
+    .close-btn:hover:not(:disabled) {
       background: var(--nx-orange-400);
+    }
+
+    .close-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
 
     @media (max-width: 1180px) {
@@ -456,50 +637,188 @@ function formatBRL(n: number): string {
   `,
 })
 export class PanelOrderDetailComponent {
+  private readonly auth = inject(AuthService);
+  private readonly arenaContext = inject(ArenaContextService);
   private readonly router = inject(Router);
 
   readonly id = input.required<string>();
 
-  protected readonly paymentOptions = PAYMENT_OPTIONS;
-  protected readonly formatBRL = formatBRL;
+  protected readonly Math = Math;
+  protected readonly formatBRL = formatCentsBRL;
+  protected readonly formatComandaNumber = formatComandaNumber;
+  protected readonly formatMovementDate = formatMovementDate;
+  protected readonly statusLabel = ARENA_COMANDA_STATUS_LABEL;
+  protected readonly paymentMethodLabel = ARENA_COMANDA_PAYMENT_METHOD_LABEL;
+  protected readonly paymentMethods = PAYMENT_METHODS;
+  protected readonly reverseBlockReason = comandaItemReverseBlockReason;
 
-  protected readonly newItemName = signal('');
+  protected readonly loading = signal(true);
+  protected readonly loadError = signal<string | null>(null);
 
-  private readonly addItemInputRef = viewChild<ElementRef<HTMLInputElement>>('addItemInput');
+  protected readonly comanda = signal<ArenaComanda | null>(null);
+  protected readonly items = signal<ArenaComandaItem[]>([]);
+  protected readonly payments = signal<ArenaComandaPayment[]>([]);
+  protected readonly products = signal<ArenaProduct[]>([]);
 
-  private readonly orderData = computed(() => MOCK_ORDERS[this.id()] ?? DEFAULT_ORDER);
+  protected readonly readOnly = computed(() => !this.arenaContext.hasCapability('pdvComandas'));
 
-  protected readonly code = computed(() => this.id().replace(/^c/, ''));
-  protected readonly location = linkedSignal(() => this.orderData().location);
-  protected readonly sport = linkedSignal(() => this.orderData().sport);
-  protected readonly client = linkedSignal(() => this.orderData().client);
-  protected readonly openedLabel = linkedSignal(() => this.orderData().openedLabel);
-  protected readonly items = linkedSignal(() => this.orderData().items);
-  protected readonly payment = linkedSignal<PaymentMethod>(() => this.orderData().payment);
+  protected readonly addQuery = signal('');
+  protected readonly selectedProduct = signal<ArenaProduct | null>(null);
+  protected readonly addQuantity = signal(1);
+  protected readonly adding = signal(false);
+  protected readonly itemError = signal<string | null>(null);
+  protected readonly reversingId = signal<string | null>(null);
+
+  protected readonly paymentMethod = signal<ArenaComandaPaymentMethod>('pix');
+  protected readonly paying = signal(false);
+  protected readonly payError = signal<string | null>(null);
+
+  protected readonly headerTitle = computed(() => {
+    const c = this.comanda();
+    return c ? `Comanda ${formatComandaNumber(c.displayNumber)}` : 'Comanda';
+  });
+  protected readonly headerSubtitle = computed(() => {
+    const c = this.comanda();
+    return c ? `${c.customerName} · ${ARENA_COMANDA_STATUS_LABEL[c.status]}` : '';
+  });
 
   protected readonly itemsKicker = computed(() => `${this.items().length} itens lançados`);
+  protected readonly remainingCents = computed(() => {
+    const c = this.comanda();
+    return c ? comandaRemainingCents(c) : 0;
+  });
+  protected readonly paymentAmountValue = linkedSignal(() => formatCentsInputValue(this.remainingCents()));
 
-  protected readonly subtotal = computed(() => this.items().reduce((sum, it) => sum + it.price * it.qty, 0));
-  protected readonly total = computed(() => this.subtotal());
+  protected readonly canAddItem = computed(() => {
+    const c = this.comanda();
+    return !!c && comandaStatusIsActive(c.status) && !this.readOnly();
+  });
+  protected readonly canPay = computed(() => {
+    const c = this.comanda();
+    return !!c && comandaStatusIsActive(c.status) && this.remainingCents() > 0;
+  });
 
-  protected removeItem(itemId: string): void {
-    this.items.update((current) => current.filter((it) => it.id !== itemId));
+  protected readonly addSuggestions = computed(() => {
+    if (this.selectedProduct()) return [];
+    const q = this.addQuery().trim().toLowerCase();
+    if (!q) return [];
+    return this.products()
+      .filter((p) => p.name.toLowerCase().includes(q))
+      .slice(0, 6);
+  });
+
+  constructor() {
+    effect(() => {
+      const arenaId = this.arenaContext.arenaId();
+      const comandaId = this.id();
+      if (!arenaId || !comandaId) return;
+      void this.loadAll(arenaId, comandaId);
+    });
   }
 
-  protected addItem(): void {
-    const name = this.newItemName().trim();
-    if (!name) {
+  private async loadAll(arenaId: string, comandaId: string): Promise<void> {
+    this.loading.set(true);
+    this.loadError.set(null);
+    try {
+      const db = arenaFirestore();
+      const [comanda, items, payments, products] = await Promise.all([
+        fetchComanda(db, comandaId),
+        fetchComandaItems(db, comandaId),
+        fetchComandaPayments(db, comandaId),
+        fetchProducts(db, arenaId),
+      ]);
+      this.comanda.set(comanda);
+      this.items.set(items);
+      this.payments.set(payments);
+      this.products.set(products.filter((p) => p.active));
+    } catch {
+      this.loadError.set('Não foi possível carregar a comanda.');
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  protected onAddQueryInput(value: string): void {
+    this.addQuery.set(value);
+    this.selectedProduct.set(null);
+  }
+
+  protected selectProduct(product: ArenaProduct): void {
+    this.selectedProduct.set(product);
+    this.addQuantity.set(1);
+  }
+
+  protected async confirmAddItem(comanda: ArenaComanda): Promise<void> {
+    const product = this.selectedProduct();
+    const arenaId = this.arenaContext.arenaId();
+    const uid = this.auth.user()?.uid;
+    const addedByName = this.auth.displayName() ?? 'Gestor';
+    if (!product || !arenaId || !uid) return;
+
+    this.adding.set(true);
+    this.itemError.set(null);
+    try {
+      await addItemsBatch(
+        arenaFirestore(),
+        arenaId,
+        comanda.id,
+        [{ productId: product.id, quantity: Math.max(1, Math.round(this.addQuantity())) }],
+        uid,
+        addedByName,
+      );
+      this.selectedProduct.set(null);
+      this.addQuery.set('');
+      this.addQuantity.set(1);
+      await this.loadAll(arenaId, comanda.id);
+    } catch (err) {
+      this.itemError.set(err instanceof Error ? err.message : 'Não foi possível adicionar o item.');
+    } finally {
+      this.adding.set(false);
+    }
+  }
+
+  protected async reverseItem(comanda: ArenaComanda, item: ArenaComandaItem): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    const uid = this.auth.user()?.uid;
+    if (!arenaId || !uid) return;
+    const block = comandaItemReverseBlockReason(comanda, item);
+    if (block) {
+      this.itemError.set(block);
       return;
     }
-    this.items.update((current) => [...current, { id: `new-${Date.now()}`, name, category: 'Outro', qty: 1, price: 0 }]);
-    this.newItemName.set('');
+
+    this.reversingId.set(item.id);
+    this.itemError.set(null);
+    try {
+      await reverseComandaItem(arenaFirestore(), arenaId, comanda.id, item.id, uid);
+      await this.loadAll(arenaId, comanda.id);
+    } catch (err) {
+      this.itemError.set(err instanceof Error ? err.message : 'Não foi possível estornar o item.');
+    } finally {
+      this.reversingId.set(null);
+    }
   }
 
-  protected focusAddItem(): void {
-    this.addItemInputRef()?.nativeElement.focus();
-  }
+  protected async submitPayment(comanda: ArenaComanda): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    const uid = this.auth.user()?.uid;
+    if (!arenaId || !uid) return;
 
-  protected closeOrder(): void {
-    this.router.navigate(['/painel/comandas']);
+    const amountCents = parseBRLInputToCents(this.paymentAmountValue());
+    if (amountCents <= 0) {
+      this.payError.set('Informe um valor válido.');
+      return;
+    }
+
+    this.paying.set(true);
+    this.payError.set(null);
+    try {
+      await registerPayment(arenaFirestore(), comanda.id, this.paymentMethod(), amountCents, comanda.customerName, uid);
+      await this.loadAll(arenaId, comanda.id);
+    } catch (err) {
+      this.payError.set(err instanceof Error ? err.message : 'Não foi possível registrar o pagamento.');
+    } finally {
+      this.paying.set(false);
+    }
   }
 }

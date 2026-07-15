@@ -1,151 +1,152 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../auth/auth.service';
+import { ArenaContextService } from '../data/arena-context.service';
+import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
+import {
+  ARENA_PRODUCT_CATEGORIES,
+  ARENA_PRODUCT_CATEGORY_LABEL,
+  ARENA_PRODUCT_STOCK_STATUS_LABEL,
+  buildProductSummary,
+  formatCentsBRL,
+  productStockStatus,
+  type ArenaProduct,
+  type ArenaProductCategory,
+  type ArenaProductStockStatus,
+} from './product.model';
+import { fetchProducts, registerStockMovement } from './products-repository';
 import { StockAdjustDialogComponent, type StockAdjustResult } from './stock-adjust-dialog.component';
 
-type StockCategory = 'Bebida' | 'Snack' | 'Material' | 'Aluguel';
-type StockLevel = 'em_estoque' | 'estoque_baixo' | 'esgotado';
-type CategoryFilter = 'todos' | StockCategory;
+type CategoryFilter = 'todos' | ArenaProductCategory;
 
-interface Product {
-  id: string;
-  name: string;
-  category: StockCategory;
-  price: number;
-  stock: number;
-  minStock: number;
-  unit: string;
-}
-
-const LEVEL_LABEL: Record<StockLevel, string> = {
-  em_estoque: 'Em estoque',
-  estoque_baixo: 'Estoque baixo',
-  esgotado: 'Esgotado',
-};
-
-const LEVEL_TONE: Record<StockLevel, PillTone> = {
-  em_estoque: 'green',
-  estoque_baixo: 'yellow',
-  esgotado: 'red',
-};
+const STATUS_TONE: Record<ArenaProductStockStatus, PillTone> = { ok: 'green', low: 'yellow', out: 'red' };
 
 const CATEGORY_FILTERS: { key: CategoryFilter; label: string }[] = [
   { key: 'todos', label: 'Todos' },
-  { key: 'Bebida', label: 'Bebida' },
-  { key: 'Snack', label: 'Snack' },
-  { key: 'Material', label: 'Material' },
-  { key: 'Aluguel', label: 'Aluguel' },
+  ...ARENA_PRODUCT_CATEGORIES.map((key) => ({ key, label: ARENA_PRODUCT_CATEGORY_LABEL[key] })),
 ];
 
-const PRODUCTS: Product[] = [
-  { id: 'e1', name: 'Água mineral 500ml', category: 'Bebida', price: 6, stock: 84, minStock: 24, unit: 'un' },
-  { id: 'e2', name: 'Isotônico 500ml', category: 'Bebida', price: 9, stock: 46, minStock: 20, unit: 'un' },
-  { id: 'e3', name: 'Refrigerante lata', category: 'Bebida', price: 7, stock: 12, minStock: 15, unit: 'un' },
-  { id: 'e4', name: 'Barrinha de cereal', category: 'Snack', price: 8, stock: 5, minStock: 10, unit: 'un' },
-  { id: 'e5', name: 'Banana', category: 'Snack', price: 4, stock: 0, minStock: 10, unit: 'un' },
-  { id: 'e6', name: 'Bola Beach Tennis (dupla)', category: 'Material', price: 45, stock: 18, minStock: 6, unit: 'un' },
-  { id: 'e7', name: 'Luva de proteção', category: 'Material', price: 32, stock: 9, minStock: 4, unit: 'un' },
-  { id: 'e8', name: 'Aluguel raquete Beach Tennis', category: 'Aluguel', price: 25, stock: 14, minStock: 5, unit: 'un' },
-];
-
-function formatBRL(n: number): string {
-  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
-}
-
-function levelOf(p: Product): StockLevel {
-  if (p.stock === 0) {
-    return 'esgotado';
-  }
-  return p.stock <= p.minStock ? 'estoque_baixo' : 'em_estoque';
-}
-
-/** Tela Estoque do painel (protótipo ArEstoqueScreen): KPIs e tabela de produtos com filtro por categoria e ajuste rápido. */
+/** Tela Estoque do painel: KPIs e tabela de produtos com filtro por categoria e ajuste rápido,
+ *  conectada a `arenas/{arenaId}/products` (estoque é capability Pro/Parceiro). */
 @Component({
   selector: 'ar-panel-stock',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, StockAdjustDialogComponent],
   template: `
     <ar-panel-shell>
-      <ar-page-header title="Estoque" [subtitle]="arenaName() + ' · ' + products().length + ' produtos cadastrados'">
-        <button type="button" class="ar-mini-btn" (click)="openAdjustFor(products()[0])">
+      <ar-page-header title="Estoque" [subtitle]="headerSubtitle()">
+        <button type="button" class="ar-mini-btn" [disabled]="readOnly() || products().length === 0" (click)="openAdjustFor(products()[0])">
           <ar-icon name="box" [size]="14" />
           Ajustar estoque
         </button>
-        <button type="button" class="ar-mini-btn ar-mini-btn-primary" (click)="createProduct()">
+        <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="readOnly()" (click)="createProduct()">
           <ar-icon name="plus" [size]="14" />
           Novo produto
         </button>
       </ar-page-header>
 
       <div class="body">
-        <div class="summary-row">
-          <ar-panel-card pad="sm" class="summary-card">
-            <div class="summary-label tone-dim">Produtos cadastrados</div>
-            <div class="summary-value">{{ products().length }}</div>
+        @if (arenaNotFound()) {
+          <ar-panel-card pad="lg">
+            <p class="state-text">Nenhuma arena vinculada à sua conta ainda. Fale com o suporte para concluir o cadastro.</p>
           </ar-panel-card>
-          <ar-panel-card pad="sm" class="summary-card">
-            <div class="summary-label tone-dim">Estoque baixo</div>
-            <div class="summary-value tone-pending">{{ lowStockCount() }}</div>
+        } @else if (arenaLoading() || loading()) {
+          <ar-panel-card pad="lg">
+            <p class="state-text">Carregando estoque…</p>
           </ar-panel-card>
-          <ar-panel-card pad="sm" class="summary-card">
-            <div class="summary-label tone-dim">Esgotados</div>
-            <div class="summary-value tone-live">{{ outOfStockCount() }}</div>
+        } @else if (errorMessage(); as err) {
+          <ar-panel-card pad="lg">
+            <p class="state-text">{{ err }}</p>
+            <button type="button" class="ar-mini-btn" (click)="retry()">Tentar de novo</button>
           </ar-panel-card>
-          <ar-panel-card pad="sm" class="summary-card">
-            <div class="summary-label tone-dim">Valor em estoque</div>
-            <div class="summary-value">R$ 970,00</div>
+        } @else if (showPaywall()) {
+          <ar-panel-card pad="lg">
+            <p class="paywall-title">Estoque é um recurso dos planos Pro e Parceiro</p>
+            <p class="state-text">Fale com o suporte para fazer upgrade e liberar o controle de estoque e produtos da sua arena.</p>
           </ar-panel-card>
-        </div>
+        } @else {
+          @if (readOnly()) {
+            <div class="readonly-banner">
+              Seu plano atual não inclui controle de estoque — o catálogo ficou somente leitura. Fale com o suporte para fazer upgrade.
+            </div>
+          }
+          @if (notice(); as n) {
+            <div class="notice-banner">
+              {{ n }}
+              <button type="button" class="notice-dismiss" (click)="notice.set(null)">×</button>
+            </div>
+          }
 
-        <ar-panel-card [kicker]="listKicker()" title="Produtos" class="table-card">
-          <div class="ar-filter-bar" card-actions>
-            @for (f of categoryFilters; track f.key) {
-              <button type="button" class="ar-chip" [class.active]="filter() === f.key" (click)="filter.set(f.key)">{{ f.label }}</button>
-            }
+          <div class="summary-row">
+            <ar-panel-card pad="sm" class="summary-card">
+              <div class="summary-label tone-dim">Produtos cadastrados</div>
+              <div class="summary-value">{{ summary().activeCount }}</div>
+            </ar-panel-card>
+            <ar-panel-card pad="sm" class="summary-card">
+              <div class="summary-label tone-dim">Estoque baixo</div>
+              <div class="summary-value tone-pending">{{ summary().lowCount }}</div>
+            </ar-panel-card>
+            <ar-panel-card pad="sm" class="summary-card">
+              <div class="summary-label tone-dim">Esgotados</div>
+              <div class="summary-value tone-live">{{ summary().outCount }}</div>
+            </ar-panel-card>
+            <ar-panel-card pad="sm" class="summary-card">
+              <div class="summary-label tone-dim">Valor em estoque</div>
+              <div class="summary-value">{{ formatBRL(summary().inventoryValueCents) }}</div>
+            </ar-panel-card>
           </div>
 
-          <div class="table-head">
-            <span></span>
-            <span>Produto</span>
-            <span>Categoria</span>
-            <span>Preço</span>
-            <span>Estoque</span>
-            <span>Nível</span>
-            <span></span>
-          </div>
-          <div class="table-list">
-            @for (p of filteredProducts(); track p.id) {
-              <div class="table-row">
-                <div class="thumb" aria-hidden="true"></div>
-                <div class="product-name">{{ p.name }}</div>
-                <div class="product-category">{{ p.category }}</div>
-                <div class="product-price">{{ formatBRL(p.price) }}</div>
-                <div class="product-stock" [class]="'tone-' + levelOf(p)">{{ p.stock }} <span class="unit">{{ p.unit }}</span></div>
-                <div><ar-pill [tone]="levelTone[levelOf(p)]">{{ levelLabel[levelOf(p)] }}</ar-pill></div>
-                <div class="product-actions">
-                  <button type="button" class="ar-mini-btn" (click)="editProduct(p.id)">
-                    <ar-icon name="edit" [size]="13" />
-                    Editar
-                  </button>
+          <ar-panel-card [kicker]="listKicker()" title="Produtos" class="table-card">
+            <div class="ar-filter-bar" card-actions>
+              @for (f of categoryFilters; track f.key) {
+                <button type="button" class="ar-chip" [class.active]="filter() === f.key" (click)="filter.set(f.key)">{{ f.label }}</button>
+              }
+            </div>
+
+            <div class="table-head">
+              <span></span>
+              <span>Produto</span>
+              <span>Categoria</span>
+              <span>Preço</span>
+              <span>Estoque</span>
+              <span>Nível</span>
+              <span></span>
+            </div>
+            <div class="table-list">
+              @for (p of filteredProducts(); track p.id) {
+                <div class="table-row">
+                  <div class="thumb" aria-hidden="true">{{ p.emoji }}</div>
+                  <div class="product-name">{{ p.name }}</div>
+                  <div class="product-category">{{ categoryLabel[p.category] }}</div>
+                  <div class="product-price">{{ formatBRL(p.priceCents) }}</div>
+                  <div class="product-stock" [class]="'tone-' + statusOf(p)">{{ p.stockQuantity }} <span class="unit">un</span></div>
+                  <div><ar-pill [tone]="statusTone[statusOf(p)]">{{ statusLabel[statusOf(p)] }}</ar-pill></div>
+                  <div class="product-actions">
+                    <button type="button" class="ar-mini-btn" [disabled]="readOnly()" (click)="editProduct(p.id)">
+                      <ar-icon name="edit" [size]="13" />
+                      Editar
+                    </button>
+                  </div>
                 </div>
-              </div>
-            }
-          </div>
-        </ar-panel-card>
+              } @empty {
+                <p class="state-text empty-text">Nenhum produto cadastrado ainda.</p>
+              }
+            </div>
+          </ar-panel-card>
+        }
       </div>
 
       @if (adjustTarget(); as target) {
         <ar-stock-adjust-dialog
           [productName]="target.name"
-          [currentStock]="target.stock"
-          [unit]="target.unit"
+          [currentStock]="target.stockQuantity"
           (cancel)="adjustTarget.set(null)"
-          (confirmed)="applyAdjustment(target.id, $event)"
+          (confirmed)="applyAdjustment($event)"
         />
       }
     </ar-panel-shell>
@@ -158,6 +159,51 @@ function levelOf(p: Product): StockLevel {
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+    }
+
+    .state-text {
+      font-size: 13.5px;
+      color: var(--nx-text-mute);
+      margin: 0 0 12px;
+    }
+
+    .empty-text {
+      margin: 12px 0;
+    }
+
+    .paywall-title {
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--nx-text);
+      margin: 0 0 8px;
+    }
+
+    .readonly-banner,
+    .notice-banner {
+      flex: none;
+      border-radius: var(--nx-r-2);
+      border: 1px solid var(--nx-line-strong);
+      background: var(--nx-surface-1);
+      padding: 10px 14px;
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
+    }
+
+    .notice-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .notice-dismiss {
+      background: transparent;
+      border: none;
+      color: var(--nx-text-dim);
+      cursor: pointer;
+      font-size: 15px;
+      line-height: 1;
     }
 
     .summary-row {
@@ -247,6 +293,9 @@ function levelOf(p: Product): StockLevel {
       border-radius: var(--nx-r-2);
       background: var(--nx-surface-1);
       border: 1px solid var(--nx-line);
+      display: grid;
+      place-items: center;
+      font-size: 16px;
     }
 
     .product-name {
@@ -275,11 +324,11 @@ function levelOf(p: Product): StockLevel {
       color: var(--nx-text-dim);
     }
 
-    .product-stock.tone-estoque_baixo {
+    .product-stock.tone-low {
       color: var(--nx-pending);
     }
 
-    .product-stock.tone-esgotado {
+    .product-stock.tone-out {
       color: var(--nx-live);
     }
 
@@ -298,16 +347,25 @@ function levelOf(p: Product): StockLevel {
 export class PanelStockComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly arenaContext = inject(ArenaContextService);
 
-  protected readonly formatBRL = formatBRL;
-  protected readonly levelOf = levelOf;
-  protected readonly levelLabel = LEVEL_LABEL;
-  protected readonly levelTone = LEVEL_TONE;
+  protected readonly formatBRL = formatCentsBRL;
+  protected readonly statusOf = productStockStatus;
+  protected readonly statusLabel = ARENA_PRODUCT_STOCK_STATUS_LABEL;
+  protected readonly statusTone = STATUS_TONE;
+  protected readonly categoryLabel = ARENA_PRODUCT_CATEGORY_LABEL;
   protected readonly categoryFilters = CATEGORY_FILTERS;
 
-  protected readonly products = signal<Product[]>(PRODUCTS);
+  protected readonly arenaLoading = computed(() => this.arenaContext.loading());
+  protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
+  protected readonly readOnly = computed(() => !this.arenaContext.hasCapability('estoque'));
+
+  protected readonly products = signal<ArenaProduct[]>([]);
+  protected readonly loading = signal(true);
+  protected readonly errorMessage = signal<string | null>(null);
+  protected readonly notice = signal<string | null>(null);
   protected readonly filter = signal<CategoryFilter>('todos');
-  protected readonly adjustTarget = signal<Product | null>(null);
+  protected readonly adjustTarget = signal<ArenaProduct | null>(null);
 
   protected readonly filteredProducts = computed(() => {
     const f = this.filter();
@@ -315,31 +373,65 @@ export class PanelStockComponent {
   });
 
   protected readonly listKicker = computed(() => `${this.filteredProducts().length} de ${this.products().length}`);
+  protected readonly summary = computed(() => buildProductSummary(this.products()));
+  protected readonly showPaywall = computed(() => this.readOnly() && this.products().length === 0);
 
-  protected readonly lowStockCount = computed(() => this.products().filter((p) => levelOf(p) === 'estoque_baixo').length);
-  protected readonly outOfStockCount = computed(() => this.products().filter((p) => levelOf(p) === 'esgotado').length);
+  protected readonly headerSubtitle = computed(
+    () => `${this.arenaContext.arenaName() ?? this.auth.displayName() ?? 'Arena'} · ${this.products().length} produtos cadastrados`,
+  );
 
-  protected readonly arenaName = computed(() => this.auth.displayName() || 'Arena');
+  constructor() {
+    effect(() => {
+      const arenaId = this.arenaContext.arenaId();
+      if (!arenaId) return;
+      void this.loadProducts(arenaId);
+    });
+  }
+
+  protected retry(): void {
+    const arenaId = this.arenaContext.arenaId();
+    if (arenaId) void this.loadProducts(arenaId);
+  }
+
+  private async loadProducts(arenaId: string): Promise<void> {
+    this.loading.set(true);
+    this.errorMessage.set(null);
+    try {
+      this.products.set(await fetchProducts(arenaFirestore(), arenaId));
+    } catch {
+      this.errorMessage.set('Não foi possível carregar o estoque. Tente novamente.');
+    } finally {
+      this.loading.set(false);
+    }
+  }
 
   protected createProduct(): void {
+    if (this.readOnly()) return;
     this.router.navigate(['/painel/estoque/novo']);
   }
 
   protected editProduct(id: string): void {
+    if (this.readOnly()) return;
     this.router.navigate(['/painel/estoque', id, 'editar']);
   }
 
-  protected openAdjustFor(product: Product | undefined): void {
-    if (product) {
+  protected openAdjustFor(product: ArenaProduct | undefined): void {
+    if (product && !this.readOnly()) {
       this.adjustTarget.set(product);
     }
   }
 
-  protected applyAdjustment(productId: string, result: StockAdjustResult): void {
-    const delta = result.type === 'entrada' ? result.quantity : -result.quantity;
-    this.products.update((current) =>
-      current.map((p) => (p.id === productId ? { ...p, stock: Math.max(0, p.stock + delta) } : p)),
-    );
+  protected async applyAdjustment(result: StockAdjustResult): Promise<void> {
+    const target = this.adjustTarget();
+    const arenaId = this.arenaContext.arenaId();
+    const uid = this.auth.user()?.uid;
     this.adjustTarget.set(null);
+    if (!target || !arenaId || !uid) return;
+    try {
+      await registerStockMovement(arenaFirestore(), arenaId, target.id, result.type, result.quantity, uid, result.note);
+      await this.loadProducts(arenaId);
+    } catch (err) {
+      this.notice.set(err instanceof Error ? err.message : 'Não foi possível registrar a movimentação.');
+    }
   }
 }

@@ -1,13 +1,23 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { getApps, initializeApp } from 'firebase/app';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 import { map } from 'rxjs';
+import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
-import { MOCK_DISCOVERY_LEAGUES, MOCK_DISCOVERY_TOURNAMENTS } from './tournament-discovery.mock';
-import type { DiscoveryTournament } from './tournament-discovery.models';
-import { leagueContextLabel, resolveLeagueContext } from './tournament-league.helpers';
-import { getTournamentDetailExtra, type BracketPreviewState } from './tournament-detail.mock';
+import { fetchAllLeagues, type League } from '../data/leagues-repository';
+import { fetchMyRegistrationForCategory } from '../data/tournament-registrations-repository';
+import {
+  fetchCategoryEnrolledCounts,
+  fetchTournament,
+  tournamentListingStatus,
+  type TournamentCategoryOffer,
+  type TournamentSummary,
+} from '../data/tournaments-repository';
+import { leagueContextLabel, resolveLeagueContext, type ResolvedLeagueContext } from './tournament-league.helpers';
+import type { DiscoveryLeague } from './tournament-discovery.models';
 
 function titleCase(input: string): string {
   return input
@@ -36,6 +46,37 @@ function heroGradient(id: string): string {
   return `linear-gradient(120deg, hsl(${hue} 55% 20%), hsl(${(hue + 40) % 360} 55% 10%))`;
 }
 
+function createFirestore(): Firestore | null {
+  const cfg = environment.firebase;
+  if (cfg == null || (cfg.apiKey ?? '').length === 0) return null;
+  const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+  return getFirestore(app);
+}
+
+function formatBRL(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function discoveryLeagueFromLeague(l: League): DiscoveryLeague {
+  return {
+    id: l.id,
+    name: l.name,
+    seasonLabel: l.seasonLabel ?? undefined,
+    city: l.city ?? undefined,
+    stages: l.stages.map((s) => ({ id: s.id, name: s.name, order: s.order, dateLabel: s.dateLabel ?? undefined, tournamentIds: s.tournamentIds })),
+  };
+}
+
+function genderLabelOf(cat: TournamentCategoryOffer['genderType']): string {
+  return cat === 'F' ? 'Feminino' : cat === 'Mix' ? 'Misto' : 'Masculino';
+}
+
+export type CategoryCtaKind = 'register' | 'waitlist' | 'disabled' | 'view-registration';
+
+/** Detalhe do torneio real: `tournaments/{id}` + contagem fresca de inscritos por categoria
+ *  (`inscriptions`). Removi as seções sem lastro real (feed social, comunicados, transmissão
+ *  ao vivo, etapas fictícias, preview de ranking fixo) — o Flutter também não tem nenhuma
+ *  dessas na tela de detalhe. */
 @Component({
   selector: 'app-tournament-detail-shell',
   standalone: true,
@@ -48,11 +89,11 @@ export class TournamentDetailShellComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly firestore = createFirestore();
 
   private readonly id = toSignal(this.route.paramMap.pipe(map((p) => p.get('id') ?? '')), { initialValue: '' });
 
   protected readonly loading = signal(true);
-  protected readonly postLikes = signal<Record<string, number>>({});
   protected readonly shareFeedback = signal<string | null>(null);
   private feedbackTimeout: ReturnType<typeof setTimeout> | undefined;
 
@@ -64,33 +105,33 @@ export class TournamentDetailShellComponent {
     return devEmail?.trim() ? nameFromEmail(devEmail) : 'Atleta';
   });
 
-  protected readonly base = computed((): DiscoveryTournament | null => {
-    const id = this.id();
-    return MOCK_DISCOVERY_TOURNAMENTS.find((t) => t.id === id) ?? null;
-  });
+  protected readonly tournament = signal<TournamentSummary | null>(null);
+  protected readonly enrolledByCategory = signal<Map<string, number>>(new Map());
+  protected readonly myRegisteredCategoryIds = signal<ReadonlySet<string>>(new Set());
+  private leagues: DiscoveryLeague[] = [];
 
-  protected readonly extra = computed(() => {
-    const b = this.base();
-    if (!b) return null;
-    return getTournamentDetailExtra(b.id, b);
-  });
-
-  protected readonly leagueContextLine = computed((): string | null => {
+  protected readonly leagueContext = computed<ResolvedLeagueContext | null>(() => {
     const id = this.id();
     if (!id) return null;
-    const ctx = resolveLeagueContext(MOCK_DISCOVERY_LEAGUES, id);
+    return resolveLeagueContext(this.leagues, id);
+  });
+
+  protected readonly leagueContextLine = computed(() => {
+    const ctx = this.leagueContext();
     return ctx ? leagueContextLabel(ctx) : null;
   });
 
   protected readonly mapsUrl = computed(() => {
-    const q = this.extra()?.mapQuery ?? '';
+    const t = this.tournament();
+    if (!t) return '';
+    const q = t.locationAddress ?? `${t.location}, ${t.city}`;
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
   });
 
   protected readonly heroStatus = computed(() => {
-    const b = this.base();
-    if (!b) return { label: '', tone: 'neutral' as const };
-    switch (b.status) {
+    const t = this.tournament();
+    if (!t) return { label: '', tone: 'neutral' as const };
+    switch (tournamentListingStatus(t)) {
       case 'open':
         return { label: 'Inscrições abertas', tone: 'open' as const };
       case 'almost_full':
@@ -102,53 +143,113 @@ export class TournamentDetailShellComponent {
     }
   });
 
-  protected readonly bracketLabel = computed(() => {
-    const state = this.extra()?.bracketState ?? 'soon';
-    return this.bracketStateCopy(state);
+  protected readonly totalPrizeLabel = computed(() => {
+    const t = this.tournament();
+    if (!t) return null;
+    const total = t.tournamentPrizes.reduce((s, p) => s + p.value, 0) + t.categories.flatMap((c) => c.prizes).reduce((s, p) => s + p.value, 0);
+    return total > 0 ? formatBRL(total) : null;
   });
 
-  protected readonly heroBackground = computed(() => heroGradient(this.base()?.id ?? ''));
+  protected readonly cheapestPriceLabel = computed(() => {
+    const t = this.tournament();
+    if (!t || t.categories.length === 0) return '—';
+    return formatBRL(Math.min(...t.categories.map((c) => c.entryFee)));
+  });
+
+  protected readonly heroBackground = computed(() => heroGradient(this.tournament()?.id ?? ''));
 
   constructor() {
-    setTimeout(() => this.loading.set(false), 320);
     this.destroyRef.onDestroy(() => clearTimeout(this.feedbackTimeout));
+    effect(() => {
+      const id = this.id();
+      void this.loadTournament(id);
+    });
+  }
+
+  private async loadTournament(id: string): Promise<void> {
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    if (!db || !projectId || !id) {
+      this.tournament.set(null);
+      this.loading.set(false);
+      return;
+    }
+    this.loading.set(true);
+    try {
+      const [tournament, leagues, enrolledCounts] = await Promise.all([
+        fetchTournament(db, id),
+        this.leagues.length > 0 ? Promise.resolve(this.leagues) : fetchAllLeagues(db).then((list) => list.map(discoveryLeagueFromLeague)),
+        fetchCategoryEnrolledCounts(db, projectId, id),
+      ]);
+      this.leagues = leagues;
+      this.tournament.set(tournament);
+      this.enrolledByCategory.set(enrolledCounts);
+
+      const uid = this.auth.user()?.uid ?? null;
+      if (uid && tournament) {
+        const registered = new Set<string>();
+        await Promise.all(
+          tournament.categories.map(async (c) => {
+            const reg = await fetchMyRegistrationForCategory(db, projectId, uid, id, c.id);
+            if (reg) registered.add(c.id);
+          }),
+        );
+        this.myRegisteredCategoryIds.set(registered);
+      } else {
+        this.myRegisteredCategoryIds.set(new Set());
+      }
+    } finally {
+      this.loading.set(false);
+    }
   }
 
   protected scrollToCategories(): void {
     document.getElementById('tdv-categories')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  protected likePost(id: string, base: number): void {
-    const cur = this.postLikes()[id] ?? base;
-    this.postLikes.update((m) => ({ ...m, [id]: cur + 1 }));
+  protected genderLabel(cat: TournamentCategoryOffer): string {
+    return genderLabelOf(cat.genderType);
   }
 
-  protected postLikeCount(id: string, base: number): number {
-    return this.postLikes()[id] ?? base;
+  protected categorySpotsLeft(cat: TournamentCategoryOffer): number {
+    const enrolled = this.enrolledByCategory().get(cat.id);
+    return enrolled != null ? Math.max(0, cat.maxTeams - enrolled) : cat.spotsLeft;
   }
 
-  protected viewersLabel(n: number): string {
-    return n.toLocaleString('pt-BR');
+  protected categoryFillPercent(cat: TournamentCategoryOffer): number {
+    if (cat.maxTeams <= 0) return 0;
+    return Math.round(((cat.maxTeams - this.categorySpotsLeft(cat)) / cat.maxTeams) * 100);
   }
 
-  protected categoryFillPercent(spotsLeft: number, spotsTotal: number): number {
-    if (spotsTotal <= 0) return 0;
-    return Math.round(((spotsTotal - spotsLeft) / spotsTotal) * 100);
+  protected categoryCta(cat: TournamentCategoryOffer): CategoryCtaKind {
+    if (this.myRegisteredCategoryIds().has(cat.id)) return 'view-registration';
+    const t = this.tournament();
+    const status = t ? tournamentListingStatus(t) : 'ended';
+    if (cat.isCompleted || cat.registrationClosed || status === 'ended') return 'disabled';
+    const spotsLeft = this.categorySpotsLeft(cat);
+    if (spotsLeft <= 0) return t?.waitlistEnabled ? 'waitlist' : 'disabled';
+    return 'register';
   }
 
-  protected bracketStateCopy(state: BracketPreviewState): string {
-    switch (state) {
-      case 'soon':
-        return 'Chave em breve';
-      case 'live':
-        return 'Chave ao vivo';
-      case 'done':
-        return 'Resultados finais';
+  protected categoryCtaLabel(cat: TournamentCategoryOffer): string {
+    switch (this.categoryCta(cat)) {
+      case 'register':
+        return 'Inscrever';
+      case 'waitlist':
+        return 'Entrar na espera';
+      case 'view-registration':
+        return 'Ver inscrição';
+      case 'disabled':
+        return 'Encerrado';
     }
   }
 
+  protected priceLabel(cat: TournamentCategoryOffer): string {
+    return formatBRL(cat.entryFee);
+  }
+
   protected async shareTournament(): Promise<void> {
-    const t = this.base();
+    const t = this.tournament();
     if (!t) return;
     const origin = typeof location !== 'undefined' ? location.origin : 'https://nexago.app';
     const url = `${origin}/torneios/${t.id}`;

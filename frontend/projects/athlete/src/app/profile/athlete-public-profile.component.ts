@@ -2,25 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
-import {
-  collection,
-  getDocs,
-  getFirestore,
-  limit,
-  query,
-  where,
-  doc,
-  getDoc,
-  type DocumentData,
-  type Firestore,
-} from 'firebase/firestore';
+import { doc, getDoc, getFirestore, type DocumentData, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
-import { MOCK_ATHLETE_DIRECTORY } from '../atletas/athlete-directory.mock';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
 import { AthleteGamificationService } from './athlete-gamification.service';
-import { applyCuratedProfileOverrides, buildMockPublicAthleteProfile, getMockProfileExtras } from './public-profile-demo.mock';
 import type { ProfileDemoExtras } from './public-profile-demo.models';
 
 /** Escopo do ranking publico: hub inteiro, liga ou arena especifica. */
@@ -91,16 +78,6 @@ function readString(data: DocumentData | null | undefined, keys: readonly string
     }
   }
   return '';
-}
-
-function slugify(input: string): string {
-  return input
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64);
 }
 
 function readBoolean(data: DocumentData | null | undefined, keys: readonly string[], fallback = false): boolean {
@@ -384,7 +361,6 @@ export class AthletePublicProfileComponent {
   protected readonly copyFeedback = signal<string | null>(null);
   protected readonly actionNotice = signal<string | null>(null);
   protected readonly profile = signal<PublicAthleteProfile | null>(null);
-  protected readonly mockExtras = signal<ProfileDemoExtras | null>(null);
   protected readonly followed = signal(false);
 
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -420,10 +396,6 @@ export class AthletePublicProfileComponent {
   });
 
   protected readonly demoExtras = computed<ProfileDemoExtras | null>(() => {
-    const mock = this.mockExtras();
-    if (mock) {
-      return mock;
-    }
     if (!this.isSelfProfile()) {
       return null;
     }
@@ -469,22 +441,11 @@ export class AthletePublicProfileComponent {
 
   private async loadProfile(): Promise<void> {
     const profileIdentifier = this.handle().trim();
-    const normalizedIdentifier = slugify(profileIdentifier);
-
-    const mockEntry = MOCK_ATHLETE_DIRECTORY.find((entry) => entry.handle === normalizedIdentifier);
-    if (mockEntry) {
-      const profile = applyCuratedProfileOverrides(mockEntry, buildMockPublicAthleteProfile(mockEntry));
-      this.profile.set(profile);
-      this.mockExtras.set(getMockProfileExtras(mockEntry));
-      this.loading.set(false);
-      return;
-    }
 
     if (!environment.production) {
       console.info('[athlete-public-profile] lookup', {
         projectId: environment.firebase.projectId,
         routeHandle: profileIdentifier,
-        normalizedIdentifier,
       });
     }
     if (!profileIdentifier || !this.firestore) {
@@ -497,46 +458,29 @@ export class AthletePublicProfileComponent {
     this.error.set(null);
 
     try {
-      const byPublicIdQuery = query(
-        collection(this.firestore, 'athlete_profiles'),
-        where('publicProfileId', '==', normalizedIdentifier),
-        where('publicProfileEnabled', '==', true),
-        limit(1),
-      );
-      const byPublicIdSnap = await getDocs(byPublicIdQuery);
+      // `public_profiles/{uid}` é o mirror sem PII mantido por Cloud Function a cada escrita em
+      // `users/{uid}` (`onUserWrittenSyncPublicProfile`) — chave é o próprio uid, não um slug/handle
+      // indexado. A rota usa o uid como "handle" (mesmo padrão de `/equipes/:teamId`, que também
+      // navega pelo id do doc em vez de um slug bonito).
+      const docSnap = await getDoc(doc(this.firestore, 'public_profiles', profileIdentifier));
       if (!environment.production) {
-        console.info('[athlete-public-profile] byPublicProfileId', {
-          size: byPublicIdSnap.size,
-          docIds: byPublicIdSnap.docs.map((entry) => entry.id),
-        });
-      }
-      const profileSnap =
-        byPublicIdSnap.empty
-          ? await getDocs(
-              query(
-                collection(this.firestore, 'athlete_profiles'),
-                where('publicHandle', '==', normalizedIdentifier),
-                where('publicProfileEnabled', '==', true),
-                limit(1),
-              ),
-            )
-          : byPublicIdSnap;
-      if (!environment.production && byPublicIdSnap.empty) {
-        console.info('[athlete-public-profile] byPublicHandle fallback', {
-          size: profileSnap.size,
-          docIds: profileSnap.docs.map((entry) => entry.id),
+        console.info('[athlete-public-profile] public_profiles lookup', {
+          uid: profileIdentifier,
+          exists: docSnap.exists(),
         });
       }
 
-      if (profileSnap.empty) {
+      if (!docSnap.exists()) {
         this.error.set('Perfil publico nao encontrado.');
         this.loading.set(false);
         return;
       }
 
-      const docSnap = profileSnap.docs[0]!;
       const data = docSnap.data();
-      if (data['publicProfileEnabled'] === false) {
+      const prefs = data['privacyPreferences'] as DocumentData | undefined;
+      const publicProfileEnabled = prefs && 'publicProfileEnabled' in prefs ? prefs['publicProfileEnabled'] !== false : data['publicProfileEnabled'] !== false;
+      const visibility = typeof prefs?.['profileVisibility'] === 'string' ? (prefs['profileVisibility'] as string) : null;
+      if (!publicProfileEnabled || visibility === 'private') {
         this.error.set('Perfil publico nao encontrado.');
         this.loading.set(false);
         return;
@@ -551,18 +495,22 @@ export class AthletePublicProfileComponent {
         rankingData = rankingSnap.exists() ? rankingSnap.data() : null;
       }
 
-      const sports = readStringArray(data, ['sports']);
-      const primarySport = readString(data, ['primarySport']) || sports[0] || '';
-      const mergedSports = Array.from(new Set([primarySport, ...sports].filter((item) => item.length > 0)));
+      const sportOnboarding = data['sportOnboarding'] as DocumentData | undefined;
+      const primarySport = readString(sportOnboarding, ['primarySportId']) || readString(data, ['primarySport', 'sport']);
+      const secondarySports = readStringArray(sportOnboarding, ['secondarySportIds']);
+      const mergedSports = Array.from(new Set([primarySport, ...secondarySports].filter((item) => item.length > 0)));
       const city = readString(data, ['city', 'cidade']);
       const state = readString(data, ['state', 'uf']);
       const country = readString(data, ['country']);
       const completionScore = readNumber(data, ['completionScore']) ?? 62;
+      const nickname = readString(data, ['nickname']).replace(/^@/, '');
+      const levelsBySport = sportOnboarding?.['levelsBySport'] as DocumentData | undefined;
+      const levelForPrimarySport = primarySport ? readString(levelsBySport, [primarySport]) : '';
 
       this.profile.set({
         uid: docSnap.id,
-        fullName: readString(data, ['fullName', 'displayName', 'name']) || 'Atleta NexaGO',
-        handle: readString(data, ['publicHandle', 'slug', 'username']) || profileIdentifier,
+        fullName: nickname || readString(data, ['fullName', 'name']) || 'Atleta NexaGO',
+        handle: nickname || profileIdentifier,
         headline: readString(data, ['headline', 'publicHeadline']) || 'Atleta ativo no hub NexaGO',
         bio:
           readString(data, ['bio', 'about']) ||
@@ -576,7 +524,7 @@ export class AthletePublicProfileComponent {
           readString(data, ['profilePhotoUrl', 'photoURL', 'avatarUrl', 'avatar']) || null,
         sports: mergedSports,
         primarySport: primarySport || null,
-        level: readString(data, ['level', 'nivel']) || 'Em evolucao',
+        level: levelForPrimarySport || readString(data, ['level', 'nivel']) || 'Em evolucao',
         category: readString(data, ['categoryLabel', 'category', 'categoria']) || null,
         favoritePosition: readString(data, ['favoritePosition', 'position']) || null,
         dominantHand: readString(data, ['dominantHand']) || null,

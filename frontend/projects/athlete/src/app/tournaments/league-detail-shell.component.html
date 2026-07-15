@@ -88,9 +88,11 @@
                   </div>
 
                   <div class="lg-stage-action">
-                    @if (s.status === 'finished') {
+                    @if (s.status === 'finished' && s.placement != null) {
                       <span class="lg-stage-placement">{{ s.placement }}º lugar</span>
                       <span class="lg-stage-points">{{ s.points }} pts</span>
+                    } @else if (s.status === 'finished' && s.tournamentId) {
+                      <a class="lg-link-btn" [routerLink]="['/torneios', s.tournamentId]">Ver resultado</a>
                     } @else if (s.status === 'next' && s.tournamentId) {
                       <a class="lg-btn-primary" [routerLink]="['/torneios', s.tournamentId, 'inscricao']">Inscrever</a>
                     } @else if (s.tournamentId) {
@@ -203,13 +205,8 @@
             <div class="lg-organizer-row">
               <span class="lg-organizer-badge">{{ l.organizerInitials }}</span>
               <div class="lg-organizer-copy">
-                <p class="lg-organizer-name">
-                  {{ l.organizerName }}
-                  @if (l.organizerVerified) {
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="lg-verified-icon" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
-                  }
-                </p>
-                <p class="lg-organizer-sub">{{ l.organizerVerified ? 'Organizador verificado' : 'Organizador da liga' }}</p>
+                <p class="lg-organizer-name">{{ l.organizerName }}</p>
+                <p class="lg-organizer-sub">Organizador da liga</p>
               </div>
             </div>
           </div>

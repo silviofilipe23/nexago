@@ -8,6 +8,7 @@ import '../../../../core/ui/app_snackbar.dart';
 import '../../../arenas/domain/arena_slot.dart';
 import '../../../arenas/domain/arena_slot_block_reason.dart';
 import '../../domain/arena_schedule_providers.dart';
+import '../../domain/arena_shell_providers.dart';
 
 /// Bottom sheet para bloquear horário com motivo e nota.
 class ArenaScheduleBlockSheet extends ConsumerStatefulWidget {
@@ -25,13 +26,9 @@ class ArenaScheduleBlockSheet extends ConsumerStatefulWidget {
     required ArenaSlot slot,
     required String courtName,
   }) async {
-    final result = await showModalBottomSheet<bool>(
+    // useRootNavigator + suppress header: sheet cobre AppBar/bottom nav do shell.
+    final result = await showArenaShellModalBottomSheet<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: context.themeColors.surfaceSheet,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (ctx) =>
           ArenaScheduleBlockSheet(slot: slot, courtName: courtName),
     );

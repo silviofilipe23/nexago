@@ -1,20 +1,24 @@
 import type { ArenaSportChip } from '@nexago/arena-discovery';
-import type { DemoMatchResult } from '../profile/public-profile-demo.models';
 import type { RankingLevel } from '../ranking/athlete-ranking.models';
-import type { TeamStatus } from './athlete-equipes.models';
 
 export interface TeamMemberRef {
-  /** null quando não há perfil de atleta conhecido pra linkar (times gerados por fallback). */
+  /** uid do atleta — usado como rota `/atletas/:id` (null quando o slot ainda não tem parceiro). */
   handle: string | null;
   fullName: string;
-  role: string;
-  levelNumber: number;
+  levelLabel: string;
 }
 
 export interface TeamTitle {
   id: string;
   name: string;
-  resultLabel: string;
+}
+
+export interface TeamMatchResult {
+  id: string;
+  result: 'V' | 'D';
+  opponent: string;
+  contextLabel: string;
+  score: string;
   dateLabel: string;
 }
 
@@ -22,18 +26,15 @@ export interface TeamPublicProfile {
   id: string;
   teamName: string;
   sport: ArenaSportChip;
-  level: RankingLevel;
+  level: RankingLevel | null;
   city: string;
-  status: TeamStatus;
   wins: number;
   losses: number;
   currentStreakWins: number;
-  rankingPosition: number;
+  rankingPosition: number | null;
   rankingPoints: number;
   togetherSinceLabel: string;
-  bio: string;
   members: readonly TeamMemberRef[];
   titles: readonly TeamTitle[];
-  matches: readonly DemoMatchResult[];
-  availabilitySlots: readonly string[];
+  matches: readonly TeamMatchResult[];
 }

@@ -3,6 +3,7 @@ import type { DocumentData, DocumentSnapshot, Timestamp } from 'firebase/firesto
 export interface ArenaPromotion {
   id: string;
   active: boolean;
+  label: string;
   courtIds: string[];
   weekdays: number[];
   startTime: string;
@@ -36,6 +37,7 @@ export function arenaPromotionFromFirestore(
   return {
     id: doc.id,
     active: data['active'] === true,
+    label: typeof data['label'] === 'string' ? data['label'] : '',
     courtIds,
     weekdays,
     startTime: normalizeHm(String(data['startTime'] ?? '00:00')),

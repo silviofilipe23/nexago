@@ -48,7 +48,11 @@
 
     <div class="ag-main-grid">
       <div class="ag-col">
-        @if (dayGroups().length === 0) {
+        @if (loading()) {
+          <div class="ag-empty-card">
+            <p class="ag-empty-title">Carregando agenda…</p>
+          </div>
+        } @else if (dayGroups().length === 0) {
           <div class="ag-empty-card">
             <p class="ag-empty-title">Nenhum evento agendado</p>
             <p class="ag-empty-sub">Reserve uma quadra ou entre em um torneio para preencher sua semana.</p>

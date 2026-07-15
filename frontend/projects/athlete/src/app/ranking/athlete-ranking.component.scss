@@ -270,6 +270,14 @@ $rk-bronze: #d98a4b;
   margin: 0;
 }
 
+.rk-self-empty {
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  color: var(--nx-text-mute);
+  margin: 0;
+  padding: 4px 0 2px;
+}
+
 // ── Main grid ────────────────────────────────────────────────
 .rk-main-grid {
   display: grid;

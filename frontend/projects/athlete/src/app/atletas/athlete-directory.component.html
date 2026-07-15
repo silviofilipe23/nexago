@@ -54,15 +54,6 @@
           }
         </select>
       </label>
-      <label class="ad-filter-btn">
-        <span>{{ distanceLabel(distanceFilter()) }}</span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-        <select class="ad-native-select" aria-label="Distância" [value]="distanceFilter()" (change)="setDistance($any($event.target).value)">
-          @for (d of distanceOptions; track d.km) {
-            <option [value]="d.km">{{ d.label }}</option>
-          }
-        </select>
-      </label>
 
       <div class="ad-filter-spacer"></div>
 
@@ -77,62 +68,17 @@
       </label>
     </div>
 
-    @if (suggested().length > 0) {
-      <section class="ad-section">
-        <div class="ad-section-head">
-          <h2 class="ad-section-title">Sugeridos pra você</h2>
-          <span class="ad-section-count">Com base no seu jogo</span>
-        </div>
-        <div class="ad-grid">
-          @for (a of suggested(); track a.id) {
-            <article class="ad-card">
-              <span class="ad-avatar">{{ athleteInitials(a.fullName) }}</span>
-              <p class="ad-card-name">{{ a.fullName }}</p>
-              <p class="ad-card-handle">&#64;{{ a.handle }} · {{ a.city }}</p>
-              <div class="ad-pill-row">
-                <span class="ad-sport-pill">
-                  <span class="ad-sport-dot" [attr.data-sport]="a.sport" aria-hidden="true"></span>
-                  {{ sportShortLabel(a.sport) }}
-                </span>
-                <span class="ad-level-pill">{{ a.level }}</span>
-              </div>
-              <div class="ad-ranking-box">
-                <span>Ranking</span>
-                <strong>#{{ a.rankingPosition }}</strong>
-              </div>
-              @if (a.suggestionReason) {
-                <p class="ad-reason">{{ a.suggestionReason }}</p>
-              }
-              <div class="ad-card-actions">
-                <a class="ad-btn-ghost" [routerLink]="['/atletas', a.handle]" [queryParams]="{ from: 'atletas' }">Ver perfil</a>
-                <button
-                  type="button"
-                  class="ad-btn-follow"
-                  [class.ad-btn-follow--active]="isFollowed(a.id)"
-                  (click)="toggleFollow(a.id)"
-                >
-                  @if (isFollowed(a.id)) {
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
-                    <span>Seguindo</span>
-                  } @else {
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-                    <span>Seguir</span>
-                  }
-                </button>
-              </div>
-            </article>
-          }
-        </div>
-      </section>
-    }
-
     <section class="ad-section">
       <div class="ad-section-head">
         <h2 class="ad-section-title">Todos os atletas</h2>
         <span class="ad-section-count">{{ totalRegisteredLabel() }}</span>
       </div>
 
-      @if (filteredOthers().length === 0) {
+      @if (loading()) {
+        <div class="ad-empty-card">
+          <p class="ad-empty-title">Carregando atletas…</p>
+        </div>
+      } @else if (filteredOthers().length === 0) {
         <div class="ad-empty-card">
           <p class="ad-empty-title">Nenhum atleta encontrado</p>
           <p class="ad-empty-sub">Ajuste os filtros ou a busca para ver mais opções.</p>
@@ -143,38 +89,29 @@
             <article class="ad-card">
               <span class="ad-avatar">{{ athleteInitials(a.fullName) }}</span>
               <p class="ad-card-name">{{ a.fullName }}</p>
-              <p class="ad-card-handle">&#64;{{ a.handle }} · {{ a.city }}</p>
+              <p class="ad-card-handle">&#64;{{ a.handle }} · {{ a.city || 'Cidade não informada' }}</p>
               <div class="ad-pill-row">
                 <span class="ad-sport-pill">
                   <span class="ad-sport-dot" [attr.data-sport]="a.sport" aria-hidden="true"></span>
                   {{ sportShortLabel(a.sport) }}
                 </span>
-                <span class="ad-level-pill">{{ a.level }}</span>
+                <span class="ad-level-pill">{{ a.level ?? '—' }}</span>
               </div>
               <div class="ad-ranking-box">
                 <span>Ranking</span>
-                <strong>#{{ a.rankingPosition }}</strong>
+                <strong>{{ a.rankingPosition ? '#' + a.rankingPosition : '—' }}</strong>
               </div>
               <div class="ad-card-actions">
-                <a class="ad-btn-ghost" [routerLink]="['/atletas', a.handle]" [queryParams]="{ from: 'atletas' }">Ver perfil</a>
-                <button
-                  type="button"
-                  class="ad-btn-follow"
-                  [class.ad-btn-follow--active]="isFollowed(a.id)"
-                  (click)="toggleFollow(a.id)"
-                >
-                  @if (isFollowed(a.id)) {
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
-                    <span>Seguindo</span>
-                  } @else {
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-                    <span>Seguir</span>
-                  }
-                </button>
+                <a class="ad-btn-ghost" [routerLink]="['/atletas', a.id]" [queryParams]="{ from: 'atletas' }">Ver perfil</a>
               </div>
             </article>
           }
         </div>
+        @if (hasMore()) {
+          <button type="button" class="ad-btn-ghost ad-load-more" [disabled]="loadingMore()" (click)="loadMore()">
+            {{ loadingMore() ? 'Carregando…' : 'Carregar mais atletas' }}
+          </button>
+        }
       }
     </section>
   </div>

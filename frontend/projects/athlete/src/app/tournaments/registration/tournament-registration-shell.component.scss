@@ -110,7 +110,26 @@
   font-family: var(--nx-font-ui);
   font-size: 13px;
   color: var(--nx-text-dim);
-  margin: 0;
+  margin: 0 0 12px;
+}
+
+.rg-search-input {
+  width: 100%;
+  height: 42px;
+  border-radius: var(--nx-r-2, 10px);
+  background: var(--nx-surface-1, #1a1a1a);
+  border: 1px solid var(--nx-line, #333);
+  color: var(--nx-text, #fff);
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--nx-orange-500, #ff6a1a);
+  }
 }
 
 // ── Step title ───────────────────────────────────────────────

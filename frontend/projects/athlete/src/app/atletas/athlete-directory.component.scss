@@ -442,6 +442,13 @@ $ad-sport-colors: (
   }
 }
 
+.ad-load-more {
+  flex: none;
+  width: fit-content;
+  margin: 18px auto 0;
+  padding: 0 20px;
+}
+
 .ad-btn-follow {
   flex: 1;
   height: 34px;

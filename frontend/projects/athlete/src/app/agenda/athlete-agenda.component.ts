@@ -1,11 +1,25 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
+import { getApps, initializeApp } from 'firebase/app';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 import { interval } from 'rxjs';
+import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { athleteFunctions } from '../data/functions';
+import { bookingIsActive, bookingNeedsPayment, fetchMyBookings, type MyBooking } from '../data/my-bookings-repository';
+import {
+  acceptPartnerInvite,
+  declinePartnerInvite,
+  fetchMyPendingPartnerInvites,
+  fetchMyRegistrations,
+  type AthleteTournamentRegistration,
+  type TournamentPartnerInvite,
+} from '../data/tournament-registrations-repository';
+import { fetchTournamentSummariesByIds, tournamentIsCompleted, tournamentIsLive, type TournamentSummary } from '../data/tournaments-repository';
 
-export type AgendaEventKind = 'tournament' | 'challenge' | 'rental' | 'class' | 'league';
+export type AgendaEventKind = 'tournament' | 'rental';
 export type AgendaStatusTone = 'live' | 'confirmed' | 'warning' | 'neutral';
 
 export interface AgendaEvent {
@@ -51,11 +65,15 @@ export interface AgendaMonthStat {
 
 const KIND_LABEL: Record<AgendaEventKind, string> = {
   tournament: 'TORNEIO',
-  challenge: 'DESAFIO',
   rental: 'ALUGUEL',
-  class: 'AULA',
-  league: 'LIGA',
 };
+
+function createFirestore(): Firestore | null {
+  const cfg = environment.firebase;
+  if (cfg == null || (cfg.apiKey ?? '').length === 0) return null;
+  const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+  return getFirestore(app);
+}
 
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
@@ -70,12 +88,6 @@ function addDays(base: Date, delta: number): Date {
   x.setDate(x.getDate() + delta);
   x.setHours(0, 0, 0, 0);
   return x;
-}
-
-function atTime(day: Date, hh: number, mm: number): Date {
-  const d = new Date(day);
-  d.setHours(hh, mm, 0, 0);
-  return d;
 }
 
 function shortWeekday(d: Date): string {
@@ -178,6 +190,57 @@ function buildIcsCalendar(events: readonly AgendaEvent[]): string {
   return lines.join('\r\n');
 }
 
+function bookingToEvent(booking: MyBooking): AgendaEvent | null {
+  if (booking.dateKey.length < 10) return null;
+  const [y, m, d] = booking.dateKey.split('-').map(Number);
+  const [sh, sm] = booking.startTime.split(':').map(Number);
+  const [eh, em] = booking.endTime.split(':').map(Number);
+  if (!y || !m || !d) return null;
+  const start = new Date(y, m - 1, d, sh || 0, sm || 0);
+  let end = new Date(y, m - 1, d, eh || 0, em || 0);
+  if (end.getTime() <= start.getTime()) end = new Date(end.getTime() + 24 * 60 * 60_000);
+  const active = bookingIsActive(booking);
+  const needsPayment = bookingNeedsPayment(booking);
+
+  return {
+    id: booking.id,
+    startsAt: start,
+    durationMin: Math.round((end.getTime() - start.getTime()) / 60000),
+    kind: 'rental',
+    title: `${booking.arenaName} · ${booking.courtName}`,
+    subtitle: active ? 'Reserva de quadra' : 'Reserva cancelada',
+    location: booking.arenaName,
+    statusLabel: !active ? 'Cancelada' : needsPayment ? 'Pagamento pendente' : booking.attendanceConfirmed ? 'Confirmado' : 'Aguardando confirmação',
+    statusTone: !active ? 'neutral' : needsPayment ? 'warning' : booking.attendanceConfirmed ? 'confirmed' : 'warning',
+    ctaLabel: needsPayment ? 'Pagar agora' : 'Ver reserva',
+    ctaPrimary: needsPayment,
+  };
+}
+
+function registrationToEvent(reg: AthleteTournamentRegistration, tournament: TournamentSummary | undefined): AgendaEvent | null {
+  if (!tournament?.startAt) return null;
+  const durationMin = tournament.endAt ? Math.max(60, Math.round((tournament.endAt.getTime() - tournament.startAt.getTime()) / 60000)) : 24 * 60;
+  const live = tournamentIsLive(tournament);
+  const completed = tournamentIsCompleted(tournament);
+  return {
+    id: reg.id,
+    startsAt: tournament.startAt,
+    durationMin,
+    kind: 'tournament',
+    title: tournament.name,
+    subtitle: [tournament.location, tournament.city].filter((v) => v).join(' · ') || 'Torneio',
+    location: tournament.location ?? tournament.city ?? '',
+    statusLabel: completed ? 'Concluído' : live ? 'Ao vivo' : reg.partnerPending ? 'Falta parceiro' : reg.isPaid ? 'Inscrito' : 'Aguardando pagamento',
+    statusTone: completed ? 'neutral' : live ? 'live' : reg.partnerPending || !reg.isPaid ? 'warning' : 'confirmed',
+    ctaLabel: live ? 'Ver chave' : 'Ver torneio',
+    ctaPrimary: live,
+  };
+}
+
+/** Agenda real: mescla reservas (`arenaBookings`) e inscrições em torneio
+ *  (`inscriptions` + `tournaments`) — espelha `AthleteAgendaLogic` (Flutter). Sem "desafio"/
+ *  "aula"/"liga" como tipos à parte: liga é só um torneio (etapa) por baixo, e não achei
+ *  nenhuma coleção real de desafio casual ou aula agendável pro atleta. */
 @Component({
   selector: 'app-athlete-agenda',
   standalone: true,
@@ -189,6 +252,7 @@ function buildIcsCalendar(events: readonly AgendaEvent[]): string {
 export class AthleteAgendaComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly firestore = createFirestore();
 
   protected readonly dotSlots: readonly [1, 2, 3] = [1, 2, 3];
 
@@ -204,14 +268,10 @@ export class AthleteAgendaComponent {
   protected readonly now = signal(Date.now());
   protected readonly selectedDayKey = signal(isoDate(new Date()));
 
-  protected readonly events = signal<AgendaEvent[]>(this.buildMockEvents());
-  protected readonly pendingRequests = signal<AgendaPendingRequest[]>(this.buildMockPendingRequests());
-  protected readonly monthStats = signal<AgendaMonthStat[]>([
-    { label: 'Jogos agendados', value: '9' },
-    { label: 'Taxa de vitória', value: '68%' },
-    { label: 'Sequência atual', value: '3 dias' },
-    { label: 'Gasto em reservas', value: 'R$ 340' },
-  ]);
+  protected readonly loading = signal(true);
+  protected readonly events = signal<AgendaEvent[]>([]);
+  protected readonly pendingRequests = signal<AgendaPendingRequest[]>([]);
+  protected readonly monthStats = signal<AgendaMonthStat[]>([]);
 
   protected readonly eventNotice = signal<string | null>(null);
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -252,9 +312,7 @@ export class AthleteAgendaComponent {
   });
 
   protected readonly pendingActionCount = computed(
-    () =>
-      this.pendingRequests().length +
-      this.events().filter((e) => e.statusTone === 'warning').length,
+    () => this.pendingRequests().length + this.events().filter((e) => e.statusTone === 'warning').length,
   );
 
   constructor() {
@@ -263,6 +321,79 @@ export class AthleteAgendaComponent {
       .subscribe(() => this.now.set(Date.now()));
 
     this.destroyRef.onDestroy(() => clearTimeout(this.noticeTimeout));
+
+    effect(() => {
+      const uid = this.auth.user()?.uid ?? null;
+      void this.loadAgenda(uid);
+    });
+  }
+
+  private async loadAgenda(uid: string | null): Promise<void> {
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    if (!db || !projectId || !uid) {
+      this.events.set([]);
+      this.pendingRequests.set([]);
+      this.monthStats.set([]);
+      this.loading.set(false);
+      return;
+    }
+
+    this.loading.set(true);
+    try {
+      const [bookings, registrations, invites] = await Promise.all([
+        fetchMyBookings(db, uid),
+        fetchMyRegistrations(db, projectId, uid),
+        fetchMyPendingPartnerInvites(db, uid),
+      ]);
+
+      const tournamentIds = [...new Set([...registrations.map((r) => r.tournamentId), ...invites.map((i) => i.tournamentId)])];
+      const tournaments = await fetchTournamentSummariesByIds(db, tournamentIds);
+
+      const bookingEvents = bookings.filter(bookingIsActive).map(bookingToEvent).filter((e): e is AgendaEvent => e != null);
+      const registrationEvents = registrations
+        .map((r) => registrationToEvent(r, tournaments.get(r.tournamentId)))
+        .filter((e): e is AgendaEvent => e != null);
+      this.events.set([...bookingEvents, ...registrationEvents]);
+
+      this.pendingRequests.set(
+        invites.map((invite) => {
+          const tournament = tournaments.get(invite.tournamentId);
+          return {
+            id: invite.id,
+            initials: initialsOf(invite.inviterName),
+            title: `Convite de parceiro de ${invite.inviterName}`,
+            subtitle: tournament?.name ?? 'Torneio',
+            scheduleLine: tournament?.startAt
+              ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(tournament.startAt)
+              : 'Data a confirmar',
+          };
+        }),
+      );
+
+      this.monthStats.set(this.computeMonthStats(bookings, registrationEvents));
+    } catch {
+      this.events.set([]);
+      this.pendingRequests.set([]);
+      this.monthStats.set([]);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  private computeMonthStats(bookings: readonly MyBooking[], tournamentEvents: readonly AgendaEvent[]): AgendaMonthStat[] {
+    const now = new Date();
+    const isThisMonth = (d: Date) => d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+
+    const gamesThisMonth = tournamentEvents.filter((e) => isThisMonth(e.startsAt)).length;
+    const spendThisMonth = bookings
+      .filter((b) => bookingIsActive(b) && b.createdAt && isThisMonth(b.createdAt))
+      .reduce((sum, b) => sum + (b.amountReais ?? 0), 0);
+
+    return [
+      { label: 'Jogos de torneio', value: `${gamesThisMonth}` },
+      { label: 'Gasto em reservas', value: spendThisMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) },
+    ];
   }
 
   protected isSelectedDay(key: string): boolean {
@@ -273,9 +404,7 @@ export class AthleteAgendaComponent {
     this.selectedDayKey.set(key);
     const target = document.getElementById(`ag-day-${key}`);
     if (!target) return;
-    const reducedMotion =
-      typeof globalThis.matchMedia === 'function' &&
-      globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reducedMotion = typeof globalThis.matchMedia === 'function' && globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches;
     target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
   }
 
@@ -297,14 +426,26 @@ export class AthleteAgendaComponent {
     this.showNotice(`"${ev.ctaLabel}" chega em breve por aqui.`);
   }
 
-  protected acceptRequest(id: string): void {
-    this.pendingRequests.update((list) => list.filter((r) => r.id !== id));
-    this.showNotice('Desafio aceito! Combine os detalhes com seu adversário.');
+  protected async acceptRequest(id: string): Promise<void> {
+    try {
+      await acceptPartnerInvite(athleteFunctions(), id);
+      this.pendingRequests.update((list) => list.filter((r) => r.id !== id));
+      this.showNotice('Convite aceito! Vocês já formam dupla nessa categoria.');
+      const uid = this.auth.user()?.uid ?? null;
+      void this.loadAgenda(uid);
+    } catch (err) {
+      this.showNotice(err instanceof Error ? err.message : 'Não foi possível aceitar o convite.');
+    }
   }
 
-  protected declineRequest(id: string): void {
-    this.pendingRequests.update((list) => list.filter((r) => r.id !== id));
-    this.showNotice('Desafio recusado.');
+  protected async declineRequest(id: string): Promise<void> {
+    try {
+      await declinePartnerInvite(athleteFunctions(), id);
+      this.pendingRequests.update((list) => list.filter((r) => r.id !== id));
+      this.showNotice('Convite recusado.');
+    } catch (err) {
+      this.showNotice(err instanceof Error ? err.message : 'Não foi possível recusar o convite.');
+    }
   }
 
   protected exportIcs(): void {
@@ -327,122 +468,5 @@ export class AthleteAgendaComponent {
     this.eventNotice.set(message);
     clearTimeout(this.noticeTimeout);
     this.noticeTimeout = setTimeout(() => this.eventNotice.set(null), 4000);
-  }
-
-  private buildMockEvents(): AgendaEvent[] {
-    const today = dateOnly(new Date());
-    const tomorrow = addDays(today, 1);
-    const inFourDays = addDays(today, 4);
-
-    return [
-      {
-        id: 'ev-1',
-        startsAt: atTime(today, 19, 0),
-        durationMin: 90,
-        kind: 'tournament',
-        title: 'Etapa Garden · Oitavas',
-        subtitle: 'Arena CFC · Quadra 2 · Sub-19 Masc',
-        location: 'Arena CFC',
-        statusLabel: 'Ao vivo',
-        statusTone: 'live',
-        ctaLabel: 'Anotar set',
-        ctaPrimary: true,
-      },
-      {
-        id: 'ev-2',
-        startsAt: atTime(today, 20, 30),
-        durationMin: 60,
-        kind: 'challenge',
-        title: 'Desafio de ranking · Rafa & Tonho',
-        subtitle: 'Arena ErreJota · Quadra 2 · melhor de 3',
-        location: 'Arena ErreJota',
-        statusLabel: 'Confirmado',
-        statusTone: 'confirmed',
-        ctaLabel: 'Combinar',
-        ctaPrimary: false,
-      },
-      {
-        id: 'ev-3',
-        startsAt: atTime(today, 21, 0),
-        durationMin: 60,
-        kind: 'rental',
-        title: 'Arena ErreJota · Quadra 1',
-        subtitle: 'Vôlei de praia · com Bruno V.',
-        location: 'Arena ErreJota',
-        statusLabel: 'Confirmado',
-        statusTone: 'confirmed',
-        ctaLabel: 'Convidar +1',
-        ctaPrimary: true,
-      },
-      {
-        id: 'ev-4',
-        startsAt: atTime(today, 22, 0),
-        durationMin: 60,
-        kind: 'rental',
-        title: 'Arena CFC · Quadra 4',
-        subtitle: 'Vôlei de praia · recorrente toda seg',
-        location: 'Arena CFC',
-        statusLabel: 'Falta 1',
-        statusTone: 'warning',
-        ctaLabel: 'Confirmar dupla',
-        ctaPrimary: true,
-      },
-      {
-        id: 'ev-5',
-        startsAt: atTime(tomorrow, 7, 0),
-        durationMin: 90,
-        kind: 'class',
-        title: 'Treino técnico · Coach Júnior',
-        subtitle: 'Praia BT · Quadra central · 6 alunos',
-        location: 'Praia BT',
-        statusLabel: 'Confirmado',
-        statusTone: 'confirmed',
-        ctaLabel: 'Check-in',
-        ctaPrimary: false,
-      },
-      {
-        id: 'ev-6',
-        startsAt: atTime(tomorrow, 19, 30),
-        durationMin: 150,
-        kind: 'league',
-        title: 'Liga Universitária · Etapa 3',
-        subtitle: 'UFG Câmpus 2 · Sub-23 misto · 4ª rodada',
-        location: 'UFG Câmpus 2',
-        statusLabel: 'Confirmado',
-        statusTone: 'confirmed',
-        ctaLabel: 'Ver chave',
-        ctaPrimary: false,
-      },
-      {
-        id: 'ev-7',
-        startsAt: atTime(inFourDays, 11, 0),
-        durationMin: 60,
-        kind: 'rental',
-        title: 'Arena CFC · Quadra 2',
-        subtitle: 'Vôlei de praia · 3 amigos disponíveis',
-        location: 'Arena CFC',
-        statusLabel: 'Procurando dupla',
-        statusTone: 'neutral',
-        ctaLabel: 'Convidar',
-        ctaPrimary: true,
-      },
-    ];
-  }
-
-  private buildMockPendingRequests(): AgendaPendingRequest[] {
-    const today = dateOnly(new Date());
-    const day = addDays(today, 4);
-    const dm = `${pad2(day.getDate())}/${pad2(day.getMonth() + 1)}`;
-    const weekday = shortWeekday(day).toLowerCase();
-    const weekdayCap = weekday.charAt(0).toUpperCase() + weekday.slice(1);
-    return [
-      {
-        id: 'req-1',
-        initials: 'LM',
-        title: 'Desafio de Lucas M.',
-        subtitle: 'H2H 2–1 · vale a #4 do ranking',
-        scheduleLine: `${weekdayCap} ${dm} · 09:00 · Arena CFC · Quadra 3`,
-      },
-    ];
   }
 }

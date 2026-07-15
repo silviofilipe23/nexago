@@ -385,3 +385,213 @@
   color: var(--nx-text);
   margin: 0;
 }
+
+// ── Method subtitles / disabled ──────────────────────────────
+.pm-method-sub {
+  font-family: var(--nx-font-ui);
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--nx-text-dim);
+}
+
+.pm-method-card--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+
+  &:hover {
+    border-color: var(--nx-line);
+  }
+}
+
+// ── Pix: fração + CPF + geração ──────────────────────────────
+.pm-pix-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pm-fraction-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.pm-fraction-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+
+  &--active {
+    background: var(--nx-orange-tint);
+    border-color: var(--nx-orange-500);
+  }
+}
+
+.pm-fraction-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--nx-text);
+}
+
+.pm-fraction-value {
+  font-family: var(--nx-font-mono);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--nx-orange-500);
+}
+
+.pm-fraction-sub {
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  color: var(--nx-text-dim);
+}
+
+.pm-cpf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 320px;
+}
+
+.pm-cpf-label {
+  font-family: var(--nx-font-ui);
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
+}
+
+.pm-cpf-optional {
+  font-weight: 400;
+  color: var(--nx-text-dim);
+}
+
+.pm-cpf-input {
+  height: 42px;
+  padding: 0 14px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text);
+  font-family: var(--nx-font-mono);
+  font-size: 14px;
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 1px;
+  }
+}
+
+// ── Pix: QR real + aguardando pagamento ──────────────────────
+.pm-qr-img {
+  width: 220px;
+  height: 220px;
+  border-radius: var(--nx-r-3);
+  border: 1px solid var(--nx-line);
+  background: #fff;
+  padding: 8px;
+}
+
+.pm-countdown {
+  font-family: var(--nx-font-mono);
+  font-weight: 700;
+  color: var(--nx-text);
+}
+
+.pm-waiting {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 420px;
+  padding: 10px 14px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--nx-text-mute);
+}
+
+.pm-waiting-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--nx-orange-500);
+  animation: pm-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pm-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-waiting-dot {
+    animation: none;
+  }
+}
+
+// ── Pagar na arena ───────────────────────────────────────────
+.pm-onsite-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.pm-onsite-text {
+  font-family: var(--nx-font-ui);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--nx-text-mute);
+  margin: 0;
+  max-width: 380px;
+
+  strong {
+    color: var(--nx-text);
+  }
+}
+
+// ── Nota de segurança ────────────────────────────────────────
+.pm-security-note {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+
+  svg {
+    flex: none;
+    margin-top: 1px;
+    color: var(--nx-text-mute);
+  }
+
+  span {
+    font-family: var(--nx-font-ui);
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--nx-text-mute);
+  }
+}

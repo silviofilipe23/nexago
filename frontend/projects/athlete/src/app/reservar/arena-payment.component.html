@@ -36,55 +36,121 @@
                 type="button"
                 class="pm-method-card"
                 [class.pm-method-card--active]="selectedMethod() === 'pix'"
+                [class.pm-method-card--disabled]="!pixAvailable()"
+                [disabled]="!pixAvailable()"
                 (click)="selectMethod('pix')"
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v6M12 15v6M3 12h6M15 12h6" /><rect x="9" y="9" width="6" height="6" rx="1.4" transform="rotate(45 12 12)" /></svg>
                 <span>Pix</span>
+                <span class="pm-method-sub">{{ pixAvailable() ? 'Confirmação automática' : 'Indisponível nesta arena' }}</span>
               </button>
               <button
                 type="button"
                 class="pm-method-card"
-                [class.pm-method-card--active]="selectedMethod() === 'card'"
-                (click)="selectMethod('card')"
+                [class.pm-method-card--active]="selectedMethod() === 'onsite'"
+                [class.pm-method-card--disabled]="!onsiteAvailable()"
+                [disabled]="!onsiteAvailable()"
+                (click)="selectMethod('onsite')"
               >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="M2.5 10h19" /></svg>
-                <span>Cartão de crédito</span>
-              </button>
-              <button
-                type="button"
-                class="pm-method-card"
-                [class.pm-method-card--active]="selectedMethod() === 'split'"
-                (click)="selectMethod('split')"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3.2" /><circle cx="17" cy="9" r="2.6" /><path d="M2.5 20c0-3.3 2.5-6 5.5-6s5.5 2.7 5.5 6M14.5 20c0-2.6 1.8-4.8 4-5.4" /></svg>
-                <span>Dividir com amigos</span>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5" /></svg>
+                <span>Pagar na arena</span>
+                <span class="pm-method-sub">{{ onsiteAvailable() ? 'Reserve agora, pague lá' : 'Indisponível nesta arena' }}</span>
               </button>
             </div>
 
             @if (selectedMethod() === 'pix') {
-              <div class="pm-pix-block">
-                <div class="pm-qr-placeholder" aria-hidden="true"><span>QR CODE PIX</span></div>
-                <div class="pm-pix-code-row">
-                  <span class="pm-pix-code">Código Pix disponível em breve</span>
-                  <button type="button" class="pm-btn-ghost pm-copy-btn" (click)="copyPixCode()">Copiar</button>
+              @if (pixPayment(); as pix) {
+                @if (pixExpired()) {
+                  <div class="pm-placeholder-block">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                    <p>Este código Pix expirou e o horário foi liberado.</p>
+                    <button type="button" class="pm-btn-primary" [disabled]="processing()" (click)="regeneratePix()">
+                      {{ processing() ? 'Gerando…' : 'Gerar novo código Pix' }}
+                    </button>
+                  </div>
+                } @else {
+                  <div class="pm-pix-block">
+                    @if (pix.qrCodeBase64) {
+                      <img class="pm-qr-img" [src]="'data:image/png;base64,' + pix.qrCodeBase64" alt="QR Code Pix" />
+                    } @else {
+                      <div class="pm-qr-placeholder" aria-hidden="true"><span>USE O CÓDIGO ABAIXO</span></div>
+                    }
+                    <div class="pm-pix-code-row">
+                      <span class="pm-pix-code">{{ pix.qrCode }}</span>
+                      <button type="button" class="pm-btn-ghost pm-copy-btn" (click)="copyPixCode()">Copiar</button>
+                    </div>
+                    <p class="pm-pix-note">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                      Código expira em <strong class="pm-countdown">{{ pixCountdown() }}</strong>
+                    </p>
+                    <div class="pm-waiting" role="status">
+                      <span class="pm-waiting-dot" aria-hidden="true"></span>
+                      Aguardando pagamento — a confirmação é automática assim que o Pix cair.
+                    </div>
+                    <button type="button" class="pm-btn-ghost" (click)="cancelPix()">Cancelar este Pix</button>
+                  </div>
+                }
+              } @else {
+                <div class="pm-pix-setup">
+                  <div class="pm-fraction-row" role="group" aria-label="Quanto pagar agora">
+                    <button
+                      type="button"
+                      class="pm-fraction-card"
+                      [class.pm-fraction-card--active]="pixFraction() === 1"
+                      [attr.aria-pressed]="pixFraction() === 1"
+                      (click)="selectFraction(1)"
+                    >
+                      <span class="pm-fraction-title">Pagar tudo agora</span>
+                      <span class="pm-fraction-value">{{ formatBRL(totalPrice()) }}</span>
+                      <span class="pm-fraction-sub">Nada a acertar na arena</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="pm-fraction-card"
+                      [class.pm-fraction-card--active]="pixFraction() === 0.5"
+                      [attr.aria-pressed]="pixFraction() === 0.5"
+                      (click)="selectFraction(0.5)"
+                    >
+                      <span class="pm-fraction-title">50% agora</span>
+                      <span class="pm-fraction-value">{{ formatBRL(totalPrice() / 2) }}</span>
+                      <span class="pm-fraction-sub">Restante direto na arena</span>
+                    </button>
+                  </div>
+
+                  <div class="pm-cpf-field">
+                    <label class="pm-cpf-label" for="pm-cpf">CPF <span class="pm-cpf-optional">(opcional — sai no comprovante do Pix)</span></label>
+                    <input
+                      id="pm-cpf"
+                      class="pm-cpf-input"
+                      type="text"
+                      inputmode="numeric"
+                      autocomplete="off"
+                      placeholder="000.000.000-00"
+                      [value]="cpf()"
+                      (input)="onCpfInput($any($event.target).value)"
+                    />
+                  </div>
+
+                  <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="generatePix()">
+                    {{ processing() ? 'Gerando…' : 'Gerar código Pix de ' + formatBRL(pixAmountNow()) }}
+                  </button>
                 </div>
-                <p class="pm-pix-note">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
-                  O pagamento via Pix ainda não está disponível — em breve por aqui.
-                </p>
-              </div>
-            } @else if (selectedMethod() === 'card') {
-              <div class="pm-placeholder-block">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="M2.5 10h19" /></svg>
-                <p>Pagamento por cartão de crédito chega em breve por aqui.</p>
-              </div>
+              }
             } @else {
-              <div class="pm-placeholder-block">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3.2" /><circle cx="17" cy="9" r="2.6" /><path d="M2.5 20c0-3.3 2.5-6 5.5-6s5.5 2.7 5.5 6M14.5 20c0-2.6 1.8-4.8 4-5.4" /></svg>
-                <p>Dividir o valor da reserva com quem for jogar com você chega em breve por aqui.</p>
+              <div class="pm-onsite-block">
+                <p class="pm-onsite-text">
+                  Você garante o horário agora e paga <strong>{{ formatBRL(totalPrice()) }}</strong> diretamente na
+                  {{ a.name }}, no dia do jogo.
+                </p>
+                <p class="pm-defer-note">A arena é avisada na hora e a reserva já sai confirmada.</p>
               </div>
             }
           </section>
+
+          <div class="pm-security-note">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
+            <span>Pagamento online processado com segurança pela nexaGO. O horário só é bloqueado para outros atletas quando a reserva é criada.</span>
+          </div>
         </div>
 
         <div class="pm-col pm-col--side">
@@ -108,18 +174,30 @@
             </div>
             <div class="pm-summary-row">
               <span class="pm-summary-label">Valor da reserva</span>
-              <span class="pm-summary-value">R$ {{ totalPrice() }}</span>
+              <span class="pm-summary-value">{{ formatBRL(totalPrice()) }}</span>
             </div>
+            @if (selectedMethod() === 'pix' && pixFraction() === 0.5) {
+              <div class="pm-summary-row">
+                <span class="pm-summary-label">Restante na arena</span>
+                <span class="pm-summary-value">{{ formatBRL(pixAmountOnsite()) }}</span>
+              </div>
+            }
             <div class="pm-summary-total-row">
-              <span class="pm-summary-label">Você paga agora</span>
-              <strong class="pm-summary-total">R$ {{ totalPrice() }}</strong>
+              <span class="pm-summary-label">{{ selectedMethod() === 'pix' ? 'Você paga agora' : 'Você paga na arena' }}</span>
+              <strong class="pm-summary-total">{{ selectedMethod() === 'pix' ? formatBRL(pixAmountNow()) : formatBRL(totalPrice()) }}</strong>
             </div>
-            <button type="button" class="pm-btn-primary pm-btn-full" (click)="confirmPayment()">
-              Já paguei, confirmar
-            </button>
-            <p class="pm-defer-note">
-              Este pagamento ainda não é processado de verdade — em breve por aqui.
-            </p>
+
+            @if (selectedMethod() === 'onsite') {
+              <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="confirmOnsite()">
+                {{ processing() ? 'Confirmando…' : 'Confirmar reserva' }}
+              </button>
+            } @else if (!pixPayment()) {
+              <button type="button" class="pm-btn-primary pm-btn-full" [disabled]="processing()" (click)="generatePix()">
+                {{ processing() ? 'Gerando…' : 'Gerar código Pix' }}
+              </button>
+            } @else if (!pixExpired()) {
+              <p class="pm-defer-note">Pague o Pix ao lado — assim que cair, você vai direto pra confirmação.</p>
+            }
           </div>
         </div>
       </div>

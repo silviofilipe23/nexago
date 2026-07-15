@@ -18,26 +18,6 @@
   }
 }
 
-.bc-preview-banner {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 16px;
-  border-radius: var(--nx-r-2);
-  background: var(--nx-orange-tint);
-  border: 1px solid rgba(255, 106, 26, 0.3);
-  color: var(--nx-text);
-  font-family: var(--nx-font-ui);
-  font-size: 12.5px;
-  line-height: 1.5;
-
-  svg {
-    flex: none;
-    color: var(--nx-orange-500);
-    margin-top: 1px;
-  }
-}
-
 .bc-back-link {
   display: inline-flex;
   align-items: center;
@@ -83,6 +63,36 @@
   place-items: center;
   box-shadow: 0 0 0 10px rgba(34, 197, 94, 0.12);
   margin-bottom: 6px;
+  animation: bc-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+
+  &--pending {
+    background: var(--nx-surface-1);
+    color: var(--nx-text-mute);
+    border: 1px solid var(--nx-line);
+    box-shadow: none;
+    animation: none;
+  }
+}
+
+@keyframes bc-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bc-check-circle {
+    animation: none;
+  }
 }
 
 .bc-title {
@@ -124,6 +134,51 @@
   letter-spacing: -0.01em;
   color: var(--nx-text);
   margin: 0 0 10px;
+}
+
+.bc-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+
+  .bc-card-title {
+    margin: 0;
+  }
+
+  margin-bottom: 10px;
+}
+
+.bc-pill {
+  flex: none;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-family: var(--nx-font-ui);
+  font-weight: 700;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text-mute);
+
+  &--green {
+    background: rgba(43, 209, 126, 0.12);
+    border-color: rgba(43, 209, 126, 0.35);
+    color: var(--nx-win);
+  }
+
+  &--yellow {
+    background: rgba(244, 197, 67, 0.12);
+    border-color: rgba(244, 197, 67, 0.35);
+    color: var(--nx-pending);
+  }
+
+  &--red {
+    background: rgba(255, 59, 48, 0.12);
+    border-color: rgba(255, 59, 48, 0.35);
+    color: var(--nx-live);
+  }
 }
 
 .bc-row {

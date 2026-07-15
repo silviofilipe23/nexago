@@ -156,6 +156,8 @@ export class ArenaContextService {
 
         this.managedDocs.set(snap.docs);
 
+        console.log('snap.docs', snap.docs);
+
         const validIds = new Set(snap.docs.map((d) => d.id));
         const stored = this.readStoredSelection(uid);
         this.selectedArenaIdSignal.update((current) => {

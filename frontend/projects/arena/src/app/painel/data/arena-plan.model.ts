@@ -58,7 +58,9 @@ export function arenaPlanEntitledAt(planStatus: ArenaPlanStatus, now: Date): boo
 
 /** Sem titularidade, cai para o comportamento do Essencial (sem capabilities Pro). */
 export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boolean): ReadonlySet<ArenaCapability> {
+  console.log('arenaCapabilitiesFor', tier, entitled);
   const effectiveTier = entitled ? tier : 'essencial';
+  console.log('effectiveTier', effectiveTier);
   switch (effectiveTier) {
     case 'parceiro':
       return new Set<ArenaCapability>([
@@ -70,6 +72,7 @@ export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boole
         'multiUnidade',
       ]);
     case 'pro':
+      console.log('arenaCapabilitiesFor pro');
       return new Set<ArenaCapability>(['pdvComandas', 'estoque', 'promocoes', 'metricasCompletas', 'receberTorneios']);
     default:
       return new Set<ArenaCapability>();

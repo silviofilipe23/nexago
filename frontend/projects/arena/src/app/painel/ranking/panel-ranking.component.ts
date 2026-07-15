@@ -1,163 +1,102 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { AuthService } from '../../auth/auth.service';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import type { Unsubscribe } from 'firebase/firestore';
+import { ArenaContextService } from '../data/arena-context.service';
+import { arenaFirestore } from '../data/firestore';
+import { watchBookingsForArena } from '../bookings/bookings-repository';
 import { DrawerComponent } from '../ui/drawer.component';
-import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { PillComponent, type PillTone } from '../ui/pill.component';
+import type { ClientBookingStatus, RankedClient } from './ranked-client.model';
+import { fetchRankedClients } from './ranked-clients-repository';
 
-type BookingStatus = 'concluida' | 'no_show' | 'cancelada';
-
-interface RankedClient {
-  id: string;
-  name: string;
-  initials: string;
-  vip: boolean;
-  games: number;
-  spend: number;
-  attendance: number;
-  memberSince: string;
-}
-
-interface BookingHistoryItem {
-  date: string;
-  court: string;
-  time: string;
-  status: BookingStatus;
-  price: number | null;
-}
-
-const BOOKING_STATUS_LABEL: Record<BookingStatus, string> = {
+const BOOKING_STATUS_LABEL: Record<ClientBookingStatus, string> = {
   concluida: 'Concluída',
   no_show: 'No-show',
   cancelada: 'Cancelada',
+  confirmada: 'Confirmada',
 };
 
-const BOOKING_STATUS_TONE: Record<BookingStatus, PillTone> = {
+const BOOKING_STATUS_TONE: Record<ClientBookingStatus, PillTone> = {
   concluida: 'green',
   no_show: 'yellow',
   cancelada: 'red',
+  confirmada: 'orange',
 };
-
-const CLIENTS: RankedClient[] = [
-  { id: 'c1', name: 'Marcelo Antunes', initials: 'MA', vip: true, games: 21, spend: 3180, attendance: 92, memberSince: 'jan/2025' },
-  { id: 'c2', name: 'Juliana Prado', initials: 'JP', vip: true, games: 19, spend: 2740, attendance: 88, memberSince: 'fev/2025' },
-  { id: 'c3', name: 'Thiago Nogueira', initials: 'TN', vip: false, games: 18, spend: 2460, attendance: 75, memberSince: 'jan/2025' },
-  { id: 'c4', name: 'Camila Duarte', initials: 'CD', vip: false, games: 16, spend: 2120, attendance: 80, memberSince: 'mar/2025' },
-  { id: 'c5', name: 'Enzo Ribeiro', initials: 'ER', vip: false, games: 14, spend: 1980, attendance: 78, memberSince: 'mar/2025' },
-  { id: 'c6', name: 'Bruna Lima', initials: 'BL', vip: false, games: 13, spend: 1850, attendance: 70, memberSince: 'abr/2025' },
-  { id: 'c7', name: 'Ana Beatriz', initials: 'AB', vip: false, games: 11, spend: 1520, attendance: 74, memberSince: 'abr/2025' },
-  { id: 'c8', name: 'Lucas Prado', initials: 'LP', vip: false, games: 9, spend: 1240, attendance: 68, memberSince: 'mai/2025' },
-  { id: 'c9', name: 'Gustavo Melo', initials: 'GM', vip: false, games: 8, spend: 980, attendance: 65, memberSince: 'mai/2025' },
-  { id: 'c10', name: 'Larissa Cardoso', initials: 'LC', vip: false, games: 6, spend: 780, attendance: 60, memberSince: 'jun/2025' },
-];
-
-const THIAGO_HISTORY: BookingHistoryItem[] = [
-  { date: '09/07', court: 'Quadra 1', time: '18:00–19:00', status: 'concluida', price: 137 },
-  { date: '02/07', court: 'Quadra 2', time: '19:00–20:00', status: 'concluida', price: 137 },
-  { date: '25/06', court: 'Quadra 3', time: '20:00–21:00', status: 'no_show', price: 137 },
-  { date: '18/06', court: 'Quadra 1', time: '18:00–19:00', status: 'concluida', price: 137 },
-  { date: '11/06', court: 'Quadra 2', time: '19:00–20:00', status: 'concluida', price: 137 },
-  { date: '04/06', court: 'Quadra 3', time: '20:00–21:00', status: 'cancelada', price: null },
-  { date: '28/05', court: 'Quadra 1', time: '18:00–19:00', status: 'concluida', price: 137 },
-  { date: '21/05', court: 'Quadra 2', time: '19:00–20:00', status: 'concluida', price: 137 },
-];
-
-const HISTORY_COURTS = ['Quadra 1', 'Quadra 2', 'Quadra 3'];
-const HISTORY_TIMES = ['18:00–19:00', '19:00–20:00', '20:00–21:00'];
-const HISTORY_ANCHOR = new Date(2026, 6, 9);
-
-function formatDaysBefore(daysBefore: number): string {
-  const d = new Date(HISTORY_ANCHOR);
-  d.setDate(d.getDate() - daysBefore);
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function buildGenericHistory(client: RankedClient): BookingHistoryItem[] {
-  const price = client.games > 0 ? Math.round(client.spend / client.games) : 0;
-  const count = Math.min(6, client.games);
-  return Array.from({ length: count }, (_, i) => ({
-    date: formatDaysBefore(i * 7),
-    court: HISTORY_COURTS[i % HISTORY_COURTS.length],
-    time: HISTORY_TIMES[i % HISTORY_TIMES.length],
-    status: 'concluida' as const,
-    price,
-  }));
-}
 
 function formatBRL(n: number): string {
   return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 0 });
 }
 
-/** Tela Ranking de clientes do painel (protótipo ArRankingScreen): pódio + tabela por pontuação, com painel de histórico do atleta. */
+/** Tela Ranking de clientes do painel: pódio + tabela real, derivados de `arenaBookings`
+ *  (`ranked-clients-repository.ts`). Sem "VIP" marcável nem "Mensagem" — nenhum dos dois tem
+ *  lastro no schema (ver comentário no repositório). */
 @Component({
   selector: 'ar-panel-ranking',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, IconComponent, DrawerComponent],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, PillComponent, DrawerComponent],
   template: `
     <ar-panel-shell>
-      <ar-page-header title="Ranking de clientes" [subtitle]="arenaName() + ' · frequência de jogos + gasto total'">
-      </ar-page-header>
+      <ar-page-header title="Ranking de clientes" [subtitle]="arenaName() + ' · frequência de jogos + gasto total'" />
 
       <div class="body">
-        <div class="kicker-line">{{ clients().length }} clientes rankeados</div>
+        @if (arenaNotFound()) {
+          <p class="state-text">Nenhuma arena vinculada à sua conta ainda.</p>
+        } @else if (arenaLoading() || loading()) {
+          <p class="state-text">Carregando ranking…</p>
+        } @else if (clients().length === 0) {
+          <p class="state-text">Nenhuma reserva registrada ainda pra montar um ranking.</p>
+        } @else {
+          <div class="kicker-line">{{ clients().length }} clientes rankeados</div>
 
-        <ar-panel-card class="podium-card">
-          <div class="podium-col">
-            <div class="podium-avatar">
-              {{ second().initials }}
-              @if (second().vip) {
-                <span class="podium-star"><ar-icon name="star" [size]="11" /></span>
-              }
-            </div>
-            <div class="podium-name">{{ second().name }}</div>
-            <div class="podium-meta">{{ second().games }} jogos · {{ formatBRL(second().spend) }}</div>
-            <div class="podium-block">#2</div>
-          </div>
-
-          <div class="podium-col first">
-            <div class="podium-avatar">
-              {{ first().initials }}
-              @if (first().vip) {
-                <span class="podium-star"><ar-icon name="star" [size]="11" /></span>
-              }
-              <span class="podium-rank-badge">1</span>
-            </div>
-            <div class="podium-name">{{ first().name }}</div>
-            <div class="podium-meta">{{ first().games }} jogos · {{ formatBRL(first().spend) }}</div>
-            <div class="podium-block">#1</div>
-          </div>
-        </ar-panel-card>
-
-        <ar-panel-card kicker="Ordenado por pontuação · mês" title="Todos os clientes" class="table-card">
-          <div class="table-head">
-            <span>#</span>
-            <span>Cliente</span>
-            <span class="right">Jogos</span>
-            <span class="right">Gasto total</span>
-            <span>Pontuação</span>
-          </div>
-          <div class="table-list">
-            @for (c of clients(); track c.id; let i = $index) {
-              <div class="table-row" (click)="select(c.id)">
-                <div class="rank-num">{{ i + 1 }}</div>
-                <div class="client-cell">
-                  <div class="avatar">{{ c.initials }}</div>
-                  <div class="client-name">{{ c.name }}</div>
-                  @if (c.vip) {
-                    <ar-pill tone="orange">VIP</ar-pill>
-                  }
-                </div>
-                <div class="right cell-games">{{ c.games }}</div>
-                <div class="right cell-spend">{{ formatBRL(c.spend) }}</div>
-                <div class="score-track">
-                  <div class="score-fill" [style.width.%]="scoreOf(c)"></div>
-                </div>
+          @if (second(); as s) {
+            <ar-panel-card class="podium-card">
+              <div class="podium-col">
+                <div class="podium-avatar">{{ s.initials }}</div>
+                <div class="podium-name">{{ s.name }}</div>
+                <div class="podium-meta">{{ s.games }} jogos · {{ formatBRL(s.spend) }}</div>
+                <div class="podium-block">#2</div>
               </div>
-            }
-          </div>
-        </ar-panel-card>
+
+              <div class="podium-col first">
+                <div class="podium-avatar">
+                  {{ first()!.initials }}
+                  <span class="podium-rank-badge">1</span>
+                </div>
+                <div class="podium-name">{{ first()!.name }}</div>
+                <div class="podium-meta">{{ first()!.games }} jogos · {{ formatBRL(first()!.spend) }}</div>
+                <div class="podium-block">#1</div>
+              </div>
+            </ar-panel-card>
+          }
+
+          <ar-panel-card kicker="Ordenado por jogos + gasto" title="Todos os clientes" class="table-card">
+            <div class="table-head">
+              <span>#</span>
+              <span>Cliente</span>
+              <span class="right">Jogos</span>
+              <span class="right">Gasto total</span>
+              <span>Pontuação</span>
+            </div>
+            <div class="table-list">
+              @for (c of clients(); track c.id; let i = $index) {
+                <div class="table-row" (click)="select(c.id)">
+                  <div class="rank-num">{{ i + 1 }}</div>
+                  <div class="client-cell">
+                    <div class="avatar">{{ c.initials }}</div>
+                    <div class="client-name">{{ c.name }}</div>
+                  </div>
+                  <div class="right cell-games">{{ c.games }}</div>
+                  <div class="right cell-spend">{{ formatBRL(c.spend) }}</div>
+                  <div class="score-track">
+                    <div class="score-fill" [style.width.%]="scoreOf(c)"></div>
+                  </div>
+                </div>
+              }
+            </div>
+          </ar-panel-card>
+        }
       </div>
 
       @if (selectedClient(); as c) {
@@ -166,25 +105,14 @@ function formatBRL(n: number): string {
             <div class="drawer-avatar">{{ c.initials }}</div>
             <div class="drawer-identity">
               <div class="drawer-name">{{ c.name }}</div>
-              <div class="drawer-meta">Cliente desde {{ c.memberSince }} · {{ arenaName() }}</div>
+              <div class="drawer-meta">Cliente desde {{ c.memberSinceLabel }} · {{ arenaName() }}</div>
             </div>
             <button type="button" class="drawer-close" (click)="select(null)" aria-label="Fechar">×</button>
           </div>
 
-          <div class="drawer-actions">
-            <button type="button" class="ar-mini-btn ar-mini-btn-primary">
-              <ar-icon name="mail" [size]="14" />
-              Mensagem
-            </button>
-            <button type="button" class="ar-mini-btn" (click)="toggleVip(c.id)">
-              <ar-icon name="star" [size]="14" />
-              {{ c.vip ? 'Remover VIP' : 'Marcar VIP' }}
-            </button>
-          </div>
-
           <div class="drawer-stats">
             <div class="stat">
-              <div class="stat-label">Jogos totais</div>
+              <div class="stat-label">Jogos concluídos</div>
               <div class="stat-value">{{ c.games }}</div>
             </div>
             <div class="stat">
@@ -193,15 +121,15 @@ function formatBRL(n: number): string {
             </div>
             <div class="stat">
               <div class="stat-label">Comparecimento</div>
-              <div class="stat-value">{{ c.attendance }}%</div>
+              <div class="stat-value">{{ c.attendance != null ? c.attendance + '%' : '—' }}</div>
             </div>
           </div>
 
           <div class="drawer-kicker">Histórico de agendamentos nesta arena</div>
           <div class="history-list">
-            @for (h of selectedHistory(); track h.date + h.court) {
+            @for (h of c.history; track h.dateLabel + h.court + h.time) {
               <div class="history-row">
-                <div class="history-date">{{ h.date }}</div>
+                <div class="history-date">{{ h.dateLabel }}</div>
                 <div class="history-body">
                   <div class="history-court">{{ h.court }}</div>
                   <div class="history-time">{{ h.time }}</div>
@@ -223,6 +151,11 @@ function formatBRL(n: number): string {
       flex-direction: column;
       gap: 16px;
       overflow: auto;
+    }
+
+    .state-text {
+      font-size: 13.5px;
+      color: var(--nx-text-mute);
     }
 
     .kicker-line {
@@ -269,20 +202,6 @@ function formatBRL(n: number): string {
       height: 88px;
       font-size: 23px;
       box-shadow: 0 0 0 4px rgba(244, 197, 67, 0.3), 0 0 28px rgba(244, 197, 67, 0.35);
-    }
-
-    .podium-star {
-      position: absolute;
-      top: -4px;
-      right: -4px;
-      width: 22px;
-      height: 22px;
-      border-radius: 50%;
-      background: var(--nx-orange-500);
-      color: var(--nx-text-on-orange);
-      display: grid;
-      place-items: center;
-      border: 2px solid var(--nx-bg);
     }
 
     .podium-rank-badge {
@@ -515,21 +434,9 @@ function formatBRL(n: number): string {
       color: var(--nx-text);
     }
 
-    .drawer-actions {
-      display: flex;
-      gap: 10px;
-      margin-top: 20px;
-    }
-
-    .drawer-actions .ar-mini-btn {
-      flex: 1;
-      justify-content: center;
-      height: 40px;
-    }
-
     .drawer-stats {
       display: flex;
-      margin-top: 24px;
+      margin-top: 20px;
       padding: 16px 0;
       border-top: 1px solid var(--nx-line);
       border-bottom: 1px solid var(--nx-line);
@@ -619,42 +526,53 @@ function formatBRL(n: number): string {
   `,
 })
 export class PanelRankingComponent {
-  private readonly auth = inject(AuthService);
+  private readonly arenaContext = inject(ArenaContextService);
+  private readonly destroyRef = inject(DestroyRef);
+  private unsubscribe: Unsubscribe | null = null;
 
   protected readonly formatBRL = formatBRL;
   protected readonly statusLabel = BOOKING_STATUS_LABEL;
   protected readonly statusTone = BOOKING_STATUS_TONE;
 
-  protected readonly clients = signal<RankedClient[]>(CLIENTS);
+  protected readonly arenaLoading = computed(() => this.arenaContext.loading());
+  protected readonly arenaNotFound = computed(() => this.arenaContext.notFound());
+  protected readonly arenaName = computed(() => this.arenaContext.arenaName() ?? 'Arena');
+
+  protected readonly clients = signal<RankedClient[]>([]);
+  protected readonly loading = signal(true);
   protected readonly selectedId = signal<string | null>(null);
 
-  private readonly maxGames = Math.max(...CLIENTS.map((c) => c.games));
-  private readonly maxSpend = Math.max(...CLIENTS.map((c) => c.spend));
+  private readonly maxGames = computed(() => Math.max(1, ...this.clients().map((c) => c.games)));
+  private readonly maxSpend = computed(() => Math.max(1, ...this.clients().map((c) => c.spend)));
 
-  protected readonly first = computed(() => this.clients()[0]);
-  protected readonly second = computed(() => this.clients()[1]);
+  protected readonly first = computed(() => this.clients()[0] ?? null);
+  protected readonly second = computed(() => this.clients()[1] ?? null);
 
   protected readonly selectedClient = computed(() => this.clients().find((c) => c.id === this.selectedId()) ?? null);
 
-  protected readonly selectedHistory = computed(() => {
-    const c = this.selectedClient();
-    if (!c) {
-      return [];
-    }
-    return c.id === 'c3' ? THIAGO_HISTORY : buildGenericHistory(c);
-  });
-
-  protected readonly arenaName = computed(() => this.auth.displayName() || 'Arena');
+  constructor() {
+    this.destroyRef.onDestroy(() => this.unsubscribe?.());
+    effect(() => {
+      const arenaId = this.arenaContext.arenaId();
+      this.unsubscribe?.();
+      this.unsubscribe = null;
+      if (!arenaId) return;
+      this.loading.set(true);
+      const db = arenaFirestore();
+      this.unsubscribe = watchBookingsForArena(db, arenaId, (bookings) => {
+        void fetchRankedClients(db, bookings).then((clients) => {
+          this.clients.set(clients);
+          this.loading.set(false);
+        });
+      });
+    });
+  }
 
   protected scoreOf(c: RankedClient): number {
-    return Math.round(((c.games / this.maxGames + c.spend / this.maxSpend) / 2) * 100);
+    return Math.round(((c.games / this.maxGames() + c.spend / this.maxSpend()) / 2) * 100);
   }
 
   protected select(id: string | null): void {
     this.selectedId.set(id);
-  }
-
-  protected toggleVip(id: string): void {
-    this.clients.update((current) => current.map((c) => (c.id === id ? { ...c, vip: !c.vip } : c)));
   }
 }

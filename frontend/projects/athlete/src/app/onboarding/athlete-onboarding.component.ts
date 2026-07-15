@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
-import { doc, getFirestore, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
+import { doc, getDoc, getFirestore, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AuthShellComponent } from '../auth/ui/auth-shell.component';
@@ -215,9 +215,22 @@ export class AthleteOnboardingComponent {
     this.submitError.set(null);
 
     try {
+      // As rules exigem `roles` no create (`roles.hasOnly(['athlete']) && size() > 0`) e
+      // imutável no update — união com o que já existir, preservando ordem (mesmo padrão do
+      // app mobile em athlete_profile_repository.dart:74-82), nunca só `['athlete']` fixo.
+      const userDocRef = doc(this.firestore, 'users', uid);
+      const userSnap = await getDoc(userDocRef);
+      const existingRoles = userSnap.exists() ? userSnap.data()?.['roles'] : null;
+      const roles = Array.from(
+        new Set([
+          ...(Array.isArray(existingRoles) ? existingRoles.filter((r): r is string => typeof r === 'string') : []),
+          'athlete',
+        ]),
+      );
+
       await Promise.all([
         setDoc(
-          doc(this.firestore, 'users', uid),
+          userDocRef,
           {
             fullName,
             nickname: this.nickname().trim() || null,
@@ -231,6 +244,8 @@ export class AthleteOnboardingComponent {
               levelsBySport: { [sportCode]: levelCode },
               completedAt: serverTimestamp(),
             },
+            roles,
+            hasAthleteRole: true,
             onboardingCompleted: true,
             updatedAt: serverTimestamp(),
           },

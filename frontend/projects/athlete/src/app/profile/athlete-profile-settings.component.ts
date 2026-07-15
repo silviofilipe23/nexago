@@ -124,6 +124,9 @@ export class AthleteProfileSettingsComponent {
   private readonly loadedUid = signal<string | null | undefined>(undefined);
   private readonly profileState = signal<AthleteProfileData>(EMPTY_PROFILE);
   private readonly rankingLabel = signal<string | null>(null);
+  // `roles` já existentes em users/{uid}, lido em loadRemoteProfile — reutilizado em save()
+  // pra satisfazer as rules (create exige roles=['athlete']; update exige roles imutável).
+  private readonly existingUserRoles = signal<string[]>([]);
 
   protected readonly form = this.fb.nonNullable.group({
     fullName: ['', [Validators.required, Validators.minLength(3)]],
@@ -199,6 +202,7 @@ export class AthleteProfileSettingsComponent {
 
       const devEmail = this.auth.devEmail();
       this.profileState.set({ ...EMPTY_PROFILE, fullName: devEmail ? nameFromEmail(devEmail) : '' });
+      this.existingUserRoles.set([]);
       this.loading.set(false);
     });
 
@@ -286,10 +290,15 @@ export class AthleteProfileSettingsComponent {
         await updateProfile(authInstance.currentUser, { displayName: raw.fullName });
       }
 
+      // As rules exigem `roles` no create (`roles.hasOnly(['athlete']) && size() > 0`) e
+      // imutável no update — união com o que já existir, preservando ordem (mesmo padrão do
+      // app mobile em athlete_profile_repository.dart:74-82), nunca só `['athlete']` fixo.
+      const roles = Array.from(new Set([...this.existingUserRoles(), 'athlete']));
+
       await Promise.all([
         setDoc(
           doc(this.firestore, 'users', uid),
-          { fullName: raw.fullName, city, state, updatedAt: serverTimestamp() },
+          { fullName: raw.fullName, city, state, roles, hasAthleteRole: true, updatedAt: serverTimestamp() },
           { merge: true },
         ),
         setDoc(
@@ -398,6 +407,11 @@ export class AthleteProfileSettingsComponent {
       ]);
       const userData = userSnap.exists() ? userSnap.data() : null;
       const profileData = profileSnap.exists() ? profileSnap.data() : null;
+
+      const rawRoles = userData?.['roles'];
+      this.existingUserRoles.set(
+        Array.isArray(rawRoles) ? rawRoles.filter((r): r is string => typeof r === 'string') : [],
+      );
 
       const fullName =
         readString(profileData, ['fullName', 'displayName']) ??

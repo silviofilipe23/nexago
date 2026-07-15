@@ -1,5 +1,6 @@
 import { amenitiesFromFirestore, ARENA_AMENITIES_EMPTY } from '@nexago/arena-discovery';
 import { deleteField, doc, getDoc, setDoc, type Firestore } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes, type FirebaseStorage } from 'firebase/storage';
 import { validateArenaBasicInfo, validateArenaContacts, type ArenaProfile } from '../data/arena-profile.model';
 
 /** Espelha `ArenaProfileEditService` (Flutter) — mesmo doc `arenas/{arenaId}`, mesmos campos.
@@ -74,6 +75,36 @@ export async function saveArenaBasicInfo(db: Firestore, arenaId: string, input: 
     },
     { merge: true },
   );
+}
+
+export type ArenaImageKind = 'cover' | 'logo';
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/** Valida a imagem antes do upload: precisa ser um arquivo de imagem e caber em 5MB. */
+export function validateArenaImageFile(file: File): string | null {
+  if (!file.type.startsWith('image/')) {
+    return 'Selecione um arquivo de imagem (JPG, PNG ou WebP).';
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return 'Imagem muito grande — o limite é 5MB.';
+  }
+  return null;
+}
+
+/** Sobe a capa/logo para `arenas/{arenaId}/{cover|logo}` (storage.rules libera escrita para o
+ *  managerUserId da arena) e retorna a download URL. Nome fixo por tipo: cada novo upload
+ *  sobrescreve o anterior, sem acumular arquivos órfãos. A URL retornada ainda precisa ser
+ *  salva no Firestore via `saveArenaBasicInfo` para valer no perfil. */
+export async function uploadArenaImage(storage: FirebaseStorage, arenaId: string, kind: ArenaImageKind, file: File): Promise<string> {
+  const error = validateArenaImageFile(file);
+  if (error) {
+    throw new Error(error);
+  }
+
+  const fileRef = ref(storage, `arenas/${arenaId}/${kind}`);
+  await uploadBytes(fileRef, file, { contentType: file.type });
+  return getDownloadURL(fileRef);
 }
 
 export type ArenaContactsInput = Pick<ArenaProfile, 'phone' | 'whatsapp' | 'address' | 'city' | 'state'>;

@@ -3,7 +3,6 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NonNullableFormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { AuthService } from '../../auth/auth.service';
 import type { PillTone } from '../data/mock-data';
-import { OG_EVENTOS } from '../data/mock-data';
 import {
   OrganizerWalletError,
   requestWithdrawal,
@@ -16,11 +15,9 @@ import {
   type OrganizerWithdrawal,
   type WithdrawalRequestResult,
 } from '../data/wallet-repository';
-import { OgBarRowComponent } from '../ui/bar-row.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgFormFieldComponent } from '../ui/form-field.component';
 import { OgIconComponent } from '../ui/icon.component';
-import { OgLineChartComponent } from '../ui/line-chart.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 
@@ -185,8 +182,6 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
     OgPageHeaderComponent,
     OgCardComponent,
     OgIconComponent,
-    OgLineChartComponent,
-    OgBarRowComponent,
     OgPillComponent,
     OgFormFieldComponent,
   ],
@@ -245,13 +240,11 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
           <div class="og-financeiro-side">
             <og-card kicker="Evolução" title="Receita por mês">
               <!-- mock (fase 2): sem série histórica de receita mensal disponível ainda -->
-              <og-line-chart [data]="receitaMock" [labels]="receitaLabelsMock" />
+              <p class="og-empty">— em breve</p>
             </og-card>
             <og-card kicker="Por evento" title="Arrecadação" flex="1">
               <!-- mock (fase 2): ledger não vincula entradas a um evento/torneio específico -->
-              @for (e of eventos; track e.id; let last = $last) {
-                <og-bar-row [label]="e.name" [sub]="e.sport" [pct]="pct(e.receita)" [last]="last" />
-              }
+              <p class="og-empty">— em breve</p>
             </og-card>
           </div>
         </div>
@@ -463,11 +456,6 @@ export class FinanceiroComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly fb = inject(NonNullableFormBuilder);
 
-  protected readonly eventos = OG_EVENTOS;
-  /** mock (fase 2): sem série histórica de receita mensal disponível ainda. */
-  protected readonly receitaMock = [420, 680, 540, 900, 1180, 1400, 1620];
-  protected readonly receitaLabelsMock = ['Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago'];
-
   protected readonly pixKeyTypes = PIX_KEY_TYPES;
   protected readonly pixKeyTypeLabel = PIX_KEY_TYPE_LABEL;
 
@@ -578,10 +566,6 @@ export class FinanceiroComponent {
 
   protected brl(n: number): string {
     return BRL.format(n);
-  }
-
-  protected pct(receita: number): number {
-    return Math.round((receita / 9600) * 100);
   }
 
   protected pixKeyTypeValue(): PixKeyType {

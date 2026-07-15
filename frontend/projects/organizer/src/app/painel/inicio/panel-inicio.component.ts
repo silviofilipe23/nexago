@@ -9,7 +9,6 @@ import { listMyTournaments } from '../data/tournaments-repository';
 import { watchWallet } from '../data/wallet-repository';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
-import { OgLineChartComponent } from '../ui/line-chart.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 
@@ -48,7 +47,7 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
 @Component({
   selector: 'og-panel-inicio',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgPillComponent, OgLineChartComponent],
+  imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgPillComponent],
   template: `
     <og-page-header title="Início" subtitle="Visão geral dos seus torneios e ligas">
       <div class="og-search-box"><og-icon name="search" [size]="15" /><span>Buscar…</span></div>
@@ -67,7 +66,7 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
           }
         </div>
         <div class="og-inicio-grid">
-          <og-card kicker="Seus eventos" title="Torneios">
+          <og-card kicker="Arrecadação" title="Receita mensal">
             <div class="og-skeleton-line" style="width:90%"></div>
             <div class="og-skeleton-line" style="width:75%"></div>
             <div class="og-skeleton-line" style="width:82%"></div>
@@ -85,7 +84,7 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
             <div class="og-kpi-sub">{{ leagues().length }} liga(s) · {{ inscricoesAbertasCount() }} em inscrições</div>
           </og-card>
           <og-card pad="sm" flex="1">
-            <div class="og-kpi-label">Inscritos no total</div>
+            <div class="og-kpi-label">Inscritos (eventos ativos)</div>
             <div class="og-kpi-value">{{ totalInscritos() }}</div>
             <!-- mock (fase 2): sem histórico semanal de inscrições disponível ainda -->
             <div class="og-kpi-sub green">{{ inscritosDeltaMock }}</div>
@@ -106,7 +105,7 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
         <div class="og-inicio-grid">
           <og-card kicker="Arrecadação" title="Receita mensal">
             <!-- mock (fase 2): sem série histórica de receita ainda; carteira real fica na Task O7 -->
-            <og-line-chart [data]="receitaMock" [labels]="receitaLabelsMock" />
+            <p class="og-empty">— em breve</p>
             <div class="og-inicio-eventos-label">Meus eventos</div>
             @for (t of recentTournaments(); track t.id) {
               <a class="og-inicio-evento-row" [routerLink]="['/painel/eventos', t.id]">
@@ -363,9 +362,6 @@ export class PanelInicioComponent {
   /** mock (fase 2): jogos do dia dependem de `listMatches`, fora do escopo desta tela (ver Task O6). */
   protected readonly jogosHojeMock = 3;
   protected readonly jogosHojeSubMock = 'Próximo às 09:00';
-  /** mock (fase 2): sem série histórica de receita ainda; carteira real (extrato) fica na Task O7. */
-  protected readonly receitaMock = [420, 680, 540, 900, 1180, 1400, 1620];
-  protected readonly receitaLabelsMock = ['Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago'];
 
   protected readonly eventosAtivos = computed(() =>
     this.tournaments().filter((t) => ACTIVE_STATUSES.includes(t.status)),

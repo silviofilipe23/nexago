@@ -45,7 +45,7 @@ const OG_NAV: OgNavEntry[] = [
         <span class="og-event-switcher-body">
           <!-- mock (fase 2): switcher de evento ainda não funcional -->
           <span class="og-event-switcher-name">Meus eventos</span>
-          <span class="og-event-switcher-sub">4 eventos ativos</span>
+          <span class="og-event-switcher-sub">alternar em breve</span>
         </span>
         <og-icon name="chevron" [size]="13" style="color:var(--nx-text-dim);transform:rotate(90deg)" />
       </button>

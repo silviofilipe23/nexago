@@ -21,15 +21,21 @@ interface AgendaBloco {
 }
 
 interface AgendaFilaItem {
+  matchId: string;
   partida: string;
   evento: string;
   categoria: string;
+  /** Horário do jogo quando já definido (jogo tem `scheduledAt` mas não entrou na grade —
+   *  sem quadra atribuída ou fora da janela 08:00–20:00); `null` quando ainda não tem horário. */
+  horario: string | null;
 }
 
 /** Grade quadras × horários — dados reais de `listMatches` (Task O6): colunas de quadra
  *  derivadas das quadras distintas usadas pelos jogos do torneio/categoria selecionados;
- *  blocos posicionados pelo horário real (`scheduledAt`); fila = jogos sem horário definido.
- *  Arrastar um card pra reagendar continua mock/fase 2 (operação real fica no app). */
+ *  blocos posicionados pelo horário real (`scheduledAt`). Fila = todo jogo que não entrou na
+ *  grade: sem horário, sem quadra atribuída, ou horário fora da janela 08:00–20:00 (nenhum
+ *  jogo some — ver Task de review "agendamento: jogos que somem"); mostra o horário quando
+ *  já existir. Arrastar um card pra reagendar continua mock/fase 2 (operação real fica no app). */
 @Component({
   selector: 'og-agendamento',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -93,10 +99,15 @@ interface AgendaFilaItem {
 
         <og-card kicker="Aguardando horário" title="Fila de partidas" style="min-height:0;overflow:hidden">
           <div class="og-agenda-fila">
-            @for (f of fila(); track f.partida) {
+            @for (f of fila(); track f.matchId) {
               <div class="og-agenda-fila-item" draggable="true">
                 <div class="partida">{{ f.partida }}</div>
-                <div class="meta">{{ f.evento }} · {{ f.categoria }}</div>
+                <div class="meta">
+                  {{ f.evento }} · {{ f.categoria }}
+                  @if (f.horario) {
+                    · {{ f.horario }}
+                  }
+                </div>
               </div>
             } @empty {
               <p class="og-empty">Nenhuma partida aguardando horário</p>
@@ -285,6 +296,9 @@ export class AgendamentoComponent {
       .filter((x) => x.minutes >= OGA_START && x.minutes < OGA_END),
   );
 
+  /** ids dos jogos que já entraram na grade — usado pra fila não repetir nem esconder jogos. */
+  private readonly scheduledInGridIds = computed(() => new Set(this.scheduledInGrid().map((x) => x.match.id)));
+
   protected readonly courts = computed(() => {
     const set = new Set(this.scheduledInGrid().map((x) => x.match.court!));
     return [...set].sort((a, b) => a.localeCompare(b));
@@ -306,16 +320,21 @@ export class AgendamentoComponent {
     return byCourt;
   });
 
+  /** Todo jogo que não entrou na grade: sem horário ainda, com horário mas sem quadra, ou
+   *  horário fora da janela 08:00–20:00 — nenhum desses fica sem aparecer em lugar nenhum. */
   protected readonly fila = computed<AgendaFilaItem[]>(() => {
     const t = this.ctx.tournament();
     const categoryNameOf = new Map((t?.categories ?? []).map((c) => [c.id, c.name]));
+    const inGrid = this.scheduledInGridIds();
     return this.ctx
       .matchesFiltered()
-      .filter((m) => !m.scheduledAt)
+      .filter((m) => !inGrid.has(m.id))
       .map((m) => ({
+        matchId: m.id,
         partida: `${m.team1Label} vs ${m.team2Label}`,
         evento: t?.name ?? '',
         categoria: (m.categoryId && categoryNameOf.get(m.categoryId)) || 'Sem categoria',
+        horario: m.scheduledAt ? this.fmt(m.scheduledAt.getHours() * 60 + m.scheduledAt.getMinutes()) : null,
       }));
   });
 

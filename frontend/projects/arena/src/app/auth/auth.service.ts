@@ -19,18 +19,15 @@ import {
 import { getFunctions, httpsCallable, type Functions } from 'firebase/functions';
 import { environment } from '../../environments/environment';
 
-/** Papéis (roles[]/role legado) que autorizam login no portal arena. */
+/** Papéis (roles[]) que autorizam login no portal arena. */
 const ARENA_ROLE = 'arena';
 
-/** Só autoriza quando o doc TEM, de forma explícita, a role `arena` — allowlist,
- *  diferente do blocklist do portal atleta: aqui doc ausente ou sem a role não conta. */
+/** Só autoriza quando o doc TEM, de forma explícita, a role `arena` em
+ *  `roles[]` — allowlist, diferente do blocklist do portal atleta. */
 function docHasArenaRole(data: Record<string, unknown> | undefined): boolean {
   if (!data) return false;
   const roles = data['roles'];
-  if (Array.isArray(roles) && roles.some((r) => String(r) === ARENA_ROLE)) {
-    return true;
-  }
-  return data['role'] === ARENA_ROLE;
+  return Array.isArray(roles) && roles.some((r) => String(r) === ARENA_ROLE);
 }
 
 @Injectable({ providedIn: 'root' })

@@ -22,21 +22,12 @@ const DEV_KEY = 'nexago-athlete-dev-auth';
 /** Roles que nunca devem acessar o portal do atleta (papéis de outros portais). */
 const NON_ATHLETE_ROLES = ['admin', 'arena', 'organizer'];
 
-/** Ausência de `role`/`roles` em `users/{uid}` conta como atleta — mesma regra
- *  usada pelo `firestore.rules` na criação do doc (role é opcional e o padrão
- *  é atleta). Só bloqueia quando o doc tem, de forma explícita, um papel de
- *  outro portal. */
+/** Doc ausente ou sem `roles` conta como atleta (default do cadastro). Só
+ *  bloqueia quando `roles[]` traz, de forma explícita, papel de outro portal. */
 function docHasNonAthleteRole(data: Record<string, unknown> | undefined): boolean {
   if (!data) return false;
   const roles = data['roles'];
-  if (Array.isArray(roles) && roles.some((r) => NON_ATHLETE_ROLES.includes(String(r)))) {
-    return true;
-  }
-  const legacyRole = data['role'];
-  if (typeof legacyRole === 'string' && NON_ATHLETE_ROLES.includes(legacyRole)) {
-    return true;
-  }
-  return false;
+  return Array.isArray(roles) && roles.some((r) => NON_ATHLETE_ROLES.includes(String(r)));
 }
 
 @Injectable({ providedIn: 'root' })
@@ -137,8 +128,8 @@ export class AuthService {
   }
 
   /** Bloqueia e desloga quem tem papel de outro portal (arena/organizador/admin).
-   *  Doc ausente ou sem `role`/`roles` é tratado como atleta (mesma regra do
-   *  firestore.rules na criação do doc — role é opcional, padrão é atleta). */
+   *  Doc ausente ou sem `roles[]` é tratado como atleta (mesma regra do
+   *  firestore.rules na criação do doc — roles[] é opcional, padrão é atleta). */
   private async assertAthleteRole(uid: string): Promise<void> {
     const cfg = environment.firebase;
     if (cfg == null || (cfg.apiKey ?? '').length === 0) return;

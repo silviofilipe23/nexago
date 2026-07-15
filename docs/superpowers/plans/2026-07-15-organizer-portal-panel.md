@@ -196,3 +196,39 @@ export async function requestWithdrawal(amountReais: number, pixKey: string, pix
 - [ ] **Step 1:** `cd frontend && npx ng build organizer --configuration production` verde (budgets 8kB/12kB por componente — se algum SCSS estourar, enxugar estilos, não subir o budget).
 - [ ] **Step 2:** Varredura de consistência: nenhum `any` novo, nenhum stub restante das rotas, todos os estados vazio/loading presentes, textos pt-BR.
 - [ ] **Step 3:** Registrar no ledger SDD e atualizar memória do projeto. QA manual (dono, contra dev): login organizador real → Início com números; torneio com inscritos/jogos reais; liga com etapas; financeiro com saldo/extrato; solicitar saque com saldo real cria doc em `organizerWithdrawals`.
+
+---
+
+## ADENDO (15/07, pós-Task 2) — pivot para a IA do protótipo mergeado
+
+Descoberta: os merges f89a005/8cd6c4a/412fbc1/bd669e9 trouxeram um protótipo
+mockado completo do painel (shell próprio em `painel/shell/`, Início, eventos
+com detalhe/categoria/seeds, inscrições, chaveamento com grupos/chave/jogos/
+agendamento/placar, financeiro, comunicação, config, wizards e UI kit `og-*`).
+A Task 2 deste plano, sem saber, sobrescreveu o Início do protótipo e as rotas.
+
+Decisão (autonomia concedida pelo dono): **a IA do protótipo vence**. As
+Tasks 3-5 originais são substituídas por:
+
+- **Task O3 — Restauração + Início real na IA do protótipo**: restaurar rotas
+  e shell do protótipo (`painel/shell/panel-shell.component.ts`); recuperar o
+  Início do protótipo (versão de 412fbc1) e trocar os dados mock pelos reais
+  (repos da Task O1), preservando o design; remover shell/stubs duplicados
+  criados pela Task 2 (`painel/panel-shell.component.ts`, `painel/torneios/*`,
+  `painel/ligas/*`, `painel/financeiro/panel-financeiro.component.ts`).
+- **Task O4 — Eventos reais**: `eventos-list` (listMyTournaments +
+  listMyLeagues na IA da tela), `torneio-detalhe` e `categoria-detalhe`
+  (getTournament/listInscriptions/listMatches). Wizards e seeds ficam mock.
+- **Task O5 — Inscrições reais**: tela `inscricoes` agregando inscrições dos
+  torneios do organizador (listMyTournaments → listInscriptions), com filtro
+  por torneio/categoria/status de pagamento conforme o design da tela.
+- **Task O6 — Chaveamento real (read-only)**: `grupos`/`jogos`/`placar`/
+  `agendamento` exibindo dados reais de listMatches (agrupamento por
+  categoria/fase, placares, quadra/horário); geração/edição de chave e
+  lançamento de placar ficam mock/fase 2 (operação continua no app).
+- **Task O7 — Financeiro real**: dados reais da carteira na tela
+  `financeiro/financeiro.component.ts` do protótipo (watchWallet/watchLedger/
+  watchWithdrawals/setPayoutPixKey/requestWithdrawal), preservando o design.
+- **Task O8 — Passe final** (igual à Task 6 original; inclui remover qualquer
+  stub/duplicado remanescente; comunicacao/config/wizards permanecem mock,
+  documentados como fase 2).

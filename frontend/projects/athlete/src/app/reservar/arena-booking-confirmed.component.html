@@ -8,16 +8,8 @@
       <p class="bc-empty-title">{{ err }}</p>
       <a [routerLink]="['/reservar']" class="bc-btn-ghost">Voltar à listagem</a>
     </div>
-  } @else if (arena(); as a) {
+  } @else if (booking(); as b) {
     <div class="bc-body">
-      <div class="bc-preview-banner">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16h.01" /></svg>
-        <span>
-          Esta tela é uma prévia do fluxo de reserva — pagamentos e confirmações reais ainda não são processados
-          por aqui. Combine o horário diretamente com a arena antes de contar com esta quadra.
-        </span>
-      </div>
-
       <a [routerLink]="['/reservar']" class="bc-back-link">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
         <span>Voltar a Reservar</span>
@@ -28,18 +20,47 @@
       }
 
       <div class="bc-hero">
-        <div class="bc-check-circle">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
+        <div class="bc-check-circle" [class.bc-check-circle--pending]="statusKind() === 'pending' || statusKind() === 'canceled'">
+          @if (statusKind() === 'pending') {
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+          } @else {
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
+          }
         </div>
-        <h1 class="bc-title">Reserva confirmada!</h1>
-        <p class="bc-subtitle">Confira os detalhes da sua reserva na <strong>{{ a.name }}</strong> abaixo.</p>
+        <h1 class="bc-title">
+          {{ statusKind() === 'pending' ? 'Quase lá — falta o pagamento' : statusKind() === 'canceled' ? 'Reserva cancelada' : 'Reserva confirmada!' }}
+        </h1>
+        @if (statusKind() === 'onsite') {
+          <p class="bc-subtitle">
+            Sua quadra na <strong>{{ b.arenaName }}</strong> está garantida — o pagamento de
+            <strong>{{ formatBRL(b.amountDueOnsiteReais || b.amountReais) }}</strong> é feito lá, no dia do jogo.
+          </p>
+        } @else if (statusKind() === 'pending') {
+          <p class="bc-subtitle">
+            O Pix desta reserva ainda não foi pago. Volte à tela de pagamento para gerar um novo código.
+          </p>
+        } @else if (statusKind() === 'canceled') {
+          <p class="bc-subtitle">Esta reserva foi cancelada. Escolha outro horário para jogar.</p>
+        } @else {
+          <p class="bc-subtitle">
+            Sua quadra na <strong>{{ b.arenaName }}</strong> está garantida. Chegue com 10 minutos de antecedência.
+          </p>
+        }
       </div>
 
       <div class="bc-card bc-summary-card">
-        <h2 class="bc-card-title">{{ a.name }}</h2>
+        <div class="bc-card-head">
+          <h2 class="bc-card-title">{{ b.arenaName }}</h2>
+          <span
+            class="bc-pill"
+            [class.bc-pill--green]="statusKind() === 'paid' || statusKind() === 'onsite'"
+            [class.bc-pill--yellow]="statusKind() === 'partial' || statusKind() === 'pending'"
+            [class.bc-pill--red]="statusKind() === 'canceled'"
+          >{{ statusLabel() }}</span>
+        </div>
         <div class="bc-row">
           <span class="bc-row-label">Quadra</span>
-          <span class="bc-row-value">{{ court()?.name }} · {{ courtSportLabel() }}</span>
+          <span class="bc-row-value">{{ b.courtName }}</span>
         </div>
         <div class="bc-row">
           <span class="bc-row-label">Data</span>
@@ -49,51 +70,86 @@
           <span class="bc-row-label">Horário</span>
           <span class="bc-row-value">{{ timeRangeLabel() }} · {{ durationLabel() }}</span>
         </div>
-        <div class="bc-row">
-          <span class="bc-row-label">Endereço</span>
-          <span class="bc-row-value">{{ a.locationLabel }}</span>
-        </div>
+        @if (arena(); as a) {
+          <div class="bc-row">
+            <span class="bc-row-label">Endereço</span>
+            <span class="bc-row-value">{{ a.locationLabel }}</span>
+          </div>
+        }
         <div class="bc-row bc-row--total">
           <span class="bc-row-label">Valor da reserva</span>
-          <span class="bc-row-value">R$ {{ totalPrice() }}</span>
+          <span class="bc-row-value">{{ formatBRL(b.amountReais) }}</span>
         </div>
+        @if (statusKind() === 'paid') {
+          <div class="bc-row">
+            <span class="bc-row-label">Pago via Pix</span>
+            <span class="bc-row-value">{{ formatBRL(b.amountReais) }}</span>
+          </div>
+        } @else if (statusKind() === 'partial') {
+          <div class="bc-row">
+            <span class="bc-row-label">Pago via Pix</span>
+            <span class="bc-row-value">{{ formatBRL(b.amountToPayNowReais) }}</span>
+          </div>
+          <div class="bc-row">
+            <span class="bc-row-label">Restante na arena</span>
+            <span class="bc-row-value">{{ formatBRL(b.amountDueOnsiteReais) }}</span>
+          </div>
+        } @else if (statusKind() === 'onsite') {
+          <div class="bc-row">
+            <span class="bc-row-label">Você paga na arena</span>
+            <span class="bc-row-value">{{ formatBRL(b.amountDueOnsiteReais || b.amountReais) }}</span>
+          </div>
+        }
       </div>
 
-      <div class="bc-card">
-        <h2 class="bc-card-title">Próximos passos</h2>
-        <div class="bc-step-row">
-          <div class="bc-step-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M3 9h18M8 3v3M16 3v3" /></svg>
+      @if (statusKind() !== 'pending' && statusKind() !== 'canceled') {
+        <div class="bc-card">
+          <h2 class="bc-card-title">Próximos passos</h2>
+          <div class="bc-step-row">
+            <div class="bc-step-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M3 9h18M8 3v3M16 3v3" /></svg>
+            </div>
+            <div class="bc-step-copy">
+              <p class="bc-step-title">Ver na agenda</p>
+              <p class="bc-step-desc">A reserva já aparece na sua semana</p>
+            </div>
+            <a [routerLink]="['/agenda']" class="bc-btn-ghost">Abrir</a>
           </div>
-          <div class="bc-step-copy">
-            <p class="bc-step-title">Adicionar à agenda</p>
-            <p class="bc-step-desc">Receba um lembrete 1h antes</p>
+          <div class="bc-step-row">
+            <div class="bc-step-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.4" /><circle cx="18" cy="6" r="2.4" /><circle cx="18" cy="18" r="2.4" /><path d="m8.1 10.9 7.8-4.6M8.1 13.1l7.8 4.6" /></svg>
+            </div>
+            <div class="bc-step-copy">
+              <p class="bc-step-title">Convidar pra jogar</p>
+              <p class="bc-step-desc">Chame parceiros para essa reserva</p>
+            </div>
+            <button type="button" class="bc-btn-ghost" (click)="inviteToPlay()">Convidar</button>
           </div>
-          <button type="button" class="bc-btn-ghost" (click)="addToAgenda()">Adicionar</button>
+          <div class="bc-step-row">
+            <div class="bc-step-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.4-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.6 12 21 12 21z" /><circle cx="12" cy="10.5" r="2.3" /></svg>
+            </div>
+            <div class="bc-step-copy">
+              <p class="bc-step-title">Ver rotas até a arena</p>
+              <p class="bc-step-desc">{{ arena()?.locationLabel ?? b.arenaName }}</p>
+            </div>
+            <a [href]="mapsUrl()" target="_blank" rel="noreferrer" class="bc-btn-ghost">Abrir</a>
+          </div>
         </div>
-        <div class="bc-step-row">
-          <div class="bc-step-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.4" /><circle cx="18" cy="6" r="2.4" /><circle cx="18" cy="18" r="2.4" /><path d="m8.1 10.9 7.8-4.6M8.1 13.1l7.8 4.6" /></svg>
-          </div>
-          <div class="bc-step-copy">
-            <p class="bc-step-title">Convidar pra jogar</p>
-            <p class="bc-step-desc">Chame parceiros para essa reserva</p>
-          </div>
-          <button type="button" class="bc-btn-ghost" (click)="inviteToPlay()">Convidar</button>
-        </div>
-        <div class="bc-step-row">
-          <div class="bc-step-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.4-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.6 12 21 12 21z" /><circle cx="12" cy="10.5" r="2.3" /></svg>
-          </div>
-          <div class="bc-step-copy">
-            <p class="bc-step-title">Ver rotas até a arena</p>
-            <p class="bc-step-desc">{{ a.locationLabel }}</p>
-          </div>
-          <a [href]="mapsUrl()" target="_blank" rel="noreferrer" class="bc-btn-ghost">Abrir</a>
-        </div>
-      </div>
+      } @else if (statusKind() === 'pending') {
+        <a
+          [routerLink]="['/reservar', b.arenaId, 'agendar', 'pagamento']"
+          [queryParams]="{ courtId: b.courtId, date: b.dateKey, time: b.startTime, duration: b.slotCount }"
+          class="bc-btn-primary bc-btn-full"
+        >Concluir pagamento</a>
+      }
 
-      <a [routerLink]="['/reservar']" class="bc-btn-primary bc-btn-full">Voltar a Reservar</a>
+      <a
+        [routerLink]="['/reservar']"
+        class="bc-btn-full"
+        [class.bc-btn-primary]="statusKind() !== 'pending'"
+        [class.bc-btn-ghost]="statusKind() === 'pending'"
+      >Voltar a Reservar</a>
     </div>
   }
 </app-at-panel-shell>

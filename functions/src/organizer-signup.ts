@@ -33,6 +33,7 @@ export const completeOrganizerSignup = onCall(async (request) => {
   }
 
   const displayName = (request.data?.displayName as string | undefined)?.trim() ?? "";
+  const phone = (request.data?.phone as string | undefined)?.trim() ?? "";
   if (!displayName) {
     throw new HttpsError("invalid-argument", "Nome é obrigatório.");
   }
@@ -55,6 +56,7 @@ export const completeOrganizerSignup = onCall(async (request) => {
       email: user.email ?? "",
       displayName,
       ...firestoreRolesPayload(nextRoles),
+      ...(phone ? {phone} : {}),
     },
     {merge: true},
   );

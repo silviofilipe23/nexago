@@ -29,7 +29,8 @@ export type PanelIconName =
   | 'card'
   | 'repeat'
   | 'users'
-  | 'log-out';
+  | 'log-out'
+  | 'camera';
 
 /** Ícones stroke-24 do painel da arena (protótipo Ar\*\/Bo\*\/At\* Ic\*), um componente para evitar repetir SVG. */
 @Component({
@@ -141,6 +142,10 @@ export type PanelIconName =
         }
         @case ('log-out') {
           <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><path d="M10 17l5-5-5-5" /><path d="M15 12H3" />
+        }
+        @case ('camera') {
+          <path d="M4 8h3l1.6-2.4A1.5 1.5 0 0 1 9.85 5h4.3a1.5 1.5 0 0 1 1.25.6L17 8h3a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 20 20H4a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 4 8z" />
+          <circle cx="12" cy="13.2" r="3.6" />
         }
       }
     </svg>

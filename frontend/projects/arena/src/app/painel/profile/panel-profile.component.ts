@@ -9,12 +9,13 @@ import {
   type ArenaProfile,
 } from '../data/arena-profile.model';
 import { arenaFirestore } from '../data/firestore';
+import { arenaStorage } from '../data/storage';
 import { IconComponent } from '../ui/icon.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
 import { ToggleComponent } from '../ui/toggle.component';
-import { fetchArenaProfile, saveArenaBasicInfo } from './arena-profile-repository';
+import { fetchArenaProfile, saveArenaBasicInfo, uploadArenaImage, validateArenaImageFile, type ArenaImageKind } from './arena-profile-repository';
 
 function initialsOfName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -27,8 +28,10 @@ function initialsOfName(name: string): string {
 /** Tela Perfil do painel: dados reais de `arenas/{arenaId}` (nome, descrição, modalidades,
  *  superfícies, comodidades, pagamento, capa/logo), editáveis inline. Avaliação/avaliações são
  *  agregadas por Cloud Function (só leitura). Sem "seguidores"/"visitas da semana"/"completude
- *  do perfil" — não existe nenhum desses campos no backend, eram só protótipo. Sem upload de
- *  foto (Storage não integrado) — capa/logo aceitam colar uma URL, mesma solução crua do Flutter. */
+ *  do perfil" — não existe nenhum desses campos no backend, eram só protótipo. Capa/logo sobem
+ *  direto para o Storage (`arenas/{arenaId}/cover|logo`, ver storage.rules) assim que o arquivo é
+ *  escolhido; a URL retornada só é persistida no Firestore quando o gestor clica em
+ *  "Salvar alterações", igual aos demais campos desta tela. */
 @Component({
   selector: 'ar-panel-profile',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -55,6 +58,9 @@ function initialsOfName(name: string): string {
               @if (saveError(); as serr) {
                 <div class="error-banner">{{ serr }}</div>
               }
+              @if (uploadError(); as uerr) {
+                <div class="error-banner">{{ uerr }}</div>
+              }
 
               <div class="cover">
                 @if (coverUrl().trim()) {
@@ -76,10 +82,57 @@ function initialsOfName(name: string): string {
                     <rect width="1000" height="150" fill="url(#arProfileG2)" />
                   </svg>
                 }
+                <button
+                  type="button"
+                  class="image-edit-btn cover-edit-btn"
+                  [disabled]="coverUploading()"
+                  (click)="coverFileInput.click()"
+                >
+                  @if (coverUploading()) {
+                    <span class="spinner-light" aria-hidden="true"></span>
+                    Enviando…
+                  } @else {
+                    <ar-icon name="camera" [size]="14" />
+                    {{ coverUrl().trim() ? 'Alterar capa' : 'Adicionar capa' }}
+                  }
+                </button>
+                <input
+                  #coverFileInput
+                  type="file"
+                  accept="image/*"
+                  class="visually-hidden-input"
+                  aria-label="Selecionar imagem de capa"
+                  (change)="onCoverFileSelected($event)"
+                />
               </div>
 
               <div class="identity">
-                <div class="identity-avatar">{{ initials() }}</div>
+                <div class="identity-avatar" [style.background-image]="logoUrl().trim() ? 'url(' + logoUrl() + ')' : null">
+                  @if (!logoUrl().trim()) {
+                    <span>{{ initials() }}</span>
+                  }
+                  <button
+                    type="button"
+                    class="image-edit-btn avatar-edit-btn"
+                    [disabled]="logoUploading()"
+                    aria-label="Alterar logo da arena"
+                    (click)="logoFileInput.click()"
+                  >
+                    @if (logoUploading()) {
+                      <span class="spinner-light spinner-sm" aria-hidden="true"></span>
+                    } @else {
+                      <ar-icon name="camera" [size]="12" />
+                    }
+                  </button>
+                  <input
+                    #logoFileInput
+                    type="file"
+                    accept="image/*"
+                    class="visually-hidden-input"
+                    aria-label="Selecionar logo da arena"
+                    (change)="onLogoFileSelected($event)"
+                  />
+                </div>
                 <div class="identity-body">
                   <div class="identity-name-row">
                     <h1>{{ name() || 'Nome da arena' }}</h1>
@@ -105,17 +158,6 @@ function initialsOfName(name: string): string {
 
                 <div class="field-label row-gap">Descrição</div>
                 <textarea class="input-box textarea" rows="3" [value]="description()" (input)="description.set($any($event.target).value)"></textarea>
-
-                <div class="row-2 row-gap">
-                  <div>
-                    <div class="field-label">URL da capa</div>
-                    <input type="text" class="input-box" placeholder="https://…" [value]="coverUrl()" (input)="coverUrl.set($any($event.target).value)" />
-                  </div>
-                  <div>
-                    <div class="field-label">URL do logo</div>
-                    <input type="text" class="input-box" placeholder="https://…" [value]="logoUrl()" (input)="logoUrl.set($any($event.target).value)" />
-                  </div>
-                </div>
               </ar-panel-card>
 
               <ar-panel-card title="Modalidades">
@@ -256,6 +298,85 @@ function initialsOfName(name: string): string {
       display: block;
     }
 
+    .visually-hidden-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    .image-edit-btn {
+      position: absolute;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: none;
+      cursor: pointer;
+      color: #fff;
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      transition: background-color 140ms var(--nx-ease-out);
+    }
+
+    .image-edit-btn:disabled {
+      cursor: default;
+    }
+
+    .cover-edit-btn {
+      right: 12px;
+      bottom: 12px;
+      height: 32px;
+      padding: 0 13px;
+      border-radius: var(--nx-r-2);
+      background: rgba(10, 10, 10, 0.55);
+      font-size: 12px;
+    }
+
+    .cover-edit-btn:hover:not(:disabled) {
+      background: rgba(10, 10, 10, 0.7);
+    }
+
+    .avatar-edit-btn {
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      justify-content: center;
+      background: rgba(10, 10, 10, 0);
+      opacity: 0;
+    }
+
+    .avatar-edit-btn:hover:not(:disabled),
+    .avatar-edit-btn:focus-visible:not(:disabled),
+    .avatar-edit-btn:disabled {
+      background: rgba(10, 10, 10, 0.55);
+      opacity: 1;
+    }
+
+    .spinner-light {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-top-color: #fff;
+      animation: ar-spin 0.7s linear infinite;
+    }
+
+    .spinner-light.spinner-sm {
+      width: 12px;
+      height: 12px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .spinner-light {
+        animation-duration: 1.6s;
+      }
+    }
+
     .identity {
       display: flex;
       align-items: flex-start;
@@ -269,7 +390,12 @@ function initialsOfName(name: string): string {
       height: 74px;
       border-radius: 18px;
       flex: none;
-      background: linear-gradient(135deg, #f0a830 0%, #2260b8 100%);
+      position: relative;
+      overflow: hidden;
+      background-color: transparent;
+      background-image: linear-gradient(135deg, #f0a830 0%, #2260b8 100%);
+      background-size: cover;
+      background-position: center;
       border: 4px solid var(--nx-bg);
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
       display: grid;
@@ -384,12 +510,6 @@ function initialsOfName(name: string): string {
       font-family: var(--nx-font-ui);
     }
 
-    .row-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
     .chip-row {
       display: flex;
       gap: 8px;
@@ -479,6 +599,9 @@ export class PanelProfileComponent {
   protected readonly loadError = signal<string | null>(null);
   protected readonly saving = signal(false);
   protected readonly saveError = signal<string | null>(null);
+  protected readonly coverUploading = signal(false);
+  protected readonly logoUploading = signal(false);
+  protected readonly uploadError = signal<string | null>(null);
 
   protected readonly name = linkedSignal(() => this.profile()?.name ?? '');
   protected readonly description = linkedSignal(() => this.profile()?.description ?? '');
@@ -528,6 +651,46 @@ export class PanelProfileComponent {
 
   protected setAmenity(key: keyof ArenaProfile['amenities'], value: boolean): void {
     this.amenities.update((current) => ({ ...current, [key]: value }));
+  }
+
+  protected onCoverFileSelected(event: Event): void {
+    void this.handleImageSelected(event, 'cover');
+  }
+
+  protected onLogoFileSelected(event: Event): void {
+    void this.handleImageSelected(event, 'logo');
+  }
+
+  private async handleImageSelected(event: Event, kind: ArenaImageKind): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    if (!file) return;
+
+    const arenaId = this.arenaContext.arenaId();
+    if (!arenaId) return;
+
+    const validationError = validateArenaImageFile(file);
+    if (validationError) {
+      this.uploadError.set(validationError);
+      return;
+    }
+
+    this.uploadError.set(null);
+    const uploading = kind === 'cover' ? this.coverUploading : this.logoUploading;
+    uploading.set(true);
+    try {
+      const url = await uploadArenaImage(arenaStorage(), arenaId, kind, file);
+      if (kind === 'cover') {
+        this.coverUrl.set(url);
+      } else {
+        this.logoUrl.set(url);
+      }
+    } catch {
+      this.uploadError.set('Não foi possível enviar a imagem. Tente novamente.');
+    } finally {
+      uploading.set(false);
+    }
   }
 
   protected async save(): Promise<void> {

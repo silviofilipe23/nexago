@@ -18,6 +18,9 @@
         "coach": [
           "coach-nexago"
         ],
+        "organizer": [
+          "organizer-nexago"
+        ],
         "vegeton": [
           "vegeton-nexago"
         ],
@@ -39,6 +42,9 @@
         ],
         "backoffice": [
           "backoffice-dev2"
+        ],
+        "organizer": [
+          "organizer-dev2"
         ],
         "vegeton": [
           "vegeton-dev2"

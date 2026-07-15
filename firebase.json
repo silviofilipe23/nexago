@@ -46,6 +46,16 @@
       "public": "dist/coach/browser"
     },
     {
+      "target": "organizer",
+      "public": "dist/organizer/browser",
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
       "target": "vegeton",
       "public": "dist/vegeton"
     },

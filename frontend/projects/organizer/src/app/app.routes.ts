@@ -112,6 +112,10 @@ export const routes: Routes = [
             path: 'placar',
             loadComponent: () => import('./painel/chaveamento/placar.component').then((m) => m.PlacarComponent),
           },
+          {
+            path: 'placar/:matchId',
+            loadComponent: () => import('./painel/chaveamento/placar.component').then((m) => m.PlacarComponent),
+          },
         ],
       },
       {

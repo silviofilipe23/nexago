@@ -50,23 +50,42 @@ function formatBRL(n: number): string {
         } @else {
           <div class="kicker-line">{{ clients().length }} clientes rankeados</div>
 
-          @if (second(); as s) {
-            <ar-panel-card class="podium-card">
-              <div class="podium-col">
-                <div class="podium-avatar">{{ s.initials }}</div>
-                <div class="podium-name">{{ s.name }}</div>
-                <div class="podium-meta">{{ s.games }} jogos · {{ formatBRL(s.spend) }}</div>
-                <div class="podium-block">#2</div>
-              </div>
+          @if (first(); as f) {
+            <ar-panel-card class="podium-card" pad="lg">
+              <div class="podium-row">
+                @if (second(); as s) {
+                  <div class="podium-col second">
+                    <div class="podium-avatar">
+                      {{ s.initials }}
+                      <span class="podium-rank-badge rank-2">2</span>
+                    </div>
+                    <div class="podium-name">{{ s.name }}</div>
+                    <div class="podium-meta">{{ s.games }} jogos · {{ formatBRL(s.spend) }}</div>
+                    <div class="podium-block">#2</div>
+                  </div>
+                }
 
-              <div class="podium-col first">
-                <div class="podium-avatar">
-                  {{ first()!.initials }}
-                  <span class="podium-rank-badge">1</span>
+                <div class="podium-col first">
+                  <div class="podium-avatar">
+                    {{ f.initials }}
+                    <span class="podium-rank-badge rank-1">1</span>
+                  </div>
+                  <div class="podium-name">{{ f.name }}</div>
+                  <div class="podium-meta">{{ f.games }} jogos · {{ formatBRL(f.spend) }}</div>
+                  <div class="podium-block">#1</div>
                 </div>
-                <div class="podium-name">{{ first()!.name }}</div>
-                <div class="podium-meta">{{ first()!.games }} jogos · {{ formatBRL(first()!.spend) }}</div>
-                <div class="podium-block">#1</div>
+
+                @if (third(); as t) {
+                  <div class="podium-col third">
+                    <div class="podium-avatar">
+                      {{ t.initials }}
+                      <span class="podium-rank-badge rank-3">3</span>
+                    </div>
+                    <div class="podium-name">{{ t.name }}</div>
+                    <div class="podium-meta">{{ t.games }} jogos · {{ formatBRL(t.spend) }}</div>
+                    <div class="podium-block">#3</div>
+                  </div>
+                }
               </div>
             </ar-panel-card>
           }
@@ -169,11 +188,13 @@ function formatBRL(n: number): string {
 
     .podium-card {
       flex: none;
+    }
+
+    .podium-row {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 24px;
       align-items: end;
-      padding: 32px 40px 0;
     }
 
     .podium-col {
@@ -219,6 +240,16 @@ function formatBRL(n: number): string {
       font-weight: 800;
       font-size: 12px;
       border: 2px solid var(--nx-bg);
+    }
+
+    .podium-rank-badge.rank-2 {
+      background: #c7ccd4;
+      color: #14161a;
+    }
+
+    .podium-rank-badge.rank-3 {
+      background: #d99456;
+      color: #241304;
     }
 
     .podium-name {
@@ -519,8 +550,21 @@ function formatBRL(n: number): string {
     }
 
     @media (max-width: 720px) {
-      .podium-card {
-        padding: 24px 16px 0;
+      .podium-row {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+
+      .podium-col.first {
+        order: -1;
+      }
+
+      .podium-col.second {
+        order: 0;
+      }
+
+      .podium-col.third {
+        order: 1;
       }
     }
   `,
@@ -547,6 +591,7 @@ export class PanelRankingComponent {
 
   protected readonly first = computed(() => this.clients()[0] ?? null);
   protected readonly second = computed(() => this.clients()[1] ?? null);
+  protected readonly third = computed(() => this.clients()[2] ?? null);
 
   protected readonly selectedClient = computed(() => this.clients().find((c) => c.id === this.selectedId()) ?? null);
 

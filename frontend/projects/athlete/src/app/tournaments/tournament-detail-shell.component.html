@@ -3,6 +3,11 @@
     <div class="tdv-body">
       <div class="tdv-skeleton-hero" aria-busy="true"><div class="tdv-skeleton-shimmer"></div></div>
     </div>
+  } @else if (errorMessage(); as err) {
+    <div class="tdv-notfound">
+      <p class="tdv-empty-title">{{ err }}</p>
+      <button type="button" class="tdv-btn-ghost" (click)="retry()">Tentar de novo</button>
+    </div>
   } @else if (base(); as t) {
     <div class="tdv-body">
       <a routerLink="/torneios" class="tdv-back-link">
@@ -39,11 +44,11 @@
         </div>
       </div>
 
-      @if (extra(); as x) {
+      @if (view(); as x) {
         <div class="tdv-main-grid">
           <div class="tdv-col">
             <section class="tdv-card" id="tdv-categories">
-              <span class="tdv-card-kicker">{{ x.categories.length }} categorias abertas</span>
+              <span class="tdv-card-kicker">{{ x.categories.length }} categorias</span>
               <h2 class="tdv-card-title">Categorias</h2>
               <div class="tdv-cat-list">
                 @for (c of x.categories; track c.id) {
@@ -60,7 +65,7 @@
                       </div>
                       <div class="tdv-cat-foot">
                         <span>{{ c.spotsTotal - c.spotsLeft }}/{{ c.spotsTotal }} duplas</span>
-                        <span class="tdv-cat-vagas">{{ c.spotsLeft }} vagas livres</span>
+                        <span class="tdv-cat-vagas">{{ c.registrationClosed ? 'Inscrições encerradas' : c.spotsLeft + ' vagas livres' }}</span>
                       </div>
                     </div>
                     <div class="tdv-cat-side">
@@ -76,88 +81,6 @@
                 }
               </div>
             </section>
-
-            @if (x.stages.length > 0) {
-              <section class="tdv-card">
-                <span class="tdv-card-kicker">{{ x.formatLabel }}</span>
-                <h2 class="tdv-card-title">Formato</h2>
-                <div class="tdv-stage-list">
-                  @for (st of x.stages; track st.id; let i = $index) {
-                    <div class="tdv-stage-step" [attr.data-status]="st.status">
-                      <span class="tdv-stage-num">{{ i + 1 }}</span>
-                      <div class="tdv-stage-copy">
-                        <div class="tdv-stage-head">
-                          <h3>{{ st.label }}</h3>
-                          <span>{{ st.dateLabel }}</span>
-                        </div>
-                        <p>{{ st.description }}</p>
-                      </div>
-                    </div>
-                  }
-                </div>
-              </section>
-            }
-
-            @if (x.rankingValid && x.rankingRows.length > 0) {
-              <section class="tdv-card">
-                <span class="tdv-card-kicker">Vale pontos pro ranking NexaGO</span>
-                <h2 class="tdv-card-title">Ranking · preview</h2>
-                <div class="tdv-rank-list">
-                  @for (r of x.rankingRows; track r.rank) {
-                    <div class="tdv-rank-row">
-                      <span class="tdv-rank-num">#{{ r.rank }}</span>
-                      <span class="tdv-rank-avatar">{{ r.avatarLetter }}</span>
-                      <span class="tdv-rank-name">{{ r.name }}</span>
-                      <span class="tdv-rank-pts">{{ r.points }} pts</span>
-                    </div>
-                  }
-                </div>
-              </section>
-            }
-
-            @if (x.posts.length > 0) {
-              <section class="tdv-card">
-                <h2 class="tdv-card-title">Na areia</h2>
-                <div class="tdv-post-list">
-                  @for (p of x.posts; track p.id) {
-                    <article class="tdv-post">
-                      <div class="tdv-post-media" [style.background]="p.mediaGradient"></div>
-                      <div class="tdv-post-body">
-                        <p class="tdv-post-author">{{ p.athleteName }}</p>
-                        <p class="tdv-post-text">{{ p.text }}</p>
-                        <p class="tdv-post-tag">{{ p.hashtag }}</p>
-                        <div class="tdv-post-actions">
-                          <button type="button" class="tdv-post-action" (click)="likePost(p.id, p.likes)">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7.5-4.6-10-9.1C.6 8.6 2.3 5 6 5c2 0 3.6 1 6 3.4C14.4 6 16 5 18 5c3.7 0 5.4 3.6 4 6.9-2.5 4.5-10 9.1-10 9.1Z" /></svg>
-                            <span>{{ postLikeCount(p.id, p.likes) }}</span>
-                          </button>
-                          <span class="tdv-post-action">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
-                            <span>{{ p.comments }}</span>
-                          </span>
-                        </div>
-                      </div>
-                    </article>
-                  }
-                </div>
-              </section>
-            }
-
-            @if (x.hasLiveStream) {
-              <section class="tdv-card">
-                <h2 class="tdv-card-title tdv-card-title--live">
-                  <span class="tdv-live-dot" aria-hidden="true"></span>
-                  Transmissão
-                </h2>
-                <div class="tdv-live-player">
-                  <div class="tdv-live-overlay">
-                    <span class="tdv-live-pill">Ao vivo</span>
-                    <p>{{ viewersLabel(x.liveViewers) }} assistindo</p>
-                    <button type="button" class="tdv-btn-primary">Assistir agora</button>
-                  </div>
-                </div>
-              </section>
-            }
 
             <a [routerLink]="['/torneios', t.id, 'chaves']" class="tdv-card tdv-card--link">
               <span class="tdv-card-kicker">{{ bracketLabel() }}</span>
@@ -176,27 +99,12 @@
                 </div>
               </div>
             </a>
-
-            @if (x.announcements.length > 0) {
-              <section class="tdv-card">
-                <h2 class="tdv-card-title">Comunicados</h2>
-                <div class="tdv-announce-list">
-                  @for (a of x.announcements; track a.id) {
-                    <div class="tdv-announce" [class.tdv-announce--important]="a.important">
-                      <span class="tdv-announce-date">{{ a.dateLabel }}</span>
-                      <h3 class="tdv-announce-title">{{ a.title }}</h3>
-                      <p class="tdv-announce-body">{{ a.body }}</p>
-                    </div>
-                  }
-                </div>
-              </section>
-            }
           </div>
 
           <div class="tdv-col tdv-col--side">
             <div class="tdv-card tdv-prize-card">
-              <span class="tdv-card-kicker">Prêmio total em disputa</span>
-              <strong class="tdv-prize-amount">{{ x.totalPrizeLabel ?? '—' }}</strong>
+              <span class="tdv-card-kicker">Data</span>
+              <strong class="tdv-prize-min">{{ x.dateDetail }}</strong>
               <div class="tdv-prize-divider"></div>
               <span class="tdv-card-kicker">Inscrição a partir de</span>
               <strong class="tdv-prize-min">{{ t.priceLabel }}</strong>
@@ -204,24 +112,6 @@
                 Inscrever minha dupla
               </a>
             </div>
-
-            @if (x.prizeBreakdown.length > 0) {
-              <div class="tdv-card">
-                <h2 class="tdv-card-title">Premiação por colocação</h2>
-                <div class="tdv-placement-list">
-                  @for (p of x.prizeBreakdown; track p.place) {
-                    <div class="tdv-placement-row">
-                      <span class="tdv-placement-medal" [attr.data-place]="p.place">{{ p.place }}º</span>
-                      <div class="tdv-placement-info">
-                        <p>{{ p.label }}</p>
-                        <span>{{ p.percentLabel }}</span>
-                      </div>
-                      <strong class="tdv-placement-amount">{{ p.amountLabel }}</strong>
-                    </div>
-                  }
-                </div>
-              </div>
-            }
 
             <div class="tdv-trust-row">
               <div class="tdv-trust-item">

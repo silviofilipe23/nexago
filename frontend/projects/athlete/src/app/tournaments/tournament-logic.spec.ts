@@ -5,12 +5,14 @@ import {
   buildDiscoveryTournament,
   buildGroupStandings,
   buildSingleEliminationRounds,
+  buildTournamentDetailCategories,
+  buildTournamentDetailView,
   distinctPoolIds,
   genderTypeFromRaw,
   isDoubleEliminationBracketFormat,
   listingStatusFromRaw,
 } from './tournament-logic';
-import type { LeagueRaw, MatchRaw, TournamentRaw } from './tournament-repository';
+import type { LeagueRaw, MatchRaw, TournamentCategoryRaw, TournamentRaw } from './tournament-repository';
 
 describe('genderTypeFromRaw', () => {
   it('maps the three real Firestore tags', () => {
@@ -105,6 +107,49 @@ describe('buildDiscoveryLeague', () => {
     };
     const league = buildDiscoveryLeague(raw);
     expect(league.stages.map((s) => s.id)).toEqual(['s1', 's2']);
+  });
+});
+
+describe('buildTournamentDetailCategories / buildTournamentDetailView', () => {
+  const categories: TournamentCategoryRaw[] = [
+    { categoryId: 'c1', categoryName: 'Masculino Open', entryFee: 80, maxTeams: 16, spotsLeft: 2, level: 'Open', genderType: 'MASCULINO', bracketFormat: 'Single Elimination', registrationClosed: false },
+    { categoryId: 'c2', categoryName: 'Feminino Open', entryFee: 60, maxTeams: 16, spotsLeft: 0, level: null, genderType: 'FEMININO', bracketFormat: 'Pool Play + SE', registrationClosed: true },
+  ];
+
+  it('maps each category with its own real spots/price/level', () => {
+    const offers = buildTournamentDetailCategories(categories);
+    expect(offers[0]).toEqual({
+      id: 'c1', name: 'Masculino Open', genderLabel: 'Masculino', level: 'Open', spotsLeft: 2, spotsTotal: 16, priceLabel: 'R$ 80', registrationClosed: false,
+    });
+    expect(offers[1]!.level).toBe('Livre');
+    expect(offers[1]!.registrationClosed).toBe(true);
+  });
+
+  it('builds the detail view with a single-day date, map query and bracket state from listing status', () => {
+    const raw: TournamentRaw = {
+      id: 't1', name: 'Etapa Garden', city: 'Goiânia', locationName: 'Arena CFC',
+      startAt: new Date('2026-08-01T00:00:00'), endAt: null, format: 'Duplas', capacity: 32, enrolledCount: 30,
+      featured: false, liveMatchesNow: 0, listingStatus: 'live', leagueId: null, leagueStageId: null,
+      leagueStageOrder: 0, leagueStageName: null, regulationsText: null, categories,
+    };
+    const view = buildTournamentDetailView(raw, 'live');
+    expect(view.mapQuery).toBe('Arena CFC, Goiânia');
+    expect(view.bracketState).toBe('live');
+    expect(view.categories.length).toBe(2);
+    expect(view.dateDetail).toContain('2026');
+  });
+
+  it('formats a date range when start and end differ, and falls back to "soon" for open/almost_full', () => {
+    const raw: TournamentRaw = {
+      id: 't1', name: 'Etapa Garden', city: 'Goiânia', locationName: null,
+      startAt: new Date('2026-08-01T00:00:00'), endAt: new Date('2026-08-02T00:00:00'), format: 'Duplas', capacity: 32,
+      enrolledCount: 0, featured: false, liveMatchesNow: 0, listingStatus: 'open', leagueId: null, leagueStageId: null,
+      leagueStageOrder: 0, leagueStageName: null, regulationsText: null, categories: [],
+    };
+    const view = buildTournamentDetailView(raw, 'open');
+    expect(view.dateDetail).toContain('a');
+    expect(view.mapQuery).toBe('Goiânia, Goiânia');
+    expect(view.bracketState).toBe('soon');
   });
 });
 

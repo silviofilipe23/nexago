@@ -1,5 +1,6 @@
 import type { DiscoveryLeague, DiscoveryTournament, TournamentGenderCat, TournamentListingStatus } from './tournament-discovery.models';
-import type { LeagueRaw, MatchRaw, TournamentRaw } from './tournament-repository';
+import type { BracketPreviewState, TournamentDetailCategory, TournamentDetailView } from './tournament-detail.models';
+import type { LeagueRaw, MatchRaw, TournamentCategoryRaw, TournamentRaw } from './tournament-repository';
 
 /** Espelha `tournament_detail_logic.dart`/`league_document_mapper.dart` (Flutter) — mapeamento
  *  de dado real (`tournaments`/`leagues`/`matches`) pros modelos que já existiam no mock. */
@@ -123,6 +124,53 @@ export function buildDiscoveryLeague(raw: LeagueRaw): DiscoveryLeague {
     seasonLabel: raw.seasonLabel ?? undefined,
     city: raw.city ?? undefined,
     stages,
+  };
+}
+
+// --- Detalhe do torneio ---
+
+function genderLabelFromRaw(raw: string | null): string {
+  const cat = genderTypeFromRaw(raw);
+  if (cat === 'M') return 'Masculino';
+  if (cat === 'F') return 'Feminino';
+  if (cat === 'Mix') return 'Misto';
+  return raw ?? '—';
+}
+
+export function buildTournamentDetailCategories(categories: readonly TournamentCategoryRaw[]): TournamentDetailCategory[] {
+  return categories.map((c) => ({
+    id: c.categoryId,
+    name: c.categoryName,
+    genderLabel: genderLabelFromRaw(c.genderType),
+    level: c.level ?? 'Livre',
+    spotsLeft: Math.max(0, c.spotsLeft),
+    spotsTotal: c.maxTeams,
+    priceLabel: priceLabel(c.entryFee),
+    registrationClosed: c.registrationClosed,
+  }));
+}
+
+function formatDateDetail(startAt: Date | null, endAt: Date | null): string {
+  if (!startAt) return 'Data a confirmar';
+  const dayMonth = (d: Date) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+  if (endAt && endAt.toDateString() !== startAt.toDateString()) {
+    return `${dayMonth(startAt)} a ${dayMonth(endAt)}`;
+  }
+  return startAt.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+/** Monta o modelo real da tela de Detalhe a partir do doc `tournaments/{id}` — sem os campos
+ *  decorativos do mock (posts, comunicados, transmissão ao vivo, ranking-preview, premiação),
+ *  que não têm fonte de dado real; ver memória da sessão. */
+export function buildTournamentDetailView(raw: TournamentRaw, listingStatus: TournamentListingStatus): TournamentDetailView {
+  const location = raw.locationName ?? raw.city ?? '';
+  const city = raw.city ?? '';
+  const bracketState: BracketPreviewState = listingStatus === 'live' ? 'live' : listingStatus === 'ended' ? 'done' : 'soon';
+  return {
+    dateDetail: formatDateDetail(raw.startAt, raw.endAt),
+    mapQuery: [location, city].filter((s) => s.length > 0).join(', '),
+    categories: buildTournamentDetailCategories(raw.categories),
+    bracketState,
   };
 }
 

@@ -1,13 +1,24 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { getApps, initializeApp } from 'firebase/app';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 import { map } from 'rxjs';
+import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
-import { MOCK_DISCOVERY_LEAGUES, MOCK_DISCOVERY_TOURNAMENTS } from './tournament-discovery.mock';
-import type { DiscoveryTournament } from './tournament-discovery.models';
+import type { DiscoveryLeague, DiscoveryTournament } from './tournament-discovery.models';
+import type { BracketPreviewState, TournamentDetailView } from './tournament-detail.models';
+import { buildDiscoveryLeague, buildDiscoveryTournament, buildTournamentDetailView } from './tournament-logic';
 import { leagueContextLabel, resolveLeagueContext } from './tournament-league.helpers';
-import { getTournamentDetailExtra, type BracketPreviewState } from './tournament-detail.mock';
+import { fetchLeagues, fetchTournamentById } from './tournament-repository';
+
+function createFirestore(): Firestore | null {
+  const cfg = environment.firebase;
+  if (cfg == null || (cfg.apiKey ?? '').length === 0) return null;
+  const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
+  return getFirestore(app);
+}
 
 function titleCase(input: string): string {
   return input
@@ -52,9 +63,13 @@ export class TournamentDetailShellComponent {
   private readonly id = toSignal(this.route.paramMap.pipe(map((p) => p.get('id') ?? '')), { initialValue: '' });
 
   protected readonly loading = signal(true);
-  protected readonly postLikes = signal<Record<string, number>>({});
+  protected readonly errorMessage = signal<string | null>(null);
   protected readonly shareFeedback = signal<string | null>(null);
   private feedbackTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  protected readonly base = signal<DiscoveryTournament | null>(null);
+  protected readonly view = signal<TournamentDetailView | null>(null);
+  private readonly leagues = signal<DiscoveryLeague[]>([]);
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
@@ -64,26 +79,15 @@ export class TournamentDetailShellComponent {
     return devEmail?.trim() ? nameFromEmail(devEmail) : 'Atleta';
   });
 
-  protected readonly base = computed((): DiscoveryTournament | null => {
-    const id = this.id();
-    return MOCK_DISCOVERY_TOURNAMENTS.find((t) => t.id === id) ?? null;
-  });
-
-  protected readonly extra = computed(() => {
-    const b = this.base();
-    if (!b) return null;
-    return getTournamentDetailExtra(b.id, b);
-  });
-
   protected readonly leagueContextLine = computed((): string | null => {
     const id = this.id();
     if (!id) return null;
-    const ctx = resolveLeagueContext(MOCK_DISCOVERY_LEAGUES, id);
+    const ctx = resolveLeagueContext(this.leagues(), id);
     return ctx ? leagueContextLabel(ctx) : null;
   });
 
   protected readonly mapsUrl = computed(() => {
-    const q = this.extra()?.mapQuery ?? '';
+    const q = this.view()?.mapQuery ?? '';
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
   });
 
@@ -103,32 +107,51 @@ export class TournamentDetailShellComponent {
   });
 
   protected readonly bracketLabel = computed(() => {
-    const state = this.extra()?.bracketState ?? 'soon';
+    const state = this.view()?.bracketState ?? 'soon';
     return this.bracketStateCopy(state);
   });
 
   protected readonly heroBackground = computed(() => heroGradient(this.base()?.id ?? ''));
 
   constructor() {
-    setTimeout(() => this.loading.set(false), 320);
+    void this.load();
     this.destroyRef.onDestroy(() => clearTimeout(this.feedbackTimeout));
+  }
+
+  protected retry(): void {
+    void this.load();
+  }
+
+  private async load(): Promise<void> {
+    const id = this.id();
+    if (!id) {
+      this.loading.set(false);
+      return;
+    }
+    this.loading.set(true);
+    this.errorMessage.set(null);
+    try {
+      const db = createFirestore();
+      if (!db) throw new Error('Firebase não configurado');
+      const [raw, leaguesRaw] = await Promise.all([fetchTournamentById(db, id), fetchLeagues(db)]);
+      this.leagues.set(leaguesRaw.map(buildDiscoveryLeague));
+      if (!raw) {
+        this.base.set(null);
+        this.view.set(null);
+        return;
+      }
+      const discovery = buildDiscoveryTournament(raw, false);
+      this.base.set(discovery);
+      this.view.set(buildTournamentDetailView(raw, discovery.status));
+    } catch {
+      this.errorMessage.set('Não foi possível carregar o torneio.');
+    } finally {
+      this.loading.set(false);
+    }
   }
 
   protected scrollToCategories(): void {
     document.getElementById('tdv-categories')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
-  protected likePost(id: string, base: number): void {
-    const cur = this.postLikes()[id] ?? base;
-    this.postLikes.update((m) => ({ ...m, [id]: cur + 1 }));
-  }
-
-  protected postLikeCount(id: string, base: number): number {
-    return this.postLikes()[id] ?? base;
-  }
-
-  protected viewersLabel(n: number): string {
-    return n.toLocaleString('pt-BR');
   }
 
   protected categoryFillPercent(spotsLeft: number, spotsTotal: number): number {

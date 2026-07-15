@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FUN Parque — O Parque de Aventura Mais Divertido</title>
+  <meta name="description" content="Parque de aventura na natureza: arborismo, escalada, paintball, trampolins e muito mais. Landing page — template.">
+
+  <!-- Fontes: Anton (display), Antonio (subtítulos), DM Sans (texto) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Antonio:wght@400;600;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+
+  <!-- Swiper (slider de testemunhos) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
+
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- ============================================================
+       PRELOADER
+  ============================================================ -->
+  <div class="preloader" id="preloader">
+    <div class="preloader__logo">FUN<span>PARQUE</span></div>
+  </div>
+
+  <!-- ============================================================
+       HEADER / NAVEGAÇÃO
+  ============================================================ -->
+  <header class="header" id="header">
+    <div class="header__progress" id="scrollProgress"></div>
+    <div class="header__inner">
+      <a href="#top" class="header__logo" aria-label="Página inicial">
+        <!-- [PLACEHOLDER] Substituir pelo logótipo (SVG/PNG ~160×48) -->
+        <span class="logo-mark">FUN</span><span class="logo-text">PARQUE</span>
+      </a>
+
+      <nav class="header__nav" aria-label="Navegação principal">
+        <a href="#about"  class="nav-link" data-section="about">Sobre</a>
+        <a href="#actividades" class="nav-link" data-section="actividades">Actividades</a>
+        <a href="#aniv"   class="nav-link" data-section="aniv">Aniversários</a>
+        <a href="#events" class="nav-link" data-section="events">Eventos de Grupo</a>
+        <a href="#faqs"   class="nav-link" data-section="faqs">FAQs</a>
+        <a href="#test"   class="nav-link" data-section="test">Testemunhos</a>
+      </nav>
+
+      <div class="header__actions">
+        <a href="#" class="btn btn--outline btn--sm">Preçário</a>
+        <a href="#" class="btn btn--fill btn--sm">Reservar</a>
+      </div>
+
+      <button class="header__burger" id="burger" aria-label="Abrir menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MENU MOBILE -->
+  <div class="mobile-menu" id="mobileMenu" aria-hidden="true">
+    <nav class="mobile-menu__nav" aria-label="Menu móvel">
+      <a href="#about" class="mobile-menu__link">Sobre</a>
+      <a href="#actividades" class="mobile-menu__link">Actividades</a>
+      <a href="#aniv" class="mobile-menu__link">Aniversários</a>
+      <a href="#events" class="mobile-menu__link">Eventos de Grupo</a>
+      <a href="#faqs" class="mobile-menu__link">FAQs</a>
+      <a href="#test" class="mobile-menu__link">Testemunhos</a>
+    </nav>
+    <div class="mobile-menu__actions">
+      <a href="#" class="btn btn--outline">Preçário</a>
+      <a href="#" class="btn btn--fill">Reservar</a>
+    </div>
+  </div>
+
+  <main>
+
+    <!-- ============================================================
+         HERO
+    ============================================================ -->
+    <section class="section_hero" id="top">
+      <div class="hero__media">
+        <!-- ▓▓ ESPAÇO PARA MEDIA ▓▓ vídeo aéreo ou foto do parque · 1920×1080 -->
+        <div class="ph ph--fill" data-ph>
+          <svg class="ph__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+          <span class="ph__label">Vídeo / Imagem Hero</span>
+          <span class="ph__hint">1920 × 1080 · vídeo aéreo do parque</span>
+        </div>
+        <div class="hero__overlay"></div>
+      </div>
+
+      <div class="hero__content">
+        <h1 class="hero__title">
+          <span class="hero__line"><span>Explora a essência</span></span>
+          <span class="hero__line"><span>da natureza</span></span>
+          <span class="hero__line"><span>em <em>São João da Caparica</em></span></span>
+        </h1>
+        <div class="hero__cta">
+          <a href="#" class="btn btn--light">Preçário</a>
+          <a href="#" class="btn btn--fill">Reservar</a>
+        </div>
+      </div>
+
+      <!-- decoração de cantos -->
+      <div class="hero__corner hero__corner--tl"></div>
+      <div class="hero__corner hero__corner--br"></div>
+    </section>
+
+    <!-- TICKER DE AVISO (editável) -->
+    <div class="notice-ticker" aria-label="Aviso">
+      <div class="notice-ticker__track">
+        <span>⚠ O parque está aberto hoje das 10h às 18h &nbsp;·&nbsp;</span>
+        <span>⚠ O parque está aberto hoje das 10h às 18h &nbsp;·&nbsp;</span>
+        <span>⚠ O parque está aberto hoje das 10h às 18h &nbsp;·&nbsp;</span>
+        <span>⚠ O parque está aberto hoje das 10h às 18h &nbsp;·&nbsp;</span>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         HORÁRIO
+    ============================================================ -->
+    <section class="section_schedule">
+      <div class="container">
+        <h2 class="schedule__title" data-split>Horário 2026</h2>
+        <div class="schedule__grid">
+          <div class="schedule-card schedule-card--winter" data-reveal>
+            <span class="schedule-card__season">Inverno</span>
+            <span class="schedule-card__dates">1 Out a 31 Mar</span>
+            <p class="schedule-card__hours">4ª feira a Domingo<br>das 10h às 18h</p>
+          </div>
+          <div class="schedule-card schedule-card--summer" data-reveal>
+            <span class="schedule-card__season">Verão</span>
+            <span class="schedule-card__dates">1 Abr a 30 Set</span>
+            <p class="schedule-card__hours">3ª feira a Domingo<br>das 10h às 19h</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SOBRE
+    ============================================================ -->
+    <section class="section_about" id="about">
+      <div class="container">
+        <span class="section-label section-label--lime" data-reveal>Sobre o Fun Parque</span>
+        <h2 class="section-title" data-split>
+          Um parque de aventura na natureza, à porta de Lisboa
+        </h2>
+
+        <!-- [TEXTO EDITÁVEL] Substituir pela descrição oficial do parque -->
+        <p class="about__lead" data-reveal>
+          Texto de apresentação do parque — descreva aqui a propriedade, a mata,
+          a proximidade da praia e do rio, e a missão do espaço. Este parágrafo
+          é um marcador de posição para o vosso texto final.
+        </p>
+
+        <div class="about__grid">
+          <div class="about-item about-item--photo" data-reveal>
+            <!-- ▓▓ ESPAÇO PARA IMAGEM ▓▓ foto da mata · 800×1000 -->
+            <div class="ph ph--fill" data-ph>
+              <svg class="ph__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              <span class="ph__label">Imagem</span>
+              <span class="ph__hint">800 × 1000 · mata / arborismo</span>
+            </div>
+          </div>
+
+          <div class="about-item about-item--stat about-item--orange" data-reveal>
+            <span class="stat__number" data-counter="120">0</span>
+            <span class="stat__unit">hectares</span>
+            <p class="stat__desc">de mata privada para explorar</p>
+          </div>
+
+          <div class="about-item about-item--stat about-item--lime" data-reveal>
+            <span class="stat__number" data-counter="1">0</span>
+            <span class="stat__unit">km de praia</span>
+            <p class="stat__desc">frente de mar nas praias de São João</p>
+          </div>
+
+          <div class="about-item about-item--photo about-item--wide" data-reveal>
+            <!-- ▓▓ ESPAÇO PARA IMAGEM ▓▓ foto aérea mar/rio · 1200×800 -->
+            <div class="ph ph--fill" data-ph>
+              <svg class="ph__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              <span class="ph__label">Imagem</span>
+              <span class="ph__hint">1200 × 800 · vista aérea mar / rio</span>
+            </div>
+          </div>
+
+          <div class="about-item about-item--stat about-item--yellow" data-reveal>
+            <span class="stat__number" data-counter="1">0</span>
+            <span class="stat__unit">km de rio</span>
+            <p class="stat__desc">frente ribeirinha sobre o Tejo</p>
+          </div>
+        </div>
+
+        <!-- [TEXTO EDITÁVEL] frase de destaque -->
+        <p class="about__statement" data-split>
+          Um espaço dedicado a actividades desportivas ligadas à natureza,
+          para toda a área metropolitana de Lisboa.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         ACTIVIDADES
+    ============================================================ -->
+    <section class="section_activities" id="actividades">
+      <div class="container">
+        <span class="section-label section-label--lime" data-reveal>Actividades</span>
+        <h2 class="section-title" data-split>
+          Divirta-se com as nossas experiências exclusivas
+        </h2>
+
+        <!-- ATIVIDADE 01 -->
+        <article class="activity" data-reveal>
+          <div class="activity__media">
+            <!-- ▓▓ ESPAÇO PARA IMAGEM ▓▓ insufláveis · 960×720 -->
+            <div class="ph ph--fill" data-ph>
+              <svg class="ph__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              <span class="ph__label">Imagem</span>
+              <span class="ph__hint">960 × 720 · insufláveis &amp; playground</span>
+            </div>
+            <span class="activity__num">01</span>
+          </div>
+          <div class="activity__body">
+            <h3 class="activity__title">Insufláveis &amp;<br>Playground</h3>
+            <span class="activity__req">Mínimo 4 anos · até 10 anos · menos de 1,40 m</span>
+            <!-- [TEXTO EDITÁVEL] -->
+            <p class="activity__desc">
+              Descrição da actividade — estrutura coberta com playground e
+              insufláveis, piscinas de bolas, labirintos e obstáculos num
+              ambiente seguro e cheio de desafios. Substituir por texto final.
+            </p>
+            <div class="activity__cta">
+              <a href="#" class="btn btn--outline-light btn--sm">Preçário</a>
+              <a href="#" class="btn btn--fill btn--sm">Reservar</a>
+            </div>
+            <div class="accordion">
+              <button class="accordion__head" aria-expanded="false">
+                Como funciona
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <div class="accordion__panel">
+                <div class="accordion__content">
+                  <!-- [TEXTO EDITÁVEL] -->
+                  <p>À chegada, cada participante recebe formação. A actividade é
+                  realizada com meias e sem óculos, jóias ou objectos pontiagudos.
+                  Substituir por regras finais.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- ATIVIDADE 02 -->
+        <article class="activity activity--flip" data-reveal>
+          <div class="activity__media">
+            <!-- ▓▓ ESPAÇO PARA IMAGEM ▓▓ arborismo · 960×720 -->
+            <div class="ph ph--fill" data-ph>
+              <svg class="ph__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              <span class="ph__label">Imagem</span>
+              <span class="ph__hint">960 × 720 · arborismo nas copas</span>
+            </div>
+            <span class="activity__num">02</span>
+          </div>
+          <div class="activity__body">
+            <h3 class="activity__title">Arborismo</h3>
+            <span class="activity__req">Mínimo 5 anos e +1,05 m · até 65 anos · até 100 kg</span>
+            <!-- [TEXTO EDITÁVEL] -->
+            <p class="activity__desc">
+              Descrição da actividade — percursos em altura entre plataformas
+              nas copas das árvores, com pontes suspensas, redes e saltos de
+              Tarzan. Cada percurso termina num slide. Substituir por texto final.
+            </p>
+            <div class="activity__cta">
+              <a href="#" class="btn btn--outline-light btn--sm">Preçário</a>
+              <a href="#" class="btn btn--fill btn--sm">Reservar</a>
+            </div>
+            <div class="accordion">
+              <button class="accordion__head" aria-expanded="false">
+                Como funciona
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <div class="accordion__panel">
+                <div class="accordion__content">
+                  <!-- [TEXTO EDITÁVEL] -->
+                  <p>Equipamento com arnês, briefing de segurança e percurso de
+                  treino acompanhado por instrutores. Vários circuitos com graus
+                  de dificuldade diferentes. Calçado fechado obrigatório.
+                  Substituir por regras finais.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- ATIVIDADE 03 -->
+        <article class="activity" data-reveal>
+          <div class="activity__media">
+            <!-- ▓▓ ESPAÇO PARA IMAGEM ▓▓ escalada · 960×720 -->
+            <div class="ph ph--fill" data-ph>
+              <svg class="ph__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              <span class="ph__label">Imagem</span>
+              <span class="ph__hint">960 × 720 · paredes de escalada</span>
+            </div>
+            <span class="activity__num">03</span>
+          </div>
+          <div class="activity__body">
+            <h3 class="activity__title">Escalada</h3>
+            <span class="activity__req">Mínimo 5 anos e +20 kg · até 100 kg</span>
+            <!-- [TEXTO EDITÁVEL] -->
+            <p class="activity__desc">
+              Descrição da actividade — tenda gigante com paredes e estruturas
+              de escalada até 8 m de altura, com vias para principiantes e
+              experientes. Substituir por texto final.
+            </p>
+            <div class="activity__cta">
+              <a href="#" class="btn btn--outline-light btn--sm">Preçário</a>
+              <a href="#" class="btn btn--fill btn--sm">Reservar</a>
+            </div>
+            <div class="accordion">
+              <button class="accordion__head" aria-expanded="false">
+                Como funciona
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <div class="accordion__panel">
+                <div class="accordion__content">
+                  <!-- [TEXTO EDITÁVEL] -->
+                  <p>Vários elementos de subida com temas diferentes e formação à
+                  chegada. Calçado fechado obrigatório; proibidos óculos, colares,
+                  pulseiras e anéis. Substituir por regras finais.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- ATIVIDADE 04 -->
+        <article class="activity activity--flip" data-reveal>
+          <div class="activity__media">
+            <!-- ▓▓ ESPAÇO PARA IMAGEM ▓▓ paintball · 960×720 -->
+            <div class="ph ph--fill" data-ph>
+              <svg class="ph__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              <span class="ph__label">Imagem</span>
+              <span class="ph__hint">960 × 720 · campos de paintball</span>
+            </div>
+            <span class="activity__num">04</span>
+          </div>
+          <div class="activity__body">
+            <h3 class="activity__title">Paintball</h3>
+            <span class="activity__req">Criança: mínimo 8 anos · Adultos: mínimo 13 anos</span>
+            <!-- [TEXTO EDITÁVEL] -->
+            <p class="activity__desc">
+              Descrição da actividade — desporto de acção e estratégia ideal
+              para grupos e team building, com bolas de tinta biodegradável e
+              equipamento de protecção completo. Substituir por texto final.
+            </p>
+            <div class="activity__cta">
+              <a href="#" class="btn btn--outline-light btn--sm">Preçário</a>
+              <a href="#" class="btn btn--fill btn--sm">Reservar</a>
+            </div>
+            <div class="accordion">
+              <button class="accordion__head" aria-expanded="false">
+                Como funciona
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <div class="accordion__panel">
+                <div class="accordion__content">
+                  <!-- [TEXTO EDITÁVEL] -->
+                  <p>Dois tipos de marcadores (criança e adulto), termo de
+                  responsabilidade à chegada, equipamento por cor de equipa e
+                  formação nos campos. Calçado fechado obrigatório.
+                  Substituir por regras finais.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- ATIVIDADE 05 -->
+        <article class="activity" data-reveal>
+          <div class="activity__media">
+            <!-- ▓▓ ESPAÇO PARA IMAGEM ▓▓ trampolins · 960×720 -->
+            <div class="ph ph--fill" data-ph>
+              <svg class="ph__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              <span class="ph__label">Imagem</span>
+              <span class="ph__hint">960 × 720 · trampolins e torre de saltos</span>
+            </div>
+            <span class="activity__num">05</span>
+          </div>
+          <div class="activity__body">
+            <h3 class="activity__title">Trampolins e<br>Torres de Queda</h3>
+            <span class="activity__req">Mínimo 6 anos · até 100 kg</span>
+            <!-- [TEXTO EDITÁVEL] -->
+            <p class="activity__desc">
+              Descrição da actividade — trampolins com aterragem em insuflável
+              e torre de saltos por gravidade com plataformas a várias alturas.
+              Adrenalina para crianças e adultos. Substituir por texto final.
+            </p>
+            <div class="activity__cta">
+              <a href="#" class="btn btn--outline-light btn--sm">Preçário</a>
+              <a href="#" class="btn btn--fill btn--sm">Reservar</a>
+            </div>
+            <div class="accordion">
+              <button class="accordion__head" aria-expanded="false">
+                Como funciona
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <div class="accordion__panel">
+                <div class="accordion__content">
+                  <!-- [TEXTO EDITÁVEL] -->
+                  <p>Formação à chegada. Uso de meias obrigatório; proibidos
+                  óculos, colares, pulseiras, anéis e sapatos. Três saltos por
+                  participante na torre. Substituir por regras finais.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         ANIVERSÁRIOS
+    ============================================================ -->
+    <section class="section_aniv" id="aniv">
+      <!-- marquee -->
+      <div class="aniv-marquee" aria-hidden="true">
+        <div class="aniv-marquee__track">
+          <span class="aniv-marquee__item">Aniversários</span>
+          <span class="aniv-marquee__item aniv-marquee__item--outline">Estás pronto para a festa dos teus sonhos?</span>
+          <span class="aniv-marquee__item">Aniversários</span>
+          <span class="aniv-marquee__item aniv-marquee__item--outline">Estás pronto para a festa dos teus sonhos?</span>
+          <span class="aniv-marquee__item">Aniversários</span>
+          <span class="aniv-marquee__item aniv-marquee__item--outline">Estás pronto para a festa dos teus sonhos?</span>
+        </div>
+      </div>
+
+      <div class="container">
+        <!-- [TEXTO EDITÁVEL] -->
+        <p class="aniv__lead" data-split>
+          Reserve o seu aniversário e combine as diversas actividades
+          para uma festa perfeita.
+        </p>
+        <div class="aniv__cta" data-reveal>
+          <a href="#" class="btn btn--outline">Preçário</a>
+          <a href="#" class="btn btn--fill">Reserve o seu aniversário</a>
+        </div>
+
+        <div class="aniv__steps">
+          <div class="aniv-step" data-reveal>
+            <span class="aniv-step__num">01</span>
+            <!-- [TEXTO EDITÁVEL] -->
+            <p>Duração e horários da festa — ex.: máximo de 2h30, com início
+            às 10h, 11h30, 14h ou 15h30, e mínimo de participantes para ter
+            direito a mesa. Substituir por condições finais.</p>
+          </div>
+          <div class="aniv-step" data-reveal>
+            <span class="aniv-step__num">02</span>
+            <!-- [TEXTO EDITÁVEL] -->
+            <p>Zonas de lanche disponíveis — mesas de pic-nic debaixo das
+            árvores, esplanada coberta ou bungalows privativos (opção paga).
+            Substituir por descrição e preços finais.</p>
+          </div>
+          <div class="aniv-step" data-reveal>
+            <span class="aniv-step__num">03</span>
+            <!-- [TEXTO EDITÁVEL] -->
+            <p>O que está incluído — mesa, cacifos para casacos e prendas,
+            frigorífico para bebidas e bolo. O que devem trazer — toalha,
+            copos, talheres e guardanapos. Substituir por lista final.</p>
+          </div>
+          <div class="aniv-step" data-reveal>
+            <span class="aniv-step__num">04</span>
+            <!-- [TEXTO EDITÁVEL] -->
+            <p>Serviço de lanche do parque disponível sob pedido.
+            Substituir por detalhes e contactos para orçamento.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         EVENTOS DE GRUPO
+    ============================================================ -->
+    <section class="section_events" id="events">
+      <div class="container">
+        <span class="section-label section-label--lime" data-reveal>Eventos de Grupo</span>
+        <h2 class="section-title" data-split>
+          Momentos de alegria para celebrar juntos!
+        </h2>
+
+        <div class="events__grid">
+          <article class="event-card" data-reveal>
+            <div class="event-card__media">
+              <!-- ▓▓ ESPAÇO PARA IMAGEM ▓▓ escolas · 800×560 -->
+              <div class="ph ph--fill" data-ph>
+                <svg class="ph__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                <span class="ph__label">Imagem</span>
+                <span class="ph__hint">800 × 560 · grupo escolar</span>
+              </div>
+            </div>
+            <div class="event-card__body">
+              <h3>Escolas</h3>
+              <!-- [TEXTO EDITÁVEL] -->
+              <p>Preços e programas especiais para escolas — capacidade para
+              grandes grupos com várias actividades em simultâneo, programas
+              de meio-dia ou dia inteiro. Substituir por texto final.</p>
+              <div class="event-card__cta">
+                <a href="#" class="btn btn--outline-light btn--sm">Preçário</a>
+                <a href="#" class="btn btn--fill btn--sm">Reserve o seu evento</a>
+              </div>
+            </div>
+          </article>
+
+          <article class="event-card" data-reveal>
+            <div class="event-card__media">
+              <!-- ▓▓ ESPAÇO PARA IMAGEM ▓▓ empresas · 800×560 -->
+              <div class="ph ph--fill" data-ph>
+                <svg class="ph__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                <span class="ph__label">Imagem</span>
+                <span class="ph__hint">800 × 560 · team building</span>
+              </div>
+            </div>
+            <div class="event-card__body">
+              <h3>Empresas ou Grupos</h3>
+              <!-- [TEXTO EDITÁVEL] -->
+              <p>Preços e programas especiais para empresas — team building
+              com paintball, escalada ou arborismo, programas de meio-dia ou
+              dia inteiro. Substituir por texto final.</p>
+              <div class="event-card__cta">
+                <a href="#" class="btn btn--outline-light btn--sm">Preçário</a>
+                <a href="#" class="btn btn--fill btn--sm">Reserve o seu evento</a>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         FAQS
+    ============================================================ -->
+    <section class="section_faqs" id="faqs">
+      <div class="container">
+        <span class="section-label section-label--dark" data-reveal>FAQs</span>
+        <h2 class="section-title section-title--dark" data-split>
+          Esclareça as suas dúvidas
+        </h2>
+
+        <div class="faq-tabs" role="tablist" data-reveal>
+          <button class="faq-tab is-active" data-tab="gerais" role="tab" aria-selected="true">Gerais</button>
+          <button class="faq-tab" data-tab="arborismo" role="tab" aria-selected="false">Arborismo</button>
+          <button class="faq-tab" data-tab="trampolins" role="tab" aria-selected="false">Trampolins</button>
+          <button class="faq-tab" data-tab="escalada" role="tab" aria-selected="false">Escalada</button>
+          <button class="faq-tab" data-tab="paintball" role="tab" aria-selected="false">Paintball</button>
+          <button class="faq-tab" data-tab="festas" role="tab" aria-selected="false">Festas</button>
+        </div>
+
+        <!-- PAINEL: GERAIS -->
+        <div class="faq-panel is-active" data-panel="gerais">
+          <div class="faq-item">
+            <button class="faq-item__q" aria-expanded="false">
+              É necessário reservar?
+              <span class="faq-item__icon"></span>
+            </button>
+            <div class="faq-item__a"><div class="faq-item__content">
+              <!-- [TEXTO EDITÁVEL] -->
+              <p>Para grupos grandes, festas ou escolas a reserva é feita no
+              site. Para grupos pequenos recomenda-se marcação por telefone
+              para garantir vaga. Substituir por regras finais.</p>
+            </div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-item__q" aria-expanded="false">
+              Quanto tempo antes da marcação devo chegar?
+              <span class="faq-item__icon"></span>
+            </button>
+            <div class="faq-item__a"><div class="faq-item__content">
+              <!-- [TEXTO EDITÁVEL] -->
+              <p>As actividades começam à hora marcada — recomenda-se chegar
+              com 15 minutos de antecedência (30 minutos para paintball).
+              Substituir por regras finais.</p>
+            </div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-item__q" aria-expanded="false">
+              Qual a idade mínima para as actividades?
+              <span class="faq-item__icon"></span>
+            </button>
+            <div class="faq-item__a"><div class="faq-item__content">
+              <!-- [TEXTO EDITÁVEL] -->
+              <p>Cada actividade tem requisitos próprios de idade, altura e
+              peso — consulte a secção de actividades. Substituir por tabela
+              final de requisitos.</p>
+            </div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-item__q" aria-expanded="false">
+              O que devo vestir?
+              <span class="faq-item__icon"></span>
+            </button>
+            <div class="faq-item__a"><div class="faq-item__content">
+              <!-- [TEXTO EDITÁVEL] -->
+              <p>Roupa confortável. Algumas actividades exigem meias ou calçado
+              fechado e proíbem óculos, jóias e objectos pontiagudos.
+              Substituir por regras finais por actividade.</p>
+            </div></div>
+          </div>
+        </div>
+
+        <!-- PAINEL: ARBORISMO -->
+        <div class="faq-panel" data-panel="arborismo">
+          <div class="faq-item">
+            <button class="faq-item__q" aria-expanded="false">
+              Pergunta sobre arborismo (placeholder)
+              <span class="faq-item__icon"></span>
+            </button>
+            <div class="faq-item__a"><div class="faq-item__content">
+              <p>[TEXTO EDITÁVEL] Resposta placeholder — substituir pelas
+              perguntas e respostas finais desta categoria.</p>
+            </div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-item__q" aria-expanded="false">
+              Outra pergunta sobre arborismo (placeholder)
+              <span class="faq-item__icon"></span>
+            </button>
+            <div class="faq-item__a"><div class="faq-item__content">
+              <p>[TEXTO EDITÁVEL] Resposta placeholder.</p>
+            </div></div>
+          </div>
+        </div>
+
+        <!-- PAINEL: TRAMPOLINS -->
+        <div class="faq-panel" data-panel="trampolins">
+          <div class="faq-item">
+            <button class="faq-item__q" aria-expanded="false">
+              Pergunta sobre trampolins (placeholder)
+              <span class="faq-item__icon"></span>
+            </button>
+            <div class="faq-item__a"><div class="faq-item__content">
+              <p>[TEXTO EDITÁVEL] Resposta placeholder.</p>
+            </div></div>
+          </div>
+        </div>
+
+        <!-- PAINEL: ESCALADA -->
+        <div class="faq-panel" data-panel="escalada">
+          <div class="faq-item">
+            <button class="faq-item__q" aria-expanded="false">
+              Pergunta sobre escalada (placeholder)
+              <span class="faq-item__icon"></span>
+            </button>
+            <div class="faq-item__a"><div class="faq-item__content">
+              <p>[TEXTO EDITÁVEL] Resposta placeholder.</p>
+            </div></div>
+          </div>
+        </div>
+
+        <!-- PAINEL: PAINTBALL -->
+        <div class="faq-panel" data-panel="paintball">
+          <div class="faq-item">
+            <button class="faq-item__q" aria-expanded="false">
+              Pergunta sobre paintball (placeholder)
+              <span class="faq-item__icon"></span>
+            </button>
+            <div class="faq-item__a"><div class="faq-item__content">
+              <p>[TEXTO EDITÁVEL] Resposta placeholder.</p>
+            </div></div>
+          </div>
+        </div>
+
+        <!-- PAINEL: FESTAS -->
+        <div class="faq-panel" data-panel="festas">
+          <div class="faq-item">
+            <button class="faq-item__q" aria-expanded="false">
+              Pergunta sobre festas de aniversário (placeholder)
+              <span class="faq-item__icon"></span>
+            </button>
+            <div class="faq-item__a"><div class="faq-item__content">
+              <p>[TEXTO EDITÁVEL] Resposta placeholder.</p>
+            </div></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================================================
+         TESTEMUNHOS
+    ============================================================ -->
+    <section class="section_test" id="test">
+      <div class="container">
+        <span class="section-label section-label--green" data-reveal>Testemunhos</span>
+        <h2 class="section-title section-title--dark" data-split>
+          O feedback dos nossos visitantes
+        </h2>
+      </div>
+
+      <div class="test__slider" data-reveal>
+        <div class="swiper" id="testSwiper">
+          <div class="swiper-wrapper">
+            <!-- [TESTEMUNHOS PLACEHOLDER] substituir por avaliações reais -->
+            <div class="swiper-slide">
+              <div class="test-card">
+                <div class="test-card__stars">★★★★★</div>
+                <p class="test-card__text">Espaço para o testemunho de um
+                cliente — uma avaliação real do TripAdvisor ou Google sobre
+                a experiência no parque.</p>
+                <span class="test-card__name">Nome do Cliente</span>
+                <span class="test-card__date">Mês de 2026</span>
+              </div>
+            </div>
+            <div class="swiper-slide">
+              <div class="test-card">
+                <div class="test-card__stars">★★★★★</div>
+                <p class="test-card__text">Espaço para o testemunho de um
+                cliente — uma avaliação sobre uma festa de aniversário ou
+                actividade em família.</p>
+                <span class="test-card__name">Nome do Cliente</span>
+                <span class="test-card__date">Mês de 2026</span>
+              </div>
+            </div>
+            <div class="swiper-slide">
+              <div class="test-card">
+                <div class="test-card__stars">★★★★★</div>
+                <p class="test-card__text">Espaço para o testemunho de um
+                cliente — uma avaliação sobre o atendimento, segurança e
+                condições do espaço.</p>
+                <span class="test-card__name">Nome do Cliente</span>
+                <span class="test-card__date">Mês de 2026</span>
+              </div>
+            </div>
+            <div class="swiper-slide">
+              <div class="test-card">
+                <div class="test-card__stars">★★★★★</div>
+                <p class="test-card__text">Espaço para o testemunho de um
+                cliente — mais uma avaliação positiva sobre a experiência
+                no parque.</p>
+                <span class="test-card__name">Nome do Cliente</span>
+                <span class="test-card__date">Mês de 2026</span>
+              </div>
+            </div>
+          </div>
+          <div class="swiper-pagination"></div>
+        </div>
+        <div class="test__nav">
+          <button class="test__arrow test__arrow--prev" aria-label="Anterior">←</button>
+          <button class="test__arrow test__arrow--next" aria-label="Seguinte">→</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============================================================
+       FOOTER
+  ============================================================ -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer__top">
+        <div class="footer__brand">
+          <!-- [PLACEHOLDER] logótipo footer -->
+          <span class="footer__logo">FUN<span>PARQUE</span></span>
+          <div class="footer__cta">
+            <a href="#" class="btn btn--outline-light btn--sm">Preçário</a>
+            <a href="#" class="btn btn--fill btn--sm">Reservar</a>
+          </div>
+        </div>
+
+        <nav class="footer__nav" aria-label="Navegação do rodapé">
+          <a href="#about">Sobre</a>
+          <a href="#actividades">Actividades</a>
+          <a href="#aniv">Aniversários</a>
+          <a href="#events">Eventos de Grupo</a>
+          <a href="#test">Testemunhos</a>
+          <a href="#faqs">FAQs</a>
+        </nav>
+
+        <div class="footer__contacts">
+          <!-- [CONTACTOS EDITÁVEIS] -->
+          <a href="tel:+351900000000" class="footer__phone">+351 900 000 000</a>
+          <span class="footer__note">Chamada para a rede móvel nacional</span>
+          <a href="mailto:info@oseudominio.pt" class="footer__mail">info@oseudominio.pt</a>
+          <address>Morada do parque — Rua Exemplo, 123<br>0000-000 Localidade</address>
+          <a href="#" class="footer__map">Ver localização ↗</a>
+        </div>
+      </div>
+
+      <div class="footer__bottom">
+        <div class="footer__legal">
+          <a href="#">Termos e condições</a>
+          <a href="#">Política de privacidade</a>
+        </div>
+        <p>© 2026 · Todos os direitos reservados</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- BOTÃO VOLTAR AO TOPO -->
+  <button class="to-top" id="toTop" aria-label="Voltar ao topo">↑</button>
+
+  <!-- Bibliotecas de animação -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lenis@1.1.14/dist/lenis.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

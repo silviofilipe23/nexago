@@ -50,6 +50,10 @@
       "public": "dist/vegeton"
     },
     {
+      "target": "bplay",
+      "public": "dist/bplay"
+    },
+    {
       "target": "site",
       "source": "frontend/projects/site",
       "frameworksBackend": {

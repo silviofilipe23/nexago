@@ -20,7 +20,9 @@
     "build:organizer": "ng build organizer --configuration production",
     "start:vegeton": "npx --yes serve projects/vegeton -l 4321",
     "build:vegeton": "rm -rf ../dist/vegeton && mkdir -p ../dist/vegeton && cp -R projects/vegeton/. ../dist/vegeton/",
-    "build:all": "ng run backoffice:build:production && npm --prefix projects/site run build && ng run arena:build:production && ng run coach:build:production && ng run organizer:build:production && npm run build:vegeton",
+    "start:bplay": "npx --yes serve projects/bplay -l 8123",
+    "build:bplay": "rm -rf ../dist/bplay && mkdir -p ../dist/bplay && cp -R projects/bplay/. ../dist/bplay/ && rm -f ../dist/bplay/README.md",
+    "build:all": "ng run backoffice:build:production && npm --prefix projects/site run build && ng run arena:build:production && ng run coach:build:production && ng run organizer:build:production && npm run build:vegeton && npm run build:bplay",
     "watch": "ng build backoffice --watch --configuration development",
     "test": "ng test backoffice",
     "test:backoffice": "ng test backoffice"

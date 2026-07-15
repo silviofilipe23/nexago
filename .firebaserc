@@ -20,6 +20,9 @@
         ],
         "vegeton": [
           "vegeton-nexago"
+        ],
+        "bplay": [
+          "bplay-nexago"
         ]
       }
     },
@@ -39,6 +42,9 @@
         ],
         "vegeton": [
           "vegeton-dev2"
+        ],
+        "bplay": [
+          "bplay-dev2"
         ]
       }
     }

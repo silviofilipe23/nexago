@@ -7,6 +7,7 @@ import '../../../core/auth/active_role_providers.dart';
 import '../../../core/auth/app_mobile_role.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/user_roles.dart';
+import '../../../core/profiles/users_repository.dart';
 import '../../athlete/domain/athlete_profile_providers.dart';
 import '../../athlete/domain/athlete_public_profile_models.dart';
 import '../../athlete/domain/athlete_public_profile_providers.dart';
@@ -124,6 +125,24 @@ Future<void> _loadAppData(
 
   final token = await user.getIdTokenResult(true);
   final roles = mobileRolesFromIdToken(token);
+
+  // Cadastro por email/social não cria doc — garante `users/{uid}` com
+  // roles ['athlete'] no primeiro login. Contas com papel de outro portal
+  // já nascem com doc via Cloud Function (e as rules barrariam o create).
+  final claimRoles = appRolesFromIdToken(token);
+  final isAthleteOnly = claimRoles.isEmpty ||
+      (claimRoles.length == 1 && claimRoles.first == kAthleteAppRole);
+  if (isAthleteOnly) {
+    try {
+      await ref.read(usersRepositoryProvider).ensureSignupUserDoc(
+            uid: user.uid,
+            email: user.email,
+            fullName: user.displayName,
+          );
+    } catch (_) {
+      // Rede/permissão falhou — o save de perfil recria o doc depois.
+    }
+  }
   onProgress?.call(0.28, 'CONECTANDO');
 
   await ref.read(availableMobileRolesProvider.future);

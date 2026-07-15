@@ -349,6 +349,29 @@ class UsersRepository {
     return uid;
   }
 
+  /// Garante `users/{uid}` após cadastro/primeiro login de atleta: cria o
+  /// doc mínimo com `roles: ['athlete']` quando não existe. Contas de outros
+  /// portais (arena/coach/organizer) nascem nas Cloud Functions de signup.
+  Future<void> ensureSignupUserDoc({
+    required String uid,
+    String? email,
+    String? fullName,
+  }) async {
+    if (uid.trim().isEmpty) return;
+    final ref = _users.doc(uid);
+    final snap = await ref.get();
+    if (snap.exists) return;
+    final normalizedEmail = email?.trim().toLowerCase() ?? '';
+    final name = fullName?.trim() ?? '';
+    await ref.set({
+      if (normalizedEmail.isNotEmpty) 'email': normalizedEmail,
+      if (name.isNotEmpty) 'fullName': name,
+      'roles': [kAthleteAppRole],
+      'hasAthleteRole': true,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
   String _generateUid() {
     const chars =
         'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';

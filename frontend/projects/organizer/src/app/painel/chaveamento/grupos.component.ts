@@ -27,9 +27,9 @@ interface GrupoReal {
   imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgIconComponent, ChaveamentoSubnavComponent, ChaveamentoSelectorComponent],
   template: `
     <og-page-header title="Fase de grupos" [subtitle]="headerSubtitle()">
-      <!-- mock (fase 2): sorteio/fechamento de grupos continuam operação do app -->
-      <button type="button" class="og-mini-btn"><og-icon name="whistle" [size]="14" />Sortear grupos</button>
-      <button type="button" class="og-mini-btn og-mini-btn-primary">Fechar grupos & gerar chave</button>
+      @if (seedsLink(); as link) {
+        <a class="og-mini-btn og-mini-btn-primary" [routerLink]="link"><og-icon name="whistle" [size]="14" />Sortear grupos & gerar chave</a>
+      }
     </og-page-header>
 
     <div class="og-content">

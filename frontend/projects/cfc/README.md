@@ -68,6 +68,7 @@ Buscar pelos comentários no `index.html`:
 - **Marquees CSS** — ticker de aviso e faixa de festas
 - **Swiper** — slider de depoimentos (1/2/3 slides por breakpoint)
 - Preloader com transição de saída; header esconde ao descer e reaparece ao subir
+- Header com efeito glass ao rolar (backdrop-filter blur + saturação, com fallback opaco)
 
 As bibliotecas vêm de CDN (jsDelivr + Google Fonts) — é preciso internet.
 

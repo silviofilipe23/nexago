@@ -28,10 +28,14 @@ python3 -m http.server 8123
 
 ## Deploy
 
-Ainda **não há** script npm nem target de hosting para o cfc (os scripts
-`start:bplay`/`build:bplay` e o target `bplay` do firebase.json pertencem ao
-projeto bplay). Para publicar, criar scripts `start:cfc`/`build:cfc` no
-`frontend/package.json` e um target de hosting próprio no `firebase.json`.
+```bash
+cd frontend && npm run build:cfc
+cd ../.. && firebase deploy --only hosting:cfc --project dev
+# ou
+firebase deploy --only hosting:cfc --project default
+```
+
+Scripts locais: `npm run start:cfc` (porta 8124) e `npm run build:cfc`.
 
 ## Onde cada foto foi usada
 

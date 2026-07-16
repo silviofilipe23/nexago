@@ -26,6 +26,9 @@
         ],
         "bplay": [
           "bplay-nexago"
+        ],
+        "cfc": [
+          "cfc-nexago"
         ]
       }
     },
@@ -51,6 +54,9 @@
         ],
         "bplay": [
           "bplay-dev2"
+        ],
+        "cfc": [
+          "cfc-dev2"
         ]
       }
     }

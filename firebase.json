@@ -64,6 +64,10 @@
       "public": "dist/bplay"
     },
     {
+      "target": "cfc",
+      "public": "dist/cfc"
+    },
+    {
       "target": "site",
       "source": "frontend/projects/site",
       "frameworksBackend": {

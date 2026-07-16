@@ -44,6 +44,8 @@ class TournamentMatch {
     this.teamAConfirmed = false,
     this.teamBConfirmed = false,
     this.bestOf = 3,
+    this.winnerAdvanceMatchNumber,
+    this.winnerAdvanceSlot,
   });
 
   final String id;
@@ -87,6 +89,12 @@ class TournamentMatch {
 
   /// Número de sets da partida (formato): 1 = set único, 3 = melhor de 3.
   final int bestOf;
+
+  /// Fiação da chave (plantas de `functions/src/bracket-definitions`): nº do
+  /// jogo para onde o vencedor avança e o slot ('A'/'B') que ele ocupa lá.
+  /// Nulos em partidas geradas antes da fiação explícita ou sem avanço (Final).
+  final int? winnerAdvanceMatchNumber;
+  final String? winnerAdvanceSlot;
 
   String get effectiveCourtLabel {
     if (courtId.isNotEmpty) return courtId;

@@ -122,4 +122,37 @@ void main() {
     expect(match.lastActions.last.side, 'B');
     expect(match.lastActions.first.setIndex, 0);
   });
+
+  test('fromMap parses winnerAdvance wiring (bracket-definitions)', () {
+    final match = TournamentMatchMapper.fromMap('de-1', {
+      'tournamentId': 'tour-1',
+      'categoryId': 'Open',
+      'round': 1,
+      'matchType': 'WB',
+      'teamAId': 'team-a',
+      'teamBId': 'team-b',
+      'status': 'Scheduled',
+      'matchNumber': 2,
+      'winnerAdvance': {'matchNumber': 21, 'teamSlot': 'teamBId'},
+    });
+
+    expect(match.winnerAdvanceMatchNumber, 21);
+    expect(match.winnerAdvanceSlot, 'B');
+  });
+
+  test('fromMap without winnerAdvance leaves wiring null', () {
+    final match = TournamentMatchMapper.fromMap('de-2', {
+      'tournamentId': 'tour-1',
+      'categoryId': 'Open',
+      'round': 1,
+      'matchType': 'Final',
+      'teamAId': 'team-a',
+      'teamBId': 'team-b',
+      'status': 'Scheduled',
+      'matchNumber': 27,
+    });
+
+    expect(match.winnerAdvanceMatchNumber, isNull);
+    expect(match.winnerAdvanceSlot, isNull);
+  });
 }

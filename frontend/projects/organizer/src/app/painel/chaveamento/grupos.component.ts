@@ -19,8 +19,8 @@ interface GrupoReal {
  *  negócio com desempates (confronto direto, saldos) que já vive em
  *  `functions/src/group-standings.ts` — duplicá-la no front, sem os teamIds (o contrato de
  *  `TournamentMatch` só expõe labels de texto), arriscaria divergir do critério oficial. Em
- *  vez disso mostramos os confrontos do grupo com placar/quadra/horário reais. Sorteio de
- *  grupos e fechamento de chave continuam mock/fase 2 (operação real fica no app). */
+ *  vez disso mostramos os confrontos do grupo com placar/quadra/horário reais. "Sortear
+ *  grupos & gerar chave" leva ao fluxo real de geração (seeds + prévia de grupos). */
 @Component({
   selector: 'og-grupos',
   changeDetection: ChangeDetectionStrategy.OnPush,

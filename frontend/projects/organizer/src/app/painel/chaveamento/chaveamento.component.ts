@@ -73,7 +73,8 @@ function setsWonOf(score: string): [number, number] {
  *  vencedor exibe, no app), que fica só num clique de distância (`/placar/:id`) em vez de inflar
  *  o card: aqui a altura do card é fixa (ver `BRACKET_MATCH_HEIGHT`) porque os conectores da
  *  árvore são calculados em pixels a partir dela, então uma linha de altura variável quebraria
- *  o alinhamento. Sorteio/exportação de chave continuam mock/fase 2 (operação real fica no app). */
+ *  o alinhamento. "Sortear chave" leva ao fluxo real de geração (seeds); só a exportação
+ *  (PDF/imagem) segue mock — não existe no app também. */
 @Component({
   selector: 'og-chaveamento',
   changeDetection: ChangeDetectionStrategy.OnPush,

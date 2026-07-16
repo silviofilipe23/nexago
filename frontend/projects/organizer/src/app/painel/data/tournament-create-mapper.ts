@@ -1,5 +1,7 @@
-import { Timestamp, addDoc, collection, doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { Timestamp, addDoc, collection, doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { organizerFirestore } from './firestore';
+import { organizerStorage } from './storage';
 import { generateKeywords } from './search-keywords';
 import {
   BRACKET_FORMAT_FIRESTORE,
@@ -339,12 +341,27 @@ export async function loadTournamentDraft(tournamentId: string): Promise<Tournam
   return tournamentDraftFromFirestore(snap.data() as Record<string, unknown>, snap.id);
 }
 
-/** Cria (addDoc) ou atualiza (setDoc merge) o torneio. Retorna o id. */
+/** Capa do torneio — mesmo caminho/fluxo do app (`uploadCover` em
+ *  `organizer_tournaments_repository.dart`): Storage `tournaments/{id}/cover.jpg`. As regras
+ *  do Storage validam `managerId` no doc do Firestore, então o doc PRECISA existir antes do
+ *  upload — por isso o upload roda depois da gravação, e o doc é atualizado com
+ *  `coverUrl`/`imageUrl` (os dois campos, como o app grava). */
+export async function uploadTournamentCover(tournamentId: string, file: Blob): Promise<string> {
+  const storage = organizerStorage();
+  const coverRef = ref(storage, `tournaments/${tournamentId}/cover.jpg`);
+  await uploadBytes(coverRef, file, { contentType: file.type || 'image/jpeg' });
+  return getDownloadURL(coverRef);
+}
+
+/** Cria (addDoc) ou atualiza (setDoc merge) o torneio; com `coverFile`, sobe a capa depois da
+ *  gravação e atualiza `coverUrl`/`imageUrl` (fluxo idêntico ao `saveTournamentDraft` do app).
+ *  Retorna o id. */
 export async function publishTournamentDraft(params: {
   draft: TournamentCreateDraft;
   managerId: string;
   publish: boolean;
   existingListingStatus?: string | null;
+  coverFile?: Blob | null;
 }): Promise<string> {
   const db = organizerFirestore();
   const isUpdate = !!params.draft.tournamentId;
@@ -355,10 +372,24 @@ export async function publishTournamentDraft(params: {
     isUpdate,
     existingListingStatus: params.existingListingStatus ?? null,
   });
+
+  let tournamentId: string;
   if (isUpdate) {
-    await setDoc(doc(db, 'tournaments', params.draft.tournamentId!), data, { merge: true });
-    return params.draft.tournamentId!;
+    tournamentId = params.draft.tournamentId!;
+    await setDoc(doc(db, 'tournaments', tournamentId), data, { merge: true });
+  } else {
+    const created = await addDoc(collection(db, 'tournaments'), data);
+    tournamentId = created.id;
   }
-  const ref = await addDoc(collection(db, 'tournaments'), data);
-  return ref.id;
+
+  if (params.coverFile) {
+    const coverUrl = await uploadTournamentCover(tournamentId, params.coverFile);
+    await updateDoc(doc(db, 'tournaments', tournamentId), {
+      coverUrl,
+      imageUrl: coverUrl,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  return tournamentId;
 }

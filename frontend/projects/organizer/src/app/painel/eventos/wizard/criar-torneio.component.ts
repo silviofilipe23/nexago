@@ -265,6 +265,23 @@ function inputToDatetime(v: string): Date | null {
                     </og-form-field>
                   </div>
                   <div style="margin-top:16px">
+                    <og-form-field label="Imagem de capa (opcional)">
+                      <input #coverInput type="file" accept="image/jpeg,image/png,image/webp" hidden (change)="onCoverPicked($event)" />
+                      @if (coverPreviewUrl(); as preview) {
+                        <div class="og-cover-preview" [style.background-image]="'url(' + preview + ')'">
+                          <div class="og-cover-preview-actions">
+                            <button type="button" class="og-mini-btn" (click)="coverInput.click()">Trocar</button>
+                            <button type="button" class="og-ghost-btn" style="color:var(--nx-live)" (click)="clearCover()">Remover</button>
+                          </div>
+                        </div>
+                      } @else {
+                        <button type="button" class="og-dropzone og-cover-dropzone" (click)="coverInput.click()">
+                          JPG, PNG ou WebP · proporção 16:9 · máx. {{ maxCoverMb }} MB
+                        </button>
+                      }
+                    </og-form-field>
+                  </div>
+                  <div style="margin-top:16px">
                     <og-form-field label="Descrição (opcional)">
                       <textarea class="og-textarea-el" rows="3" [value]="draft().description" (input)="patch({ description: $any($event.target).value })"></textarea>
                     </og-form-field>
@@ -504,6 +521,32 @@ function inputToDatetime(v: string): Date | null {
       color: var(--nx-live);
       margin: 10px 0 0;
     }
+    .og-cover-dropzone {
+      width: 100%;
+      cursor: pointer;
+      background: transparent;
+    }
+    .og-cover-preview {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      max-height: 220px;
+      border-radius: var(--nx-r-3);
+      border: 1px solid var(--nx-line);
+      background-size: cover;
+      background-position: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .og-cover-preview-actions {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      display: flex;
+      gap: 8px;
+      padding: 6px;
+      border-radius: var(--nx-r-2);
+      background: rgba(5, 5, 5, 0.65);
+    }
     .og-wizard-hint {
       font-family: var(--nx-font-ui);
       font-size: 12px;
@@ -524,6 +567,17 @@ export class CriarTorneioComponent {
   protected readonly publishedId = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   private existingListingStatus: string | null = null;
+
+  /** Capa escolhida localmente (ainda não enviada) + URL de preview (object URL do arquivo,
+   *  ou a `coverImageUrl` já salva no doc em modo edição). */
+  protected readonly maxCoverMb = 5;
+  protected readonly coverFile = signal<File | null>(null);
+  private coverObjectUrl: string | null = null;
+  protected readonly coverPreviewUrl = computed(() => {
+    const file = this.coverFile();
+    if (file) return this.coverObjectUrl;
+    return this.draft().coverImageUrl;
+  });
 
   /** Categoria em edição no builder (cópia de trabalho). */
   protected readonly cat = signal<TournamentCategoryDraft>(emptyCategoryDraft('tmp'));
@@ -677,6 +731,35 @@ export class CriarTorneioComponent {
     }));
   }
 
+  // ── Capa ──
+  protected onCoverPicked(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = ''; // permite escolher o mesmo arquivo de novo
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+      this.feedback.set({ ok: false, message: 'Formato inválido — use JPG, PNG ou WebP.' });
+      return;
+    }
+    if (file.size > this.maxCoverMb * 1024 * 1024) {
+      this.feedback.set({ ok: false, message: `Imagem muito grande — máximo ${this.maxCoverMb} MB.` });
+      return;
+    }
+    if (this.coverObjectUrl) URL.revokeObjectURL(this.coverObjectUrl);
+    this.coverObjectUrl = URL.createObjectURL(file);
+    this.coverFile.set(file);
+    this.feedback.set(null);
+  }
+
+  protected clearCover(): void {
+    if (this.coverObjectUrl) {
+      URL.revokeObjectURL(this.coverObjectUrl);
+      this.coverObjectUrl = null;
+    }
+    this.coverFile.set(null);
+    this.patch({ coverImageUrl: null });
+  }
+
   // ── Categorias ──
   protected openCategoriaBuilder(id: string | null): void {
     const existing = id ? this.draft().categories.find((c) => c.id === id) : null;
@@ -827,14 +910,30 @@ export class CriarTorneioComponent {
     }
     this.saving.set(true);
     try {
-      const id = await publishTournamentDraft({ draft: this.draft(), managerId: uid, publish: false, existingListingStatus: this.existingListingStatus });
+      const id = await publishTournamentDraft({
+        draft: this.draft(),
+        managerId: uid,
+        publish: false,
+        existingListingStatus: this.existingListingStatus,
+        coverFile: this.coverFile(),
+      });
       this.patch({ tournamentId: id });
+      this.afterCoverUploaded();
       this.feedback.set({ ok: true, message: 'Rascunho salvo — você pode continuar depois.' });
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao salvar o rascunho.' });
     } finally {
       this.saving.set(false);
     }
+  }
+
+  /** Depois que a capa subiu junto com uma gravação, o arquivo local deixa de ser "pendente" —
+   *  recarrega o preview a partir do doc não é necessário; só troca o estado local. */
+  private afterCoverUploaded(): void {
+    if (!this.coverFile()) return;
+    this.patch({ coverImageUrl: this.coverObjectUrl });
+    this.coverObjectUrl = null;
+    this.coverFile.set(null);
   }
 
   private async publish(): Promise<void> {
@@ -855,7 +954,9 @@ export class CriarTorneioComponent {
         // rascunho/criação publica com 'open'.
         publish: !isPublishedEdit,
         existingListingStatus: this.existingListingStatus,
+        coverFile: this.coverFile(),
       });
+      this.afterCoverUploaded();
       if (isPublishedEdit) {
         this.feedback.set({ ok: true, message: 'Alterações salvas.' });
         setTimeout(() => void this.router.navigate(['/painel/eventos', id]), 700);

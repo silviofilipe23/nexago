@@ -26,7 +26,6 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
   imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgPillComponent, ChaveamentoSubnavComponent, ChaveamentoSelectorComponent],
   template: `
     <og-page-header title="Jogos" [subtitle]="headerSubtitle()">
-      <!-- mock (fase 2): agendamento manual de nova partida continua operação do app -->
       <a class="og-mini-btn og-mini-btn-primary" routerLink="/painel/chaveamento/agendamento"><og-icon name="plus" [size]="14" />Agendar partida</a>
     </og-page-header>
 
@@ -69,12 +68,7 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
                 <span style="width:110px;text-align:center" class="og-jogos-score">{{ j.match.score ?? 'Não jogado' }}</span>
                 <span style="width:90px" class="og-jogos-quadra">{{ j.match.court ?? '—' }}</span>
                 <span style="width:100px"><og-pill [tone]="jogoTone[j.status]">{{ jogoLabel[j.status] }}</og-pill></span>
-                @if (j.status === 'agendado') {
-                  <!-- mock (fase 2): edição de agendamento continua no app -->
-                  <button type="button" class="og-ghost-btn">Editar</button>
-                } @else {
-                  <a class="og-ghost-btn" [routerLink]="['/painel/chaveamento/placar', j.match.id]">Placar</a>
-                }
+                <a class="og-ghost-btn" [routerLink]="['/painel/chaveamento/placar', j.match.id]">{{ j.status === 'agendado' ? 'Lançar placar' : 'Placar' }}</a>
               </div>
             } @empty {
               <p class="og-empty">Nenhum jogo nesta categoria</p>

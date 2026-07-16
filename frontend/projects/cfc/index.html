@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CFC — Arena de Vôlei de Praia e Futevôlei</title>
+  <title>Arena CFC — Vôlei de Praia e Futevôlei</title>
   <meta name="description" content="Arena de esportes de areia: vôlei de praia, futevôlei, aulas, torneios e churrasco. Quadras iluminadas para jogar de dia e de noite.">
 
   <!-- Fontes: Anton (display), Antonio (subtítulos), DM Sans (texto) -->
@@ -22,8 +22,9 @@
        PRELOADER
   ============================================================ -->
   <div class="preloader" id="preloader">
-    <!-- [LOGO EDITÁVEL] substituir pelo logotipo oficial do CFC quando existir -->
-    <div class="preloader__logo">CF<span>C</span></div>
+    <div class="preloader__logo">
+      <img src="images/logo-nav.png" alt="Arena CFC">
+    </div>
   </div>
 
   <!-- ============================================================
@@ -32,9 +33,14 @@
   <header class="header" id="header">
     <div class="header__progress" id="scrollProgress"></div>
     <div class="header__inner">
-      <a href="#top" class="header__logo" aria-label="CFC — Página inicial">
-        <!-- [LOGO EDITÁVEL] trocar por <img> com o logotipo oficial -->
-        <span class="header__logo-text">CF<span>C</span></span>
+      <a href="#top" class="header__logo" aria-label="Arena CFC — Página inicial">
+        <img
+          src="images/logo-nav.png"
+          alt="Arena CFC"
+          class="header__logo-img"
+          width="78"
+          height="60"
+        >
       </a>
 
       <nav class="header__nav" aria-label="Navegação principal">
@@ -803,8 +809,7 @@
     <div class="container">
       <div class="footer__top">
         <div class="footer__brand">
-          <!-- [LOGO EDITÁVEL] -->
-          <span class="footer__logo">CF<span>C</span></span>
+          <img src="images/logo-nav.png" alt="Arena CFC" class="footer__logo-img" loading="lazy">
           <div class="footer__cta">
             <a href="#" class="btn btn--outline-light btn--sm">Valores</a>
             <a href="#" class="btn btn--fill btn--sm">Reservar</a>
@@ -835,7 +840,7 @@
           <a href="#">Termos e condições</a>
           <a href="#">Política de privacidade</a>
         </div>
-        <p>© 2026 CFC · Todos os direitos reservados</p>
+        <p>© 2026 Arena CFC · Todos os direitos reservados</p>
       </div>
     </div>
   </footer>

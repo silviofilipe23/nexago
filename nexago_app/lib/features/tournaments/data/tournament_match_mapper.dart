@@ -61,7 +61,22 @@ abstract final class TournamentMatchMapper {
       teamAConfirmed: _reportBool(data['report'], 'teamAConfirmed'),
       teamBConfirmed: _reportBool(data['report'], 'teamBConfirmed'),
       bestOf: _bestOf(data['bestOf']),
+      winnerAdvanceMatchNumber: _advanceMatchNumber(data['winnerAdvance']),
+      winnerAdvanceSlot: _advanceSlot(data['winnerAdvance']),
     );
+  }
+
+  static int? _advanceMatchNumber(dynamic raw) {
+    if (raw is! Map) return null;
+    return _int(raw['matchNumber']);
+  }
+
+  static String? _advanceSlot(dynamic raw) {
+    if (raw is! Map) return null;
+    final slot = raw['teamSlot'];
+    if (slot == 'teamAId') return 'A';
+    if (slot == 'teamBId') return 'B';
+    return null;
   }
 
   /// Formato da partida: aceita apenas 1 (set único) ou 3 (melhor de 3);

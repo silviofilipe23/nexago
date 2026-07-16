@@ -18,8 +18,10 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
           @if (step() > 1) {
             <button type="button" class="og-ghost-btn" (click)="back.emit()">Voltar</button>
           }
-          <button type="button" class="og-ghost-btn">Salvar rascunho</button>
-          <button type="button" class="og-mini-btn og-mini-btn-primary" (click)="cta.emit()">{{ ctaLabel() }}</button>
+          @if (showDraft()) {
+            <button type="button" class="og-ghost-btn" (click)="saveDraft.emit()">Salvar rascunho</button>
+          }
+          <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="ctaDisabled()" (click)="cta.emit()">{{ ctaLabel() }}</button>
         </div>
       </div>
       <div class="og-wizard-progress">
@@ -42,9 +44,12 @@ export class OgWizardShellComponent {
   readonly title = input.required<string>();
   readonly subtitle = input<string>('');
   readonly ctaLabel = input('Continuar');
+  readonly ctaDisabled = input(false);
+  readonly showDraft = input(true);
 
   readonly cta = output<void>();
   readonly back = output<void>();
+  readonly saveDraft = output<void>();
 
   protected stepsArray(): number[] {
     return Array.from({ length: this.total() }, (_, i) => i + 1);

@@ -1,0 +1,378 @@
+/** Porta fiel de `tournament_create_draft.dart` + `tournament_create_logic.dart` (Flutter):
+ *  o rascunho do wizard de criação de torneio e suas regras de validação/rótulos. Os VALORES
+ *  string dos "enums" são os `name` dos enums Dart — é o que vai pro Firestore, então não
+ *  renomear. */
+
+export type TournamentSport = 'beachVolleyball' | 'indoorVolleyball' | 'footvolley';
+export type TournamentBracketSystem = 'groupsThenKnockout' | 'singleElimination' | 'roundRobin' | 'groupsWithRepechage' | 'doubleElimination';
+export type TournamentBestOf = 'singleSet' | 'bestOf3' | 'bestOf5';
+export type TournamentPaymentMode = 'appPixCard' | 'directWithOrganizer';
+export type TournamentVisibility = 'publicListing' | 'linkOnly';
+export type CategoryGender = 'male' | 'female' | 'mixed';
+export type CategoryDispute = 'individual' | 'dupla' | 'team';
+export type AgeBand =
+  | 'open'
+  | 'sub13'
+  | 'sub15'
+  | 'sub17'
+  | 'sub19'
+  | 'sub21'
+  | 'sub23'
+  | 'plus30'
+  | 'plus35'
+  | 'plus40'
+  | 'plus45'
+  | 'plus50'
+  | 'plus55'
+  | 'plus60';
+export type SkillLevel = 'beginner' | 'intermediate' | 'open' | 'iniciante1' | 'iniciante2' | 'intermediario1' | 'intermediario2';
+export type AgeReference = 'tournamentStart' | 'yearEnd' | 'registration';
+
+export interface CategoryPrizeDraft {
+  position: string;
+  valueCents: number;
+  label?: string;
+}
+
+export interface TournamentCategoryDraft {
+  id: string;
+  name: string;
+  gender: CategoryGender;
+  dispute: CategoryDispute;
+  ageBand: AgeBand;
+  skillLevel: SkillLevel;
+  ageReference: AgeReference;
+  ageCustomEnabled: boolean;
+  ageMinYears: number | null;
+  ageMaxYears: number | null;
+  spots: number;
+  useDefaultPrice: boolean;
+  priceCents: number;
+  bracketSystem: TournamentBracketSystem;
+  teamsPerGroup: number;
+  qualifiersPerGroup: number;
+  bestOf: TournamentBestOf;
+  finalBestOf5: boolean;
+  maxRegistrationsPerAthlete: number;
+  prizes: CategoryPrizeDraft[];
+}
+
+export interface TournamentCreateDraft {
+  tournamentId: string | null;
+  sport: TournamentSport;
+  name: string;
+  coverImageUrl: string | null;
+  description: string;
+  arenaId: string | null;
+  locationName: string;
+  locationAddress: string;
+  city: string;
+  state: string;
+  startAt: Date | null;
+  endAt: Date | null;
+  firstMatchAt: Date | null;
+  courtsCount: number;
+  categories: TournamentCategoryDraft[];
+  defaultPriceCents: number;
+  registrationOpensAt: Date | null;
+  registrationClosesAt: Date | null;
+  paymentMode: TournamentPaymentMode;
+  organizerPixKey: string;
+  organizerPixKeyType: string;
+  organizerPixRecipientName: string;
+  organizerPixCity: string;
+  waitlistEnabled: boolean;
+  inviteConfirmEnabled: boolean;
+  cashPrizesEnabled: boolean;
+  regulationNotes: string;
+  uniformRequired: boolean;
+  uniformNumberOnShirt: boolean;
+  uniformNameOnShirt: boolean;
+  rankingEnabled: boolean;
+  rankingTableId: string;
+  visibility: TournamentVisibility;
+}
+
+export function emptyCategoryDraft(id: string): TournamentCategoryDraft {
+  return {
+    id,
+    name: '',
+    gender: 'male',
+    dispute: 'dupla',
+    ageBand: 'open',
+    skillLevel: 'open',
+    ageReference: 'tournamentStart',
+    ageCustomEnabled: false,
+    ageMinYears: null,
+    ageMaxYears: null,
+    spots: 16,
+    useDefaultPrice: true,
+    priceCents: 18000,
+    bracketSystem: 'groupsThenKnockout',
+    teamsPerGroup: 4,
+    qualifiersPerGroup: 2,
+    bestOf: 'bestOf3',
+    finalBestOf5: true,
+    maxRegistrationsPerAthlete: 2,
+    prizes: [],
+  };
+}
+
+export function emptyTournamentDraft(): TournamentCreateDraft {
+  return {
+    tournamentId: null,
+    sport: 'beachVolleyball',
+    name: '',
+    coverImageUrl: null,
+    description: '',
+    arenaId: null,
+    locationName: '',
+    locationAddress: '',
+    city: '',
+    state: '',
+    startAt: null,
+    endAt: null,
+    firstMatchAt: null,
+    courtsCount: 4,
+    categories: [],
+    defaultPriceCents: 22000,
+    registrationOpensAt: null,
+    registrationClosesAt: null,
+    paymentMode: 'appPixCard',
+    organizerPixKey: '',
+    organizerPixKeyType: '',
+    organizerPixRecipientName: '',
+    organizerPixCity: '',
+    waitlistEnabled: true,
+    inviteConfirmEnabled: false,
+    cashPrizesEnabled: true,
+    regulationNotes: '',
+    uniformRequired: true,
+    uniformNumberOnShirt: true,
+    uniformNameOnShirt: true,
+    rankingEnabled: true,
+    rankingTableId: 'nexago_standalone',
+    visibility: 'publicListing',
+  };
+}
+
+// ── Rótulos (mesmos textos do app) ────────────────────────────────────────────
+
+export const SPORT_LABEL: Record<TournamentSport, string> = {
+  beachVolleyball: 'Vôlei de praia',
+  indoorVolleyball: 'Vôlei de quadra',
+  footvolley: 'Futevôlei',
+};
+
+export const BRACKET_SYSTEM_LABEL: Record<TournamentBracketSystem, string> = {
+  groupsThenKnockout: 'Fase de grupos + mata-mata',
+  singleElimination: 'Mata-mata (chave simples)',
+  roundRobin: 'Todos contra todos',
+  groupsWithRepechage: 'Grupos + repescagem',
+  doubleElimination: 'Dupla eliminatória',
+};
+
+export const BRACKET_SYSTEM_SHORT_LABEL: Record<TournamentBracketSystem, string> = {
+  groupsThenKnockout: 'Grupos + SE',
+  singleElimination: 'Chave simples',
+  roundRobin: 'Pontos corridos',
+  groupsWithRepechage: 'Grupos + repescagem',
+  doubleElimination: 'Dupla eliminatória',
+};
+
+export const BRACKET_SYSTEM_DESCRIPTION: Record<TournamentBracketSystem, string> = {
+  groupsThenKnockout: 'Grupos classificatórios e depois eliminatória. O mais comum em torneios de praia.',
+  singleElimination: 'Eliminação direta do início ao fim.',
+  roundRobin: 'Pontos corridos — todos se enfrentam.',
+  groupsWithRepechage: 'Quem perde cedo ganha uma segunda chance.',
+  doubleElimination: 'Dupla eliminatória — sem fase de grupos.',
+};
+
+/** Formatos com geração de chave implementada (mesma lista do app). */
+export const SUPPORTED_BRACKET_SYSTEMS: readonly TournamentBracketSystem[] = ['groupsThenKnockout', 'singleElimination', 'doubleElimination'];
+
+export const BEST_OF_LABEL: Record<TournamentBestOf, string> = {
+  singleSet: 'Set único',
+  bestOf3: 'MD3',
+  bestOf5: 'MD5',
+};
+
+export const GENDER_LABEL: Record<CategoryGender, string> = { male: 'Masculino', female: 'Feminino', mixed: 'Misto' };
+export const GENDER_SHORT: Record<CategoryGender, string> = { male: 'Masc', female: 'Fem', mixed: 'Misto' };
+
+export const AGE_BAND_LABEL: Record<AgeBand, string> = {
+  open: 'Livre',
+  sub13: 'Sub-13',
+  sub15: 'Sub-15',
+  sub17: 'Sub-17',
+  sub19: 'Sub-19',
+  sub21: 'Sub-21',
+  sub23: 'Sub-23',
+  plus30: '+30',
+  plus35: '+35',
+  plus40: '+40',
+  plus45: '+45',
+  plus50: '+50',
+  plus55: '+55',
+  plus60: '+60',
+};
+
+export const SKILL_LEVEL_LABEL: Record<SkillLevel, string> = {
+  beginner: 'Iniciante',
+  intermediate: 'Intermediário',
+  open: 'Open',
+  iniciante1: 'Iniciante 1',
+  iniciante2: 'Iniciante 2',
+  intermediario1: 'Intermediário 1',
+  intermediario2: 'Intermediário 2',
+};
+
+/** Escada de 5 níveis pro vôlei; legada de 3 pro futevôlei (espelha `skillLevelOptionsForSport`). */
+export function skillLevelOptionsForSport(sport: TournamentSport): SkillLevel[] {
+  if (sport === 'footvolley') return ['beginner', 'intermediate', 'open'];
+  return ['iniciante1', 'iniciante2', 'intermediario1', 'intermediario2', 'open'];
+}
+
+export const BRACKET_FORMAT_FIRESTORE: Record<TournamentBracketSystem, string> = {
+  groupsThenKnockout: 'groups_knockout',
+  singleElimination: 'single_elimination',
+  roundRobin: 'round_robin',
+  groupsWithRepechage: 'groups_repechage',
+  doubleElimination: 'double_elimination',
+};
+
+export function bracketSystemFromRaw(raw: string): TournamentBracketSystem | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const byName: Record<string, TournamentBracketSystem> = {
+    groupsThenKnockout: 'groupsThenKnockout',
+    singleElimination: 'singleElimination',
+    roundRobin: 'roundRobin',
+    groupsWithRepechage: 'groupsWithRepechage',
+    doubleElimination: 'doubleElimination',
+    groups_knockout: 'groupsThenKnockout',
+    groups_then_knockout: 'groupsThenKnockout',
+    single_elimination: 'singleElimination',
+    round_robin: 'roundRobin',
+    groups_repechage: 'groupsWithRepechage',
+    groups_with_repechage: 'groupsWithRepechage',
+    double_elimination: 'doubleElimination',
+  };
+  const exact = byName[trimmed] ?? byName[trimmed.toLowerCase()];
+  if (exact) return exact;
+  const n = trimmed.toLowerCase();
+  if (n.includes('pool') && (n.includes('se') || n.includes('mata') || n.includes('elim'))) return 'groupsThenKnockout';
+  if (n.includes('grupos') && n.includes('mata')) return 'groupsThenKnockout';
+  if (n.includes('dupla') && n.includes('elim')) return 'doubleElimination';
+  return null;
+}
+
+export function suggestCategoryName(category: TournamentCategoryDraft): string {
+  const parts = [GENDER_LABEL[category.gender]];
+  if (category.ageBand !== 'open') parts.push(AGE_BAND_LABEL[category.ageBand]);
+  if (category.skillLevel !== 'open') parts.push(SKILL_LEVEL_LABEL[category.skillLevel]);
+  return parts.join(' ').trim();
+}
+
+export function categoryTags(category: TournamentCategoryDraft): string[] {
+  const tags = [GENDER_SHORT[category.gender], 'Dupla'];
+  if (category.ageBand !== 'open') tags.push(AGE_BAND_LABEL[category.ageBand]);
+  if (category.skillLevel !== 'open') tags.push(SKILL_LEVEL_LABEL[category.skillLevel]);
+  return tags;
+}
+
+export function totalSpots(draft: TournamentCreateDraft): number {
+  return draft.categories.reduce((sum, c) => sum + c.spots, 0);
+}
+
+export function totalPrizeCents(draft: TournamentCreateDraft): number {
+  return draft.categories.reduce((sum, c) => sum + c.prizes.reduce((p, x) => p + x.valueCents, 0), 0);
+}
+
+/** 50% / 31,25% / resto — mesma distribuição default do app. */
+export function defaultCategoryPrizes(totalCents: number): CategoryPrizeDraft[] {
+  if (totalCents <= 0) return [];
+  const first = Math.round(totalCents * 0.5);
+  const second = Math.round(totalCents * 0.3125);
+  const third = totalCents - first - second;
+  return [
+    { position: '1', valueCents: first, label: 'Campeão' },
+    { position: '2', valueCents: second, label: 'Vice-campeão' },
+    { position: '3', valueCents: third, label: 'Terceiro lugar' },
+  ];
+}
+
+// ── Validação por passo (espelha `canContinueFromStep`) ───────────────────────
+
+export function organizerPixComplete(draft: TournamentCreateDraft): boolean {
+  if (draft.paymentMode !== 'directWithOrganizer') return true;
+  return draft.organizerPixKey.trim().length > 0 && draft.organizerPixRecipientName.trim().length > 0;
+}
+
+export function registrationWindowError(draft: TournamentCreateDraft): string | null {
+  const opens = draft.registrationOpensAt;
+  const closes = draft.registrationClosesAt;
+  if (!opens || !closes) return null;
+  if (closes < opens) return 'O fechamento das inscrições não pode ser antes da abertura.';
+  if (draft.startAt && closes > draft.startAt) return 'As inscrições não podem fechar depois do início do torneio.';
+  return null;
+}
+
+export type TournamentCreateStep = 'identity' | 'location' | 'categories' | 'registration' | 'rules' | 'review';
+
+export const TOURNAMENT_CREATE_STEPS: readonly TournamentCreateStep[] = ['identity', 'location', 'categories', 'registration', 'rules', 'review'];
+
+export function canContinueFromStep(draft: TournamentCreateDraft, step: TournamentCreateStep): boolean {
+  switch (step) {
+    case 'identity':
+      return draft.name.trim().length > 0;
+    case 'location':
+      return (
+        draft.locationName.trim().length > 0 &&
+        draft.city.trim().length > 0 &&
+        draft.startAt != null &&
+        draft.endAt != null &&
+        draft.endAt >= draft.startAt &&
+        draft.courtsCount > 0
+      );
+    case 'categories':
+      return draft.categories.length > 0;
+    case 'registration':
+      return draft.registrationOpensAt != null && draft.registrationClosesAt != null && registrationWindowError(draft) == null && organizerPixComplete(draft);
+    case 'rules':
+      return !draft.cashPrizesEnabled || draft.categories.every((c) => c.prizes.length > 0);
+    case 'review':
+      return isValidForPublish(draft);
+  }
+}
+
+export function publishBlockReasonForUnsupportedBrackets(draft: TournamentCreateDraft): string {
+  for (const category of draft.categories) {
+    if (!SUPPORTED_BRACKET_SYSTEMS.includes(category.bracketSystem)) {
+      const label = category.name.trim() || 'sem nome';
+      return `A categoria "${label}" usa ${BRACKET_SYSTEM_LABEL[category.bracketSystem]}, ainda não suportado.`;
+    }
+  }
+  return '';
+}
+
+export function isValidForPublish(draft: TournamentCreateDraft): boolean {
+  for (const step of TOURNAMENT_CREATE_STEPS) {
+    if (step === 'review') continue;
+    if (!canContinueFromStep(draft, step)) return false;
+  }
+  return publishBlockReasonForUnsupportedBrackets(draft) === '';
+}
+
+// ── Quadras (espelha `MatchOpsLogic.defaultCourtsFromCount`) ──────────────────
+
+export interface TournamentCourt {
+  id: string;
+  name: string;
+  order: number;
+}
+
+export function defaultCourtsFromCount(count: number): TournamentCourt[] {
+  const n = Math.max(count, 1);
+  return Array.from({ length: n }, (_, i) => ({ id: `Q${i + 1}`, name: `Quadra ${i + 1}`, order: i + 1 }));
+}

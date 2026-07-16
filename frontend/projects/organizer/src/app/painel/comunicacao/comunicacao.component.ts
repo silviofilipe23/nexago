@@ -1,67 +1,208 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { OG_AVISOS, OG_MENSAGENS, initialsOf } from '../data/mock-data';
-import { OgAvatarComponent } from '../ui/avatar.component';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { AuthService } from '../../auth/auth.service';
+import { sendCategoryCommunication } from '../data/organizer-ops.service';
+import type { OrganizerTournament } from '../data/tournament.model';
+import { listMyTournaments } from '../data/tournaments-repository';
 import { OgCardComponent } from '../ui/card.component';
+import { OgFormFieldComponent } from '../ui/form-field.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
-import { OgPillComponent } from '../ui/pill.component';
+import { OgToggleRowComponent } from '../ui/toggle-row.component';
 
-/** Avisos em broadcast por evento e mensagens diretas com participantes. */
+type Audience = 'all' | 'paid' | 'pending';
+
+const AUDIENCE_LABEL: Record<Audience, string> = {
+  all: 'Todos os inscritos',
+  paid: 'Só confirmados (pagos)',
+  pending: 'Só pendentes',
+};
+
+interface SentResult {
+  pushCount: number;
+  whatsappLinks: Array<{ teamId: string; links: string[] }>;
+}
+
+interface SentLogEntry {
+  at: Date;
+  tournamentName: string;
+  categoryName: string;
+  audience: Audience;
+  message: string;
+  pushCount: number;
+}
+
+const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+/** Comunicação real com os atletas — espelha `organizer_category_communicate_page.dart`
+ *  (Flutter): broadcast por categoria via `sendCategoryCommunication` (push pros dois atletas
+ *  de cada dupla + links de WhatsApp prontos, que o servidor monta a partir dos telefones).
+ *  O backend não persiste histórico de avisos (o retorno é só pushCount/links), então o
+ *  histórico aqui é da sessão. As "mensagens diretas" do protótipo saíram: não existe DM de
+ *  organizador no app. */
 @Component({
   selector: 'og-comunicacao',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgPillComponent, OgAvatarComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgFormFieldComponent, OgToggleRowComponent],
   template: `
-    <og-page-header title="Comunicação" subtitle="Avisos gerais e mensagens diretas com participantes">
-      <button type="button" class="og-mini-btn og-mini-btn-primary"><og-icon name="plus" [size]="14" />Novo aviso</button>
-    </og-page-header>
+    <og-page-header title="Comunicação" subtitle="Aviso em broadcast pros inscritos de uma categoria — push no app + WhatsApp" />
 
-    <div class="og-content" style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px;overflow:hidden">
-      <og-card kicker="Broadcast" title="Avisos enviados" style="min-height:0;overflow:hidden">
-        <div style="display:flex;flex-direction:column;gap:14px;overflow-y:auto;scrollbar-width:none">
-          @for (a of avisos; track a.title) {
+    <div class="og-content" style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px;align-items:start">
+      <og-card kicker="Broadcast" title="Novo aviso">
+        @if (loading()) {
+          <p class="og-comm-empty">Carregando torneios…</p>
+        } @else if (tournaments().length === 0) {
+          <p class="og-comm-empty">Nenhum torneio ainda.</p>
+        } @else {
+          <og-form-field label="Torneio">
+            <select class="og-comm-select" [value]="selectedTournamentId()" (change)="onTournament($event)">
+              @for (t of tournaments(); track t.id) {
+                <option [value]="t.id">{{ t.name }}</option>
+              }
+            </select>
+          </og-form-field>
+
+          <div style="margin-top:14px">
+            <og-form-field label="Categoria">
+              <select class="og-comm-select" [value]="selectedCategoryId()" (change)="onCategory($event)">
+                @for (c of categories(); track c.id) {
+                  <option [value]="c.id">{{ c.name }}</option>
+                }
+              </select>
+            </og-form-field>
+          </div>
+
+          <div style="margin-top:14px">
+            <og-form-field label="Público">
+              <div class="og-filter-bar">
+                @for (a of audiences; track a) {
+                  <button type="button" class="og-chip" [class.active]="audience() === a" (click)="audience.set(a)">{{ audienceLabel[a] }}</button>
+                }
+              </div>
+            </og-form-field>
+          </div>
+
+          <div style="margin-top:14px">
+            <og-form-field label="Mensagem">
+              <textarea
+                class="og-comm-textarea"
+                rows="4"
+                maxlength="500"
+                placeholder="Ex.: Atenção: os jogos de amanhã começam às 8h. Cheguem 30min antes."
+                [value]="message()"
+                (input)="message.set($any($event.target).value)"
+              ></textarea>
+            </og-form-field>
+          </div>
+
+          <div style="margin-top:10px">
+            <og-toggle-row title="Enviar push no app" desc="Além dos links de WhatsApp, notifica os atletas no nexaGO." [on]="sendPush()" (toggled)="sendPush.set($event)" />
+          </div>
+
+          @if (feedback(); as fb) {
+            <div class="og-banner" [class.win]="fb.ok" style="margin-top:12px">{{ fb.message }}</div>
+          }
+
+          <div style="margin-top:14px;display:flex;justify-content:flex-end">
+            <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="sending() || !canSend()" (click)="send()">
+              <og-icon name="mail" [size]="14" />{{ sending() ? 'Enviando…' : 'Enviar aviso' }}
+            </button>
+          </div>
+        }
+      </og-card>
+
+      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
+        @if (lastResult(); as result) {
+          <og-card kicker="WhatsApp" title="Links de conversa">
+            @if (result.whatsappLinks.length === 0) {
+              <p class="og-comm-empty">Nenhum telefone cadastrado entre os destinatários.</p>
+            } @else {
+              <p class="og-comm-hint">Clique pra abrir a conversa já com a mensagem preenchida:</p>
+              <div class="og-comm-links">
+                @for (team of result.whatsappLinks; track team.teamId; let i = $index) {
+                  @for (link of team.links; track link; let j = $index) {
+                    <a class="og-mini-btn" [href]="link" target="_blank" rel="noopener">Dupla {{ i + 1 }} · atleta {{ j + 1 }}</a>
+                  }
+                }
+              </div>
+            }
+          </og-card>
+        }
+
+        <og-card kicker="Sessão" title="Avisos enviados">
+          @for (s of sentLog(); track s.at.getTime()) {
             <div class="og-comm-aviso">
               <div class="og-comm-aviso-top">
-                <div class="og-comm-aviso-title">{{ a.title }}</div>
-                <span class="og-comm-aviso-date">{{ a.date }}</span>
+                <div class="og-comm-aviso-title">{{ s.tournamentName }} · {{ s.categoryName }}</div>
+                <span class="og-comm-aviso-date">{{ timeOf(s.at) }}</span>
               </div>
-              <div class="og-comm-aviso-body">{{ a.body }}</div>
+              <div class="og-comm-aviso-body">{{ s.message }}</div>
               <div class="og-comm-aviso-footer">
-                <og-pill tone="dim">{{ a.evento }}</og-pill>
-                <span class="og-comm-aviso-alcance">{{ a.alcance }} destinatários</span>
+                <span class="og-comm-aviso-alcance">{{ audienceLabel[s.audience] }} · {{ s.pushCount }} push enviados</span>
               </div>
             </div>
+          } @empty {
+            <p class="og-comm-empty">Nenhum aviso enviado nesta sessão.</p>
           }
-        </div>
-      </og-card>
-
-      <og-card kicker="Diretas" title="Mensagens" pad="0" style="min-height:0">
-        <div style="flex:1;overflow-y:auto;scrollbar-width:none">
-          @for (m of mensagens; track m.name; let last = $last) {
-            <div class="og-comm-msg" [class.unread]="m.unread" [class.last]="last">
-              <og-avatar [initials]="initialsOf(m.name)" [size]="36" />
-              <div style="flex:1;min-width:0">
-                <div style="display:flex;justify-content:space-between;gap:8px">
-                  <span class="og-comm-msg-name" [class.unread]="m.unread">{{ m.name }}</span>
-                  <span class="og-comm-msg-time">{{ m.time }}</span>
-                </div>
-                <div class="og-comm-msg-preview" [class.unread]="m.unread">{{ m.preview }}</div>
-              </div>
-              @if (m.unread) {
-                <span class="og-comm-msg-dot"></span>
-              }
-            </div>
-          }
-        </div>
-      </og-card>
+        </og-card>
+      </div>
     </div>
   `,
   styles: `
+    .og-comm-select {
+      width: 100%;
+      height: 38px;
+      padding: 0 10px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-0);
+      border: 1px solid var(--nx-line);
+      color: var(--nx-text);
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .og-comm-textarea {
+      width: 100%;
+      resize: vertical;
+      padding: 12px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-0);
+      border: 1px solid var(--nx-line);
+      color: var(--nx-text);
+      font-family: var(--nx-font-ui);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .og-comm-textarea:focus {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 0;
+    }
+    .og-comm-hint {
+      font-family: var(--nx-font-ui);
+      font-size: 12px;
+      color: var(--nx-text-mute);
+      margin: 0 0 10px;
+    }
+    .og-comm-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .og-comm-empty {
+      font-family: var(--nx-font-ui);
+      font-size: 13px;
+      color: var(--nx-text-mute);
+      margin: 0;
+    }
     .og-comm-aviso {
       padding: 14px 16px;
       background: var(--nx-surface-1);
       border: 1px solid var(--nx-line);
       border-radius: var(--nx-r-3);
+      margin-bottom: 12px;
+    }
+    .og-comm-aviso:last-of-type {
+      margin-bottom: 0;
     }
     .og-comm-aviso-top {
       display: flex;
@@ -72,7 +213,7 @@ import { OgPillComponent } from '../ui/pill.component';
     .og-comm-aviso-title {
       font-family: var(--nx-font-display);
       font-weight: 700;
-      font-size: 14px;
+      font-size: 13px;
       color: var(--nx-text);
     }
     .og-comm-aviso-date {
@@ -98,56 +239,102 @@ import { OgPillComponent } from '../ui/pill.component';
       font-size: 10.5px;
       color: var(--nx-text-dim);
     }
-    .og-comm-msg {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--nx-line);
-    }
-    .og-comm-msg.last {
-      border-bottom: none;
-    }
-    .og-comm-msg.unread {
-      background: var(--nx-orange-tint);
-    }
-    .og-comm-msg-name {
-      font-family: var(--nx-font-display);
-      font-weight: 600;
-      font-size: 13px;
-      color: var(--nx-text);
-    }
-    .og-comm-msg-name.unread {
-      font-weight: 700;
-    }
-    .og-comm-msg-time {
-      font-family: var(--nx-font-mono);
-      font-size: 10px;
-      color: var(--nx-text-dim);
-    }
-    .og-comm-msg-preview {
-      font-family: var(--nx-font-ui);
-      font-size: 12px;
-      color: var(--nx-text-dim);
-      margin-top: 3px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .og-comm-msg-preview.unread {
-      color: var(--nx-text-mute);
-    }
-    .og-comm-msg-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--nx-orange-500);
-      flex: none;
-    }
   `,
 })
 export class ComunicacaoComponent {
-  protected readonly avisos = OG_AVISOS;
-  protected readonly mensagens = OG_MENSAGENS;
-  protected readonly initialsOf = initialsOf;
+  private readonly auth = inject(AuthService);
+
+  protected readonly audiences: Audience[] = ['all', 'paid', 'pending'];
+  protected readonly audienceLabel = AUDIENCE_LABEL;
+
+  protected readonly loading = signal(true);
+  protected readonly sending = signal(false);
+  protected readonly tournaments = signal<OrganizerTournament[]>([]);
+  protected readonly selectedTournamentId = signal<string | null>(null);
+  protected readonly selectedCategoryId = signal<string | null>(null);
+  protected readonly audience = signal<Audience>('all');
+  protected readonly message = signal('');
+  protected readonly sendPush = signal(true);
+  protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+  protected readonly lastResult = signal<SentResult | null>(null);
+  protected readonly sentLog = signal<SentLogEntry[]>([]);
+
+  protected readonly tournament = computed(() => this.tournaments().find((t) => t.id === this.selectedTournamentId()) ?? null);
+  protected readonly categories = computed(() => this.tournament()?.categories ?? []);
+
+  protected readonly canSend = computed(() => this.selectedTournamentId() != null && this.selectedCategoryId() != null && this.message().trim().length > 0);
+
+  constructor() {
+    const uid = this.auth.user()?.uid;
+    if (!uid) {
+      this.loading.set(false);
+      return;
+    }
+    void this.load(uid);
+  }
+
+  private async load(uid: string): Promise<void> {
+    try {
+      const tournaments = await listMyTournaments(uid);
+      this.tournaments.set(tournaments);
+      if (tournaments.length > 0) {
+        this.selectedTournamentId.set(tournaments[0]!.id);
+        this.selectedCategoryId.set(tournaments[0]!.categories[0]?.id ?? null);
+      }
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  protected onTournament(event: Event): void {
+    const id = (event.target as HTMLSelectElement).value;
+    this.selectedTournamentId.set(id);
+    const t = this.tournaments().find((x) => x.id === id);
+    this.selectedCategoryId.set(t?.categories[0]?.id ?? null);
+  }
+
+  protected onCategory(event: Event): void {
+    this.selectedCategoryId.set((event.target as HTMLSelectElement).value);
+  }
+
+  protected async send(): Promise<void> {
+    const tid = this.selectedTournamentId();
+    const cid = this.selectedCategoryId();
+    if (!tid || !cid || !this.canSend() || this.sending()) return;
+    this.sending.set(true);
+    this.feedback.set(null);
+    try {
+      const result = (await sendCategoryCommunication({
+        tournamentId: tid,
+        categoryId: cid,
+        message: this.message(),
+        audience: this.audience(),
+        sendPush: this.sendPush(),
+      })) as unknown as SentResult;
+      const pushCount = result.pushCount ?? 0;
+      const links = result.whatsappLinks ?? [];
+      this.lastResult.set({ pushCount, whatsappLinks: links });
+      this.feedback.set({ ok: true, message: `Aviso enviado — ${pushCount} push${links.length ? ` · ${links.length} duplas com WhatsApp` : ''}.` });
+      this.sentLog.update((log) => [
+        {
+          at: new Date(),
+          tournamentName: this.tournament()?.name ?? '',
+          categoryName: this.categories().find((c) => c.id === cid)?.name ?? cid,
+          audience: this.audience(),
+          message: this.message().trim(),
+          pushCount,
+        },
+        ...log,
+      ]);
+      this.message.set('');
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao enviar o aviso.' });
+    } finally {
+      this.sending.set(false);
+    }
+  }
+
+  protected timeOf(d: Date): string {
+    return TIME.format(d);
+  }
 }

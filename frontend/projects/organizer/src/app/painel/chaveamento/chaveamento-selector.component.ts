@@ -2,10 +2,11 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ChaveamentoContextService } from './chaveamento-context.service';
 
 /** Seletor de torneio + categoria — contexto real (`ChaveamentoContextService`) que grupos,
- *  jogos e agendamento passam a exibir. O protótipo mockava o torneio/categoria no subtítulo
- *  do cabeçalho ("Liga Municipal de Beach Tennis · categoria Open Misto"); aqui vira controle
- *  de verdade porque o organizador pode ter vários torneios/categorias reais. Não aparece na
- *  tela "chave" (mata-mata) nem em "placar" — ver comentários nesses componentes. */
+ *  jogos, chave e agendamento passam a exibir. O protótipo mockava o torneio/categoria no
+ *  subtítulo do cabeçalho ("Liga Municipal de Beach Tennis · categoria Open Misto"); aqui vira
+ *  controle de verdade porque o organizador pode ter vários torneios/categorias reais. Não
+ *  aparece em "placar" (chega via link a partir de uma partida específica) — ver comentário
+ *  nesse componente. */
 @Component({
   selector: 'og-chaveamento-selector',
   changeDetection: ChangeDetectionStrategy.OnPush,

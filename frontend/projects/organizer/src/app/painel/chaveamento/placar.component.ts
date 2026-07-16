@@ -1,47 +1,43 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { initialsOf } from '../data/mock-data';
+import { type ScoreSet, matchWinnerSide, setsWon, targetPointsForSet, validateScoreSubmission } from '../data/match-scoring';
+import { declareMatchWalkover, submitMatchResult, validateMatchResult } from '../data/organizer-ops.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
-import { OgDisplayInputComponent } from '../ui/display-input.component';
 import { OgFormFieldComponent } from '../ui/form-field.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 import { ChaveamentoContextService } from './chaveamento-context.service';
 
-interface SetRow {
-  set: number;
-  sa: number;
-  sb: number;
-}
-
 const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-/** Placar de uma partida real — chegada via `/painel/chaveamento/placar/:matchId` a partir do
- *  link "Placar" da tela de jogos (Task O6). Lê a partida no cache de jogos já carregado pelo
- *  `ChaveamentoContextService` (mesmo torneio que a tela de jogos deixou selecionado); não há
- *  `getMatch(id)` na camada de dados (contrato da Task O1 só expõe `listMatches(tournamentId)`),
- *  então acesso direto por URL sem ter passado pela lista de jogos mostra "partida não
- *  encontrada". Lançamento/edição de placar continuam mock/fase 2 — sets, duração e
- *  observações aqui são só leitura. */
+/** Lançamento de placar real — mesmo fluxo do app (`organizer_match_quick_score_page.dart`):
+ *  sets editáveis (MD1/MD3, igual ao servidor que só aceita bestOf 1|3), validação local
+ *  espelhando `match_scoring_logic.dart` (mensagens idênticas) e gravação autoritativa via
+ *  `submitMatchResult`. O avanço da chave é automático (trigger
+ *  `onTournamentMatchCompletedAdvance` no servidor) — nada a chamar aqui depois do submit.
+ *  W.O. via `declareMatchWalkover` (escolhe o vencedor) e validação da súmula via
+ *  `validateMatchResult` quando a partida já está concluída. Chegada via
+ *  `/painel/chaveamento/placar/:matchId`; lê a partida do cache do
+ *  `ChaveamentoContextService` e recarrega os jogos após cada escrita. */
 @Component({
   selector: 'og-placar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent, OgPillComponent, OgFormFieldComponent, OgDisplayInputComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent, OgPillComponent, OgFormFieldComponent],
   template: `
     <og-page-header title="Placar" [subtitle]="headerSubtitle()">
       <button type="button" class="og-ghost-btn" (click)="cancel()">Voltar</button>
-      <!-- mock (fase 2): lançamento/edição de placar continua operação do app -->
-      <button type="button" class="og-mini-btn og-mini-btn-primary" disabled title="Lançamento de placar é feito pelo app">
-        <og-icon name="check" [size]="14" />Salvar placar
+      <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="saving() || !canSubmit()" (click)="save()">
+        <og-icon name="check" [size]="14" />{{ saving() ? 'Salvando…' : 'Salvar placar' }}
       </button>
     </og-page-header>
 
     <div class="og-wizard-body">
       <div class="og-wizard-col">
         @if (!match()) {
-          <og-card><p class="og-empty">Partida não encontrada.</p></og-card>
+          <og-card><p class="og-empty">Partida não encontrada — abra pela lista de jogos.</p></og-card>
         } @else {
           <og-card kicker="Partida" [title]="match()!.team1Label + ' vs ' + match()!.team2Label">
             <div class="og-placar-header">
@@ -50,9 +46,9 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
                 <span class="og-placar-name">{{ match()!.team1Label }}</span>
               </div>
               <div class="og-placar-score">
-                <span class="a">{{ setsWonA() }}</span>
+                <span class="a">{{ wins().a }}</span>
                 <span class="lbl">sets</span>
-                <span class="b">{{ setsWonB() }}</span>
+                <span class="b">{{ wins().b }}</span>
               </div>
               <div class="og-placar-side reverse">
                 <span class="og-placar-name">{{ match()!.team2Label }}</span>
@@ -61,39 +57,92 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
             </div>
           </og-card>
 
-          <og-card kicker="Placar por set" title="Sets">
-            @if (sets().length === 0) {
-              <p class="og-empty">Partida ainda não tem placar registrado.</p>
-            } @else {
-              @for (s of sets(); track s.set) {
-                <div class="og-placar-set-row">
-                  <span class="og-placar-set-label">Set {{ s.set }}</span>
-                  <div style="flex:1;display:flex;gap:20px">
-                    <div class="og-placar-set-box-wrap">
-                      <span class="lbl">{{ match()!.team1Label }}</span>
-                      <div class="og-placar-set-box">{{ s.sa }}</div>
-                    </div>
-                    <div class="og-placar-set-box-wrap">
-                      <span class="lbl">{{ match()!.team2Label }}</span>
-                      <div class="og-placar-set-box">{{ s.sb }}</div>
-                    </div>
-                  </div>
-                  <og-pill tone="dim">Registrado</og-pill>
-                </div>
+          <og-card kicker="Formato" title="Melhor de">
+            <div class="og-filter-bar">
+              @for (option of [1, 3]; track option) {
+                <button type="button" class="og-chip" [class.active]="bestOf() === option" (click)="setBestOf(option)">
+                  {{ option === 1 ? 'Set único' : 'MD3' }}
+                </button>
               }
+            </div>
+          </og-card>
+
+          <og-card kicker="Placar por set" title="Sets">
+            @for (s of sets(); track $index; let i = $index) {
+              <div class="og-placar-set-row">
+                <span class="og-placar-set-label">Set {{ i + 1 }} <em>até {{ targetOf(i) }}</em></span>
+                <div style="flex:1;display:flex;gap:20px">
+                  <div class="og-placar-set-box-wrap">
+                    <span class="lbl">{{ match()!.team1Label }}</span>
+                    <input
+                      type="number"
+                      inputmode="numeric"
+                      min="0"
+                      max="99"
+                      class="og-placar-set-input"
+                      [value]="s.a"
+                      (input)="updateSet(i, 'a', $event)"
+                    />
+                  </div>
+                  <div class="og-placar-set-box-wrap">
+                    <span class="lbl">{{ match()!.team2Label }}</span>
+                    <input
+                      type="number"
+                      inputmode="numeric"
+                      min="0"
+                      max="99"
+                      class="og-placar-set-input"
+                      [value]="s.b"
+                      (input)="updateSet(i, 'b', $event)"
+                    />
+                  </div>
+                </div>
+                <button type="button" class="og-ghost-btn" (click)="removeSet(i)">Remover</button>
+              </div>
+              @if (issueForSet(i); as msg) {
+                <p class="og-placar-error">{{ msg }}</p>
+              }
+            } @empty {
+              <p class="og-empty">Nenhum set lançado ainda.</p>
+            }
+
+            @if (sets().length < bestOf()) {
+              <button type="button" class="og-mini-btn" style="margin-top:12px" (click)="addSet()">
+                <og-icon name="plus" [size]="14" />Adicionar set {{ sets().length + 1 }}
+              </button>
+            }
+
+            @if (globalIssue(); as msg) {
+              <p class="og-placar-error" style="margin-top:12px">{{ msg }}</p>
+            }
+            @if (feedback(); as fb) {
+              <div class="og-banner" [class.win]="fb.ok" style="margin-top:12px">{{ fb.message }}</div>
             }
           </og-card>
 
+          @if (canWalkover()) {
+            <og-card kicker="Ocorrência" title="W.O. (walkover)">
+              <p class="og-placar-hint">Declara vitória sem jogo — a dupla ausente é eliminada e a chave avança.</p>
+              <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+                <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="walkover(match()!.teamAId)">Vitória de {{ match()!.team1Label }}</button>
+                <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="walkover(match()!.teamBId)">Vitória de {{ match()!.team2Label }}</button>
+              </div>
+            </og-card>
+          }
+
+          @if (match()!.status === 'completed') {
+            <og-card kicker="Súmula" title="Validação">
+              <div style="display:flex;align-items:center;gap:12px">
+                <og-pill tone="green">Partida encerrada</og-pill>
+                <button type="button" class="og-ghost-btn" [disabled]="saving()" (click)="validate()">Validar resultado</button>
+              </div>
+            </og-card>
+          }
+
           <og-card kicker="Detalhes" title="Registro da partida">
             <div class="og-field-grid">
-              <og-form-field label="Quadra"><og-display-input [value]="match()!.court ?? 'A definir'" /></og-form-field>
-              <og-form-field label="Horário"><og-display-input [value]="scheduledLabel()" /></og-form-field>
-            </div>
-            <div style="margin-top:16px">
-              <og-form-field label="Observações">
-                <!-- mock (fase 2): TournamentMatch não expõe campo de observações -->
-                <div class="og-textarea" style="color:var(--nx-text-dim)">Nenhuma ocorrência registrada.</div>
-              </og-form-field>
+              <og-form-field label="Quadra"><div class="og-placar-detail">{{ match()!.court ?? 'A definir' }}</div></og-form-field>
+              <og-form-field label="Horário"><div class="og-placar-detail">{{ scheduledLabel() }}</div></og-form-field>
             </div>
           </og-card>
         }
@@ -153,13 +202,22 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       border-bottom: none;
     }
     .og-placar-set-label {
-      width: 60px;
+      width: 90px;
       font-family: var(--nx-font-mono);
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
+    }
+    .og-placar-set-label em {
+      display: block;
+      font-style: normal;
+      font-size: 9px;
+      color: var(--nx-text-mute);
+      text-transform: none;
+      letter-spacing: 0;
+      margin-top: 2px;
     }
     .og-placar-set-box-wrap {
       display: flex;
@@ -174,19 +232,44 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       letter-spacing: 0.14em;
       text-transform: uppercase;
       color: var(--nx-text-dim);
+      max-width: 130px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .og-placar-set-box {
+    .og-placar-set-input {
       width: 64px;
       height: 64px;
       border-radius: var(--nx-r-3);
-      display: grid;
-      place-items: center;
+      text-align: center;
       background: var(--nx-surface-0);
       border: 1px solid var(--nx-line);
       font-family: var(--nx-font-display);
       font-weight: 800;
       font-size: 26px;
       color: var(--nx-text);
+    }
+    .og-placar-set-input:focus {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 0;
+    }
+    .og-placar-error {
+      font-family: var(--nx-font-ui);
+      font-size: 12px;
+      color: var(--nx-live);
+      margin: 6px 0 0;
+    }
+    .og-placar-hint {
+      font-family: var(--nx-font-ui);
+      font-size: 12.5px;
+      color: var(--nx-text-mute);
+      margin: 0;
+    }
+    .og-placar-detail {
+      font-family: var(--nx-font-ui);
+      font-size: 13px;
+      color: var(--nx-text);
+      padding: 10px 0;
     }
     .og-empty {
       font-family: var(--nx-font-ui);
@@ -209,17 +292,48 @@ export class PlacarComponent {
     return this.ctx.matches().find((m) => m.id === id) ?? null;
   });
 
-  protected readonly sets = computed<SetRow[]>(() => {
-    const score = this.match()?.score;
-    if (!score) return [];
-    return score.split(',').map((pair, i) => {
-      const [sa, sb] = pair.trim().split('-').map((n) => Number(n) || 0);
-      return { set: i + 1, sa: sa ?? 0, sb: sb ?? 0 };
+  protected readonly sets = signal<ScoreSet[]>([]);
+  protected readonly bestOf = signal<number>(3);
+  protected readonly saving = signal(false);
+  protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+  private hydratedMatchId: string | null = null;
+
+  constructor() {
+    // Hidrata sets/bestOf do doc quando a partida chega (uma vez por matchId —
+    // edições locais não são sobrescritas por recomputações do cache).
+    effect(() => {
+      const m = this.match();
+      if (!m || this.hydratedMatchId === m.id) return;
+      this.hydratedMatchId = m.id;
+      this.sets.set(m.sets.map((s) => ({ a: s.a, b: s.b })));
+      this.bestOf.set(m.bestOf);
+      this.feedback.set(null);
     });
+  }
+
+  protected readonly wins = computed(() => setsWon(this.sets(), this.bestOf()));
+
+  protected readonly issues = computed(() => validateScoreSubmission(this.sets(), this.bestOf()));
+
+  protected readonly canSubmit = computed(() => this.match() != null && this.sets().length > 0 && this.issues().length === 0);
+
+  protected readonly canWalkover = computed(() => {
+    const m = this.match();
+    return m != null && m.status !== 'completed' && m.teamAId.length > 0 && m.teamBId.length > 0;
   });
 
-  protected readonly setsWonA = computed(() => this.sets().filter((s) => s.sa > s.sb).length);
-  protected readonly setsWonB = computed(() => this.sets().filter((s) => s.sb > s.sa).length);
+  protected issueForSet(index: number): string | null {
+    return this.issues().find((i) => i.setIndex === index)?.message ?? null;
+  }
+
+  protected globalIssue(): string | null {
+    if (this.sets().length === 0) return null;
+    return this.issues().find((i) => i.setIndex == null)?.message ?? null;
+  }
+
+  protected targetOf(index: number): number {
+    return targetPointsForSet(index, this.bestOf());
+  }
 
   protected readonly headerSubtitle = computed(() => {
     const m = this.match();
@@ -228,6 +342,87 @@ export class PlacarComponent {
     const parts = [t?.name, m.round, m.court].filter((p): p is string => Boolean(p));
     return parts.join(' · ');
   });
+
+  protected setBestOf(option: number): void {
+    // Espelha `canReduceBestOf`: não deixa reduzir se descartaria sets lançados.
+    const played = this.sets().filter((s) => s.a > 0 || s.b > 0).length;
+    if (option < this.bestOf() && played > option) {
+      this.feedback.set({ ok: false, message: `Já há ${played} sets lançados — remova antes de trocar pra ${option === 1 ? 'set único' : 'MD3'}.` });
+      return;
+    }
+    this.bestOf.set(option);
+    if (this.sets().length > option) this.sets.update((s) => s.slice(0, option));
+    this.feedback.set(null);
+  }
+
+  protected addSet(): void {
+    if (this.sets().length >= this.bestOf()) return;
+    this.sets.update((s) => [...s, { a: 0, b: 0 }]);
+  }
+
+  protected removeSet(index: number): void {
+    this.sets.update((s) => s.filter((_, i) => i !== index));
+  }
+
+  protected updateSet(index: number, side: 'a' | 'b', event: Event): void {
+    const raw = Number((event.target as HTMLInputElement).value);
+    const value = Number.isFinite(raw) ? Math.max(0, Math.min(99, Math.trunc(raw))) : 0;
+    this.sets.update((sets) => sets.map((s, i) => (i === index ? { ...s, [side]: value } : s)));
+  }
+
+  protected async save(): Promise<void> {
+    const m = this.match();
+    if (!m || !this.canSubmit()) return;
+    this.saving.set(true);
+    this.feedback.set(null);
+    try {
+      const result = await submitMatchResult({ matchId: m.id, sets: this.sets(), bestOf: this.bestOf() });
+      const winner = matchWinnerSide(this.sets(), this.bestOf());
+      const winnerLabel = winner === 'A' ? m.team1Label : m.team2Label;
+      this.feedback.set({
+        ok: true,
+        message: result.completed ? `Placar salvo — vitória de ${winnerLabel}. A chave avança automaticamente.` : 'Placar parcial salvo.',
+      });
+      this.hydratedMatchId = null; // re-hidrata com o doc novo
+      await this.ctx.reloadMatches();
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao salvar o placar.' });
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  protected async walkover(winnerTeamId: string): Promise<void> {
+    const m = this.match();
+    if (!m || !winnerTeamId) return;
+    if (!confirm('Declarar W.O.? A partida encerra sem jogo e a chave avança.')) return;
+    this.saving.set(true);
+    this.feedback.set(null);
+    try {
+      await declareMatchWalkover({ matchId: m.id, winnerTeamId });
+      this.feedback.set({ ok: true, message: 'W.O. registrado — a chave avança automaticamente.' });
+      this.hydratedMatchId = null;
+      await this.ctx.reloadMatches();
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao registrar W.O.' });
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  protected async validate(): Promise<void> {
+    const m = this.match();
+    if (!m) return;
+    this.saving.set(true);
+    try {
+      await validateMatchResult(m.id);
+      this.feedback.set({ ok: true, message: 'Resultado validado na súmula.' });
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao validar o resultado.' });
+    } finally {
+      this.saving.set(false);
+    }
+  }
 
   protected scheduledLabel(): string {
     const d = this.match()?.scheduledAt;

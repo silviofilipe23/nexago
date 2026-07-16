@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { OgIconComponent } from './icon.component';
 
 /** Card de categoria dentro dos wizards (nome, tags, vagas/preço/formato). */
@@ -33,7 +33,10 @@ import { OgIconComponent } from './icon.component';
         <div class="og-category-card-meta-value">{{ format() }}</div>
       </div>
     </div>
-    <button type="button" class="og-ghost-btn"><og-icon name="edit" [size]="13" />Editar</button>
+    <button type="button" class="og-ghost-btn" (click)="edit.emit()"><og-icon name="edit" [size]="13" />Editar</button>
+    @if (removable()) {
+      <button type="button" class="og-ghost-btn" style="color:var(--nx-live)" (click)="remove.emit()">Remover</button>
+    }
   `,
 })
 export class OgCategoryCardComponent {
@@ -43,4 +46,7 @@ export class OgCategoryCardComponent {
   readonly price = input.required<string>();
   readonly format = input.required<string>();
   readonly highlight = input(false);
+  readonly removable = input(false);
+  readonly edit = output<void>();
+  readonly remove = output<void>();
 }

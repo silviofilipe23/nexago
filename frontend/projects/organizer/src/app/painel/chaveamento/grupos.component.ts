@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import type { TournamentMatch } from '../data/matches-repository';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
@@ -23,7 +24,7 @@ interface GrupoReal {
 @Component({
   selector: 'og-grupos',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, ChaveamentoSubnavComponent, ChaveamentoSelectorComponent],
+  imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgIconComponent, ChaveamentoSubnavComponent, ChaveamentoSelectorComponent],
   template: `
     <og-page-header title="Fase de grupos" [subtitle]="headerSubtitle()">
       <!-- mock (fase 2): sorteio/fechamento de grupos continuam operação do app -->
@@ -126,6 +127,13 @@ export class GruposComponent {
     if (!t) return '';
     const cat = this.ctx.categoryName();
     return cat ? `${t.name} · categoria ${cat}` : t.name;
+  });
+
+  /** Link pro fluxo real de sorteio/geração — precisa de torneio + categoria selecionados. */
+  protected readonly seedsLink = computed<string[] | null>(() => {
+    const tid = this.ctx.selectedTournamentId();
+    const cid = this.ctx.selectedCategoryId();
+    return tid && cid ? ['/painel/eventos', tid, 'categorias', cid, 'seeds'] : null;
   });
 
   protected readonly grupos = computed<GrupoReal[]>(() => {

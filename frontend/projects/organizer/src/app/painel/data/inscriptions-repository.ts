@@ -1,6 +1,7 @@
 import { collection, documentId, getDocs, query, where, type Firestore } from 'firebase/firestore';
 import { environment } from '../../../environments/environment';
 import { organizerFirestore } from './firestore';
+import { fetchTeamNames } from './teams-repository';
 
 /** `artifacts/{projectId}/public/data/inscriptions` (mesma coleção que o athlete lê em
  *  `tournament-registrations-repository.ts`) — o doc real só guarda `participantUids`/`teamId`
@@ -14,10 +15,12 @@ export interface TournamentInscription {
   id: string;
   tournamentId: string;
   categoryId: string | null;
+  teamId: string | null; // id da dupla em `teams` — usado nos seeds da geração de chave
   teamName: string; // nome da dupla/equipe ou jogadores
   participantNames: string[];
   paymentStatus: string; // raw (ex.: paid/pending/…)
   paid: boolean;
+  partnerPending: boolean; // inscrição solo aguardando parceiro — não entra na chave
   createdAt: Date | null;
 }
 
@@ -38,6 +41,7 @@ interface RawInscription {
   participantUids: string[];
   isPaid: boolean;
   waitlist: boolean;
+  partnerPending: boolean;
   createdAt: Date | null;
 }
 
@@ -50,24 +54,9 @@ function rawFromDoc(id: string, data: Record<string, unknown>): RawInscription {
     participantUids: Array.isArray(data['participantUids']) ? data['participantUids'].filter((x): x is string => typeof x === 'string') : [],
     isPaid: data['isPaid'] === true,
     waitlist: data['waitlist'] === true,
+    partnerPending: data['partnerPending'] === true,
     createdAt: toDate(data['createdAt']),
   };
-}
-
-async function fetchTeamNames(db: Firestore, projectId: string, teamIds: readonly string[]): Promise<Map<string, string>> {
-  const unique = [...new Set(teamIds.filter((id) => id.length > 0))];
-  const result = new Map<string, string>();
-  if (unique.length === 0) return result;
-  const col = collection(db, 'artifacts', projectId, 'public', 'data', 'teams');
-  for (let i = 0; i < unique.length; i += 10) {
-    const chunk = unique.slice(i, i + 10);
-    const snap = await getDocs(query(col, where(documentId(), 'in', chunk)));
-    for (const d of snap.docs) {
-      const name = optionalStr((d.data() as Record<string, unknown>)['teamName']);
-      if (name) result.set(d.id, name);
-    }
-  }
-  return result;
 }
 
 async function fetchDisplayNames(db: Firestore, uids: readonly string[]): Promise<Map<string, string>> {
@@ -106,10 +95,12 @@ export async function listInscriptions(tournamentId: string): Promise<Tournament
       id: r.id,
       tournamentId: r.tournamentId,
       categoryId: r.categoryId,
+      teamId: r.teamId,
       teamName,
       participantNames,
       paymentStatus,
       paid: r.isPaid,
+      partnerPending: r.partnerPending,
       createdAt: r.createdAt,
     };
   });

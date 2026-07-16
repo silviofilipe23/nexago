@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { OGA_END, OGA_ROW_H, OGA_SLOT, OGA_START } from '../data/mock-data';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import type { TournamentMatch } from '../data/matches-repository';
+import { autoScheduleTournamentDay, dayKeyFromDate, scheduleMatch, unscheduleMatch } from '../data/organizer-ops.service';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
@@ -7,47 +8,48 @@ import { ChaveamentoContextService } from './chaveamento-context.service';
 import { ChaveamentoSelectorComponent } from './chaveamento-selector.component';
 import { ChaveamentoSubnavComponent } from './chaveamento-subnav.component';
 
-/** Duração fixa assumida pro bloco visual — `TournamentMatch` não expõe duração real de
- *  partida (só horário de início em `scheduledAt`), então usamos um valor padrão só pra
- *  desenhar o bloco na grade (mesma simplificação documentada no `og-agenda-block`). */
-const DEFAULT_DURATION_MIN = 60;
+const ROW_H = 32; // px por slot de 30min
+const SLOT_MIN = 30;
 
 interface AgendaBloco {
-  matchId: string;
-  start: number;
-  dur: number;
-  partida: string;
-  status: 'confirmada' | 'pendente';
+  match: TournamentMatch;
+  startMin: number;
+  durMin: number;
 }
 
-interface AgendaFilaItem {
-  matchId: string;
-  partida: string;
-  evento: string;
-  categoria: string;
-  /** Horário do jogo quando já definido (jogo tem `scheduledAt` mas não entrou na grade —
-   *  sem quadra atribuída ou fora da janela 08:00–20:00); `null` quando ainda não tem horário. */
-  horario: string | null;
-}
-
-/** Grade quadras × horários — dados reais de `listMatches` (Task O6): colunas de quadra
- *  derivadas das quadras distintas usadas pelos jogos do torneio/categoria selecionados;
- *  blocos posicionados pelo horário real (`scheduledAt`). Fila = todo jogo que não entrou na
- *  grade: sem horário, sem quadra atribuída, ou horário fora da janela 08:00–20:00 (nenhum
- *  jogo some — ver Task de review "agendamento: jogos que somem"); mostra o horário quando
- *  já existir. Arrastar um card pra reagendar continua mock/fase 2 (operação real fica no app). */
+/** Agendamento real — mesmos Cloud Functions do app (`scheduleMatch`/`unscheduleMatch`/
+ *  `autoScheduleTournamentDay`, ver `organizer_match_schedule_service.dart`): colunas são as
+ *  quadras REAIS do doc do torneio (`courts`), a jornada vem de `matchOps`
+ *  (dayStart/dayEnd/duração padrão) e os horários são gravados em UTC a partir da parede
+ *  America/Sao_Paulo (fuso canônico dos eventos, offset fixo -03 desde 2019). Interação por
+ *  clique no lugar do drag do protótipo: selecionar partida na fila (ou um bloco já agendado)
+ *  → clicar num slot livre agenda/reagenda; conflito de quadra é rejeitado pelo servidor e
+ *  avisos de descanso insuficiente aparecem no banner. */
 @Component({
   selector: 'og-agendamento',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, ChaveamentoSubnavComponent, ChaveamentoSelectorComponent],
   template: `
     <og-page-header title="Agendamento de jogos" [subtitle]="headerSubtitle()">
-      <!-- mock (fase 2): agendamento manual continua operação do app -->
-      <button type="button" class="og-mini-btn og-mini-btn-primary"><og-icon name="plus" [size]="14" />Nova partida</button>
+      <button type="button" class="og-mini-btn" [disabled]="busy() || !ctx.tournament()" (click)="autoSchedule()">
+        <og-icon name="clock" [size]="14" />{{ busy() ? 'Processando…' : 'Auto-agendar dia' }}
+      </button>
     </og-page-header>
 
     <og-chaveamento-subnav active="agendamento" />
     <og-chaveamento-selector />
+
+    @if (dayKeys().length > 1) {
+      <div class="og-filter-bar">
+        @for (d of dayKeys(); track d) {
+          <button type="button" class="og-chip" [class.active]="selectedDayKey() === d" (click)="selectedDayKey.set(d)">{{ dayLabel(d) }}</button>
+        }
+      </div>
+    }
+
+    @if (feedback(); as fb) {
+      <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
+    }
 
     @if (ctx.loadingTournaments() || ctx.loadingMatches()) {
       <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Carregando jogos…</div>
@@ -58,35 +60,47 @@ interface AgendaFilaItem {
         <og-card style="min-height:0;overflow:hidden">
           <div class="og-agenda">
             <div class="og-agenda-cols">
-              @for (c of courts(); track c) {
-                <div class="og-agenda-col-label">{{ c }}</div>
-              } @empty {
-                <div class="og-agenda-col-label" style="color:var(--nx-text-dim)">Nenhum jogo com quadra e horário definidos</div>
+              @for (c of courts(); track c.id) {
+                <div class="og-agenda-col-label">{{ c.name }}</div>
               }
             </div>
             <div class="og-agenda-scroll">
-              <div class="og-agenda-grid" [style.height.px]="rows * rowH + 10">
-                @for (i of rowIndexes; track i) {
+              <div class="og-agenda-grid" [style.height.px]="rows() * rowH + 10">
+                @for (i of rowIndexes(); track i) {
                   <div class="og-agenda-hour-row" [style.top.px]="i * rowH">
-                    @if ((start + i * slot) % 60 === 0) {
-                      <div class="og-agenda-hour-label">{{ fmt(start + i * slot) }}</div>
+                    @if ((startMin() + i * slotMin) % 60 === 0) {
+                      <div class="og-agenda-hour-label">{{ fmt(startMin() + i * slotMin) }}</div>
                     }
-                    <div class="og-agenda-hour-line" [class.solid]="(start + i * slot) % 60 === 0"></div>
+                    <div class="og-agenda-hour-line" [class.solid]="(startMin() + i * slotMin) % 60 === 0"></div>
                   </div>
                 }
                 <div class="og-agenda-columns">
-                  @for (c of courts(); track c) {
+                  @for (c of courts(); track c.id) {
                     <div class="og-agenda-column">
-                      @for (b of blocks()[c]; track b.matchId) {
+                      @for (i of rowIndexes(); track i) {
+                        <button
+                          type="button"
+                          class="og-agenda-slot"
+                          [class.targetable]="selectedMatchId() != null"
+                          [style.top.px]="i * rowH"
+                          [style.height.px]="rowH"
+                          [disabled]="busy() || selectedMatchId() == null"
+                          (click)="scheduleAt(c.id, startMin() + i * slotMin)"
+                          [attr.aria-label]="'Agendar às ' + fmt(startMin() + i * slotMin) + ' na ' + c.name"
+                        ></button>
+                      }
+                      @for (b of blocks()[c.id]; track b.match.id) {
                         <div
                           class="og-agenda-block"
-                          [class.confirmada]="b.status === 'confirmada'"
-                          [class.pendente]="b.status === 'pendente'"
-                          [style.top.px]="minToY(b.start) + 1"
-                          [style.height.px]="(b.dur / slot) * rowH - 3"
+                          [class.confirmada]="b.match.score != null"
+                          [class.pendente]="b.match.score == null"
+                          [class.selected]="selectedMatchId() === b.match.id"
+                          [style.top.px]="minToY(b.startMin) + 1"
+                          [style.height.px]="(b.durMin / slotMin) * rowH - 3"
+                          (click)="toggleSelectBlock(b.match)"
                         >
-                          <div class="partida">{{ b.partida }}</div>
-                          <div class="hora">{{ fmt(b.start) }}–{{ fmt(b.start + b.dur) }}</div>
+                          <div class="partida">{{ b.match.team1Label }} vs {{ b.match.team2Label }}</div>
+                          <div class="hora">{{ fmt(b.startMin) }}–{{ fmt(b.startMin + b.durMin) }}</div>
                         </div>
                       }
                     </div>
@@ -98,23 +112,34 @@ interface AgendaFilaItem {
         </og-card>
 
         <og-card kicker="Aguardando horário" title="Fila de partidas" style="min-height:0;overflow:hidden">
+          @if (selectedMatch(); as sel) {
+            <div class="og-agenda-selected">
+              <div class="partida">{{ sel.team1Label }} vs {{ sel.team2Label }}</div>
+              <div class="meta">Clique num slot livre da grade pra {{ sel.scheduledAt ? 'reagendar' : 'agendar' }}</div>
+              <div style="display:flex;gap:8px;margin-top:8px">
+                @if (sel.scheduledAt) {
+                  <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="unschedule(sel)">Remover horário</button>
+                }
+                <button type="button" class="og-ghost-btn" (click)="selectedMatchId.set(null)">Cancelar</button>
+              </div>
+            </div>
+          }
           <div class="og-agenda-fila">
-            @for (f of fila(); track f.matchId) {
-              <div class="og-agenda-fila-item" draggable="true">
-                <div class="partida">{{ f.partida }}</div>
+            @for (m of fila(); track m.id) {
+              <button type="button" class="og-agenda-fila-item" [class.selected]="selectedMatchId() === m.id" (click)="toggleSelectQueue(m.id)">
+                <div class="partida">{{ m.team1Label }} vs {{ m.team2Label }}</div>
                 <div class="meta">
-                  {{ f.evento }} · {{ f.categoria }}
-                  @if (f.horario) {
-                    · {{ f.horario }}
+                  {{ m.round ?? '—' }}
+                  @if (m.scheduledAt) {
+                    · {{ timeLabel(m.scheduledAt) }} ({{ dayLabel(dayKeyOf(m.scheduledAt)) }})
                   }
                 </div>
-              </div>
+              </button>
             } @empty {
               <p class="og-empty">Nenhuma partida aguardando horário</p>
             }
           </div>
-          <!-- mock (fase 2): arrastar um card da fila pra grade continua operação do app -->
-          <div class="og-agenda-fila-hint">Arraste um card para um horário livre na grade, ou clique num espaço vazio para agendar manualmente.</div>
+          <div class="og-agenda-fila-hint">Clique numa partida da fila (ou num bloco da grade) e depois num horário livre pra agendar. Duração padrão: {{ durationMin() }} min.</div>
         </og-card>
       </div>
     }
@@ -190,15 +215,33 @@ interface AgendaFilaItem {
       position: relative;
       border-left: 1px solid var(--nx-line);
     }
+    .og-agenda-slot {
+      position: absolute;
+      left: 0;
+      right: 0;
+      background: transparent;
+      border: none;
+      padding: 0;
+      cursor: default;
+    }
+    .og-agenda-slot.targetable {
+      cursor: pointer;
+    }
+    .og-agenda-slot.targetable:hover {
+      background: var(--nx-orange-tint);
+      outline: 1px dashed var(--nx-orange-500);
+      outline-offset: -1px;
+    }
     .og-agenda-block {
       position: absolute;
       left: 3px;
       right: 3px;
-      cursor: grab;
+      cursor: pointer;
       border-radius: 8px;
       padding: 5px 8px;
       overflow: hidden;
       border-left: 3px solid;
+      z-index: 1;
     }
     .og-agenda-block.confirmada {
       background: rgba(43, 209, 126, 0.12);
@@ -209,6 +252,10 @@ interface AgendaFilaItem {
       background: rgba(244, 197, 67, 0.12);
       border-color: rgba(244, 197, 67, 0.35);
       border-left-color: var(--nx-pending);
+    }
+    .og-agenda-block.selected {
+      outline: 2px solid var(--nx-orange-500);
+      outline-offset: 0;
     }
     .og-agenda-block .partida {
       font-family: var(--nx-font-display);
@@ -225,6 +272,25 @@ interface AgendaFilaItem {
       color: var(--nx-text-dim);
       margin-top: 2px;
     }
+    .og-agenda-selected {
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      border-radius: var(--nx-r-3);
+      background: var(--nx-orange-tint);
+      border: 1px solid rgba(255, 106, 26, 0.3);
+    }
+    .og-agenda-selected .partida {
+      font-family: var(--nx-font-display);
+      font-weight: 700;
+      font-size: 12.5px;
+      color: var(--nx-text);
+    }
+    .og-agenda-selected .meta {
+      font-family: var(--nx-font-ui);
+      font-size: 11px;
+      color: var(--nx-text-mute);
+      margin-top: 4px;
+    }
     .og-agenda-fila {
       flex: 1;
       min-height: 0;
@@ -239,7 +305,12 @@ interface AgendaFilaItem {
       border-radius: var(--nx-r-3);
       background: var(--nx-surface-1);
       border: 1px solid var(--nx-line);
-      cursor: grab;
+      cursor: pointer;
+      text-align: left;
+    }
+    .og-agenda-fila-item.selected {
+      border-color: var(--nx-orange-500);
+      background: var(--nx-orange-tint);
     }
     .og-agenda-fila-item .partida {
       font-family: var(--nx-font-display);
@@ -274,75 +345,209 @@ interface AgendaFilaItem {
 export class AgendamentoComponent {
   protected readonly ctx = inject(ChaveamentoContextService);
 
-  protected readonly start = OGA_START;
-  protected readonly slot = OGA_SLOT;
-  protected readonly rowH = OGA_ROW_H;
-  protected readonly rows = (OGA_END - OGA_START) / OGA_SLOT;
-  protected readonly rowIndexes = Array.from({ length: this.rows }, (_, i) => i);
+  protected readonly rowH = ROW_H;
+  protected readonly slotMin = SLOT_MIN;
+  protected readonly busy = signal(false);
+  protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
+  protected readonly selectedMatchId = signal<string | null>(null);
+  protected readonly selectedDayKey = signal<string>(dayKeyFromDate(new Date()));
 
   protected readonly headerSubtitle = computed(() => {
     const t = this.ctx.tournament();
     if (!t) return '';
     const cat = this.ctx.categoryName();
-    return `${cat ? `${t.name} · categoria ${cat}` : t.name} · arraste uma partida da fila para um horário livre`;
+    return cat ? `${t.name} · categoria ${cat}` : t.name;
   });
 
-  /** Jogos com quadra + horário dentro da janela do grid (08:00–20:00). */
-  private readonly scheduledInGrid = computed(() =>
+  protected readonly courts = computed(() => this.ctx.tournament()?.courts ?? []);
+
+  protected readonly durationMin = computed(() => this.ctx.tournament()?.matchOps.defaultMatchDurationMin ?? 30);
+
+  protected readonly startMin = computed(() => parseHHMM(this.ctx.tournament()?.matchOps.dayStart ?? '07:00'));
+  protected readonly endMin = computed(() => parseHHMM(this.ctx.tournament()?.matchOps.dayEnd ?? '24:00'));
+  protected readonly rows = computed(() => Math.max(1, Math.floor((this.endMin() - this.startMin()) / SLOT_MIN)));
+  protected readonly rowIndexes = computed(() => Array.from({ length: this.rows() }, (_, i) => i));
+
+  /** Dias do torneio (startAt..endAt na parede SP, máx. 14) + hoje como fallback. */
+  protected readonly dayKeys = computed<string[]>(() => {
+    const t = this.ctx.tournament();
+    if (!t?.startAt) return [this.selectedDayKey()];
+    const keys: string[] = [];
+    const end = t.endAt ?? t.startAt;
+    const cursor = new Date(t.startAt);
+    for (let i = 0; i < 14 && cursor <= end; i++) {
+      keys.push(dayKeyFromDate(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    if (keys.length === 0) keys.push(dayKeyFromDate(t.startAt));
+    return keys;
+  });
+
+  constructor() {
+    // Ao trocar de torneio, aponta pro dia de hoje se estiver dentro do evento, senão pro 1º dia.
+    let lastTournamentId: string | null = null;
+    effect(() => {
+      const t = this.ctx.tournament();
+      if (!t || t.id === lastTournamentId) return;
+      lastTournamentId = t.id;
+      const keys = this.dayKeys();
+      const today = dayKeyFromDate(new Date());
+      this.selectedDayKey.set(keys.includes(today) ? today : (keys[0] ?? today));
+      this.selectedMatchId.set(null);
+      this.feedback.set(null);
+    });
+  }
+
+  protected readonly selectedMatch = computed(() => {
+    const id = this.selectedMatchId();
+    if (!id) return null;
+    return this.ctx.matches().find((m) => m.id === id) ?? null;
+  });
+
+  /** Jogos com quadra + horário no dia selecionado (parede SP). */
+  private readonly scheduledOnDay = computed(() =>
     this.ctx
       .matchesFiltered()
-      .filter((m) => m.court && m.scheduledAt)
-      .map((m) => ({ match: m, minutes: m.scheduledAt!.getHours() * 60 + m.scheduledAt!.getMinutes() }))
-      .filter((x) => x.minutes >= OGA_START && x.minutes < OGA_END),
+      .filter((m) => m.courtId && m.scheduledAt && dayKeyFromDate(m.scheduledAt) === this.selectedDayKey()),
   );
-
-  /** ids dos jogos que já entraram na grade — usado pra fila não repetir nem esconder jogos. */
-  private readonly scheduledInGridIds = computed(() => new Set(this.scheduledInGrid().map((x) => x.match.id)));
-
-  protected readonly courts = computed(() => {
-    const set = new Set(this.scheduledInGrid().map((x) => x.match.court!));
-    return [...set].sort((a, b) => a.localeCompare(b));
-  });
 
   protected readonly blocks = computed(() => {
     const byCourt: Record<string, AgendaBloco[]> = {};
-    for (const { match, minutes } of this.scheduledInGrid()) {
-      const list = byCourt[match.court!] ?? [];
-      list.push({
-        matchId: match.id,
-        start: minutes,
-        dur: DEFAULT_DURATION_MIN,
-        partida: `${match.team1Label} vs ${match.team2Label}`,
-        status: match.score != null ? 'confirmada' : 'pendente',
-      });
-      byCourt[match.court!] = list;
+    const fallbackDur = this.durationMin();
+    for (const match of this.scheduledOnDay()) {
+      const startMin = spWallMinutes(match.scheduledAt!);
+      const durMin = match.scheduleEndAt ? Math.max(SLOT_MIN, Math.round((match.scheduleEndAt.getTime() - match.scheduledAt!.getTime()) / 60000)) : fallbackDur;
+      const list = byCourt[match.courtId] ?? [];
+      list.push({ match, startMin, durMin });
+      byCourt[match.courtId] = list;
     }
     return byCourt;
   });
 
-  /** Todo jogo que não entrou na grade: sem horário ainda, com horário mas sem quadra, ou
-   *  horário fora da janela 08:00–20:00 — nenhum desses fica sem aparecer em lugar nenhum. */
-  protected readonly fila = computed<AgendaFilaItem[]>(() => {
-    const t = this.ctx.tournament();
-    const categoryNameOf = new Map((t?.categories ?? []).map((c) => [c.id, c.name]));
-    const inGrid = this.scheduledInGridIds();
+  /** Fila: jogos sem horário OU agendados em outro dia/sem quadra — nada some. */
+  protected readonly fila = computed<TournamentMatch[]>(() => {
+    const onGrid = new Set(this.scheduledOnDay().map((m) => m.id));
     return this.ctx
       .matchesFiltered()
-      .filter((m) => !inGrid.has(m.id))
-      .map((m) => ({
-        matchId: m.id,
-        partida: `${m.team1Label} vs ${m.team2Label}`,
-        evento: t?.name ?? '',
-        categoria: (m.categoryId && categoryNameOf.get(m.categoryId)) || 'Sem categoria',
-        horario: m.scheduledAt ? this.fmt(m.scheduledAt.getHours() * 60 + m.scheduledAt.getMinutes()) : null,
-      }));
+      .filter((m) => !onGrid.has(m.id) && m.status !== 'completed' && m.status !== 'canceled')
+      .sort((a, b) => a.matchNumber - b.matchNumber);
   });
 
+  protected toggleSelectQueue(matchId: string): void {
+    this.selectedMatchId.update((cur) => (cur === matchId ? null : matchId));
+    this.feedback.set(null);
+  }
+
+  protected toggleSelectBlock(match: TournamentMatch): void {
+    this.selectedMatchId.update((cur) => (cur === match.id ? null : match.id));
+    this.feedback.set(null);
+  }
+
+  protected async scheduleAt(courtId: string, startMinOfDay: number): Promise<void> {
+    const match = this.selectedMatch();
+    if (!match || this.busy()) return;
+    const dayKey = this.selectedDayKey();
+    const start = spWallToDate(dayKey, startMinOfDay);
+    const end = new Date(start.getTime() + this.durationMin() * 60000);
+    this.busy.set(true);
+    this.feedback.set(null);
+    try {
+      const result = await scheduleMatch({ matchId: match.id, courtId, scheduleTime: start, scheduleEndTime: end, dayKey });
+      const warnings = result.warnings ?? [];
+      this.feedback.set({
+        ok: true,
+        message: warnings.length > 0 ? `Agendado com aviso: ${warnings.map((w) => w.message).join(' ')}` : `Partida agendada às ${this.fmt(startMinOfDay)}.`,
+      });
+      this.selectedMatchId.set(null);
+      await this.ctx.reloadMatches();
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao agendar.' });
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  protected async unschedule(match: TournamentMatch): Promise<void> {
+    if (this.busy()) return;
+    this.busy.set(true);
+    this.feedback.set(null);
+    try {
+      await unscheduleMatch(match.id);
+      this.feedback.set({ ok: true, message: 'Horário removido — partida de volta à fila.' });
+      this.selectedMatchId.set(null);
+      await this.ctx.reloadMatches();
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao remover horário.' });
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  protected async autoSchedule(): Promise<void> {
+    const t = this.ctx.tournament();
+    if (!t || this.busy()) return;
+    const dayKey = this.selectedDayKey();
+    this.busy.set(true);
+    this.feedback.set(null);
+    try {
+      const preview = await autoScheduleTournamentDay({ tournamentId: t.id, dayKey, preview: true });
+      const slots = preview.slots ?? [];
+      const skipped = preview.skipped ?? [];
+      if (slots.length === 0) {
+        this.feedback.set({ ok: false, message: 'Nenhuma partida elegível pra auto-agendar neste dia.' });
+        return;
+      }
+      const proceed = confirm(`Auto-agendar ${slots.length} partida(s) em ${this.dayLabel(dayKey)}?${skipped.length ? ` (${skipped.length} puladas)` : ''}`);
+      if (!proceed) return;
+      await autoScheduleTournamentDay({ tournamentId: t.id, dayKey, preview: false });
+      this.feedback.set({ ok: true, message: `${slots.length} partida(s) agendadas automaticamente.` });
+      await this.ctx.reloadMatches();
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha no auto-agendamento.' });
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
   protected minToY(min: number): number {
-    return ((min - OGA_START) / OGA_SLOT) * OGA_ROW_H;
+    return ((min - this.startMin()) / SLOT_MIN) * ROW_H;
   }
 
   protected fmt(min: number): string {
     return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
   }
+
+  protected dayKeyOf(date: Date): string {
+    return dayKeyFromDate(date);
+  }
+
+  protected dayLabel(dayKey: string): string {
+    const [y, m, d] = dayKey.split('-').map(Number);
+    if (!y || !m || !d) return dayKey;
+    return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+  }
+
+  protected timeLabel(date: Date): string {
+    return this.fmt(spWallMinutes(date));
+  }
+}
+
+/** "HH:mm" → minutos do dia. */
+function parseHHMM(value: string): number {
+  const [h, m] = value.split(':').map(Number);
+  return (h ?? 0) * 60 + (m ?? 0);
+}
+
+/** Minutos do dia na parede America/Sao_Paulo pra um instante UTC. */
+function spWallMinutes(date: Date): number {
+  const parts = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
+  return parseHHMM(parts);
+}
+
+/** dayKey (YYYY-MM-DD) + minutos na parede SP → instante UTC. SP é UTC-3 fixo desde 2019
+ *  (sem horário de verão) — mesmo pressuposto do `eventDateFromDayKeyAndTime` do servidor. */
+function spWallToDate(dayKey: string, minOfDay: number): Date {
+  const h = Math.floor(minOfDay / 60);
+  const m = minOfDay % 60;
+  return new Date(`${dayKey}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00-03:00`);
 }

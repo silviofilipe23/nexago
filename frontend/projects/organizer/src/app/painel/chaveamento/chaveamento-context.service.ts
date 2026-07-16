@@ -96,6 +96,35 @@ export class ChaveamentoContextService {
     this.selectedCategoryId.set(id);
   }
 
+  /** Recarrega os jogos do torneio selecionado — chamado após operações de escrita
+   *  (placar/agendamento/geração de chave) pra refletir o estado novo do servidor. */
+  async reloadMatches(): Promise<void> {
+    const id = this.selectedTournamentId();
+    if (id) await this.loadMatches(id);
+  }
+
+  /** Recarrega a lista de torneios (após criar/editar/cancelar torneio ou liga),
+   *  preservando a seleção atual quando o torneio ainda existe. */
+  async reloadTournaments(): Promise<void> {
+    const uid = this.loadedUid;
+    if (!uid) return;
+    const selected = this.selectedTournamentId();
+    this.loadingTournaments.set(true);
+    try {
+      const tournaments = await listMyTournaments(uid);
+      if (uid !== this.loadedUid) return;
+      this.tournaments.set(tournaments);
+      if (selected && !tournaments.some((t) => t.id === selected)) {
+        this.selectedTournamentId.set(null);
+        this.selectedCategoryId.set(null);
+        this.matches.set([]);
+        if (tournaments.length > 0) this.selectTournament(tournaments[0]!.id);
+      }
+    } finally {
+      this.loadingTournaments.set(false);
+    }
+  }
+
   private async loadMatches(tournamentId: string): Promise<void> {
     const uid = this.loadedUid;
     this.loadingMatches.set(true);

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, input, signal } f
 import { RouterLink } from '@angular/router';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { listMatches, type TournamentMatch } from '../data/matches-repository';
+import { cancelTournament, closeTournamentRegistrations } from '../data/organizer-ops.service';
 import type { OrganizerTournament, OrganizerTournamentStatus } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
 import { OgCardComponent } from '../ui/card.component';
@@ -46,11 +47,21 @@ interface JogosGrupo {
   imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgChartTabsComponent, OgIconComponent, OgPillComponent],
   template: `
     <og-page-header [title]="tournament()?.name ?? 'Torneio'" [subtitle]="headerSubtitle()">
-      <button type="button" class="og-ghost-btn"><og-icon name="download" [size]="14" />Compartilhar</button>
-      <button type="button" class="og-mini-btn"><og-icon name="edit" [size]="14" />Editar torneio</button>
+      @if (tournament(); as t) {
+        @if (t.status === 'inscricoes') {
+          <button type="button" class="og-ghost-btn" [disabled]="acting()" (click)="closeRegistrations()">Encerrar inscrições</button>
+        }
+        @if (t.status !== 'cancelado' && t.status !== 'concluido') {
+          <button type="button" class="og-ghost-btn og-torneio-danger" [disabled]="acting()" (click)="cancel()">Cancelar torneio</button>
+        }
+        <a class="og-mini-btn" [routerLink]="['/painel/eventos/criar-torneio']" [queryParams]="{ editar: t.id }"><og-icon name="edit" [size]="14" />Editar torneio</a>
+      }
     </og-page-header>
 
     <div class="og-content">
+      @if (feedback(); as fb) {
+        <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
+      }
       @if (loading()) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Carregando torneio…</div>
       } @else if (!tournament()) {
@@ -317,6 +328,9 @@ interface JogosGrupo {
       padding: 8px 0;
       margin: 0;
     }
+    .og-torneio-danger {
+      color: var(--nx-live);
+    }
   `,
 })
 export class TorneioDetalheComponent {
@@ -326,6 +340,8 @@ export class TorneioDetalheComponent {
   protected readonly tab = signal<Tab>('categorias');
 
   protected readonly loading = signal(true);
+  protected readonly acting = signal(false);
+  protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
   protected readonly inscriptions = signal<TournamentInscription[]>([]);
   protected readonly matches = signal<TournamentMatch[]>([]);
@@ -402,6 +418,55 @@ export class TorneioDetalheComponent {
       this.matches.set(matches);
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  protected async closeRegistrations(): Promise<void> {
+    const t = this.tournament();
+    if (!t || this.acting()) return;
+    if (!confirm('Encerrar as inscrições de todas as categorias deste torneio?')) return;
+    this.acting.set(true);
+    this.feedback.set(null);
+    try {
+      await closeTournamentRegistrations(t.id);
+      this.feedback.set({ ok: true, message: 'Inscrições encerradas.' });
+      await this.load(t.id);
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao encerrar inscrições.' });
+    } finally {
+      this.acting.set(false);
+    }
+  }
+
+  protected async cancel(): Promise<void> {
+    const t = this.tournament();
+    if (!t || this.acting()) return;
+    if (!confirm(`Cancelar "${t.name}"? Os atletas inscritos serão notificados.`)) return;
+    this.acting.set(true);
+    this.feedback.set(null);
+    try {
+      await cancelTournament(t.id);
+      this.feedback.set({ ok: true, message: 'Torneio cancelado.' });
+      await this.load(t.id);
+    } catch (e) {
+      const err = e as { message?: string; details?: { reason?: string } };
+      // Espelha o app: com inscrições pagas o servidor pede confirmação extra (force).
+      if (err.details?.reason === 'has_paid_registrations' || /pagas|paid/i.test(err.message ?? '')) {
+        const proceed = confirm('Há inscrições pagas neste torneio. Cancelar mesmo assim? (estornos ficam por sua conta)');
+        if (proceed) {
+          try {
+            await cancelTournament(t.id, { force: true });
+            this.feedback.set({ ok: true, message: 'Torneio cancelado.' });
+            await this.load(t.id);
+          } catch (e2) {
+            this.feedback.set({ ok: false, message: (e2 as Error).message || 'Falha ao cancelar.' });
+          }
+        }
+      } else {
+        this.feedback.set({ ok: false, message: err.message || 'Falha ao cancelar.' });
+      }
+    } finally {
+      this.acting.set(false);
     }
   }
 

@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { AuthService } from '../../auth/auth.service';
-import { OG_PAY_LABEL, OG_PAY_TONE, initialsOf } from '../data/mock-data';
+import { initialsOf, type PillTone } from '../data/mock-data';
 import { listInscriptions } from '../data/inscriptions-repository';
+import { confirmRegistrationPayment, moveToWaitlist, removeFromCategory, resendRegistrationPayment } from '../data/organizer-ops.service';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { listMyTournaments } from '../data/tournaments-repository';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -11,11 +12,13 @@ import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 
-/** Status de pagamento da linha, no vocabulário do design (`OG_PAY_TONE`/`OG_PAY_LABEL`). O
- *  schema real (`isPaid`/`waitlist` em `TournamentInscription`) não modela estorno — a aba
- *  "estornado" fica sempre vazia até esse conceito existir no backend. */
-type PayStatus = keyof typeof OG_PAY_TONE;
+/** Status da linha no vocabulário real do schema (`isPaid`/`waitlist`) — "estorno" não existe
+ *  no backend, então a aba do protótipo foi trocada por "espera" (fila real). */
+type PayStatus = 'pago' | 'pendente' | 'espera';
 type Tab = 'todos' | PayStatus;
+
+const PAY_TONE: Record<PayStatus, PillTone> = { pago: 'green', pendente: 'yellow', espera: 'dim' };
+const PAY_LABEL: Record<PayStatus, string> = { pago: 'Pago', pendente: 'Pendente', espera: 'Espera' };
 
 interface InscricaoRow {
   id: string;
@@ -33,7 +36,10 @@ const MAX_INSCRITOS_FETCH = 20;
 
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
 
-/** Atletas e duplas inscritos em todos os torneios do organizador, com status de pagamento. */
+/** Inscrições de todos os torneios do organizador, com as MESMAS ações do app
+ *  (`organizer_category_ops_service.dart`): confirmar pagamento manual, mover pra lista de
+ *  espera, remover da categoria e reenviar cobrança — todas via Cloud Functions com validação
+ *  no servidor. */
 @Component({
   selector: 'og-inscricoes',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -62,6 +68,10 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
         </og-card>
       </div>
 
+      @if (feedback(); as fb) {
+        <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
+      }
+
       <og-chart-tabs [tabs]="tabs" [active]="tab()" (changed)="tab.set($any($event))" />
 
       <og-card pad="0" flex="1">
@@ -81,7 +91,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
             }
           } @else {
             @for (r of filtered(); track r.id) {
-              <div class="og-row">
+              <div class="og-row" style="flex-wrap:wrap">
                 <og-avatar [initials]="initialsOf(r.name, ' ')" [size]="34" />
                 <span style="flex:1.4;min-width:0">
                   <div class="og-inscricoes-name">{{ r.name }}</div>
@@ -90,7 +100,19 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 <span style="flex:1" class="og-inscricoes-evento">{{ r.evento }}</span>
                 <span style="width:70px" class="og-inscricoes-date">{{ r.date }}</span>
                 <span style="width:110px"><og-pill [tone]="payTone[r.pay]">{{ payLabel[r.pay] }}</og-pill></span>
-                <button type="button" class="og-ghost-btn">Detalhes</button>
+                <button type="button" class="og-ghost-btn" (click)="toggleActions(r.id)">{{ actionsFor() === r.id ? 'Fechar' : 'Ações' }}</button>
+                @if (actionsFor() === r.id) {
+                  <div class="og-inscricoes-actions">
+                    @if (r.pay !== 'pago') {
+                      <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="confirmPayment(r)">Confirmar pagamento</button>
+                      <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="resend(r)">Reenviar cobrança</button>
+                    }
+                    @if (r.pay !== 'espera') {
+                      <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="toWaitlist(r)">Mover pra espera</button>
+                    }
+                    <button type="button" class="og-ghost-btn danger" [disabled]="busy()" (click)="remove(r)">Remover da categoria</button>
+                  </div>
+                }
               </div>
             } @empty {
               <p class="og-empty">Nenhuma inscrição ainda</p>
@@ -122,6 +144,16 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       font-family: var(--nx-font-mono);
       font-size: 11.5px;
       color: var(--nx-text-dim);
+    }
+    .og-inscricoes-actions {
+      width: 100%;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 10px 0 4px 44px;
+    }
+    .og-ghost-btn.danger {
+      color: var(--nx-live);
     }
     .og-empty {
       font-family: var(--nx-font-ui);
@@ -157,13 +189,16 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
 export class InscricoesComponent {
   private readonly auth = inject(AuthService);
 
-  protected readonly tabs = ['todos', 'pago', 'pendente', 'estornado'];
+  protected readonly tabs = ['todos', 'pago', 'pendente', 'espera'];
   protected readonly tab = signal<Tab>('todos');
-  protected readonly payTone = OG_PAY_TONE;
-  protected readonly payLabel = OG_PAY_LABEL;
+  protected readonly payTone = PAY_TONE;
+  protected readonly payLabel = PAY_LABEL;
   protected readonly initialsOf = initialsOf;
 
   protected readonly loading = signal(true);
+  protected readonly busy = signal(false);
+  protected readonly actionsFor = signal<string | null>(null);
+  protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly tournaments = signal<OrganizerTournament[]>([]);
   protected readonly rows = signal<InscricaoRow[]>([]);
 
@@ -206,7 +241,7 @@ export class InscricoesComponent {
             name: insc.teamName,
             evento: t.name,
             categoria: (insc.categoryId && categoryNames.get(insc.categoryId)) || '—',
-            pay: insc.paid ? 'pago' : 'pendente',
+            pay: insc.paid ? 'pago' : insc.paymentStatus === 'waitlist' ? 'espera' : 'pendente',
             date: insc.createdAt ? SHORT_DATE.format(insc.createdAt) : '—',
             createdAt: insc.createdAt,
           });
@@ -217,5 +252,45 @@ export class InscricoesComponent {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  protected toggleActions(id: string): void {
+    this.actionsFor.update((cur) => (cur === id ? null : id));
+  }
+
+  private async run(action: () => Promise<unknown>, okMessage: string): Promise<void> {
+    this.busy.set(true);
+    this.feedback.set(null);
+    try {
+      await action();
+      this.feedback.set({ ok: true, message: okMessage });
+      this.actionsFor.set(null);
+      const uid = this.auth.user()?.uid;
+      if (uid) {
+        this.loading.set(true);
+        await this.load(uid);
+      }
+    } catch (e) {
+      this.feedback.set({ ok: false, message: (e as Error).message || 'Operação falhou.' });
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  protected confirmPayment(r: InscricaoRow): void {
+    void this.run(() => confirmRegistrationPayment(r.id), `Pagamento de ${r.name} confirmado.`);
+  }
+
+  protected toWaitlist(r: InscricaoRow): void {
+    void this.run(() => moveToWaitlist(r.id), `${r.name} movido pra lista de espera.`);
+  }
+
+  protected remove(r: InscricaoRow): void {
+    if (!confirm(`Remover ${r.name} da categoria? A vaga é liberada.`)) return;
+    void this.run(() => removeFromCategory(r.id), `${r.name} removido da categoria.`);
+  }
+
+  protected resend(r: InscricaoRow): void {
+    void this.run(() => resendRegistrationPayment(r.id), `Cobrança reenviada pra ${r.name}.`);
   }
 }

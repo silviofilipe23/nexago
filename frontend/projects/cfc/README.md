@@ -1,71 +1,85 @@
-# CFC — Landing Page
+# FUN Parque — Landing Page
 
-Landing page única, responsiva e animada para o **CFC**, arena de esportes de
-areia (vôlei de praia e futevôlei) com quadras iluminadas, torneios, aulas e
-área de convivência com churrasqueira. O layout partiu do template usado no
-projeto `bplay` (inspirado em funparquesaojoao.pt); o copy foi reescrito em
-pt-BR a partir das fotos reais da arena, que já estão posicionadas no site.
+Landing page única, responsiva e animada, com a estrutura e o estilo visual
+inspirados em funparquesaojoao.pt. Todo o conteúdo longo (descrições,
+respostas de FAQ, testemunhos, contactos) é **texto placeholder original**
+para ser substituído pelo conteúdo final; os espaços de imagem estão
+**demarcados visualmente** com blocos tracejados.
 
 ## Estrutura
 
 ```
-index.html        página única com todas as seções
+index.html        página única com todas as secções
 css/styles.css    estilos, paleta, responsividade
-js/main.js        animações e interações
-images/           fotos reais da arena (1.jpeg … 14.jpeg)
+js/main.js        animações e interacções
 ```
 
-## Como rodar
-
-Qualquer servidor estático na pasta do projeto:
+## Como correr
 
 ```bash
-python3 -m http.server 8123
+# na pasta frontend/
+npm run start:bplay
 # abrir http://localhost:8123
 ```
 
-## Deploy
+Ou qualquer servidor estático na pasta do projeto:
 
-Ainda **não há** script npm nem target de hosting para o cfc (os scripts
-`start:bplay`/`build:bplay` e o target `bplay` do firebase.json pertencem ao
-projeto bplay). Para publicar, criar scripts `start:cfc`/`build:cfc` no
-`frontend/package.json` e um target de hosting próprio no `firebase.json`.
+```bash
+python3 -m http.server 8123
+```
 
-## Onde cada foto foi usada
+## Deploy (Firebase Hosting)
 
-| Foto | Local | Motivo |
-|---|---|---|
-| 13 | Hero | jogo ao pôr do sol nas quadras iluminadas — a mais cinematográfica |
-| 11 | Sobre (retrato) | estrutura profissional da rede sob céu azul |
-| 7 | Sobre (paisagem) | vista noturna das quadras iluminadas |
-| 4 | Modalidade 01 — Vôlei de Praia | treino/jogo de dia com bolas na areia |
-| 9 | Modalidade 02 — Futevôlei | time posando com as bolas de futevôlei |
-| 8 | Modalidade 03 — Torneios | campeãs com os troféus do torneio |
-| 14 | Modalidade 04 — Aulas & Turmas | turma reunida depois do treino |
-| 1 | Modalidade 05 — Churrasco & Resenha | carne na grelha ao lado da quadra |
-| 3, 6, 10, 12 | Galeria de Festas & Churrasco | churrasco, violão, fogueira e pôr do sol |
-| 5 | Eventos — Confraternizações | grupo sob a tenda com bar ao fundo |
-| 2 | Eventos — Empresas & Grupos | amigos assistindo ao jogo noturno |
+Sites:
+- **dev:** `bplay-dev2` → https://bplay-dev2.web.app
+- **prod:** `bplay-nexago` → https://bplay-nexago.web.app
 
-## O que ainda é placeholder
+```bash
+# na pasta frontend/
+npm run build:bplay
 
-Buscar pelos comentários no `index.html`:
+# na raiz do repo
+firebase deploy --only hosting:bplay --project dev
+firebase deploy --only hosting:bplay --project default
+```
 
-- `[LOGO EDITÁVEL]` — logotipo oficial (hoje o logo é texto "CFC")
-- `[HORÁRIOS EDITÁVEIS]` — horários oficiais de funcionamento
-- `[CONFIRMAR]` — número real de quadras (contador da seção Sobre)
-- `[TEXTO EDITÁVEL]` — regras/condições nos accordions e FAQs
-- `[CONTATOS EDITÁVEIS]` — telefone, e-mail, endereço e link do mapa no footer
-- `[DEPOIMENTOS PLACEHOLDER]` — substituir por avaliações reais do Google
-- Botões "Valores"/"Reservar" apontam para `#` — ligar ao WhatsApp/preçário
+## Onde inserir as imagens
 
-## Animações
+Procurar por `▓▓ ESPAÇO PARA IMAGEM ▓▓` no `index.html`. Cada bloco
+`<div class="ph …">` é um marcador — substituir o bloco inteiro por
+`<img>` ou `<video>` com as dimensões sugeridas no próprio marcador:
+
+| Local | Sugestão |
+|---|---|
+| Hero | 1920×1080 · vídeo/foto aérea |
+| Sobre (2 fotos do grid) | 800×1000 e 1200×800 |
+| Actividades (5 fotos) | 960×720 cada |
+| Eventos (2 fotos) | 800×560 cada |
+
+Os textos a rever estão marcados com comentários `[TEXTO EDITÁVEL]`,
+`[PLACEHOLDER]` e `[CONTACTOS EDITÁVEIS]`.
+
+## Secções
+
+1. Header fixo com barra de progresso, navegação com secção activa e menu mobile em ecrã inteiro
+2. Hero com media em moldura arredondada, título animado e CTAs
+3. Ticker de aviso (marquee laranja, texto editável)
+4. Horário (Inverno / Verão)
+5. Sobre — grid bento com contadores animados (120 ha, 1 km praia, 1 km rio)
+6. Actividades — 5 blocos alternados com chip de requisitos e accordion "Como funciona"
+7. Aniversários — marquee gigante + passos 01–04
+8. Eventos de Grupo — Escolas / Empresas
+9. FAQs — tabs por categoria + accordions (fundo amarelo)
+10. Testemunhos — slider Swiper com autoplay
+11. Footer + botão voltar ao topo
+
+## Animações (paridade com o site de referência)
 
 - **Lenis** — smooth scroll (respeita `prefers-reduced-motion`)
 - **GSAP + ScrollTrigger** — reveals ao scroll, títulos palavra a palavra,
-  parallax no hero, contador de quadras
-- **Marquees CSS** — ticker de aviso e faixa de festas
-- **Swiper** — slider de depoimentos (1/2/3 slides por breakpoint)
+  parallax no hero, contadores
+- **Marquees CSS** — ticker de aviso e faixa de aniversários
+- **Swiper** — slider de testemunhos (1/2/3 slides por breakpoint)
 - Preloader com transição de saída; header esconde ao descer e reaparece ao subir
 
 As bibliotecas vêm de CDN (jsDelivr + Google Fonts) — é preciso internet.

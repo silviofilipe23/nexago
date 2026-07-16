@@ -47,8 +47,7 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
           </div>
           <div class="og-card og-card-pad-sm" style="flex:1">
             <div class="og-kpi-label">Formato</div>
-            <!-- mock (fase 2): formato de chaveamento real fica na Task O6 -->
-            <div class="og-kpi-value sm" style="font-size:15px;margin-top:10px">Grupos + SE</div>
+            <div class="og-kpi-value sm" style="font-size:15px;margin-top:10px">{{ formatLabel() }}</div>
           </div>
           <div class="og-card og-card-pad-sm" style="flex:1">
             <div class="og-kpi-label">Premiação</div>
@@ -164,6 +163,20 @@ export class CategoriaDetalheComponent {
   );
 
   protected readonly pagasCount = computed(() => this.inscriptions().filter((i) => i.paid).length);
+
+  /** Rótulo do formato salvo na categoria (`bracketFormat`) — mesmo vocabulário curto do app. */
+  protected readonly formatLabel = computed(() => {
+    const raw = this.category()?.bracketFormat;
+    if (!raw) return 'Grupos + SE';
+    const map: Record<string, string> = {
+      groups_knockout: 'Grupos + SE',
+      single_elimination: 'Chave simples',
+      double_elimination: 'Dupla elim.',
+      round_robin: 'Pontos corridos',
+      groups_repechage: 'Grupos + rep.',
+    };
+    return map[raw] ?? raw;
+  });
 
   protected readonly headerSubtitle = computed(() => {
     const t = this.tournament();

@@ -1048,6 +1048,22 @@ button {
   box-shadow: 0 0 8px rgba(255, 59, 48, 0.5);
 }
 
+.og-dot-pulse {
+  animation: og-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes og-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.75);
+  }
+}
+
 .og-avatar {
   width: 34px;
   height: 34px;
@@ -1272,6 +1288,48 @@ button {
   color: var(--nx-text-dim);
   font-family: var(--nx-font-ui);
   font-size: 13px;
+}
+
+/* Inputs EDITÁVEIS dos wizards reais (o .og-input acima é o display mockado do protótipo). */
+.og-input-el,
+.og-textarea-el,
+.og-select-el {
+  width: 100%;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  font-family: var(--nx-font-ui);
+  font-size: 14px;
+  color: var(--nx-text);
+}
+
+.og-input-el,
+.og-select-el {
+  height: 46px;
+  padding: 0 14px;
+}
+
+.og-select-el {
+  cursor: pointer;
+}
+
+.og-textarea-el {
+  min-height: 70px;
+  padding: 10px 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.og-input-el:focus,
+.og-textarea-el:focus,
+.og-select-el:focus {
+  outline: 2px solid var(--nx-orange-500);
+  outline-offset: 0;
+}
+
+.og-input-el::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
 }
 
 .og-select-chips {
@@ -1710,19 +1768,45 @@ button {
 }
 
 .og-bracket-match {
+  display: block;
   width: 190px;
   background: var(--nx-surface-0);
   border: 1px solid var(--nx-line);
   border-radius: var(--nx-r-2);
   overflow: hidden;
   flex: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color 140ms var(--nx-ease-out);
+}
+
+.og-bracket-match:hover {
+  border-color: var(--nx-line-strong);
+}
+
+.og-bracket-match-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 24px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--nx-line);
+}
+
+.og-bracket-match-num {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--nx-text-dim);
 }
 
 .og-bracket-side {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
   border-bottom: 1px solid var(--nx-line);
 }
 
@@ -1734,7 +1818,31 @@ button {
   background: var(--nx-orange-tint);
 }
 
+.og-bracket-side-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.og-bracket-side-team .og-avatar {
+  flex: none;
+}
+
+.og-bracket-avatar-stack {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.og-bracket-avatar-stack .og-avatar {
+  box-shadow: 0 0 0 2px var(--nx-surface-0);
+}
+
 .og-bracket-side-name {
+  flex: 1;
+  min-width: 0;
   font-family: var(--nx-font-display);
   font-weight: 500;
   font-size: 12px;
@@ -1750,6 +1858,7 @@ button {
 }
 
 .og-bracket-side-score {
+  flex: none;
   font-family: var(--nx-font-mono);
   font-weight: 700;
   font-size: 12px;
@@ -1758,4 +1867,129 @@ button {
 
 .og-bracket-side.winner .og-bracket-side-score {
   color: var(--nx-orange-500);
+}
+
+/* ── Chave de dupla eliminação (árvore WB/LB) ───────────────────── */
+
+.og-de-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.og-de-section-label {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.og-de-section-label.wb {
+  color: var(--nx-win);
+}
+
+.og-de-section-label.lb {
+  color: var(--nx-pending);
+}
+
+.og-de-divider {
+  height: 1px;
+  background: var(--nx-line);
+  margin: 2px 0;
+}
+
+.og-de-labels-row {
+  position: relative;
+  height: 26px;
+}
+
+.og-de-col-label {
+  position: absolute;
+  top: 0;
+  text-align: center;
+}
+
+.og-de-canvas {
+  position: relative;
+}
+
+.og-de-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.og-de-lines path {
+  fill: none;
+  stroke: var(--nx-line-strong);
+  stroke-width: 1.5px;
+}
+
+.og-de-match {
+  position: absolute;
+  height: 92px;
+  z-index: 1;
+}
+
+.og-de-final-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-orange-tint);
+  border: 1px solid rgba(255, 106, 26, 0.25);
+}
+
+.og-de-final-banner.secondary {
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+}
+
+.og-de-final-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--nx-r-2);
+  display: grid;
+  place-items: center;
+  flex: none;
+  background: var(--nx-orange-500);
+  color: var(--nx-text-on-orange);
+}
+
+.og-de-final-banner.secondary .og-de-final-icon {
+  background: var(--nx-surface-2);
+  color: var(--nx-text-dim);
+}
+
+.og-de-final-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--nx-text);
+}
+
+.og-de-final-sub {
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.og-de-final-score {
+  flex: none;
+  font-family: var(--nx-font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--nx-orange-500);
+}
+
+.og-de-final-banner.secondary .og-de-final-score {
+  color: var(--nx-text);
 }

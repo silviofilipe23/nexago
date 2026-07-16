@@ -13,6 +13,8 @@ index.html        página única com todas as seções
 css/styles.css    estilos, paleta, responsividade
 js/main.js        animações e interações
 images/           fotos reais da arena (1.jpeg … 14.jpeg)
+images/logo.png       logo oficial original (com glow, fundo transparente)
+images/logo-nav.png   versão aparada da logo — navbar, footer e preloader
 ```
 
 ## Como rodar
@@ -51,7 +53,6 @@ projeto bplay). Para publicar, criar scripts `start:cfc`/`build:cfc` no
 
 Buscar pelos comentários no `index.html`:
 
-- `[LOGO EDITÁVEL]` — logotipo oficial (hoje o logo é texto "CFC")
 - `[HORÁRIOS EDITÁVEIS]` — horários oficiais de funcionamento
 - `[CONFIRMAR]` — número real de quadras (contador da seção Sobre)
 - `[TEXTO EDITÁVEL]` — regras/condições nos accordions e FAQs
@@ -72,13 +73,17 @@ As bibliotecas vêm de CDN (jsDelivr + Google Fonts) — é preciso internet.
 
 ## Paleta
 
-| Cor | Hex |
-|---|---|
-| Creme (fundo) | `#F5F5EF` |
-| Verde-escuro | `#223C36` |
-| Verde | `#71A34F` |
-| Lima | `#C9DD44` |
-| Laranja | `#EB6D45` |
-| Amarelo | `#F3B948` |
+Extraída da logo (letreiro neon com palmeiras). Os nomes das variáveis CSS
+(`--green`, `--lime`, `--orange`…) vêm do template original — só os valores
+foram re-tintados.
+
+| Cor | Hex | Origem na logo |
+|---|---|---|
+| Areia clara (fundo) `--cream` | `#F7F2E7` | tom neutro aquecido |
+| Marrom-escuro `--dark` | `#26160A` | troncos e folhas das palmeiras |
+| Vermelho `--orange` | `#F63B1E` | placa "ARENA C.F.C" |
+| Dourado `--yellow` | `#F3B03C` | sol |
+| Amarelo-areia `--lime` | `#F5DE84` | passarela/cerca |
+| Âmbar `--green` | `#E0801F` | brilho do sol (transição) |
 
 Fontes: **Anton** (títulos), **Antonio** (subtítulos/botões), **DM Sans** (texto).

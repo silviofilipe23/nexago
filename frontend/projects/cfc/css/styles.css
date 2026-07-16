@@ -1,18 +1,20 @@
 /* ============================================================
-   FUN PARQUE — LANDING PAGE
-   Paleta e tipografia inspiradas na referência:
-   creme #F5F5EF · verde-escuro #223C36 · verde #71A34F
-   lima #C9DD44 · laranja #EB6D45 · amarelo #F3B948
+   ARENA CFC — LANDING PAGE
+   Paleta extraída da logo (letreiro neon com palmeiras):
+   areia #F7F2E7 · marrom-escuro #26160A · âmbar #E0801F
+   amarelo-areia #F5DE84 · vermelho #F63B1E · dourado #F3B03C
    Fontes: Anton (display) · Antonio (subtítulos) · DM Sans (texto)
+   Nota: os nomes das variáveis vêm do template original — os
+   valores é que foram re-tintados para a paleta da logo.
 ============================================================ */
 
 :root {
-  --cream:  #F5F5EF;
-  --dark:   #223C36;
-  --green:  #71A34F;
-  --lime:   #C9DD44;
-  --orange: #EB6D45;
-  --yellow: #F3B948;
+  --cream:  #F7F2E7;
+  --dark:   #26160A;
+  --green:  #E0801F;
+  --lime:   #F5DE84;
+  --orange: #F63B1E;
+  --yellow: #F3B03C;
   --ink:    #212121;
 
   --font-display: 'Anton', sans-serif;
@@ -204,7 +206,7 @@ button { font: inherit; background: none; border: none; cursor: pointer; color: 
   align-items: center;
   flex-shrink: 0;
   width: 148px;
-  height: 52px;
+  height: 60px;
 }
 .header__logo-img {
   position: absolute;
@@ -1024,19 +1026,18 @@ button { font: inherit; background: none; border: none; cursor: pointer; color: 
 }
 
 /* ============================================================
-   LOGO EM TEXTO (até existir o logotipo oficial do CFC)
+   LOGO (imagem oficial — images/logo-nav.png)
 ============================================================ */
-.header__logo-text {
-  font-family: var(--font-display);
-  font-size: 2rem;
-  line-height: 1;
-  letter-spacing: .04em;
-  color: var(--cream);
-  transition: color .25s ease;
+.preloader__logo img {
+  height: clamp(120px, 24vw, 200px);
+  width: auto;
 }
-.header__logo-text span { color: var(--lime); transition: color .25s ease; }
-.header.is-scrolled .header__logo-text { color: var(--dark); }
-.header.is-scrolled .header__logo-text span { color: var(--orange); }
+.footer__logo-img {
+  display: block;
+  height: 104px;
+  width: auto;
+  margin-bottom: 1.4rem;
+}
 
 /* ============================================================
    GALERIA — FESTAS & CHURRASCO

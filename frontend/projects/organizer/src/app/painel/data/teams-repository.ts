@@ -1,27 +1,69 @@
 import { collection, documentId, getDocs, query, where, type Firestore } from 'firebase/firestore';
 
-/** `artifacts/{projectId}/public/data/teams` — nome de exibição da dupla/equipe (`teamName`).
- *  Usado onde só temos o `teamId` cru (inscrições, partidas de rodada 1 — que vêm de SEED
- *  direto e nunca ganham `teamADescription`/`teamBDescription`, só as partidas com origem
- *  WINNER/LOSER de outro jogo têm essa descrição pré-calculada, ver
- *  `category-bracket-builders.ts`). */
+/** Nome de exibição de duplas — porta fiel de `_pairLabel`
+ *  (`tournament_match_enrichment_service.dart`, Flutter): usa `teamName` do doc em
+ *  `artifacts/{projectId}/public/data/teams` quando preenchido; senão resolve
+ *  `player1Id`/`player2Id` em `public_profiles` (nickname → fullName → name) e monta
+ *  "Jogador1 / Jogador2". Usado onde só temos o `teamId` cru (inscrições, partidas de rodada
+ *  1 — que vêm de SEED direto e nunca ganham `teamADescription`/`teamBDescription`). */
 
 function optionalStr(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
-export async function fetchTeamNames(db: Firestore, projectId: string, teamIds: readonly string[]): Promise<Map<string, string>> {
-  const unique = [...new Set(teamIds.filter((id) => id.length > 0))];
-  const result = new Map<string, string>();
+interface RawTeam {
+  teamName: string | null;
+  player1Id: string;
+  player2Id: string;
+  isLookingForPartner: boolean;
+}
+
+async function chunkedByIds<T>(db: Firestore, path: string[], ids: readonly string[], pick: (data: Record<string, unknown>) => T): Promise<Map<string, T>> {
+  const unique = [...new Set(ids.filter((id) => id.length > 0))];
+  const result = new Map<string, T>();
   if (unique.length === 0) return result;
-  const col = collection(db, 'artifacts', projectId, 'public', 'data', 'teams');
+  const col = collection(db, path[0]!, ...path.slice(1));
   for (let i = 0; i < unique.length; i += 10) {
     const chunk = unique.slice(i, i + 10);
     const snap = await getDocs(query(col, where(documentId(), 'in', chunk)));
-    for (const d of snap.docs) {
-      const name = optionalStr((d.data() as Record<string, unknown>)['teamName']);
-      if (name) result.set(d.id, name);
+    for (const d of snap.docs) result.set(d.id, pick(d.data() as Record<string, unknown>));
+  }
+  return result;
+}
+
+async function fetchProfileNames(db: Firestore, uids: readonly string[]): Promise<Map<string, string>> {
+  const profiles = await chunkedByIds(db, ['public_profiles'], uids, (data) => optionalStr(data['nickname']) ?? optionalStr(data['fullName']) ?? optionalStr(data['name']) ?? '');
+  const names = new Map<string, string>();
+  for (const [uid, name] of profiles) if (name) names.set(uid, name);
+  return names;
+}
+
+export async function fetchTeamNames(db: Firestore, projectId: string, teamIds: readonly string[]): Promise<Map<string, string>> {
+  const teams = await chunkedByIds<RawTeam>(db, ['artifacts', projectId, 'public', 'data', 'teams'], teamIds, (data) => ({
+    teamName: optionalStr(data['teamName']),
+    player1Id: optionalStr(data['player1Id']) ?? '',
+    player2Id: optionalStr(data['player2Id']) ?? '',
+    isLookingForPartner: data['isLookingForPartner'] === true,
+  }));
+
+  const playerIds = [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]);
+  const profileNames = await fetchProfileNames(db, playerIds);
+
+  const result = new Map<string, string>();
+  for (const [teamId, team] of teams) {
+    if (team.teamName) {
+      result.set(teamId, team.teamName);
+      continue;
     }
+    const p1 = profileNames.get(team.player1Id) ?? '';
+    const p2 = profileNames.get(team.player2Id) ?? '';
+    if (team.isLookingForPartner) {
+      if (p1) result.set(teamId, p1);
+      continue;
+    }
+    if (p1 && p2 && p1 !== p2) result.set(teamId, `${p1} / ${p2}`);
+    else if (p1) result.set(teamId, p1);
+    else if (p2) result.set(teamId, p2);
   }
   return result;
 }

@@ -37,6 +37,8 @@ export const routes: Routes = [
     loadComponent: () => import('./painel/shell/panel-shell.component').then((m) => m.PanelShellComponent),
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'inicio' },
+
+      // ── Nível 1 · Portal (global) ────────────────────────────
       {
         path: 'inicio',
         title: 'Início — NexaGO Organizador',
@@ -44,28 +46,13 @@ export const routes: Routes = [
       },
       {
         path: 'eventos',
-        title: 'Meus eventos — NexaGO Organizador',
+        title: 'Meus torneios — NexaGO Organizador',
         loadComponent: () => import('./painel/eventos/eventos-list.component').then((m) => m.EventosListComponent),
       },
       {
-        path: 'eventos/:id',
-        title: 'Torneio — NexaGO Organizador',
-        loadComponent: () => import('./painel/eventos/torneio-detalhe.component').then((m) => m.TorneioDetalheComponent),
-      },
-      {
-        path: 'eventos/:id/nova-etapa',
-        title: 'Nova etapa — NexaGO Organizador',
-        loadComponent: () => import('./painel/eventos/wizard/criar-etapa.component').then((m) => m.CriarEtapaComponent),
-      },
-      {
-        path: 'eventos/:id/categorias/:catId',
-        title: 'Categoria — NexaGO Organizador',
-        loadComponent: () => import('./painel/eventos/categoria-detalhe.component').then((m) => m.CategoriaDetalheComponent),
-      },
-      {
-        path: 'eventos/:id/categorias/:catId/seeds',
-        title: 'Cabeças de chave — NexaGO Organizador',
-        loadComponent: () => import('./painel/eventos/seeds.component').then((m) => m.SeedsComponent),
+        path: 'financeiro',
+        title: 'Financeiro — NexaGO Organizador',
+        loadComponent: () => import('./painel/financeiro/financeiro.component').then((m) => m.FinanceiroComponent),
       },
       {
         path: 'novo-torneio',
@@ -83,55 +70,101 @@ export const routes: Routes = [
         loadComponent: () => import('./painel/eventos/wizard/criar-etapa.component').then((m) => m.CriarEtapaComponent),
       },
       {
-        path: 'inscricoes',
-        title: 'Inscrições — NexaGO Organizador',
-        loadComponent: () => import('./painel/inscricoes/inscricoes.component').then((m) => m.InscricoesComponent),
-      },
-      {
-        path: 'chaveamento',
-        title: 'Chaveamento & Jogos — NexaGO Organizador',
-        children: [
-          { path: '', pathMatch: 'full', redirectTo: 'grupos' },
-          {
-            path: 'grupos',
-            loadComponent: () => import('./painel/chaveamento/grupos.component').then((m) => m.GruposComponent),
-          },
-          {
-            path: 'chave',
-            loadComponent: () => import('./painel/chaveamento/chaveamento.component').then((m) => m.ChaveamentoComponent),
-          },
-          {
-            path: 'jogos',
-            loadComponent: () => import('./painel/chaveamento/jogos.component').then((m) => m.JogosComponent),
-          },
-          {
-            path: 'agendamento',
-            loadComponent: () => import('./painel/chaveamento/agendamento.component').then((m) => m.AgendamentoComponent),
-          },
-          {
-            path: 'placar',
-            loadComponent: () => import('./painel/chaveamento/placar.component').then((m) => m.PlacarComponent),
-          },
-          {
-            path: 'placar/:matchId',
-            loadComponent: () => import('./painel/chaveamento/placar.component').then((m) => m.PlacarComponent),
-          },
-        ],
-      },
-      {
-        path: 'financeiro',
-        title: 'Financeiro — NexaGO Organizador',
-        loadComponent: () => import('./painel/financeiro/financeiro.component').then((m) => m.FinanceiroComponent),
-      },
-      {
-        path: 'comunicacao',
-        title: 'Comunicação — NexaGO Organizador',
-        loadComponent: () => import('./painel/comunicacao/comunicacao.component').then((m) => m.ComunicacaoComponent),
-      },
-      {
         path: 'config',
         title: 'Configurações — NexaGO Organizador',
         loadComponent: () => import('./painel/config/config.component').then((m) => m.ConfigComponent),
+      },
+
+      // Rotas antigas (pré-cascata) — telas globais que agora vivem no contexto do torneio.
+      { path: 'inscricoes', redirectTo: 'eventos' },
+      { path: 'comunicacao', redirectTo: 'eventos' },
+      {
+        path: 'chaveamento',
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: '/painel/eventos' },
+          { path: '**', redirectTo: '/painel/eventos' },
+        ],
+      },
+
+      // ── Nível 2 · Torneio selecionado ────────────────────────
+      {
+        path: 'eventos/:id',
+        children: [
+          {
+            path: '',
+            pathMatch: 'full',
+            title: 'Torneio — NexaGO Organizador',
+            loadComponent: () => import('./painel/eventos/torneio-detalhe.component').then((m) => m.TorneioDetalheComponent),
+          },
+          {
+            path: 'inscricoes',
+            title: 'Inscrições — NexaGO Organizador',
+            loadComponent: () => import('./painel/inscricoes/inscricoes.component').then((m) => m.InscricoesComponent),
+          },
+          {
+            path: 'agendamento',
+            title: 'Agendamento — NexaGO Organizador',
+            loadComponent: () => import('./painel/chaveamento/agendamento.component').then((m) => m.AgendamentoComponent),
+          },
+          {
+            path: 'comunicacao',
+            title: 'Comunicação — NexaGO Organizador',
+            loadComponent: () => import('./painel/comunicacao/comunicacao.component').then((m) => m.ComunicacaoComponent),
+          },
+          {
+            path: 'nova-etapa',
+            title: 'Nova etapa — NexaGO Organizador',
+            loadComponent: () => import('./painel/eventos/wizard/criar-etapa.component').then((m) => m.CriarEtapaComponent),
+          },
+
+          // ── Nível 3 · Categoria selecionada ──────────────────
+          {
+            path: 'categorias/:catId',
+            children: [
+              { path: '', pathMatch: 'full', redirectTo: 'duplas' },
+              {
+                path: 'duplas',
+                title: 'Duplas — NexaGO Organizador',
+                loadComponent: () => import('./painel/eventos/categoria-detalhe.component').then((m) => m.CategoriaDetalheComponent),
+              },
+              {
+                path: 'seeds',
+                title: 'Gerar chave — NexaGO Organizador',
+                loadComponent: () => import('./painel/eventos/seeds.component').then((m) => m.SeedsComponent),
+              },
+              {
+                path: 'grupos',
+                title: 'Fase de grupos — NexaGO Organizador',
+                loadComponent: () => import('./painel/chaveamento/grupos.component').then((m) => m.GruposComponent),
+              },
+              {
+                path: 'chave',
+                title: 'Chaveamento — NexaGO Organizador',
+                loadComponent: () => import('./painel/chaveamento/chaveamento.component').then((m) => m.ChaveamentoComponent),
+              },
+              {
+                path: 'jogos',
+                title: 'Jogos & placares — NexaGO Organizador',
+                loadComponent: () => import('./painel/chaveamento/jogos.component').then((m) => m.JogosComponent),
+              },
+              {
+                path: 'agendamento',
+                title: 'Agendamento — NexaGO Organizador',
+                loadComponent: () => import('./painel/chaveamento/agendamento.component').then((m) => m.AgendamentoComponent),
+              },
+              {
+                path: 'comunicacao',
+                title: 'Comunicação — NexaGO Organizador',
+                loadComponent: () => import('./painel/comunicacao/comunicacao.component').then((m) => m.ComunicacaoComponent),
+              },
+              {
+                path: 'placar/:matchId',
+                title: 'Placar — NexaGO Organizador',
+                loadComponent: () => import('./painel/chaveamento/placar.component').then((m) => m.PlacarComponent),
+              },
+            ],
+          },
+        ],
       },
     ],
   },

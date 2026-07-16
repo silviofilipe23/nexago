@@ -34,7 +34,7 @@ export interface BracketMatchSide {
 export interface BracketMatch {
   id: string;
   status: BracketMatchStatus;
-  /** Ex.: "16:30" quando `status === 'scheduled'`. */
+  /** Ex.: "Sáb 29/03 · 16:30 · Quadra 1" quando `status === 'scheduled'`. */
   scheduledLabel: string | null;
   sideA: BracketMatchSide;
   sideB: BracketMatchSide;

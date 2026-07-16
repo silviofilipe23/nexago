@@ -20,8 +20,9 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
  *  `onTournamentMatchCompletedAdvance` no servidor) — nada a chamar aqui depois do submit.
  *  W.O. via `declareMatchWalkover` (escolhe o vencedor) e validação da súmula via
  *  `validateMatchResult` quando a partida já está concluída. Chegada via
- *  `/painel/chaveamento/placar/:matchId`; lê a partida do cache do
- *  `ChaveamentoContextService` e recarrega os jogos após cada escrita. */
+ *  `/painel/eventos/:id/categorias/:catId/placar/:matchId` (nível 3 da cascata); lê a partida
+ *  do cache do `ChaveamentoContextService` (dirigido pela rota via `PanelContextService`) e
+ *  recarrega os jogos após cada escrita. */
 @Component({
   selector: 'og-placar',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -284,6 +285,8 @@ export class PlacarComponent {
   protected readonly ctx = inject(ChaveamentoContextService);
   protected readonly initialsOf = initialsOf;
 
+  readonly id = input<string>('');
+  readonly catId = input<string>('');
   readonly matchId = input<string>('');
 
   protected readonly match = computed(() => {
@@ -430,6 +433,6 @@ export class PlacarComponent {
   }
 
   protected cancel(): void {
-    void this.router.navigateByUrl('/painel/chaveamento/jogos');
+    void this.router.navigate(['/painel/eventos', this.id(), 'categorias', this.catId(), 'jogos']);
   }
 }

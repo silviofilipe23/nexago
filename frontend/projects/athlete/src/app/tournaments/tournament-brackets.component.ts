@@ -52,6 +52,31 @@ function createFirestore(): Firestore | null {
   return getFirestore(app);
 }
 
+// Dia/hora do agendamento na parede America/Sao_Paulo — fuso canônico dos eventos,
+// mesmo formato dos cards da chave do organizador (web e app).
+const SCHED_TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+const SCHED_WD = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', timeZone: 'America/Sao_Paulo' });
+const SCHED_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' });
+
+/** Normaliza o nome da quadra pra exibição (`1` → `Quadra 1`) — porta de
+ *  `formatCourtLabelForCard` (tournament_match_display.dart, Flutter). */
+function courtLabelOf(courtName: string | null): string {
+  const court = courtName?.trim() ?? '';
+  if (!court) return '';
+  return /quadra/i.test(court) ? court : `Quadra ${court}`;
+}
+
+/** "Sáb 29/03 · 16:30 · Quadra 1" — badge do card da chave pra partida agendada. */
+function scheduleLabelOf(m: TournamentMatch): string | null {
+  if (!m.scheduleTime) return null;
+  const wd = SCHED_WD.format(m.scheduleTime).replace('.', '');
+  const day = `${wd.charAt(0).toUpperCase()}${wd.slice(1)} ${SCHED_DATE.format(m.scheduleTime)}`;
+  const parts = [day, SCHED_TIME.format(m.scheduleTime)];
+  const court = courtLabelOf(m.courtName);
+  if (court) parts.push(court);
+  return parts.join(' · ');
+}
+
 const FORMAT_LABEL: Record<string, string> = {
   'single elimination': 'Eliminação simples',
   'double elimination': 'Eliminação dupla',
@@ -168,7 +193,7 @@ export class TournamentBracketsComponent {
       return {
         id: m.id,
         status: completed ? 'done' : live ? 'live' : m.scheduleTime ? 'scheduled' : 'tbd',
-        scheduledLabel: !completed && !live && m.scheduleTime ? new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(m.scheduleTime) : null,
+        scheduledLabel: !completed && !live ? scheduleLabelOf(m) : null,
         sideA: { duo: duoOf(m.teamAId, m.teamADescription), score: scoreA, winner: completed && m.winnerId === m.teamAId },
         sideB: { duo: duoOf(m.teamBId, m.teamBDescription), score: scoreB, winner: completed && m.winnerId === m.teamBId },
       };

@@ -5,10 +5,8 @@ import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { ChaveamentoContextService } from './chaveamento-context.service';
-import { ChaveamentoSelectorComponent } from './chaveamento-selector.component';
-import { ChaveamentoSubnavComponent } from './chaveamento-subnav.component';
 
-const ROW_H = 32; // px por slot de 30min
+const ROW_H = 100; // px por slot de 30min — cards mais altos pra caber confronto + meta
 const SLOT_MIN = 30;
 
 interface AgendaBloco {
@@ -28,7 +26,7 @@ interface AgendaBloco {
 @Component({
   selector: 'og-agendamento',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, ChaveamentoSubnavComponent, ChaveamentoSelectorComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent],
   template: `
     <og-page-header title="Agendamento de jogos" [subtitle]="headerSubtitle()">
       <button type="button" class="og-mini-btn" [disabled]="busy() || !ctx.tournament()" (click)="autoSchedule()">
@@ -36,27 +34,25 @@ interface AgendaBloco {
       </button>
     </og-page-header>
 
-    <og-chaveamento-subnav active="agendamento" />
-    <og-chaveamento-selector />
+    <div class="og-content">
+      @if (dayKeys().length > 1) {
+        <div class="og-filter-bar">
+          @for (d of dayKeys(); track d) {
+            <button type="button" class="og-chip" [class.active]="selectedDayKey() === d" (click)="selectedDayKey.set(d)">{{ dayLabel(d) }}</button>
+          }
+        </div>
+      }
 
-    @if (dayKeys().length > 1) {
-      <div class="og-filter-bar">
-        @for (d of dayKeys(); track d) {
-          <button type="button" class="og-chip" [class.active]="selectedDayKey() === d" (click)="selectedDayKey.set(d)">{{ dayLabel(d) }}</button>
-        }
-      </div>
-    }
+      @if (feedback(); as fb) {
+        <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
+      }
 
-    @if (feedback(); as fb) {
-      <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
-    }
-
-    @if (ctx.loadingTournaments() || ctx.loadingMatches()) {
-      <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Carregando jogos…</div>
-    } @else if (ctx.tournaments().length > 0 && ctx.matches().length === 0) {
-      <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Chaves ainda não geradas</div>
-    } @else {
-      <div class="og-content" style="display:grid;grid-template-columns:1fr 300px;gap:16px;min-height:0">
+      @if (ctx.loadingTournaments() || ctx.loadingMatches()) {
+        <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Carregando jogos…</div>
+      } @else if (ctx.tournaments().length > 0 && ctx.matches().length === 0) {
+        <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Chaves ainda não geradas</div>
+      } @else {
+        <div class="og-agenda-layout">
         <og-card style="min-height:0;overflow:hidden">
           <div class="og-agenda">
             <div class="og-agenda-cols">
@@ -92,14 +88,24 @@ interface AgendaBloco {
                       @for (b of blocks()[c.id]; track b.match.id) {
                         <div
                           class="og-agenda-block"
-                          [class.confirmada]="b.match.score != null"
-                          [class.pendente]="b.match.score == null"
-                          [class.selected]="selectedMatchId() === b.match.id"
+                          [class.confirmada]="isFinished(b.match)"
+                          [class.pendente]="!isFinished(b.match)"
+                          [class.locked]="isFinished(b.match)"
+                          [class.selected]="!isFinished(b.match) && selectedMatchId() === b.match.id"
                           [style.top.px]="minToY(b.startMin) + 1"
                           [style.height.px]="(b.durMin / slotMin) * rowH - 3"
                           (click)="toggleSelectBlock(b.match)"
                         >
                           <div class="partida">{{ b.match.team1Label }} vs {{ b.match.team2Label }}</div>
+                          <div class="meta">
+                            <span>#{{ b.match.matchNumber || '—' }}</span>
+                            @if (b.match.round; as round) {
+                              <span>· {{ round }}</span>
+                            }
+                            @if (b.match.score; as score) {
+                              <span>· {{ score }}</span>
+                            }
+                          </div>
                           <div class="hora">{{ fmt(b.startMin) }}–{{ fmt(b.startMin + b.durMin) }}</div>
                         </div>
                       }
@@ -129,7 +135,10 @@ interface AgendaBloco {
               <button type="button" class="og-agenda-fila-item" [class.selected]="selectedMatchId() === m.id" (click)="toggleSelectQueue(m.id)">
                 <div class="partida">{{ m.team1Label }} vs {{ m.team2Label }}</div>
                 <div class="meta">
-                  {{ m.round ?? '—' }}
+                  #{{ m.matchNumber || '—' }}
+                  @if (m.round) {
+                    · {{ m.round }}
+                  }
                   @if (m.scheduledAt) {
                     · {{ timeLabel(m.scheduledAt) }} ({{ dayLabel(dayKeyOf(m.scheduledAt)) }})
                   }
@@ -141,10 +150,18 @@ interface AgendaBloco {
           </div>
           <div class="og-agenda-fila-hint">Clique numa partida da fila (ou num bloco da grade) e depois num horário livre pra agendar. Duração padrão: {{ durationMin() }} min.</div>
         </og-card>
-      </div>
-    }
+        </div>
+      }
+    </div>
   `,
   styles: `
+    .og-agenda-layout {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 16px;
+    }
     .og-agenda {
       display: flex;
       flex-direction: column;
@@ -179,7 +196,7 @@ interface AgendaBloco {
       position: absolute;
       left: 0;
       right: 0;
-      height: 32px;
+      height: 56px;
     }
     .og-agenda-hour-label {
       position: absolute;
@@ -238,10 +255,18 @@ interface AgendaBloco {
       right: 3px;
       cursor: pointer;
       border-radius: 8px;
-      padding: 5px 8px;
+      padding: 7px 9px;
       overflow: hidden;
       border-left: 3px solid;
       z-index: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 2px;
+      transition: filter 140ms var(--nx-ease-out);
+    }
+    .og-agenda-block:hover {
+      filter: brightness(1.25);
     }
     .og-agenda-block.confirmada {
       background: rgba(43, 209, 126, 0.12);
@@ -257,20 +282,38 @@ interface AgendaBloco {
       outline: 2px solid var(--nx-orange-500);
       outline-offset: 0;
     }
+    .og-agenda-block.locked {
+      cursor: default;
+      opacity: 0.92;
+    }
+    .og-agenda-block.locked:hover {
+      filter: none;
+    }
     .og-agenda-block .partida {
       font-family: var(--nx-font-display);
       font-weight: 700;
-      font-size: 11px;
+      font-size: 12px;
+      line-height: 1.25;
       color: var(--nx-text);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .og-agenda-block .meta {
+      font-family: var(--nx-font-ui);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--nx-text-mute);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .og-agenda-block .hora {
       font-family: var(--nx-font-mono);
-      font-size: 9px;
+      font-size: 10px;
+      font-weight: 600;
       color: var(--nx-text-dim);
-      margin-top: 2px;
     }
     .og-agenda-selected {
       padding: 12px 14px;
@@ -307,6 +350,10 @@ interface AgendaBloco {
       border: 1px solid var(--nx-line);
       cursor: pointer;
       text-align: left;
+      transition: border-color 140ms var(--nx-ease-out);
+    }
+    .og-agenda-fila-item:hover {
+      border-color: var(--nx-line-strong);
     }
     .og-agenda-fila-item.selected {
       border-color: var(--nx-orange-500);
@@ -401,7 +448,9 @@ export class AgendamentoComponent {
   protected readonly selectedMatch = computed(() => {
     const id = this.selectedMatchId();
     if (!id) return null;
-    return this.ctx.matches().find((m) => m.id === id) ?? null;
+    const match = this.ctx.matches().find((m) => m.id === id) ?? null;
+    // Finalizada não fica selecionável pra reagendar/remover horário.
+    return match && !this.isFinished(match) ? match : null;
   });
 
   /** Jogos com quadra + horário no dia selecionado (parede SP). */
@@ -429,23 +478,31 @@ export class AgendamentoComponent {
     const onGrid = new Set(this.scheduledOnDay().map((m) => m.id));
     return this.ctx
       .matchesFiltered()
-      .filter((m) => !onGrid.has(m.id) && m.status !== 'completed' && m.status !== 'canceled')
+      .filter((m) => !onGrid.has(m.id) && !this.isFinished(m) && m.status !== 'canceled')
       .sort((a, b) => a.matchNumber - b.matchNumber);
   });
 
+  /** Partida encerrada (placar ou status) — sem reagendar/remover horário. */
+  protected isFinished(match: TournamentMatch): boolean {
+    return match.status === 'completed' || match.score != null;
+  }
+
   protected toggleSelectQueue(matchId: string): void {
+    const match = this.ctx.matches().find((m) => m.id === matchId);
+    if (match && this.isFinished(match)) return;
     this.selectedMatchId.update((cur) => (cur === matchId ? null : matchId));
     this.feedback.set(null);
   }
 
   protected toggleSelectBlock(match: TournamentMatch): void {
+    if (this.isFinished(match)) return;
     this.selectedMatchId.update((cur) => (cur === match.id ? null : match.id));
     this.feedback.set(null);
   }
 
   protected async scheduleAt(courtId: string, startMinOfDay: number): Promise<void> {
     const match = this.selectedMatch();
-    if (!match || this.busy()) return;
+    if (!match || this.isFinished(match) || this.busy()) return;
     const dayKey = this.selectedDayKey();
     const start = spWallToDate(dayKey, startMinOfDay);
     const end = new Date(start.getTime() + this.durationMin() * 60000);
@@ -468,7 +525,7 @@ export class AgendamentoComponent {
   }
 
   protected async unschedule(match: TournamentMatch): Promise<void> {
-    if (this.busy()) return;
+    if (this.busy() || this.isFinished(match)) return;
     this.busy.set(true);
     this.feedback.set(null);
     try {

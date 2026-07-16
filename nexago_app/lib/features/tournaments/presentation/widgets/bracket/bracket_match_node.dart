@@ -125,6 +125,8 @@ class BracketMatchNode extends StatelessWidget {
                 ],
               ),
             ],
+            SizedBox(height: 6),
+            _ScheduleFooter(match: match),
           ],
         ),
       );
@@ -167,6 +169,44 @@ List<String> _setPillsForTeam({
     final opp = isTeamA ? s.b : s.a;
     return '$own · $opp';
   }).toList();
+}
+
+/// Rodapé com o agendamento da partida (`Sáb 29/03 · 16:30 · Quadra 1`) —
+/// mesma informação exibida nos cards da chave do painel web do organizador.
+class _ScheduleFooter extends StatelessWidget {
+  const _ScheduleFooter({required this.match});
+
+  final TournamentMatch match;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheduled = match.scheduleTime != null;
+    final mutedColor = context.themeColors.onSurfaceMuted;
+
+    return Row(
+      children: [
+        Icon(
+          Icons.schedule_rounded,
+          size: 11,
+          color: scheduled ? AppColors.brand : mutedColor,
+        ),
+        SizedBox(width: 5),
+        Expanded(
+          child: Text(
+            matchScheduleFooterLabelPt(match),
+            style: AppTypography.mono(
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: mutedColor,
+              letterSpacing: 0.3,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _StatusPill extends StatelessWidget {

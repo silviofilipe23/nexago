@@ -1,8 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { AuthService } from '../../auth/auth.service';
+import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { sendCategoryCommunication } from '../data/organizer-ops.service';
 import type { OrganizerTournament } from '../data/tournament.model';
-import { listMyTournaments } from '../data/tournaments-repository';
+import { getTournament } from '../data/tournaments-repository';
 import { OgCardComponent } from '../ui/card.component';
 import { OgFormFieldComponent } from '../ui/form-field.component';
 import { OgIconComponent } from '../ui/icon.component';
@@ -24,7 +23,6 @@ interface SentResult {
 
 interface SentLogEntry {
   at: Date;
-  tournamentName: string;
   categoryName: string;
   audience: Audience;
   message: string;
@@ -36,32 +34,31 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
 /** Comunicação real com os atletas — espelha `organizer_category_communicate_page.dart`
  *  (Flutter): broadcast por categoria via `sendCategoryCommunication` (push pros dois atletas
  *  de cada dupla + links de WhatsApp prontos, que o servidor monta a partir dos telefones).
- *  O backend não persiste histórico de avisos (o retorno é só pushCount/links), então o
- *  histórico aqui é da sessão. As "mensagens diretas" do protótipo saíram: não existe DM de
- *  organizador no app. */
+ *  Na cascata o torneio vem da rota (`/painel/eventos/:id/comunicacao`); no nível categoria
+ *  (`…/categorias/:catId/comunicacao`) a categoria também vem travada da rota. O backend não
+ *  persiste histórico de avisos (o retorno é só pushCount/links), então o histórico aqui é da
+ *  sessão. */
 @Component({
   selector: 'og-comunicacao',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgFormFieldComponent, OgToggleRowComponent],
   template: `
-    <og-page-header title="Comunicação" subtitle="Aviso em broadcast pros inscritos de uma categoria — push no app + WhatsApp" />
+    <og-page-header title="Comunicação" [subtitle]="headerSubtitle()" />
 
     <div class="og-content" style="display:grid;grid-template-columns:1.2fr 1fr;gap:16px;align-items:start">
       <og-card kicker="Broadcast" title="Novo aviso">
         @if (loading()) {
-          <p class="og-comm-empty">Carregando torneios…</p>
-        } @else if (tournaments().length === 0) {
-          <p class="og-comm-empty">Nenhum torneio ainda.</p>
+          <p class="og-comm-empty">Carregando torneio…</p>
+        } @else if (!tournament()) {
+          <p class="og-comm-empty">Torneio não encontrado.</p>
+        } @else if (categories().length === 0) {
+          <p class="og-comm-empty">Este torneio não tem categorias.</p>
         } @else {
-          <og-form-field label="Torneio">
-            <select class="og-comm-select" [value]="selectedTournamentId()" (change)="onTournament($event)">
-              @for (t of tournaments(); track t.id) {
-                <option [value]="t.id">{{ t.name }}</option>
-              }
-            </select>
-          </og-form-field>
-
-          <div style="margin-top:14px">
+          @if (lockedCategoryName(); as locked) {
+            <og-form-field label="Categoria">
+              <div class="og-comm-fixed">{{ locked }}</div>
+            </og-form-field>
+          } @else {
             <og-form-field label="Categoria">
               <select class="og-comm-select" [value]="selectedCategoryId()" (change)="onCategory($event)">
                 @for (c of categories(); track c.id) {
@@ -69,7 +66,7 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
                 }
               </select>
             </og-form-field>
-          </div>
+          }
 
           <div style="margin-top:14px">
             <og-form-field label="Público">
@@ -132,7 +129,7 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
           @for (s of sentLog(); track s.at.getTime()) {
             <div class="og-comm-aviso">
               <div class="og-comm-aviso-top">
-                <div class="og-comm-aviso-title">{{ s.tournamentName }} · {{ s.categoryName }}</div>
+                <div class="og-comm-aviso-title">{{ s.categoryName }}</div>
                 <span class="og-comm-aviso-date">{{ timeOf(s.at) }}</span>
               </div>
               <div class="og-comm-aviso-body">{{ s.message }}</div>
@@ -160,6 +157,19 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
       font-weight: 600;
       font-size: 13px;
       cursor: pointer;
+    }
+    .og-comm-fixed {
+      display: flex;
+      align-items: center;
+      height: 38px;
+      padding: 0 10px;
+      border-radius: var(--nx-r-2);
+      background: var(--nx-surface-1);
+      border: 1px solid var(--nx-line);
+      color: var(--nx-text);
+      font-family: var(--nx-font-display);
+      font-weight: 600;
+      font-size: 13px;
     }
     .og-comm-textarea {
       width: 100%;
@@ -242,15 +252,15 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
   `,
 })
 export class ComunicacaoComponent {
-  private readonly auth = inject(AuthService);
+  readonly id = input<string>('');
+  readonly catId = input<string>('');
 
   protected readonly audiences: Audience[] = ['all', 'paid', 'pending'];
   protected readonly audienceLabel = AUDIENCE_LABEL;
 
   protected readonly loading = signal(true);
   protected readonly sending = signal(false);
-  protected readonly tournaments = signal<OrganizerTournament[]>([]);
-  protected readonly selectedTournamentId = signal<string | null>(null);
+  protected readonly tournament = signal<OrganizerTournament | null>(null);
   protected readonly selectedCategoryId = signal<string | null>(null);
   protected readonly audience = signal<Audience>('all');
   protected readonly message = signal('');
@@ -259,38 +269,49 @@ export class ComunicacaoComponent {
   protected readonly lastResult = signal<SentResult | null>(null);
   protected readonly sentLog = signal<SentLogEntry[]>([]);
 
-  protected readonly tournament = computed(() => this.tournaments().find((t) => t.id === this.selectedTournamentId()) ?? null);
   protected readonly categories = computed(() => this.tournament()?.categories ?? []);
 
-  protected readonly canSend = computed(() => this.selectedTournamentId() != null && this.selectedCategoryId() != null && this.message().trim().length > 0);
+  /** Categoria fixa quando a tela é aberta no nível 3 da cascata (rota da categoria). */
+  protected readonly lockedCategoryName = computed<string | null>(() => {
+    const cid = this.catId();
+    if (!cid) return null;
+    return this.categories().find((c) => c.id === cid)?.name ?? null;
+  });
+
+  protected readonly headerSubtitle = computed(() => {
+    const t = this.tournament();
+    if (!t) return 'Aviso em broadcast pros inscritos — push no app + WhatsApp';
+    const locked = this.lockedCategoryName();
+    return locked ? `${t.name} · categoria ${locked}` : `${t.name} · avisos aos participantes`;
+  });
+
+  protected readonly canSend = computed(() => this.selectedCategoryId() != null && this.message().trim().length > 0);
 
   constructor() {
-    const uid = this.auth.user()?.uid;
-    if (!uid) {
-      this.loading.set(false);
-      return;
-    }
-    void this.load(uid);
+    effect(() => {
+      const tid = this.id();
+      this.tournament.set(null);
+      this.selectedCategoryId.set(null);
+      if (!tid) {
+        this.loading.set(false);
+        return;
+      }
+      this.loading.set(true);
+      void this.load(tid);
+    });
   }
 
-  private async load(uid: string): Promise<void> {
+  private async load(tid: string): Promise<void> {
     try {
-      const tournaments = await listMyTournaments(uid);
-      this.tournaments.set(tournaments);
-      if (tournaments.length > 0) {
-        this.selectedTournamentId.set(tournaments[0]!.id);
-        this.selectedCategoryId.set(tournaments[0]!.categories[0]?.id ?? null);
-      }
+      const tournament = await getTournament(tid);
+      this.tournament.set(tournament);
+      const cid = this.catId();
+      const categories = tournament?.categories ?? [];
+      const initial = (cid && categories.some((c) => c.id === cid) ? cid : null) ?? categories[0]?.id ?? null;
+      this.selectedCategoryId.set(initial);
     } finally {
       this.loading.set(false);
     }
-  }
-
-  protected onTournament(event: Event): void {
-    const id = (event.target as HTMLSelectElement).value;
-    this.selectedTournamentId.set(id);
-    const t = this.tournaments().find((x) => x.id === id);
-    this.selectedCategoryId.set(t?.categories[0]?.id ?? null);
   }
 
   protected onCategory(event: Event): void {
@@ -298,7 +319,7 @@ export class ComunicacaoComponent {
   }
 
   protected async send(): Promise<void> {
-    const tid = this.selectedTournamentId();
+    const tid = this.id();
     const cid = this.selectedCategoryId();
     if (!tid || !cid || !this.canSend() || this.sending()) return;
     this.sending.set(true);
@@ -318,7 +339,6 @@ export class ComunicacaoComponent {
       this.sentLog.update((log) => [
         {
           at: new Date(),
-          tournamentName: this.tournament()?.name ?? '',
           categoryName: this.categories().find((c) => c.id === cid)?.name ?? cid,
           audience: this.audience(),
           message: this.message().trim(),

@@ -430,7 +430,7 @@ export class SeedsComponent {
       this.ctx.selectTournament(tid);
       this.ctx.selectCategory(cat.id);
       await this.ctx.reloadMatches();
-      setTimeout(() => void this.router.navigateByUrl('/painel/chaveamento/chave'), 900);
+      setTimeout(() => void this.router.navigate(['/painel/eventos', tid, 'categorias', cat.id, 'chave']), 900);
     } catch (e) {
       const err = e as { message?: string; details?: { reason?: string } };
       if (err.details?.reason === 'bracket_has_results' && !force) {

@@ -1,10 +1,9 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { AuthService } from '../../auth/auth.service';
+import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { initialsOf, type PillTone } from '../data/mock-data';
 import { listInscriptions } from '../data/inscriptions-repository';
 import { confirmRegistrationPayment, moveToWaitlist, removeFromCategory, resendRegistrationPayment } from '../data/organizer-ops.service';
 import type { OrganizerTournament } from '../data/tournament.model';
-import { listMyTournaments } from '../data/tournaments-repository';
+import { getTournament } from '../data/tournaments-repository';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgChartTabsComponent } from '../ui/chart-tabs.component';
@@ -23,29 +22,26 @@ const PAY_LABEL: Record<PayStatus, string> = { pago: 'Pago', pendente: 'Pendente
 interface InscricaoRow {
   id: string;
   name: string;
-  evento: string;
+  categoriaId: string | null;
   categoria: string;
   pay: PayStatus;
   date: string;
   createdAt: Date | null;
 }
 
-/** Teto de torneios consultados em paralelo pra montar a lista agregada — mesmo convite de
- *  `eventos-list.component.ts` (MAX_INSCRITOS_FETCH) pra evitar N+1 sem limite. */
-const MAX_INSCRITOS_FETCH = 20;
-
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
 
-/** Inscrições de todos os torneios do organizador, com as MESMAS ações do app
+/** Inscrições do torneio em contexto (nível 2 da cascata), com as MESMAS ações do app
  *  (`organizer_category_ops_service.dart`): confirmar pagamento manual, mover pra lista de
  *  espera, remover da categoria e reenviar cobrança — todas via Cloud Functions com validação
- *  no servidor. */
+ *  no servidor. O torneio vem da rota (`/painel/eventos/:id/inscricoes`); o filtro por
+ *  categoria são os chips no topo, espelhando o protótipo da cascata. */
 @Component({
   selector: 'og-inscricoes',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [OgPageHeaderComponent, OgCardComponent, OgChartTabsComponent, OgIconComponent, OgPillComponent, OgAvatarComponent],
   template: `
-    <og-page-header title="Inscrições" subtitle="Atletas e duplas inscritos em todos os eventos">
+    <og-page-header title="Inscrições" [subtitle]="headerSubtitle()">
       <!-- mock (fase 2): busca do header ainda decorativa em toda a IA do protótipo (idem Início) -->
       <div class="og-search-box"><og-icon name="search" [size]="15" /><span>Buscar…</span></div>
       <!-- mock (fase 2): exportação real fica pra depois -->
@@ -63,8 +59,8 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
           <div class="og-kpi-value sm" style="color:var(--nx-pending)">{{ pendentes() }}</div>
         </og-card>
         <og-card pad="sm" flex="1">
-          <div class="og-kpi-label">Categorias abertas</div>
-          <div class="og-kpi-value sm">{{ categoriasAbertas() }}</div>
+          <div class="og-kpi-label">Categorias</div>
+          <div class="og-kpi-value sm">{{ categorias().length }}</div>
         </og-card>
       </div>
 
@@ -72,12 +68,25 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
         <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
       }
 
+      @if (categorias().length > 0) {
+        <div class="og-filter-bar">
+          <button type="button" class="og-chip" [class.active]="categoryFilter() === null" (click)="categoryFilter.set(null)">
+            Todas ({{ rows().length }})
+          </button>
+          @for (c of categorias(); track c.id) {
+            <button type="button" class="og-chip" [class.active]="categoryFilter() === c.id" (click)="categoryFilter.set(c.id)">
+              {{ c.name }} · {{ countOf(c.id) }}
+            </button>
+          }
+        </div>
+      }
+
       <og-chart-tabs [tabs]="tabs" [active]="tab()" (changed)="tab.set($any($event))" />
 
       <og-card pad="0" flex="1">
         <div class="og-table-head">
           <span style="flex:1.4">Atleta / Dupla</span>
-          <span style="flex:1">Evento</span>
+          <span style="flex:1">Categoria</span>
           <span style="width:70px">Data</span>
           <span style="width:110px">Pagamento</span>
           <span style="width:80px"></span>
@@ -95,9 +104,8 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 <og-avatar [initials]="initialsOf(r.name, ' ')" [size]="34" />
                 <span style="flex:1.4;min-width:0">
                   <div class="og-inscricoes-name">{{ r.name }}</div>
-                  <div class="og-inscricoes-cat">{{ r.categoria }}</div>
                 </span>
-                <span style="flex:1" class="og-inscricoes-evento">{{ r.evento }}</span>
+                <span style="flex:1" class="og-inscricoes-cat">{{ r.categoria }}</span>
                 <span style="width:70px" class="og-inscricoes-date">{{ r.date }}</span>
                 <span style="width:110px"><og-pill [tone]="payTone[r.pay]">{{ payLabel[r.pay] }}</og-pill></span>
                 <button type="button" class="og-ghost-btn" (click)="toggleActions(r.id)">{{ actionsFor() === r.id ? 'Fechar' : 'Ações' }}</button>
@@ -130,12 +138,6 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       color: var(--nx-text);
     }
     .og-inscricoes-cat {
-      font-family: var(--nx-font-ui);
-      font-size: 11.5px;
-      color: var(--nx-text-dim);
-      margin-top: 2px;
-    }
-    .og-inscricoes-evento {
       font-family: var(--nx-font-ui);
       font-size: 12.5px;
       color: var(--nx-text-mute);
@@ -187,10 +189,11 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
   `,
 })
 export class InscricoesComponent {
-  private readonly auth = inject(AuthService);
+  readonly id = input<string>('');
 
   protected readonly tabs = ['todos', 'pago', 'pendente', 'espera'];
   protected readonly tab = signal<Tab>('todos');
+  protected readonly categoryFilter = signal<string | null>(null);
   protected readonly payTone = PAY_TONE;
   protected readonly payLabel = PAY_LABEL;
   protected readonly initialsOf = initialsOf;
@@ -199,59 +202,63 @@ export class InscricoesComponent {
   protected readonly busy = signal(false);
   protected readonly actionsFor = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
-  protected readonly tournaments = signal<OrganizerTournament[]>([]);
+  protected readonly tournament = signal<OrganizerTournament | null>(null);
   protected readonly rows = signal<InscricaoRow[]>([]);
 
+  protected readonly categorias = computed(() => this.tournament()?.categories ?? []);
   protected readonly pendentes = computed(() => this.rows().filter((r) => r.pay === 'pendente').length);
 
-  /** Categorias com inscrições abertas agora — soma das categorias dos torneios em status
-   *  "inscricoes" entre os torneios agregados nesta tela. */
-  protected readonly categoriasAbertas = computed(() =>
-    this.tournaments()
-      .filter((t) => t.status === 'inscricoes')
-      .reduce((sum, t) => sum + t.categories.length, 0),
-  );
+  protected readonly headerSubtitle = computed(() => {
+    const t = this.tournament();
+    if (!t) return '';
+    const pend = this.pendentes();
+    return `${t.name} · ${this.rows().length} inscrições${pend > 0 ? ` · ${pend} pendentes` : ''}`;
+  });
 
   protected readonly filtered = computed<InscricaoRow[]>(() => {
-    const t = this.tab();
-    return t === 'todos' ? this.rows() : this.rows().filter((r) => r.pay === t);
+    const tab = this.tab();
+    const cat = this.categoryFilter();
+    return this.rows().filter((r) => (tab === 'todos' || r.pay === tab) && (cat === null || r.categoriaId === cat));
   });
 
   constructor() {
-    const uid = this.auth.user()?.uid;
-    if (!uid) {
-      this.loading.set(false);
-      return;
-    }
-    void this.load(uid);
+    effect(() => {
+      const tid = this.id();
+      this.tournament.set(null);
+      this.rows.set([]);
+      this.categoryFilter.set(null);
+      if (!tid) {
+        this.loading.set(false);
+        return;
+      }
+      this.loading.set(true);
+      void this.load(tid);
+    });
   }
 
-  private async load(uid: string): Promise<void> {
+  private async load(tid: string): Promise<void> {
     try {
-      const tournaments = (await listMyTournaments(uid)).slice(0, MAX_INSCRITOS_FETCH);
-      this.tournaments.set(tournaments);
-
-      const lists = await Promise.all(tournaments.map((t) => listInscriptions(t.id)));
-      const rows: InscricaoRow[] = [];
-      tournaments.forEach((t, i) => {
-        const categoryNames = new Map(t.categories.map((c) => [c.id, c.name]));
-        for (const insc of lists[i] ?? []) {
-          rows.push({
-            id: insc.id,
-            name: insc.teamName,
-            evento: t.name,
-            categoria: (insc.categoryId && categoryNames.get(insc.categoryId)) || '—',
-            pay: insc.paid ? 'pago' : insc.paymentStatus === 'waitlist' ? 'espera' : 'pendente',
-            date: insc.createdAt ? SHORT_DATE.format(insc.createdAt) : '—',
-            createdAt: insc.createdAt,
-          });
-        }
-      });
+      const [tournament, inscriptions] = await Promise.all([getTournament(tid), listInscriptions(tid)]);
+      this.tournament.set(tournament);
+      const categoryNames = new Map((tournament?.categories ?? []).map((c) => [c.id, c.name]));
+      const rows: InscricaoRow[] = inscriptions.map((insc) => ({
+        id: insc.id,
+        name: insc.teamName,
+        categoriaId: insc.categoryId,
+        categoria: (insc.categoryId && categoryNames.get(insc.categoryId)) || '—',
+        pay: insc.paid ? 'pago' : insc.paymentStatus === 'waitlist' ? 'espera' : 'pendente',
+        date: insc.createdAt ? SHORT_DATE.format(insc.createdAt) : '—',
+        createdAt: insc.createdAt,
+      }));
       rows.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
       this.rows.set(rows);
     } finally {
       this.loading.set(false);
     }
+  }
+
+  protected countOf(categoryId: string): number {
+    return this.rows().filter((r) => r.categoriaId === categoryId).length;
   }
 
   protected toggleActions(id: string): void {
@@ -265,10 +272,10 @@ export class InscricoesComponent {
       await action();
       this.feedback.set({ ok: true, message: okMessage });
       this.actionsFor.set(null);
-      const uid = this.auth.user()?.uid;
-      if (uid) {
+      const tid = this.id();
+      if (tid) {
         this.loading.set(true);
-        await this.load(uid);
+        await this.load(tid);
       }
     } catch (e) {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Operação falhou.' });

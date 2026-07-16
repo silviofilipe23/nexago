@@ -6,11 +6,13 @@ import 'tournament_match_display.dart';
 import 'tournament_matches_logic.dart';
 
 /// Dimensões do canvas da chave interativa (protótipo NexaGO).
+/// cardHeight inclui o rodapé de agendamento do card (dia · hora · quadra);
+/// rowUnit acompanha pra manter o gap de 12 entre jogos adjacentes (2·81−150).
 abstract final class BracketLayoutMetrics {
   static const cardWidth = 280.0;
-  static const cardHeight = 132.0;
+  static const cardHeight = 150.0;
   static const columnGap = 56.0;
-  static const rowUnit = 72.0;
+  static const rowUnit = 81.0;
   static const canvasPadding = 24.0;
   static const columnHeaderHeight = 32.0;
   static const wbLbGap = 56.0;

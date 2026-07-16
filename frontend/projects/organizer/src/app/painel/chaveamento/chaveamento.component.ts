@@ -1,22 +1,15 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { initialsOf, type PillTone } from '../data/mock-data';
 import type { MatchDisplayStatus, TournamentMatch } from '../data/matches-repository';
+import { formatCourtLabel, matchMetaLabel, matchWhenLabel } from '../data/schedule-format';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
-import { type DoubleEliminationBracket, buildDoubleEliminationBracket } from './bracket-tree';
+import { BRACKET_MATCH_WIDTH, type DoubleEliminationLayout, buildDoubleEliminationLayout, buildKnockoutTreeLayout, isDoubleElimination } from './bracket-tree';
 import { ChaveamentoContextService } from './chaveamento-context.service';
-import { ChaveamentoSelectorComponent } from './chaveamento-selector.component';
-import { ChaveamentoSubnavComponent } from './chaveamento-subnav.component';
-
-interface GenericColumn {
-  key: string;
-  label: string;
-  matches: TournamentMatch[];
-}
 
 const STATUS_TONE: Record<MatchDisplayStatus, PillTone> = {
   scheduled: 'orange',
@@ -61,19 +54,17 @@ function setsWonOf(score: string): [number, number] {
 /** Chave de mata-mata da categoria selecionada — dados reais (`listMatches`, Task O6).
  *
  *  Dupla eliminação (`matchType` WB/LB gravado por `category-bracket-builders.ts`) ganha a
- *  árvore completa (`bracket-tree.ts`): chave de vencedores + chave de perdedores lado a lado
- *  em seções, com conectores desenhados a partir dos ponteiros reais de avanço, e banner de
- *  grande final (+ 3º lugar quando a planta tiver disputa de 3º). Eliminatória simples e
- *  grupos+mata-mata (sem ponteiro de avanço salvo — resolvem por posição em runtime, ver
- *  comentário em `bracket-tree.ts`) continuam com o bracket genérico em coluna única.
+ *  árvore completa (`bracket-tree.ts`, porta do layout canônico do app
+ *  `double_elimination_bracket_layout.dart`): canvas único com o track da WB em cima —
+ *  incluindo 3º Lugar e Final como colunas à direita, a Final centralizada no track — e o da
+ *  LB embaixo; jogos em ordem de matchNumber com espaçamento binário, conectores dos ponteiros
+ *  reais de avanço dentro de cada chave. Eliminatória simples e grupos+mata-mata (sem ponteiro
+ *  salvo) continuam com o bracket genérico em coluna única.
  *
  *  Card da partida espelha o que o app mostra no card da árvore (`BracketMatchNode`, Flutter):
- *  nº do jogo, selo de status (agendado/ao vivo/finalizado/cancelado), avatar de iniciais por
- *  dupla e placar em sets, card inteiro clicável pro placar — exceto o placar set a set (só o
- *  vencedor exibe, no app), que fica só num clique de distância (`/placar/:id`) em vez de inflar
- *  o card: aqui a altura do card é fixa (ver `BRACKET_MATCH_HEIGHT`) porque os conectores da
- *  árvore são calculados em pixels a partir dela, então uma linha de altura variável quebraria
- *  o alinhamento. "Sortear chave" leva ao fluxo real de geração (seeds); só a exportação
+ *  nº do jogo + quadra no topo (`#2 · Quadra 1`), selo de status, avatar de iniciais por
+ *  dupla, placar em sets e rodapé com data/hora + chip da quadra — card inteiro clicável
+ *  pro placar. "Sortear chave" leva ao fluxo real de geração (seeds); só a exportação
  *  (PDF/imagem) segue mock — não existe no app também. */
 @Component({
   selector: 'og-chaveamento',
@@ -85,8 +76,6 @@ function setsWonOf(score: string): [number, number] {
     OgIconComponent,
     OgAvatarComponent,
     OgPillComponent,
-    ChaveamentoSubnavComponent,
-    ChaveamentoSelectorComponent,
   ],
   template: `
     <og-page-header [title]="headerTitle()" [subtitle]="headerSubtitle()">
@@ -98,12 +87,9 @@ function setsWonOf(score: string): [number, number] {
     </og-page-header>
 
     <div class="og-content" style="overflow:auto">
-      <og-chaveamento-subnav active="chave" />
-      <og-chaveamento-selector />
-
       <ng-template #cardBody let-m>
         <div class="og-bracket-match-head">
-          <span class="og-bracket-match-num">#{{ m.matchNumber || '—' }}</span>
+          <span class="og-bracket-match-num">{{ metaLabel(m) }}</span>
           <og-pill [tone]="statusTone(m)">
             @if (m.status === 'in_progress') {
               <span class="og-dot og-dot-red og-dot-pulse"></span>
@@ -133,92 +119,40 @@ function setsWonOf(score: string): [number, number] {
           </span>
           <span class="og-bracket-side-score">{{ sideScore(m, 2) }}</span>
         </div>
+        <div class="og-bracket-match-sched" [class.set]="m.scheduledAt">
+          <span class="og-bracket-sched-when">
+            <og-icon name="clock" [size]="11" />
+            <span>{{ whenLabel(m) }}</span>
+          </span>
+          @if (courtLabel(m); as court) {
+            <span class="og-bracket-sched-court">{{ court }}</span>
+          }
+        </div>
       </ng-template>
 
       @if (ctx.loadingTournaments() || ctx.loadingMatches()) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Carregando chave…</div>
-      } @else if (ctx.tournaments().length === 0) {
-        <!-- og-chaveamento-selector já mostra "nenhum torneio ainda" -->
-      } @else if (!ctx.selectedCategoryId()) {
-        <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Selecione uma categoria acima pra ver a chave.</div>
       } @else if (knockoutMatches().length === 0) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Chave ainda não gerada pra esta categoria.</div>
-      } @else if (deBracket(); as de) {
-        <ng-template #section let-s>
-          <div class="og-de-labels-row" [style.width.px]="s.width">
-            @for (col of s.columns; track col.key) {
-              <div class="og-bracket-round-label og-de-col-label" [style.left.px]="col.left" [style.width.px]="matchWidth">{{ col.label }}</div>
+      } @else if (treeLayout(); as tree) {
+        <div class="og-de-canvas" [style.width.px]="tree.width" [style.height.px]="tree.height">
+          <svg class="og-de-lines" [attr.width]="tree.width" [attr.height]="tree.height">
+            @for (e of tree.edges; track $index) {
+              <path [attr.d]="e.d" />
             }
-          </div>
-          <div class="og-de-canvas" [style.width.px]="s.width" [style.height.px]="s.height">
-            <svg class="og-de-lines" [attr.width]="s.width" [attr.height]="s.height">
-              @for (c of s.connectors; track $index) {
-                <path [attr.d]="c.d" />
-              }
-            </svg>
-            @for (col of s.columns; track col.key) {
-              @for (n of col.nodes; track n.match.id) {
-                <a
-                  class="og-bracket-match og-de-match"
-                  [style.left.px]="col.left"
-                  [style.top.px]="n.top"
-                  [routerLink]="['/painel/chaveamento/placar', n.match.id]"
-                >
-                  <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: n.match }" />
-                </a>
-              }
-            }
-          </div>
-        </ng-template>
-
-        <div class="og-de-tree">
-          <div class="og-de-section-label wb">Chave de vencedores (Winners Bracket)</div>
-          <ng-container [ngTemplateOutlet]="section" [ngTemplateOutletContext]="{ $implicit: de.wb }" />
-
-          @if (de.lb) {
-            <div class="og-de-divider"></div>
-            <div class="og-de-section-label lb">Chave de perdedores (Losers Bracket)</div>
-            <ng-container [ngTemplateOutlet]="section" [ngTemplateOutletContext]="{ $implicit: de.lb }" />
+          </svg>
+          @for (lbl of tree.labels; track lbl.key) {
+            <div class="og-bracket-round-label og-de-col-label" [style.left.px]="lbl.left" [style.top.px]="lbl.top" [style.width.px]="matchWidth">{{ lbl.label }}</div>
           }
-
-          @if (de.grandFinal; as gf) {
-            <div class="og-de-final-banner">
-              <div class="og-de-final-icon"><og-icon name="trophy" [size]="19" /></div>
-              <div style="flex:1;min-width:0">
-                <div class="og-de-final-title">Grande final</div>
-                <div class="og-de-final-sub">{{ gf.team1Label }} vs {{ gf.team2Label }}</div>
-              </div>
-              @if (gf.score) {
-                <span class="og-de-final-score">{{ gf.score }}</span>
-              }
-            </div>
-          }
-          @if (de.thirdPlace; as tp) {
-            <div class="og-de-final-banner secondary">
-              <div class="og-de-final-icon"><og-icon name="flag" [size]="17" /></div>
-              <div style="flex:1;min-width:0">
-                <div class="og-de-final-title">Disputa de 3º lugar</div>
-                <div class="og-de-final-sub">{{ tp.team1Label }} vs {{ tp.team2Label }}</div>
-              </div>
-              @if (tp.score) {
-                <span class="og-de-final-score">{{ tp.score }}</span>
-              }
-            </div>
-          }
-        </div>
-      } @else {
-        <div class="og-bracket">
-          @for (col of genericColumns(); track col.key) {
-            <div class="og-bracket-col">
-              <div class="og-bracket-round-label">{{ col.label }}</div>
-              <div class="og-bracket-matches">
-                @for (m of col.matches; track m.id) {
-                  <a class="og-bracket-match" [routerLink]="['/painel/chaveamento/placar', m.id]">
-                    <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: m }" />
-                  </a>
-                }
-              </div>
-            </div>
+          @for (n of tree.nodes; track n.match.id) {
+            <a
+              class="og-bracket-match og-de-match"
+              [style.left.px]="n.left"
+              [style.top.px]="n.top"
+              [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', n.match.id]"
+            >
+              <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: n.match }" />
+            </a>
           }
         </div>
       }
@@ -226,8 +160,11 @@ function setsWonOf(score: string): [number, number] {
   `,
 })
 export class ChaveamentoComponent {
+  readonly id = input<string>('');
+  readonly catId = input<string>('');
+
   protected readonly ctx = inject(ChaveamentoContextService);
-  protected readonly matchWidth = 190;
+  protected readonly matchWidth = BRACKET_MATCH_WIDTH;
   protected readonly initialsOf = initialsOf;
   protected readonly athleteNames = athleteNamesOf;
 
@@ -235,17 +172,33 @@ export class ChaveamentoComponent {
     return STATUS_TONE[m.status];
   }
 
+  protected metaLabel(m: TournamentMatch): string {
+    return matchMetaLabel(m);
+  }
+
+  protected whenLabel(m: TournamentMatch): string {
+    return matchWhenLabel(m);
+  }
+
+  protected courtLabel(m: TournamentMatch): string {
+    return formatCourtLabel(m.court);
+  }
+
   protected statusLabel(m: TournamentMatch): string {
     return STATUS_LABEL[m.status];
   }
 
-  protected readonly headerTitle = computed(() => (this.deBracket() ? 'Chaveamento · dupla eliminação' : 'Chaveamento'));
+  protected readonly headerTitle = computed(() => (isDoubleElimination(this.knockoutMatches()) ? 'Chaveamento · dupla eliminação' : 'Chaveamento'));
 
-  /** Link pro fluxo real de sorteio/geração — precisa de torneio + categoria selecionados. */
+  /** Link pro fluxo real de sorteio/geração — só com torneio + categoria selecionados e
+   *  enquanto a chave AINDA NÃO existe (categoria sem jogos). Regerar uma chave publicada é
+   *  operação destrutiva (apaga resultados) e sai do caminho comum — o botão some. */
   protected readonly seedsLink = computed<string[] | null>(() => {
     const tid = this.ctx.selectedTournamentId();
     const cid = this.ctx.selectedCategoryId();
-    return tid && cid ? ['/painel/eventos', tid, 'categorias', cid, 'seeds'] : null;
+    if (!tid || !cid) return null;
+    if (this.ctx.matchesFiltered().length > 0) return null;
+    return ['/painel/eventos', tid, 'categorias', cid, 'seeds'];
   });
 
   protected readonly headerSubtitle = computed(() => {
@@ -258,24 +211,12 @@ export class ChaveamentoComponent {
   /** Partidas de mata-mata da categoria selecionada — exclui fase de grupos (ver GruposComponent, que usa o mesmo rótulo "Grupo "). */
   protected readonly knockoutMatches = computed<TournamentMatch[]>(() => this.ctx.matchesFiltered().filter((m) => !m.round?.startsWith('Grupo ')));
 
-  protected readonly deBracket = computed<DoubleEliminationBracket | null>(() => {
+  /** Árvore da chave — DE quando há partidas WB/LB; senão a árvore do mata-mata simples
+   *  (mesmo visual, ligações posicionais/ponteiros — ver `buildKnockoutTreeLayout`). */
+  protected readonly treeLayout = computed<DoubleEliminationLayout | null>(() => {
     if (!this.ctx.selectedCategoryId()) return null;
-    return buildDoubleEliminationBracket(this.knockoutMatches());
-  });
-
-  protected readonly genericColumns = computed<GenericColumn[]>(() => {
-    const byLabel = new Map<string, { order: number; matches: TournamentMatch[] }>();
-    for (const m of this.knockoutMatches()) {
-      const label = m.round ?? 'Rodada';
-      const isFinal = m.matchType.trim().toLowerCase() === 'final';
-      const order = isFinal ? Number.MAX_SAFE_INTEGER : m.roundNumber;
-      const entry = byLabel.get(label) ?? { order, matches: [] };
-      entry.matches.push(m);
-      byLabel.set(label, entry);
-    }
-    return [...byLabel.entries()]
-      .sort(([, a], [, b]) => a.order - b.order)
-      .map(([label, { matches }]) => ({ key: label, label, matches: [...matches].sort((a, b) => a.matchNumber - b.matchNumber) }));
+    const matches = this.knockoutMatches();
+    return buildDoubleEliminationLayout(matches) ?? buildKnockoutTreeLayout(matches);
   });
 
   protected sideScore(m: TournamentMatch, side: 1 | 2): number | string {

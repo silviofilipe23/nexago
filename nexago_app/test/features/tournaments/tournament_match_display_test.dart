@@ -341,6 +341,35 @@ void main() {
     });
   });
 
+  group('matchScheduleFooterLabelPt', () {
+    test('formats weekday, date, time and numeric court', () {
+      final match = _match(courtName: '1')
+          .copyWithScheduleTime(DateTime(2025, 3, 29, 16, 30));
+
+      expect(
+        matchScheduleFooterLabelPt(match),
+        'Sáb 29/03 · 16:30 · Quadra 1',
+      );
+    });
+
+    test('omits court when only schedule time exists', () {
+      final match = _match().copyWithScheduleTime(DateTime(2025, 3, 30, 9, 5));
+
+      expect(matchScheduleFooterLabelPt(match), 'Dom 30/03 · 09:05');
+    });
+
+    test('shows court with sem horário when only court exists', () {
+      expect(
+        matchScheduleFooterLabelPt(_match(courtName: '2')),
+        'Quadra 2 · sem horário',
+      );
+    });
+
+    test('falls back to Sem horário when nothing is set', () {
+      expect(matchScheduleFooterLabelPt(_match()), 'Sem horário');
+    });
+  });
+
   group('matchPhaseDisplayLabel', () {
     test('group match includes pool label', () {
       expect(

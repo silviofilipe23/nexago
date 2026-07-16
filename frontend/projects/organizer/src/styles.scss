@@ -493,7 +493,9 @@ button {
 }
 
 .og-chip {
-  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 32px;
   padding: 0 14px;
   border-radius: var(--nx-r-pill);
@@ -504,6 +506,7 @@ button {
   font-weight: 600;
   font-size: 12.5px;
   letter-spacing: -0.005em;
+  text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
   transition: all 140ms var(--nx-ease-out);
@@ -606,41 +609,73 @@ button {
   color: var(--nx-text-dim);
 }
 
-.og-event-switcher {
+/* Cascata: link de voltar pro nível anterior (torneio → lista, categoria → torneio). */
+.og-side-back {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 18px;
+  padding: 7px 10px;
+  border-radius: var(--nx-r-2);
+  cursor: pointer;
+  color: var(--nx-text-mute);
+  text-decoration: none;
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.og-side-back:hover {
+  color: var(--nx-text);
+  background: var(--nx-surface-1);
+}
+
+.og-side-back span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Cascata: card do torneio/categoria em contexto na sidebar. */
+.og-side-context {
   display: flex;
   align-items: center;
   gap: 9px;
-  margin-top: 18px;
-  padding: 8px 10px;
+  margin-top: 6px;
+  padding: 9px 10px;
   border-radius: var(--nx-r-2);
-  cursor: pointer;
-  background: var(--nx-surface-1);
-  border: 1px solid var(--nx-line);
-  text-align: left;
-  width: 100%;
-  color: inherit;
+  background: var(--nx-orange-tint);
+  border: 1px solid rgba(255, 106, 26, 0.28);
 }
 
-.og-event-switcher-icon {
+.og-side-context-icon {
   width: 28px;
   height: 28px;
   border-radius: 9px;
   flex: none;
-  background: var(--nx-orange-tint);
+  background: rgba(255, 106, 26, 0.16);
   color: var(--nx-orange-500);
   display: grid;
   place-items: center;
 }
 
-.og-event-switcher-body {
+.og-side-context-body {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
 }
 
-.og-event-switcher-name {
+.og-side-context-kicker {
+  font-family: var(--nx-font-mono);
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--nx-orange-500);
+}
+
+.og-side-context-name {
   font-family: var(--nx-font-display);
   font-weight: 700;
   font-size: 12.5px;
@@ -648,13 +683,18 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-top: 1px;
 }
 
-.og-event-switcher-sub {
+.og-side-context-meta {
   font-family: var(--nx-font-mono);
   font-size: 8.5px;
   font-weight: 600;
   color: var(--nx-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
 }
 
 .og-nav {
@@ -821,6 +861,36 @@ button {
   white-space: nowrap;
 }
 
+/* Cascata: breadcrumb dos níveis acima (Meus torneios › Torneio ›). */
+.og-page-header-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 3px;
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.og-page-header-crumbs a {
+  color: var(--nx-orange-500);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.og-page-header-crumbs a:hover {
+  text-decoration: underline;
+}
+
+.og-page-header-crumbs .sep {
+  color: var(--nx-text-dim);
+}
+
 .og-page-header-subtitle {
   font-family: var(--nx-font-mono);
   font-size: 10px;
@@ -870,7 +940,7 @@ button {
 }
 
 .og-card.og-card-pad-0 {
-  padding: 0;
+  padding: 10;
 }
 
 .og-card-head {
@@ -1767,9 +1837,10 @@ button {
   flex: 1;
 }
 
+/* Largura sincronizada com BRACKET_MATCH_WIDTH (bracket-tree.ts) — mudar junto. */
 .og-bracket-match {
   display: block;
-  width: 190px;
+  width: 240px;
   background: var(--nx-surface-0);
   border: 1px solid var(--nx-line);
   border-radius: var(--nx-r-2);
@@ -1869,49 +1940,69 @@ button {
   color: var(--nx-orange-500);
 }
 
-/* ── Chave de dupla eliminação (árvore WB/LB) ───────────────────── */
-
-.og-de-tree {
+/* Rodapé de agendamento do card (dia · hora | quadra) — 22px fixos: a altura do card
+   alimenta o cálculo dos conectores (BRACKET_MATCH_HEIGHT em bracket-tree.ts). */
+.og-bracket-match-sched {
   display: flex;
-  flex-direction: column;
-  gap: 22px;
-}
-
-.og-de-section-label {
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 22px;
+  padding: 0 10px;
+  background: var(--nx-surface-1);
   font-family: var(--nx-font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  color: var(--nx-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.og-de-section-label.wb {
-  color: var(--nx-win);
+.og-bracket-sched-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.og-de-section-label.lb {
-  color: var(--nx-pending);
+.og-bracket-sched-when span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.og-de-divider {
-  height: 1px;
-  background: var(--nx-line);
-  margin: 2px 0;
+.og-bracket-sched-court {
+  flex: none;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--nx-text-mute);
 }
 
-.og-de-labels-row {
+.og-bracket-match-sched.set {
+  color: var(--nx-text-mute);
+}
+
+.og-bracket-match-sched.set .og-bracket-sched-when og-icon {
+  color: var(--nx-orange-500);
+}
+
+.og-bracket-match-sched.set .og-bracket-sched-court {
+  color: var(--nx-orange-500);
+}
+
+/* ── Chave de dupla eliminação (canvas único WB+LB, layout do app) ── */
+
+.og-de-canvas {
   position: relative;
-  height: 26px;
+  flex: none;
 }
 
 .og-de-col-label {
   position: absolute;
-  top: 0;
   text-align: center;
-}
-
-.og-de-canvas {
-  position: relative;
 }
 
 .og-de-lines {
@@ -1932,64 +2023,4 @@ button {
   position: absolute;
   height: 92px;
   z-index: 1;
-}
-
-.og-de-final-banner {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px 18px;
-  border-radius: var(--nx-r-3);
-  background: var(--nx-orange-tint);
-  border: 1px solid rgba(255, 106, 26, 0.25);
-}
-
-.og-de-final-banner.secondary {
-  background: var(--nx-surface-1);
-  border: 1px solid var(--nx-line);
-}
-
-.og-de-final-icon {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--nx-r-2);
-  display: grid;
-  place-items: center;
-  flex: none;
-  background: var(--nx-orange-500);
-  color: var(--nx-text-on-orange);
-}
-
-.og-de-final-banner.secondary .og-de-final-icon {
-  background: var(--nx-surface-2);
-  color: var(--nx-text-dim);
-}
-
-.og-de-final-title {
-  font-family: var(--nx-font-display);
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--nx-text);
-}
-
-.og-de-final-sub {
-  font-family: var(--nx-font-ui);
-  font-size: 12.5px;
-  color: var(--nx-text-mute);
-  margin-top: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.og-de-final-score {
-  flex: none;
-  font-family: var(--nx-font-mono);
-  font-weight: 700;
-  font-size: 13px;
-  color: var(--nx-orange-500);
-}
-
-.og-de-final-banner.secondary .og-de-final-score {
-  color: var(--nx-text);
 }

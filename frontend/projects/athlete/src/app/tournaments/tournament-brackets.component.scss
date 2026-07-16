@@ -436,8 +436,13 @@
   font-family: var(--nx-font-mono);
   font-size: 9.5px;
   font-weight: 700;
-  display: inline-flex;
-  align-items: center;
+  display: inline-block;
+  line-height: 18px;
+  /* Rótulo agora traz dia · hora · quadra — não pode estourar o card. */
+  max-width: calc(100% - 20px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bx-match-side {

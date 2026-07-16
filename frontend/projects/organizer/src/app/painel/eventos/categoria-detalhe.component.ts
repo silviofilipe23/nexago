@@ -6,28 +6,31 @@ import { listMatches, type TournamentMatch } from '../data/matches-repository';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
 import { OgAvatarComponent } from '../ui/avatar.component';
-import { OgChartTabsComponent } from '../ui/chart-tabs.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 
-type Tab = 'Duplas' | 'Pagamentos' | 'Chave' | 'Jogos';
 type Tone = 'orange' | 'green' | 'yellow' | 'red' | 'dim';
 
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
-const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-/** Detalhe da categoria — roster de duplas, status de pagamento e jogos reais. */
+/** Duplas da categoria — porta de entrada do nível 3 da cascata: roster com status de
+ *  pagamento e KPIs. Chave, grupos, jogos e agendamento (as antigas abas) viraram itens
+ *  da sidebar contextual da categoria. */
 @Component({
   selector: 'og-categoria-detalhe',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, OgPageHeaderComponent, OgChartTabsComponent, OgIconComponent, OgPillComponent, OgAvatarComponent],
+  imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent, OgAvatarComponent],
   template: `
-    <og-page-header [title]="category()?.name ?? 'Categoria'" [subtitle]="headerSubtitle()">
+    <og-page-header title="Equipes" [subtitle]="headerSubtitle()">
+      <!-- mock (fase 2): edição de categoria depois do torneio criado ainda não existe no app -->
       <button type="button" class="og-ghost-btn"><og-icon name="edit" [size]="13" />Editar</button>
-      <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'seeds']">
-        <og-icon name="bracket" [size]="14" />Sortear chave
-      </a>
+      <!-- Some quando a chave já foi gerada (categoria com jogos) — regerar apagaria resultados. -->
+      @if (!loading() && matches().length === 0) {
+        <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'seeds']">
+          <og-icon name="bracket" [size]="14" />Sortear chave
+        </a>
+      }
     </og-page-header>
 
     <div class="og-content">
@@ -46,59 +49,31 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
             <div class="og-kpi-value sm" style="color:var(--nx-win)">{{ pagasCount() }}</div>
           </div>
           <div class="og-card og-card-pad-sm" style="flex:1">
+            <div class="og-kpi-label">Pendentes</div>
+            <div class="og-kpi-value sm" style="color:var(--nx-pending)">{{ pendentesCount() }}</div>
+          </div>
+          <div class="og-card og-card-pad-sm" style="flex:1">
             <div class="og-kpi-label">Formato</div>
             <div class="og-kpi-value sm" style="font-size:15px;margin-top:10px">{{ formatLabel() }}</div>
           </div>
-          <div class="og-card og-card-pad-sm" style="flex:1">
-            <div class="og-kpi-label">Premiação</div>
-            <!-- mock (fase 2): sem premiação/financeiro por categoria ainda (Task O7) -->
-            <div class="og-kpi-value sm" style="color:var(--nx-win)">—</div>
-          </div>
         </div>
 
-        <og-chart-tabs [tabs]="tabs" [active]="tab()" (changed)="tab.set($any($event))" />
-
         <div class="og-card og-card-pad-0" style="flex:1;min-height:0">
-          @if (tab() === 'Duplas') {
-            <div class="og-table-body" style="padding:4px 20px">
-              @for (i of inscriptions(); track i.id; let idx = $index; let last = $last) {
-                <div class="og-row" [class.last]="last">
-                  <span class="og-categoria-seed">{{ pad(idx + 1) }}</span>
-                  <og-avatar [initials]="initialsOf(i.teamName, ' / ')" [size]="34" />
-                  <span style="flex:1;min-width:0">
-                    <div class="og-categoria-name">{{ i.teamName }}</div>
-                    <div class="og-categoria-meta">{{ i.createdAt ? 'Inscrito em ' + shortDate(i.createdAt) : 'Sem data de inscrição' }}</div>
-                  </span>
-                  <og-pill [tone]="payTone(i)">{{ payLabel(i) }}</og-pill>
-                  <button type="button" class="og-ghost-btn">Detalhes</button>
-                </div>
-              } @empty {
-                <p class="og-empty">Nenhuma inscrição ainda</p>
-              }
-            </div>
-          } @else if (tab() === 'Jogos') {
-            <div class="og-table-body" style="padding:4px 20px">
-              @for (m of matches(); track m.id) {
-                <div class="og-row">
-                  <span style="width:110px" class="og-categoria-meta">{{ m.round ?? '—' }}</span>
-                  <span style="flex:1;display:flex;align-items:center;gap:8px;min-width:0">
-                    <span class="og-categoria-name">{{ m.team1Label }}</span>
-                    <span class="og-categoria-meta">×</span>
-                    <span class="og-categoria-name">{{ m.team2Label }}</span>
-                  </span>
-                  <span style="width:90px;text-align:center" class="og-categoria-score">{{ m.score ?? 'Não jogado' }}</span>
-                  <span style="width:90px" class="og-categoria-meta">{{ m.court ?? '—' }}</span>
-                  <span style="width:70px" class="og-categoria-meta">{{ m.scheduledAt ? timeLabel(m.scheduledAt) : '—' }}</span>
-                </div>
-              } @empty {
-                <p class="og-empty">Chaves ainda não geradas</p>
-              }
-            </div>
-          } @else {
-            <div style="padding:20px;color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">
-              Sem dados nesta aba ainda — protótipo mockado.
-            </div>
-          }
+          <div class="og-table-body" style="padding:4px 20px">
+            @for (i of inscriptions(); track i.id; let idx = $index; let last = $last) {
+              <div class="og-row" [class.last]="last">
+                <span class="og-categoria-seed">{{ pad(idx + 1) }}</span>
+                <og-avatar [initials]="initialsOf(i.teamName, ' / ')" [size]="34" />
+                <span style="flex:1;min-width:0">
+                  <div class="og-categoria-name">{{ i.teamName }}</div>
+                  <div class="og-categoria-meta">{{ i.createdAt ? 'Inscrito em ' + shortDate(i.createdAt) : 'Sem data de inscrição' }}</div>
+                </span>
+                <og-pill [tone]="payTone(i)">{{ payLabel(i) }}</og-pill>
+              </div>
+            } @empty {
+              <p class="og-empty">Nenhuma inscrição ainda</p>
+            }
+          </div>
         </div>
       }
     </div>
@@ -130,12 +105,6 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
       color: var(--nx-text-dim);
       margin-top: 2px;
     }
-    .og-categoria-score {
-      font-family: var(--nx-font-mono);
-      font-weight: 700;
-      font-size: 13px;
-      color: var(--nx-text);
-    }
     .og-empty {
       font-family: var(--nx-font-ui);
       font-size: 13px;
@@ -149,8 +118,6 @@ export class CategoriaDetalheComponent {
   readonly id = input<string>('');
   readonly catId = input<string>('');
 
-  protected readonly tabs: Tab[] = ['Duplas', 'Pagamentos', 'Chave', 'Jogos'];
-  protected readonly tab = signal<Tab>('Duplas');
   protected readonly initialsOf = initialsOf;
 
   protected readonly loading = signal(true);
@@ -163,6 +130,7 @@ export class CategoriaDetalheComponent {
   );
 
   protected readonly pagasCount = computed(() => this.inscriptions().filter((i) => i.paid).length);
+  protected readonly pendentesCount = computed(() => this.inscriptions().filter((i) => !i.paid).length);
 
   /** Rótulo do formato salvo na categoria (`bracketFormat`) — mesmo vocabulário curto do app. */
   protected readonly formatLabel = computed(() => {
@@ -179,12 +147,12 @@ export class CategoriaDetalheComponent {
   });
 
   protected readonly headerSubtitle = computed(() => {
-    const t = this.tournament();
     const cat = this.category();
-    if (!t || !cat) return '';
-    if (cat.maxTeams == null) return `${t.name} · categoria`;
-    const hint = this.inscriptions().length >= cat.maxTeams ? 'pronta pra sortear a chave' : 'aguardando inscrições';
-    return `${t.name} · categoria · ${hint}`;
+    if (!cat) return '';
+    const taken = this.inscriptions().length;
+    if (cat.maxTeams == null) return `${cat.name} · ${taken} duplas`;
+    const hint = taken >= cat.maxTeams ? 'lotado' : 'aguardando inscrições';
+    return `${cat.name} · ${taken}/${cat.maxTeams} · ${hint}`;
   });
 
   constructor() {
@@ -232,9 +200,5 @@ export class CategoriaDetalheComponent {
 
   protected shortDate(d: Date): string {
     return SHORT_DATE.format(d);
-  }
-
-  protected timeLabel(d: Date): string {
-    return TIME.format(d);
   }
 }

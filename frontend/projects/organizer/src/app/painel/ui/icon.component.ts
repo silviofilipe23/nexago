@@ -18,7 +18,10 @@ export type OgIconName =
   | 'bracket'
   | 'whistle'
   | 'alert'
-  | 'clock';
+  | 'clock'
+  | 'grid'
+  | 'calendar'
+  | 'back';
 
 /** Ícones de contorno do design system NexaGO — mesmo traçado do protótipo (stroke 24, 1.8–2.2px). */
 @Component({
@@ -90,6 +93,15 @@ export type OgIconName =
         }
         @case ('clock') {
           <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" />
+        }
+        @case ('grid') {
+          <rect x="3" y="3" width="8" height="8" rx="1.5" /><rect x="13" y="3" width="8" height="8" rx="1.5" /><rect x="3" y="13" width="8" height="8" rx="1.5" /><rect x="13" y="13" width="8" height="8" rx="1.5" />
+        }
+        @case ('calendar') {
+          <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" />
+        }
+        @case ('back') {
+          <path d="m15 6-6 6 6 6" />
         }
       }
     </svg>

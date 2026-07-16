@@ -56,6 +56,26 @@ String formatCourtLabelForCard(String? courtName) {
   return 'Quadra $court';
 }
 
+/// Rodapé de agendamento do card da chave (`Sáb 29/03 · 16:30 · Quadra 1`) —
+/// paridade com o card da chave do painel web (`scheduleLabelOf`). Sem horário
+/// marcado, mostra o que existir (`Quadra 1 · sem horário` / `Sem horário`).
+String matchScheduleFooterLabelPt(TournamentMatch match) {
+  final court = matchCourtLabelForCard(match);
+  final time = match.scheduleTime;
+  if (time == null) {
+    return court.isEmpty ? 'Sem horário' : '$court · sem horário';
+  }
+  final weekdayRaw = DateFormat('EEE', 'pt_BR').format(time).replaceAll('.', '');
+  final weekday = weekdayRaw.isEmpty
+      ? ''
+      : '${weekdayRaw[0].toUpperCase()}${weekdayRaw.substring(1)}';
+  return [
+    '$weekday ${DateFormat('dd/MM', 'pt_BR').format(time)}'.trim(),
+    DateFormat('HH:mm', 'pt_BR').format(time),
+    if (court.isNotEmpty) court,
+  ].join(' · ');
+}
+
 /// Metadados do topo do card (`#2 · Quadra 1`).
 String matchMetaLabelForCard(TournamentMatch match) {
   final parts = <String>[];

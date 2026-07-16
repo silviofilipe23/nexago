@@ -1,20 +1,18 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { PillTone } from '../data/mock-data';
 import type { TournamentMatch } from '../data/matches-repository';
+import { spDayLabel, spTimeLabel } from '../data/schedule-format';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 import { ChaveamentoContextService } from './chaveamento-context.service';
-import { ChaveamentoSelectorComponent } from './chaveamento-selector.component';
-import { ChaveamentoSubnavComponent } from './chaveamento-subnav.component';
 
 type JogoStatus = 'encerrado' | 'agendado';
 
 const JOGO_TONE: Record<JogoStatus, PillTone> = { encerrado: 'dim', agendado: 'orange' };
 const JOGO_LABEL: Record<JogoStatus, string> = { encerrado: 'Encerrado', agendado: 'Agendado' };
-const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 /** Lista de partidas — dados reais de `listMatches` (Task O6): horário, confronto, placar,
  *  quadra e status (encerrado quando há placar, agendado quando não). Não existe conceito de
@@ -23,16 +21,13 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
 @Component({
   selector: 'og-jogos',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgPillComponent, ChaveamentoSubnavComponent, ChaveamentoSelectorComponent],
+  imports: [RouterLink, OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgPillComponent],
   template: `
-    <og-page-header title="Jogos" [subtitle]="headerSubtitle()">
-      <a class="og-mini-btn og-mini-btn-primary" routerLink="/painel/chaveamento/agendamento"><og-icon name="plus" [size]="14" />Agendar partida</a>
+    <og-page-header title="Jogos & placares" [subtitle]="headerSubtitle()">
+      <a class="og-mini-btn og-mini-btn-primary" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'agendamento']"><og-icon name="plus" [size]="14" />Agendar partida</a>
     </og-page-header>
 
     <div class="og-content">
-      <og-chaveamento-subnav active="jogos" />
-      <og-chaveamento-selector />
-
       @if (ctx.loadingTournaments() || ctx.loadingMatches()) {
         <og-card pad="0" flex="1">
           <div class="og-table-body">
@@ -46,7 +41,7 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
       } @else {
         <og-card pad="0" flex="1">
           <div class="og-table-head">
-            <span style="width:50px">Hora</span>
+            <span style="width:76px">Quando</span>
             <span style="flex:1">Partida</span>
             <span style="width:110px;text-align:center">Placar</span>
             <span style="width:90px">Quadra</span>
@@ -56,7 +51,12 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
           <div class="og-table-body">
             @for (j of jogos(); track j.match.id) {
               <div class="og-row">
-                <span style="width:50px" class="og-jogos-time">{{ j.time }}</span>
+                <span style="width:76px;display:flex;flex-direction:column;gap:1px">
+                  <span class="og-jogos-time">{{ j.time }}</span>
+                  @if (j.day) {
+                    <span class="og-jogos-day">{{ j.day }}</span>
+                  }
+                </span>
                 <span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0">
                   <span style="display:flex;align-items:center;gap:8px">
                     <span class="og-jogos-team">{{ j.match.team1Label }}</span>
@@ -68,7 +68,7 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
                 <span style="width:110px;text-align:center" class="og-jogos-score">{{ j.match.score ?? 'Não jogado' }}</span>
                 <span style="width:90px" class="og-jogos-quadra">{{ j.match.court ?? '—' }}</span>
                 <span style="width:100px"><og-pill [tone]="jogoTone[j.status]">{{ jogoLabel[j.status] }}</og-pill></span>
-                <a class="og-ghost-btn" [routerLink]="['/painel/chaveamento/placar', j.match.id]">{{ j.status === 'agendado' ? 'Lançar placar' : 'Placar' }}</a>
+                <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', j.match.id]">{{ j.status === 'agendado' ? 'Lançar placar' : 'Placar' }}</a>
               </div>
             } @empty {
               <p class="og-empty">Nenhum jogo nesta categoria</p>
@@ -84,6 +84,13 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
       font-weight: 700;
       font-size: 14px;
       color: var(--nx-orange-500);
+    }
+    .og-jogos-day {
+      font-family: var(--nx-font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--nx-text-dim);
+      white-space: nowrap;
     }
     .og-jogos-team {
       font-family: var(--nx-font-display);
@@ -144,6 +151,9 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
   `,
 })
 export class JogosComponent {
+  readonly id = input<string>('');
+  readonly catId = input<string>('');
+
   protected readonly ctx = inject(ChaveamentoContextService);
   protected readonly jogoTone = JOGO_TONE;
   protected readonly jogoLabel = JOGO_LABEL;
@@ -168,7 +178,8 @@ export class JogosComponent {
         const catLabel = showCategory ? (categoryNameOf.get(match.categoryId ?? '') ?? 'Sem categoria') : null;
         return {
           match,
-          time: match.scheduledAt ? TIME.format(match.scheduledAt) : '—',
+          time: match.scheduledAt ? spTimeLabel(match.scheduledAt) : '—',
+          day: match.scheduledAt ? spDayLabel(match.scheduledAt) : '',
           status,
           meta: catLabel ? `${roundLabel} · ${catLabel}` : roundLabel,
         };

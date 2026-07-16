@@ -240,6 +240,13 @@ export class ChaveamentoComponent {
 
   protected readonly headerTitle = computed(() => (this.deBracket() ? 'Chaveamento · dupla eliminação' : 'Chaveamento'));
 
+  /** Link pro fluxo real de sorteio/geração — precisa de torneio + categoria selecionados. */
+  protected readonly seedsLink = computed<string[] | null>(() => {
+    const tid = this.ctx.selectedTournamentId();
+    const cid = this.ctx.selectedCategoryId();
+    return tid && cid ? ['/painel/eventos', tid, 'categorias', cid, 'seeds'] : null;
+  });
+
   protected readonly headerSubtitle = computed(() => {
     const t = this.ctx.tournament();
     if (!t) return '';

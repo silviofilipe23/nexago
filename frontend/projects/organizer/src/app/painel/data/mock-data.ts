@@ -279,18 +279,6 @@ export const OG_MENSAGENS: OgMensagem[] = [
   { name: 'Marcos Vieira', preview: 'Recebi o estorno, obrigado!', time: 'seg', unread: false },
 ];
 
-export interface OgMembroEquipe {
-  name: string;
-  role: string;
-  initials: string;
-}
-
-export const OG_EQUIPE: OgMembroEquipe[] = [
-  { name: 'Rafael Souza', role: 'Organizador principal', initials: 'RS' },
-  { name: 'Camila Duarte', role: 'Árbitra-chefe', initials: 'CD' },
-  { name: 'Felipe Aragão', role: 'Suporte de inscrições', initials: 'FA' },
-];
-
 export function initialsOf(fullName: string, sep = ' '): string {
   return fullName
     .split(sep)

@@ -459,6 +459,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
 
   &:hover {
     background: var(--nx-orange-400);

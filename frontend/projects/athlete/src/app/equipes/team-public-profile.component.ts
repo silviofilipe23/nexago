@@ -6,6 +6,7 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { fetchPublicProfilesByIds, levelBucketOf, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchTeamRankingGeneral } from '../data/rankings-repository';
 import {
@@ -58,7 +59,7 @@ function memberRef(profile: AthletePublicProfile | undefined, uid: string): Team
 @Component({
   selector: 'app-team-public-profile',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent],
+  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent],
   templateUrl: './team-public-profile.component.html',
   styleUrl: './team-public-profile.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -35,7 +35,7 @@
 
       @if (myTeamsLoading()) {
         <div class="eq-empty-card">
-          <p class="eq-empty-title">Carregando equipes…</p>
+          <app-nx-page-loading title="Carregando equipes…" subtitle="Buscando suas duplas" />
         </div>
       } @else if (filteredMyTeams().length === 0) {
         <div class="eq-empty-card">
@@ -105,7 +105,7 @@
 
       @if (partnersLoading()) {
         <div class="eq-empty-card">
-          <p class="eq-empty-title">Carregando atletas…</p>
+          <app-nx-page-loading title="Carregando atletas…" subtitle="Buscando parceiros disponíveis" />
         </div>
       } @else if (filteredPartners().length === 0) {
         <div class="eq-empty-card">

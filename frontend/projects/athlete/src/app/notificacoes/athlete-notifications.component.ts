@@ -4,6 +4,8 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
+import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
 import {
   markAllNotificationsRead,
   markNotificationRead,
@@ -60,7 +62,7 @@ function toneOf(type: string | null): NotifTone {
 @Component({
   selector: 'app-athlete-notifications',
   standalone: true,
-  imports: [AtPanelShellComponent],
+  imports: [AtPanelShellComponent, NxPageLoadingComponent, NxSpinnerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-at-panel-shell [userName]="accountLabel()">
@@ -78,6 +80,9 @@ function toneOf(type: string | null): NotifTone {
         <div class="nt-page-header-spacer"></div>
         @if (unreadCount() > 0) {
           <button type="button" class="nt-mark-all" [disabled]="marking()" (click)="markAll()">
+            @if (marking()) {
+              <app-nx-spinner [size]="12" />
+            }
             {{ marking() ? 'Marcando…' : 'Marcar todas como lidas' }}
           </button>
         }
@@ -85,7 +90,7 @@ function toneOf(type: string | null): NotifTone {
 
       <div class="nt-body">
         @if (loading()) {
-          <div class="nt-empty">Carregando notificações…</div>
+          <app-nx-page-loading title="Carregando notificações…" />
         } @else if (error()) {
           <div class="nt-empty">Não foi possível carregar as notificações agora. Tente de novo em instantes.</div>
         } @else {

@@ -6,6 +6,7 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtBellComponent } from '../painel/at-bell.component';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { watchCommunityFeed, type CommunityFeedItem } from '../data/community-feed-repository';
 import { fetchAthleteRankingGeneral } from '../data/rankings-repository';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
@@ -67,7 +68,7 @@ interface RankingRow {
 @Component({
   selector: 'app-athlete-community',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, AtBellComponent],
+  imports: [RouterLink, AtPanelShellComponent, AtBellComponent, NxPageLoadingComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-at-panel-shell [userName]="accountLabel()">
@@ -84,7 +85,7 @@ interface RankingRow {
         <div class="cm-grid">
           <div class="cm-feed">
             @if (loadingFeed()) {
-              <div class="cm-empty">Carregando o feed…</div>
+              <app-nx-page-loading title="Carregando o feed…" subtitle="Novidades da comunidade" />
             } @else {
               @for (item of feed(); track item.id) {
                 <a class="cm-item" [routerLink]="['/torneios', item.tournamentId]">

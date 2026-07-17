@@ -1,5 +1,7 @@
 <app-at-panel-shell [userName]="accountLabel()">
-  @if (listing(); as t) {
+  @if (loading()) {
+    <app-nx-page-loading title="Carregando chaves…" subtitle="Buscando jogos e resultados" />
+  } @else if (listing(); as t) {
     <div class="bx-body">
       <div class="bx-header">
         <div>
@@ -31,7 +33,11 @@
           }
         </div>
 
-        @if (bracketData(); as data) {
+        @if (bracketLoading()) {
+          <section class="bx-card">
+            <app-nx-page-loading title="Carregando a chave…" [subtitle]="selectedCategory()?.categoryName ?? null" />
+          </section>
+        } @else if (bracketData(); as data) {
           @if (data.format === 'grupos') {
             <section class="bx-card">
               <span class="bx-card-kicker">{{ data.formatSummaryLabel }}</span>

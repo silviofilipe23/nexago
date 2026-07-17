@@ -19,6 +19,8 @@ import {
   type UniformInput,
 } from '../data/tournament-registrations-repository';
 import { fetchTournamentSummariesByIds, tournamentIsCompleted, tournamentIsLive, type TournamentCategoryOffer, type TournamentSummary } from '../data/tournaments-repository';
+import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
+import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
 import { UniformFormComponent } from '../tournaments/registration/uniform-form.component';
 import {
   categoryRequiresUniform,
@@ -259,7 +261,7 @@ function registrationToEvent(reg: AthleteTournamentRegistration, tournament: Tou
 @Component({
   selector: 'app-athlete-agenda',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent],
+  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent, NxPageLoadingComponent, NxSpinnerComponent],
   templateUrl: './athlete-agenda.component.html',
   styleUrl: './athlete-agenda.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -296,6 +298,12 @@ export class AthleteAgendaComponent {
   protected readonly expandedInviteId = signal<string | null>(null);
   protected readonly inviteUniform = signal<UniformSelection | null>(null);
   protected readonly acceptingId = signal<string | null>(null);
+  protected readonly decliningId = signal<string | null>(null);
+
+  /** Alguma operação em andamento neste convite (trava aceitar E recusar juntos). */
+  protected inviteBusy(id: string): boolean {
+    return this.acceptingId() === id || this.decliningId() === id;
+  }
 
   protected readonly dayGroups = computed(() => groupEventsByDay(this.events(), dateOnly(new Date())));
 
@@ -513,12 +521,16 @@ export class AthleteAgendaComponent {
   }
 
   protected async declineRequest(id: string): Promise<void> {
+    if (this.inviteBusy(id)) return;
+    this.decliningId.set(id);
     try {
       await declinePartnerInvite(athleteFunctions(), id);
       this.pendingRequests.update((list) => list.filter((r) => r.id !== id));
       this.showNotice('Convite recusado.');
     } catch (err) {
       this.showNotice(err instanceof Error ? err.message : 'Não foi possível recusar o convite.');
+    } finally {
+      this.decliningId.set(null);
     }
   }
 

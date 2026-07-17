@@ -9,6 +9,8 @@ import { OgFormFieldComponent } from '../ui/form-field.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
+import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
+import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import { ChaveamentoContextService } from './chaveamento-context.service';
 
 const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -26,18 +28,25 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
 @Component({
   selector: 'og-placar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent, OgPillComponent, OgFormFieldComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent, OgPillComponent, OgFormFieldComponent, NxPageLoadingComponent, NxSpinnerComponent],
   template: `
     <og-page-header title="Placar" [subtitle]="headerSubtitle()">
       <button type="button" class="og-ghost-btn" (click)="cancel()">Voltar</button>
       <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="saving() || !canSubmit()" (click)="save()">
-        <og-icon name="check" [size]="14" />{{ saving() ? 'Salvando…' : 'Salvar placar' }}
+        @if (busyKey() === 'save') {
+          <app-nx-spinner [size]="14" tone="dark" />
+        } @else {
+          <og-icon name="check" [size]="14" />
+        }
+        {{ busyKey() === 'save' ? 'Salvando…' : 'Salvar placar' }}
       </button>
     </og-page-header>
 
     <div class="og-wizard-body">
       <div class="og-wizard-col">
-        @if (!match()) {
+        @if (!match() && (ctx.loadingMatches() || ctx.loadingTournaments())) {
+          <og-card><app-nx-page-loading title="Carregando partida…" subtitle="Buscando a súmula" /></og-card>
+        } @else if (!match()) {
           <og-card><p class="og-empty">Partida não encontrada — abra pela lista de jogos.</p></og-card>
         } @else if (!teamsReady()) {
           <og-card kicker="Partida" [title]="truncate(match()!.team1Label, 20) + ' vs ' + truncate(match()!.team2Label, 20)">
@@ -130,8 +139,18 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
             <og-card kicker="Ocorrência" title="W.O. (walkover)">
               <p class="og-placar-hint">Declara vitória sem jogo — a dupla ausente é eliminada e a chave avança.</p>
               <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
-                <button type="button" class="og-mini-btn" [disabled]="saving()" [title]="match()!.team1Label" (click)="walkover(match()!.teamAId)">Vitória de {{ truncate(match()!.team1Label, 20) }}</button>
-                <button type="button" class="og-mini-btn" [disabled]="saving()" [title]="match()!.team2Label" (click)="walkover(match()!.teamBId)">Vitória de {{ truncate(match()!.team2Label, 20) }}</button>
+                <button type="button" class="og-mini-btn" [disabled]="saving()" [title]="match()!.team1Label" (click)="walkover(match()!.teamAId)">
+                  @if (busyKey() === 'wo:' + match()!.teamAId) {
+                    <app-nx-spinner [size]="12" />
+                  }
+                  Vitória de {{ truncate(match()!.team1Label, 20) }}
+                </button>
+                <button type="button" class="og-mini-btn" [disabled]="saving()" [title]="match()!.team2Label" (click)="walkover(match()!.teamBId)">
+                  @if (busyKey() === 'wo:' + match()!.teamBId) {
+                    <app-nx-spinner [size]="12" />
+                  }
+                  Vitória de {{ truncate(match()!.team2Label, 20) }}
+                </button>
               </div>
             </og-card>
           }
@@ -140,7 +159,12 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
             <og-card kicker="Súmula" title="Validação">
               <div style="display:flex;align-items:center;gap:12px">
                 <og-pill tone="green">Partida encerrada</og-pill>
-                <button type="button" class="og-ghost-btn" [disabled]="saving()" (click)="validate()">Validar resultado</button>
+                <button type="button" class="og-ghost-btn" [disabled]="saving()" (click)="validate()">
+                  @if (busyKey() === 'validate') {
+                    <app-nx-spinner [size]="12" />
+                  }
+                  {{ busyKey() === 'validate' ? 'Validando…' : 'Validar resultado' }}
+                </button>
               </div>
             </og-card>
           }
@@ -304,6 +328,8 @@ export class PlacarComponent {
   protected readonly sets = signal<ScoreSet[]>([]);
   protected readonly bestOf = signal<number>(3);
   protected readonly saving = signal(false);
+  /** Qual ação está em andamento (`'save' | 'validate' | 'wo:<teamId>'`) — o botão certo mostra o spinner. */
+  protected readonly busyKey = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   private hydratedMatchId: string | null = null;
 
@@ -388,6 +414,7 @@ export class PlacarComponent {
     const m = this.match();
     if (!m || !this.canSubmit()) return;
     this.saving.set(true);
+    this.busyKey.set('save');
     this.feedback.set(null);
     try {
       const result = await submitMatchResult({ matchId: m.id, sets: this.sets(), bestOf: this.bestOf() });
@@ -403,6 +430,7 @@ export class PlacarComponent {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao salvar o placar.' });
     } finally {
       this.saving.set(false);
+      this.busyKey.set(null);
     }
   }
 
@@ -411,6 +439,7 @@ export class PlacarComponent {
     if (!m || !winnerTeamId) return;
     if (!confirm('Declarar W.O.? A partida encerra sem jogo e a chave avança.')) return;
     this.saving.set(true);
+    this.busyKey.set(`wo:${winnerTeamId}`);
     this.feedback.set(null);
     try {
       await declareMatchWalkover({ matchId: m.id, winnerTeamId });
@@ -421,6 +450,7 @@ export class PlacarComponent {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao registrar W.O.' });
     } finally {
       this.saving.set(false);
+      this.busyKey.set(null);
     }
   }
 
@@ -428,6 +458,7 @@ export class PlacarComponent {
     const m = this.match();
     if (!m) return;
     this.saving.set(true);
+    this.busyKey.set('validate');
     try {
       await validateMatchResult(m.id);
       this.feedback.set({ ok: true, message: 'Resultado validado na súmula.' });
@@ -435,6 +466,7 @@ export class PlacarComponent {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao validar o resultado.' });
     } finally {
       this.saving.set(false);
+      this.busyKey.set(null);
     }
   }
 

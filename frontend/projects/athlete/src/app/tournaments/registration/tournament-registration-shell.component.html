@@ -38,6 +38,9 @@
                     @if (cat.level) {
                       <span class="rg-pill rg-pill--muted">{{ cat.level }}</span>
                     }
+                    @if (selectedStatus()?.badge; as badge) {
+                      <span class="rg-pill rg-pill--warn">{{ badge }}</span>
+                    }
                   </div>
                 </div>
                 <div class="rg-category-price">
@@ -48,12 +51,27 @@
                 </div>
               </div>
 
-              @if (showCategoryPicker() && otherCategories().length > 0) {
+              @if (!registration() && selectedStatus()?.blocked) {
+                <p class="rg-blocked-msg">{{ selectedStatus()?.message }}</p>
+              }
+
+              @if (showCategoryPicker() && pickerOptions().length > 0) {
                 <div class="rg-category-picker">
-                  @for (c of otherCategories(); track c.id) {
-                    <button type="button" class="rg-category-option" (click)="selectCategory(c.id)">
-                      <span class="rg-category-option-name">{{ c.categoryName }}</span>
-                      <span class="rg-category-option-price">{{ priceLabel(c) }}</span>
+                  @for (option of pickerOptions(); track option.offer.id) {
+                    <button
+                      type="button"
+                      class="rg-category-option"
+                      [class.rg-category-option--blocked]="option.status.blocked"
+                      [disabled]="option.status.blocked"
+                      (click)="selectCategory(option.offer.id)"
+                    >
+                      <span class="rg-category-option-name">
+                        {{ option.offer.categoryName }}
+                        @if (option.status.badge; as badge) {
+                          <span class="rg-option-badge">{{ badge }}</span>
+                        }
+                      </span>
+                      <span class="rg-category-option-price">{{ priceLabel(option.offer) }}</span>
                     </button>
                   }
                 </div>
@@ -63,15 +81,39 @@
             }
           </section>
 
+          @if (uniformRequired() && uniform() && selectedCategory(); as cat) {
+            <section class="rg-card" id="rg-uniform-card">
+              <div class="rg-step-title">
+                <span class="rg-step-num">2</span>
+                <h2>Uniforme</h2>
+                @if (uniformSaved()) {
+                  <span class="rg-uniform-status rg-uniform-status--ok">Salvo</span>
+                } @else if (registration()) {
+                  <span class="rg-uniform-status">Pendente</span>
+                }
+              </div>
+
+              <app-uniform-form [category]="cat" [value]="uniform()!" [disabled]="savingUniform()" (valueChange)="onUniformChange($event)" />
+
+              @if (registration()) {
+                <button type="button" class="rg-btn-ghost rg-btn-save-uniform" [disabled]="savingUniform() || uniformSaved()" (click)="saveUniform()">
+                  {{ savingUniform() ? 'Salvando…' : uniformSaved() ? 'Uniforme salvo' : 'Salvar uniforme' }}
+                </button>
+              } @else {
+                <p class="rg-uniform-note">Seu uniforme é enviado junto com a reserva da vaga.</p>
+              }
+            </section>
+          }
+
           <section class="rg-card">
             <div class="rg-step-title">
-              <span class="rg-step-num">2</span>
+              <span class="rg-step-num">{{ registrationStepNum() }}</span>
               <h2>Sua inscrição</h2>
             </div>
 
             @if (!registration()) {
               <p class="rg-empty-inline">Você ainda não se inscreveu nesta categoria — a vaga é reservada assim que você confirma, e você convida seu parceiro depois.</p>
-              <button type="button" class="rg-btn-primary" [disabled]="registering() || !selectedCategory()" (click)="registerSoloForCategory()">
+              <button type="button" class="rg-btn-primary" [disabled]="registering() || !selectedCategory() || selectedStatus()?.blocked" (click)="registerSoloForCategory()">
                 {{ registering() ? 'Inscrevendo…' : 'Reservar minha vaga' }}
               </button>
             } @else if (registration()!.partnerPending) {
@@ -147,6 +189,12 @@
                 }
               </span>
             </div>
+            @if (uniformRequired()) {
+              <div class="rg-summary-row">
+                <span class="rg-summary-label">Uniforme</span>
+                <span class="rg-summary-value">{{ uniformSaved() ? 'Salvo' : uniformComplete() ? 'Completo' : 'Pendente' }}</span>
+              </div>
+            }
             @if (selectedCategory(); as cat) {
               <div class="rg-summary-row">
                 <span class="rg-summary-label">Inscrição (por dupla)</span>

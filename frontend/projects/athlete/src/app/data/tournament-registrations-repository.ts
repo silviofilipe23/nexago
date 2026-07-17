@@ -1,4 +1,4 @@
-import { collection, getDocs, query, where, type Firestore } from 'firebase/firestore';
+import { collection, doc, getDocs, onSnapshot, query, where, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { httpsCallable, type Functions } from 'firebase/functions';
 
 /** Inscrições do atleta em torneios (`artifacts/{projectId}/public/data/inscriptions`) e
@@ -24,24 +24,38 @@ export interface AthleteTournamentRegistration {
   partnerPending: boolean;
   isPaid: boolean;
   waitlist: boolean;
+  /** Uids que já pagaram a própria parcela (pagamento em dupla dividido). */
+  sharePaidUids: string[];
+}
+
+function registrationFromDoc(id: string, data: Record<string, unknown>): AthleteTournamentRegistration {
+  return {
+    id,
+    tournamentId: typeof data['tournamentId'] === 'string' ? data['tournamentId'] : '',
+    categoryId: typeof data['categoryId'] === 'string' ? data['categoryId'] : '',
+    teamId: optionalStr(data['teamId']),
+    partnerPending: data['partnerPending'] === true,
+    isPaid: data['isPaid'] === true,
+    waitlist: data['waitlist'] === true,
+    sharePaidUids: Array.isArray(data['sharePaidUids']) ? data['sharePaidUids'].filter((u): u is string => typeof u === 'string') : [],
+  };
 }
 
 export async function fetchMyRegistrations(db: Firestore, projectId: string, uid: string): Promise<AthleteTournamentRegistration[]> {
   const snap = await getDocs(
     query(collection(db, 'artifacts', projectId, 'public', 'data', 'inscriptions'), where('participantUids', 'array-contains', uid)),
   );
-  return snap.docs.map((d) => {
-    const data = d.data() as Record<string, unknown>;
-    return {
-      id: d.id,
-      tournamentId: typeof data['tournamentId'] === 'string' ? data['tournamentId'] : '',
-      categoryId: typeof data['categoryId'] === 'string' ? data['categoryId'] : '',
-      teamId: optionalStr(data['teamId']),
-      partnerPending: data['partnerPending'] === true,
-      isPaid: data['isPaid'] === true,
-      waitlist: data['waitlist'] === true,
-    };
-  });
+  return snap.docs.map((d) => registrationFromDoc(d.id, d.data() as Record<string, unknown>));
+}
+
+/** Observa a inscrição ao vivo (`isPaid`/`sharePaidUids`) — espelha o listener do app na tela
+ *  de PIX. Erros do listener são ignorados (o caller segue com o estado que já tinha). */
+export function watchRegistration(db: Firestore, projectId: string, registrationId: string, cb: (registration: AthleteTournamentRegistration | null) => void): Unsubscribe {
+  return onSnapshot(
+    doc(db, 'artifacts', projectId, 'public', 'data', 'inscriptions', registrationId),
+    (snap) => cb(snap.exists() ? registrationFromDoc(snap.id, snap.data() as Record<string, unknown>) : null),
+    () => undefined,
+  );
 }
 
 export interface TournamentPartnerInvite {
@@ -85,7 +99,7 @@ export async function fetchMyRegistrationForCategory(db: Firestore, projectId: s
 export interface UniformInput {
   sizeTop?: string;
   sizeShorts?: string;
-  jerseyNumber?: string;
+  jerseyNumber?: number;
   jerseyName?: string;
 }
 
@@ -187,12 +201,12 @@ export interface PixPaymentResult {
   amountReais: number;
 }
 
-export async function createRegistrationPixPayment(functions: Functions, registrationId: string, amountType: 'share' | 'full', cpf: string): Promise<PixPaymentResult> {
+export async function createRegistrationPixPayment(functions: Functions, registrationId: string, amountType: 'share' | 'full', cpfCnpj: string): Promise<PixPaymentResult> {
   try {
     const result = await httpsCallable<Record<string, unknown>, PixPaymentResult>(functions, 'createTournamentRegistrationPixPayment')({
       registrationId,
       amountType,
-      cpf,
+      cpfCnpj,
     });
     return result.data;
   } catch (err) {
@@ -230,9 +244,9 @@ export async function reserveDirectOrganizerRegistration(functions: Functions, r
   }
 }
 
-export async function acceptPartnerInvite(functions: Functions, inviteId: string): Promise<void> {
+export async function acceptPartnerInvite(functions: Functions, inviteId: string, inviteeUniform?: UniformInput): Promise<void> {
   try {
-    await httpsCallable(functions, 'acceptTournamentPartnerInvite')({ inviteId });
+    await httpsCallable(functions, 'acceptTournamentPartnerInvite')({ inviteId, ...(inviteeUniform ? { inviteeUniform } : {}) });
   } catch (err) {
     throw mapCallableError(err);
   }

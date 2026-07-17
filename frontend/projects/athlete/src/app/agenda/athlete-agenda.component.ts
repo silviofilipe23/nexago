@@ -16,8 +16,17 @@ import {
   fetchMyRegistrations,
   type AthleteTournamentRegistration,
   type TournamentPartnerInvite,
+  type UniformInput,
 } from '../data/tournament-registrations-repository';
-import { fetchTournamentSummariesByIds, tournamentIsCompleted, tournamentIsLive, type TournamentSummary } from '../data/tournaments-repository';
+import { fetchTournamentSummariesByIds, tournamentIsCompleted, tournamentIsLive, type TournamentCategoryOffer, type TournamentSummary } from '../data/tournaments-repository';
+import { UniformFormComponent } from '../tournaments/registration/uniform-form.component';
+import {
+  categoryRequiresUniform,
+  defaultUniformSelectionForCategory,
+  toUniformInput,
+  validateUniformSelection,
+  type UniformSelection,
+} from '../tournaments/tournament-uniform';
 
 export type AgendaEventKind = 'tournament' | 'rental';
 export type AgendaStatusTone = 'live' | 'confirmed' | 'warning' | 'neutral';
@@ -58,6 +67,8 @@ export interface AgendaPendingRequest {
   title: string;
   subtitle: string;
   scheduleLine: string;
+  /** Categoria do convite (com flags de uniforme) — null quando o torneio não carregou. */
+  category: TournamentCategoryOffer | null;
 }
 
 export interface AgendaMonthStat {
@@ -248,7 +259,7 @@ function registrationToEvent(reg: AthleteTournamentRegistration, tournament: Tou
 @Component({
   selector: 'app-athlete-agenda',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent],
+  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent],
   templateUrl: './athlete-agenda.component.html',
   styleUrl: './athlete-agenda.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -280,6 +291,11 @@ export class AthleteAgendaComponent {
 
   protected readonly eventNotice = signal<string | null>(null);
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  /** Convite com o formulário de uniforme aberto (aceite em duas etapas). */
+  protected readonly expandedInviteId = signal<string | null>(null);
+  protected readonly inviteUniform = signal<UniformSelection | null>(null);
+  protected readonly acceptingId = signal<string | null>(null);
 
   protected readonly dayGroups = computed(() => groupEventsByDay(this.events(), dateOnly(new Date())));
 
@@ -364,6 +380,12 @@ export class AthleteAgendaComponent {
       this.pendingRequests.set(
         invites.map((invite) => {
           const tournament = tournaments.get(invite.tournamentId);
+          // Casa por id resolvido (mesma ordem do app) com fallback no nome — convites antigos
+          // podem carregar o nome da categoria como id.
+          const category =
+            tournament?.categories.find((c) => c.id === invite.categoryId) ??
+            tournament?.categories.find((c) => c.categoryName === invite.categoryId) ??
+            null;
           return {
             id: invite.id,
             initials: initialsOf(invite.inviterName),
@@ -372,6 +394,7 @@ export class AthleteAgendaComponent {
             scheduleLine: tournament?.startAt
               ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(tournament.startAt)
               : 'Data a confirmar',
+            category,
           };
         }),
       );
@@ -435,15 +458,57 @@ export class AthleteAgendaComponent {
     this.showNotice('Esta reserva ainda não tem página de detalhe por aqui.');
   }
 
-  protected async acceptRequest(id: string): Promise<void> {
+  /** Categoria exige uniforme → expande o formulário inline no card (o aceite real sai no
+   *  "Confirmar aceite", com `inviteeUniform` — espelho da página do convidado no app).
+   *  Sem exigência (ou torneio não carregado): aceita direto, como antes. */
+  protected acceptRequest(request: AgendaPendingRequest): void {
+    if (this.acceptingId()) return;
+    const category = request.category;
+    if (category && categoryRequiresUniform(category)) {
+      this.expandedInviteId.set(request.id);
+      // Defaults sem nome pré-preenchido — o convidado digita o próprio (paridade com o app).
+      this.inviteUniform.set(defaultUniformSelectionForCategory(category));
+      return;
+    }
+    void this.submitAccept(request.id, undefined);
+  }
+
+  protected async confirmAccept(request: AgendaPendingRequest): Promise<void> {
+    const category = request.category;
+    const selection = this.inviteUniform();
+    if (!category || !selection || this.acceptingId()) return;
+    const error = validateUniformSelection(category, selection);
+    if (error) {
+      this.showNotice(error);
+      return;
+    }
+    await this.submitAccept(request.id, toUniformInput(selection));
+  }
+
+  protected cancelAcceptExpansion(): void {
+    if (this.acceptingId()) return;
+    this.expandedInviteId.set(null);
+    this.inviteUniform.set(null);
+  }
+
+  protected onInviteUniformChange(next: UniformSelection): void {
+    this.inviteUniform.set(next);
+  }
+
+  private async submitAccept(id: string, inviteeUniform: UniformInput | undefined): Promise<void> {
+    this.acceptingId.set(id);
     try {
-      await acceptPartnerInvite(athleteFunctions(), id);
+      await acceptPartnerInvite(athleteFunctions(), id, inviteeUniform);
       this.pendingRequests.update((list) => list.filter((r) => r.id !== id));
+      this.expandedInviteId.set(null);
+      this.inviteUniform.set(null);
       this.showNotice('Convite aceito! Vocês já formam dupla nessa categoria.');
       const uid = this.auth.user()?.uid ?? null;
       void this.loadAgenda(uid);
     } catch (err) {
       this.showNotice(err instanceof Error ? err.message : 'Não foi possível aceitar o convite.');
+    } finally {
+      this.acceptingId.set(null);
     }
   }
 

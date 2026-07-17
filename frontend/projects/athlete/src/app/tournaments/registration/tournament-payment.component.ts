@@ -1,10 +1,13 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
+import { interval } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
+import { cpfCnpjValidationMessage, formatCpfCnpjDisplay, isValidCpfCnpj, normalizeCpfCnpj } from '../../data/cpf-cnpj';
 import { athleteFunctions } from '../../data/functions';
 import {
   cancelPendingRegistrationPix,
@@ -13,6 +16,7 @@ import {
   fetchMyRegistrationForCategory,
   reserveDirectOrganizerRegistration,
   TournamentRegistrationError,
+  watchRegistration,
   type AthleteTournamentRegistration,
   type PixPaymentResult,
 } from '../../data/tournament-registrations-repository';
@@ -45,9 +49,8 @@ function formatBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function onlyDigits(v: string): string {
-  return v.replace(/\D/g, '');
-}
+/** Mesmo fallback do app (`tournamentRegistrationPixExpiryFallback`). */
+const PIX_EXPIRY_FALLBACK_MS = 15 * 60_000;
 
 /** Pagamento real: PIX via Asaas (`createTournamentRegistrationPixPayment`, exige CPF) quando
  *  `paymentMode==='appPixCard'`, ou reserva sem cobrança online quando
@@ -93,16 +96,50 @@ export class TournamentPaymentComponent {
   });
 
   protected readonly amountType = signal<PaymentAmountType>('share');
-  protected readonly cpf = signal('');
+  protected readonly cpfCnpj = signal('');
   protected readonly notice = signal<string | null>(null);
   protected readonly processing = signal(false);
   protected readonly pixResult = signal<PixPaymentResult | null>(null);
+  protected readonly pixExpired = signal(false);
+
+  private readonly nowMs = signal(Date.now());
+  private readonly pixExpiresAtMs = signal<number | null>(null);
+  private expiryTimeout: ReturnType<typeof setTimeout> | undefined;
+  private unsubscribeRegistrationWatch: (() => void) | undefined;
+  private watchedRegistrationId: string | null = null;
 
   protected readonly totalPriceReais = computed(() => this.selectedCategory()?.entryFee ?? 0);
   protected readonly amountDueReais = computed(() => (this.amountType() === 'share' ? this.totalPriceReais() / 2 : this.totalPriceReais()));
+  protected readonly cpfCnpjDisplay = computed(() => formatCpfCnpjDisplay(this.cpfCnpj()));
+
+  /** Parcela do atleta já paga (pagamento dividido) — falta só a do parceiro. */
+  protected readonly mySharePaid = computed(() => {
+    const reg = this.registration();
+    const uid = this.auth.user()?.uid;
+    return reg != null && !reg.isPaid && uid != null && reg.sharePaidUids.includes(uid);
+  });
+
+  /** Contagem regressiva `m:ss` até o Pix expirar (null sem cobrança ativa). */
+  protected readonly pixCountdownLabel = computed(() => {
+    const expiresAt = this.pixExpiresAtMs();
+    if (expiresAt == null) return null;
+    const totalSec = Math.floor(Math.max(0, expiresAt - this.nowMs()) / 1000);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  });
 
   constructor() {
-    this.destroyRef.onDestroy(() => clearTimeout(this.noticeTimeout));
+    interval(1000)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.nowMs.set(Date.now()));
+
+    this.destroyRef.onDestroy(() => {
+      clearTimeout(this.noticeTimeout);
+      clearTimeout(this.expiryTimeout);
+      this.unsubscribeRegistrationWatch?.();
+    });
+
     effect(() => {
       const id = this.tournamentId();
       void this.loadData(id);
@@ -124,37 +161,103 @@ export class TournamentPaymentComponent {
       this.listing.set(tournament);
       const categoryId = this.categoryIdParam() ?? tournament?.categories[0]?.id;
       if (uid && categoryId) {
-        this.registration.set(await fetchMyRegistrationForCategory(db, projectId, uid, id, categoryId));
+        const reg = await fetchMyRegistrationForCategory(db, projectId, uid, id, categoryId);
+        this.registration.set(reg);
+        this.startRegistrationWatch(reg?.id ?? null);
       }
     } finally {
       this.loading.set(false);
     }
   }
 
-  protected setAmountType(type: PaymentAmountType): void {
-    this.amountType.set(type);
-    this.pixResult.set(null);
+  /** Espelha o listener do app na tela de PIX: `isPaid` fecha o fluxo na hora; parcela do
+   *  atleta paga (`sharePaidUids`) derruba o QR e avisa que falta o parceiro. */
+  private startRegistrationWatch(registrationId: string | null): void {
+    if (this.watchedRegistrationId === registrationId) return;
+    this.unsubscribeRegistrationWatch?.();
+    this.unsubscribeRegistrationWatch = undefined;
+    this.watchedRegistrationId = registrationId;
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    if (!db || !projectId || !registrationId) return;
+    this.unsubscribeRegistrationWatch = watchRegistration(db, projectId, registrationId, (snap) => this.onRegistrationUpdate(snap));
   }
 
-  protected onCpfInput(value: string): void {
-    this.cpf.set(onlyDigits(value).slice(0, 11));
+  private onRegistrationUpdate(snap: AthleteTournamentRegistration | null): void {
+    if (!snap) return;
+    const wasPaid = this.registration()?.isPaid === true;
+    this.registration.set(snap);
+    if (snap.isPaid) {
+      this.clearPixState();
+      if (!wasPaid) this.showNotice('Inscrição confirmada!');
+      return;
+    }
+    const uid = this.auth.user()?.uid;
+    if (uid && snap.sharePaidUids.includes(uid) && this.pixResult()) {
+      this.clearPixState();
+      this.showNotice('Parcela paga! Aguarde seu parceiro pagar a dele.');
+    }
+  }
+
+  private clearPixState(): void {
+    clearTimeout(this.expiryTimeout);
+    this.pixResult.set(null);
+    this.pixExpiresAtMs.set(null);
+    this.pixExpired.set(false);
+  }
+
+  protected setAmountType(type: PaymentAmountType): void {
+    this.amountType.set(type);
+    this.clearPixState();
+  }
+
+  protected onDocumentInput(value: string): void {
+    this.cpfCnpj.set(normalizeCpfCnpj(value).slice(0, 14));
   }
 
   protected async generatePix(): Promise<void> {
     const reg = this.registration();
     if (!reg || this.processing()) return;
-    if (this.cpf().length !== 11) {
-      this.showNotice('Informe um CPF válido (11 dígitos) para gerar o Pix.');
+    if (!isValidCpfCnpj(this.cpfCnpj())) {
+      this.showNotice(cpfCnpjValidationMessage(this.cpfCnpj()) ?? 'Informe um CPF ou CNPJ válido para gerar o Pix.');
       return;
     }
     this.processing.set(true);
     try {
-      const result = await createRegistrationPixPayment(athleteFunctions(), reg.id, this.amountType(), this.cpf());
+      const result = await createRegistrationPixPayment(athleteFunctions(), reg.id, this.amountType(), this.cpfCnpj());
       this.pixResult.set(result);
+      this.pixExpired.set(false);
+      this.schedulePixExpiry(result.expiresAt);
     } catch (err) {
       this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível gerar o Pix.');
     } finally {
       this.processing.set(false);
+    }
+  }
+
+  /** `expiresAt` do backend (fallback 15 min, como o app); ao expirar, cancela a cobrança
+   *  pendente e volta pro formulário com o aviso de expirado. */
+  private schedulePixExpiry(expiresAtIso: string): void {
+    clearTimeout(this.expiryTimeout);
+    const parsed = Date.parse(expiresAtIso);
+    const expiresAt = Number.isFinite(parsed) && parsed > Date.now() ? parsed : Date.now() + PIX_EXPIRY_FALLBACK_MS;
+    this.pixExpiresAtMs.set(expiresAt);
+    this.expiryTimeout = setTimeout(() => void this.onPixExpired(), expiresAt - Date.now());
+  }
+
+  private async onPixExpired(): Promise<void> {
+    const reg = this.registration();
+    if (!this.pixResult()) return;
+    this.pixResult.set(null);
+    this.pixExpiresAtMs.set(null);
+    this.pixExpired.set(true);
+    this.showNotice('O Pix expirou — gere um novo código.');
+    if (reg) {
+      try {
+        await cancelPendingRegistrationPix(athleteFunctions(), reg.id);
+      } catch {
+        // Mesmo comportamento do app: expiração não vira erro pro atleta.
+      }
     }
   }
 
@@ -163,7 +266,7 @@ export class TournamentPaymentComponent {
     if (!reg) return;
     try {
       await cancelPendingRegistrationPix(athleteFunctions(), reg.id);
-      this.pixResult.set(null);
+      this.clearPixState();
       this.showNotice('Pix cancelado.');
     } catch (err) {
       this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível cancelar.');

@@ -27,6 +27,12 @@
               <p class="tp-defer-note">Você ainda não tem uma inscrição nesta categoria.</p>
               <a [routerLink]="['/torneios', t.id, 'inscricao']" [queryParams]="backQueryParams()" class="tp-btn-primary">Voltar pra inscrição</a>
             </section>
+          } @else if (registration()!.isPaid) {
+            <section class="tp-card">
+              <h2 class="tp-card-title">Inscrição confirmada 🎾</h2>
+              <p class="tp-defer-note">Pagamento confirmado — sua dupla está garantida na categoria. Nos vemos na quadra!</p>
+              <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
+            </section>
           } @else if (totalPriceReais() === 0) {
             <section class="tp-card">
               <h2 class="tp-card-title">Inscrição gratuita</h2>
@@ -52,6 +58,12 @@
               <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="reserveDirect()">
                 {{ processing() ? 'Registrando…' : 'Já paguei, marcar como reservado' }}
               </button>
+            </section>
+          } @else if (mySharePaid()) {
+            <section class="tp-card">
+              <h2 class="tp-card-title">Sua parcela está paga ✔</h2>
+              <p class="tp-defer-note">Agora é com seu parceiro — a inscrição confirma sozinha assim que a parte dele cair.</p>
+              <a [routerLink]="['/torneios', t.id]" class="tp-btn-primary">Ver torneio</a>
             </section>
           } @else {
             <section class="tp-card">
@@ -92,8 +104,11 @@
 
               @if (!pixResult()) {
                 <div class="tp-pix-block">
-                  <label class="tp-cpf-label">CPF (necessário pra gerar o Pix)</label>
-                  <input type="text" inputmode="numeric" class="tp-cpf-input" placeholder="Somente números" [value]="cpf()" (input)="onCpfInput($any($event.target).value)" />
+                  @if (pixExpired()) {
+                    <p class="tp-pix-expired">O Pix anterior expirou — gere um novo código.</p>
+                  }
+                  <label class="tp-cpf-label">CPF ou CNPJ (necessário pra gerar o Pix)</label>
+                  <input type="text" class="tp-cpf-input" placeholder="Documento do pagador" [value]="cpfCnpjDisplay()" (input)="onDocumentInput($any($event.target).value)" />
                   <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="generatePix()">
                     {{ processing() ? 'Gerando…' : 'Gerar Pix de ' + formatBRL(amountDueReais()) }}
                   </button>
@@ -101,6 +116,9 @@
               } @else {
                 <div class="tp-pix-block">
                   <p class="tp-pix-amount">Pix de <strong>{{ formatBRL(pixResult()!.amountReais || amountDueReais()) }}</strong></p>
+                  @if (pixCountdownLabel(); as countdown) {
+                    <p class="tp-pix-countdown">Expira em {{ countdown }}</p>
+                  }
                   @if (pixResult()!.qrCodeBase64) {
                     <img class="tp-qr-placeholder" [src]="'data:image/png;base64,' + pixResult()!.qrCodeBase64" alt="QR Code Pix" />
                   }

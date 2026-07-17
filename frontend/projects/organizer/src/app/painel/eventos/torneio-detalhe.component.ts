@@ -48,15 +48,20 @@ interface CategoriaRow {
     </og-page-header>
 
     <div class="og-content">
-      @if (feedback(); as fb) {
-        <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
-      }
       @if (loading()) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Carregando torneio…</div>
       } @else if (!tournament()) {
         <div class="og-card" style="color:var(--nx-text-dim);font-family:var(--nx-font-ui);font-size:13px">Torneio não encontrado.</div>
       } @else {
-        <div class="og-kpi-row">
+        @if (tournament()!.coverUrl && !coverFailed()) {
+          <div class="og-torneio-hero" aria-hidden="true">
+            <img [src]="tournament()!.coverUrl" alt="" (error)="coverFailed.set(true)" />
+          </div>
+        }
+        @if (feedback(); as fb) {
+          <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
+        }
+        <div class="og-kpi-row og-torneio-kpis" [class.over-hero]="tournament()!.coverUrl && !coverFailed()">
           <div class="og-card og-card-pad-sm" style="flex:1">
             <div class="og-kpi-label">Inscritos</div>
             <div class="og-kpi-value sm">{{ inscritosCount() }}</div>
@@ -137,6 +142,82 @@ interface CategoriaRow {
     </div>
   `,
   styles: `
+    /* ── Hero de capa — background full-bleed que desvanece no fundo da página ──
+       Margens negativas cancelam o padding do .og-content (22px 32px) e puxam a
+       linha de KPIs 60px pra cima (gap 18 − 78), fazendo os cards flutuarem sobre
+       a foto. Altura fixa: nada de layout shift quando a imagem chega. */
+    .og-torneio-hero {
+      position: relative;
+      height: 236px;
+      flex: none;
+      margin: -22px -32px -78px;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .og-torneio-hero img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transform-origin: 50% 30%;
+    }
+    /* Scrim: vinheta no topo (profundidade sob o cabeçalho) + fade pro fundo da
+       página embaixo, onde os KPIs pousam. */
+    .og-torneio-hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background:
+        linear-gradient(180deg, rgba(10, 10, 10, 0.62), rgba(10, 10, 10, 0.14) 36%, transparent 58%),
+        linear-gradient(180deg, transparent 42%, var(--nx-bg) 97%);
+    }
+    /* Brilho ambiente laranja — assinatura da marca emergindo do canto inferior. */
+    .og-torneio-hero::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background: radial-gradient(72% 88% at 10% 100%, rgba(255, 106, 26, 0.2), transparent 62%);
+    }
+    /* Animação premium: revelação com "settle" de zoom + deriva Ken Burns lenta
+       contínua — só transform/opacity (GPU), e nada disso com reduced-motion. */
+    @media (prefers-reduced-motion: no-preference) {
+      .og-torneio-hero img {
+        opacity: 0;
+        animation:
+          og-hero-reveal 1100ms var(--nx-ease-out) 60ms forwards,
+          og-hero-drift 38s ease-in-out 1200ms infinite alternate;
+      }
+    }
+    @keyframes og-hero-reveal {
+      from {
+        opacity: 0;
+        transform: scale(1.06);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+    @keyframes og-hero-drift {
+      from {
+        transform: scale(1);
+      }
+      to {
+        transform: scale(1.07) translateY(-6px);
+      }
+    }
+    /* KPIs e banner de feedback pousam SOBRE a área do hero. */
+    .og-torneio-kpis {
+      position: relative;
+    }
+    .og-torneio-kpis.over-hero .og-card {
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+    }
+    .og-banner {
+      position: relative;
+    }
     .og-torneio-cats-head {
       display: flex;
       align-items: center;
@@ -282,6 +363,8 @@ export class TorneioDetalheComponent {
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
   protected readonly inscriptions = signal<TournamentInscription[]>([]);
+  /** Capa falhou ao carregar — o banner some (a página funciona igual sem ele). */
+  protected readonly coverFailed = signal(false);
 
   protected readonly headerSubtitle = computed(() => {
     const t = this.tournament();
@@ -318,6 +401,7 @@ export class TorneioDetalheComponent {
       const tid = this.id();
       this.tournament.set(null);
       this.inscriptions.set([]);
+      this.coverFailed.set(false);
       if (!tid) {
         this.loading.set(false);
         return;

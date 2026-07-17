@@ -57,6 +57,8 @@ function leagueFromDoc(id: string, data: Record<string, unknown>): OrganizerLeag
     sportLabel: sportLabelOf(data['sport']),
     seasonLabel: optionalStr(data['seasonLabel']),
     city: optionalStr(data['city']),
+    // Mesmo fallback do app (`league_document_mapper.dart`): coverUrl ?? imageUrl.
+    coverUrl: optionalStr(data['coverUrl']) ?? optionalStr(data['imageUrl']),
     stages: stagesRaw.map(stageFromRaw).filter((s): s is OrganizerLeagueStage => s != null),
   };
 }

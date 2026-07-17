@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { initialsOf } from '../data/mock-data';
+import { initialsOf, truncateName } from '../data/mock-data';
 import { type ScoreSet, matchWinnerSide, setsWon, targetPointsForSet, validateScoreSubmission } from '../data/match-scoring';
 import { declareMatchWalkover, submitMatchResult, validateMatchResult } from '../data/organizer-ops.service';
 import { OgAvatarComponent } from '../ui/avatar.component';
@@ -39,12 +39,17 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
       <div class="og-wizard-col">
         @if (!match()) {
           <og-card><p class="og-empty">Partida não encontrada — abra pela lista de jogos.</p></og-card>
+        } @else if (!teamsReady()) {
+          <og-card kicker="Partida" [title]="truncate(match()!.team1Label, 20) + ' vs ' + truncate(match()!.team2Label, 20)">
+            <p class="og-empty">Aguardando as duas equipes nesta partida. O placar só pode ser lançado quando os dois lados estiverem definidos.</p>
+            <button type="button" class="og-mini-btn" style="margin-top:12px" (click)="cancel()">Voltar</button>
+          </og-card>
         } @else {
-          <og-card kicker="Partida" [title]="match()!.team1Label + ' vs ' + match()!.team2Label">
+          <og-card kicker="Partida" [title]="truncate(match()!.team1Label, 20) + ' vs ' + truncate(match()!.team2Label, 20)">
             <div class="og-placar-header">
               <div class="og-placar-side">
                 <og-avatar [initials]="initialsOf(match()!.team1Label)" [size]="40" />
-                <span class="og-placar-name">{{ match()!.team1Label }}</span>
+                <span class="og-placar-name" [title]="match()!.team1Label">{{ truncate(match()!.team1Label) }}</span>
               </div>
               <div class="og-placar-score">
                 <span class="a">{{ wins().a }}</span>
@@ -52,7 +57,7 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
                 <span class="b">{{ wins().b }}</span>
               </div>
               <div class="og-placar-side reverse">
-                <span class="og-placar-name">{{ match()!.team2Label }}</span>
+                <span class="og-placar-name" [title]="match()!.team2Label">{{ truncate(match()!.team2Label) }}</span>
                 <og-avatar [initials]="initialsOf(match()!.team2Label)" [size]="40" />
               </div>
             </div>
@@ -125,8 +130,8 @@ const DATE_TIME = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-d
             <og-card kicker="Ocorrência" title="W.O. (walkover)">
               <p class="og-placar-hint">Declara vitória sem jogo — a dupla ausente é eliminada e a chave avança.</p>
               <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
-                <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="walkover(match()!.teamAId)">Vitória de {{ match()!.team1Label }}</button>
-                <button type="button" class="og-mini-btn" [disabled]="saving()" (click)="walkover(match()!.teamBId)">Vitória de {{ match()!.team2Label }}</button>
+                <button type="button" class="og-mini-btn" [disabled]="saving()" [title]="match()!.team1Label" (click)="walkover(match()!.teamAId)">Vitória de {{ truncate(match()!.team1Label, 20) }}</button>
+                <button type="button" class="og-mini-btn" [disabled]="saving()" [title]="match()!.team2Label" (click)="walkover(match()!.teamBId)">Vitória de {{ truncate(match()!.team2Label, 20) }}</button>
               </div>
             </og-card>
           }
@@ -284,6 +289,7 @@ export class PlacarComponent {
   private readonly router = inject(Router);
   protected readonly ctx = inject(ChaveamentoContextService);
   protected readonly initialsOf = initialsOf;
+  protected readonly truncate = truncateName;
 
   readonly id = input<string>('');
   readonly catId = input<string>('');
@@ -318,11 +324,16 @@ export class PlacarComponent {
 
   protected readonly issues = computed(() => validateScoreSubmission(this.sets(), this.bestOf()));
 
-  protected readonly canSubmit = computed(() => this.match() != null && this.sets().length > 0 && this.issues().length === 0);
+  protected readonly canSubmit = computed(() => this.teamsReady() && this.sets().length > 0 && this.issues().length === 0);
+
+  protected readonly teamsReady = computed(() => {
+    const m = this.match();
+    return m != null && m.teamAId.length > 0 && m.teamBId.length > 0;
+  });
 
   protected readonly canWalkover = computed(() => {
     const m = this.match();
-    return m != null && m.status !== 'completed' && m.teamAId.length > 0 && m.teamBId.length > 0;
+    return this.teamsReady() && m != null && m.status !== 'completed';
   });
 
   protected issueForSet(index: number): string | null {

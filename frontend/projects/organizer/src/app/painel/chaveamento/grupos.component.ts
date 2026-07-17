@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { truncateName } from '../data/mock-data';
 import { buildGroupStandings, type GroupStanding, type TournamentMatch } from '../data/matches-repository';
 import { spDayLabel, spTimeLabel } from '../data/schedule-format';
 import { OgCardComponent } from '../ui/card.component';
@@ -50,7 +51,7 @@ interface GrupoReal {
               @for (s of g.standings; track s.teamId; let i = $index) {
                 <div class="og-grupos-row" [class.classified]="i < qualifiersPerGroup()">
                   <span class="og-grupos-pos" [class.top]="i < qualifiersPerGroup()">{{ i + 1 }}</span>
-                  <span class="og-grupos-team-name">{{ s.teamLabel }}</span>
+                  <span class="og-grupos-team-name" [title]="s.teamLabel">{{ truncate(s.teamLabel) }}</span>
                   <span class="og-grupos-cell num">{{ s.wins }}</span>
                   <span class="og-grupos-cell num dim">{{ s.losses }}</span>
                   <span class="og-grupos-cell num wide dim">{{ s.setsWon }}-{{ s.setsLost }}</span>
@@ -65,7 +66,7 @@ interface GrupoReal {
               </div>
               @for (m of g.matches; track m.id) {
                 <div class="og-grupos-row">
-                  <span class="og-grupos-teams">{{ m.team1Label }} <em>×</em> {{ m.team2Label }}</span>
+                  <span class="og-grupos-teams" [title]="m.team1Label + ' × ' + m.team2Label">{{ truncate(m.team1Label, 18) }} <em>×</em> {{ truncate(m.team2Label, 18) }}</span>
                   <span class="og-grupos-when" style="width:74px">
                     @if (m.scheduledAt) {
                       <span class="time">{{ timeLabel(m.scheduledAt) }}</span>
@@ -217,6 +218,7 @@ export class GruposComponent {
   protected readonly ctx = inject(ChaveamentoContextService);
   protected readonly timeLabel = spTimeLabel;
   protected readonly dayLabel = spDayLabel;
+  protected readonly truncate = truncateName;
 
   protected readonly headerSubtitle = computed(() => {
     const t = this.ctx.tournament();

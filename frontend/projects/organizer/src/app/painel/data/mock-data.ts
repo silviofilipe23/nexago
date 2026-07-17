@@ -299,3 +299,15 @@ export function initialsOf(fullName: string, sep = ' '): string {
     .join('')
     .toUpperCase();
 }
+
+/** Limite padrão de caracteres pra nome de equipe/dupla nas listas e cards. */
+export const TEAM_NAME_MAX = 24;
+
+/** Trunca o nome da equipe com reticências (`Amigos do Vôlei de Pra…`).
+ *  Corta sem quebrar no meio de espaço sobrando e nunca deixa o texto maior
+ *  que `max`. Quem exibe deve pôr o nome completo no `title` pro tooltip. */
+export function truncateName(name: string, max = TEAM_NAME_MAX): string {
+  const trimmed = name.trim();
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, max - 1).trimEnd()}…`;
+}

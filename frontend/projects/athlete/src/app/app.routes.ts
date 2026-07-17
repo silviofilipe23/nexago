@@ -123,6 +123,32 @@ export const routes: Routes = [
       import('./equipes/team-public-profile.component').then((m) => m.TeamPublicProfileComponent),
   },
   {
+    path: 'competir',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./competir/competir-hub.component').then((m) => m.CompetirHubComponent),
+  },
+  {
+    path: 'notificacoes',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./notificacoes/athlete-notifications.component').then(
+        (m) => m.AthleteNotificationsComponent,
+      ),
+  },
+  {
+    path: 'comunidade',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./comunidade/athlete-community.component').then((m) => m.AthleteCommunityComponent),
+  },
+  {
+    path: 'bora-jogar',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./bora-jogar/bora-jogar.component').then((m) => m.BoraJogarComponent),
+  },
+  {
     path: 'torneios',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
@@ -176,4 +202,6 @@ export const routes: Routes = [
         (m) => m.AthleteProfileSettingsComponent,
       ),
   },
+  // Fallback: URL desconhecida cai no painel (deslogado, o authGuard manda pro login).
+  { path: '**', redirectTo: 'painel' },
 ];

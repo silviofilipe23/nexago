@@ -23,13 +23,13 @@ import { buildBracketColumns, type TournamentMatch } from '../data/matches-repos
 
 /** Largura/altura do card — precisam bater exatamente com `.og-bracket-match`/`.og-de-match`
  *  em styles.scss, senão os conectores desalinham. (app: 280×132 numa tela dedicada)
- *  Altura = head 24 + 2 lados de 34 + rodapé de agendamento 22 (dia · hora · quadra). */
-export const BRACKET_MATCH_WIDTH = 240;
-export const BRACKET_MATCH_HEIGHT = 114;
+ *  Altura = head 28 + 2 lados de 40 + rodapé de agendamento 28 (dia · hora · quadra). */
+export const BRACKET_MATCH_WIDTH = 280;
+export const BRACKET_MATCH_HEIGHT = 136;
 
 /** Proporções espelhadas de `BracketLayoutMetrics` (app: rowUnit 72 pra card 132 → gap 12;
- *  aqui 69 pra card 114 → gap 24 entre jogos adjacentes da 1ª rodada). */
-const ROW_UNIT = 69;
+ *  aqui 80 pra card 136 → gap 24 entre jogos adjacentes da 1ª rodada). */
+const ROW_UNIT = 80;
 const COL_GAP = 56;
 const COL_STEP = BRACKET_MATCH_WIDTH + COL_GAP;
 const HEADER_H = 26;

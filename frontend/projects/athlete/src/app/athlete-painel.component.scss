@@ -564,6 +564,8 @@
   gap: 12px;
   padding: 10px 0;
   border-bottom: 1px solid var(--nx-line);
+  text-decoration: none;
+  color: inherit;
 
   &:last-child {
     border-bottom: none;
@@ -672,6 +674,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  text-decoration: none;
+  color: inherit;
 }
 
 .at-tournament-icon {

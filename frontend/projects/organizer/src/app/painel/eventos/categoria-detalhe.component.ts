@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { initialsOf } from '../data/mock-data';
+import { initialsOf, truncateName } from '../data/mock-data';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { listMatches, type TournamentMatch } from '../data/matches-repository';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
@@ -65,7 +65,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 <span class="og-categoria-seed">{{ pad(idx + 1) }}</span>
                 <og-avatar [initials]="initialsOf(i.teamName, ' / ')" [size]="34" />
                 <span style="flex:1;min-width:0">
-                  <div class="og-categoria-name">{{ i.teamName }}</div>
+                  <div class="og-categoria-name" [title]="i.teamName">{{ truncate(i.teamName, 32) }}</div>
                   <div class="og-categoria-meta">{{ i.createdAt ? 'Inscrito em ' + shortDate(i.createdAt) : 'Sem data de inscrição' }}</div>
                 </span>
                 <og-pill [tone]="payTone(i)">{{ payLabel(i) }}</og-pill>
@@ -119,6 +119,7 @@ export class CategoriaDetalheComponent {
   readonly catId = input<string>('');
 
   protected readonly initialsOf = initialsOf;
+  protected readonly truncate = truncateName;
 
   protected readonly loading = signal(true);
   protected readonly tournament = signal<OrganizerTournament | null>(null);

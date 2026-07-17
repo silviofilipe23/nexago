@@ -6,19 +6,7 @@
     </div>
     <div class="at-page-header-spacer"></div>
     <div class="at-page-header-actions">
-      <div class="at-search-box">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-        <span>Buscar…</span>
-      </div>
-      <button type="button" class="at-bell" (click)="jumpTo('painel-atividade')" aria-label="Ver atividade recente">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6" />
-          <path d="M10 20a2.2 2.2 0 0 0 4 0" />
-        </svg>
-        @if (unreadNotifications() > 0) {
-          <span class="at-bell-dot"></span>
-        }
-      </button>
+      <at-bell />
       <a routerLink="/perfil" class="at-header-avatar">{{ headerInitials() }}</a>
     </div>
   </header>
@@ -45,12 +33,14 @@
           <div class="at-kpi-value">{{ kpi.value }}</div>
           <div class="at-kpi-delta">
             <span class="at-kpi-delta-value" [class]="'at-kpi-delta-value--' + kpi.tone">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" [class.at-kpi-arrow--flip]="kpi.tone === 'orange'">
-                <path d="M12 19V5M5 12l7-7 7 7" />
-              </svg>
+              @if (kpi.arrow) {
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" [class.at-kpi-arrow--flip]="kpi.tone === 'orange'">
+                  <path d="M12 19V5M5 12l7-7 7 7" />
+                </svg>
+              }
               {{ kpi.delta }}
             </span>
-            <span class="at-kpi-delta-note">vs mês anterior</span>
+            <span class="at-kpi-delta-note">{{ kpi.note }}</span>
           </div>
         </div>
       }
@@ -124,7 +114,7 @@
               <circle [attr.cx]="chartLastPoint().x" [attr.cy]="chartLastPoint().y" r="4.5" class="at-chart-dot" />
             </svg>
             <div class="at-chart-months">
-              @for (month of chartMonths; track month) {
+              @for (month of chartMonths(); track $index) {
                 <span>{{ month }}</span>
               }
             </div>
@@ -133,17 +123,22 @@
 
         <div class="at-card" id="painel-atividade">
           <div class="at-card-head">
-            <div class="at-card-title">Atividade da rede</div>
-            <span class="at-ghost-btn at-ghost-btn--disabled" title="Em breve">Ver tudo</span>
+            <div class="at-card-title">Comunidade</div>
+            <a routerLink="/comunidade" class="at-ghost-btn">Ver tudo</a>
           </div>
           <div class="at-activity-list">
-            @for (item of networkActivity; track item.id) {
-              <div class="at-activity-row">
+            @for (item of communityActivity(); track item.id) {
+              <a class="at-activity-row" [routerLink]="item.link">
                 <div class="at-activity-avatar" [style.background]="'linear-gradient(135deg, hsl(' + item.hue + ' 60% 45%), hsl(' + (item.hue + 30) + ' 60% 28%))'">{{ item.initials }}</div>
                 <div class="at-activity-content">
                   <strong>{{ item.name }}</strong> {{ item.message }}
                 </div>
                 <span class="at-activity-time">{{ item.time }}</span>
+              </a>
+            } @empty {
+              <div class="at-empty">
+                <p>Sem novidades da comunidade por enquanto.</p>
+                <p class="at-empty-sub">Aberturas de inscrição e campeões de torneios aparecem aqui.</p>
               </div>
             }
           </div>
@@ -154,10 +149,10 @@
         <div class="at-card">
           <div class="at-card-head">
             <div class="at-card-title">Missões diárias</div>
-            <span class="at-pill at-pill--orange">{{ missionsDone() }}/{{ missions.length }}</span>
+            <span class="at-pill at-pill--orange">{{ missionsDone() }}/{{ missions().length }}</span>
           </div>
           <div class="at-mission-list">
-            @for (mission of missions; track mission.id) {
+            @for (mission of missions(); track mission.id) {
               <div class="at-mission-row">
                 <span class="at-mission-check" [class.at-mission-check--done]="mission.done">
                   @if (mission.done) {
@@ -177,8 +172,8 @@
             <a routerLink="/torneios" class="at-ghost-btn">Ver todos</a>
           </div>
           <div class="at-tournament-list">
-            @for (t of myTournaments; track t.id) {
-              <div class="at-tournament-row">
+            @for (t of myTournaments(); track t.id) {
+              <a class="at-tournament-row" [routerLink]="['/torneios', t.id]">
                 <div class="at-tournament-icon">
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4" /><path d="M7 4h10v6a5 5 0 0 1-10 0V4z" /><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4" /></svg>
                 </div>
@@ -187,6 +182,11 @@
                   <div class="at-tournament-meta">{{ t.meta }}</div>
                 </div>
                 <span class="at-pill" [class]="'at-pill--status-' + t.statusTone">{{ t.statusLabel }}</span>
+              </a>
+            } @empty {
+              <div class="at-empty">
+                <p>Nenhuma inscrição ainda.</p>
+                <p class="at-empty-sub">Suas inscrições em torneios e ligas aparecem aqui.</p>
               </div>
             }
           </div>
@@ -199,10 +199,10 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
               <span>Reservar quadra</span>
             </a>
-            <span class="at-shortcut at-shortcut--disabled" title="Em breve">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>
-              <span>Convidar jogador</span>
-            </span>
+            <a routerLink="/bora-jogar" class="at-shortcut">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 3c2.5 2.4 3.9 5.6 3.9 9s-1.4 6.6-3.9 9M12 3C9.5 5.4 8.1 8.6 8.1 12s1.4 6.6 3.9 9M3.5 9h17M3.5 15h17" /></svg>
+              <span>Bora Jogar</span>
+            </a>
             <a routerLink="/torneios" class="at-shortcut">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4" /><path d="M7 4h10v6a5 5 0 0 1-10 0V4z" /></svg>
               <span>Ver torneios</span>

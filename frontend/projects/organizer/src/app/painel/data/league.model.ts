@@ -17,5 +17,7 @@ export interface OrganizerLeague {
   sportLabel: string;
   seasonLabel: string | null;
   city: string | null;
+  /** Capa da liga (`coverUrl`/`imageUrl` no Firestore) — nula quando não enviada. */
+  coverUrl: string | null;
   stages: OrganizerLeagueStage[];
 }

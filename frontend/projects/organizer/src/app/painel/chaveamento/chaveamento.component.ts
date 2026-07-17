@@ -1,9 +1,9 @@
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { initialsOf, type PillTone } from '../data/mock-data';
+import { initialsOf, truncateName, type PillTone } from '../data/mock-data';
 import type { MatchDisplayStatus, TournamentMatch } from '../data/matches-repository';
-import { formatCourtLabel, matchMetaLabel, matchWhenLabel } from '../data/schedule-format';
+import { matchMetaLabel, matchScheduleLabel } from '../data/schedule-format';
 import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
@@ -101,10 +101,10 @@ function setsWonOf(score: string): [number, number] {
           <span class="og-bracket-side-team">
             <span class="og-bracket-avatar-stack">
               @for (name of athleteNames(m.team1Label); track $index; let i = $index) {
-                <og-avatar [initials]="initialsOf(name)" [size]="18" [style.margin-left.px]="i ? -8 : 0" [style.z-index]="2 - i" />
+                <og-avatar [initials]="initialsOf(name)" [size]="20" [style.margin-left.px]="i ? -8 : 0" [style.z-index]="2 - i" />
               }
             </span>
-            <span class="og-bracket-side-name">{{ m.team1Label }}</span>
+            <span class="og-bracket-side-name" [title]="m.team1Label">{{ truncate(m.team1Label) }}</span>
           </span>
           <span class="og-bracket-side-score">{{ sideScore(m, 1) }}</span>
         </div>
@@ -112,21 +112,20 @@ function setsWonOf(score: string): [number, number] {
           <span class="og-bracket-side-team">
             <span class="og-bracket-avatar-stack">
               @for (name of athleteNames(m.team2Label); track $index; let i = $index) {
-                <og-avatar [initials]="initialsOf(name)" [size]="18" [style.margin-left.px]="i ? -8 : 0" [style.z-index]="2 - i" />
+                <og-avatar [initials]="initialsOf(name)" [size]="20" [style.margin-left.px]="i ? -8 : 0" [style.z-index]="2 - i" />
               }
             </span>
-            <span class="og-bracket-side-name">{{ m.team2Label }}</span>
+            <span class="og-bracket-side-name" [title]="m.team2Label">{{ truncate(m.team2Label) }}</span>
           </span>
           <span class="og-bracket-side-score">{{ sideScore(m, 2) }}</span>
         </div>
-        <div class="og-bracket-match-sched" [class.set]="m.scheduledAt">
+        <div class="og-bracket-match-sched" [class.set]="!!m.scheduledAt">
           <span class="og-bracket-sched-when">
-            <og-icon name="clock" [size]="11" />
-            <span>{{ whenLabel(m) }}</span>
+            @if (m.scheduledAt) {
+              <og-icon name="clock" [size]="11" />
+            }
+            <span>{{ scheduleLabel(m) }}</span>
           </span>
-          @if (courtLabel(m); as court) {
-            <span class="og-bracket-sched-court">{{ court }}</span>
-          }
         </div>
       </ng-template>
 
@@ -145,14 +144,25 @@ function setsWonOf(score: string): [number, number] {
             <div class="og-bracket-round-label og-de-col-label" [style.left.px]="lbl.left" [style.top.px]="lbl.top" [style.width.px]="matchWidth">{{ lbl.label }}</div>
           }
           @for (n of tree.nodes; track n.match.id) {
-            <a
-              class="og-bracket-match og-de-match"
-              [style.left.px]="n.left"
-              [style.top.px]="n.top"
-              [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', n.match.id]"
-            >
-              <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: n.match }" />
-            </a>
+            @if (canOpenScore(n.match)) {
+              <a
+                class="og-bracket-match og-de-match"
+                [style.left.px]="n.left"
+                [style.top.px]="n.top"
+                [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', n.match.id]"
+              >
+                <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: n.match }" />
+              </a>
+            } @else {
+              <div
+                class="og-bracket-match og-de-match is-pending"
+                [style.left.px]="n.left"
+                [style.top.px]="n.top"
+                title="Aguardando as duas equipes pra lançar placar"
+              >
+                <ng-container [ngTemplateOutlet]="cardBody" [ngTemplateOutletContext]="{ $implicit: n.match }" />
+              </div>
+            }
           }
         </div>
       }
@@ -167,6 +177,7 @@ export class ChaveamentoComponent {
   protected readonly matchWidth = BRACKET_MATCH_WIDTH;
   protected readonly initialsOf = initialsOf;
   protected readonly athleteNames = athleteNamesOf;
+  protected readonly truncate = truncateName;
 
   protected statusTone(m: TournamentMatch): PillTone {
     return STATUS_TONE[m.status];
@@ -176,12 +187,14 @@ export class ChaveamentoComponent {
     return matchMetaLabel(m);
   }
 
-  protected whenLabel(m: TournamentMatch): string {
-    return matchWhenLabel(m);
+  protected scheduleLabel(m: TournamentMatch): string {
+    return matchScheduleLabel(m);
   }
 
-  protected courtLabel(m: TournamentMatch): string {
-    return formatCourtLabel(m.court);
+  /** Placar só com as duas duplas definidas — slot vazio ainda é placeholder
+   *  ("Vencedor Jogo #N" / "A definir") e o servidor rejeitaria o submit. */
+  protected canOpenScore(m: TournamentMatch): boolean {
+    return m.teamAId.length > 0 && m.teamBId.length > 0;
   }
 
   protected statusLabel(m: TournamentMatch): string {

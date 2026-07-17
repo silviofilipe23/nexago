@@ -16,6 +16,7 @@ import { interval } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { AtBellComponent } from '../painel/at-bell.component';
 import { fetchAllLeagues, type League } from '../data/leagues-repository';
 import { fetchMyRegistrations } from '../data/tournament-registrations-repository';
 import { fetchAllTournaments, registrationOpensAt, tournamentListingStatus, type TournamentSummary } from '../data/tournaments-repository';
@@ -196,7 +197,7 @@ function initialsOf(name: string): string {
 @Component({
   selector: 'app-tournament-discovery',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent],
+  imports: [RouterLink, AtPanelShellComponent, AtBellComponent],
   templateUrl: './tournament-discovery.component.html',
   styleUrl: './tournament-discovery.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

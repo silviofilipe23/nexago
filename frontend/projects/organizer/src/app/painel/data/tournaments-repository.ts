@@ -89,6 +89,15 @@ function courtsFromRaw(raw: unknown, courtsCount: number): { id: string; name: s
   return Array.from({ length: n }, (_, i) => ({ id: `Q${i + 1}`, name: `Quadra ${i + 1}`, order: i + 1 }));
 }
 
+/** Capa do torneio — mesmos fallbacks de chave do app (`TournamentDocumentMapper._imageUrl`). */
+function coverUrlOf(data: Record<string, unknown>): string | null {
+  for (const key of ['coverUrl', 'imageUrl', 'coverImageUrl', 'posterUrl', 'thumbnailUrl']) {
+    const v = optionalStr(data[key]);
+    if (v) return v;
+  }
+  return null;
+}
+
 function tournamentFromDoc(id: string, data: Record<string, unknown>): OrganizerTournament {
   const categories = Array.isArray(data['categories'])
     ? data['categories'].map(categoryFromRaw).filter((c): c is OrganizerTournamentCategory => c != null)
@@ -100,6 +109,7 @@ function tournamentFromDoc(id: string, data: Record<string, unknown>): Organizer
     id,
     name: optionalStr(data['name']) ?? 'Torneio',
     sportLabel: sportLabelOf(data['sport']),
+    coverUrl: coverUrlOf(data),
     status: statusFromRaw(statusRaw),
     startAt: toDate(data['startAt']),
     endAt: toDate(data['endAt']),

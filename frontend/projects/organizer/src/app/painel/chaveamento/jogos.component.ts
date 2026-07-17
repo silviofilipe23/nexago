@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import type { PillTone } from '../data/mock-data';
+import { truncateName, type PillTone } from '../data/mock-data';
 import type { TournamentMatch } from '../data/matches-repository';
 import { spDayLabel, spTimeLabel } from '../data/schedule-format';
 import { OgCardComponent } from '../ui/card.component';
@@ -59,16 +59,20 @@ const JOGO_LABEL: Record<JogoStatus, string> = { encerrado: 'Encerrado', agendad
                 </span>
                 <span style="flex:1;display:flex;flex-direction:column;gap:2px;min-width:0">
                   <span style="display:flex;align-items:center;gap:8px">
-                    <span class="og-jogos-team">{{ j.match.team1Label }}</span>
+                    <span class="og-jogos-team" [title]="j.match.team1Label">{{ truncate(j.match.team1Label, 20) }}</span>
                     <span class="og-jogos-vs">vs</span>
-                    <span class="og-jogos-team">{{ j.match.team2Label }}</span>
+                    <span class="og-jogos-team" [title]="j.match.team2Label">{{ truncate(j.match.team2Label, 20) }}</span>
                   </span>
                   <span class="og-jogos-meta">{{ j.meta }}</span>
                 </span>
                 <span style="width:110px;text-align:center" class="og-jogos-score">{{ j.match.score ?? 'Não jogado' }}</span>
                 <span style="width:90px" class="og-jogos-quadra">{{ j.match.court ?? '—' }}</span>
                 <span style="width:100px"><og-pill [tone]="jogoTone[j.status]">{{ jogoLabel[j.status] }}</og-pill></span>
-                <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', j.match.id]">{{ j.status === 'agendado' ? 'Lançar placar' : 'Placar' }}</a>
+                @if (canOpenScore(j.match)) {
+                  <a class="og-ghost-btn" [routerLink]="['/painel/eventos', id(), 'categorias', catId(), 'placar', j.match.id]">{{ j.status === 'agendado' ? 'Lançar placar' : 'Placar' }}</a>
+                } @else {
+                  <span class="og-ghost-btn" style="opacity:0.45;pointer-events:none" title="Aguardando as duas equipes">Aguardando</span>
+                }
               </div>
             } @empty {
               <p class="og-empty">Nenhum jogo nesta categoria</p>
@@ -157,6 +161,11 @@ export class JogosComponent {
   protected readonly ctx = inject(ChaveamentoContextService);
   protected readonly jogoTone = JOGO_TONE;
   protected readonly jogoLabel = JOGO_LABEL;
+  protected readonly truncate = truncateName;
+
+  protected canOpenScore(m: TournamentMatch): boolean {
+    return m.teamAId.length > 0 && m.teamBId.length > 0;
+  }
 
   protected readonly headerSubtitle = computed(() => {
     const t = this.ctx.tournament();

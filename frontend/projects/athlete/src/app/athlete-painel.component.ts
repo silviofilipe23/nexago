@@ -7,7 +7,6 @@ import {
   getFirestore,
   limit,
   onSnapshot,
-  orderBy,
   query,
   where,
   type DocumentData,
@@ -16,10 +15,17 @@ import {
 } from 'firebase/firestore';
 import { environment } from '../environments/environment';
 import { AuthService } from './auth/auth.service';
+import { AtBellComponent } from './painel/at-bell.component';
 import { AtPanelShellComponent } from './painel/at-panel-shell.component';
+import { watchCommunityFeed, type CommunityFeedItem } from './data/community-feed-repository';
+import { DAILY_MISSION_CATALOG, watchDailyMissions } from './data/daily-missions-repository';
+import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from './data/teams-repository';
+import { fetchMyRegistrations } from './data/tournament-registrations-repository';
+import { fetchTournamentSummariesByIds } from './data/tournaments-repository';
+import { AthleteGamificationService } from './profile/athlete-gamification.service';
 
 type DashboardTone = 'accent' | 'success' | 'warning' | 'neutral';
-type ChartTab = 'Jogos' | 'Vitórias' | 'XP';
+type ChartTab = 'Jogos' | 'Vitórias';
 type KpiTone = 'green' | 'orange';
 
 interface DashboardReservation {
@@ -35,15 +41,6 @@ interface DashboardReservation {
   caption: string;
 }
 
-interface DashboardNotification {
-  id: string;
-  title: string;
-  body: string;
-  timeLabel: string;
-  unread: boolean;
-  tone: DashboardTone;
-}
-
 interface DashboardRanking {
   positionLabel: string;
   pointsLabel: string;
@@ -56,17 +53,20 @@ interface DashboardKpi {
   label: string;
   value: string;
   delta: string;
+  note: string;
   tone: KpiTone;
+  arrow: boolean;
   icon?: 'flame';
 }
 
-interface NetworkActivityItem {
+interface CommunityActivityItem {
   id: string;
   initials: string;
   hue: number;
   name: string;
   message: string;
   time: string;
+  link: string;
 }
 
 interface MissionItem {
@@ -97,57 +97,6 @@ const PREVIEW_RESERVATIONS: readonly DashboardReservation[] = [
     amountLabel: 'R$ 68',
     caption: 'Sua dupla ja confirmou presenca.',
   },
-  {
-    id: 'preview-booking-2',
-    sortKey: '2026-04-18T08:00',
-    arenaName: 'Nexa Beach Club',
-    courtName: 'Quadra Principal',
-    dateLabel: '18 abr',
-    timeLabel: '08:00 - 09:30',
-    statusLabel: 'Pagar na arena',
-    statusTone: 'warning',
-    amountLabel: 'R$ 55',
-    caption: 'Leve documento para check-in rapido.',
-  },
-  {
-    id: 'preview-booking-3',
-    sortKey: '2026-04-22T20:00',
-    arenaName: 'Sunset Volley',
-    courtName: 'Quadra 1',
-    dateLabel: '22 abr',
-    timeLabel: '20:00 - 21:30',
-    statusLabel: 'Em processamento',
-    statusTone: 'accent',
-    amountLabel: null,
-    caption: 'Acompanhe aqui quando a confirmacao chegar.',
-  },
-];
-
-const PREVIEW_NOTIFICATIONS: readonly DashboardNotification[] = [
-  {
-    id: 'preview-notification-1',
-    title: 'Reserva confirmada',
-    body: 'Sua agenda na Arena Central foi confirmada e ja esta pronta para compartilhar.',
-    timeLabel: 'agora',
-    unread: true,
-    tone: 'success',
-  },
-  {
-    id: 'preview-notification-2',
-    title: 'Inscricoes abertas',
-    body: 'A categoria Intermediario misto abriu novas vagas para o fim de semana.',
-    timeLabel: 'ha 2 h',
-    unread: true,
-    tone: 'accent',
-  },
-  {
-    id: 'preview-notification-3',
-    title: 'Perfil em destaque',
-    body: 'Complete seu perfil publico para aparecer melhor no hub de atletas.',
-    timeLabel: 'ontem',
-    unread: false,
-    tone: 'neutral',
-  },
 ];
 
 const PREVIEW_RANKING: DashboardRanking = {
@@ -158,76 +107,13 @@ const PREVIEW_RANKING: DashboardRanking = {
   highlightLabel: 'Seu volume de jogos esta ajudando a ganhar ritmo.',
 };
 
-const CHART_MONTHS: readonly string[] = [
-  'Ago', 'Set', 'Out', 'Nov', 'Dez', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul',
-];
-
-const CHART_DATASETS: Record<ChartTab, readonly number[]> = {
-  Jogos: [2, 3, 4, 3, 5, 6, 5, 7, 8, 10, 11, 14],
-  Vitórias: [40, 45, 42, 50, 55, 52, 58, 60, 63, 65, 66, 68],
-  XP: [120, 180, 150, 220, 260, 240, 300, 340, 380, 420, 460, 540],
-};
-
-const CHART_TABS: readonly ChartTab[] = ['Jogos', 'Vitórias', 'XP'];
+const CHART_TABS: readonly ChartTab[] = ['Jogos', 'Vitórias'];
 const CHART_W = 802;
 const CHART_H = 120;
-
-const NETWORK_ACTIVITY: readonly NetworkActivityItem[] = [
-  {
-    id: 'activity-1',
-    initials: 'EN',
-    hue: 130,
-    name: 'Enzo R.',
-    message: 'está procurando dupla pra hoje 22h em Arena CFC.',
-    time: '14:32',
-  },
-  {
-    id: 'activity-2',
-    initials: 'BR',
-    hue: 280,
-    name: 'Bruno V.',
-    message: 'venceu o desafio e subiu pro Nível 4.',
-    time: '13:05',
-  },
-  {
-    id: 'activity-3',
-    initials: 'CA',
-    hue: 320,
-    name: 'Camila S.',
-    message: 'se inscreveu na Etapa garden.',
-    time: '11:48',
-  },
-  {
-    id: 'activity-4',
-    initials: 'JU',
-    hue: 200,
-    name: 'Júlia P.',
-    message: 'te chamou pro jogo de sábado.',
-    time: '10:22',
-  },
-];
-
-const MISSIONS: readonly MissionItem[] = [
-  { id: 'play', label: 'Jogue 1x hoje', xp: 40, done: false },
-  { id: 'invite', label: 'Convide 1 jogador', xp: 30, done: false },
-];
-
-const MEUS_TORNEIOS: readonly MyTournamentItem[] = [
-  {
-    id: 'my-tournament-1',
-    name: 'Etapa garden',
-    meta: '21/07 · Beach Tennis',
-    statusLabel: 'Inscrito',
-    statusTone: 'yellow',
-  },
-  {
-    id: 'my-tournament-2',
-    name: 'Copa Goiás Beach',
-    meta: '2/6 etapas · Liga',
-    statusLabel: 'Ativo',
-    statusTone: 'green',
-  },
-];
+const CHART_MONTH_COUNT = 12;
+/** Teto de times consultados pro histórico — evita N+1 sem limite em contas antigas. */
+const MAX_TEAMS_FETCH = 12;
+const MY_TOURNAMENTS_LIMIT = 4;
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -271,6 +157,14 @@ function initialsOf(name: string): string {
   const first = parts[0]?.[0] ?? '';
   const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
   return (first + last).toUpperCase() || 'AT';
+}
+
+function hueOf(text: string): number {
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) {
+    hash = (hash * 31 + text.charCodeAt(i)) % 360;
+  }
+  return hash;
 }
 
 function formatTodayLabel(now = new Date()): string {
@@ -437,20 +331,6 @@ function bookingSortValue(item: DashboardReservation): string {
   return item.sortKey;
 }
 
-function notificationTone(type: string | null): DashboardTone {
-  const normalized = type?.trim().toLowerCase() ?? '';
-  if (normalized.includes('booking') || normalized.includes('reserva')) {
-    return 'success';
-  }
-  if (normalized.includes('payment') || normalized.includes('pag')) {
-    return 'warning';
-  }
-  if (normalized.includes('tournament') || normalized.includes('torneio')) {
-    return 'accent';
-  }
-  return 'neutral';
-}
-
 function mapBookingDoc(docSnap: QueryDocumentSnapshot<DocumentData>): DashboardReservation {
   const data = docSnap.data();
   const statusInfo = bookingStatus(readString(data, ['status']));
@@ -472,19 +352,6 @@ function mapBookingDoc(docSnap: QueryDocumentSnapshot<DocumentData>): DashboardR
       (statusInfo.statusLabel === 'Pagar na arena'
         ? 'Leve um documento e chegue alguns minutos antes.'
         : 'Acompanhe detalhes e combinados por aqui.'),
-  };
-}
-
-function mapNotificationDoc(docSnap: QueryDocumentSnapshot<DocumentData>): DashboardNotification {
-  const data = docSnap.data();
-  const title = readString(data, ['title']) ?? 'Atualizacao da conta';
-  return {
-    id: docSnap.id,
-    title,
-    body: readString(data, ['body', 'message']) ?? 'Sua central de notificacoes vai reunir novidades da agenda e do ranking.',
-    timeLabel: formatRelativeTime(data['createdAt']),
-    unread: data['read'] !== true,
-    tone: notificationTone(readString(data, ['type'])),
   };
 }
 
@@ -524,7 +391,10 @@ function mapsSearchUrl(query: string): string {
 }
 
 function chartScale(data: readonly number[]): { max: number; min: number } {
-  return { max: Math.max(...data) * 1.15, min: Math.min(...data) * 0.75 };
+  const max = Math.max(...data) * 1.15;
+  const min = Math.min(...data) * 0.75;
+  // Série constante (ex.: tudo zero) — abre 1 de folga pra não dividir por zero.
+  return max === min ? { max: max + 1, min: min - (min > 0 ? 1 : 0) } : { max, min };
 }
 
 function buildLinePath(data: readonly number[], w: number, h: number): string {
@@ -547,30 +417,51 @@ function lastChartPoint(data: readonly number[], w: number, h: number): { x: num
   return { x: w, y: h - ((value - min) / (max - min)) * h };
 }
 
+/** Chave ano*12+mês pra agrupar partidas por mês (rolling 12 meses). */
+function monthKeyOf(date: Date): number {
+  return date.getFullYear() * 12 + date.getMonth();
+}
+
+function matchMonthDate(match: ArenaMatch): Date | null {
+  return match.matchEndedAt ?? match.scheduleTime;
+}
+
+function communityMessage(item: CommunityFeedItem): string {
+  if (item.type === 'tournament_open') {
+    const cats = item.categoriesCount != null ? ` · ${item.categoriesCount} categoria${item.categoriesCount === 1 ? '' : 's'}` : '';
+    const place = item.city ?? item.locationName;
+    return `abriu inscrições${cats}${place ? ` — ${place}` : ''}.`;
+  }
+  const count = item.champions.length;
+  return count > 0 ? `definiu os campeões de ${count} categoria${count === 1 ? '' : 's'}.` : 'terminou com campeões definidos.';
+}
+
 @Component({
   selector: 'app-athlete-painel',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent],
+  imports: [RouterLink, AtPanelShellComponent, AtBellComponent],
   templateUrl: './athlete-painel.component.html',
   styleUrl: './athlete-painel.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AthletePainelComponent {
   protected readonly auth = inject(AuthService);
+  private readonly gamification = inject(AthleteGamificationService);
   private readonly firestore = createFirestore();
 
   private readonly liveReservationsState = signal<DashboardReservation[]>([]);
-  private readonly liveNotificationsState = signal<DashboardNotification[]>([]);
   private readonly liveRankingState = signal<DashboardRanking | null>(null);
+  /** Partidas de torneio CONCLUÍDAS dos times do atleta (fonte real de jogos/vitórias). */
+  private readonly completedMatchesState = signal<ArenaMatch[]>([]);
+  private readonly myTeamIdsState = signal<ReadonlySet<string>>(new Set());
+  private readonly communityState = signal<CommunityFeedItem[]>([]);
+  private readonly missionsDoneState = signal<ReadonlySet<string>>(new Set());
+  private readonly myTournamentsState = signal<MyTournamentItem[]>([]);
 
   protected readonly loadingRanking = signal(false);
   protected readonly syncError = signal<string | null>(null);
 
-  protected readonly networkActivity = NETWORK_ACTIVITY;
-  protected readonly missions = MISSIONS;
-  protected readonly myTournaments = MEUS_TORNEIOS;
   protected readonly chartTabs = CHART_TABS;
-  protected readonly chartMonths = CHART_MONTHS;
   protected readonly chartW = CHART_W;
   protected readonly chartH = CHART_H;
 
@@ -604,9 +495,6 @@ export class AthletePainelComponent {
   protected readonly reservations = computed(() =>
     this.hasLiveSession() ? this.liveReservationsState() : [...PREVIEW_RESERVATIONS],
   );
-  protected readonly notifications = computed(() =>
-    this.hasLiveSession() ? this.liveNotificationsState() : [...PREVIEW_NOTIFICATIONS],
-  );
   protected readonly ranking = computed(() =>
     this.hasLiveSession() ? this.liveRankingState() : PREVIEW_RANKING,
   );
@@ -615,28 +503,131 @@ export class AthletePainelComponent {
     const reservation = this.nextReservation();
     return reservation ? mapsSearchUrl(reservation.arenaName) : null;
   });
-  protected readonly unreadNotifications = computed(
-    () => this.notifications().filter((notification) => notification.unread).length,
-  );
 
+  /** KPIs reais: jogos/vitórias do histórico de partidas de torneio, sequência da
+   *  gamificação (`users/{uid}/gamification/summary`), posição do ranking live. */
   protected readonly kpis = computed<DashboardKpi[]>(() => {
+    const completed = this.completedMatchesState();
+    const myTeams = this.myTeamIdsState();
+    const currentKey = monthKeyOf(new Date());
+
+    const inMonth = (key: number) =>
+      completed.filter((m) => {
+        const d = matchMonthDate(m);
+        return d != null && monthKeyOf(d) === key;
+      }).length;
+    const gamesThisMonth = inMonth(currentKey);
+    const monthDiff = gamesThisMonth - inMonth(currentKey - 1);
+
+    const wins = completed.filter((m) => m.winnerId != null && myTeams.has(m.winnerId)).length;
+    const losses = completed.length - wins;
+    const winPct = completed.length > 0 ? Math.round((wins / completed.length) * 100) : null;
+
+    const streak = this.gamification.summary()?.streak ?? 0;
     const ranking = this.ranking();
+
     return [
-      { label: 'Jogos no mês', value: '14', delta: '12%', tone: 'green' },
-      { label: 'Vitórias', value: '68%', delta: '4%', tone: 'green' },
-      { label: 'Sequência', value: '3 dias', delta: 'em jogo', tone: 'orange', icon: 'flame' },
       {
-        label: 'Ranking municipal',
-        value: ranking?.positionLabel ?? '#412',
-        delta: '18 posições',
+        label: 'Jogos no mês',
+        value: String(gamesThisMonth),
+        delta: `${monthDiff >= 0 ? '+' : ''}${monthDiff}`,
+        note: 'vs mês anterior',
+        tone: monthDiff >= 0 ? 'green' : 'orange',
+        arrow: true,
+      },
+      {
+        label: 'Vitórias',
+        value: winPct != null ? `${winPct}%` : '—',
+        delta: `${wins}V · ${losses}D`,
+        note: 'partidas de torneio',
         tone: 'green',
+        arrow: false,
+      },
+      {
+        label: 'Sequência',
+        value: `${streak} ${streak === 1 ? 'dia' : 'dias'}`,
+        delta: 'em jogo',
+        note: 'dias ativos seguidos',
+        tone: 'orange',
+        arrow: false,
+        icon: 'flame',
+      },
+      {
+        label: 'Ranking',
+        value: ranking?.positionLabel ?? '—',
+        delta: ranking?.pointsLabel ?? 'sem pontos',
+        note: ranking?.categoryLabel ?? 'temporada',
+        tone: 'green',
+        arrow: false,
       },
     ];
   });
 
-  protected readonly missionsDone = computed(() => this.missions.filter((mission) => mission.done).length);
+  /** Missões diárias reais — catálogo em código + estado do dia no Firestore. */
+  protected readonly missions = computed<MissionItem[]>(() => {
+    const done = this.missionsDoneState();
+    return DAILY_MISSION_CATALOG.map((m) => ({
+      id: m.id,
+      label: m.title,
+      xp: m.xpReward,
+      done: done.has(m.id),
+    }));
+  });
+  protected readonly missionsDone = computed(() => this.missions().filter((mission) => mission.done).length);
 
-  protected readonly chartData = computed(() => CHART_DATASETS[this.activeChartTab()]);
+  protected readonly myTournaments = computed(() => this.myTournamentsState());
+
+  /** Atividade da comunidade — itens reais do `communityFeed` (sem UGC). */
+  protected readonly communityActivity = computed<CommunityActivityItem[]>(() =>
+    this.communityState()
+      .slice(0, 4)
+      .map((item) => ({
+        id: item.id,
+        initials: initialsOf(item.tournamentName),
+        hue: hueOf(item.tournamentName),
+        name: item.tournamentName,
+        message: communityMessage(item),
+        time: formatRelativeTime(item.createdAt),
+        link: `/torneios/${item.tournamentId}`,
+      })),
+  );
+
+  /** Série mensal real (últimos 12 meses) a partir das partidas concluídas. */
+  private readonly chartMonthsKeys = computed(() => {
+    const current = monthKeyOf(new Date());
+    return Array.from({ length: CHART_MONTH_COUNT }, (_, i) => current - (CHART_MONTH_COUNT - 1) + i);
+  });
+
+  protected readonly chartMonths = computed(() => {
+    const fmt = new Intl.DateTimeFormat('pt-BR', { month: 'short' });
+    return this.chartMonthsKeys().map((key) => {
+      const label = fmt.format(new Date(Math.floor(key / 12), key % 12, 1)).replace('.', '');
+      return label.charAt(0).toUpperCase() + label.slice(1);
+    });
+  });
+
+  protected readonly chartData = computed<readonly number[]>(() => {
+    const completed = this.completedMatchesState();
+    const myTeams = this.myTeamIdsState();
+    const buckets = new Map<number, { games: number; wins: number }>();
+    for (const key of this.chartMonthsKeys()) {
+      buckets.set(key, { games: 0, wins: 0 });
+    }
+    for (const match of completed) {
+      const date = matchMonthDate(match);
+      if (!date) continue;
+      const bucket = buckets.get(monthKeyOf(date));
+      if (!bucket) continue;
+      bucket.games++;
+      if (match.winnerId != null && myTeams.has(match.winnerId)) bucket.wins++;
+    }
+    const rows = this.chartMonthsKeys().map((key) => buckets.get(key)!);
+    if (this.activeChartTab() === 'Jogos') {
+      return rows.map((r) => r.games);
+    }
+    return rows.map((r) => (r.games > 0 ? Math.round((r.wins / r.games) * 100) : 0));
+  });
+
   protected readonly chartLinePath = computed(() => buildLinePath(this.chartData(), CHART_W, CHART_H));
   protected readonly chartAreaPath = computed(() =>
     buildAreaPath(this.chartLinePath(), CHART_W, CHART_H),
@@ -650,8 +641,12 @@ export class AthletePainelComponent {
 
       if (!user) {
         this.liveReservationsState.set([]);
-        this.liveNotificationsState.set([]);
         this.liveRankingState.set(null);
+        this.completedMatchesState.set([]);
+        this.myTeamIdsState.set(new Set());
+        this.communityState.set([]);
+        this.missionsDoneState.set(new Set());
+        this.myTournamentsState.set([]);
         this.loadingRanking.set(false);
         return;
       }
@@ -669,12 +664,6 @@ export class AthletePainelComponent {
         limit(8),
       );
 
-      const notificationsQuery = query(
-        collection(this.firestore, 'users', user.uid, 'notifications'),
-        orderBy('createdAt', 'desc'),
-        limit(6),
-      );
-
       const stopBookings = onSnapshot(
         bookingsQuery,
         (snapshot) => {
@@ -685,16 +674,6 @@ export class AthletePainelComponent {
         },
         () => {
           this.syncError.set('Nao foi possivel atualizar as reservas agora.');
-        },
-      );
-
-      const stopNotifications = onSnapshot(
-        notificationsQuery,
-        (snapshot) => {
-          this.liveNotificationsState.set(snapshot.docs.map(mapNotificationDoc));
-        },
-        () => {
-          this.syncError.set('Nao foi possivel carregar as notificacoes agora.');
         },
       );
 
@@ -710,30 +689,94 @@ export class AthletePainelComponent {
         },
       );
 
+      const stopCommunity = watchCommunityFeed(
+        this.firestore,
+        (items) => this.communityState.set(items),
+        () => this.communityState.set([]),
+        8,
+      );
+
+      const stopMissions = watchDailyMissions(
+        this.firestore,
+        user.uid,
+        (done) => this.missionsDoneState.set(done),
+        () => this.missionsDoneState.set(new Set()),
+      );
+
+      void this.loadMatchHistory(user.uid);
+      void this.loadMyTournaments(user.uid);
+
       onCleanup(() => {
         stopBookings();
-        stopNotifications();
         stopRankingDoc();
+        stopCommunity();
+        stopMissions();
       });
     });
   }
 
-  protected setChartTab(tab: ChartTab): void {
-    this.activeChartTab.set(tab);
+  private async loadMatchHistory(uid: string): Promise<void> {
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    if (!db || !projectId) return;
+    try {
+      const teams = (await fetchTeamsForAthlete(db, projectId, uid)).slice(0, MAX_TEAMS_FETCH);
+      if (this.auth.user()?.uid !== uid) return;
+      const lists = await Promise.all(teams.map((t) => fetchMatchesForTeam(db, projectId, t.id)));
+      if (this.auth.user()?.uid !== uid) return;
+      const byId = new Map<string, ArenaMatch>();
+      for (const match of lists.flat()) {
+        if (matchIsCompleted(match)) byId.set(match.id, match);
+      }
+      this.myTeamIdsState.set(new Set(teams.map((t) => t.id)));
+      this.completedMatchesState.set([...byId.values()]);
+    } catch {
+      this.syncError.set('Nao foi possivel carregar seu historico de partidas agora.');
+    }
   }
 
-  protected jumpTo(sectionId: string): void {
-    const target = globalThis.document?.getElementById(sectionId);
-    if (!target) {
-      return;
-    }
-    const prefersReducedMotion =
-      typeof globalThis.matchMedia === 'function' &&
-      globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  private async loadMyTournaments(uid: string): Promise<void> {
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    if (!db || !projectId) return;
+    try {
+      const registrations = await fetchMyRegistrations(db, projectId, uid);
+      const ids = [...new Set(registrations.map((r) => r.tournamentId).filter(Boolean))];
+      const summaries = await fetchTournamentSummariesByIds(db, ids);
+      if (this.auth.user()?.uid !== uid) return;
 
-    target.scrollIntoView({
-      behavior: prefersReducedMotion ? 'auto' : 'smooth',
-      block: 'start',
-    });
+      const items = registrations
+        .map((reg) => {
+          const tournament = summaries.get(reg.tournamentId);
+          if (!tournament) return null;
+          const status: Pick<MyTournamentItem, 'statusLabel' | 'statusTone'> = reg.waitlist
+            ? { statusLabel: 'Lista de espera', statusTone: 'yellow' }
+            : reg.partnerPending
+              ? { statusLabel: 'Aguardando dupla', statusTone: 'yellow' }
+              : reg.isPaid
+                ? { statusLabel: 'Inscrito', statusTone: 'green' }
+                : { statusLabel: 'Pagamento pendente', statusTone: 'yellow' };
+          return {
+            id: reg.tournamentId,
+            name: tournament.name,
+            meta: [tournament.dateLabel, tournament.city].filter(Boolean).join(' · ') || 'Datas a definir',
+            sortAt: tournament.startAt?.getTime() ?? 0,
+            ...status,
+          };
+        })
+        .filter((item): item is MyTournamentItem & { sortAt: number } => item != null)
+        .sort((a, b) => b.sortAt - a.sortAt)
+        .slice(0, MY_TOURNAMENTS_LIMIT)
+        .map(({ sortAt: _sortAt, ...item }) => item);
+
+      this.myTournamentsState.set(items);
+    } catch {
+      // "Meus torneios" vazio é estado válido; sem banner por falha pontual.
+      this.myTournamentsState.set([]);
+    }
+  }
+
+  protected setChartTab(tab: ChartTab): void {
+    this.activeChartTab.set(tab);
   }
 }

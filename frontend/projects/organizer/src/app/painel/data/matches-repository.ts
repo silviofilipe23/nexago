@@ -55,8 +55,23 @@ export interface TournamentMatch {
 }
 
 function toDate(v: unknown): Date | null {
-  const t = v as { toDate?: () => Date } | undefined;
-  return typeof t?.toDate === 'function' ? t.toDate() : null;
+  if (v == null) return null;
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  if (typeof v === 'string' || typeof v === 'number') {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const t = v as { toDate?: () => Date; seconds?: number; _seconds?: number };
+  if (typeof t.toDate === 'function') {
+    const d = t.toDate();
+    return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null;
+  }
+  const seconds = typeof t.seconds === 'number' ? t.seconds : typeof t._seconds === 'number' ? t._seconds : null;
+  if (seconds != null) {
+    const d = new Date(seconds * 1000);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
 }
 
 function optionalStr(v: unknown): string | null {

@@ -34,6 +34,8 @@ export interface OrganizerTournament {
   id: string;
   name: string;
   sportLabel: string;
+  /** Capa do torneio (`coverUrl`/`imageUrl`/… no Firestore) — nula quando não enviada. */
+  coverUrl: string | null;
   status: OrganizerTournamentStatus;
   startAt: Date | null;
   endAt: Date | null;

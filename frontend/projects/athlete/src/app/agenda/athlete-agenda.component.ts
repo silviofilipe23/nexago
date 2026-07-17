@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { interval } from 'rxjs';
@@ -34,6 +34,8 @@ export interface AgendaEvent {
   statusTone: AgendaStatusTone;
   ctaLabel: string;
   ctaPrimary: boolean;
+  /** Destino real do CTA (rota) — nulo quando não há tela correspondente. */
+  link: string[] | null;
 }
 
 export interface AgendaDayGroup {
@@ -212,8 +214,9 @@ function bookingToEvent(booking: MyBooking): AgendaEvent | null {
     location: booking.arenaName,
     statusLabel: !active ? 'Cancelada' : needsPayment ? 'Pagamento pendente' : booking.attendanceConfirmed ? 'Confirmado' : 'Aguardando confirmação',
     statusTone: !active ? 'neutral' : needsPayment ? 'warning' : booking.attendanceConfirmed ? 'confirmed' : 'warning',
-    ctaLabel: needsPayment ? 'Pagar agora' : 'Ver reserva',
+    ctaLabel: 'Ver arena',
     ctaPrimary: needsPayment,
+    link: booking.arenaId ? ['/reservar', booking.arenaId] : null,
   };
 }
 
@@ -234,6 +237,7 @@ function registrationToEvent(reg: AthleteTournamentRegistration, tournament: Tou
     statusTone: completed ? 'neutral' : live ? 'live' : reg.partnerPending || !reg.isPaid ? 'warning' : 'confirmed',
     ctaLabel: live ? 'Ver chave' : 'Ver torneio',
     ctaPrimary: live,
+    link: live ? ['/torneios', tournament.id, 'chaves'] : ['/torneios', tournament.id],
   };
 }
 
@@ -251,6 +255,7 @@ function registrationToEvent(reg: AthleteTournamentRegistration, tournament: Tou
 })
 export class AthleteAgendaComponent {
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly firestore = createFirestore();
 
@@ -423,7 +428,11 @@ export class AthleteAgendaComponent {
   }
 
   protected onEventCta(ev: AgendaEvent): void {
-    this.showNotice(`"${ev.ctaLabel}" chega em breve por aqui.`);
+    if (ev.link) {
+      void this.router.navigate(ev.link);
+      return;
+    }
+    this.showNotice('Esta reserva ainda não tem página de detalhe por aqui.');
   }
 
   protected async acceptRequest(id: string): Promise<void> {

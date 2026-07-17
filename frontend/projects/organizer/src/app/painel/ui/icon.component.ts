@@ -21,7 +21,8 @@ export type OgIconName =
   | 'clock'
   | 'grid'
   | 'calendar'
-  | 'back';
+  | 'back'
+  | 'logout';
 
 /** Ícones de contorno do design system NexaGO — mesmo traçado do protótipo (stroke 24, 1.8–2.2px). */
 @Component({
@@ -102,6 +103,9 @@ export type OgIconName =
         }
         @case ('back') {
           <path d="m15 6-6 6 6 6" />
+        }
+        @case ('logout') {
+          <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" /><path d="m16 17 5-5-5-5M21 12H9" />
         }
       }
     </svg>

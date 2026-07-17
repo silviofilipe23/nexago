@@ -43,6 +43,7 @@ interface EventoCard {
   metaLabel: string;
   statusLabel: string;
   statusTone: Tone;
+  coverUrl: string | null;
   inscritos: number | null;
   vagas: number | null;
   etapas: number | null;
@@ -67,9 +68,12 @@ interface EventoCard {
         <div class="og-eventos-grid">
           @for (i of [1, 2, 3]; track i) {
             <div class="og-evento-card">
-              <div class="og-skeleton-line" style="width:40%"></div>
-              <div class="og-skeleton-line" style="width:80%"></div>
-              <div class="og-skeleton-line" style="width:60%"></div>
+              <div class="og-evento-card-cover og-skeleton-cover"></div>
+              <div class="og-evento-card-body">
+                <div class="og-skeleton-line" style="width:40%"></div>
+                <div class="og-skeleton-line" style="width:80%"></div>
+                <div class="og-skeleton-line" style="width:60%"></div>
+              </div>
             </div>
           }
         </div>
@@ -77,35 +81,45 @@ interface EventoCard {
         <div class="og-eventos-grid">
           @for (e of filtered(); track e.key) {
             <a class="og-evento-card" [class.og-evento-card-disabled]="!e.link" [routerLink]="e.link">
-              <div class="og-evento-card-top">
-                <span class="og-evento-card-icon"><og-icon [name]="e.kind === 'Liga' ? 'flag' : 'trophy'" [size]="19" /></span>
-                <og-pill [tone]="e.statusTone">{{ e.statusLabel }}</og-pill>
+              <div class="og-evento-card-cover">
+                @if (e.coverUrl && !coverFailed(e.key)) {
+                  <img [src]="e.coverUrl" alt="" loading="lazy" (error)="onCoverError(e.key)" />
+                } @else {
+                  <span class="og-evento-card-cover-fallback">
+                    <og-icon [name]="e.kind === 'Liga' ? 'flag' : 'trophy'" [size]="28" [strokeWidth]="1.6" />
+                  </span>
+                }
+                <span class="og-evento-card-cover-pill">
+                  <og-pill [tone]="e.statusTone">{{ e.statusLabel }}</og-pill>
+                </span>
               </div>
-              <div>
-                <div class="og-evento-card-name">{{ e.name }}</div>
-                <div class="og-evento-card-meta">{{ e.metaLabel }}</div>
-              </div>
-              @if (e.kind === 'Torneio') {
+              <div class="og-evento-card-body">
                 <div>
-                  <div class="og-evento-card-progress-row">
-                    <span>Inscritos</span>
-                    <span class="val">{{ e.inscritos ?? '—' }}{{ e.vagas ? '/' + e.vagas : '' }}</span>
+                  <div class="og-evento-card-name">{{ e.name }}</div>
+                  <div class="og-evento-card-meta">{{ e.metaLabel }}</div>
+                </div>
+                @if (e.kind === 'Torneio') {
+                  <div>
+                    <div class="og-evento-card-progress-row">
+                      <span>Inscritos</span>
+                      <span class="val">{{ e.inscritos ?? '—' }}{{ e.vagas ? '/' + e.vagas : '' }}</span>
+                    </div>
+                    <div class="og-progress"><span [style.width.%]="progressPct(e)"></span></div>
                   </div>
-                  <div class="og-progress"><span [style.width.%]="progressPct(e)"></span></div>
+                } @else {
+                  <div class="og-evento-card-progress-row">
+                    <span>Etapas</span>
+                    <span class="val">{{ e.etapas }}</span>
+                  </div>
+                }
+                <div class="og-evento-card-footer">
+                  <div>
+                    <div class="og-evento-card-footer-label">Arrecadado</div>
+                    <!-- mock (fase 2): arrecadação por evento fica no Financeiro (Task O7); sem dado real por evento ainda -->
+                    <div class="og-evento-card-footer-value">—</div>
+                  </div>
+                  <span class="og-ghost-btn">{{ e.link ? 'Gerenciar' : 'Sem etapa iniciada' }}</span>
                 </div>
-              } @else {
-                <div class="og-evento-card-progress-row">
-                  <span>Etapas</span>
-                  <span class="val">{{ e.etapas }}</span>
-                </div>
-              }
-              <div class="og-evento-card-footer">
-                <div>
-                  <div class="og-evento-card-footer-label">Arrecadado</div>
-                  <!-- mock (fase 2): arrecadação por evento fica no Financeiro (Task O7); sem dado real por evento ainda -->
-                  <div class="og-evento-card-footer-value">—</div>
-                </div>
-                <span class="og-ghost-btn">{{ e.link ? 'Gerenciar' : 'Sem etapa iniciada' }}</span>
               </div>
             </a>
           } @empty {
@@ -125,32 +139,58 @@ interface EventoCard {
       background: var(--nx-surface-0);
       border: 1px solid var(--nx-line);
       border-radius: var(--nx-r-4);
-      padding: 18px;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
-      gap: 12px;
       text-decoration: none;
       color: inherit;
+      transition: border-color 140ms var(--nx-ease-out);
+    }
+    .og-evento-card:not(.og-evento-card-disabled):hover {
+      border-color: var(--nx-line-strong);
     }
     .og-evento-card-disabled {
       opacity: 0.6;
       cursor: default;
     }
-    .og-evento-card-top {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 10px;
-    }
-    .og-evento-card-icon {
-      width: 42px;
-      height: 42px;
-      border-radius: var(--nx-r-2);
+    /* Capa do evento — altura fixa reserva o espaço (sem layout shift ao carregar). */
+    .og-evento-card-cover {
+      position: relative;
+      height: 116px;
       flex: none;
-      background: var(--nx-orange-tint);
-      color: var(--nx-orange-500);
+      background: linear-gradient(135deg, rgba(255, 106, 26, 0.14), var(--nx-surface-1) 70%);
+    }
+    .og-evento-card-cover img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .og-evento-card-cover-fallback {
+      position: absolute;
+      inset: 0;
       display: grid;
       place-items: center;
+      color: var(--nx-orange-500);
+      opacity: 0.55;
+    }
+    /* Scrim atrás da pill garante contraste sobre qualquer foto. */
+    .og-evento-card-cover-pill {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: inline-flex;
+      padding: 2px;
+      border-radius: var(--nx-r-pill);
+      background: rgba(7, 7, 8, 0.62);
+      backdrop-filter: blur(6px);
+    }
+    .og-evento-card-body {
+      padding: 14px 18px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
     }
     .og-evento-card-name {
       font-family: var(--nx-font-display);
@@ -207,6 +247,17 @@ interface EventoCard {
       padding: 8px 0;
       margin: 0;
     }
+    .og-skeleton-cover {
+      position: relative;
+      overflow: hidden;
+    }
+    .og-skeleton-cover::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, var(--nx-surface-2), transparent);
+      animation: og-shimmer 1.2s infinite;
+    }
     .og-skeleton-line {
       height: 12px;
       border-radius: 4px;
@@ -242,6 +293,8 @@ export class EventosListComponent {
   protected readonly tournaments = signal<OrganizerTournament[]>([]);
   protected readonly leagues = signal<OrganizerLeague[]>([]);
   protected readonly inscritosPorTorneio = signal<Map<string, number>>(new Map());
+  /** Capas que falharam ao carregar — o card volta pro fallback de gradiente + ícone. */
+  protected readonly failedCovers = signal<ReadonlySet<string>>(new Set());
 
   protected readonly cards = computed<EventoCard[]>(() => {
     const inscritosMap = this.inscritosPorTorneio();
@@ -253,6 +306,7 @@ export class EventosListComponent {
       metaLabel: `Torneio · ${t.sportLabel} · ${this.dateRangeLabel(t.startAt, t.endAt)}`,
       statusLabel: STATUS_LABEL[t.status],
       statusTone: STATUS_TONE[t.status],
+      coverUrl: t.coverUrl,
       inscritos: inscritosMap.get(t.id) ?? null,
       vagas: t.capacity,
       etapas: null,
@@ -270,6 +324,7 @@ export class EventosListComponent {
         metaLabel: `Liga · ${l.sportLabel}${l.seasonLabel ? ' · ' + l.seasonLabel : ''}`,
         statusLabel: `${l.stages.length} etapa${l.stages.length === 1 ? '' : 's'}`,
         statusTone: 'dim',
+        coverUrl: l.coverUrl,
         inscritos: null,
         vagas: null,
         etapas: l.stages.length,
@@ -323,5 +378,13 @@ export class EventosListComponent {
   protected progressPct(e: EventoCard): number {
     if (!e.vagas || e.inscritos == null) return 0;
     return Math.min(100, (e.inscritos / e.vagas) * 100);
+  }
+
+  protected coverFailed(key: string): boolean {
+    return this.failedCovers().has(key);
+  }
+
+  protected onCoverError(key: string): void {
+    this.failedCovers.update((set) => new Set(set).add(key));
   }
 }

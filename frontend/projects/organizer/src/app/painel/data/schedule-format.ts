@@ -26,7 +26,7 @@ export function formatCourtLabel(courtName: string | null | undefined): string {
   return `Quadra ${court}`;
 }
 
-/** Topo do card da chave: `#2 · Quadra 1` — paridade com `matchMetaLabelForCard`. */
+/** Topo do card da chave: `#2 · Quadra 1` — data/hora ficam no rodapé. */
 export function matchMetaLabel(m: TournamentMatch): string {
   const parts: string[] = [];
   if (m.matchNumber > 0) parts.push(`#${m.matchNumber}`);

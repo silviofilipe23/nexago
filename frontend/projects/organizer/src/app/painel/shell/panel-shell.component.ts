@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
@@ -17,6 +17,24 @@ interface OgNavEntry {
 
 const SECTION_LABEL = { global: 'Geral', torneio: 'Torneio', categoria: 'Categoria' } as const;
 
+/** "silvio.dionizio" → "Silvio Dionizio" — fallback de nome quando o Auth não tem displayName. */
+function nameFromEmail(email: string): string {
+  const local = email.split('@')[0] ?? '';
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+    .join(' ');
+}
+
+function initialsOfName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '—';
+  const first = parts[0]![0] ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]![0] ?? '') : '';
+  return (first + last).toUpperCase() || '—';
+}
+
 /** Shell do painel do organizador — navegação em cascata (Portal → Torneio → Categoria).
  *  A sidebar é contextual: os itens trocam conforme o nível derivado da rota
  *  (`PanelContextService`), com link de voltar e card do torneio/categoria em contexto. */
@@ -24,7 +42,11 @@ const SECTION_LABEL = { global: 'Geral', torneio: 'Torneio', categoria: 'Categor
   selector: 'og-panel-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, RouterOutlet, OgIconComponent, OgAvatarComponent],
-  host: { class: 'og-shell' },
+  host: {
+    class: 'og-shell',
+    '(document:click)': 'userMenuOpen.set(false)',
+    '(document:keydown.escape)': 'userMenuOpen.set(false)',
+  },
   template: `
     <nav class="og-sidebar">
       <a class="og-sidebar-brand" routerLink="/painel/inicio">
@@ -79,13 +101,30 @@ const SECTION_LABEL = { global: 'Geral', torneio: 'Torneio', categoria: 'Categor
       </div>
 
       <div class="og-sidebar-user">
-        <button type="button" class="og-sidebar-user-inner" (click)="signOut()">
-          <og-avatar initials="RS" [size]="32" />
+        @if (userMenuOpen()) {
+          <div class="og-user-menu" role="menu" (click)="$event.stopPropagation()">
+            <a class="og-user-menu-item" role="menuitem" routerLink="/painel/config" (click)="userMenuOpen.set(false)">
+              <og-icon name="gear" [size]="15" [strokeWidth]="1.9" />Configurações
+            </a>
+            <div class="og-user-menu-sep"></div>
+            <button type="button" class="og-user-menu-item danger" role="menuitem" (click)="signOut()">
+              <og-icon name="logout" [size]="15" [strokeWidth]="1.9" />Sair da conta
+            </button>
+          </div>
+        }
+        <button
+          type="button"
+          class="og-sidebar-user-inner"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="userMenuOpen()"
+          (click)="toggleUserMenu($event)"
+        >
+          <og-avatar [initials]="userInitials()" [photoUrl]="userPhoto()" [size]="32" />
           <span class="og-sidebar-user-body">
-            <span class="og-sidebar-user-name">Rafael Souza</span>
-            <span class="og-sidebar-user-role">Sair</span>
+            <span class="og-sidebar-user-name">{{ userName() }}</span>
+            <span class="og-sidebar-user-role">{{ userSubLabel() }}</span>
           </span>
-          <og-icon name="chevron" [size]="13" style="color:var(--nx-text-dim)" />
+          <og-icon name="chevron" [size]="13" class="og-user-caret" [class.open]="userMenuOpen()" />
         </button>
       </div>
     </nav>
@@ -168,7 +207,30 @@ export class PanelShellComponent {
     return current === item.link;
   }
 
+  // ── Perfil do usuário (dados reais do Firebase Auth) ────────
+  protected readonly userMenuOpen = signal(false);
+
+  protected readonly userName = computed(() => {
+    const name = this.auth.displayName()?.trim();
+    if (name) return name;
+    const email = this.auth.user()?.email;
+    return email ? nameFromEmail(email) : 'Organizador';
+  });
+
+  /** E-mail da conta; sem e-mail (não deve ocorrer), mostra o papel. */
+  protected readonly userSubLabel = computed(() => this.auth.user()?.email ?? 'Organizador');
+
+  protected readonly userInitials = computed(() => initialsOfName(this.userName()));
+
+  protected readonly userPhoto = computed(() => this.auth.user()?.photoURL ?? null);
+
+  protected toggleUserMenu(event: Event): void {
+    event.stopPropagation();
+    this.userMenuOpen.update((open) => !open);
+  }
+
   protected async signOut(): Promise<void> {
+    this.userMenuOpen.set(false);
     await this.auth.signOutUser();
     void this.router.navigateByUrl('/entrar');
   }

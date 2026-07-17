@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { truncateName } from '../data/mock-data';
 import type { TournamentMatch } from '../data/matches-repository';
 import { autoScheduleTournamentDay, dayKeyFromDate, scheduleMatch, unscheduleMatch } from '../data/organizer-ops.service';
 import { OgCardComponent } from '../ui/card.component';
@@ -96,7 +97,7 @@ interface AgendaBloco {
                           [style.height.px]="(b.durMin / slotMin) * rowH - 3"
                           (click)="toggleSelectBlock(b.match)"
                         >
-                          <div class="partida">{{ b.match.team1Label }} vs {{ b.match.team2Label }}</div>
+                          <div class="partida" [title]="b.match.team1Label + ' vs ' + b.match.team2Label">{{ truncate(b.match.team1Label, 14) }} vs {{ truncate(b.match.team2Label, 14) }}</div>
                           <div class="meta">
                             <span>#{{ b.match.matchNumber || '—' }}</span>
                             @if (b.match.round; as round) {
@@ -120,7 +121,7 @@ interface AgendaBloco {
         <og-card kicker="Aguardando horário" title="Fila de partidas" style="min-height:0;overflow:hidden">
           @if (selectedMatch(); as sel) {
             <div class="og-agenda-selected">
-              <div class="partida">{{ sel.team1Label }} vs {{ sel.team2Label }}</div>
+              <div class="partida" [title]="sel.team1Label + ' vs ' + sel.team2Label">{{ truncate(sel.team1Label, 16) }} vs {{ truncate(sel.team2Label, 16) }}</div>
               <div class="meta">Clique num slot livre da grade pra {{ sel.scheduledAt ? 'reagendar' : 'agendar' }}</div>
               <div style="display:flex;gap:8px;margin-top:8px">
                 @if (sel.scheduledAt) {
@@ -133,7 +134,7 @@ interface AgendaBloco {
           <div class="og-agenda-fila">
             @for (m of fila(); track m.id) {
               <button type="button" class="og-agenda-fila-item" [class.selected]="selectedMatchId() === m.id" (click)="toggleSelectQueue(m.id)">
-                <div class="partida">{{ m.team1Label }} vs {{ m.team2Label }}</div>
+                <div class="partida" [title]="m.team1Label + ' vs ' + m.team2Label">{{ truncate(m.team1Label, 16) }} vs {{ truncate(m.team2Label, 16) }}</div>
                 <div class="meta">
                   #{{ m.matchNumber || '—' }}
                   @if (m.round) {
@@ -394,6 +395,7 @@ export class AgendamentoComponent {
 
   protected readonly rowH = ROW_H;
   protected readonly slotMin = SLOT_MIN;
+  protected readonly truncate = truncateName;
   protected readonly busy = signal(false);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly selectedMatchId = signal<string | null>(null);

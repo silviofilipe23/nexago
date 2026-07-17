@@ -16,6 +16,7 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { AtBellComponent } from '../painel/at-bell.component';
 import { fetchAthleteDirectoryPage, fetchPublicProfilesByIds, levelBucketOf, searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchAthleteRankingGeneral } from '../data/rankings-repository';
 import type { FilterLevel } from '../ranking/athlete-ranking.models';
@@ -90,7 +91,7 @@ function entryFromProfile(profile: AthletePublicProfile, rank: number | null): A
 @Component({
   selector: 'app-athlete-directory',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent],
+  imports: [RouterLink, AtPanelShellComponent, AtBellComponent],
   templateUrl: './athlete-directory.component.html',
   styleUrl: './athlete-directory.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

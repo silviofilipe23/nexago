@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { initialsOf } from '../data/mock-data';
+import { initialsOf, truncateName } from '../data/mock-data';
 import { listInscriptions, type TournamentInscription } from '../data/inscriptions-repository';
 import { generateCategoryBracket } from '../data/organizer-ops.service';
 import type { OrganizerTournament, OrganizerTournamentCategory } from '../data/tournament.model';
@@ -110,7 +110,7 @@ interface GroupPreview {
                   <span class="og-seed-pos" [class.top]="useSeeds() && i < headCount()">{{ i + 1 }}</span>
                   <og-avatar [initials]="initialsOf(t.teamName, ' / ')" [size]="32" />
                   <span style="flex:1;min-width:0">
-                    <div class="og-seed-name">{{ t.teamName }}</div>
+                    <div class="og-seed-name" [title]="t.teamName">{{ truncate(t.teamName, 32) }}</div>
                   </span>
                   @if (useSeeds()) {
                     <button type="button" class="og-ghost-btn" [disabled]="i === 0" (click)="move(i, -1)">↑</button>
@@ -268,6 +268,7 @@ export class SeedsComponent {
   private readonly ctx = inject(ChaveamentoContextService);
 
   protected readonly initialsOf = initialsOf;
+  protected readonly truncate = truncateName;
   protected readonly formats: BracketFormat[] = ['groups_knockout', 'single_elimination', 'double_elimination'];
   protected readonly formatLabel = FORMAT_LABEL;
   protected readonly deMin = DE_MIN;

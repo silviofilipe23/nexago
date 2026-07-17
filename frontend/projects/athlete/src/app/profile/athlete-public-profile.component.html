@@ -35,28 +35,8 @@
             <span>{{ bl.label }}</span>
           </a>
         }
-        <button type="button" class="pp-btn-ghost" (click)="sendMessage()">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></svg>
-          <span>Mensagem</span>
-        </button>
-        <button
-          type="button"
-          class="pp-btn-ghost"
-          [class.pp-btn-ghost--active]="followed()"
-          (click)="toggleFollow()"
-        >
-          @if (followed()) {
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
-            <span>Seguindo</span>
-          } @else {
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-            <span>Seguir</span>
-          }
-        </button>
-        <button type="button" class="pp-btn-primary" (click)="challenge()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h7l-1 8 11-14h-7l1-6z" /></svg>
-          <span>Desafiar</span>
-        </button>
+        <!-- Mensagem/Seguir/Desafiar saíram: nenhum tem backend (sem DM de atleta, follow não
+             persiste e desafio não existe no app) — padrão do projeto: remover, não fingir. -->
       </div>
     </header>
 

@@ -127,6 +127,8 @@
         </div>
 
         <div class="at-col">
+          <app-sand-rank-card />
+
           <section class="at-card">
             <div class="at-card-head">
               <div>
@@ -176,14 +178,6 @@
               <button type="button" class="at-mini-btn" [disabled]="sendingReset()" (click)="sendPasswordReset()">
                 {{ sendingReset() ? 'Enviando...' : 'Alterar' }}
               </button>
-            </div>
-            <div class="at-profile-security-row">
-              <div>
-                <strong>Verificação em 2 etapas</strong>
-                <p>Código por e-mail em novos dispositivos.</p>
-              </div>
-              <span class="at-pill">Desativada</span>
-              <button type="button" class="at-mini-btn" disabled title="Em breve">Ativar</button>
             </div>
             @if (resetError(); as err) {
               <p class="at-profile-copy-feedback">{{ err }}</p>

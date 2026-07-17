@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
-import { initialsOf, type PillTone } from '../data/mock-data';
+import { initialsOf, truncateName, type PillTone } from '../data/mock-data';
 import { listInscriptions } from '../data/inscriptions-repository';
 import { confirmRegistrationPayment, moveToWaitlist, removeFromCategory, resendRegistrationPayment } from '../data/organizer-ops.service';
 import type { OrganizerTournament } from '../data/tournament.model';
@@ -103,7 +103,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
               <div class="og-row" style="flex-wrap:wrap">
                 <og-avatar [initials]="initialsOf(r.name, ' ')" [size]="34" />
                 <span style="flex:1.4;min-width:0">
-                  <div class="og-inscricoes-name">{{ r.name }}</div>
+                  <div class="og-inscricoes-name" [title]="r.name">{{ truncate(r.name, 32) }}</div>
                 </span>
                 <span style="flex:1" class="og-inscricoes-cat">{{ r.categoria }}</span>
                 <span style="width:70px" class="og-inscricoes-date">{{ r.date }}</span>
@@ -197,6 +197,7 @@ export class InscricoesComponent {
   protected readonly payTone = PAY_TONE;
   protected readonly payLabel = PAY_LABEL;
   protected readonly initialsOf = initialsOf;
+  protected readonly truncate = truncateName;
 
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);

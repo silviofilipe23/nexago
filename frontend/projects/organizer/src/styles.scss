@@ -784,9 +784,94 @@ button {
 }
 
 .og-sidebar-user {
+  position: relative;
   margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid var(--nx-line);
+}
+
+/* Menu do usuário — popover ancorado acima do cartão de perfil. */
+.og-user-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 20;
+  padding: 6px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line-strong);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transform-origin: bottom center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .og-user-menu {
+    animation: og-user-menu-in 160ms var(--nx-ease-out);
+  }
+}
+
+@keyframes og-user-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.og-user-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: var(--nx-r-2);
+  background: transparent;
+  border: none;
+  width: 100%;
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: left;
+}
+
+.og-user-menu-item:hover {
+  background: var(--nx-surface-2);
+  color: var(--nx-text);
+}
+
+.og-user-menu-item.danger {
+  color: var(--nx-live);
+}
+
+.og-user-menu-item.danger:hover {
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--nx-live);
+}
+
+.og-user-menu-sep {
+  height: 1px;
+  background: var(--nx-line);
+  margin: 4px 2px;
+}
+
+.og-user-caret {
+  color: var(--nx-text-dim);
+  flex: none;
+  transition: transform 160ms var(--nx-ease-out);
+}
+
+.og-user-caret.open {
+  transform: rotate(-90deg);
 }
 
 .og-sidebar-user-inner {
@@ -827,11 +912,12 @@ button {
 
 .og-sidebar-user-role {
   font-family: var(--nx-font-mono);
-  font-size: 8.5px;
+  font-size: 9px;
   font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
   color: var(--nx-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .og-main {
@@ -1837,10 +1923,11 @@ button {
   flex: 1;
 }
 
-/* Largura sincronizada com BRACKET_MATCH_WIDTH (bracket-tree.ts) — mudar junto. */
+/* Largura/altura sincronizadas com BRACKET_MATCH_* (bracket-tree.ts) — mudar junto.
+   Altura total = head 28 + 2×side 40 + sched 28 = 136. */
 .og-bracket-match {
   display: block;
-  width: 240px;
+  width: 280px;
   background: var(--nx-surface-0);
   border: 1px solid var(--nx-line);
   border-radius: var(--nx-r-2);
@@ -1855,18 +1942,27 @@ button {
   border-color: var(--nx-line-strong);
 }
 
+.og-bracket-match.is-pending {
+  cursor: default;
+  opacity: 0.78;
+}
+
+.og-bracket-match.is-pending:hover {
+  border-color: var(--nx-line);
+}
+
 .og-bracket-match-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 24px;
-  padding: 0 10px;
+  height: 28px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--nx-line);
 }
 
 .og-bracket-match-num {
   font-family: var(--nx-font-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--nx-text-dim);
 }
@@ -1876,8 +1972,8 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: 34px;
-  padding: 0 10px;
+  height: 40px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--nx-line);
 }
 
@@ -1916,7 +2012,7 @@ button {
   min-width: 0;
   font-family: var(--nx-font-display);
   font-weight: 500;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--nx-text);
   white-space: nowrap;
   overflow: hidden;
@@ -1932,7 +2028,7 @@ button {
   flex: none;
   font-family: var(--nx-font-mono);
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--nx-text-dim);
 }
 
@@ -1940,21 +2036,18 @@ button {
   color: var(--nx-orange-500);
 }
 
-/* Rodapé de agendamento do card (dia · hora | quadra) — 22px fixos: a altura do card
-   alimenta o cálculo dos conectores (BRACKET_MATCH_HEIGHT em bracket-tree.ts). */
+/* Rodapé de agendamento — 28px fixos; soma com head/sides = BRACKET_MATCH_HEIGHT. */
 .og-bracket-match-sched {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  height: 22px;
-  padding: 0 10px;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
   background: var(--nx-surface-1);
   font-family: var(--nx-font-mono);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
   color: var(--nx-text-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -1965,12 +2058,15 @@ button {
   align-items: center;
   gap: 5px;
   min-width: 0;
+  flex: 1;
   overflow: hidden;
 }
 
 .og-bracket-sched-when span {
   overflow: hidden;
   text-overflow: ellipsis;
+  text-transform: none;
+  letter-spacing: 0.02em;
 }
 
 .og-bracket-sched-court {
@@ -2021,6 +2117,5 @@ button {
 
 .og-de-match {
   position: absolute;
-  height: 92px;
   z-index: 1;
 }

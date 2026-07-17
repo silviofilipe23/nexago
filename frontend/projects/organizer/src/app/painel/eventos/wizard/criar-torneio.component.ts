@@ -47,6 +47,7 @@ import { OgSelectChipsComponent } from '../../ui/select-chips.component';
 import { OgStepperStaticComponent } from '../../ui/stepper-static.component';
 import { OgToggleRowComponent } from '../../ui/toggle-row.component';
 import { OgWizardShellComponent } from '../../ui/wizard-shell.component';
+import { NxPageLoadingComponent } from '../../../shared/loading/nx-page-loading.component';
 
 type SubView = 'categoria' | 'premio' | null;
 
@@ -105,6 +106,7 @@ function inputToDatetime(v: string): Date | null {
   imports: [
     RouterLink,
     OgWizardShellComponent,
+    NxPageLoadingComponent,
     OgCardComponent,
     OgFormFieldComponent,
     OgSelectChipsComponent,
@@ -141,6 +143,9 @@ function inputToDatetime(v: string): Date | null {
         [subtitle]="subtitle()"
         [ctaLabel]="ctaLabel()"
         [ctaDisabled]="saving()"
+        [ctaBusy]="saving()"
+        busyTitle="Salvando torneio…"
+        busyDescription="Enviando os dados do torneio e a arte de capa."
         [showDraft]="subView() === null"
         (cta)="onCta()"
         (back)="onBack()"
@@ -149,6 +154,9 @@ function inputToDatetime(v: string): Date | null {
         @if (feedback(); as fb) {
           <div class="og-banner" [class.win]="fb.ok">{{ fb.message }}</div>
         }
+        @if (editLoading()) {
+          <app-nx-page-loading title="Carregando torneio…" subtitle="Preenchendo o rascunho para edição" />
+        } @else {
 
         @switch (subView()) {
           @case ('categoria') {
@@ -461,6 +469,7 @@ function inputToDatetime(v: string): Date | null {
             }
           }
         }
+        }
       </og-wizard-shell>
     }
   `,
@@ -564,6 +573,8 @@ export class CriarTorneioComponent {
   protected readonly step = signal<TournamentCreateStep>('identity');
   protected readonly subView = signal<SubView>(null);
   protected readonly saving = signal(false);
+  /** Carga do doc no modo edição (`?editar=`) — sem isso o form pisca vazio até popular. */
+  protected readonly editLoading = signal(false);
   protected readonly publishedId = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   private existingListingStatus: string | null = null;
@@ -653,13 +664,18 @@ export class CriarTorneioComponent {
   }
 
   private async loadForEdit(id: string): Promise<void> {
-    const loaded = await loadTournamentDraft(id);
-    if (!loaded) {
-      this.feedback.set({ ok: false, message: 'Torneio não encontrado pra edição.' });
-      return;
+    this.editLoading.set(true);
+    try {
+      const loaded = await loadTournamentDraft(id);
+      if (!loaded) {
+        this.feedback.set({ ok: false, message: 'Torneio não encontrado pra edição.' });
+        return;
+      }
+      this.draft.set(loaded.draft);
+      this.existingListingStatus = loaded.existingListingStatus;
+    } finally {
+      this.editLoading.set(false);
     }
-    this.draft.set(loaded.draft);
-    this.existingListingStatus = loaded.existingListingStatus;
   }
 
   // ── Helpers de template ──

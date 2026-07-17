@@ -11,6 +11,8 @@ import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgToggleRowComponent } from '../ui/toggle-row.component';
+import { NxProcessingOverlayComponent } from '../../shared/loading/nx-processing-overlay.component';
+import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
 type BracketFormat = 'groups_knockout' | 'single_elimination' | 'double_elimination';
 
@@ -38,12 +40,17 @@ interface GroupPreview {
 @Component({
   selector: 'og-seeds',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent, OgToggleRowComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent, OgToggleRowComponent, NxProcessingOverlayComponent, NxSpinnerComponent],
   template: `
     <og-page-header title="Gerar chave" [subtitle]="headerSubtitle()">
       <button type="button" class="og-ghost-btn" (click)="cancel()">Cancelar</button>
       <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="publishing() || !canPublish()" (click)="publish()">
-        <og-icon name="bracket" [size]="14" />{{ publishing() ? 'Publicando…' : 'Publicar chave' }}
+        @if (publishing()) {
+          <app-nx-spinner [size]="14" tone="dark" />
+        } @else {
+          <og-icon name="bracket" [size]="14" />
+        }
+        {{ publishing() ? 'Publicando…' : 'Publicar chave' }}
       </button>
     </og-page-header>
 
@@ -145,8 +152,16 @@ interface GroupPreview {
         }
       </div>
     </div>
+    @if (publishing()) {
+      <app-nx-processing-overlay title="Sorteando a chave…" description="Distribuindo as cabeças de chave e sorteando as demais duplas nos grupos." />
+    }
   `,
   styles: `
+    :host {
+      display: block;
+      position: relative;
+    }
+
     .og-seed-row {
       display: flex;
       align-items: center;

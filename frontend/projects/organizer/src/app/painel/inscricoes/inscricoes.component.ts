@@ -10,6 +10,7 @@ import { OgChartTabsComponent } from '../ui/chart-tabs.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
+import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
 /** Status da linha no vocabulário real do schema (`isPaid`/`waitlist`) — "estorno" não existe
  *  no backend, então a aba do protótipo foi trocada por "espera" (fila real). */
@@ -39,7 +40,7 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
 @Component({
   selector: 'og-inscricoes',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgChartTabsComponent, OgIconComponent, OgPillComponent, OgAvatarComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgChartTabsComponent, OgIconComponent, OgPillComponent, OgAvatarComponent, NxSpinnerComponent],
   template: `
     <og-page-header title="Inscrições" [subtitle]="headerSubtitle()">
       <!-- mock (fase 2): busca do header ainda decorativa em toda a IA do protótipo (idem Início) -->
@@ -112,13 +113,33 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
                 @if (actionsFor() === r.id) {
                   <div class="og-inscricoes-actions">
                     @if (r.pay !== 'pago') {
-                      <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="confirmPayment(r)">Confirmar pagamento</button>
-                      <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="resend(r)">Reenviar cobrança</button>
+                      <button type="button" class="og-mini-btn" [disabled]="busy()" (click)="confirmPayment(r)">
+                        @if (busyKey() === 'confirm:' + r.id) {
+                          <app-nx-spinner [size]="12" />
+                        }
+                        {{ busyKey() === 'confirm:' + r.id ? 'Confirmando…' : 'Confirmar pagamento' }}
+                      </button>
+                      <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="resend(r)">
+                        @if (busyKey() === 'resend:' + r.id) {
+                          <app-nx-spinner [size]="12" />
+                        }
+                        {{ busyKey() === 'resend:' + r.id ? 'Reenviando…' : 'Reenviar cobrança' }}
+                      </button>
                     }
                     @if (r.pay !== 'espera') {
-                      <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="toWaitlist(r)">Mover pra espera</button>
+                      <button type="button" class="og-ghost-btn" [disabled]="busy()" (click)="toWaitlist(r)">
+                        @if (busyKey() === 'waitlist:' + r.id) {
+                          <app-nx-spinner [size]="12" />
+                        }
+                        {{ busyKey() === 'waitlist:' + r.id ? 'Movendo…' : 'Mover pra espera' }}
+                      </button>
                     }
-                    <button type="button" class="og-ghost-btn danger" [disabled]="busy()" (click)="remove(r)">Remover da categoria</button>
+                    <button type="button" class="og-ghost-btn danger" [disabled]="busy()" (click)="remove(r)">
+                      @if (busyKey() === 'remove:' + r.id) {
+                        <app-nx-spinner [size]="12" />
+                      }
+                      {{ busyKey() === 'remove:' + r.id ? 'Removendo…' : 'Remover da categoria' }}
+                    </button>
                   </div>
                 }
               </div>
@@ -201,6 +222,8 @@ export class InscricoesComponent {
 
   protected readonly loading = signal(true);
   protected readonly busy = signal(false);
+  /** Qual ação/inscrição está processando (`'confirm:<id>'` etc.) — o botão certo mostra spinner. */
+  protected readonly busyKey = signal<string | null>(null);
   protected readonly actionsFor = signal<string | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
@@ -266,8 +289,9 @@ export class InscricoesComponent {
     this.actionsFor.update((cur) => (cur === id ? null : id));
   }
 
-  private async run(action: () => Promise<unknown>, okMessage: string): Promise<void> {
+  private async run(key: string, action: () => Promise<unknown>, okMessage: string): Promise<void> {
     this.busy.set(true);
+    this.busyKey.set(key);
     this.feedback.set(null);
     try {
       await action();
@@ -282,23 +306,24 @@ export class InscricoesComponent {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Operação falhou.' });
     } finally {
       this.busy.set(false);
+      this.busyKey.set(null);
     }
   }
 
   protected confirmPayment(r: InscricaoRow): void {
-    void this.run(() => confirmRegistrationPayment(r.id), `Pagamento de ${r.name} confirmado.`);
+    void this.run(`confirm:${r.id}`, () => confirmRegistrationPayment(r.id), `Pagamento de ${r.name} confirmado.`);
   }
 
   protected toWaitlist(r: InscricaoRow): void {
-    void this.run(() => moveToWaitlist(r.id), `${r.name} movido pra lista de espera.`);
+    void this.run(`waitlist:${r.id}`, () => moveToWaitlist(r.id), `${r.name} movido pra lista de espera.`);
   }
 
   protected remove(r: InscricaoRow): void {
     if (!confirm(`Remover ${r.name} da categoria? A vaga é liberada.`)) return;
-    void this.run(() => removeFromCategory(r.id), `${r.name} removido da categoria.`);
+    void this.run(`remove:${r.id}`, () => removeFromCategory(r.id), `${r.name} removido da categoria.`);
   }
 
   protected resend(r: InscricaoRow): void {
-    void this.run(() => resendRegistrationPayment(r.id), `Cobrança reenviada pra ${r.name}.`);
+    void this.run(`resend:${r.id}`, () => resendRegistrationPayment(r.id), `Cobrança reenviada pra ${r.name}.`);
   }
 }

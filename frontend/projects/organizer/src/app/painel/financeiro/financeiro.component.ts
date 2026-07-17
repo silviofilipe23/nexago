@@ -20,6 +20,9 @@ import { OgFormFieldComponent } from '../ui/form-field.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
+import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
+import { NxProcessingOverlayComponent } from '../../shared/loading/nx-processing-overlay.component';
+import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
 // ── Chave PIX: espelho de `PayoutPixKeyType` (nexago_app/lib/features/arena/domain/payout_pix_key_type.dart),
 // mesmo tipo usado pelo organizador (organizer_financial_page.dart importa esse enum). Algoritmo de
@@ -184,6 +187,9 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
     OgIconComponent,
     OgPillComponent,
     OgFormFieldComponent,
+    NxPageLoadingComponent,
+    NxProcessingOverlayComponent,
+    NxSpinnerComponent,
   ],
   template: `
     <og-page-header title="Financeiro" subtitle="Saldo consolidado da carteira">
@@ -192,7 +198,7 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
 
     <div class="og-content">
       @if (loading()) {
-        <p class="og-fin-loading">Carregando…</p>
+        <app-nx-page-loading title="Carregando financeiro…" subtitle="Saldo, extrato e saques" />
       } @else {
         <div class="og-kpi-row">
           <og-card pad="sm" flex="1.2">
@@ -298,6 +304,9 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
                   <div class="og-fin-formactions">
                     <button type="button" class="og-ghost-btn" (click)="cancelEditPix()">Cancelar</button>
                     <button type="submit" class="og-mini-btn og-mini-btn-primary" [disabled]="!canSavePix()">
+                      @if (pixSaving()) {
+                        <app-nx-spinner [size]="12" tone="dark" />
+                      }
                       {{ pixSaving() ? 'Salvando…' : 'Salvar' }}
                     </button>
                   </div>
@@ -323,6 +332,9 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
                 <p class="og-fin-hint">Cadastre uma chave PIX acima para poder sacar.</p>
               }
               <button type="button" class="og-mini-btn og-mini-btn-primary og-fin-submit" [disabled]="!canWithdraw()" (click)="submitWithdrawal()">
+                @if (withdrawing()) {
+                  <app-nx-spinner [size]="12" tone="dark" />
+                }
                 {{ withdrawing() ? 'Enviando…' : 'Solicitar saque' }}
               </button>
               @if (withdrawFeedback(); as f) {
@@ -333,8 +345,16 @@ const EMPTY_WALLET: OrganizerWalletSummary = { availableReais: 0, pendingReais: 
         </div>
       }
     </div>
+    @if (withdrawing()) {
+      <app-nx-processing-overlay title="Enviando solicitação de saque…" description="Registrando o pedido na sua carteira." />
+    }
   `,
   styles: `
+    :host {
+      display: block;
+      position: relative;
+    }
+
     .og-fin-loading {
       font-family: var(--nx-font-ui);
       font-size: 13.5px;

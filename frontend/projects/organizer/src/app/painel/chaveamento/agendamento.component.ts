@@ -5,6 +5,8 @@ import { autoScheduleTournamentDay, dayKeyFromDate, scheduleMatch, unscheduleMat
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
+import { NxProcessingOverlayComponent } from '../../shared/loading/nx-processing-overlay.component';
+import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import { ChaveamentoContextService } from './chaveamento-context.service';
 
 const ROW_H = 100; // px por slot de 30min — cards mais altos pra caber confronto + meta
@@ -27,11 +29,16 @@ interface AgendaBloco {
 @Component({
   selector: 'og-agendamento',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, NxProcessingOverlayComponent, NxSpinnerComponent],
   template: `
     <og-page-header title="Agendamento de jogos" [subtitle]="headerSubtitle()">
       <button type="button" class="og-mini-btn" [disabled]="busy() || !ctx.tournament()" (click)="autoSchedule()">
-        <og-icon name="clock" [size]="14" />{{ busy() ? 'Processando…' : 'Auto-agendar dia' }}
+        @if (autoScheduling()) {
+          <app-nx-spinner [size]="14" />
+        } @else {
+          <og-icon name="clock" [size]="14" />
+        }
+        {{ busy() ? 'Processando…' : 'Auto-agendar dia' }}
       </button>
     </og-page-header>
 
@@ -154,8 +161,16 @@ interface AgendaBloco {
         </div>
       }
     </div>
+    @if (autoScheduling()) {
+      <app-nx-processing-overlay title="Auto-agendando o dia…" description="Distribuindo as partidas elegíveis nos horários livres das quadras." />
+    }
   `,
   styles: `
+    :host {
+      display: block;
+      position: relative;
+    }
+
     .og-agenda-layout {
       flex: 1;
       min-height: 0;
@@ -397,6 +412,8 @@ export class AgendamentoComponent {
   protected readonly slotMin = SLOT_MIN;
   protected readonly truncate = truncateName;
   protected readonly busy = signal(false);
+  /** Auto-agendamento em andamento (preview → confirm → apply) — liga o overlay. */
+  protected readonly autoScheduling = signal(false);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly selectedMatchId = signal<string | null>(null);
   protected readonly selectedDayKey = signal<string>(dayKeyFromDate(new Date()));
@@ -547,6 +564,7 @@ export class AgendamentoComponent {
     if (!t || this.busy()) return;
     const dayKey = this.selectedDayKey();
     this.busy.set(true);
+    this.autoScheduling.set(true);
     this.feedback.set(null);
     try {
       const preview = await autoScheduleTournamentDay({ tournamentId: t.id, dayKey, preview: true });
@@ -565,6 +583,7 @@ export class AgendamentoComponent {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha no auto-agendamento.' });
     } finally {
       this.busy.set(false);
+      this.autoScheduling.set(false);
     }
   }
 

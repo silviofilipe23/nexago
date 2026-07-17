@@ -1,9 +1,20 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { NxProcessingOverlayComponent } from '../../shared/loading/nx-processing-overlay.component';
+import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
-/** Cabeçalho + barra de progresso compartilhados pelos wizards de Torneio/Liga/Etapa. */
+/** Cabeçalho + barra de progresso compartilhados pelos wizards de Torneio/Liga/Etapa.
+ *  `ctaBusy` troca o CTA pra spinner + `ctaBusyLabel` e, quando `busyTitle` é informado,
+ *  cobre o wizard com o overlay de processamento (publicar faz upload de capa + callable). */
 @Component({
   selector: 'og-wizard-shell',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [NxProcessingOverlayComponent, NxSpinnerComponent],
+  styles: `
+    :host {
+      display: block;
+      position: relative;
+    }
+  `,
   template: `
     <div class="og-wizard-top">
       <div class="og-wizard-top-row">
@@ -16,12 +27,17 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         </div>
         <div class="og-page-header-actions">
           @if (step() > 1) {
-            <button type="button" class="og-ghost-btn" (click)="back.emit()">Voltar</button>
+            <button type="button" class="og-ghost-btn" [disabled]="ctaBusy()" (click)="back.emit()">Voltar</button>
           }
           @if (showDraft()) {
-            <button type="button" class="og-ghost-btn" (click)="saveDraft.emit()">Salvar rascunho</button>
+            <button type="button" class="og-ghost-btn" [disabled]="ctaBusy()" (click)="saveDraft.emit()">Salvar rascunho</button>
           }
-          <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="ctaDisabled()" (click)="cta.emit()">{{ ctaLabel() }}</button>
+          <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="ctaDisabled() || ctaBusy()" (click)="cta.emit()">
+            @if (ctaBusy()) {
+              <app-nx-spinner [size]="12" tone="dark" />
+            }
+            {{ ctaBusy() ? ctaBusyLabel() : ctaLabel() }}
+          </button>
         </div>
       </div>
       <div class="og-wizard-progress">
@@ -35,6 +51,9 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
         <ng-content />
       </div>
     </div>
+    @if (ctaBusy() && busyTitle(); as title) {
+      <app-nx-processing-overlay [title]="title" [description]="busyDescription()" />
+    }
   `,
 })
 export class OgWizardShellComponent {
@@ -46,6 +65,12 @@ export class OgWizardShellComponent {
   readonly ctaLabel = input('Continuar');
   readonly ctaDisabled = input(false);
   readonly showDraft = input(true);
+  /** Ação do CTA em andamento — troca rótulo/spinner e desabilita as demais ações. */
+  readonly ctaBusy = input(false);
+  readonly ctaBusyLabel = input('Salvando…');
+  /** Título do overlay de processamento — informe pra cobrir o wizard em ações longas. */
+  readonly busyTitle = input<string | null>(null);
+  readonly busyDescription = input<string | null>(null);
 
   readonly cta = output<void>();
   readonly back = output<void>();

@@ -7,6 +7,7 @@ import { OgFormFieldComponent } from '../ui/form-field.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgToggleRowComponent } from '../ui/toggle-row.component';
+import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
 type Audience = 'all' | 'paid' | 'pending';
 
@@ -41,7 +42,7 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
 @Component({
   selector: 'og-comunicacao',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgFormFieldComponent, OgToggleRowComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgFormFieldComponent, OgToggleRowComponent, NxSpinnerComponent],
   template: `
     <og-page-header title="Comunicação" [subtitle]="headerSubtitle()" />
 
@@ -101,7 +102,12 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
 
           <div style="margin-top:14px;display:flex;justify-content:flex-end">
             <button type="button" class="og-mini-btn og-mini-btn-primary" [disabled]="sending() || !canSend()" (click)="send()">
-              <og-icon name="mail" [size]="14" />{{ sending() ? 'Enviando…' : 'Enviar aviso' }}
+              @if (sending()) {
+                <app-nx-spinner [size]="14" tone="dark" />
+              } @else {
+                <og-icon name="mail" [size]="14" />
+              }
+              {{ sending() ? 'Enviando…' : 'Enviar aviso' }}
             </button>
           </div>
         }

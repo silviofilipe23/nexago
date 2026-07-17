@@ -7,6 +7,7 @@ import { getTournament } from '../data/tournaments-repository';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
+import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
 const STATUS_LABEL: Record<OrganizerTournamentStatus, string> = {
   inscricoes: 'Inscrições abertas',
@@ -33,15 +34,25 @@ interface CategoriaRow {
 @Component({
   selector: 'og-torneio-detalhe',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent],
+  imports: [RouterLink, OgPageHeaderComponent, OgIconComponent, OgPillComponent, NxSpinnerComponent],
   template: `
     <og-page-header [title]="tournament()?.name ?? 'Torneio'" [subtitle]="headerSubtitle()">
       @if (tournament(); as t) {
         @if (t.status === 'inscricoes') {
-          <button type="button" class="og-ghost-btn" [disabled]="acting()" (click)="closeRegistrations()">Encerrar inscrições</button>
+          <button type="button" class="og-ghost-btn" [disabled]="acting()" (click)="closeRegistrations()">
+            @if (actingKind() === 'close') {
+              <app-nx-spinner [size]="12" />
+            }
+            {{ actingKind() === 'close' ? 'Encerrando…' : 'Encerrar inscrições' }}
+          </button>
         }
         @if (t.status !== 'cancelado' && t.status !== 'concluido') {
-          <button type="button" class="og-ghost-btn og-torneio-danger" [disabled]="acting()" (click)="cancel()">Cancelar torneio</button>
+          <button type="button" class="og-ghost-btn og-torneio-danger" [disabled]="acting()" (click)="cancel()">
+            @if (actingKind() === 'cancel') {
+              <app-nx-spinner [size]="12" />
+            }
+            {{ actingKind() === 'cancel' ? 'Cancelando…' : 'Cancelar torneio' }}
+          </button>
         }
         <a class="og-mini-btn" routerLink="/painel/novo-torneio" [queryParams]="{ editar: t.id }"><og-icon name="edit" [size]="14" />Editar torneio</a>
       }
@@ -363,6 +374,8 @@ export class TorneioDetalheComponent {
 
   protected readonly loading = signal(true);
   protected readonly acting = signal(false);
+  /** Qual ação de header está em andamento — o botão certo mostra spinner/rótulo. */
+  protected readonly actingKind = signal<'close' | 'cancel' | null>(null);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly tournament = signal<OrganizerTournament | null>(null);
   protected readonly inscriptions = signal<TournamentInscription[]>([]);
@@ -429,6 +442,7 @@ export class TorneioDetalheComponent {
     if (!t || this.acting()) return;
     if (!confirm('Encerrar as inscrições de todas as categorias deste torneio?')) return;
     this.acting.set(true);
+    this.actingKind.set('close');
     this.feedback.set(null);
     try {
       await closeTournamentRegistrations(t.id);
@@ -438,6 +452,7 @@ export class TorneioDetalheComponent {
       this.feedback.set({ ok: false, message: (e as Error).message || 'Falha ao encerrar inscrições.' });
     } finally {
       this.acting.set(false);
+      this.actingKind.set(null);
     }
   }
 
@@ -446,6 +461,7 @@ export class TorneioDetalheComponent {
     if (!t || this.acting()) return;
     if (!confirm(`Cancelar "${t.name}"? Os atletas inscritos serão notificados.`)) return;
     this.acting.set(true);
+    this.actingKind.set('cancel');
     this.feedback.set(null);
     try {
       await cancelTournament(t.id);
@@ -470,6 +486,7 @@ export class TorneioDetalheComponent {
       }
     } finally {
       this.acting.set(false);
+      this.actingKind.set(null);
     }
   }
 

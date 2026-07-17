@@ -68,6 +68,7 @@ function discoveryTournamentFromSummary(s: TournamentSummary, myTournamentIds: R
     liveMatchesNow: s.liveMatchesNow,
     enrolled: myTournamentIds.has(s.id),
     registrationOpensAt: registrationOpensAt(s),
+    coverUrl: s.coverUrl,
     leagueId: s.leagueId ?? undefined,
     leagueStageId: s.leagueStageId ?? undefined,
   };
@@ -79,6 +80,7 @@ function discoveryLeagueFromLeague(l: League): DiscoveryLeague {
     name: l.name,
     seasonLabel: l.seasonLabel ?? undefined,
     city: l.city ?? undefined,
+    coverUrl: l.coverUrl,
     stages: l.stages.map((s) => ({ id: s.id, name: s.name, order: s.order, dateLabel: s.dateLabel ?? undefined, tournamentIds: s.tournamentIds })),
   };
 }

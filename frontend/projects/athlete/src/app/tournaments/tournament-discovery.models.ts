@@ -9,6 +9,8 @@ export interface DiscoveryLeague {
   /** Ex.: "Temporada 2026" */
   seasonLabel?: string;
   city?: string;
+  /** Capa cadastrada (`coverUrl`/`imageUrl` no Firestore); null = fallback de gradiente. */
+  coverUrl: string | null;
   stages: DiscoveryLeagueStage[];
 }
 
@@ -43,6 +45,8 @@ export interface DiscoveryTournament {
   enrolled: boolean;
   /** Quando as inscrições ainda não abriram (null = já abertas ou torneio encerrado). */
   registrationOpensAt: Date | null;
+  /** Capa cadastrada (`coverUrl`/`imageUrl` no Firestore); null = fallback de gradiente. */
+  coverUrl: string | null;
   /** Quando faz parte de uma liga (redundante com MOCK_DISCOVERY_LEAGUES; útil para APIs). */
   leagueId?: string;
   leagueStageId?: string;

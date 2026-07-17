@@ -338,9 +338,11 @@
 }
 
 .rg-duo-avatar {
+  position: relative;
   width: 32px;
   height: 32px;
   border-radius: 50%;
+  overflow: hidden;
   background: var(--nx-orange-500);
   color: var(--nx-text-on-orange);
   border: 2px solid var(--nx-surface-1);
@@ -355,6 +357,19 @@
     background: var(--nx-surface-2);
     color: var(--nx-text);
   }
+}
+
+.rg-duo-avatar-fallback {
+  display: grid;
+  place-items: center;
+}
+
+.rg-duo-avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .rg-invite-icon {

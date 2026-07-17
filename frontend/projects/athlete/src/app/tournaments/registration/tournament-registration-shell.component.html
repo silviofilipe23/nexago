@@ -90,7 +90,12 @@
                   @for (p of partnerResults(); track p.id) {
                     <div class="rg-option-row">
                       <span class="rg-duo-avatars" aria-hidden="true">
-                        <span class="rg-duo-avatar">{{ initialsOf(p.displayName) }}</span>
+                        <span class="rg-duo-avatar">
+                          <span class="rg-duo-avatar-fallback">{{ initialsOf(p.displayName) }}</span>
+                          @if (p.avatarUrl; as photo) {
+                            <img class="rg-duo-avatar-img" [src]="photo" alt="" loading="lazy" />
+                          }
+                        </span>
                       </span>
                       <span class="rg-option-copy">
                         <span class="rg-option-title">{{ p.displayName }}</span>

@@ -84,9 +84,14 @@
         <div class="ad-grid">
           @for (a of filteredOthers(); track a.id) {
             <article class="ad-card">
-              <span class="ad-avatar">{{ athleteInitials(a.fullName) }}</span>
-              <p class="ad-card-name">{{ a.fullName }}</p>
-              <p class="ad-card-handle">&#64;{{ a.handle }} · {{ a.city || 'Cidade não informada' }}</p>
+              <span class="ad-avatar" aria-hidden="true">
+                <span class="ad-avatar-fallback">{{ athleteInitials(a.fullName) }}</span>
+                @if (a.avatarUrl; as photo) {
+                  <img class="ad-avatar-img" [src]="photo" alt="" loading="lazy" />
+                }
+              </span>
+              <p class="ad-card-name">{{a.nickname ? a.nickname : a.fullName }}</p>
+              <p class="ad-card-handle">{{ a.city || 'Cidade não informada' }}</p>
               <div class="ad-pill-row">
                 <span class="ad-sport-pill">
                   <span class="ad-sport-dot" [attr.data-sport]="a.sport" aria-hidden="true"></span>

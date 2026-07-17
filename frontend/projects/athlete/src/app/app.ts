@@ -18,6 +18,9 @@ const SHELL_ROUTE_PREFIXES = [
   '/equipes',
   '/atletas',
   '/perfil',
+  '/comunidade',
+  '/bora-jogar',
+  '/notificacoes',
 ];
 const AUTH_ROUTES = [
   '/entrar',

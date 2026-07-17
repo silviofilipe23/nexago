@@ -83,7 +83,7 @@ interface CategoriaRow {
 
         <div class="og-torneio-cats-head">
           <div>
-            <div class="og-torneio-cats-kicker">Cascata · passo 2</div>
+            <div class="og-torneio-cats-kicker">CATEGORIAS · passo 2</div>
             <div class="og-torneio-cats-title">Categorias — selecione para gerenciar</div>
           </div>
           <div class="og-page-header-spacer"></div>
@@ -148,6 +148,7 @@ interface CategoriaRow {
        a foto. Altura fixa: nada de layout shift quando a imagem chega. */
     .og-torneio-hero {
       position: relative;
+      z-index: 0;
       height: 236px;
       flex: none;
       margin: -22px -32px -78px;
@@ -211,12 +212,14 @@ interface CategoriaRow {
     /* KPIs e banner de feedback pousam SOBRE a área do hero. */
     .og-torneio-kpis {
       position: relative;
+      z-index: 2;
     }
     .og-torneio-kpis.over-hero .og-card {
       box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
     }
     .og-banner {
       position: relative;
+      z-index: 2;
     }
     .og-torneio-cats-head {
       display: flex;

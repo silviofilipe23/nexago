@@ -321,9 +321,19 @@ async function findPendingInvite(
     .where("status", "==", "pending")
     .get();
 
+  const now = Date.now();
   return snap.docs.some((d) => {
     const data = d.data();
-    return data.categoryId === categoryId && data.inviteeUid === inviteeUid;
+    if (data.categoryId !== categoryId || data.inviteeUid !== inviteeUid) {
+      return false;
+    }
+    // Convites expirados ficam com status "pending" até alguém tocá-los — não
+    // devem bloquear um novo envio (mesmo critério do accept, que marca expired).
+    const expiresAt = data.expiresAt as Timestamp | undefined;
+    if (expiresAt && typeof expiresAt.toMillis === "function" && expiresAt.toMillis() < now) {
+      return false;
+    }
+    return true;
   });
 }
 

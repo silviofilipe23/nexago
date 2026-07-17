@@ -89,11 +89,59 @@ export interface UniformInput {
   jerseyName?: string;
 }
 
-export class TournamentRegistrationError extends Error {}
+export class TournamentRegistrationError extends Error {
+  constructor(
+    message: string,
+    readonly code: string | null = null,
+  ) {
+    super(message);
+    this.name = 'TournamentRegistrationError';
+  }
 
+  /** Já existe convite pendente válido (`functions/already-exists` → HTTP 409). */
+  get isPendingInviteConflict(): boolean {
+    return this.code === 'already-exists';
+  }
+}
+
+function stripFirebaseMessage(raw: string | null | undefined): string | null {
+  if (!raw?.trim()) return null;
+  return (
+    raw
+      .trim()
+      .replace(/^Firebase:\s*/i, '')
+      .replace(/\s*\(functions\/[^)]+\)\.?\s*$/i, '')
+      .trim() || null
+  );
+}
+
+/** Mesmo padrão de `arena-bookings-repository.mapCallableError` — extrai a mensagem PT
+ *  do HttpsError (não o "Conflict" cru do HTTP 409). */
 function mapCallableError(err: unknown): TournamentRegistrationError {
-  const message = err instanceof Error && err.message ? err.message : 'Não foi possível concluir a operação.';
-  return new TournamentRegistrationError(message);
+  const fb = err as { code?: string; message?: string };
+  const code = (fb.code ?? '').replace(/^functions\//, '');
+  const detail = stripFirebaseMessage(fb.message);
+  switch (code) {
+    case 'unauthenticated':
+      return new TournamentRegistrationError('Faça login para continuar.', code);
+    case 'permission-denied':
+      return new TournamentRegistrationError(detail ?? 'Sem permissão para esta operação.', code);
+    case 'not-found':
+      return new TournamentRegistrationError(detail ?? 'Registro não encontrado.', code);
+    case 'invalid-argument':
+      return new TournamentRegistrationError(detail ?? 'Dados inválidos.', code);
+    case 'failed-precondition':
+      return new TournamentRegistrationError(detail ?? 'Não foi possível concluir a operação.', code);
+    case 'already-exists':
+      return new TournamentRegistrationError(
+        detail ?? 'Já existe um convite pendente para este parceiro.',
+        code,
+      );
+    case 'internal':
+      return new TournamentRegistrationError(detail ?? 'Erro no servidor. Tente novamente.', code);
+    default:
+      return new TournamentRegistrationError(detail ?? 'Não foi possível concluir a operação.', code || null);
+  }
 }
 
 /** Cria a inscrição sozinho (`partnerPending: true`, sem doc em `teams` ainda) — precisa

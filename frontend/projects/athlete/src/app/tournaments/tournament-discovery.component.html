@@ -147,8 +147,13 @@
             <div class="cp-grid">
               @for (t of standaloneTournaments(); track t.id) {
                 <a class="cp-card" [routerLink]="['/torneios', t.id]">
-                  <div class="cp-card-hero" [style.background]="heroGradient(t.id)">
-                    <span class="cp-card-hero-ring" aria-hidden="true"></span>
+                  <div class="cp-card-hero" [style.background]="t.coverUrl ? null : heroGradient(t.id)">
+                    @if (t.coverUrl; as cover) {
+                      <img class="cp-card-hero-img" [src]="cover" alt="" loading="lazy" />
+                      <span class="cp-card-hero-scrim" aria-hidden="true"></span>
+                    } @else {
+                      <span class="cp-card-hero-ring" aria-hidden="true"></span>
+                    }
                     <span class="cp-card-badge" [attr.data-tone]="tournamentBadge(t).tone">{{ tournamentBadge(t).label }}</span>
                   </div>
                   <div class="cp-card-body">
@@ -192,8 +197,13 @@
             <div class="cp-grid">
               @for (card of visibleLeagueCards(); track card.league.id) {
                 <a class="cp-card cp-card--league" [routerLink]="['/ligas', card.league.id]">
-                  <div class="cp-card-hero" [style.background]="heroGradient(card.league.id)">
-                    <span class="cp-card-hero-ring" aria-hidden="true"></span>
+                  <div class="cp-card-hero" [style.background]="card.league.coverUrl ? null : heroGradient(card.league.id)">
+                    @if (card.league.coverUrl; as cover) {
+                      <img class="cp-card-hero-img" [src]="cover" alt="" loading="lazy" />
+                      <span class="cp-card-hero-scrim" aria-hidden="true"></span>
+                    } @else {
+                      <span class="cp-card-hero-ring" aria-hidden="true"></span>
+                    }
                     <span class="cp-card-badge" [attr.data-tone]="card.badge.tone">{{ card.badge.label }}</span>
                     <span class="cp-league-tag">LIGA · {{ card.completedCount }}/{{ card.stageViews.length }} ETAPAS</span>
                   </div>

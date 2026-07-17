@@ -19,15 +19,21 @@ import { environment } from '../../environments/environment';
 
 const DEV_KEY = 'nexago-athlete-dev-auth';
 
-/** Roles que nunca devem acessar o portal do atleta (papéis de outros portais). */
+/** Roles exclusivas de outros portais — só bloqueiam quando a conta NÃO é atleta. */
 const NON_ATHLETE_ROLES = ['admin', 'arena', 'organizer'];
 
-/** Doc ausente ou sem `roles` conta como atleta (default do cadastro). Só
- *  bloqueia quando `roles[]` traz, de forma explícita, papel de outro portal. */
-function docHasNonAthleteRole(data: Record<string, unknown> | undefined): boolean {
+/** `roles[]` é acumulativo (ex.: atleta que vira organizador fica com
+ *  `['athlete','organizer']` — ver `withArenaRole` em functions/src/arena-signup.ts).
+ *  Regras: doc ausente ou sem `roles` conta como atleta (default do cadastro);
+ *  conta multi-role COM 'athlete' entra normalmente; só bloqueia quando os papéis
+ *  são exclusivamente de outros portais. */
+function docBlocksAthleteAccess(data: Record<string, unknown> | undefined): boolean {
   if (!data) return false;
-  const roles = data['roles'];
-  return Array.isArray(roles) && roles.some((r) => NON_ATHLETE_ROLES.includes(String(r)));
+  const raw = data['roles'];
+  if (!Array.isArray(raw)) return false;
+  const roles = raw.map(String);
+  if (roles.length === 0 || roles.includes('athlete')) return false;
+  return roles.some((r) => NON_ATHLETE_ROLES.includes(r));
 }
 
 @Injectable({ providedIn: 'root' })
@@ -127,9 +133,9 @@ export class AuthService {
     await this.assertAthleteRole(credential.user.uid);
   }
 
-  /** Bloqueia e desloga quem tem papel de outro portal (arena/organizador/admin).
-   *  Doc ausente ou sem `roles[]` é tratado como atleta (mesma regra do
-   *  firestore.rules na criação do doc — roles[] é opcional, padrão é atleta). */
+  /** Bloqueia e desloga quem só tem papéis de outros portais (arena/organizador/admin
+   *  SEM 'athlete' no `roles[]`). Conta multi-role que inclui 'athlete' entra normalmente;
+   *  doc ausente ou sem `roles[]` é tratado como atleta (default do cadastro). */
   private async assertAthleteRole(uid: string): Promise<void> {
     const cfg = environment.firebase;
     if (cfg == null || (cfg.apiKey ?? '').length === 0) return;
@@ -138,7 +144,7 @@ export class AuthService {
       const app = getApps().length ? getApps()[0]! : initializeApp(cfg);
       const snap = await getDoc(doc(getFirestore(app), 'users', uid));
       const data = snap.exists() ? (snap.data() as Record<string, unknown>) : undefined;
-      if (!docHasNonAthleteRole(data)) return;
+      if (!docBlocksAthleteAccess(data)) return;
     } catch {
       // Falha ao ler o perfil não deve travar o login de um atleta legítimo —
       // segue sem bloquear; o bloqueio só age quando a checagem POSITIVAMENTE

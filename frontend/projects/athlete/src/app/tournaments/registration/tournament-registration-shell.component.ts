@@ -223,7 +223,14 @@ export class TournamentRegistrationShellComponent {
       this.partnerResults.set([]);
       this.partnerQuery.set('');
     } catch (err) {
-      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível enviar o convite.');
+      // 409 / already-exists = convite ainda válido — trata como ok (já foi enviado).
+      if (err instanceof TournamentRegistrationError && err.isPendingInviteConflict) {
+        this.showNotice(`Convite já enviado para ${candidate.displayName}.`);
+        this.partnerResults.set([]);
+        this.partnerQuery.set('');
+      } else {
+        this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível enviar o convite.');
+      }
     } finally {
       this.invitingId.set(null);
     }

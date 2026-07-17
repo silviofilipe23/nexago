@@ -10,22 +10,22 @@ import {
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { ARENA_SPORT_CHIP_OPTIONS, type ArenaSportChip } from '@nexago/arena-discovery';
+import { ARENA_SPORT_CHIP_OPTIONS, sportFirestoreIdFromChip, type ArenaSportChip } from '@nexago/arena-discovery';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { AtBellComponent } from '../painel/at-bell.component';
-import { fetchAthleteDirectoryPage, fetchPublicProfilesByIds, levelBucketOf, searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
+import { fetchAthleteDirectoryPage, levelBucketOf, searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchAthleteRankingGeneral } from '../data/rankings-repository';
 import type { FilterLevel } from '../ranking/athlete-ranking.models';
 import type { AthleteDirectoryEntry } from './athlete-directory.models';
 
 export type SortBy = 'ranking' | 'name' | 'level';
 
-const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante', 'Intermediário', 'Open'];
-const LEVEL_ORDER: Record<FilterLevel, number> = { all: -1, Open: 0, Intermediário: 1, Iniciante: 2 };
+const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante 1', 'Iniciante 2', 'Intermediário 1', 'Intermediário 2', 'Open'];
+const LEVEL_ORDER: Record<FilterLevel, number> = { all: -1, 'Open': 0, 'Intermediário 2': 1, 'Intermediário 1': 2, 'Iniciante 2': 3, 'Iniciante 1': 4 };
 const CITY_ALL = 'all';
 
 const SORT_OPTIONS: readonly { value: SortBy; label: string }[] = [
@@ -34,12 +34,17 @@ const SORT_OPTIONS: readonly { value: SortBy; label: string }[] = [
   { value: 'level', label: 'Nível' },
 ];
 
+/** Tamanho de página Firestore (espelha `AthleteDiscoverRepository.pageSize`). */
+const PAGE_TARGET = 30;
+/** Teto de páginas por reload quando refina nível/cidade no client (custo: ≤150 leituras). */
+const MAX_REFINE_PAGES = 5;
+
 const SPORT_SHORT_LABEL: Partial<Record<ArenaSportChip, string>> = {
-  beachVolleyball: 'Vôlei',
+  beachVolleyball: 'Vôlei de praia',
   beachTennis: 'Beach tênis',
   tennis: 'Tênis',
   padel: 'Padel',
-  volleyball: 'Vôlei indoor',
+  volleyball: 'Vôlei de quadra',
   football: 'Futebol',
 };
 
@@ -76,18 +81,19 @@ function entryFromProfile(profile: AthletePublicProfile, rank: number | null): A
   return {
     id: profile.id,
     handle: profile.handle ?? profile.id,
+    nickname: profile.nickname,
     fullName: profile.displayName,
     city: profile.city ?? '',
     sport: profile.sportChip,
     level: levelBucketOf(profile.levelCode),
     rankingPosition: rank,
+    avatarUrl: profile.avatarUrl,
   };
 }
 
-/** Busca de atletas real: `public_profiles` paginado (`hasAthleteRole==true`, cursor por id do
- *  doc) ou `keywords array-contains` quando há termo de busca — espelha
- *  `AthleteDiscoverRepository` (Flutter). Sem "sugeridos pra você"/distância real (dependeriam
- *  de grafo de seguidores e geolocalização, nenhum dos dois existe hoje). */
+/** Diretório de atletas: pré-filtra esporte no Firestore (`discoverSportIds`, mesmo índice do
+ *  app) e busca textual via `keywords`. Nível/cidade não têm índice — refinados no client após
+ *  o fetch (com paginação extra limitada). Ordenação só no client. */
 @Component({
   selector: 'app-athlete-directory',
   standalone: true,
@@ -135,6 +141,8 @@ export class AthleteDirectoryComponent {
   protected readonly hasMore = signal(false);
   protected readonly loadingMore = signal(false);
   private rankPositionById = new Map<string, number>();
+  /** Descarta respostas atrasadas quando o usuário troca de filtro rápido. */
+  private reloadGeneration = 0;
 
   protected readonly cityOptions = computed(() => {
     const cities = [...new Set(this.allAthletes().map((a) => a.city).filter((c) => c.length > 0))].sort((a, b) => a.localeCompare(b));
@@ -145,14 +153,13 @@ export class AthleteDirectoryComponent {
     const sport = this.sportFilter();
     const level = this.levelFilter();
     const city = this.cityFilter();
-    const q = this.filterQuery().trim().toLowerCase();
     const sort = this.sortBy();
-
+    // Esporte já veio pré-filtrado do Firestore quando há código canônico; mantém o filtro
+    // local como rede de segurança (padel / perfis sem discoverSportIds / busca por keywords).
     const list = this.allAthletes()
       .filter((a) => a.sport === sport)
       .filter((a) => level === 'all' || a.level === level)
-      .filter((a) => city === CITY_ALL || a.city === city)
-      .filter((a) => !q || a.fullName.toLowerCase().includes(q));
+      .filter((a) => city === CITY_ALL || a.city === city);
 
     return [...list].sort((a, b) => {
       switch (sort) {
@@ -168,22 +175,37 @@ export class AthleteDirectoryComponent {
   });
 
   protected readonly totalRegisteredLabel = computed(() => {
-    const n = this.allAthletes().length;
-    return `${n} carregado${n === 1 ? '' : 's'}`;
+    const n = this.filteredOthers().length;
+    const loaded = this.allAthletes().length;
+    if (n === loaded) return `${n} atleta${n === 1 ? '' : 's'}`;
+    return `${n} de ${loaded} carregado${loaded === 1 ? '' : 's'}`;
   });
 
   constructor() {
     this.destroyRef.onDestroy(() => clearTimeout(this.queryDebounceHandle));
 
+    // Qualquer mudança de filtro (texto, esporte, nível, cidade) dispara nova busca no backend.
+    // Ordenação continua só no client (não há índice equivalente).
     effect(() => {
-      const q = this.filterQuery();
-      void this.reload(q);
+      const term = this.filterQuery();
+      const sport = this.sportFilter();
+      this.levelFilter();
+      this.cityFilter();
+      void this.reload(term, sport);
     });
   }
 
-  private async reload(term: string): Promise<void> {
+  private sportFirestoreIdOf(sport: ArenaSportChip): string | null {
+    return sportFirestoreIdFromChip(sport);
+  }
+
+  private async reload(term: string, sport: ArenaSportChip): Promise<void> {
     const db = this.firestore;
     const projectId = environment.firebase.projectId;
+    const gen = ++this.reloadGeneration;
+    const level = this.levelFilter();
+    const city = this.cityFilter();
+
     if (!db || !projectId) {
       this.allAthletes.set([]);
       this.loading.set(false);
@@ -191,27 +213,60 @@ export class AthleteDirectoryComponent {
     }
 
     this.loading.set(true);
+    this.nextCursor = null;
+    this.hasMore.set(false);
     try {
       if (this.rankPositionById.size === 0) {
         const ranking = await fetchAthleteRankingGeneral(db, projectId);
+        if (gen !== this.reloadGeneration) return;
         ranking.forEach((r, i) => this.rankPositionById.set(r.id, i + 1));
       }
 
+      const sportFirestoreId = this.sportFirestoreIdOf(sport);
+
       if (term.trim()) {
         const profiles = await searchAthleteDirectory(db, term);
+        if (gen !== this.reloadGeneration) return;
         this.allAthletes.set(profiles.map((p) => entryFromProfile(p, this.rankPositionById.get(p.id) ?? null)));
         this.hasMore.set(false);
         this.nextCursor = null;
       } else {
-        const page = await fetchAthleteDirectoryPage(db, null);
-        this.allAthletes.set(page.profiles.map((p) => entryFromProfile(p, this.rankPositionById.get(p.id) ?? null)));
-        this.nextCursor = page.nextCursor;
-        this.hasMore.set(page.nextCursor != null);
+        // Nível/cidade não têm índice — pré-filtra esporte no Firestore e pagina até ter
+        // resultados úteis após o refino local (teto MAX_REFINE_PAGES).
+        const wantClientRefine = level !== 'all' || city !== CITY_ALL;
+        const maxPages = wantClientRefine ? MAX_REFINE_PAGES : 1;
+        const collected: AthleteDirectoryEntry[] = [];
+        let cursor: string | null = null;
+        let pages = 0;
+        let next: string | null = null;
+
+        while (pages < maxPages) {
+          const page = await fetchAthleteDirectoryPage(db, { sportFirestoreId, cursor });
+          if (gen !== this.reloadGeneration) return;
+          pages += 1;
+          collected.push(...page.profiles.map((p) => entryFromProfile(p, this.rankPositionById.get(p.id) ?? null)));
+          next = page.nextCursor;
+          cursor = page.nextCursor;
+          if (!page.nextCursor) break;
+          if (!wantClientRefine) break;
+          const matching = collected.filter(
+            (a) => a.sport === sport && (level === 'all' || a.level === level) && (city === CITY_ALL || a.city === city),
+          ).length;
+          if (matching >= PAGE_TARGET) break;
+        }
+
+        if (gen !== this.reloadGeneration) return;
+        this.allAthletes.set(collected);
+        this.nextCursor = next;
+        this.hasMore.set(next != null);
       }
     } catch {
+      if (gen !== this.reloadGeneration) return;
       this.allAthletes.set([]);
+      this.hasMore.set(false);
+      this.nextCursor = null;
     } finally {
-      this.loading.set(false);
+      if (gen === this.reloadGeneration) this.loading.set(false);
     }
   }
 
@@ -220,7 +275,8 @@ export class AthleteDirectoryComponent {
     if (!db || !this.nextCursor || this.loadingMore()) return;
     this.loadingMore.set(true);
     try {
-      const page = await fetchAthleteDirectoryPage(db, this.nextCursor);
+      const sportFirestoreId = this.sportFirestoreIdOf(this.sportFilter());
+      const page = await fetchAthleteDirectoryPage(db, { sportFirestoreId, cursor: this.nextCursor });
       this.allAthletes.update((current) => [
         ...current,
         ...page.profiles.map((p) => entryFromProfile(p, this.rankPositionById.get(p.id) ?? null)),

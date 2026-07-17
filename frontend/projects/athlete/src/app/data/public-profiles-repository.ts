@@ -22,6 +22,7 @@ import type { RankingLevel } from '../ranking/athlete-ranking.models';
 export interface AthletePublicProfile {
   id: string;
   displayName: string;
+  nickname: string | null;
   handle: string | null;
   city: string | null;
   state: string | null;
@@ -84,13 +85,16 @@ export function levelRankOf(raw: string | null): number | null {
   }
 }
 
-/** Bucket de 3 níveis (`AthleteProfileOptions.legacyBucketLabel`) — "Avançado"/"Profissional"
+/** Bucket de 5 níveis (`AthleteProfileOptions.legacyBucketLabel`) — "Avançado"/"Profissional"
  *  não existem como tiers reais no backend (eram sinônimos legados que viraram Intermediário/Open). */
 export function levelBucketOf(raw: string | null): RankingLevel | null {
   const rank = levelRankOf(raw);
   if (rank == null) return null;
-  if (rank <= 1) return 'Iniciante';
-  if (rank <= 3) return 'Intermediário';
+  if (rank <= 1) return 'Iniciante 1';
+  if (rank <= 2) return 'Iniciante 2';
+  if (rank <= 3) return 'Intermediário 1';
+  if (rank <= 4) return 'Intermediário 2';
+  if (rank <= 5) return 'Open';
   return 'Open';
 }
 
@@ -120,6 +124,7 @@ export function athletePublicProfileFromDoc(id: string, data: Record<string, unk
   return {
     id,
     displayName: nickname ?? optionalTrimmed(data['fullName']) ?? optionalTrimmed(data['name']) ?? `Atleta (…${id.slice(-6)})`,
+    nickname,
     handle: stripHandle(nickname),
     city: optionalTrimmed(data['city']),
     state: optionalTrimmed(data['state']),
@@ -136,19 +141,59 @@ export function athletePublicProfileFromDoc(id: string, data: Record<string, unk
 
 const PAGE_SIZE = 30;
 
-/** Página de atletas descobríveis, ordenada por id do doc (cursor barato, sem precisar de
- *  snapshot) — espelha `AthleteDiscoverRepository` (Flutter). Filtra `isDiscoverable` no
- *  client (não é indexado). */
+export interface AthleteDirectoryPageQuery {
+  /** Código Firestore (`VOLEI_PRAIA`, …) — pré-filtra via `discoverSportIds` (mesmo índice do app). */
+  sportFirestoreId?: string | null;
+  cursor?: string | null;
+}
+
+/** Página de atletas descobríveis. Com `sportFirestoreId`, usa
+ *  `hasAthleteRole + discoverSportIds array-contains` (índice do app); senão pagina por id.
+ *  `isDiscoverable` continua filtrado no client (não é indexado). */
 export async function fetchAthleteDirectoryPage(
   db: Firestore,
-  cursor: string | null,
+  params: AthleteDirectoryPageQuery | string | null = {},
 ): Promise<{ profiles: AthletePublicProfile[]; nextCursor: string | null }> {
-  const constraints = [where('hasAthleteRole', '==', true), orderBy(documentId()), limit(PAGE_SIZE)];
-  const q = cursor
-    ? query(collection(db, 'public_profiles'), where('hasAthleteRole', '==', true), orderBy(documentId()), startAfter(cursor), limit(PAGE_SIZE))
-    : query(collection(db, 'public_profiles'), ...constraints);
+  // Compat: chamadas antigas `fetchAthleteDirectoryPage(db, cursor)`.
+  const queryParams: AthleteDirectoryPageQuery = typeof params === 'string' || params == null ? { cursor: params } : params;
+  const cursor = queryParams.cursor ?? null;
+  const sportId = queryParams.sportFirestoreId?.trim() || null;
+  const col = collection(db, 'public_profiles');
 
-  const snap = await getDocs(q);
+  const run = async (sportField: 'discoverSportIds' | 'sportOnboarding.primarySportId', asArray: boolean) => {
+    const sportConstraint = asArray
+      ? where(sportField, 'array-contains', sportId!)
+      : where(sportField, '==', sportId!);
+    const q = cursor
+      ? query(col, where('hasAthleteRole', '==', true), sportConstraint, orderBy(documentId()), startAfter(cursor), limit(PAGE_SIZE))
+      : query(col, where('hasAthleteRole', '==', true), sportConstraint, orderBy(documentId()), limit(PAGE_SIZE));
+    return getDocs(q);
+  };
+
+  let snap;
+  if (sportId) {
+    try {
+      snap = await run('discoverSportIds', true);
+      // Perfis antigos sem `discoverSportIds` — tenta o primário (paridade Flutter).
+      if (snap.empty && !cursor) {
+        snap = await run('sportOnboarding.primarySportId', false);
+      }
+    } catch {
+      // Índice ausente / campo inconsistente — cai no catálogo geral; o client filtra o chip.
+      snap = await getDocs(
+        cursor
+          ? query(col, where('hasAthleteRole', '==', true), orderBy(documentId()), startAfter(cursor), limit(PAGE_SIZE))
+          : query(col, where('hasAthleteRole', '==', true), orderBy(documentId()), limit(PAGE_SIZE)),
+      );
+    }
+  } else {
+    snap = await getDocs(
+      cursor
+        ? query(col, where('hasAthleteRole', '==', true), orderBy(documentId()), startAfter(cursor), limit(PAGE_SIZE))
+        : query(col, where('hasAthleteRole', '==', true), orderBy(documentId()), limit(PAGE_SIZE)),
+    );
+  }
+
   const profiles = snap.docs
     .map((d) => athletePublicProfileFromDoc(d.id, d.data() as Record<string, unknown>))
     .filter((p) => p.isDiscoverable);

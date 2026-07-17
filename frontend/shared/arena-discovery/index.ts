@@ -38,6 +38,7 @@ export {
   arenaHasIndexedSportMetadata,
   arenaMatchesSportChip,
   defaultSportChipFromProfile,
+  sportFirestoreIdFromChip,
 } from './sport-chip';
 
 export type {

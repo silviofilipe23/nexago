@@ -16,7 +16,7 @@ export const ARENA_SPORT_CHIP_OPTIONS: readonly { chip: ArenaSportChip; label: s
   { chip: 'beachTennis', label: 'Beach tênis' },
   { chip: 'tennis', label: 'Tênis' },
   { chip: 'padel', label: 'Padel' },
-  { chip: 'volleyball', label: 'Vôlei' },
+  { chip: 'volleyball', label: 'Vôlei de quadra' },
   { chip: 'football', label: 'Futebol' },
 ];
 
@@ -155,4 +155,24 @@ export function defaultSportChipFromProfile(params: {
     }
   }
   return sportChipFromLabel(params.sport ?? '') ?? 'beachVolleyball';
+}
+
+/** Chip da UI → código Firestore (`AthleteFirestoreCodes` / onboarding). `null` = sem pré-filtro
+ *  no backend (ex.: padel ainda sem código canônico). */
+export function sportFirestoreIdFromChip(chip: ArenaSportChip): string | null {
+  switch (chip) {
+    case 'beachVolleyball':
+      return 'VOLEI_PRAIA';
+    case 'volleyball':
+      return 'VOLEI_QUADRA';
+    case 'beachTennis':
+      return 'BEACH_TENNIS';
+    case 'tennis':
+      return 'TENIS';
+    case 'football':
+      return 'FUTEBOL';
+    case 'padel':
+    case 'all':
+      return null;
+  }
 }

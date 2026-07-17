@@ -32,7 +32,7 @@ export interface RankingRow extends RankingParticipant {
   rank: number;
 }
 
-const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante', 'Intermediário', 'Open'];
+const LEVEL_OPTIONS: readonly FilterLevel[] = ['all', 'Iniciante 1', 'Iniciante 2', 'Intermediário 1', 'Intermediário 2', 'Open'];
 const CITY_ALL = 'all';
 
 function createFirestore(): Firestore | null {

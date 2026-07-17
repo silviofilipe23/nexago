@@ -36,26 +36,86 @@ class _PrizeEditorSheet extends ConsumerStatefulWidget {
 class _PrizeEditorSheetState extends ConsumerState<_PrizeEditorSheet> {
   late List<TournamentCategoryPrizeDraft> _prizes;
   late final TextEditingController _totalController;
+  final List<TextEditingController> _rowControllers = [];
+
+  /// Controllers de linhas removidas; descartados só no dispose para não
+  /// invalidar um TextField que ainda está sendo desmontado no mesmo frame.
+  final List<TextEditingController> _retiredControllers = [];
   var _applyToAll = false;
 
   @override
   void initState() {
     super.initState();
     _prizes = List<TournamentCategoryPrizeDraft>.from(widget.category.prizes);
-    final total = _prizes.fold<int>(0, (sum, p) => sum + p.valueCents);
     _totalController = TextEditingController(
-      text: total > 0 ? (total ~/ 100).toString() : '',
+      text: _reaisText(prizeListTotalCents(_prizes)),
     );
+    for (final prize in _prizes) {
+      _rowControllers.add(
+        TextEditingController(text: _reaisText(prize.valueCents)),
+      );
+    }
   }
 
+  String _reaisText(int cents) =>
+      cents > 0 ? (cents / 100).round().toString() : '';
+
+  int _parseReais(String value) =>
+      int.tryParse(value.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
   void _onTotalChanged(String value) {
-    final reais = int.tryParse(value.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-    setState(() => _prizes = defaultCategoryPrizes(reais * 100));
+    setState(() {
+      _prizes = defaultCategoryPrizes(_parseReais(value) * 100);
+      _syncRowControllers();
+    });
+  }
+
+  void _syncRowControllers() {
+    for (var i = 0; i < _prizes.length; i++) {
+      final text = _reaisText(_prizes[i].valueCents);
+      if (i < _rowControllers.length) {
+        _rowControllers[i].text = text;
+      } else {
+        _rowControllers.add(TextEditingController(text: text));
+      }
+    }
+    while (_rowControllers.length > _prizes.length) {
+      _retiredControllers.add(_rowControllers.removeLast());
+    }
+  }
+
+  void _onRowChanged(int index, String value) {
+    setState(() {
+      _prizes[index] =
+          _prizes[index].copyWith(valueCents: _parseReais(value) * 100);
+      _totalController.text = _reaisText(prizeListTotalCents(_prizes));
+    });
+  }
+
+  void _addPlacement() {
+    setState(() {
+      _prizes = [..._prizes, nextPrizeDraft(_prizes)];
+      _rowControllers.add(TextEditingController());
+    });
+  }
+
+  void _removeLastPlacement() {
+    setState(() {
+      _prizes = _prizes.sublist(0, _prizes.length - 1);
+      _retiredControllers.add(_rowControllers.removeLast());
+      _totalController.text = _reaisText(prizeListTotalCents(_prizes));
+    });
   }
 
   @override
   void dispose() {
     _totalController.dispose();
+    for (final controller in _rowControllers) {
+      controller.dispose();
+    }
+    for (final controller in _retiredControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -106,7 +166,8 @@ class _PrizeEditorSheetState extends ConsumerState<_PrizeEditorSheet> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Dividimos em 1º, 2º e 3º automaticamente.',
+              'Sugerimos a divisão automaticamente — ajuste os valores por '
+              'colocação. Alterar o total refaz a divisão.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: context.themeColors.onSurfaceMuted,
                   ),
@@ -114,7 +175,7 @@ class _PrizeEditorSheetState extends ConsumerState<_PrizeEditorSheet> {
             const SizedBox(height: 20),
             const OrganizerSectionLabel('DISTRIBUIÇÃO'),
             const SizedBox(height: 12),
-            for (final prize in _prizes) ...[
+            for (var i = 0; i < _prizes.length; i++) ...[
               Row(
                 children: [
                   Container(
@@ -126,30 +187,47 @@ class _PrizeEditorSheetState extends ConsumerState<_PrizeEditorSheet> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      '${prize.position}º',
+                      '${_prizes[i].position}º',
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      prize.label ?? '${prize.position}º lugar',
+                      _prizes[i].label ?? '${_prizes[i].position}º lugar',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
                     ),
                   ),
-                  Text(
-                    formatCents(prize.valueCents),
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                  SizedBox(
+                    width: 120,
+                    child: OrganizerTextField(
+                      controller: _rowControllers[i],
+                      hintText: 'R\$ 0',
+                      keyboardType: TextInputType.number,
+                      onChanged: (value) => _onRowChanged(i, value),
+                    ),
                   ),
+                  if (i == _prizes.length - 1 && _prizes.length > 1)
+                    IconButton(
+                      onPressed: _removeLastPlacement,
+                      icon: const Icon(Icons.remove_circle_outline, size: 20),
+                      color: context.themeColors.onSurfaceMuted,
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Remover colocação',
+                    ),
                 ],
               ),
               const SizedBox(height: 10),
             ],
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
+            OrganizerAddDashedCard(
+              title: 'Adicionar colocação',
+              subtitle: nextPrizeDraft(_prizes).label ?? '',
+              onTap: _addPlacement,
+            ),
+            const SizedBox(height: 16),
             OrganizerToggleSettingRow(
               icon: Icons.copy_all_outlined,
               title: 'Aplicar a todas as categorias',

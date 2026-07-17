@@ -23,6 +23,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
     this.tournamentName = '',
     this.organizerManagerId,
     this.organizerPixKey = '',
+    this.organizerPixKeyType = '',
     this.organizerPixRecipientName = '',
     this.organizerPixCity = '',
     this.showSoloPartnerInvite = false,
@@ -46,6 +47,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
   final String tournamentName;
   final String? organizerManagerId;
   final String organizerPixKey;
+  final String organizerPixKeyType;
   final String organizerPixRecipientName;
   final String organizerPixCity;
   final bool showSoloPartnerInvite;
@@ -172,6 +174,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
             dualPaymentOnly: dualPaymentOnly,
             managerId: organizerManagerId,
             pixKey: organizerPixKey,
+            pixKeyType: organizerPixKeyType,
             pixRecipientName: organizerPixRecipientName,
             pixCity: organizerPixCity,
           ),

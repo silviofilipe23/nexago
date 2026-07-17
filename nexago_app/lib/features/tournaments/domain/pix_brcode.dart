@@ -3,10 +3,16 @@
 /// pagamento direto ao organizador.
 ///
 /// Referência: Manual de Padrões para Iniciação do PIX (BCB) — EMVCo MPM + CRC16.
+/// A chave no campo 26-01 precisa seguir o Manual do DICT (telefone com +55,
+/// CPF/CNPJ só dígitos, EVP em minúsculas).
 abstract final class PixBrCode {
   PixBrCode._();
 
   static const String _gui = 'br.gov.bcb.pix';
+  static final RegExp _evpPattern = RegExp(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+    caseSensitive: false,
+  );
 
   /// Monta o BR Code. [amount] em reais (ex.: 160.0); <= 0 omite o valor (o
   /// pagador digita no app do banco). [txid] é normalizado (alfanumérico, ≤25);
@@ -17,8 +23,9 @@ abstract final class PixBrCode {
     String city = 'BRASIL',
     double amount = 0,
     String txid = '***',
+    String keyType = '',
   }) {
-    final cleanKey = key.trim();
+    final cleanKey = normalizeKeyForBrCode(key, keyType: keyType);
     final name = _sanitizeText(recipientName, fallback: 'RECEBEDOR', maxLen: 25);
     final town = _sanitizeText(city, fallback: 'BRASIL', maxLen: 15);
     final tx = _sanitizeTxid(txid);
@@ -33,7 +40,8 @@ abstract final class PixBrCode {
       ..write(_tlv('53', '986')); // Moeda (BRL)
 
     if (amount > 0) {
-      buffer.write(_tlv('54', amount.toStringAsFixed(2)));
+      final cents = (amount * 100).round() / 100.0;
+      buffer.write(_tlv('54', cents.toStringAsFixed(2)));
     }
 
     buffer
@@ -50,6 +58,67 @@ abstract final class PixBrCode {
   /// Validação básica da chave (não exaustiva): não vazia.
   static bool isLikelyValidKey(String? key) {
     return key != null && key.trim().isNotEmpty;
+  }
+
+  /// Normaliza a chave para o formato DICT exigido no BR Code.
+  static String normalizeKeyForBrCode(String raw, {String keyType = ''}) {
+    final key = raw.trim();
+    if (key.isEmpty) return key;
+    final kind = _resolveKind(key, keyType);
+
+    switch (kind) {
+      case _PixKeyKind.phone:
+        var d = key.replaceAll(RegExp(r'\D'), '');
+        if (d.startsWith('55') && (d.length == 12 || d.length == 13)) {
+          d = d.substring(2);
+        }
+        if (d.length < 10 || d.length > 11) return key;
+        return '+55$d';
+      case _PixKeyKind.cpf:
+        final d = key.replaceAll(RegExp(r'\D'), '');
+        return d.length == 11 ? d : key;
+      case _PixKeyKind.cnpj:
+        final d = key.toUpperCase().replaceAll(RegExp(r'[^0-9A-Z]'), '');
+        return d.length == 14 ? d : key;
+      case _PixKeyKind.email:
+        return key;
+      case _PixKeyKind.random:
+        return key.toLowerCase();
+      case _PixKeyKind.raw:
+        return key;
+    }
+  }
+
+  static _PixKeyKind _resolveKind(String raw, String keyType) {
+    final type = keyType.trim().toLowerCase();
+    if (type == 'phone' || type == 'telefone' || type == 'celular') {
+      return _PixKeyKind.phone;
+    }
+    if (type == 'cpf') return _PixKeyKind.cpf;
+    if (type == 'cnpj') return _PixKeyKind.cnpj;
+    if (type == 'email' || type == 'e-mail') return _PixKeyKind.email;
+    if (type == 'random' ||
+        type == 'evp' ||
+        type == 'aleatoria' ||
+        type == 'aleatória') {
+      return _PixKeyKind.random;
+    }
+
+    final key = raw.trim();
+    if (key.contains('@')) return _PixKeyKind.email;
+    if (_evpPattern.hasMatch(key)) return _PixKeyKind.random;
+    final digits = key.replaceAll(RegExp(r'\D'), '');
+    if (digits.length == 14) return _PixKeyKind.cnpj;
+    if (key.startsWith('+') ||
+        (digits.length >= 10 &&
+            digits.length <= 13 &&
+            digits.startsWith('55'))) {
+      return _PixKeyKind.phone;
+    }
+    if (digits.length == 11 && digits[2] == '9') return _PixKeyKind.phone;
+    if (digits.length == 11) return _PixKeyKind.cpf;
+    if (digits.length == 10) return _PixKeyKind.phone;
+    return _PixKeyKind.raw;
   }
 
   /// TLV: id (2) + tamanho (2, zero-padded) + valor.
@@ -111,3 +180,5 @@ abstract final class PixBrCode {
     return result;
   }
 }
+
+enum _PixKeyKind { phone, cpf, cnpj, email, random, raw }

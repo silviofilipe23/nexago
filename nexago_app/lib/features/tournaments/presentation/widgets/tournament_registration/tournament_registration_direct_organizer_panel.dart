@@ -30,6 +30,7 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
     this.dualPaymentOnly = false,
     this.managerId,
     this.pixKey = '',
+    this.pixKeyType = '',
     this.pixRecipientName = '',
     this.pixCity = '',
   });
@@ -41,6 +42,7 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
   final bool dualPaymentOnly;
   final String? managerId;
   final String pixKey;
+  final String pixKeyType;
   final String pixRecipientName;
   final String pixCity;
 
@@ -96,6 +98,7 @@ class TournamentRegistrationDirectOrganizerPanel extends ConsumerWidget {
           _PixCard(
             brCode: PixBrCode.build(
               key: pixKey,
+              keyType: pixKeyType,
               recipientName: pixRecipientName.isNotEmpty
                   ? pixRecipientName
                   : organizerName,

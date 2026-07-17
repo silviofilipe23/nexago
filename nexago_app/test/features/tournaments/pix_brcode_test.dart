@@ -91,5 +91,47 @@ void main() {
       );
       expect(code.contains('0503***'), isTrue);
     });
+
+    test('telefone sem +55 é normalizado no BR Code', () {
+      final code = PixBrCode.build(
+        key: '62999853983',
+        keyType: 'phone',
+        recipientName: 'Maria',
+        city: 'GOIANIA',
+        amount: 80,
+      );
+      expect(code.contains('+5562999853983'), isTrue);
+    });
+  });
+
+  group('PixBrCode.normalizeKeyForBrCode', () {
+    test('telefone vira E.164 com +55', () {
+      expect(
+        PixBrCode.normalizeKeyForBrCode('62999853983', keyType: 'phone'),
+        '+5562999853983',
+      );
+      expect(
+        PixBrCode.normalizeKeyForBrCode('(62) 99985-3983', keyType: 'phone'),
+        '+5562999853983',
+      );
+      expect(
+        PixBrCode.normalizeKeyForBrCode('+5562999853983', keyType: 'phone'),
+        '+5562999853983',
+      );
+    });
+
+    test('CPF remove máscara', () {
+      expect(
+        PixBrCode.normalizeKeyForBrCode('123.456.789-09', keyType: 'cpf'),
+        '12345678909',
+      );
+    });
+
+    test('celular 11 dígitos com 9 é inferido como telefone', () {
+      expect(
+        PixBrCode.normalizeKeyForBrCode('62999853983'),
+        '+5562999853983',
+      );
+    });
   });
 }

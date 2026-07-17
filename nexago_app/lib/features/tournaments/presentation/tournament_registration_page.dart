@@ -1606,6 +1606,7 @@ class _TournamentRegistrationPageState
             tournamentName: tournament.name,
             organizerManagerId: tournament.managerId,
             organizerPixKey: tournament.organizerPixKey,
+            organizerPixKeyType: tournament.organizerPixKeyType,
             organizerPixRecipientName: tournament.organizerPixRecipientName,
             organizerPixCity: tournament.organizerPixCity,
             partnerJoinsFree: paidAwaitingPartner,

@@ -146,11 +146,12 @@ export class TournamentPaymentComponent {
   protected readonly organizerBrCode = computed(() => {
     const t = this.listing();
     const pix = t?.organizerPix;
-    if (t?.paymentMode !== 'directWithOrganizer' || !isLikelyValidPixKey(pix?.key)) return null;
+    if (t?.paymentMode !== 'directWithOrganizer' || !pix || !isLikelyValidPixKey(pix.key)) return null;
     return buildPixBrCode({
-      key: pix!.key,
-      recipientName: pix!.recipientName || 'RECEBEDOR',
-      city: pix!.city || 'BRASIL',
+      key: pix.key,
+      keyType: pix.keyType,
+      recipientName: pix.recipientName || 'RECEBEDOR',
+      city: pix.city || 'BRASIL',
       amount: this.amountDueReais(),
     });
   });

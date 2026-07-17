@@ -1,9 +1,16 @@
 /**
  * PIX copia-e-cola (BR Code estático, EMV® MPM / BCB) a partir da chave do
  * organizador — espelho de `nexago_app/.../pix_brcode.dart`.
+ *
+ * Importante: a chave no campo 26-01 precisa seguir o Manual do DICT
+ * (telefone com +55, CPF/CNPJ só dígitos, EVP em minúsculas). Sem isso o
+ * app do banco rejeita o QR / copia-e-cola.
  */
 
 const PIX_GUI = 'br.gov.bcb.pix';
+const EVP_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type PixKeyKind = 'phone' | 'cpf' | 'cnpj' | 'email' | 'random' | 'raw';
 
 function tlv(id: string, value: string): string {
   return `${id}${String(value.length).padStart(2, '0')}${value}`;
@@ -48,6 +55,68 @@ function sanitizeTxid(raw: string): string {
   return cleaned.length > 25 ? cleaned.slice(0, 25) : cleaned;
 }
 
+function digitsOnly(raw: string): string {
+  return raw.replace(/\D/g, '');
+}
+
+function resolveKeyKind(raw: string, keyType?: string): PixKeyKind {
+  const type = (keyType ?? '').trim().toLowerCase();
+  if (type === 'phone' || type === 'telefone' || type === 'celular') return 'phone';
+  if (type === 'cpf') return 'cpf';
+  if (type === 'cnpj') return 'cnpj';
+  if (type === 'email' || type === 'e-mail') return 'email';
+  if (type === 'random' || type === 'evp' || type === 'aleatoria' || type === 'aleatória') return 'random';
+
+  const key = raw.trim();
+  if (key.includes('@')) return 'email';
+  if (EVP_PATTERN.test(key)) return 'random';
+  const digits = digitsOnly(key);
+  if (digits.length === 14) return 'cnpj';
+  if (key.startsWith('+') || (digits.length >= 10 && digits.length <= 13 && digits.startsWith('55'))) {
+    return 'phone';
+  }
+  // Celular BR: DDD + 9 + 8 dígitos (11). Sem keyType, preferimos telefone se o 3º dígito for 9.
+  if (digits.length === 11 && digits[2] === '9') return 'phone';
+  if (digits.length === 11) return 'cpf';
+  if (digits.length === 10) return 'phone';
+  return 'raw';
+}
+
+/**
+ * Normaliza a chave para o formato DICT exigido no BR Code.
+ * Telefone → +55DDDNÚMERO; CPF/CNPJ → só dígitos; EVP → minúsculas.
+ */
+export function normalizePixKeyForBrCode(raw: string, keyType?: string): string {
+  const key = raw.trim();
+  if (!key) return key;
+  const kind = resolveKeyKind(key, keyType);
+
+  switch (kind) {
+    case 'phone': {
+      let d = digitsOnly(key);
+      if (d.startsWith('55') && (d.length === 12 || d.length === 13)) {
+        d = d.slice(2);
+      }
+      if (d.length < 10 || d.length > 11) return key;
+      return `+55${d}`;
+    }
+    case 'cpf': {
+      const d = digitsOnly(key);
+      return d.length === 11 ? d : key;
+    }
+    case 'cnpj': {
+      const d = key.toUpperCase().replace(/[^0-9A-Z]/g, '');
+      return d.length === 14 ? d : key;
+    }
+    case 'email':
+      return key;
+    case 'random':
+      return key.toLowerCase();
+    default:
+      return key;
+  }
+}
+
 export function isLikelyValidPixKey(key: string | null | undefined): boolean {
   return key != null && key.trim().length > 0;
 }
@@ -59,12 +128,14 @@ export function buildPixBrCode(opts: {
   city?: string;
   amount?: number;
   txid?: string;
+  keyType?: string;
 }): string {
-  const cleanKey = opts.key.trim();
+  const cleanKey = normalizePixKeyForBrCode(opts.key, opts.keyType);
   const name = sanitizeText(opts.recipientName, 'RECEBEDOR', 25);
   const town = sanitizeText(opts.city ?? 'BRASIL', 'BRASIL', 15);
   const tx = sanitizeTxid(opts.txid ?? '***');
   const amount = opts.amount ?? 0;
+  const amountFixed = amount > 0 ? (Math.round(amount * 100) / 100).toFixed(2) : null;
 
   const mai = tlv('00', PIX_GUI) + tlv('01', cleanKey);
   let payload =
@@ -73,8 +144,8 @@ export function buildPixBrCode(opts: {
     tlv('52', '0000') +
     tlv('53', '986');
 
-  if (amount > 0) {
-    payload += tlv('54', amount.toFixed(2));
+  if (amountFixed) {
+    payload += tlv('54', amountFixed);
   }
 
   payload +=

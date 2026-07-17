@@ -47,10 +47,8 @@ class MyTournamentRegistrationsRepository {
     String uid,
   ) async {
     final teamIds = <String>{};
-    final player1Snap =
-        await _teams.where('player1Id', isEqualTo: uid).get();
-    final player2Snap =
-        await _teams.where('player2Id', isEqualTo: uid).get();
+    final player1Snap = await _teams.where('player1Id', isEqualTo: uid).get();
+    final player2Snap = await _teams.where('player2Id', isEqualTo: uid).get();
     for (final doc in player1Snap.docs) {
       teamIds.add(doc.id);
     }
@@ -63,8 +61,7 @@ class MyTournamentRegistrationsRepository {
     final ids = teamIds.toList();
     for (var i = 0; i < ids.length; i += 30) {
       final chunk = ids.sublist(i, min(i + 30, ids.length));
-      final snap =
-          await _inscriptions.where('teamId', whereIn: chunk).get();
+      final snap = await _inscriptions.where('teamId', whereIn: chunk).get();
       for (final doc in snap.docs) {
         final data = doc.data();
         final uids = data['participantUids'];
@@ -91,8 +88,11 @@ class MyTournamentRegistrationsRepository {
 
     for (final doc in docs) {
       final data = doc.data();
-      final teamId = (data['teamId'] as String?)?.trim() ?? '';
-      if (teamId.isEmpty) continue;
+      // Inscrição solo aguardando parceiro (`registerSoloTournament`) não
+      // tem `teams` doc nem `teamId` até o convite ser aceito — ainda assim
+      // é uma inscrição ativa e deve aparecer em "Meus torneios"/Início.
+      final teamIdRaw = (data['teamId'] as String?)?.trim() ?? '';
+      final teamId = teamIdRaw.isEmpty ? null : teamIdRaw;
 
       final tournamentId = (data['tournamentId'] as String?)?.trim() ?? '';
       if (tournamentId.isEmpty) continue;

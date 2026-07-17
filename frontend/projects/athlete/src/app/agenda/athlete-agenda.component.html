@@ -120,10 +120,25 @@
                   </div>
                 </div>
                 <p class="ag-pending-schedule">{{ r.scheduleLine }}</p>
-                <div class="ag-pending-actions">
-                  <button type="button" class="ag-btn-primary ag-btn-sm" (click)="acceptRequest(r.id)">Aceitar</button>
-                  <button type="button" class="ag-btn-ghost ag-btn-sm" (click)="declineRequest(r.id)">Recusar</button>
-                </div>
+                @if (expandedInviteId() === r.id && inviteUniform() && r.category; as cat) {
+                  <div class="ag-pending-uniform">
+                    <p class="ag-pending-uniform-title">Escolha seu uniforme para aceitar</p>
+                    <app-uniform-form [category]="cat" [value]="inviteUniform()!" [disabled]="acceptingId() === r.id" (valueChange)="onInviteUniformChange($event)" />
+                    <div class="ag-pending-actions">
+                      <button type="button" class="ag-btn-primary ag-btn-sm" [disabled]="acceptingId() === r.id" (click)="confirmAccept(r)">
+                        {{ acceptingId() === r.id ? 'Aceitando…' : 'Confirmar aceite' }}
+                      </button>
+                      <button type="button" class="ag-btn-ghost ag-btn-sm" [disabled]="acceptingId() === r.id" (click)="cancelAcceptExpansion()">Cancelar</button>
+                    </div>
+                  </div>
+                } @else {
+                  <div class="ag-pending-actions">
+                    <button type="button" class="ag-btn-primary ag-btn-sm" [disabled]="acceptingId() === r.id" (click)="acceptRequest(r)">
+                      {{ acceptingId() === r.id ? 'Aceitando…' : 'Aceitar' }}
+                    </button>
+                    <button type="button" class="ag-btn-ghost ag-btn-sm" [disabled]="acceptingId() === r.id" (click)="declineRequest(r.id)">Recusar</button>
+                  </div>
+                }
               </div>
             }
           }

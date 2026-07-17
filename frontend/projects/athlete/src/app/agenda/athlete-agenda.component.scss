@@ -631,6 +631,26 @@ $ag-kind-colors: (
   gap: 8px;
 }
 
+.ag-pending-uniform {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+}
+
+.ag-pending-uniform-title {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+  margin: 0;
+}
+
 // ── Buttons ──────────────────────────────────────────────────
 .ag-btn-primary {
   height: 38px;

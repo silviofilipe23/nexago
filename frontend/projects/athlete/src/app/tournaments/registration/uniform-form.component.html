@@ -1,0 +1,71 @@
+<div class="uf-root">
+  <div class="uf-field">
+    <span class="uf-label">Tamanho da regata</span>
+    <div class="uf-chip-row">
+      @for (size of topOptions(); track size) {
+        <button
+          type="button"
+          class="uf-chip"
+          [class.uf-chip--active]="value().sizeTop === size"
+          [disabled]="disabled()"
+          (click)="selectTop(size)"
+        >
+          {{ size }}
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (showShorts()) {
+    <div class="uf-field">
+      <span class="uf-label">Tamanho do shorts</span>
+      <div class="uf-chip-row">
+        @for (size of shortsOptions(); track size) {
+          <button
+            type="button"
+            class="uf-chip"
+            [class.uf-chip--active]="value().sizeShorts === size"
+            [disabled]="disabled()"
+            (click)="selectShorts(size)"
+          >
+            {{ size }}
+          </button>
+        }
+      </div>
+    </div>
+  }
+
+  @if (category().uniformNumberOnShirt) {
+    <label class="uf-field">
+      <span class="uf-label">Número na camisa (1–99)</span>
+      <input
+        class="uf-input uf-input--number"
+        type="text"
+        inputmode="numeric"
+        autocomplete="off"
+        placeholder="10"
+        [value]="value().jerseyNumber ?? ''"
+        [disabled]="disabled()"
+        (input)="onNumberInput($any($event.target).value)"
+      />
+    </label>
+  }
+
+  @if (category().uniformNameOnShirt) {
+    <label class="uf-field">
+      <span class="uf-label">Nome na camisa</span>
+      <input
+        class="uf-input"
+        type="text"
+        maxlength="18"
+        autocomplete="off"
+        placeholder="Como aparece na camisa"
+        [value]="value().jerseyName ?? ''"
+        [disabled]="disabled()"
+        (input)="onNameInput($any($event.target).value)"
+      />
+    </label>
+  }
+
+  <p class="uf-hint">Camisa oficial do torneio. Você pode trocar tamanho e número até {{ deadlineDays }} dias antes do evento.</p>
+</div>

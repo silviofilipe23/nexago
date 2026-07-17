@@ -69,15 +69,54 @@ export interface TournamentCategoryOffer {
   isCompleted: boolean;
   prizes: TournamentPrize[];
   qualifiersPerGroup: number;
+  /** `'none' | 'top_only' | 'top' | 'full'` (cru do doc; herda da raiz — ver mapper). */
+  uniformType: string | null;
+  uniformNumberOnShirt: boolean;
+  uniformNameOnShirt: boolean;
+  uniformSizeOptionsTop: string[];
+  uniformSizeOptionsShorts: string[];
+  ageBand: string | null;
+  ageRestrictionMode: string | null;
+  ageMinYears: number | null;
+  ageMaxYears: number | null;
+  ageReference: string | null;
 }
 
-function categoryOfferFromRaw(raw: unknown): TournamentCategoryOffer | null {
+function stringListOf(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((s) => (typeof s === 'string' ? s.trim() : '')).filter((s) => s.length > 0);
+}
+
+/** Flags de uniforme da raiz do torneio (`uniformRequired`/`uniformNumberOnShirt`/`uniformNameOnShirt`). */
+interface RootUniformFlags {
+  required: boolean;
+  numberOnShirt: boolean;
+  nameOnShirt: boolean;
+}
+
+function categoryOfferFromRaw(raw: unknown, rootUniform: RootUniformFlags): TournamentCategoryOffer | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
-  const id = optionalStr(o['categoryId']) ?? optionalStr(o['id']) ?? optionalStr(o['categoryName']) ?? optionalStr(o['name']);
+  // Mesma ordem do Flutter (`id ?? categoryId ?? name`) — convites/inscrições gravam o id
+  // resolvido pelo app, então o web precisa resolver igual pra casar a oferta.
+  const id = optionalStr(o['id']) ?? optionalStr(o['categoryId']) ?? optionalStr(o['categoryName']) ?? optionalStr(o['name']);
   if (!id) return null;
   const maxTeams = numberOf(o['maxTeams']) ?? numberOf(o['spotsTotal']) ?? numberOf(o['capacity']) ?? 0;
   const qualifiers = numberOf(o['qualifiersPerGroup']) ?? 2;
+  const ageRestriction = o['ageRestriction'] && typeof o['ageRestriction'] === 'object' ? (o['ageRestriction'] as Record<string, unknown>) : null;
+
+  // Herança (espelha `TournamentDocumentMapper._parseCategoryOffers`): categoria sem exigência
+  // própria mas torneio com `uniformRequired` ⇒ vira `top_only` com as flags da raiz.
+  let uniformType = optionalStr(o['uniformType']);
+  let uniformNumberOnShirt = o['uniformNumberOnShirt'] === true;
+  let uniformNameOnShirt = o['uniformNameOnShirt'] === true;
+  const requiresOwnUniform = uniformType === 'top_only' || uniformType === 'top' || uniformType === 'full';
+  if (!requiresOwnUniform && rootUniform.required) {
+    uniformType = 'top_only';
+    uniformNumberOnShirt = rootUniform.numberOnShirt;
+    uniformNameOnShirt = rootUniform.nameOnShirt;
+  }
+
   return {
     id,
     categoryName: optionalStr(o['categoryName']) ?? optionalStr(o['name']) ?? id,
@@ -91,6 +130,16 @@ function categoryOfferFromRaw(raw: unknown): TournamentCategoryOffer | null {
     isCompleted: o['isCompleted'] === true,
     prizes: prizesOf(o['prizes']),
     qualifiersPerGroup: Math.min(99, Math.max(1, qualifiers)),
+    uniformType,
+    uniformNumberOnShirt,
+    uniformNameOnShirt,
+    uniformSizeOptionsTop: stringListOf(o['uniformSizeOptionsTop']),
+    uniformSizeOptionsShorts: stringListOf(o['uniformSizeOptionsShorts']),
+    ageBand: optionalStr(o['ageBand']),
+    ageRestrictionMode: optionalStr(ageRestriction?.['mode']),
+    ageMinYears: numberOf(ageRestriction?.['minAge']),
+    ageMaxYears: numberOf(ageRestriction?.['maxAge']),
+    ageReference: optionalStr(ageRestriction?.['reference']),
   };
 }
 
@@ -161,7 +210,14 @@ function organizerPixOf(raw: unknown): TournamentSummary['organizerPix'] {
 }
 
 function summaryFromDoc(id: string, data: Record<string, unknown>): TournamentSummary {
-  const categories = Array.isArray(data['categories']) ? data['categories'].map(categoryOfferFromRaw).filter((c): c is TournamentCategoryOffer => c != null) : [];
+  const rootUniform: RootUniformFlags = {
+    required: data['uniformRequired'] === true,
+    numberOnShirt: data['uniformNumberOnShirt'] === true,
+    nameOnShirt: data['uniformNameOnShirt'] === true,
+  };
+  const categories = Array.isArray(data['categories'])
+    ? data['categories'].map((c) => categoryOfferFromRaw(c, rootUniform)).filter((c): c is TournamentCategoryOffer => c != null)
+    : [];
   const capacity = numberOf(data['capacity']) || categories.reduce((sum, c) => sum + c.maxTeams, 0);
   const statusRaw = (optionalStr(data['listingStatus']) ?? optionalStr(data['status']) ?? '').toLowerCase();
   return {

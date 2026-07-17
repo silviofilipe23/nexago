@@ -1,0 +1,94 @@
+:host {
+  display: block;
+}
+
+.uf-root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.uf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.uf-label {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.uf-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.uf-chip {
+  min-width: 48px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &:hover:not(:disabled) {
+    border-color: var(--nx-line-strong);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+.uf-chip--active {
+  background: var(--nx-orange-tint);
+  border-color: var(--nx-orange-500);
+  color: var(--nx-orange-500);
+}
+
+.uf-input {
+  width: 100%;
+  height: 42px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text);
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  padding: 0 14px;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: var(--nx-orange-500);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+  }
+}
+
+.uf-input--number {
+  max-width: 120px;
+}
+
+.uf-hint {
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--nx-text-dim);
+  margin: 0;
+}

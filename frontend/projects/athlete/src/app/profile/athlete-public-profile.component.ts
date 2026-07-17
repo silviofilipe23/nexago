@@ -6,6 +6,7 @@ import { doc, getDoc, getFirestore, type DocumentData, type Firestore } from 'fi
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
 import { AthleteGamificationService } from './athlete-gamification.service';
 import type { ProfileDemoExtras } from './public-profile-demo.models';
@@ -345,7 +346,7 @@ function initialsOf(name: string): string {
 @Component({
   selector: 'app-athlete-public-profile',
   standalone: true,
-  imports: [RouterLink, NgTemplateOutlet, AtPanelShellComponent],
+  imports: [RouterLink, NgTemplateOutlet, AtPanelShellComponent, NxPageLoadingComponent],
   templateUrl: './athlete-public-profile.component.html',
   styleUrl: './athlete-public-profile.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

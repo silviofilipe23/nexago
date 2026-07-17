@@ -19,6 +19,42 @@
       <div class="nx-notice" role="status">{{ accountSubline() }}</div>
     }
 
+    @if (bootLoading()) {
+      <p class="at-visually-hidden" role="status">Carregando seu painel…</p>
+      <div class="at-kpi-row" aria-hidden="true">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <div class="at-card at-kpi-card">
+            <app-nx-skeleton [w]="90" [h]="9" />
+            <app-nx-skeleton [w]="56" [h]="22" style="margin-top: 10px" />
+            <app-nx-skeleton [w]="120" [h]="9" style="margin-top: 12px" />
+          </div>
+        }
+      </div>
+      <div class="at-main-grid" aria-hidden="true">
+        <div class="at-col">
+          <div class="at-card">
+            <app-nx-skeleton [w]="140" [h]="10" />
+            <app-nx-skeleton [h]="72" [r]="10" style="margin-top: 14px" />
+          </div>
+          <div class="at-card">
+            <app-nx-skeleton [w]="180" [h]="10" />
+            <app-nx-skeleton [h]="180" [r]="10" style="margin-top: 14px" />
+          </div>
+        </div>
+        <div class="at-col">
+          <div class="at-card">
+            <app-nx-skeleton [w]="120" [h]="10" />
+            <app-nx-skeleton style="margin-top: 14px" />
+            <app-nx-skeleton w="70%" style="margin-top: 10px" />
+          </div>
+          <div class="at-card">
+            <app-nx-skeleton [w]="120" [h]="10" />
+            <app-nx-skeleton style="margin-top: 14px" />
+            <app-nx-skeleton w="80%" style="margin-top: 10px" />
+          </div>
+        </div>
+      </div>
+    } @else {
     <div class="at-kpi-row">
       @for (kpi of kpis(); track kpi.label) {
         <div class="at-card at-kpi-card">
@@ -215,5 +251,6 @@
         </div>
       </div>
     </div>
+    }
   </div>
 </app-at-panel-shell>

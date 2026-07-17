@@ -1,7 +1,7 @@
 <app-at-panel-shell [userName]="accountLabel()">
   @if (loading()) {
     <div class="tp-notfound">
-      <p class="tp-empty-title">Carregando equipe…</p>
+      <app-nx-page-loading title="Carregando equipe…" subtitle="Buscando a dupla" />
     </div>
   } @else if (team(); as t) {
     <header class="tp-page-header">

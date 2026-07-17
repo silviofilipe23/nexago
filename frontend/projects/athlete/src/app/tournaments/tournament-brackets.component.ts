@@ -6,6 +6,7 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import {
   buildBracketColumns,
@@ -94,7 +95,7 @@ const FORMAT_LABEL: Record<string, string> = {
 @Component({
   selector: 'app-tournament-brackets',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, NgTemplateOutlet],
+  imports: [RouterLink, AtPanelShellComponent, NgTemplateOutlet, NxPageLoadingComponent],
   templateUrl: './tournament-brackets.component.html',
   styleUrl: './tournament-brackets.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -128,6 +129,8 @@ export class TournamentBracketsComponent {
   });
 
   protected readonly bracketData = signal<CategoryBracketData | null>(null);
+  /** Recarga da chave ao trocar de categoria — sem isso a troca de tab é silenciosa. */
+  protected readonly bracketLoading = signal(false);
   private myTeamIds: ReadonlySet<string> = new Set();
 
   protected readonly initialsOf = initialsOf;
@@ -173,6 +176,15 @@ export class TournamentBracketsComponent {
       return;
     }
 
+    this.bracketLoading.set(true);
+    try {
+      await this.loadBracketData(db, projectId, tournamentId, category);
+    } finally {
+      this.bracketLoading.set(false);
+    }
+  }
+
+  private async loadBracketData(db: Firestore, projectId: string, tournamentId: string, category: TournamentCategoryOffer): Promise<void> {
     const matches = await fetchMatchesForCategory(db, projectId, tournamentId, category.id);
     const teamIds = [...new Set(matches.flatMap((m) => [m.teamAId, m.teamBId]).filter((id) => id))];
     const teams = await fetchTeamsByIds(db, projectId, teamIds);

@@ -50,7 +50,7 @@
       <div class="ag-col">
         @if (loading()) {
           <div class="ag-empty-card">
-            <p class="ag-empty-title">Carregando agenda…</p>
+            <app-nx-page-loading title="Carregando agenda…" subtitle="Reservas, torneios e convites" />
           </div>
         } @else if (dayGroups().length === 0) {
           <div class="ag-empty-card">
@@ -125,18 +125,29 @@
                     <p class="ag-pending-uniform-title">Escolha seu uniforme para aceitar</p>
                     <app-uniform-form [category]="cat" [value]="inviteUniform()!" [disabled]="acceptingId() === r.id" (valueChange)="onInviteUniformChange($event)" />
                     <div class="ag-pending-actions">
-                      <button type="button" class="ag-btn-primary ag-btn-sm" [disabled]="acceptingId() === r.id" (click)="confirmAccept(r)">
+                      <button type="button" class="ag-btn-primary ag-btn-sm" [disabled]="inviteBusy(r.id)" (click)="confirmAccept(r)">
+                        @if (acceptingId() === r.id) {
+                          <app-nx-spinner [size]="14" tone="dark" />
+                        }
                         {{ acceptingId() === r.id ? 'Aceitando…' : 'Confirmar aceite' }}
                       </button>
-                      <button type="button" class="ag-btn-ghost ag-btn-sm" [disabled]="acceptingId() === r.id" (click)="cancelAcceptExpansion()">Cancelar</button>
+                      <button type="button" class="ag-btn-ghost ag-btn-sm" [disabled]="inviteBusy(r.id)" (click)="cancelAcceptExpansion()">Cancelar</button>
                     </div>
                   </div>
                 } @else {
                   <div class="ag-pending-actions">
-                    <button type="button" class="ag-btn-primary ag-btn-sm" [disabled]="acceptingId() === r.id" (click)="acceptRequest(r)">
+                    <button type="button" class="ag-btn-primary ag-btn-sm" [disabled]="inviteBusy(r.id)" (click)="acceptRequest(r)">
+                      @if (acceptingId() === r.id) {
+                        <app-nx-spinner [size]="14" tone="dark" />
+                      }
                       {{ acceptingId() === r.id ? 'Aceitando…' : 'Aceitar' }}
                     </button>
-                    <button type="button" class="ag-btn-ghost ag-btn-sm" [disabled]="acceptingId() === r.id" (click)="declineRequest(r.id)">Recusar</button>
+                    <button type="button" class="ag-btn-ghost ag-btn-sm" [disabled]="inviteBusy(r.id)" (click)="declineRequest(r.id)">
+                      @if (decliningId() === r.id) {
+                        <app-nx-spinner [size]="14" />
+                      }
+                      {{ decliningId() === r.id ? 'Recusando…' : 'Recusar' }}
+                    </button>
                   </div>
                 }
               </div>

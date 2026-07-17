@@ -11,6 +11,9 @@
       @if (isEditing()) {
         <button type="button" class="at-ghost-btn" (click)="cancelEdit()">Cancelar</button>
         <button type="button" class="at-mini-btn at-mini-btn--primary" [disabled]="saving()" (click)="save()">
+          @if (saving()) {
+            <app-nx-spinner [size]="14" tone="dark" />
+          }
           {{ saving() ? 'Salvando...' : 'Salvar alterações' }}
         </button>
       } @else {
@@ -21,7 +24,7 @@
 
   <div class="at-body">
     @if (loading()) {
-      <p class="at-empty">Carregando perfil...</p>
+      <app-nx-page-loading title="Carregando perfil…" subtitle="Buscando seus dados" />
     } @else {
       <div class="at-profile-grid">
         <div class="at-col">
@@ -176,6 +179,9 @@
                 <p>{{ passwordResetSent() ? 'Link enviado — confere teu e-mail.' : 'Redefina sua senha por e-mail.' }}</p>
               </div>
               <button type="button" class="at-mini-btn" [disabled]="sendingReset()" (click)="sendPasswordReset()">
+                @if (sendingReset()) {
+                  <app-nx-spinner [size]="12" />
+                }
                 {{ sendingReset() ? 'Enviando...' : 'Alterar' }}
               </button>
             </div>

@@ -667,9 +667,15 @@ $ag-kind-colors: (
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
 
   &:hover {
     background: var(--nx-orange-400);
+  }
+
+  &:disabled {
+    opacity: 0.75;
+    cursor: wait;
   }
 }
 
@@ -684,9 +690,18 @@ $ag-kind-colors: (
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 
   &:hover {
     border-color: var(--nx-line-strong);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: wait;
   }
 }
 

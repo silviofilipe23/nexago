@@ -17,6 +17,7 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { AtBellComponent } from '../painel/at-bell.component';
+import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { levelBucketOf, fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import {
   fetchAthleteRankingGeneral,
@@ -84,7 +85,7 @@ function teamDisplayName(team: ArenaTeam, p1: AthletePublicProfile | undefined, 
 @Component({
   selector: 'app-athlete-ranking',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, AtBellComponent],
+  imports: [RouterLink, AtPanelShellComponent, AtBellComponent, NxPageLoadingComponent],
   templateUrl: './athlete-ranking.component.html',
   styleUrl: './athlete-ranking.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

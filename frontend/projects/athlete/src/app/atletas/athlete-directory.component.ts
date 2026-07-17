@@ -16,6 +16,8 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
+import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
 import { AtBellComponent } from '../painel/at-bell.component';
 import { fetchAthleteDirectoryPage, levelBucketOf, searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchAthleteRankingGeneral } from '../data/rankings-repository';
@@ -97,7 +99,7 @@ function entryFromProfile(profile: AthletePublicProfile, rank: number | null): A
 @Component({
   selector: 'app-athlete-directory',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, AtBellComponent],
+  imports: [RouterLink, AtPanelShellComponent, AtBellComponent, NxPageLoadingComponent, NxSpinnerComponent],
   templateUrl: './athlete-directory.component.html',
   styleUrl: './athlete-directory.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

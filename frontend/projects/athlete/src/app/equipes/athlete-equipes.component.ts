@@ -6,6 +6,7 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { AtBellComponent } from '../painel/at-bell.component';
 import { fetchPartnerCandidates, fetchPublicProfilesByIds, levelBucketOf, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchTeamRankingGeneral } from '../data/rankings-repository';
@@ -61,7 +62,7 @@ function teamDisplayName(team: ArenaTeam, p1: AthletePublicProfile | undefined, 
 @Component({
   selector: 'app-athlete-equipes',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, AtBellComponent],
+  imports: [RouterLink, AtPanelShellComponent, AtBellComponent, NxPageLoadingComponent],
   templateUrl: './athlete-equipes.component.html',
   styleUrl: './athlete-equipes.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

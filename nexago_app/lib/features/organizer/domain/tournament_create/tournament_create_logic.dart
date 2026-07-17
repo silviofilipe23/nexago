@@ -269,7 +269,7 @@ List<String> categoryTags(TournamentCategoryDraft category) {
 }
 
 int categoryPrizeTotalCents(TournamentCategoryDraft category) =>
-    category.prizes.fold<int>(0, (sum, p) => sum + p.valueCents);
+    prizeListTotalCents(category.prizes);
 
 String formatStepLabel(TournamentCreateStep step) =>
     'PASSO ${step.number} DE ${TournamentCreateStepX.total}';
@@ -474,26 +474,60 @@ TournamentCreateStep? parseWizardStep(String? raw) {
   return null;
 }
 
+String defaultPrizeLabelForPosition(int position) => switch (position) {
+      1 => 'Campeão',
+      2 => 'Vice-campeão',
+      3 => 'Terceiro lugar',
+      _ => '$positionº lugar',
+    };
+
+int prizePositionNumber(String position) {
+  final digits = RegExp(r'\d+').firstMatch(position)?.group(0);
+  return int.tryParse(digits ?? '') ?? 0;
+}
+
+/// Próxima colocação após as já configuradas (lista vazia → 1º/Campeão).
+TournamentCategoryPrizeDraft nextPrizeDraft(
+  List<TournamentCategoryPrizeDraft> prizes,
+) {
+  var highest = 0;
+  for (final prize in prizes) {
+    final number = prizePositionNumber(prize.position);
+    if (number > highest) highest = number;
+  }
+  final next = highest + 1;
+  return TournamentCategoryPrizeDraft(
+    position: '$next',
+    valueCents: 0,
+    label: defaultPrizeLabelForPosition(next),
+  );
+}
+
+int prizeListTotalCents(List<TournamentCategoryPrizeDraft> prizes) =>
+    prizes.fold<int>(0, (sum, p) => sum + p.valueCents);
+
+/// Divisão sugerida em reais inteiros (os campos do editor aceitam apenas
+/// reais); o 3º lugar absorve a diferença para preservar a soma.
 List<TournamentCategoryPrizeDraft> defaultCategoryPrizes(int totalCents) {
   if (totalCents <= 0) return const [];
-  final first = (totalCents * 0.5).round();
-  final second = (totalCents * 0.3125).round();
+  final first = ((totalCents * 0.5) / 100).round() * 100;
+  final second = ((totalCents * 0.3125) / 100).round() * 100;
   final third = totalCents - first - second;
   return [
     TournamentCategoryPrizeDraft(
       position: '1',
       valueCents: first,
-      label: 'Campeão',
+      label: defaultPrizeLabelForPosition(1),
     ),
     TournamentCategoryPrizeDraft(
       position: '2',
       valueCents: second,
-      label: 'Vice-campeão',
+      label: defaultPrizeLabelForPosition(2),
     ),
     TournamentCategoryPrizeDraft(
       position: '3',
       valueCents: third,
-      label: 'Terceiro lugar',
+      label: defaultPrizeLabelForPosition(3),
     ),
   ];
 }
@@ -613,7 +647,12 @@ String reviewRegistrationSummary(TournamentCreateDraft draft) {
 String reviewPrizesSummary(TournamentCreateDraft draft) {
   if (!draft.cashPrizesEnabled)
     return 'Troféus/brindes (sem premiação em dinheiro)';
-  return 'Por categoria · ${formatCents(draft.totalPrizeCents)} no total · 1º ao 3º';
+  var places = 0;
+  for (final category in draft.categories) {
+    if (category.prizes.length > places) places = category.prizes.length;
+  }
+  final base = 'Por categoria · ${formatCents(draft.totalPrizeCents)} no total';
+  return places > 1 ? '$base · 1º ao ${places}º' : base;
 }
 
 String reviewUniformSummary(TournamentCreateDraft draft) {

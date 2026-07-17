@@ -322,6 +322,17 @@ class OrganizerPrizeCategoryCard extends StatelessWidget {
               ],
             ],
           ),
+          if (category.prizes.length > 3) ...[
+            const SizedBox(height: 6),
+            Text(
+              category.prizes.length - 3 == 1
+                  ? '+1 colocação'
+                  : '+${category.prizes.length - 3} colocações',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
+            ),
+          ],
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerRight,

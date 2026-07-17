@@ -273,11 +273,18 @@ void main() {
       expect(prizes, hasLength(3));
     });
 
-    test('splits 50/31.25 with remainder to third', () {
+    test('splits 50/31.25 in whole reais with remainder to third', () {
       final prizes = defaultCategoryPrizes(100000);
       expect(prizes[0].valueCents, 50000);
-      expect(prizes[1].valueCents, 31250);
-      expect(prizes[2].valueCents, 18750);
+      expect(prizes[1].valueCents, 31300);
+      expect(prizes[2].valueCents, 18700);
+    });
+
+    test('shares are whole reais when the total is', () {
+      final prizes = defaultCategoryPrizes(800000);
+      for (final prize in prizes) {
+        expect(prize.valueCents % 100, 0);
+      }
     });
 
     test('odd total still sums exactly to total', () {
@@ -289,6 +296,81 @@ void main() {
     test('returns empty for zero or negative total', () {
       expect(defaultCategoryPrizes(0), isEmpty);
       expect(defaultCategoryPrizes(-100), isEmpty);
+    });
+  });
+
+  group('defaultPrizeLabelForPosition', () {
+    test('maps podium labels and falls back to Nº lugar', () {
+      expect(defaultPrizeLabelForPosition(1), 'Campeão');
+      expect(defaultPrizeLabelForPosition(2), 'Vice-campeão');
+      expect(defaultPrizeLabelForPosition(3), 'Terceiro lugar');
+      expect(defaultPrizeLabelForPosition(4), '4º lugar');
+      expect(defaultPrizeLabelForPosition(10), '10º lugar');
+    });
+  });
+
+  group('nextPrizeDraft', () {
+    test('empty list starts at first place', () {
+      final next = nextPrizeDraft(const []);
+      expect(next.position, '1');
+      expect(next.label, 'Campeão');
+      expect(next.valueCents, 0);
+    });
+
+    test('follows the highest existing position', () {
+      final next = nextPrizeDraft(defaultCategoryPrizes(100000));
+      expect(next.position, '4');
+      expect(next.label, '4º lugar');
+      expect(next.valueCents, 0);
+    });
+
+    test('non numeric positions fall back to first place', () {
+      const prizes = [
+        TournamentCategoryPrizeDraft(position: 'ouro', valueCents: 100),
+      ];
+      final next = nextPrizeDraft(prizes);
+      expect(next.position, '1');
+    });
+  });
+
+  group('prizeListTotalCents', () {
+    test('sums value cents', () {
+      expect(prizeListTotalCents(const []), 0);
+      expect(prizeListTotalCents(defaultCategoryPrizes(100000)), 100000);
+    });
+  });
+
+  group('reviewPrizesSummary', () {
+    test('reflects the highest placement count across categories', () {
+      final draft = TournamentCreateDraft(
+        cashPrizesEnabled: true,
+        categories: [
+          TournamentCategoryDraft(
+            id: 'c1',
+            prizes: [
+              ...defaultCategoryPrizes(100000),
+              nextPrizeDraft(defaultCategoryPrizes(100000)),
+            ],
+          ),
+          const TournamentCategoryDraft(id: 'c2'),
+        ],
+      );
+      expect(reviewPrizesSummary(draft), contains('1º ao 4º'));
+    });
+
+    test('omits the placement range with a single placement', () {
+      const draft = TournamentCreateDraft(
+        cashPrizesEnabled: true,
+        categories: [
+          TournamentCategoryDraft(
+            id: 'c1',
+            prizes: [
+              TournamentCategoryPrizeDraft(position: '1', valueCents: 100000),
+            ],
+          ),
+        ],
+      );
+      expect(reviewPrizesSummary(draft), isNot(contains('1º ao')));
     });
   });
 

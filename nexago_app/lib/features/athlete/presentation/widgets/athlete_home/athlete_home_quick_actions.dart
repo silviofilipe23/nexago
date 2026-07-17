@@ -47,11 +47,11 @@ class AthleteHomeQuickActions extends StatelessWidget {
         onTap: onReserve,
         highlighted: true,
       ),
-      AthleteHomeQuickAction(
-        icon: Icons.person_add_outlined,
-        label: 'Convidar',
-        onTap: () {},
-      ),
+      // AthleteHomeQuickAction(
+      //   icon: Icons.person_add_outlined,
+      //   label: 'Convidar',
+      //   onTap: () {},
+      // ),
       AthleteHomeQuickAction(
         icon: Icons.emoji_events_outlined,
         label: 'Torneios',

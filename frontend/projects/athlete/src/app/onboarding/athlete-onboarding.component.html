@@ -134,14 +134,30 @@
         }
 
         <div class="ob-photo-row">
-          <span class="ob-photo-placeholder" aria-hidden="true">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>
-          </span>
+          <input
+            #photoInput
+            type="file"
+            class="ob-photo-input"
+            accept="image/jpeg,image/png,image/webp"
+            (change)="onPhotoSelected($event)"
+          />
+          @if (photoPreviewUrl(); as preview) {
+            <img class="ob-photo-preview" [src]="preview" alt="Prévia da foto de perfil" width="52" height="52" />
+          } @else {
+            <span class="ob-photo-placeholder" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" /></svg>
+            </span>
+          }
           <span class="ob-photo-copy">
             <span class="ob-photo-title">Foto de perfil <span class="ob-dim">(opcional)</span></span>
-            <span class="ob-photo-hint">JPG ou PNG · até 2 MB</span>
+            <span class="ob-photo-hint">JPG, PNG ou WebP · até 2 MB</span>
           </span>
-          <button type="button" class="ob-mini-btn" (click)="choosePhoto()">Escolher</button>
+          @if (photoPreviewUrl()) {
+            <button type="button" class="ob-mini-btn" (click)="clearPhoto()">Remover</button>
+            <button type="button" class="ob-mini-btn" (click)="choosePhoto()">Trocar</button>
+          } @else {
+            <button type="button" class="ob-mini-btn" (click)="choosePhoto()">Escolher</button>
+          }
         </div>
 
         <div class="nx-stack">

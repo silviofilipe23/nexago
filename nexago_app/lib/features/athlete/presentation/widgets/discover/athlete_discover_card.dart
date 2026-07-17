@@ -128,10 +128,7 @@ class AthleteDiscoverCard extends ConsumerWidget {
 }
 
 class _CompatibilityBadge extends StatelessWidget {
-  const _CompatibilityBadge({
-    required this.score,
-    required this.color,
-  });
+  const _CompatibilityBadge({required this.score, required this.color});
 
   final int score;
   final Color color;
@@ -177,8 +174,8 @@ class _ActionColumn extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         _FollowButton(entry: entry),
-        const SizedBox(height: 8),
-        _InviteButton(entry: entry),
+        // const SizedBox(height: 8),
+        // _InviteButton(entry: entry),
       ],
     );
   }
@@ -212,7 +209,9 @@ class _FollowButtonState extends ConsumerState<_FollowButton> {
         .updateFollowing(widget.entry.userId, follow);
     setState(() => _loading = true);
     try {
-      await ref.read(athleteFollowServiceProvider).setFollowing(
+      await ref
+          .read(athleteFollowServiceProvider)
+          .setFollowing(
             followerId: uid,
             athleteId: widget.entry.userId,
             follow: follow,

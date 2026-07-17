@@ -1,10 +1,12 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { doc, getDoc, getFirestore, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AuthShellComponent } from '../auth/ui/auth-shell.component';
+import { isAllowedAvatarFile, prepareAvatarJpeg, uploadAthleteAvatar } from '../data/athlete-avatar-upload';
+import { athleteStorage } from '../data/storage';
 
 type ObStep = 1 | 2 | 3 | 4 | 5;
 
@@ -60,7 +62,7 @@ const GOALS: GoalOption[] = [
   { code: 'TREINAR_REGULARMENTE', label: 'Treinar regularmente' },
 ];
 
-const GENDERS = ['Masculino', 'Feminino', 'Outro'] as const;
+const GENDERS = ['Masculino', 'Feminino'] as const;
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -132,6 +134,12 @@ export class AthleteOnboardingComponent {
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
 
+  /** Arquivo escolhido (ainda não enviado); preview local via object URL. */
+  protected readonly photoFile = signal<File | null>(null);
+  protected readonly photoPreviewUrl = signal<string | null>(null);
+  private readonly photoInput = viewChild<ElementRef<HTMLInputElement>>('photoInput');
+  private photoObjectUrl: string | null = null;
+
   protected readonly nameError = computed(() =>
     this.touched() && this.name().trim().length < 2 ? 'Obrigatório' : null,
   );
@@ -157,7 +165,10 @@ export class AthleteOnboardingComponent {
   }
 
   constructor() {
-    this.destroyRef.onDestroy(() => clearTimeout(this.noticeTimeout));
+    this.destroyRef.onDestroy(() => {
+      clearTimeout(this.noticeTimeout);
+      this.revokePhotoPreview();
+    });
   }
 
   protected selectSport(code: string): void {
@@ -193,7 +204,38 @@ export class AthleteOnboardingComponent {
   }
 
   protected choosePhoto(): void {
-    this.showNotice('Upload de foto chega em breve — você pode adicionar depois no seu perfil.');
+    this.photoInput()?.nativeElement.click();
+  }
+
+  protected onPhotoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+    input.value = '';
+    if (!file) return;
+
+    const error = isAllowedAvatarFile(file);
+    if (error) {
+      this.showNotice(error);
+      return;
+    }
+
+    this.revokePhotoPreview();
+    this.photoObjectUrl = URL.createObjectURL(file);
+    this.photoFile.set(file);
+    this.photoPreviewUrl.set(this.photoObjectUrl);
+  }
+
+  protected clearPhoto(): void {
+    this.revokePhotoPreview();
+    this.photoFile.set(null);
+    this.photoPreviewUrl.set(null);
+  }
+
+  private revokePhotoPreview(): void {
+    if (this.photoObjectUrl) {
+      URL.revokeObjectURL(this.photoObjectUrl);
+      this.photoObjectUrl = null;
+    }
   }
 
   protected async submitProfile(): Promise<void> {
@@ -210,6 +252,7 @@ export class AthleteOnboardingComponent {
     const sportCode = this.selectedSportCode();
     const levelCode = this.selectedLevelCode();
     const fullName = this.name().trim();
+    const photoFile = this.photoFile();
 
     this.submitting.set(true);
     this.submitError.set(null);
@@ -262,6 +305,22 @@ export class AthleteOnboardingComponent {
           { merge: true },
         ),
       ]);
+
+      // Foto opcional: perfil já salvo; falha no Storage não bloqueia o onboarding
+      // (mesmo contrato do app em athlete_onboarding_providers.dart).
+      if (photoFile) {
+        try {
+          const jpeg = await prepareAvatarJpeg(photoFile);
+          const url = await uploadAthleteAvatar(athleteStorage(), uid, jpeg);
+          await setDoc(userDocRef, { profilePhotoUrl: url, updatedAt: serverTimestamp() }, { merge: true });
+        } catch (photoErr) {
+          if (!environment.production) {
+            console.error('[onboarding] avatar upload error', photoErr);
+          }
+          this.showNotice('Cadastro concluído. A foto não foi enviada — você pode adicionar depois no perfil.');
+        }
+      }
+
       this.step.set(5);
     } catch (err) {
       if (!environment.production) {

@@ -277,9 +277,11 @@
 
 // ── Photo row ────────────────────────────────────────────────
 .ob-photo-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
   padding: 12px 14px;
   background: var(--nx-surface-0);
   border: 1px solid var(--nx-line);
@@ -287,16 +289,38 @@
   margin-bottom: 16px;
 }
 
-.ob-photo-placeholder {
+.ob-photo-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.ob-photo-placeholder,
+.ob-photo-preview {
   flex: none;
   width: 52px;
   height: 52px;
   border-radius: 50%;
+}
+
+.ob-photo-placeholder {
   background: var(--nx-surface-1);
   border: 1.5px dashed var(--nx-line-strong);
   color: var(--nx-text-dim);
   display: grid;
   place-items: center;
+}
+
+.ob-photo-preview {
+  object-fit: cover;
+  border: 1.5px solid var(--nx-line);
+  background: var(--nx-surface-1);
 }
 
 .ob-photo-copy {

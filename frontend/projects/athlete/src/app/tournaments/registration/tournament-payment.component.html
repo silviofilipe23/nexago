@@ -47,17 +47,66 @@
           } @else if (t.paymentMode === 'directWithOrganizer') {
             <section class="tp-card">
               <h2 class="tp-card-title">Pagamento direto com o organizador</h2>
-              <p class="tp-defer-note">Esse torneio não recebe pagamento pelo app — combine com o organizador usando a chave Pix abaixo.</p>
-              @if (t.organizerPix; as pix) {
+              <p class="tp-defer-note">Esse torneio não recebe pagamento pelo app — pague o Pix do organizador e marque a reserva.</p>
+
+              <div class="tp-amount-section">
+                <p class="tp-amount-label">Quanto você quer pagar agora?</p>
+                <div class="tp-amount-toggle" role="group" aria-label="Tipo de pagamento">
+                  <button
+                    type="button"
+                    class="tp-amount-btn"
+                    [class.tp-amount-btn--active]="amountType() === 'share'"
+                    (click)="setAmountType('share')"
+                  >
+                    <span class="tp-amount-btn-title">Minha parte</span>
+                    <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais() / 2) }}</span>
+                    <span class="tp-amount-btn-hint">Metade da inscrição da dupla</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="tp-amount-btn"
+                    [class.tp-amount-btn--active]="amountType() === 'full'"
+                    (click)="setAmountType('full')"
+                  >
+                    <span class="tp-amount-btn-title">Integral</span>
+                    <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais()) }}</span>
+                    <span class="tp-amount-btn-hint">Valor total da dupla</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="tp-due-box">
+                <span class="tp-due-label">{{ amountType() === 'full' ? 'Total da dupla' : 'Sua parcela' }}</span>
+                <strong class="tp-due-value">{{ formatBRL(amountDueReais()) }}</strong>
+              </div>
+
+              @if (organizerBrCode(); as brCode) {
+                <div class="tp-pix-block">
+                  @if (organizerQrSrc(); as qrSrc) {
+                    <img class="tp-qr-img" [src]="qrSrc" alt="QR Code Pix do organizador" width="220" height="220" />
+                  }
+                  @if (t.organizerPix; as pix) {
+                    @if (pix.recipientName) {
+                      <p class="tp-defer-note">Recebedor: {{ pix.recipientName }}@if (pix.city) { · {{ pix.city }} }</p>
+                    }
+                  }
+                  <div class="tp-pix-code-row">
+                    <span class="tp-pix-code">{{ brCode }}</span>
+                    <button type="button" class="tp-btn-ghost tp-copy-btn" (click)="copyOrganizerPix()">Copiar</button>
+                  </div>
+                  <p class="tp-pix-note">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
+                    Escaneie o QR ou cole o código no app do banco — depois confirme a reserva abaixo.
+                  </p>
+                </div>
+              } @else if (t.organizerPix; as pix) {
                 <div class="tp-pix-block">
                   <div class="tp-pix-code-row">
                     <span class="tp-pix-code">{{ pix.key }} ({{ pix.keyType }})</span>
                   </div>
-                  @if (pix.recipientName) {
-                    <p class="tp-defer-note">{{ pix.recipientName }} · {{ pix.city }}</p>
-                  }
                 </div>
               }
+
               <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="reserveDirect()">
                 @if (processing()) {
                   <app-nx-spinner [size]="14" tone="dark" />
@@ -128,8 +177,8 @@
                   @if (pixCountdownLabel(); as countdown) {
                     <p class="tp-pix-countdown">Expira em {{ countdown }}</p>
                   }
-                  @if (pixResult()!.qrCodeBase64) {
-                    <img class="tp-qr-placeholder" [src]="'data:image/png;base64,' + pixResult()!.qrCodeBase64" alt="QR Code Pix" />
+                  @if (pixQrSrc(); as qrSrc) {
+                    <img class="tp-qr-img" [src]="qrSrc" alt="QR Code Pix" width="220" height="220" />
                   }
                   <div class="tp-pix-code-row">
                     <span class="tp-pix-code">{{ pixResult()!.qrCode }}</span>
@@ -169,7 +218,7 @@
               <span class="tp-summary-label">Inscrição total (dupla)</span>
               <span class="tp-summary-value">{{ formatBRL(totalPriceReais()) }}</span>
             </div>
-            @if (totalPriceReais() > 0 && t.paymentMode !== 'directWithOrganizer') {
+            @if (totalPriceReais() > 0) {
               <div class="tp-summary-total-row">
                 <span class="tp-summary-label">Você paga agora</span>
                 <strong class="tp-summary-total">{{ formatBRL(amountDueReais()) }}</strong>

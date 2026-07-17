@@ -3,12 +3,14 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
+import QRCode from 'qrcode';
 import { interval } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { AtPanelShellComponent } from '../../painel/at-panel-shell.component';
 import { cpfCnpjValidationMessage, formatCpfCnpjDisplay, isValidCpfCnpj, normalizeCpfCnpj } from '../../data/cpf-cnpj';
 import { athleteFunctions } from '../../data/functions';
+import { buildPixBrCode, isLikelyValidPixKey } from '../../data/pix-brcode';
 import {
   cancelPendingRegistrationPix,
   confirmFreeRegistration,
@@ -23,6 +25,28 @@ import {
 import { fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../../data/tournaments-repository';
 import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
 import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
+
+async function qrDataUrlFromPayload(payload: string): Promise<string | null> {
+  const trimmed = payload.trim();
+  if (trimmed.length < 20) return null;
+  try {
+    return await QRCode.toDataURL(trimmed, {
+      errorCorrectionLevel: 'M',
+      margin: 2,
+      width: 440,
+      color: { dark: '#000000', light: '#ffffff' },
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Preferência Asaas (`qrCodeBase64`); se vier vazio, gera o QR no cliente a partir do payload EMV — mesmo fallback do app. */
+async function resolvePixQrSrc(result: PixPaymentResult): Promise<string | null> {
+  const base64 = result.qrCodeBase64?.trim();
+  if (base64) return `data:image/png;base64,${base64}`;
+  return qrDataUrlFromPayload(result.qrCode ?? '');
+}
 
 export type PaymentAmountType = 'share' | 'full';
 
@@ -102,6 +126,10 @@ export class TournamentPaymentComponent {
   protected readonly notice = signal<string | null>(null);
   protected readonly processing = signal(false);
   protected readonly pixResult = signal<PixPaymentResult | null>(null);
+  /** Data-URL do QR (Asaas ou gerado no cliente a partir do código copia-e-cola). */
+  protected readonly pixQrSrc = signal<string | null>(null);
+  /** QR do Pix estático do organizador (`directWithOrganizer`). */
+  protected readonly organizerQrSrc = signal<string | null>(null);
   protected readonly pixExpired = signal(false);
 
   private readonly nowMs = signal(Date.now());
@@ -113,6 +141,19 @@ export class TournamentPaymentComponent {
   protected readonly totalPriceReais = computed(() => this.selectedCategory()?.entryFee ?? 0);
   protected readonly amountDueReais = computed(() => (this.amountType() === 'share' ? this.totalPriceReais() / 2 : this.totalPriceReais()));
   protected readonly cpfCnpjDisplay = computed(() => formatCpfCnpjDisplay(this.cpfCnpj()));
+
+  /** BR Code estático do organizador (QR + copia-e-cola), com valor da parcela escolhida. */
+  protected readonly organizerBrCode = computed(() => {
+    const t = this.listing();
+    const pix = t?.organizerPix;
+    if (t?.paymentMode !== 'directWithOrganizer' || !isLikelyValidPixKey(pix?.key)) return null;
+    return buildPixBrCode({
+      key: pix!.key,
+      recipientName: pix!.recipientName || 'RECEBEDOR',
+      city: pix!.city || 'BRASIL',
+      amount: this.amountDueReais(),
+    });
+  });
 
   /** Parcela do atleta já paga (pagamento dividido) — falta só a do parceiro. */
   protected readonly mySharePaid = computed(() => {
@@ -145,6 +186,21 @@ export class TournamentPaymentComponent {
     effect(() => {
       const id = this.tournamentId();
       void this.loadData(id);
+    });
+
+    effect((onCleanup) => {
+      const brCode = this.organizerBrCode();
+      if (!brCode) {
+        this.organizerQrSrc.set(null);
+        return;
+      }
+      let cancelled = false;
+      onCleanup(() => {
+        cancelled = true;
+      });
+      void qrDataUrlFromPayload(brCode).then((src) => {
+        if (!cancelled) this.organizerQrSrc.set(src);
+      });
     });
   }
 
@@ -204,6 +260,7 @@ export class TournamentPaymentComponent {
   private clearPixState(): void {
     clearTimeout(this.expiryTimeout);
     this.pixResult.set(null);
+    this.pixQrSrc.set(null);
     this.pixExpiresAtMs.set(null);
     this.pixExpired.set(false);
   }
@@ -228,6 +285,7 @@ export class TournamentPaymentComponent {
     try {
       const result = await createRegistrationPixPayment(athleteFunctions(), reg.id, this.amountType(), this.cpfCnpj());
       this.pixResult.set(result);
+      this.pixQrSrc.set(await resolvePixQrSrc(result));
       this.pixExpired.set(false);
       this.schedulePixExpiry(result.expiresAt);
     } catch (err) {
@@ -251,6 +309,7 @@ export class TournamentPaymentComponent {
     const reg = this.registration();
     if (!this.pixResult()) return;
     this.pixResult.set(null);
+    this.pixQrSrc.set(null);
     this.pixExpiresAtMs.set(null);
     this.pixExpired.set(true);
     this.showNotice('O Pix expirou — gere um novo código.');
@@ -277,6 +336,17 @@ export class TournamentPaymentComponent {
 
   protected async copyPixCode(): Promise<void> {
     const code = this.pixResult()?.qrCode;
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      this.showNotice('Código Pix copiado.');
+    } catch {
+      this.showNotice('Não foi possível copiar — copie manualmente.');
+    }
+  }
+
+  protected async copyOrganizerPix(): Promise<void> {
+    const code = this.organizerBrCode();
     if (!code) return;
     try {
       await navigator.clipboard.writeText(code);

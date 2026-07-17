@@ -55,21 +55,39 @@
             </section>
           } @else {
             <section class="tp-card">
-              <h2 class="tp-card-title">Forma de pagamento</h2>
-              <div class="tp-method-row">
-                <button type="button" class="tp-method-card tp-method-card--active">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v6M12 15v6M3 12h6M15 12h6" /><rect x="9" y="9" width="6" height="6" rx="1.4" transform="rotate(45 12 12)" /></svg>
-                  <span>Pix</span>
-                </button>
+              <h2 class="tp-card-title">Pagamento via Pix</h2>
+
+              <div class="tp-amount-section">
+                <p class="tp-amount-label">Quanto você quer pagar agora?</p>
+                <div class="tp-amount-toggle" role="group" aria-label="Tipo de pagamento">
+                  <button
+                    type="button"
+                    class="tp-amount-btn"
+                    [class.tp-amount-btn--active]="amountType() === 'share'"
+                    [disabled]="!!pixResult()"
+                    (click)="setAmountType('share')"
+                  >
+                    <span class="tp-amount-btn-title">Minha parte</span>
+                    <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais() / 2) }}</span>
+                    <span class="tp-amount-btn-hint">Metade da inscrição da dupla</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="tp-amount-btn"
+                    [class.tp-amount-btn--active]="amountType() === 'full'"
+                    [disabled]="!!pixResult()"
+                    (click)="setAmountType('full')"
+                  >
+                    <span class="tp-amount-btn-title">Integral</span>
+                    <span class="tp-amount-btn-value">{{ formatBRL(totalPriceReais()) }}</span>
+                    <span class="tp-amount-btn-hint">Valor total da dupla</span>
+                  </button>
+                </div>
               </div>
 
-              <div class="tp-method-row">
-                <button type="button" class="tp-method-card" [class.tp-method-card--active]="amountType() === 'full'" (click)="setAmountType('full')">
-                  <span>Pagar tudo ({{ formatBRL(totalPriceReais()) }})</span>
-                </button>
-                <button type="button" class="tp-method-card" [class.tp-method-card--active]="amountType() === 'share'" (click)="setAmountType('share')">
-                  <span>Dividir com parceiro ({{ formatBRL(totalPriceReais() / 2) }})</span>
-                </button>
+              <div class="tp-due-box">
+                <span class="tp-due-label">{{ amountType() === 'full' ? 'Total da dupla' : 'Sua parcela' }}</span>
+                <strong class="tp-due-value">{{ formatBRL(amountDueReais()) }}</strong>
               </div>
 
               @if (!pixResult()) {
@@ -77,11 +95,12 @@
                   <label class="tp-cpf-label">CPF (necessário pra gerar o Pix)</label>
                   <input type="text" inputmode="numeric" class="tp-cpf-input" placeholder="Somente números" [value]="cpf()" (input)="onCpfInput($any($event.target).value)" />
                   <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="generatePix()">
-                    {{ processing() ? 'Gerando…' : 'Gerar código Pix' }}
+                    {{ processing() ? 'Gerando…' : 'Gerar Pix de ' + formatBRL(amountDueReais()) }}
                   </button>
                 </div>
               } @else {
                 <div class="tp-pix-block">
+                  <p class="tp-pix-amount">Pix de <strong>{{ formatBRL(pixResult()!.amountReais || amountDueReais()) }}</strong></p>
                   @if (pixResult()!.qrCodeBase64) {
                     <img class="tp-qr-placeholder" [src]="'data:image/png;base64,' + pixResult()!.qrCodeBase64" alt="QR Code Pix" />
                   }
@@ -93,7 +112,7 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
                     Pague no app do seu banco — a confirmação é automática assim que o Pix cair.
                   </p>
-                  <button type="button" class="tp-btn-ghost" (click)="cancelPix()">Cancelar este Pix</button>
+                  <button type="button" class="tp-btn-ghost" (click)="cancelPix()">Cancelar este Pix e trocar o valor</button>
                 </div>
               }
             </section>

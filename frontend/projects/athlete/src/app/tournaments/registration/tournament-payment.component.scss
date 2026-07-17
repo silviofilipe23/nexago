@@ -106,6 +106,116 @@
   margin: 0;
 }
 
+// ── Amount type (minha parte / integral) ─────────────────────
+.tp-amount-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tp-amount-label {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  color: var(--nx-text-mute);
+}
+
+.tp-amount-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tp-amount-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text-mute);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    border-color: var(--nx-line-strong);
+  }
+
+  &:disabled {
+    opacity: 0.72;
+    cursor: default;
+  }
+
+  &--active {
+    background: var(--nx-orange-tint);
+    border-color: var(--nx-orange-500);
+    color: var(--nx-text);
+  }
+}
+
+.tp-amount-btn-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.tp-amount-btn-value {
+  font-family: var(--nx-font-mono);
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--nx-orange-500);
+}
+
+.tp-amount-btn-hint {
+  font-family: var(--nx-font-ui);
+  font-size: 11.5px;
+  color: var(--nx-text-dim);
+}
+
+.tp-due-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--nx-r-3);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+}
+
+.tp-due-label {
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--nx-text-mute);
+}
+
+.tp-due-value {
+  font-family: var(--nx-font-mono);
+  font-weight: 900;
+  font-size: 20px;
+  color: var(--nx-orange-500);
+}
+
+.tp-pix-amount {
+  margin: 0;
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  color: var(--nx-text-mute);
+
+  strong {
+    color: var(--nx-orange-500);
+    font-family: var(--nx-font-mono);
+  }
+}
+
 // ── Payment method tabs ──────────────────────────────────────
 .tp-method-row {
   display: grid;

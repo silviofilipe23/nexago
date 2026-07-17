@@ -92,7 +92,7 @@ export class TournamentPaymentComponent {
     return cats.find((c) => c.id === id) ?? cats[0] ?? null;
   });
 
-  protected readonly amountType = signal<PaymentAmountType>('full');
+  protected readonly amountType = signal<PaymentAmountType>('share');
   protected readonly cpf = signal('');
   protected readonly notice = signal<string | null>(null);
   protected readonly processing = signal(false);

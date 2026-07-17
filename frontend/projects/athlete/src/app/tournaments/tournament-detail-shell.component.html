@@ -14,8 +14,14 @@
         <div class="tdv-notice" role="status">{{ fb }}</div>
       }
 
-      <div class="tdv-hero" [style.background]="heroBackground()">
-        <span class="tdv-hero-ring" aria-hidden="true"></span>
+      <div class="tdv-hero" [class.tdv-hero--cover]="heroCover() !== null" [style.background]="heroBackground()">
+        @if (heroCover(); as cover) {
+          <div class="tdv-hero-media" aria-hidden="true">
+            <img [src]="cover" alt="" (error)="coverFailed.set(true)" />
+          </div>
+        } @else {
+          <span class="tdv-hero-ring" aria-hidden="true"></span>
+        }
         <div class="tdv-hero-top">
           <div class="tdv-hero-badges">
             <span class="tdv-hero-status" [attr.data-tone]="heroStatus().tone">{{ heroStatus().label }}</span>

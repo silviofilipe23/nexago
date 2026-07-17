@@ -33,6 +33,8 @@ export interface OrganizerMatchOpsConfig {
 export interface OrganizerTournament {
   id: string;
   name: string;
+  /** uid do dono do torneio — só quem organiza gerencia a equipe (rules: `isTournamentOwner`). */
+  managerId: string;
   sportLabel: string;
   /** Capa do torneio (`coverUrl`/`imageUrl`/… no Firestore) — nula quando não enviada. */
   coverUrl: string | null;

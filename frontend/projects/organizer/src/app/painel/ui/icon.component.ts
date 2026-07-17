@@ -22,7 +22,8 @@ export type OgIconName =
   | 'grid'
   | 'calendar'
   | 'back'
-  | 'logout';
+  | 'logout'
+  | 'team';
 
 /** Ícones de contorno do design system NexaGO — mesmo traçado do protótipo (stroke 24, 1.8–2.2px). */
 @Component({
@@ -106,6 +107,9 @@ export type OgIconName =
         }
         @case ('logout') {
           <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" /><path d="m16 17 5-5-5-5M21 12H9" />
+        }
+        @case ('team') {
+          <circle cx="12" cy="7.5" r="3.5" /><path d="M5 21c0-3.9 3.1-7 7-7s7 3.1 7 7" />
         }
       }
     </svg>

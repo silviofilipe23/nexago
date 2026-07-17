@@ -1,6 +1,4 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { OG_EQUIPE } from '../data/mock-data';
-import { OgAvatarComponent } from '../ui/avatar.component';
 import { OgCardComponent } from '../ui/card.component';
 import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
@@ -30,13 +28,15 @@ const PAGAMENTOS_ROWS: ConfigRow[] = [
   { label: 'Saque automático', value: 'Semanal' },
 ];
 
-/** Dados da organização, regras padrão de evento, pagamentos e equipe com acesso ao painel. */
+/** Dados da organização, regras padrão de evento e pagamentos. A equipe de acesso agora é
+ *  por torneio (`/painel/eventos/:id/equipe`, gestor/mesário) — não existe mais uma "equipe do
+ *  painel" global, então o card mockado que vivia aqui foi removido. */
 @Component({
   selector: 'og-config',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent, OgAvatarComponent],
+  imports: [OgPageHeaderComponent, OgCardComponent, OgIconComponent],
   template: `
-    <og-page-header title="Configurações" subtitle="Dados da organização, pagamentos e equipe" />
+    <og-page-header title="Configurações" subtitle="Dados da organização e pagamentos" />
 
     <div class="og-content" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <og-card title="Organização" kicker="Perfil">
@@ -68,22 +68,6 @@ const PAGAMENTOS_ROWS: ConfigRow[] = [
           </div>
         }
       </og-card>
-
-      <og-card title="Equipe" kicker="Acesso ao painel">
-        <button card-action type="button" class="og-mini-btn"><og-icon name="plus" [size]="13" />Convidar</button>
-        <div style="display:flex;flex-direction:column">
-          @for (m of equipe; track m.name; let last = $last) {
-            <div class="og-config-membro" [class.last]="last">
-              <og-avatar [initials]="m.initials" [size]="32" />
-              <span style="flex:1">
-                <div class="og-config-membro-name">{{ m.name }}</div>
-                <div class="og-config-membro-role">{{ m.role }}</div>
-              </span>
-              <button type="button" class="og-ghost-btn">Remover</button>
-            </div>
-          }
-        </div>
-      </og-card>
     </div>
   `,
   styles: `
@@ -111,33 +95,10 @@ const PAGAMENTOS_ROWS: ConfigRow[] = [
       font-size: 13.5px;
       color: var(--nx-text);
     }
-    .og-config-membro {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 11px 0;
-      border-bottom: 1px solid var(--nx-line);
-    }
-    .og-config-membro.last {
-      border-bottom: none;
-    }
-    .og-config-membro-name {
-      font-family: var(--nx-font-display);
-      font-weight: 600;
-      font-size: 13px;
-      color: var(--nx-text);
-    }
-    .og-config-membro-role {
-      font-family: var(--nx-font-mono);
-      font-size: 10px;
-      color: var(--nx-text-dim);
-      margin-top: 2px;
-    }
   `,
 })
 export class ConfigComponent {
   protected readonly orgRows = ORG_ROWS;
   protected readonly regrasRows = REGRAS_ROWS;
   protected readonly pagamentosRows = PAGAMENTOS_ROWS;
-  protected readonly equipe = OG_EQUIPE;
 }

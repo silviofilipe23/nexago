@@ -171,6 +171,7 @@ export class PanelShellComponent {
         { label: 'Inscrições', icon: 'users', link: `${base}/inscricoes` },
         { label: 'Agendamento', icon: 'calendar', link: `${base}/agendamento` },
         { label: 'Comunicação', icon: 'mail', link: `${base}/comunicacao` },
+        { label: 'Equipe', icon: 'team', link: `${base}/equipe` },
       ];
     }
     return [

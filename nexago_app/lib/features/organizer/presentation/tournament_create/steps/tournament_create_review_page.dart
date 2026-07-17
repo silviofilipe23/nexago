@@ -167,7 +167,7 @@ class _TournamentCreateReviewPageState
             onEdit: () => goToCreateStep(
               context,
               ref,
-              TournamentCreateStep.rules,
+              TournamentCreateStep.prizes,
             ),
           ),
           _ReviewSection(

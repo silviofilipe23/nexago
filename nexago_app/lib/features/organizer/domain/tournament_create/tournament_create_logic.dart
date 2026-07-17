@@ -292,7 +292,8 @@ String stepTitle(TournamentCreateStep step) => switch (step) {
   TournamentCreateStep.location => 'Local e datas',
   TournamentCreateStep.categories => 'Categorias',
   TournamentCreateStep.registration => 'Inscrições',
-  TournamentCreateStep.rules => 'Premiação, regulamento & ranking',
+  TournamentCreateStep.prizes => 'Premiação',
+  TournamentCreateStep.rules => 'Regulamento & ranking',
   TournamentCreateStep.review => 'Tudo pronto?',
 };
 
@@ -304,8 +305,10 @@ String stepSubtitle(TournamentCreateStep step) => switch (step) {
     'Cada categoria roda sua própria chave, formato, vagas e preço.',
   TournamentCreateStep.registration =>
     'Janela de inscrição e como você recebe.',
+  TournamentCreateStep.prizes =>
+    'Quanto e como cada categoria premia.',
   TournamentCreateStep.rules =>
-    'Premiação, regras oficiais e quanto vale no ranking.',
+    'Regras oficiais e quanto vale no ranking.',
   TournamentCreateStep.review =>
     'Revise antes de publicar. Dá pra editar qualquer parte depois.',
 };
@@ -368,11 +371,11 @@ bool canContinueFromStep(
           draft.registrationClosesAt != null &&
           registrationWindowError(draft) == null &&
           organizerPixComplete(draft),
-    // Premiação foi fundida em "rules": se houver premiação em dinheiro,
-    // toda categoria precisa ter os valores definidos.
-    TournamentCreateStep.rules =>
+    // Com premiação em dinheiro, toda categoria precisa ter valores definidos.
+    TournamentCreateStep.prizes =>
       !draft.cashPrizesEnabled ||
           draft.categories.every((c) => c.prizes.isNotEmpty),
+    TournamentCreateStep.rules => true,
     TournamentCreateStep.review => isValidForPublish(draft),
   };
 }
@@ -466,8 +469,6 @@ TournamentCreateStep inferResumeStep(TournamentCreateDraft draft) {
 TournamentCreateStep? parseWizardStep(String? raw) {
   if (raw == null || raw.isEmpty) return null;
   if (raw == 'format') return TournamentCreateStep.categories;
-  // 'prizes' foi fundido em 'rules' (compat. com rascunhos antigos).
-  if (raw == 'prizes') return TournamentCreateStep.rules;
   for (final step in TournamentCreateStep.values) {
     if (step.name == raw) return step;
   }

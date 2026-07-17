@@ -362,7 +362,6 @@ DateTime? _parseDate(dynamic raw) {
 TournamentCreateStep? _parseStep(String? name) {
   if (name == null || name.isEmpty) return null;
   if (name == 'format') return TournamentCreateStep.categories;
-  if (name == 'prizes') return TournamentCreateStep.rules;
   for (final step in TournamentCreateStep.values) {
     if (step.name == name) return step;
   }

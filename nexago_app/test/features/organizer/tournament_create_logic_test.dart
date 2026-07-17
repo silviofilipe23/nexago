@@ -229,13 +229,13 @@ void main() {
     });
   });
 
-  group('canContinueFromStep rules (premiação fundida)', () {
+  group('canContinueFromStep prizes', () {
     test('cash prizes disabled always passes', () {
       const d = TournamentCreateDraft(
         cashPrizesEnabled: false,
         categories: [TournamentCategoryDraft(id: 'c1')],
       );
-      expect(canContinueFromStep(d, TournamentCreateStep.rules), isTrue);
+      expect(canContinueFromStep(d, TournamentCreateStep.prizes), isTrue);
     });
 
     test('cash enabled requires every category to have prizes', () {
@@ -249,7 +249,7 @@ void main() {
         ],
       );
       expect(
-        canContinueFromStep(withPrize, TournamentCreateStep.rules),
+        canContinueFromStep(withPrize, TournamentCreateStep.prizes),
         isTrue,
       );
 
@@ -258,8 +258,19 @@ void main() {
         categories: [TournamentCategoryDraft(id: 'c1')],
       );
       expect(
-        canContinueFromStep(missingPrize, TournamentCreateStep.rules),
+        canContinueFromStep(missingPrize, TournamentCreateStep.prizes),
         isFalse,
+      );
+    });
+
+    test('rules step no longer blocks on prizes', () {
+      const missingPrize = TournamentCreateDraft(
+        cashPrizesEnabled: true,
+        categories: [TournamentCategoryDraft(id: 'c1')],
+      );
+      expect(
+        canContinueFromStep(missingPrize, TournamentCreateStep.rules),
+        isTrue,
       );
     });
   });
@@ -480,21 +491,21 @@ void main() {
       expect(parseWizardStep('format'), TournamentCreateStep.categories);
     });
 
-    test('maps legacy prizes step to rules (merged step)', () {
-      expect(parseWizardStep('prizes'), TournamentCreateStep.rules);
+    test('maps prizes to its own step', () {
+      expect(parseWizardStep('prizes'), TournamentCreateStep.prizes);
     });
   });
 
   group('wizard steps', () {
-    test('has 6 steps after merging prizes into rules', () {
-      expect(TournamentCreateStepX.total, 6);
+    test('has 7 steps with prizes as a dedicated step', () {
+      expect(TournamentCreateStepX.total, 7);
       expect(
         TournamentCreateStep.values,
-        isNot(contains(isA<TournamentCreateStep>().having(
-          (s) => s.name,
-          'name',
-          'prizes',
-        ))),
+        contains(TournamentCreateStep.prizes),
+      );
+      expect(
+        TournamentCreateStep.values.indexOf(TournamentCreateStep.prizes),
+        TournamentCreateStep.values.indexOf(TournamentCreateStep.rules) - 1,
       );
     });
   });

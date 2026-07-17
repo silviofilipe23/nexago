@@ -8,10 +8,8 @@ import 'package:nexago_app/core/theme/app_typography.dart';
 import '../../../domain/tournament_create/tournament_create_draft.dart';
 import '../../../domain/tournament_create/tournament_create_logic.dart';
 import '../../../domain/tournament_create/tournament_create_providers.dart';
-import '../sheets/tournament_prize_editor_sheet.dart';
 import '../tournament_create_navigation.dart';
 import '../tournament_create_wizard_scaffold.dart';
-import '../widgets/organizer_category_cards.dart';
 import '../widgets/organizer_form_widgets.dart';
 
 class TournamentCreateRulesPage extends ConsumerStatefulWidget {
@@ -67,50 +65,13 @@ class _TournamentCreateRulesPageState
     return TournamentCreateWizardScaffold(
       step: TournamentCreateStep.rules,
       onBack: () {
-        syncWizardStep(ref, TournamentCreateStep.registration);
+        syncWizardStep(ref, TournamentCreateStep.prizes);
         Navigator.of(context).maybePop();
       },
       onClose: _handleClose,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          OrganizerToggleSettingRow(
-            icon: Icons.card_giftcard_outlined,
-            title: 'Premiação em dinheiro',
-            subtitle: 'Desligue para premiar só com troféus/brindes.',
-            value: draft.cashPrizesEnabled,
-            onChanged: (value) => ref
-                .read(tournamentCreateWizardProvider.notifier)
-                .setCashPrizesEnabled(value),
-          ),
-          if (draft.cashPrizesEnabled) ...[
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                const Expanded(child: OrganizerSectionLabel('PREMIAÇÃO POR CATEGORIA')),
-                Text(
-                  '${formatCents(draft.totalPrizeCents)} no total',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: AppColors.win,
-                        fontWeight: FontWeight.w800,
-                      ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            for (final category in draft.categories) ...[
-              OrganizerPrizeCategoryCard(
-                category: category,
-                onEdit: () => showTournamentPrizeEditorSheet(
-                  context,
-                  ref,
-                  category: category,
-                ),
-              ),
-              const SizedBox(height: 12),
-            ],
-          ],
-          const SizedBox(height: 12),
           const OrganizerSectionLabel('REGULAMENTO'),
           const SizedBox(height: 8),
           Material(

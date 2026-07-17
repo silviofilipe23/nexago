@@ -366,6 +366,7 @@ enum TournamentCreateStep {
   location,
   categories,
   registration,
+  prizes,
   rules,
   review,
 }

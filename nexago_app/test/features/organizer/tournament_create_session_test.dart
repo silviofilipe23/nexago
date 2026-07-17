@@ -106,11 +106,11 @@ void main() {
       expect(restored?.currentStep, TournamentCreateStep.categories);
     });
 
-    test('maps legacy "prizes" step to rules', () {
+    test('restores the "prizes" step directly', () {
       final restored = TournamentCreateSession.fromJson(
         baseJson(currentStep: 'prizes'),
       );
-      expect(restored?.currentStep, TournamentCreateStep.rules);
+      expect(restored?.currentStep, TournamentCreateStep.prizes);
     });
 
     test('rejects draft that is not a map', () {

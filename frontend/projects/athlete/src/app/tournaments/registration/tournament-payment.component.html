@@ -1,7 +1,7 @@
 <app-at-panel-shell [userName]="accountLabel()">
   @if (loading()) {
     <div class="tp-body">
-      <p class="tp-defer-note">Carregando…</p>
+      <app-nx-page-loading title="Carregando pagamento…" subtitle="Buscando sua inscrição" />
     </div>
   } @else if (listing(); as t) {
     <div class="tp-body">
@@ -38,6 +38,9 @@
               <h2 class="tp-card-title">Inscrição gratuita</h2>
               <p class="tp-defer-note">Essa categoria não cobra taxa de inscrição — só confirme sua presença.</p>
               <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="confirmFree()">
+                @if (processing()) {
+                  <app-nx-spinner [size]="14" tone="dark" />
+                }
                 {{ processing() ? 'Confirmando…' : 'Confirmar inscrição gratuita' }}
               </button>
             </section>
@@ -56,6 +59,9 @@
                 </div>
               }
               <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="reserveDirect()">
+                @if (processing()) {
+                  <app-nx-spinner [size]="14" tone="dark" />
+                }
                 {{ processing() ? 'Registrando…' : 'Já paguei, marcar como reservado' }}
               </button>
             </section>
@@ -110,6 +116,9 @@
                   <label class="tp-cpf-label">CPF ou CNPJ (necessário pra gerar o Pix)</label>
                   <input type="text" class="tp-cpf-input" placeholder="Documento do pagador" [value]="cpfCnpjDisplay()" (input)="onDocumentInput($any($event.target).value)" />
                   <button type="button" class="tp-btn-primary" [disabled]="processing()" (click)="generatePix()">
+                    @if (processing()) {
+                      <app-nx-spinner [size]="14" tone="dark" />
+                    }
                     {{ processing() ? 'Gerando…' : 'Gerar Pix de ' + formatBRL(amountDueReais()) }}
                   </button>
                 </div>

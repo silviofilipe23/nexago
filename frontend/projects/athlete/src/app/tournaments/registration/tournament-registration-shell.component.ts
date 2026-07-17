@@ -28,6 +28,8 @@ import {
   validateUniformSelection,
   type UniformSelection,
 } from '../tournament-uniform';
+import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
+import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 import { UniformFormComponent } from './uniform-form.component';
 
 function titleCase(input: string): string {
@@ -86,7 +88,7 @@ interface CategoryStatus {
  *  UI — o backend continua autoritativo. */
 @Component({
   selector: 'app-tournament-registration-shell',
-  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent],
+  imports: [RouterLink, AtPanelShellComponent, UniformFormComponent, NxPageLoadingComponent, NxSpinnerComponent],
   templateUrl: './tournament-registration-shell.component.html',
   styleUrl: './tournament-registration-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

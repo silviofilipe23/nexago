@@ -1,8 +1,7 @@
 @if (loading()) {
   <div class="pp-state-page">
     <div class="pp-state-card">
-      <p class="pp-state-eyebrow">Carregando perfil</p>
-      <h1 class="pp-state-title">Preparando o perfil do atleta…</h1>
+      <app-nx-page-loading title="Carregando perfil…" subtitle="Preparando o perfil do atleta" />
     </div>
   </div>
 } @else if (error(); as errorMessage) {

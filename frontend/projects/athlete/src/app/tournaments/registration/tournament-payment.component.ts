@@ -21,6 +21,8 @@ import {
   type PixPaymentResult,
 } from '../../data/tournament-registrations-repository';
 import { fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../../data/tournaments-repository';
+import { NxPageLoadingComponent } from '../../shared/loading/nx-page-loading.component';
+import { NxSpinnerComponent } from '../../shared/loading/nx-spinner.component';
 
 export type PaymentAmountType = 'share' | 'full';
 
@@ -60,7 +62,7 @@ const PIX_EXPIRY_FALLBACK_MS = 15 * 60_000;
 @Component({
   selector: 'app-tournament-payment',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent],
+  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent, NxSpinnerComponent],
   templateUrl: './tournament-payment.component.html',
   styleUrl: './tournament-payment.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

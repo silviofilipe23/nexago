@@ -6,6 +6,8 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtBellComponent } from '../painel/at-bell.component';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
+import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
 import {
   acceptFriendlyMatchSlot,
   cancelFriendlyMatch,
@@ -74,7 +76,7 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
 @Component({
   selector: 'app-bora-jogar',
   standalone: true,
-  imports: [AtPanelShellComponent, AtBellComponent],
+  imports: [AtPanelShellComponent, AtBellComponent, NxPageLoadingComponent, NxSpinnerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-at-panel-shell [userName]="accountLabel()">
@@ -89,7 +91,7 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
 
       <div class="bj-body">
         @if (loading()) {
-          <div class="bj-empty">Carregando seus jogos…</div>
+          <app-nx-page-loading title="Carregando seus jogos…" subtitle="Convites e partidas do Bora Jogar" />
         } @else if (!enabled()) {
           <div class="bj-empty">
             <strong>Bora Jogar ainda não está liberado por aqui.</strong><br />
@@ -111,7 +113,10 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
                   </div>
                   <div class="bj-card-actions">
                     <button type="button" class="bj-btn bj-btn--primary" [disabled]="busyId() === m.id" (click)="accept(m)">
-                      {{ busyId() === m.id ? '…' : 'Aceitar' }}
+                      @if (busyId() === m.id) {
+                        <app-nx-spinner [size]="12" tone="dark" />
+                      }
+                      {{ busyId() === m.id ? 'Aceitando…' : 'Aceitar' }}
                     </button>
                     <button type="button" class="bj-btn" [disabled]="busyId() === m.id" (click)="decline(m)">Recusar</button>
                   </div>
@@ -134,7 +139,12 @@ const WHEN = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit'
                 </div>
                 <div class="bj-card-actions">
                   @if (m.status === 'confirmed' && isParticipant(m)) {
-                    <button type="button" class="bj-btn bj-btn--primary" [disabled]="busyId() === m.id" (click)="checkIn(m)">Check-in</button>
+                    <button type="button" class="bj-btn bj-btn--primary" [disabled]="busyId() === m.id" (click)="checkIn(m)">
+                      @if (busyId() === m.id) {
+                        <app-nx-spinner [size]="12" tone="dark" />
+                      }
+                      {{ busyId() === m.id ? 'Confirmando…' : 'Check-in' }}
+                    </button>
                   }
                   @if (isOrganizer(m) && (m.status === 'filling' || m.status === 'confirmed')) {
                     <button type="button" class="bj-btn bj-btn--danger" [disabled]="busyId() === m.id" (click)="cancel(m)">Cancelar</button>

@@ -17,6 +17,7 @@ import { environment } from '../environments/environment';
 import { AuthService } from './auth/auth.service';
 import { AtBellComponent } from './painel/at-bell.component';
 import { AtPanelShellComponent } from './painel/at-panel-shell.component';
+import { NxSkeletonComponent } from './shared/loading/nx-skeleton.component';
 import { watchCommunityFeed, type CommunityFeedItem } from './data/community-feed-repository';
 import { DAILY_MISSION_CATALOG, watchDailyMissions } from './data/daily-missions-repository';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from './data/teams-repository';
@@ -439,7 +440,7 @@ function communityMessage(item: CommunityFeedItem): string {
 @Component({
   selector: 'app-athlete-painel',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent, AtBellComponent],
+  imports: [RouterLink, AtPanelShellComponent, AtBellComponent, NxSkeletonComponent],
   templateUrl: './athlete-painel.component.html',
   styleUrl: './athlete-painel.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -460,6 +461,9 @@ export class AthletePainelComponent {
 
   protected readonly loadingRanking = signal(false);
   protected readonly syncError = signal<string | null>(null);
+  /** Primeira carga do painel logado — desliga na primeira emissão do snapshot de reservas
+   *  (dispara rápido mesmo vazio). Sem sessão (preview), nem chega a ligar. */
+  protected readonly bootLoading = signal(true);
 
   protected readonly chartTabs = CHART_TABS;
   protected readonly chartW = CHART_W;
@@ -648,15 +652,18 @@ export class AthletePainelComponent {
         this.missionsDoneState.set(new Set());
         this.myTournamentsState.set([]);
         this.loadingRanking.set(false);
+        this.bootLoading.set(false);
         return;
       }
 
       if (!this.firestore) {
         this.syncError.set('Firebase nao configurado para sincronizar os dados reais do painel.');
+        this.bootLoading.set(false);
         return;
       }
 
       this.loadingRanking.set(true);
+      this.bootLoading.set(true);
 
       const bookingsQuery = query(
         collection(this.firestore, 'arenaBookings'),
@@ -671,9 +678,11 @@ export class AthletePainelComponent {
             .map(mapBookingDoc)
             .sort((a, b) => bookingSortValue(a).localeCompare(bookingSortValue(b), 'pt-BR'));
           this.liveReservationsState.set(next);
+          this.bootLoading.set(false);
         },
         () => {
           this.syncError.set('Nao foi possivel atualizar as reservas agora.');
+          this.bootLoading.set(false);
         },
       );
 

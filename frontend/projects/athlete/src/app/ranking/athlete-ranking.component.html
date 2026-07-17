@@ -106,7 +106,11 @@
 
     <div class="rk-main-grid">
       <div class="rk-col">
-        @if (totalCount() === 0) {
+        @if (loading()) {
+          <div class="rk-empty-card">
+            <app-nx-page-loading title="Carregando ranking…" subtitle="Somando os pontos da temporada" />
+          </div>
+        } @else if (totalCount() === 0) {
           <div class="rk-empty-card">
             <p class="rk-empty-title">Nenhum atleta encontrado</p>
             <p class="rk-empty-sub">Ajuste os filtros ou a busca para ver mais resultados.</p>

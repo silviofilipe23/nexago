@@ -5,6 +5,7 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchLeague, fetchLeagueTeamRanking, type League, type LeagueRankingRow as RepoRankingRow } from '../data/leagues-repository';
 import { fetchTeamsByIds, fetchTeamsForAthlete, type ArenaTeam } from '../data/teams-repository';
@@ -62,7 +63,7 @@ function stageStatusOf(tournament: TournamentSummary | undefined, now: Date): Le
 @Component({
   selector: 'app-league-detail-shell',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent],
+  imports: [RouterLink, AtPanelShellComponent, NxPageLoadingComponent],
   templateUrl: './league-detail-shell.component.html',
   styleUrl: './league-detail-shell.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -521,6 +521,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
 
   &:hover:not(:disabled) {
     background: var(--nx-orange-400);
@@ -547,6 +548,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   text-decoration: none;
   white-space: nowrap;
 

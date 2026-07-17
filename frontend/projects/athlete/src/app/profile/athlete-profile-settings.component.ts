@@ -15,6 +15,8 @@ import {
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
+import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
 import { SandRankCardComponent } from './sand-rank-card.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
 import { AthleteGamificationService } from './athlete-gamification.service';
@@ -96,7 +98,7 @@ function readNumber(data: DocumentData | null | undefined, keys: readonly string
 @Component({
   selector: 'app-athlete-profile-settings',
   standalone: true,
-  imports: [ReactiveFormsModule, AtPanelShellComponent, SandRankCardComponent],
+  imports: [ReactiveFormsModule, AtPanelShellComponent, SandRankCardComponent, NxPageLoadingComponent, NxSpinnerComponent],
   templateUrl: './athlete-profile-settings.component.html',
   styleUrl: './athlete-profile-settings.component.scss',
 })

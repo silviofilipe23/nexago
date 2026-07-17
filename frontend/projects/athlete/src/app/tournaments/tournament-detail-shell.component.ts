@@ -159,6 +159,14 @@ export class TournamentDetailShellComponent {
 
   protected readonly heroBackground = computed(() => heroGradient(this.tournament()?.id ?? ''));
 
+  /** Capa cadastrada pelo organizador; o gradiente segue por baixo enquanto a foto carrega
+   *  e vira fallback quando não há capa ou o download falha. */
+  protected readonly coverFailed = signal(false);
+  protected readonly heroCover = computed(() => {
+    const url = this.tournament()?.coverUrl;
+    return url && !this.coverFailed() ? url : null;
+  });
+
   constructor() {
     this.destroyRef.onDestroy(() => clearTimeout(this.feedbackTimeout));
     effect(() => {
@@ -176,6 +184,7 @@ export class TournamentDetailShellComponent {
       return;
     }
     this.loading.set(true);
+    this.coverFailed.set(false);
     try {
       const [tournament, leagues, enrolledCounts] = await Promise.all([
         fetchTournament(db, id),

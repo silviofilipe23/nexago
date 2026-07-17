@@ -71,6 +71,86 @@
   }
 }
 
+// Com capa do organizador: hero mais alto, faixa superior presa no topo e
+// título/meta pousando embaixo, sobre a área mais escura do scrim.
+.tdv-hero--cover {
+  min-height: 248px;
+  justify-content: flex-end;
+
+  .tdv-hero-top {
+    margin-bottom: auto;
+  }
+
+  @media (max-width: 640px) {
+    min-height: 212px;
+  }
+}
+
+// Foto de capa — mesma linguagem do painel do organizador: scrim de vinheta,
+// fade escuro embaixo (contraste do texto branco) e brilho laranja da marca.
+// Altura vem do próprio hero: sem layout shift quando a imagem chega.
+.tdv-hero-media {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transform-origin: 50% 30%;
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(180deg, rgba(10, 10, 10, 0.55), rgba(10, 10, 10, 0.24) 42%, rgba(10, 10, 10, 0.82) 100%);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: radial-gradient(72% 88% at 10% 100%, rgba(255, 106, 26, 0.2), transparent 62%);
+  }
+}
+
+// Revelação com "settle" de zoom + deriva Ken Burns lenta — só transform/opacity
+// (GPU), e nada disso com reduced-motion (a foto aparece estática de imediato).
+@media (prefers-reduced-motion: no-preference) {
+  .tdv-hero-media img {
+    opacity: 0;
+    animation:
+      tdv-hero-reveal 1100ms var(--nx-ease-out) 60ms forwards,
+      tdv-hero-drift 38s ease-in-out 1200ms infinite alternate;
+  }
+}
+
+@keyframes tdv-hero-reveal {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tdv-hero-drift {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.07) translateY(-6px);
+  }
+}
+
 .tdv-hero-top {
   position: relative;
   display: flex;

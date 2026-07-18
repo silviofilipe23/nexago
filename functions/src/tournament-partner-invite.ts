@@ -28,6 +28,7 @@ import {
 } from "./tournament-pair-uniqueness";
 import {formatCategoryInviteNotificationLabel} from "./category-display-labels";
 import {artifactsInscriptionsPath, artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
+import {registrationAthleteUids} from "./tournament-registration-pix-helpers";
 
 const INVITES_COLLECTION = "tournamentRegistrationInvites";
 const INVITE_TTL_MS = 48 * 60 * 60 * 1000;
@@ -740,6 +741,118 @@ export const registerSoloTournament = onCall(async (request) => {
   });
 
   return {registrationId: regRef.id};
+});
+
+/**
+ * Cancela a reserva/inscrição do próprio atleta — somente enquanto não paga
+ * (`isPaid !== true`). Cobre solo (sem `teams` doc, identificado por
+ * `player1Id`/`participantUids` na própria inscrição) e dupla já formada
+ * (via `teams.player1Id`/`player2Id`).
+ */
+export const cancelTournamentRegistration = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) {
+    throw new HttpsError("unauthenticated", "Faça login para cancelar sua inscrição.");
+  }
+
+  const registrationId =
+    (request.data?.registrationId as string | undefined)?.trim() ?? "";
+  if (!registrationId) {
+    throw new HttpsError("invalid-argument", "registrationId é obrigatório.");
+  }
+
+  const projectId = getFirebaseProjectId();
+  const db = getFirestore();
+
+  const regRef = db
+    .collection(artifactsInscriptionsPath(projectId))
+    .doc(registrationId);
+  const regSnap = await regRef.get();
+  if (!regSnap.exists) {
+    throw new HttpsError("not-found", "Inscrição não encontrada.");
+  }
+  const registration = regSnap.data()!;
+
+  if (registration.isPaid === true) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Inscrição já confirmada não pode ser cancelada por aqui. Fale com o organizador.",
+    );
+  }
+
+  const teamId = (registration.teamId as string | undefined)?.trim() ?? "";
+  let team: Record<string, unknown> | null = null;
+  if (teamId) {
+    const teamSnap = await db
+      .doc(`${artifactsTeamsPath(projectId)}/${teamId}`)
+      .get();
+    team = teamSnap.exists ? (teamSnap.data() as Record<string, unknown>) : null;
+  }
+  const athleteUids = registrationAthleteUids(registration, team);
+  if (!athleteUids.includes(uid)) {
+    throw new HttpsError(
+      "permission-denied",
+      "Você não é um dos atletas desta inscrição.",
+    );
+  }
+
+  const tournamentId =
+    (registration.tournamentId as string | undefined)?.trim() ?? "";
+  const categoryId = (registration.categoryId as string | undefined)?.trim() ?? "";
+
+  // Convites pendentes ligados a esta inscrição (solo aguardando parceiro)
+  // não devem sobreviver à reserva cancelada.
+  const invitesSnap = await db
+    .collection(INVITES_COLLECTION)
+    .where("tournamentId", "==", tournamentId)
+    .where("status", "==", "pending")
+    .get();
+  const batch = db.batch();
+  let cancelledInvites = 0;
+  for (const doc of invitesSnap.docs) {
+    const data = doc.data();
+    const attachId = (data.attachRegistrationId as string | undefined)?.trim() ?? "";
+    const inviter = (data.inviterUid as string | undefined)?.trim() ?? "";
+    const matchesThisRegistration =
+      attachId === registrationId ||
+      (attachId === "" && inviter === uid && data.categoryId === categoryId);
+    if (!matchesThisRegistration) continue;
+    batch.update(doc.ref, {
+      status: "cancelled",
+      cancelReason: "registration_cancelled",
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    cancelledInvites++;
+  }
+  if (cancelledInvites > 0) await batch.commit();
+
+  // Avisa o outro atleta da dupla, se já houver um.
+  const otherUids = athleteUids.filter((id) => id !== uid);
+  if (otherUids.length > 0) {
+    await Promise.all(
+      otherUids.map((otherUid) =>
+        deliverNotificationToUser({
+          userId: otherUid,
+          title: "Inscrição cancelada",
+          body: "Seu parceiro cancelou a reserva da vaga. A inscrição foi removida.",
+          type: "tournament_registration_cancelled",
+          data: {tournamentId, url: `/torneios/${tournamentId}`},
+        }).catch(() => undefined),
+      ),
+    );
+  }
+
+  await regRef.delete();
+
+  logger.info("Tournament registration cancelled by athlete", {
+    registrationId,
+    tournamentId,
+    categoryId,
+    uid,
+    cancelledInvites,
+  });
+
+  return {ok: true, registrationId};
 });
 
 export const acceptTournamentPartnerInvite = onCall(async (request) => {

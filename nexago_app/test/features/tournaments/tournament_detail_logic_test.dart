@@ -411,6 +411,21 @@ void main() {
     );
   });
 
+  test('athleteRegistrationStatusLabel flags reserved awaiting organizer', () {
+    expect(
+      athleteRegistrationStatusLabel(
+        isPaid: false,
+        isWaitlist: false,
+        athleteHasReserved: true,
+      ),
+      'Aguardando organizador',
+    );
+    expect(
+      athleteRegistrationStatusLabel(isPaid: false, isWaitlist: false),
+      'Pagamento pendente',
+    );
+  });
+
   test('bracketFormatLabel translates internal codes', () {
     expect(
       bracketFormatLabel('groups_knockout'),

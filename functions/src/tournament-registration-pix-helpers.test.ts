@@ -9,6 +9,7 @@ import {
   isDirectWithOrganizerPaymentMode,
   normalizeAthleteGenderBucket,
   parseTournamentRegistrationExternalReference,
+  registrationAthleteUids,
   resolveTournamentChargeReais,
   resolveTournamentRegistrationCredit,
   sharePaidUidsFromRegistration,
@@ -127,5 +128,29 @@ describe("tournament-registration-pix-helpers", () => {
     });
     assert.equal(second.newPaidAmount, 100);
     assert.equal(second.isPaid, true);
+  });
+
+  it("resolves athlete uids from the registration when there is no team yet", () => {
+    const uids = registrationAthleteUids(
+      {player1Id: "solo-uid", participantUids: ["solo-uid"]},
+      null,
+    );
+    assert.deepEqual(uids, ["solo-uid"]);
+  });
+
+  it("resolves athlete uids from the team when a team exists, ignoring stale participantUids", () => {
+    const uids = registrationAthleteUids(
+      {player1Id: "old-uid", participantUids: ["old-uid"]},
+      {player1Id: "p1", player2Id: "p2"},
+    );
+    assert.deepEqual(uids, ["p1", "p2"]);
+  });
+
+  it("resolves only player1 when the team has no player2 yet", () => {
+    const uids = registrationAthleteUids(
+      {player1Id: "old-uid"},
+      {player1Id: "p1", player2Id: ""},
+    );
+    assert.deepEqual(uids, ["p1"]);
   });
 });

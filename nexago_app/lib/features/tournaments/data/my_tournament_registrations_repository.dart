@@ -103,6 +103,7 @@ class MyTournamentRegistrationsRepository {
       final categoryId = data['categoryId'] as String? ?? '';
       final listingRaw = tournament?.listingStatusRaw;
       final sharePaidUids = _sharePaidUidsFromData(data);
+      final athleteHasReserved = sharePaidUids.contains(uid);
 
       results.add(
         MyTournamentRegistration(
@@ -113,6 +114,7 @@ class MyTournamentRegistrationsRepository {
           statusLabel: athleteRegistrationStatusLabel(
             isPaid: isPaid,
             isWaitlist: isWaitlist,
+            athleteHasReserved: athleteHasReserved,
           ),
           isPaid: isPaid,
           categoryId: categoryId,
@@ -123,7 +125,7 @@ class MyTournamentRegistrationsRepository {
           teamId: teamId,
           locationLine: _tournamentLocationLine(tournament),
           isWaitlist: isWaitlist,
-          athleteHasReserved: sharePaidUids.contains(uid),
+          athleteHasReserved: athleteHasReserved,
           partnerPending: data['partnerPending'] == true,
         ),
       );

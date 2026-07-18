@@ -33,6 +33,7 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
     this.onTrackInvite,
     this.showInformUniform = false,
     this.onInformUniform,
+    this.onCancelRegistration,
   });
 
   final TournamentCategoryOffer category;
@@ -61,6 +62,9 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
   /// Categoria exige uniforme: oferece informar o tamanho depois da inscrição.
   final bool showInformUniform;
   final VoidCallback? onInformUniform;
+
+  /// Cancela a reserva/inscrição do próprio atleta (só enquanto não paga).
+  final VoidCallback? onCancelRegistration;
 
   @override
   Widget build(BuildContext context) {
@@ -213,6 +217,19 @@ class TournamentRegistrationPaymentStep extends StatelessWidget {
                     ? AppColors.win
                     : context.themeColors.onSurface,
                 fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+        if (onCancelRegistration != null) ...[
+          SizedBox(height: 12),
+          TextButton(
+            onPressed: onCancelRegistration,
+            child: Text(
+              'Cancelar reserva',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: context.themeColors.onSurfaceMuted,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),

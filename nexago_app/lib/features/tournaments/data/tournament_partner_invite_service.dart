@@ -186,6 +186,22 @@ class TournamentPartnerInviteService {
     }
   }
 
+  /// Cancela a reserva/inscrição do próprio atleta (somente enquanto não paga).
+  Future<void> cancelRegistration(String registrationId) async {
+    if (registrationId.isEmpty) {
+      throw TournamentPartnerInviteException('Inscrição inválida.');
+    }
+
+    try {
+      final callable = _functions.httpsCallable('cancelTournamentRegistration');
+      await callable.call({'registrationId': registrationId});
+    } on FirebaseFunctionsException catch (e) {
+      throw TournamentPartnerInviteException(
+        e.message ?? 'Não foi possível cancelar sua reserva.',
+      );
+    }
+  }
+
   Stream<TournamentPartnerInvite?> watchInvite(String inviteId) {
     if (inviteId.isEmpty) return Stream.value(null);
     return _firestore.collection(_collection).doc(inviteId).snapshots().map((snap) {

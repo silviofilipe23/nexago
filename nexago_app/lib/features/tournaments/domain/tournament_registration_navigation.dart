@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/router/routes.dart';
-import '../../../core/ui/app_snackbar.dart';
 import 'tournament_discovery_models.dart';
 import 'my_tournaments_logic.dart';
 import 'tournament_partner_invite.dart';
@@ -112,17 +111,14 @@ void navigateFromMyTournamentRegistration(
 
   if (myTournamentRegistrationAwaitingOrganizer(registration)) {
     context.pushNamed(
-      AppRouteNames.tournamentDetail,
+      AppRouteNames.tournamentRegistration,
       pathParameters: {'tournamentId': tournamentId},
+      queryParameters: tournamentRegistrationQueryParams(
+        categoryId: registration.categoryId,
+        registrationId: registration.registrationId,
+        step: TournamentRegistrationStep.payment,
+      ),
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.mounted) {
-        showAppSnackBar(
-          context,
-          'Aguardando confirmação do organizador',
-        );
-      }
-    });
     return;
   }
 

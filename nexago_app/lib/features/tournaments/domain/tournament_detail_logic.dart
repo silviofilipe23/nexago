@@ -585,9 +585,11 @@ String tournamentCategoryCtaLabel(TournamentCategoryCtaKind kind) {
 String athleteRegistrationStatusLabel({
   required bool isPaid,
   required bool isWaitlist,
+  bool athleteHasReserved = false,
 }) {
   if (isWaitlist) return 'Na fila';
   if (isPaid) return 'Confirmado';
+  if (athleteHasReserved) return 'Aguardando organizador';
   return 'Pagamento pendente';
 }
 

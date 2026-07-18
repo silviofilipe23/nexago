@@ -757,6 +757,54 @@ class _TournamentRegistrationPageState
     }
   }
 
+  Future<void> _confirmCancelRegistration() async {
+    final regId = _registrationId;
+    if (regId == null || regId.isEmpty || _submitting) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancelar reserva?'),
+        content: const Text(
+          'Sua vaga será liberada e outro atleta poderá se inscrever nesta '
+          'categoria.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Cancelar reserva'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _submitting = true);
+    try {
+      await ref
+          .read(tournamentPartnerInviteServiceProvider)
+          .cancelRegistration(regId);
+      if (!mounted) return;
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.goNamed(AppRouteNames.myTournaments);
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) showAppSnackBar(context, 'Reserva cancelada.');
+      });
+    } on TournamentPartnerInviteException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   void _handleStickyAction({
     required TournamentDetail tournament,
     required bool canAccess,
@@ -1241,12 +1289,6 @@ class _TournamentRegistrationPageState
             athleteSharePaid: athleteSharePaid,
             paidAwaitingPartner: settledAwaitingPartner,
           );
-          final hidePaymentStickyBar =
-              _step == TournamentRegistrationStep.payment &&
-              quote != null &&
-              tournamentUsesDirectOrganizerPayment(tournament) &&
-              registrationRequiresPayment(quote) &&
-              !settledAwaitingPartner;
           final showHero = registrationStepShowsHero(_step);
           final athlete = _athleteDisplay();
           final partner = _selectedPartner;
@@ -1331,25 +1373,24 @@ class _TournamentRegistrationPageState
                   ],
                 ),
               ),
-              if (!hidePaymentStickyBar)
-                TournamentRegistrationStickyBar(
-                  enabled: registrationStickyEnabled(
-                    canAccess: access.canAccess,
-                    stepEnabled: sticky.enabled,
-                  ),
-                  onConfirm: () => _handleStickyAction(
-                    tournament: tournament,
-                    canAccess: access.canAccess,
-                    inviteAccepted: inviteAccepted,
-                  ),
-                  ctaLabel: sticky.ctaLabel,
-                  metaLabel: sticky.metaLabel,
-                  totalLabel: sticky.totalLabel,
-                  ctaSubtitle: sticky.ctaSubtitle,
-                  priceBoxLabel: sticky.priceBoxLabel,
-                  priceBoxValue: sticky.priceBoxValue,
-                  submitting: _submitting,
+              TournamentRegistrationStickyBar(
+                enabled: registrationStickyEnabled(
+                  canAccess: access.canAccess,
+                  stepEnabled: sticky.enabled,
                 ),
+                onConfirm: () => _handleStickyAction(
+                  tournament: tournament,
+                  canAccess: access.canAccess,
+                  inviteAccepted: inviteAccepted,
+                ),
+                ctaLabel: sticky.ctaLabel,
+                metaLabel: sticky.metaLabel,
+                totalLabel: sticky.totalLabel,
+                ctaSubtitle: sticky.ctaSubtitle,
+                priceBoxLabel: sticky.priceBoxLabel,
+                priceBoxValue: sticky.priceBoxValue,
+                submitting: _submitting,
+              ),
             ],
           );
         },
@@ -1622,6 +1663,9 @@ class _TournamentRegistrationPageState
             showInformUniform: categoryRequiresUniform(category),
             onInformUniform: () =>
                 _goToStep(TournamentRegistrationStep.uniform),
+            onCancelRegistration: (!isFullyPaid && !_submitting)
+                ? _confirmCancelRegistration
+                : null,
           ),
         ];
     }
@@ -1676,17 +1720,13 @@ class _TournamentRegistrationPageState
             .read(paymentServiceProvider)
             .reserveDirectOrganizerRegistration(registrationId: regId);
         if (!mounted) return;
-        if (result.bothAthletesReserved) {
-          showAppSnackBar(
-            context,
-            'Vaga reservada! Aguarde o organizador confirmar o pagamento.',
-          );
-          return;
-        }
-        showAppSnackBar(
-          context,
-          'Vaga reservada. Aguarde seu parceiro reservar a dele.',
-        );
+        final message = result.bothAthletesReserved
+            ? 'Vaga reservada! Aguarde o organizador confirmar o pagamento.'
+            : 'Vaga reservada. Convide seu parceiro para reservar a dele.';
+        context.goNamed(AppRouteNames.myTournaments);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) showAppSnackBar(context, message);
+        });
         return;
       }
 

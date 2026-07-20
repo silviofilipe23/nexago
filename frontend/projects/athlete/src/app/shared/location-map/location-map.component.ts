@@ -2,24 +2,36 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { DomSanitizer, type SafeResourceUrl } from '@angular/platform-browser';
 
 const BBOX_DEGREES = 0.006;
+/** Trava a precisão da bbox em 6 casas decimais (~0.1m) — sem isso, subtração/soma de
+ *  ponto flutuante pode gerar dígitos extras (ex.: 10.011000000000001) na URL. */
+const COORD_PRECISION = 6;
+
+function round(n: number): number {
+  return Number(n.toFixed(COORD_PRECISION));
+}
 
 /** Monta a URL de embed público do OpenStreetMap: bbox ~600m ao redor do ponto + marcador. */
 export function buildOsmEmbedUrl(lat: number, lng: number): string {
-  const west = lng - BBOX_DEGREES;
-  const south = lat - BBOX_DEGREES;
-  const east = lng + BBOX_DEGREES;
-  const north = lat + BBOX_DEGREES;
+  const west = round(lng - BBOX_DEGREES);
+  const south = round(lat - BBOX_DEGREES);
+  const east = round(lng + BBOX_DEGREES);
+  const north = round(lat + BBOX_DEGREES);
   const bbox = `${west},${south},${east},${north}`;
   return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`;
 }
 
 @Component({
   selector: 'app-location-map',
-  imports: [],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (embedUrl(); as url) {
-      <iframe class="lm-frame" [src]="url" [attr.title]="'Mapa de ' + label()" loading="lazy"></iframe>
+      <iframe
+        class="lm-frame"
+        [src]="url"
+        [attr.title]="'Mapa de ' + label()"
+        loading="lazy"
+        referrerpolicy="no-referrer"
+      ></iframe>
     } @else {
       <div class="lm-fallback">
         <span>Localização não disponível no mapa</span>

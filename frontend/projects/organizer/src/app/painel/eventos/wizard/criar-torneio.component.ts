@@ -48,6 +48,7 @@ import { OgStepperStaticComponent } from '../../ui/stepper-static.component';
 import { OgToggleRowComponent } from '../../ui/toggle-row.component';
 import { OgWizardShellComponent } from '../../ui/wizard-shell.component';
 import { NxPageLoadingComponent } from '../../../shared/loading/nx-page-loading.component';
+import { BrLocationsService } from '../../../shared/br-locations/br-locations.service';
 
 type SubView = 'categoria' | 'premio' | null;
 
@@ -307,11 +308,21 @@ function inputToDatetime(v: string): Date | null {
                     </og-form-field>
                   </div>
                   <div class="og-field-grid" style="margin-top:16px">
-                    <og-form-field label="Cidade">
-                      <input class="og-input-el" [value]="draft().city" (input)="patch({ city: $any($event.target).value })" placeholder="Ex.: Goiânia" />
-                    </og-form-field>
                     <og-form-field label="UF (opcional)">
-                      <input class="og-input-el" maxlength="2" [value]="draft().state" (input)="patch({ state: $any($event.target).value })" placeholder="GO" />
+                      <select class="og-select-el" [value]="draft().state" (change)="onStateChange($any($event.target).value)">
+                        <option value="">Selecione</option>
+                        @for (s of brLocations.states; track s.sigla) {
+                          <option [value]="s.sigla">{{ s.name }} ({{ s.sigla }})</option>
+                        }
+                      </select>
+                    </og-form-field>
+                    <og-form-field label="Cidade">
+                      <select class="og-select-el" [value]="draft().city" [disabled]="!draft().state" (change)="patch({ city: $any($event.target).value })">
+                        <option value="">{{ !draft().state ? 'Selecione a UF primeiro' : (brLocations.loaded() ? 'Selecione' : 'Carregando…') }}</option>
+                        @for (c of citiesForState(); track c) {
+                          <option [value]="c">{{ c }}</option>
+                        }
+                      </select>
                     </og-form-field>
                   </div>
                   <div style="margin-top:16px">
@@ -568,6 +579,7 @@ export class CriarTorneioComponent {
   private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  protected readonly brLocations = inject(BrLocationsService);
 
   protected readonly draft = signal<TournamentCreateDraft>(emptyTournamentDraft());
   protected readonly step = signal<TournamentCreateStep>('identity');
@@ -681,6 +693,12 @@ export class CriarTorneioComponent {
   // ── Helpers de template ──
   protected patch(partial: Partial<TournamentCreateDraft>): void {
     this.draft.update((d) => ({ ...d, ...partial }));
+  }
+
+  protected readonly citiesForState = computed(() => this.brLocations.citiesFor(this.draft().state));
+
+  protected onStateChange(uf: string): void {
+    this.patch({ state: uf, city: '' });
   }
 
   protected patchCat(partial: Partial<TournamentCategoryDraft>): void {

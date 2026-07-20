@@ -20,6 +20,11 @@ export function buildOsmEmbedUrl(lat: number, lng: number): string {
   return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat},${lng}`;
 }
 
+/** Monta a URL do Google Maps Embed API (Maps Embed API, plano `place`) — exige API key. */
+export function buildGoogleMapsEmbedUrl(lat: number, lng: number, apiKey: string): string {
+  return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(apiKey)}&q=${lat},${lng}`;
+}
+
 @Component({
   selector: 'app-location-map',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -72,11 +77,15 @@ export class LocationMapComponent {
   readonly lat = input<number | null>(null);
   readonly lng = input<number | null>(null);
   readonly label = input<string>('arena');
+  /** Chave da Maps Embed API (Google Cloud Console) — vazio (default) usa o embed do OpenStreetMap. */
+  readonly googleMapsApiKey = input<string>('');
 
   protected readonly embedUrl = computed<SafeResourceUrl | null>(() => {
     const lat = this.lat();
     const lng = this.lng();
     if (lat == null || lng == null) return null;
-    return this.sanitizer.bypassSecurityTrustResourceUrl(buildOsmEmbedUrl(lat, lng));
+    const apiKey = this.googleMapsApiKey();
+    const url = apiKey ? buildGoogleMapsEmbedUrl(lat, lng, apiKey) : buildOsmEmbedUrl(lat, lng);
+    return this.sanitizer.bypassSecurityTrustResourceUrl(url);
   });
 }

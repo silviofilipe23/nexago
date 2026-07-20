@@ -114,6 +114,8 @@ export class ArenaDetailComponent {
 
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
 
+  protected readonly googleMapsApiKey = environment.googleMapsApiKey;
+
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
     if (liveUser?.displayName?.trim()) return liveUser.displayName.trim();

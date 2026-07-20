@@ -1,6 +1,6 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { buildOsmEmbedUrl, LocationMapComponent } from './location-map.component';
+import { buildGoogleMapsEmbedUrl, buildOsmEmbedUrl, LocationMapComponent } from './location-map.component';
 
 describe('buildOsmEmbedUrl', () => {
   it('monta uma URL de embed do OpenStreetMap com bbox ao redor do ponto e um marcador', () => {
@@ -15,6 +15,18 @@ describe('buildOsmEmbedUrl', () => {
     expect(url).toBe(
       'https://www.openstreetmap.org/export/embed.html?bbox=19.997,9.999,20.009,10.011&layer=mapnik&marker=10.005,20.003',
     );
+  });
+});
+
+describe('buildGoogleMapsEmbedUrl', () => {
+  it('monta uma URL da Maps Embed API com a key e as coordenadas', () => {
+    const url = buildGoogleMapsEmbedUrl(-23.5505, -46.6333, 'minha-key');
+    expect(url).toBe('https://www.google.com/maps/embed/v1/place?key=minha-key&q=-23.5505,-46.6333');
+  });
+
+  it('codifica a key na URL (evita quebrar a query string)', () => {
+    const url = buildGoogleMapsEmbedUrl(-23.5505, -46.6333, 'a&b=c');
+    expect(url).toBe('https://www.google.com/maps/embed/v1/place?key=a%26b%3Dc&q=-23.5505,-46.6333');
   });
 });
 
@@ -52,5 +64,25 @@ describe('LocationMapComponent', () => {
     fixture.componentRef.setInput('lng', -46.6333);
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('iframe')).not.toBeNull();
+  });
+
+  it('usa o embed do OpenStreetMap quando googleMapsApiKey está vazio (default)', () => {
+    const fixture = TestBed.createComponent(LocationMapComponent);
+    fixture.componentRef.setInput('lat', -23.5505);
+    fixture.componentRef.setInput('lng', -46.6333);
+    fixture.detectChanges();
+    const iframe: HTMLIFrameElement = fixture.nativeElement.querySelector('iframe');
+    expect(iframe.src).toContain('openstreetmap.org/export/embed.html');
+  });
+
+  it('usa o embed do Google Maps quando googleMapsApiKey está presente', () => {
+    const fixture = TestBed.createComponent(LocationMapComponent);
+    fixture.componentRef.setInput('lat', -23.5505);
+    fixture.componentRef.setInput('lng', -46.6333);
+    fixture.componentRef.setInput('googleMapsApiKey', 'minha-key');
+    fixture.detectChanges();
+    const iframe: HTMLIFrameElement = fixture.nativeElement.querySelector('iframe');
+    expect(iframe.src).toContain('google.com/maps/embed/v1/place');
+    expect(iframe.src).toContain('key=minha-key');
   });
 });

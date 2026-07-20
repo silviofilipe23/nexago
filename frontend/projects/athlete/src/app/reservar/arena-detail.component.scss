@@ -599,3 +599,10 @@
   color: var(--nx-text);
   margin: 0;
 }
+
+// ── Localização (mapa) ───────────────────────────────────────
+.ad-map-box {
+  height: 160px;
+  border-radius: var(--nx-r-3);
+  overflow: hidden;
+}

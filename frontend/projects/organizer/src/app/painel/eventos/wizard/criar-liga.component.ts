@@ -38,6 +38,7 @@ import { OgReviewRowComponent } from '../../ui/review-row.component';
 import { OgSelectChipsComponent } from '../../ui/select-chips.component';
 import { OgStepperStaticComponent } from '../../ui/stepper-static.component';
 import { OgToggleRowComponent } from '../../ui/toggle-row.component';
+import { BrLocationsService } from '../../../shared/br-locations/br-locations.service';
 import { OgWizardShellComponent } from '../../ui/wizard-shell.component';
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
@@ -173,9 +174,24 @@ function inputToDate(v: string): Date | null {
                 </og-form-field>
               </div>
               <div class="og-field-grid" style="margin-top:16px">
-                <og-form-field label="Cidade (vazio = cidade da liga)">
-                  <input class="og-input-el" [value]="stage().city" (input)="patchStage({ city: $any($event.target).value })" />
+                <og-form-field label="UF da etapa (vazio = UF da liga)">
+                  <select class="og-select-el" [value]="stage().state" (change)="onStageStateChange($any($event.target).value)">
+                    <option value="">— usa UF da liga —</option>
+                    @for (s of brLocations.states; track s.sigla) {
+                      <option [value]="s.sigla">{{ s.name }} ({{ s.sigla }})</option>
+                    }
+                  </select>
                 </og-form-field>
+                <og-form-field label="Cidade (vazio = cidade da liga)">
+                  <select class="og-select-el" [value]="stage().city" [disabled]="!stageEffectiveState()" (change)="patchStage({ city: $any($event.target).value })">
+                    <option value="">{{ !stageEffectiveState() ? 'Defina a UF da liga primeiro' : '— usa cidade da liga —' }}</option>
+                    @for (c of citiesForStageState(); track c) {
+                      <option [value]="c">{{ c }}</option>
+                    }
+                  </select>
+                </og-form-field>
+              </div>
+              <div class="og-field-grid" style="margin-top:16px">
                 <og-form-field label="Início">
                   <input class="og-input-el" type="date" [value]="dateVal(stage().startAt)" (input)="patchStage({ startAt: toDateVal($any($event.target).value) })" />
                 </og-form-field>
@@ -205,11 +221,21 @@ function inputToDate(v: string): Date | null {
                     <og-form-field label="Organização (opcional)">
                       <input class="og-input-el" [value]="draft().organizationName" (input)="patch({ organizationName: $any($event.target).value })" />
                     </og-form-field>
-                    <og-form-field label="Cidade-sede">
-                      <input class="og-input-el" [value]="draft().city" (input)="patch({ city: $any($event.target).value })" />
-                    </og-form-field>
                     <og-form-field label="UF (opcional)">
-                      <input class="og-input-el" maxlength="2" [value]="draft().state" (input)="patch({ state: $any($event.target).value })" />
+                      <select class="og-select-el" [value]="draft().state" (change)="onStateChange($any($event.target).value)">
+                        <option value="">Selecione</option>
+                        @for (s of brLocations.states; track s.sigla) {
+                          <option [value]="s.sigla">{{ s.name }} ({{ s.sigla }})</option>
+                        }
+                      </select>
+                    </og-form-field>
+                    <og-form-field label="Cidade-sede">
+                      <select class="og-select-el" [value]="draft().city" [disabled]="!draft().state" (change)="patch({ city: $any($event.target).value })">
+                        <option value="">{{ !draft().state ? 'Selecione a UF primeiro' : (brLocations.loaded() ? 'Selecione' : 'Carregando…') }}</option>
+                        @for (c of citiesForState(); track c) {
+                          <option [value]="c">{{ c }}</option>
+                        }
+                      </select>
                     </og-form-field>
                   </div>
                   <div style="margin-top:16px">
@@ -381,6 +407,7 @@ function inputToDate(v: string): Date | null {
 })
 export class CriarLigaComponent {
   private readonly auth = inject(AuthService);
+  protected readonly brLocations = inject(BrLocationsService);
 
   protected readonly draft = signal<LeagueCreateDraft>(emptyLeagueDraft());
   protected readonly step = signal<Step>(1);
@@ -432,6 +459,19 @@ export class CriarLigaComponent {
 
   protected patchStage(partial: Partial<LeagueStageDraft>): void {
     this.stage.update((s) => ({ ...s, ...partial }));
+  }
+
+  protected readonly citiesForState = computed(() => this.brLocations.citiesFor(this.draft().state));
+
+  protected onStateChange(uf: string): void {
+    this.patch({ state: uf, city: '' });
+  }
+
+  protected readonly stageEffectiveState = computed(() => this.stage().state || this.draft().state);
+  protected readonly citiesForStageState = computed(() => this.brLocations.citiesFor(this.stageEffectiveState()));
+
+  protected onStageStateChange(uf: string): void {
+    this.patchStage({ state: uf, city: '' });
   }
 
   protected brl(cents: number): string {

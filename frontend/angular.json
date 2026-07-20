@@ -435,6 +435,7 @@
         "test": {
           "builder": "@angular/build:karma",
           "options": {
+            "polyfills": ["zone.js", "zone.js/testing"],
             "tsConfig": "projects/organizer/tsconfig.spec.json",
             "inlineStyleLanguage": "scss",
             "assets": [

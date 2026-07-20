@@ -17,6 +17,7 @@ import {
 } from '@nexago/arena-discovery';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
+import { LocationMapComponent } from '../shared/location-map/location-map.component';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 
 export interface ArenaCourtView {
@@ -100,7 +101,7 @@ function courtHourlyPrice(data: Record<string, unknown>, arenaFallbackReais: num
 @Component({
   selector: 'app-arena-detail',
   standalone: true,
-  imports: [RouterLink, AtPanelShellComponent],
+  imports: [RouterLink, AtPanelShellComponent, LocationMapComponent],
   templateUrl: './arena-detail.component.html',
   styleUrl: './arena-detail.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -112,6 +113,8 @@ export class ArenaDetailComponent {
   private readonly firestore = createFirestore();
 
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
+
+  protected readonly googleMapsApiKey = environment.googleMapsApiKey;
 
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();

@@ -5,4 +5,6 @@ export const environment = {
   devAuthBypass: true,
   firebase: firebaseConfig,
   trustedReturnOrigins: [] as string[],
+  /** Maps Embed API key (Google Cloud Console) — vazio = usa o embed do OpenStreetMap. */
+  googleMapsApiKey: '',
 };

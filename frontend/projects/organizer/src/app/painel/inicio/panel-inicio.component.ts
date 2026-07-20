@@ -4,6 +4,7 @@ import { AuthService } from '../../auth/auth.service';
 import type { OrganizerLeague } from '../data/league.model';
 import { listMyLeagues } from '../data/leagues-repository';
 import { listInscriptions } from '../data/inscriptions-repository';
+import { listMatches, type TournamentMatch } from '../data/matches-repository';
 import type { OrganizerTournament, OrganizerTournamentStatus } from '../data/tournament.model';
 import { listMyTournaments } from '../data/tournaments-repository';
 import { watchWallet } from '../data/wallet-repository';
@@ -12,22 +13,37 @@ import { OgIconComponent } from '../ui/icon.component';
 import { OgPageHeaderComponent } from '../ui/page-header.component';
 import { OgPillComponent } from '../ui/pill.component';
 
-/** mock (fase 2): agenda de jogos do dia depende de `listMatches`, fora do escopo desta tela (ver Task O6). */
-const PROXIMOS_JOGOS = [
-  { time: '09:00', partida: 'Duo Martins/Silva vs Duo Costa/Reis', evento: 'Liga Beach Tennis', quadra: 'Quadra 2' },
-  { time: '10:30', partida: 'Equipe Norte vs Equipe Sul', evento: 'Liga Beach Tennis', quadra: 'Quadra 1' },
-  { time: '14:00', partida: 'Ana/Bia vs Carla/Duda', evento: 'Liga Beach Tennis', quadra: 'Quadra 3' },
-];
+interface UpcomingMatchRow {
+  id: string;
+  time: string;
+  partida: string;
+  evento: string;
+  quadra: string;
+}
 
 /** Torneios com um destes status contam como "evento ativo" no card do topo. */
 const ACTIVE_STATUSES: readonly OrganizerTournamentStatus[] = ['inscricoes', 'andamento'];
-/** Teto de torneios ativos consultados em paralelo pra somar inscritos — evita explodir em N+1. */
+/** Teto de torneios ativos consultados em paralelo pra somar inscritos e buscar jogos — evita explodir em N+1. */
 const MAX_ACTIVE_FOR_INSCRITOS = 10;
 /** Quantos torneios ativos aparecem na lista "Meus eventos" — sempre um subconjunto do teto acima. */
 const RECENT_LIMIT = 5;
+/** Quantas partidas futuras aparecem no card "Próximos jogos". */
+const PROXIMOS_JOGOS_LIMIT = 5;
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' });
+const TIME_FMT = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
+const SHORT_DATE_TIME_FMT = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+/** "HH:mm" quando a partida é hoje; senão inclui a data curta, pra não parecer de hoje. */
+function matchTimeLabel(scheduledAt: Date, now: Date): string {
+  return isSameDay(scheduledAt, now) ? TIME_FMT.format(scheduledAt) : SHORT_DATE_TIME_FMT.format(scheduledAt);
+}
 
 const STATUS_LABEL: Record<OrganizerTournamentStatus, string> = {
   inscricoes: 'Inscrições abertas',
@@ -86,8 +102,7 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
           <og-card pad="sm" flex="1">
             <div class="og-kpi-label">Inscritos (eventos ativos)</div>
             <div class="og-kpi-value">{{ totalInscritos() }}</div>
-            <!-- mock (fase 2): sem histórico semanal de inscrições disponível ainda -->
-            <div class="og-kpi-sub green">{{ inscritosDeltaMock }}</div>
+            <div class="og-kpi-sub green">{{ inscritosSemanaLabel() }}</div>
           </og-card>
           <og-card pad="sm" flex="1">
             <div class="og-kpi-label">Saldo disponível</div>
@@ -95,16 +110,16 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
             <div class="og-kpi-sub">{{ pendenteLabel() }} pendente</div>
           </og-card>
           <og-card pad="sm" flex="1">
-            <!-- mock (fase 2): jogos do dia dependem de listMatches, fora do escopo desta tela -->
             <div class="og-kpi-label">Jogos hoje</div>
-            <div class="og-kpi-value">{{ jogosHojeMock }}</div>
-            <div class="og-kpi-sub">{{ jogosHojeSubMock }}</div>
+            <div class="og-kpi-value">{{ jogosHojeCount() }}</div>
+            <div class="og-kpi-sub">{{ jogosHojeSubLabel() }}</div>
           </og-card>
         </div>
 
         <div class="og-inicio-grid">
           <og-card kicker="Arrecadação" title="Receita mensal">
-            <!-- mock (fase 2): sem série histórica de receita ainda; carteira real fica na Task O7 -->
+            <!-- mock (fase 2): watchLedger é paginado (limit 30) — sem agregado mensal confiável no
+                 backend, mesma limitação documentada em financeiro.component.ts -->
             <p class="og-empty">— em breve</p>
             <div class="og-inicio-eventos-label">Meus eventos</div>
             @for (t of recentTournaments(); track t.id) {
@@ -134,8 +149,7 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
           <div class="og-inicio-side">
             <og-card kicker="Agenda" title="Próximos jogos">
               <button card-action type="button" class="og-ghost-btn">Ver todos</button>
-              <!-- mock (fase 2): agenda real depende de listMatches (ver Task O6) -->
-              @for (j of proximosJogos; track j.time; let last = $last) {
+              @for (j of proximosJogos(); track j.id; let last = $last) {
                 <div class="og-inicio-jogo-row" [class.last]="last">
                   <span class="time">{{ j.time }}</span>
                   <span class="body">
@@ -143,11 +157,14 @@ const STATUS_TONE: Record<OrganizerTournamentStatus, 'orange' | 'green' | 'dim' 
                     <span class="meta">{{ j.evento }} · {{ j.quadra }}</span>
                   </span>
                 </div>
+              } @empty {
+                <p class="og-empty">Nenhum jogo agendado</p>
               }
             </og-card>
 
             <og-card kicker="Comunicação" title="Avisos recentes" flex="1">
-              <!-- mock (fase 2): comunicação sem fonte real ainda (teaser da feature) -->
+              <!-- mock (fase 2): backend não persiste histórico de avisos — sendCategoryCommunication
+                   retorna só pushCount/links, sem gravar nada (ver comunicacao.component.ts) -->
               <div class="og-inicio-aviso-row">
                 <span class="og-dot og-dot-yellow"></span>
                 <div>
@@ -352,16 +369,13 @@ export class PanelInicioComponent {
   protected readonly inscritosPorTorneio = signal<Map<string, number>>(new Map());
   protected readonly saldoDisponivel = signal(0);
   protected readonly saldoPendente = signal(0);
+  protected readonly inscritosSemana = signal(0);
+  protected readonly proximosJogos = signal<UpcomingMatchRow[]>([]);
+  protected readonly jogosHojeCount = signal(0);
+  protected readonly jogosHojeProximo = signal<Date | null>(null);
 
   protected readonly statusLabel = STATUS_LABEL;
   protected readonly statusTone = STATUS_TONE;
-  protected readonly proximosJogos = PROXIMOS_JOGOS;
-
-  /** mock (fase 2): sem histórico semanal de inscrições disponível ainda. */
-  protected readonly inscritosDeltaMock = '+18 esta semana';
-  /** mock (fase 2): jogos do dia dependem de `listMatches`, fora do escopo desta tela (ver Task O6). */
-  protected readonly jogosHojeMock = 3;
-  protected readonly jogosHojeSubMock = 'Próximo às 09:00';
 
   protected readonly eventosAtivos = computed(() =>
     this.tournaments().filter((t) => ACTIVE_STATUSES.includes(t.status)),
@@ -372,6 +386,12 @@ export class PanelInicioComponent {
   protected readonly recentTournaments = computed(() => this.eventosAtivos().slice(0, RECENT_LIMIT));
   protected readonly saldoLabel = computed(() => BRL.format(this.saldoDisponivel()));
   protected readonly pendenteLabel = computed(() => BRL.format(this.saldoPendente()));
+  protected readonly inscritosSemanaLabel = computed(() => `+${this.inscritosSemana()} esta semana`);
+  protected readonly jogosHojeSubLabel = computed(() => {
+    const proximo = this.jogosHojeProximo();
+    if (proximo) return `Próximo às ${TIME_FMT.format(proximo)}`;
+    return this.jogosHojeCount() > 0 ? 'Nenhum jogo pendente' : 'Nenhum jogo hoje';
+  });
 
   constructor() {
     const uid = this.auth.user()?.uid;
@@ -396,14 +416,54 @@ export class PanelInicioComponent {
       this.leagues.set(leagues);
 
       const active = tournaments.filter((t) => ACTIVE_STATUSES.includes(t.status)).slice(0, MAX_ACTIVE_FOR_INSCRITOS);
-      const inscriptionLists = await Promise.all(active.map((t) => listInscriptions(t.id)));
+      const [inscriptionLists, matchLists] = await Promise.all([
+        Promise.all(active.map((t) => listInscriptions(t.id))),
+        Promise.all(active.map((t) => listMatches(t.id))),
+      ]);
+
       const perTournament = new Map<string, number>();
       active.forEach((t, i) => perTournament.set(t.id, inscriptionLists[i]!.length));
       this.inscritosPorTorneio.set(perTournament);
       this.totalInscritos.set(inscriptionLists.reduce((sum, list) => sum + list.length, 0));
+
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - WEEK_MS);
+      this.inscritosSemana.set(
+        inscriptionLists.reduce((sum, list) => sum + list.filter((i) => i.createdAt != null && i.createdAt >= weekAgo).length, 0),
+      );
+
+      this.applyMatches(active, matchLists, now);
     } finally {
       this.loading.set(false);
     }
+  }
+
+  private applyMatches(active: readonly OrganizerTournament[], matchLists: readonly TournamentMatch[][], now: Date): void {
+    const tournamentNameOf = new Map(active.map((t) => [t.id, t.name]));
+    const allMatches = matchLists.flat();
+
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
+    const todayMatches = allMatches.filter((m) => m.scheduledAt != null && m.scheduledAt >= startOfToday && m.scheduledAt < endOfToday);
+    this.jogosHojeCount.set(todayMatches.length);
+    const nextToday = todayMatches
+      .filter((m) => m.status === 'scheduled')
+      .sort((a, b) => a.scheduledAt!.getTime() - b.scheduledAt!.getTime())[0];
+    this.jogosHojeProximo.set(nextToday?.scheduledAt ?? null);
+
+    this.proximosJogos.set(
+      allMatches
+        .filter((m) => m.status === 'scheduled' && m.scheduledAt != null && m.scheduledAt.getTime() >= now.getTime())
+        .sort((a, b) => a.scheduledAt!.getTime() - b.scheduledAt!.getTime())
+        .slice(0, PROXIMOS_JOGOS_LIMIT)
+        .map((m) => ({
+          id: m.id,
+          time: matchTimeLabel(m.scheduledAt!, now),
+          partida: `${m.team1Label} vs ${m.team2Label}`,
+          evento: tournamentNameOf.get(m.tournamentId) ?? '—',
+          quadra: m.court ?? '—',
+        })),
+    );
   }
 
   protected dateLabel(date: Date | null): string {

@@ -16,7 +16,8 @@ export class BrLocationsService {
     .catch(() => this.citiesByUf.set({}));
 
   citiesFor(uf: string): string[] {
-    if (!uf) return [];
-    return this.citiesByUf()?.[uf] ?? [];
+    const sigla = uf.trim().toUpperCase();
+    if (!sigla) return [];
+    return this.citiesByUf()?.[sigla] ?? [];
   }
 }

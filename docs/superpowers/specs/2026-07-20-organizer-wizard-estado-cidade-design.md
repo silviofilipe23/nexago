@@ -65,7 +65,7 @@ Para cada par cidade/UF:
 
 ```html
 <og-form-field label="UF">
-  <select class="og-select-el" [value]="draft().state" [disabled]="!brLocations.loaded()"
+  <select class="og-select-el" [value]="draft().state"
           (change)="onStateChange($any($event.target).value)">
     <option value="">Selecione</option>
     @for (s of brLocations.states; track s.sigla) {
@@ -74,7 +74,7 @@ Para cada par cidade/UF:
   </select>
 </og-form-field>
 <og-form-field label="Cidade">
-  <select class="og-select-el" [value]="draft().city" [disabled]="!draft().state || !brLocations.loaded()"
+  <select class="og-select-el" [value]="draft().city" [disabled]="!draft().state"
           (change)="patch({ city: $any($event.target).value })">
     <option value="">{{ !draft().state ? 'Selecione a UF primeiro' : (brLocations.loaded() ? 'Selecione' : 'Carregando…') }}</option>
     @for (c of citiesForState(); track c) {
@@ -86,6 +86,10 @@ Para cada par cidade/UF:
 
 `onStateChange(uf)` faz `patch({ state: uf, city: '' })` — trocar UF sempre limpa a cidade, igual ao
 `_setStateManual` do app. `citiesForState` é um `computed()` sobre `brLocations.citiesFor(draft().state)`.
+
+Nota: o select de UF fica sempre habilitado (as 27 UFs são estáticas, não dependem do fetch do JSON de
+municípios) — só o select de Cidade depende de `brLocations.loaded()`, refletido no placeholder
+"Carregando…" enquanto o fetch não termina. Implementação real confirmada nos 3 wizards.
 
 ### Casos de "etapa" (herda da liga se vazio)
 

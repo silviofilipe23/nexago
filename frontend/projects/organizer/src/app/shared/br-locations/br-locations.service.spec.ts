@@ -33,6 +33,13 @@ describe('BrLocationsService', () => {
     expect(service.citiesFor('XX')).toEqual([]);
   });
 
+  it('normalizes a lowercase or untrimmed UF before lookup', async () => {
+    const service = TestBed.inject(BrLocationsService);
+    await service.ready;
+    expect(service.citiesFor('go')).toEqual(['Goiânia', 'Anápolis']);
+    expect(service.citiesFor(' GO ')).toEqual(['Goiânia', 'Anápolis']);
+  });
+
   it('fetches the asset only once', async () => {
     const service = TestBed.inject(BrLocationsService);
     await service.ready;

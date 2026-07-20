@@ -1,8 +1,12 @@
+import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { BrLocationsService } from './br-locations.service';
 
 describe('BrLocationsService', () => {
   beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideZonelessChangeDetection()],
+    });
     spyOn(globalThis, 'fetch').and.resolveTo({
       json: () => Promise.resolve({ GO: ['Goiânia', 'Anápolis'], SP: ['São Paulo', 'Campinas'] }),
     } as Response);

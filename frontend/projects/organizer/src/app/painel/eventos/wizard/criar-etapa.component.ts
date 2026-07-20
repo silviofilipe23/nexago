@@ -15,6 +15,7 @@ import { OgFormFieldComponent } from '../../ui/form-field.component';
 import { OgIconComponent } from '../../ui/icon.component';
 import { OgReviewRowComponent } from '../../ui/review-row.component';
 import { OgStepperStaticComponent } from '../../ui/stepper-static.component';
+import { BrLocationsService } from '../../../shared/br-locations/br-locations.service';
 import { OgWizardShellComponent } from '../../ui/wizard-shell.component';
 
 type Step = 1 | 2 | 3;
@@ -115,9 +116,24 @@ function inputToDate(v: string): Date | null {
                 </og-form-field>
               </div>
               <div class="og-field-grid" style="margin-top:16px">
-                <og-form-field label="Cidade (vazio = cidade da liga)">
-                  <input class="og-input-el" [value]="stage().city" (input)="patchStage({ city: $any($event.target).value })" />
+                <og-form-field label="UF da etapa (vazio = UF da liga)">
+                  <select class="og-select-el" [value]="stage().state" (change)="onStageStateChange($any($event.target).value)">
+                    <option value="">— usa UF da liga —</option>
+                    @for (s of brLocations.states; track s.sigla) {
+                      <option [value]="s.sigla">{{ s.name }} ({{ s.sigla }})</option>
+                    }
+                  </select>
                 </og-form-field>
+                <og-form-field label="Cidade (vazio = cidade da liga)">
+                  <select class="og-select-el" [value]="stage().city" [disabled]="!stageEffectiveState()" (change)="patchStage({ city: $any($event.target).value })">
+                    <option value="">{{ !stageEffectiveState() ? 'Defina a UF da liga primeiro' : '— usa cidade da liga —' }}</option>
+                    @for (c of citiesForStageState(); track c) {
+                      <option [value]="c">{{ c }}</option>
+                    }
+                  </select>
+                </og-form-field>
+              </div>
+              <div class="og-field-grid" style="margin-top:16px">
                 <og-form-field label="Início">
                   <input class="og-input-el" type="date" [value]="dateVal(stage().startAt)" (input)="patchStage({ startAt: toDateVal($any($event.target).value) })" />
                 </og-form-field>
@@ -173,6 +189,7 @@ function inputToDate(v: string): Date | null {
 export class CriarEtapaComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  protected readonly brLocations = inject(BrLocationsService);
 
   protected readonly titles = TITLES;
   protected readonly subtitles = SUBTITLES;
@@ -210,6 +227,13 @@ export class CriarEtapaComponent {
 
   protected patchStage(partial: Partial<LeagueStageDraft>): void {
     this.stage.update((s) => ({ ...s, ...partial }));
+  }
+
+  protected readonly stageEffectiveState = computed(() => this.stage().state || this.league()?.state || '');
+  protected readonly citiesForStageState = computed(() => this.brLocations.citiesFor(this.stageEffectiveState()));
+
+  protected onStageStateChange(uf: string): void {
+    this.patchStage({ state: uf, city: '' });
   }
 
   protected dateVal = dateToInput;

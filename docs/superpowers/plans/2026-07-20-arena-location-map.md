@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Nota de execução (2026-07-20):** Task 3 foi implementada e revisada, mas **não foi incluída neste branch/PR** — a tela `athlete-booking-detail.component` (e suas dependências: rota `agenda/reserva/:bookingId`, `arena-bookings-repository.ts`, `booking-invites-repository.ts`, link "Ver detalhes" na Agenda) nunca tinha sido commitada; ela é trabalho em progresso não relacionado a este plano, misturado no mesmo checkout com uma feature "Histórico" totalmente à parte. Empacotar Task 3 aqui teria trazido essa tela inteira (e a feature não relacionada) para dentro desta PR. Por decisão do usuário, Tasks 1+2 seguem sozinhas neste branch (self-contained, buildam e testam limpo); a wiring da Task 3 foi aplicada diretamente no checkout principal, sem commit, ao lado do trabalho em progresso já existente lá.
+
 **Goal:** Adicionar um mapa de localização real (OpenStreetMap embed) na tela da arena e na tela de detalhe da reserva do painel do atleta.
 
 **Architecture:** Um componente standalone novo e pequeno (`LocationMapComponent`) encapsula a lógica de montar a URL de embed do OpenStreetMap a partir de `lat`/`lng` e renderiza um `<iframe>` (ou um fallback textual se não houver coordenadas). As duas telas existentes (`arena-detail.component`, `athlete-booking-detail.component`) importam esse componente e o inserem no card "Localização" que já existe em ambas.

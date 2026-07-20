@@ -72,11 +72,19 @@ describe('profile-format', () => {
 
   describe('athleteLevelLabel', () => {
     it('converts Firestore level codes to display labels', () => {
-      expect(athleteLevelLabel('iniciante')).toBe('Iniciante');
-      expect(athleteLevelLabel('basico')).toBe('Iniciante');
-      expect(athleteLevelLabel('intermediario')).toBe('Intermediário');
+      expect(athleteLevelLabel('iniciante_1')).toBe('Iniciante 1');
+      expect(athleteLevelLabel('iniciante_2')).toBe('Iniciante 2');
       expect(athleteLevelLabel('intermediario_1')).toBe('Intermediário 1');
+      expect(athleteLevelLabel('intermediario_2')).toBe('Intermediário 2');
       expect(athleteLevelLabel('open')).toBe('Open');
+    });
+
+    it('maps legacy codes into the 5-level ladder (mesmo rótulo da listagem/ranking)', () => {
+      expect(athleteLevelLabel('iniciante')).toBe('Iniciante 1');
+      expect(athleteLevelLabel('basico')).toBe('Iniciante 1');
+      expect(athleteLevelLabel('intermediario')).toBe('Intermediário 1');
+      expect(athleteLevelLabel('Intermediário')).toBe('Intermediário 1');
+      expect(athleteLevelLabel('livre')).toBe('Open');
     });
 
     it('ignores case and surrounding whitespace', () => {
@@ -84,7 +92,7 @@ describe('profile-format', () => {
     });
 
     it('returns unknown codes unchanged (paridade com o app)', () => {
-      expect(athleteLevelLabel('Intermediário')).toBe('Intermediário');
+      expect(athleteLevelLabel('profissional')).toBe('profissional');
     });
 
     it('returns an empty string for null, undefined or blank codes', () => {

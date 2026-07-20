@@ -8,7 +8,8 @@ import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { AtBellComponent } from '../painel/at-bell.component';
-import { fetchPartnerCandidates, fetchPublicProfilesByIds, levelBucketOf, type AthletePublicProfile } from '../data/public-profiles-repository';
+import { levelLabelOf } from '../data/athlete-level';
+import { fetchPartnerCandidates, fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchTeamRankingGeneral } from '../data/rankings-repository';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaTeam } from '../data/teams-repository';
 import type { FilterLevel } from '../ranking/athlete-ranking.models';
@@ -174,7 +175,7 @@ export class AthleteEquipesComponent {
             memberBInitials: initialsOf(p2?.displayName ?? 'Atleta'),
             name: teamDisplayName(team, p1, p2),
             sport: p1?.sportChip ?? p2?.sportChip ?? 'beachVolleyball',
-            level: levelBucketOf(p1?.levelCode ?? p2?.levelCode ?? null),
+            level: levelLabelOf(p1?.levelCode ?? p2?.levelCode ?? null),
             wins,
             losses: completed.length - wins,
             doublesRank: rankPositionByTeamId.get(team.id) ?? null,
@@ -206,7 +207,7 @@ export class AthleteEquipesComponent {
           initials: initialsOf(p.displayName),
           name: p.displayName,
           locationLabel: p.city ?? 'Cidade não informada',
-          level: levelBucketOf(p.levelCode),
+          level: levelLabelOf(p.levelCode),
           sport: p.sportChip,
         })),
       );

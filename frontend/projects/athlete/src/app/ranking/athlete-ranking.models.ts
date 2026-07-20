@@ -1,9 +1,10 @@
 import type { ArenaSportChip } from '@nexago/arena-discovery';
+import type { AthleteLevelLabel } from '../data/athlete-level';
 
 export type RankingMode = 'individual' | 'doubles';
-/** 3 buckets reais (`AthleteProfileOptions.legacyBucketLabel`) — "Avançado"/"Profissional"
+/** Os 5 tiers reais da escada (`data/athlete-level.ts`) — "Avançado"/"Profissional"
  *  eram sinônimos legados que o backend já normaliza pra Intermediário/Open, não tiers à parte. */
-export type RankingLevel = 'Iniciante 1' | 'Iniciante 2' | 'Intermediário 1' | 'Intermediário 2' | 'Open';
+export type RankingLevel = AthleteLevelLabel;
 export type FilterLevel = 'all' | RankingLevel;
 export type RankingPeriod = 'geral' | 'temporada';
 

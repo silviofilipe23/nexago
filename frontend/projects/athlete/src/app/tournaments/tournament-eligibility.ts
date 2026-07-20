@@ -1,5 +1,5 @@
 import type { MyAthleteProfile } from '../data/my-athlete-profile-repository';
-import { levelRankOf } from '../data/public-profiles-repository';
+import { levelLabelForRank, levelRankOf } from '../data/athlete-level';
 import type { TournamentCategoryOffer } from '../data/tournaments-repository';
 
 /** Pré-validação de elegibilidade na escolha de categoria — port fiel de
@@ -35,15 +35,6 @@ export function athleteLevelRank(profile: MyAthleteProfile | null, tournamentSpo
     if (perSport != null) return perSport;
   }
   return levelRankOf(profile.level) ?? 0;
-}
-
-/** Espelha `AthleteProfileOptions.labelForRank` (escada de 5 do vôlei). */
-function levelLabelForRank(rank: number): string {
-  if (rank <= 0) return 'Iniciante 1';
-  if (rank === 1) return 'Iniciante 2';
-  if (rank === 2) return 'Intermediário 1';
-  if (rank === 3) return 'Intermediário 2';
-  return 'Open';
 }
 
 function normalizeAthleteGender(raw: string | null): 'M' | 'F' | null {

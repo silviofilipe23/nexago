@@ -13,7 +13,6 @@ import {
   type Firestore,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore';
-import type { RankingLevel } from '../ranking/athlete-ranking.models';
 
 /** Espelha `public_profiles/{uid}` (`functions/src/public-profile-sync.ts`) — mirror sem PII
  *  de `users/{uid}`, mantido por Cloud Function trigger a cada escrita em `users`. Nunca tem
@@ -50,52 +49,6 @@ function toDate(v: unknown): Date | null {
 function stripHandle(nickname: string | null): string | null {
   if (!nickname) return null;
   return nickname.startsWith('@') ? nickname.slice(1).trim() || null : nickname;
-}
-
-/** Espelha `LEVEL_RANK`/`AthleteProfileOptions.levelRank` (`functions/src/category-level-eligibility.ts`). */
-export function levelRankOf(raw: string | null): number | null {
-  if (!raw) return null;
-  const v = raw
-    .trim()
-    .toLowerCase()
-    .replace(/á/g, 'a')
-    .replace(/é/g, 'e')
-    .replace(/í/g, 'i');
-  switch (v) {
-    case 'iniciante':
-    case 'basico':
-    case 'iniciante 1':
-    case 'iniciante_1':
-      return 0;
-    case 'iniciante 2':
-    case 'iniciante_2':
-      return 1;
-    case 'intermediario':
-    case 'intermediario 1':
-    case 'intermediario_1':
-      return 2;
-    case 'intermediario 2':
-    case 'intermediario_2':
-      return 3;
-    case 'open':
-    case 'livre':
-      return 5;
-    default:
-      return null;
-  }
-}
-
-/** Bucket de 5 níveis (`AthleteProfileOptions.legacyBucketLabel`) — "Avançado"/"Profissional"
- *  não existem como tiers reais no backend (eram sinônimos legados que viraram Intermediário/Open). */
-export function levelBucketOf(raw: string | null): RankingLevel | null {
-  const rank = levelRankOf(raw);
-  if (rank == null) return null;
-  if (rank <= 1) return 'Iniciante 1';
-  if (rank <= 2) return 'Iniciante 2';
-  if (rank <= 3) return 'Intermediário 1';
-  if (rank <= 4) return 'Intermediário 2';
-  if (rank <= 5) return 'Open';
-  return 'Open';
 }
 
 function readPublicProfileEnabled(data: Record<string, unknown>): boolean {

@@ -1,3 +1,5 @@
+import { levelLabelOf } from '../data/athlete-level';
+
 export function titleCase(input: string): string {
   return input
     .toLowerCase()
@@ -7,25 +9,15 @@ export function titleCase(input: string): string {
     .join(' ');
 }
 
-/** Espelha `AthleteFirestoreCodes.levelFirestoreToLabel` (app Flutter): códigos de nível
- *  gravados em `sportProfile.level` / `sportOnboarding.levelsBySport` → rótulo de exibição. */
-const LEVEL_CODE_TO_LABEL: Record<string, string> = {
-  iniciante: 'Iniciante',
-  basico: 'Iniciante',
-  intermediario: 'Intermediário',
-  open: 'Open',
-  iniciante_1: 'Iniciante 1',
-  iniciante_2: 'Iniciante 2',
-  intermediario_1: 'Intermediário 1',
-  intermediario_2: 'Intermediário 2',
-};
-
+/** Código de nível (`sportProfile.level` / `sportOnboarding.levelsBySport`) → rótulo da
+ *  escada de 5 (`data/athlete-level.ts`), a MESMA da listagem/ranking/equipes — legados
+ *  caem no degrau equivalente. Código desconhecido passa cru (paridade com o app). */
 export function athleteLevelLabel(code: string | null | undefined): string {
   const trimmed = code?.trim() ?? '';
   if (!trimmed) {
     return '';
   }
-  return LEVEL_CODE_TO_LABEL[trimmed.toLowerCase()] ?? trimmed;
+  return levelLabelOf(trimmed) ?? trimmed;
 }
 
 export function nameFromEmail(email: string | null | undefined): string {

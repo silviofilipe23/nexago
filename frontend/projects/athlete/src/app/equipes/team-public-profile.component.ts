@@ -7,7 +7,8 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
-import { fetchPublicProfilesByIds, levelBucketOf, type AthletePublicProfile } from '../data/public-profiles-repository';
+import { levelLabelOf } from '../data/athlete-level';
+import { fetchPublicProfilesByIds, type AthletePublicProfile } from '../data/public-profiles-repository';
 import { fetchTeamRankingGeneral } from '../data/rankings-repository';
 import {
   currentWinStreak,
@@ -49,7 +50,7 @@ function memberRef(profile: AthletePublicProfile | undefined, uid: string): Team
   return {
     handle: profile ? uid : null,
     fullName: profile?.displayName ?? 'Atleta',
-    levelLabel: levelBucketOf(profile?.levelCode ?? null) ?? '—',
+    levelLabel: levelLabelOf(profile?.levelCode ?? null) ?? '—',
   };
 }
 
@@ -136,7 +137,7 @@ export class TeamPublicProfileComponent {
         id: team.id,
         teamName: team.teamName ?? `${p1?.displayName?.split(' ')[0] ?? 'Atleta'} / ${p2?.displayName?.split(' ')[0] ?? 'Atleta'}`,
         sport: p1?.sportChip ?? p2?.sportChip ?? 'beachVolleyball',
-        level: levelBucketOf(p1?.levelCode ?? p2?.levelCode ?? null),
+        level: levelLabelOf(p1?.levelCode ?? p2?.levelCode ?? null),
         city: p1?.city ?? p2?.city ?? '',
         wins,
         losses: completed.length - wins,

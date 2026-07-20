@@ -109,13 +109,13 @@
             </article>
           }
         </div>
-        @if (hasMore()) {
-          <button type="button" class="ad-btn-ghost ad-load-more" [disabled]="loadingMore()" (click)="loadMore()">
+        @if (hasMore() || loadingMore()) {
+          <div #loadMoreSentinel class="ad-scroll-sentinel" aria-hidden="true">
             @if (loadingMore()) {
-              <app-nx-spinner [size]="14" />
+              <app-nx-spinner [size]="16" />
+              <span>Carregando mais atletas…</span>
             }
-            {{ loadingMore() ? 'Carregando…' : 'Carregar mais atletas' }}
-          </button>
+          </div>
         }
       }
     </section>

@@ -47,6 +47,8 @@ export interface AgendaEvent {
   ctaPrimary: boolean;
   /** Destino real do CTA (rota) — nulo quando não há tela correspondente. */
   link: string[] | null;
+  /** Espelha `isAgendaItemPast` (Flutter) — usado para mostrar só os próximos eventos na lista. */
+  isPast: boolean;
 }
 
 export interface AgendaDayGroup {
@@ -205,7 +207,7 @@ function buildIcsCalendar(events: readonly AgendaEvent[]): string {
   return lines.join('\r\n');
 }
 
-function bookingToEvent(booking: MyBooking): AgendaEvent | null {
+export function bookingToEvent(booking: MyBooking, now: Date = new Date()): AgendaEvent | null {
   if (booking.dateKey.length < 10) return null;
   const [y, m, d] = booking.dateKey.split('-').map(Number);
   const [sh, sm] = booking.startTime.split(':').map(Number);
@@ -230,14 +232,15 @@ function bookingToEvent(booking: MyBooking): AgendaEvent | null {
     ctaLabel: 'Ver arena',
     ctaPrimary: needsPayment,
     link: booking.arenaId ? ['/reservar', booking.arenaId] : null,
+    isPast: end.getTime() <= now.getTime(),
   };
 }
 
-function registrationToEvent(reg: AthleteTournamentRegistration, tournament: TournamentSummary | undefined): AgendaEvent | null {
+export function registrationToEvent(reg: AthleteTournamentRegistration, tournament: TournamentSummary | undefined, now: Date = new Date()): AgendaEvent | null {
   if (!tournament?.startAt) return null;
   const durationMin = tournament.endAt ? Math.max(60, Math.round((tournament.endAt.getTime() - tournament.startAt.getTime()) / 60000)) : 24 * 60;
-  const live = tournamentIsLive(tournament);
-  const completed = tournamentIsCompleted(tournament);
+  const live = tournamentIsLive(tournament, now);
+  const completed = tournamentIsCompleted(tournament, now);
   return {
     id: reg.id,
     startsAt: tournament.startAt,
@@ -251,6 +254,7 @@ function registrationToEvent(reg: AthleteTournamentRegistration, tournament: Tou
     ctaLabel: live ? 'Ver chave' : 'Ver torneio',
     ctaPrimary: live,
     link: live ? ['/torneios', tournament.id, 'chaves'] : ['/torneios', tournament.id],
+    isPast: completed,
   };
 }
 
@@ -379,11 +383,13 @@ export class AthleteAgendaComponent {
       const tournamentIds = [...new Set([...registrations.map((r) => r.tournamentId), ...invites.map((i) => i.tournamentId)])];
       const tournaments = await fetchTournamentSummariesByIds(db, tournamentIds);
 
-      const bookingEvents = bookings.filter(bookingIsActive).map(bookingToEvent).filter((e): e is AgendaEvent => e != null);
+      const bookingEvents = bookings.filter(bookingIsActive).map((b) => bookingToEvent(b)).filter((e): e is AgendaEvent => e != null);
       const registrationEvents = registrations
         .map((r) => registrationToEvent(r, tournaments.get(r.tournamentId)))
         .filter((e): e is AgendaEvent => e != null);
-      this.events.set([...bookingEvents, ...registrationEvents]);
+      // A lista/dia-a-dia mostra só os próximos eventos (espelha o default `timeTab: upcoming`
+      // do Flutter); o histórico completo continua disponível pra `computeMonthStats` abaixo.
+      this.events.set([...bookingEvents, ...registrationEvents].filter((e) => !e.isPast));
 
       this.pendingRequests.set(
         invites.map((invite) => {

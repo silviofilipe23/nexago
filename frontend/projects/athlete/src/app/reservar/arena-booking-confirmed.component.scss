@@ -8,7 +8,6 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  overflow: auto;
   max-width: 720px;
   margin: 0 auto;
   width: 100%;
@@ -41,19 +40,37 @@
   border: 1px solid var(--nx-line);
   color: var(--nx-text-mute);
   font-size: 13px;
+  animation: bc-rise var(--nx-d-fast) var(--nx-ease-out) both;
 }
 
 // ── Hero ─────────────────────────────────────────────────────
 .bc-hero {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 10px;
-  padding: 12px 0 4px;
+  gap: 12px;
+  padding: 16px 0 8px;
+}
+
+.bc-hero-glow {
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  translate: -50% 0;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(43, 209, 126, 0.28) 0%, rgba(43, 209, 126, 0) 70%);
+  pointer-events: none;
+  z-index: 0;
+  animation: bc-glow-in var(--nx-d-slow) var(--nx-ease-out) 60ms both;
 }
 
 .bc-check-circle {
+  position: relative;
+  z-index: 1;
   width: 84px;
   height: 84px;
   border-radius: 50%;
@@ -61,9 +78,19 @@
   color: #06281a;
   display: grid;
   place-items: center;
-  box-shadow: 0 0 0 10px rgba(34, 197, 94, 0.12);
+  box-shadow: 0 0 0 10px rgba(43, 209, 126, 0.12);
   margin-bottom: 6px;
-  animation: bc-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: bc-pop 0.5s var(--nx-ease-spring) both;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid var(--nx-win);
+    pointer-events: none;
+    animation: bc-ring 900ms var(--nx-ease-out) 200ms both;
+  }
 
   &--pending {
     background: var(--nx-surface-1);
@@ -71,6 +98,10 @@
     border: 1px solid var(--nx-line);
     box-shadow: none;
     animation: none;
+
+    &::after {
+      content: none;
+    }
   }
 }
 
@@ -89,30 +120,100 @@
   }
 }
 
+@keyframes bc-ring {
+  from {
+    opacity: 0.5;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+@keyframes bc-glow-in {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/** Espelha o traçado do `path` do check (`m4.5 12.5 5 5 10-11`, comprimento ≈ 22 no
+ *  viewBox 24×24) — desenha depois que o círculo "pop" já assentou. */
+.bc-check-mark {
+  animation: bc-draw var(--nx-d-base) var(--nx-ease-out) 380ms both;
+}
+
+@keyframes bc-draw {
+  from {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .bc-check-circle {
+  .bc-check-circle,
+  .bc-check-mark {
     animation: none;
+  }
+
+  .bc-check-circle::after {
+    display: none;
   }
 }
 
 .bc-title {
+  position: relative;
+  z-index: 1;
   font-family: var(--nx-font-display);
   font-weight: 800;
   font-size: 26px;
   letter-spacing: -0.01em;
   color: var(--nx-text);
   margin: 0;
+  animation: bc-rise var(--nx-d-base) var(--nx-ease-out) 80ms both;
 }
 
 .bc-subtitle {
+  position: relative;
+  z-index: 1;
   font-family: var(--nx-font-ui);
   font-size: 14px;
   color: var(--nx-text-mute);
   margin: 0;
   max-width: 440px;
+  animation: bc-rise var(--nx-d-base) var(--nx-ease-out) 140ms both;
 
   strong {
     color: var(--nx-text);
+  }
+}
+
+@keyframes bc-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bc-notice,
+  .bc-title,
+  .bc-subtitle,
+  .bc-hero-glow {
+    animation: none;
   }
 }
 
@@ -125,6 +226,21 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.bc-summary-card {
+  animation: bc-rise var(--nx-d-base) var(--nx-ease-out) 200ms both;
+}
+
+.bc-nextsteps-card {
+  animation: bc-rise var(--nx-d-base) var(--nx-ease-out) 280ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bc-summary-card,
+  .bc-nextsteps-card {
+    animation: none;
+  }
 }
 
 .bc-card-title {
@@ -311,6 +427,16 @@
 
 .bc-btn-full {
   width: 100%;
+}
+
+.bc-cta-reveal {
+  animation: bc-rise var(--nx-d-base) var(--nx-ease-out) 340ms both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bc-cta-reveal {
+    animation: none;
+  }
 }
 
 // ── Skeleton / empty ─────────────────────────────────────────

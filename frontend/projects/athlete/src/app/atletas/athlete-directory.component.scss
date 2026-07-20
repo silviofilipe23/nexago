@@ -157,7 +157,8 @@ $ad-sport-colors: (
   display: flex;
   flex-direction: column;
   gap: 24px;
-  overflow: auto;
+  // Scroll fica no `.at-main` do shell — evita nested scroll que quebra infinite load.
+  overflow: visible;
 
   @media (max-width: 640px) {
     padding: 16px 16px 32px;
@@ -455,11 +456,17 @@ $ad-sport-colors: (
   }
 }
 
-.ad-load-more {
-  flex: none;
-  width: fit-content;
-  margin: 18px auto 0;
-  padding: 0 20px;
+.ad-scroll-sentinel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  margin-top: 8px;
+  padding: 12px 0 8px;
+  color: var(--nx-text-mute);
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
 }
 
 .ad-btn-follow {

@@ -20,11 +20,14 @@
       }
 
       <div class="bc-hero">
+        @if (statusKind() !== 'pending' && statusKind() !== 'canceled') {
+          <div class="bc-hero-glow" aria-hidden="true"></div>
+        }
         <div class="bc-check-circle" [class.bc-check-circle--pending]="statusKind() === 'pending' || statusKind() === 'canceled'">
           @if (statusKind() === 'pending') {
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>
           } @else {
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4.5 12.5 5 5 10-11" /></svg>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="bc-check-mark" d="m4.5 12.5 5 5 10-11" /></svg>
           }
         </div>
         <h1 class="bc-title">
@@ -103,7 +106,7 @@
       </div>
 
       @if (statusKind() !== 'pending' && statusKind() !== 'canceled') {
-        <div class="bc-card">
+        <div class="bc-card bc-nextsteps-card">
           <h2 class="bc-card-title">Próximos passos</h2>
           <div class="bc-step-row">
             <div class="bc-step-icon" aria-hidden="true">
@@ -140,13 +143,13 @@
         <a
           [routerLink]="['/reservar', b.arenaId, 'agendar', 'pagamento']"
           [queryParams]="{ courtId: b.courtId, date: b.dateKey, time: b.startTime, duration: b.slotCount }"
-          class="bc-btn-primary bc-btn-full"
+          class="bc-btn-primary bc-btn-full bc-cta-reveal"
         >Concluir pagamento</a>
       }
 
       <a
         [routerLink]="['/reservar']"
-        class="bc-btn-full"
+        class="bc-btn-full bc-cta-reveal"
         [class.bc-btn-primary]="statusKind() !== 'pending'"
         [class.bc-btn-ghost]="statusKind() === 'pending'"
       >Voltar a Reservar</a>

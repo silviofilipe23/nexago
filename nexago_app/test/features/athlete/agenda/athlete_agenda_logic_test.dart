@@ -179,6 +179,22 @@ void main() {
         timeTab: AthleteAgendaTimeTab.past,
         now: now,
       );
+
+      expect(past.length, 2);
+      expect(past.first.startsAt.isAfter(past.last.startsAt), true);
+    });
+
+    test('upcoming tab + day mode still shows the selected day\'s already-finished items', () {
+      // O dia em foco (viewMode.day + aba "Próximos") não deve esconder jogos
+      // que já aconteceram hoje — só reserva cancelada some da lista. Um item
+      // de outro dia continua de fora.
+      final now = DateTime(2025, 5, 26, 15);
+      final items = [
+        rentalAt(DateTime(2025, 5, 26, 18)),
+        pastRentalAt(DateTime(2025, 5, 26, 10)),
+        pastRentalAt(DateTime(2025, 5, 25, 10)),
+      ];
+
       final upcoming = filterAgendaItems(
         items: items,
         filter: AthleteAgendaFilter.all,
@@ -189,9 +205,9 @@ void main() {
         now: now,
       );
 
-      expect(past.length, 2);
-      expect(upcoming.length, 1);
-      expect(past.first.startsAt.isAfter(past.last.startsAt), true);
+      expect(upcoming.length, 2);
+      expect(upcoming.every((i) => isSameDay(i.startsAt, baseDay)), true);
+      expect(upcoming.any((i) => i.id == 'past-rental-${DateTime(2025, 5, 26, 10).millisecondsSinceEpoch}'), true);
     });
 
     test('past tab lists all past items regardless of selected day', () {

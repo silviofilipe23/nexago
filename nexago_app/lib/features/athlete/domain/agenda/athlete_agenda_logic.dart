@@ -417,14 +417,26 @@ List<AthleteAgendaItem> filterAgendaItems({
   final clock = now ?? DateTime.now();
   Iterable<AthleteAgendaItem> filtered = items;
 
-  filtered = switch (timeTab) {
-    AthleteAgendaTimeTab.upcoming => filtered.where(
-      (i) => !isAgendaItemPast(i, now: clock),
-    ),
-    AthleteAgendaTimeTab.past => filtered.where(
-      (i) => isAgendaItemPast(i, now: clock),
-    ),
-  };
+  // Dia específico em foco (viewMode == day, fora da aba "Passados"): mostra
+  // os jogos do dia mesmo que já tenham acontecido — só reserva cancelada
+  // continua escondida. A exclusão de itens passados da aba "Próximos" só
+  // faz sentido pra visão geral (mês), não pro dia que o atleta escolheu ver.
+  final dayInFocus =
+      viewMode == AthleteAgendaViewMode.day &&
+      timeTab == AthleteAgendaTimeTab.upcoming;
+
+  if (dayInFocus) {
+    filtered = filtered.where((i) => !i.isCanceled);
+  } else {
+    filtered = switch (timeTab) {
+      AthleteAgendaTimeTab.upcoming => filtered.where(
+        (i) => !isAgendaItemPast(i, now: clock),
+      ),
+      AthleteAgendaTimeTab.past => filtered.where(
+        (i) => isAgendaItemPast(i, now: clock),
+      ),
+    };
+  }
 
   filtered = switch (filter) {
     AthleteAgendaFilter.all => filtered,
@@ -697,10 +709,11 @@ List<AthleteAgendaItem> filterAgendaItemsForWeekStrip({
   final rangeEnd = rangeStart.add(Duration(days: dayCount - 1));
 
   Iterable<AthleteAgendaItem> filtered = items;
+  // A "aba Próximos" só esconde reservas canceladas aqui — os dots do strip
+  // (inclusive de hoje) precisam refletir jogos que já aconteceram, senão o
+  // dia mostra 0 eventos no strip mas a lista abaixo dele mostra os jogos.
   filtered = switch (timeTab) {
-    AthleteAgendaTimeTab.upcoming => filtered.where(
-      (i) => !isAgendaItemPast(i, now: clock),
-    ),
+    AthleteAgendaTimeTab.upcoming => filtered.where((i) => !i.isCanceled),
     AthleteAgendaTimeTab.past => filtered.where(
       (i) => isAgendaItemPast(i, now: clock),
     ),

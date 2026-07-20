@@ -1,0 +1,482 @@
+:host {
+  display: block;
+}
+
+.hs-page-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--nx-line);
+  flex: none;
+
+  @media (max-width: 640px) {
+    padding: 16px;
+  }
+}
+
+.hs-page-header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.hs-page-header-titles h1 {
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 21px;
+  letter-spacing: -0.02em;
+  color: var(--nx-text);
+  margin: 0;
+}
+
+.hs-page-header-sub {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.hs-page-header-spacer {
+  flex: 1;
+}
+
+.hs-export-btn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  transition: border-color var(--nx-d-fast);
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+}
+
+// ── Body ─────────────────────────────────────────────────────
+.hs-body {
+  flex: 1;
+  padding: 22px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: auto;
+
+  @media (max-width: 640px) {
+    padding: 16px 16px 32px;
+  }
+}
+
+.hs-empty-card {
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-4);
+  padding: 40px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.hs-empty-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--nx-text);
+  margin: 0;
+}
+
+.hs-empty-sub {
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  color: var(--nx-text-dim);
+  margin: 0;
+}
+
+// ── Stat cards ───────────────────────────────────────────────
+.hs-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+
+  @media (max-width: 720px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hs-stat-card {
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-4);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hs-stat-label {
+  font-family: var(--nx-font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nx-text-dim);
+}
+
+.hs-stat-value {
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 28px;
+  letter-spacing: -0.02em;
+  color: var(--nx-text);
+}
+
+.hs-stat-value--win {
+  color: var(--nx-win);
+}
+
+.hs-stat-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.hs-stat-sub {
+  font-family: var(--nx-font-ui);
+  font-size: 14px;
+  color: var(--nx-text-dim);
+}
+
+// ── Tabs ─────────────────────────────────────────────────────
+.hs-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-3);
+  width: fit-content;
+}
+
+.hs-tab {
+  height: 34px;
+  padding: 0 18px;
+  border-radius: var(--nx-r-2);
+  background: transparent;
+  border: none;
+  color: var(--nx-text-dim);
+  font-family: var(--nx-font-display);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--nx-d-fast);
+
+  &:hover {
+    color: var(--nx-text-mute);
+  }
+}
+
+.hs-tab--active {
+  background: var(--nx-surface-2);
+  color: var(--nx-text);
+}
+
+// ── Month card ───────────────────────────────────────────────
+.hs-month-card {
+  background: var(--nx-surface-0);
+  border: 1px solid var(--nx-line);
+  border-radius: var(--nx-r-4);
+  overflow: hidden;
+  min-width: 0;
+  // Filho de um flex column (.hs-body): sem isso, `overflow: hidden` zera a altura
+  // mínima automática do item e o flexbox comprime o card abaixo da altura real do
+  // conteúdo em vez de deixar o scroll do .hs-body cuidar do excesso — cortando linhas.
+  flex-shrink: 0;
+}
+
+.hs-month-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--nx-line);
+}
+
+.hs-month-title {
+  font-family: var(--nx-font-display);
+  font-weight: 800;
+  font-size: 17px;
+  color: var(--nx-text);
+  margin: 0;
+}
+
+.hs-month-summary {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  color: var(--nx-text-dim);
+  white-space: nowrap;
+}
+
+.hs-row-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.hs-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px 76px minmax(140px, 1fr) auto minmax(72px, auto);
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 6px;
+  padding: 16px 20px 16px 24px;
+  border-top: 1px solid var(--nx-line);
+  text-decoration: none;
+  color: inherit;
+  transition: background var(--nx-d-fast);
+  min-width: 0;
+
+  &:first-child {
+    border-top: none;
+  }
+
+  &:hover {
+    background: var(--nx-surface-1);
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--nx-orange-500);
+  }
+}
+
+.hs-row--plain::before {
+  background: transparent;
+}
+
+.hs-row[data-kind='aluguel']::before {
+  background: #6eb5ff;
+}
+
+.hs-row[data-kind='torneio']::before {
+  background: var(--nx-orange-500);
+}
+
+.hs-row[data-kind='liga']::before {
+  background: #9b8cff;
+}
+
+.hs-row-date {
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nx-text-dim);
+  white-space: nowrap;
+}
+
+.hs-row-kind {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--nx-text-dim);
+  white-space: nowrap;
+}
+
+.hs-row[data-kind='aluguel'] .hs-row-kind {
+  color: #6eb5ff;
+}
+
+.hs-row[data-kind='torneio'] .hs-row-kind {
+  color: var(--nx-orange-400);
+}
+
+.hs-row[data-kind='liga'] .hs-row-kind {
+  color: #9b8cff;
+}
+
+.hs-row-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.hs-row-title {
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--nx-text);
+  margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.hs-row-subtitle {
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--nx-text-dim);
+  margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.hs-row-badge {
+  justify-self: end;
+  height: auto;
+  min-height: 26px;
+  padding: 4px 12px;
+  border-radius: var(--nx-r-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  white-space: normal;
+  text-align: center;
+  max-width: 160px;
+  line-height: 1.25;
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line-strong);
+  color: var(--nx-text-dim);
+}
+
+.hs-row-badge[data-tone='paid'] {
+  background: rgba(43, 209, 126, 0.12);
+  border-color: rgba(43, 209, 126, 0.3);
+  color: var(--nx-win);
+}
+
+.hs-row-badge[data-tone='win'] {
+  background: rgba(43, 209, 126, 0.12);
+  border-color: rgba(43, 209, 126, 0.3);
+  color: var(--nx-win);
+}
+
+.hs-row-badge[data-tone='loss'] {
+  background: rgba(255, 59, 48, 0.12);
+  border-color: rgba(255, 59, 48, 0.3);
+  color: var(--nx-live);
+}
+
+.hs-row-badge[data-tone='pending'] {
+  background: rgba(244, 197, 67, 0.12);
+  border-color: rgba(244, 197, 67, 0.3);
+  color: var(--nx-pending);
+}
+
+.hs-row-badge[data-tone='canceled'] {
+  background: var(--nx-surface-1);
+  border-color: var(--nx-line-strong);
+  color: var(--nx-text-dim);
+}
+
+.hs-row-amount {
+  justify-self: end;
+  text-align: right;
+  font-family: var(--nx-font-display);
+  font-weight: 700;
+  font-size: 13.5px;
+  color: var(--nx-text);
+  white-space: nowrap;
+}
+
+.hs-row-amount--empty {
+  color: var(--nx-text-dim);
+  font-weight: 400;
+}
+
+// Sem kind label: colunas viram data | título | badge | valor
+.hs-row--plain {
+  grid-template-columns: 52px minmax(140px, 1fr) auto minmax(72px, auto);
+}
+
+@media (max-width: 860px) {
+  .hs-row,
+  .hs-row--plain {
+    grid-template-columns: 52px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'date copy amount'
+      'kind copy badge';
+  }
+
+  .hs-row-date {
+    grid-area: date;
+    align-self: start;
+    padding-top: 2px;
+  }
+
+  .hs-row-kind {
+    grid-area: kind;
+    align-self: start;
+  }
+
+  .hs-row-copy {
+    grid-area: copy;
+  }
+
+  .hs-row-badge {
+    grid-area: badge;
+    justify-self: end;
+    align-self: start;
+    max-width: 140px;
+  }
+
+  .hs-row-amount {
+    grid-area: amount;
+    justify-self: end;
+    align-self: start;
+  }
+
+  .hs-row--plain {
+    grid-template-areas:
+      'date copy amount'
+      '. copy badge';
+  }
+}
+
+@media (max-width: 520px) {
+  .hs-row,
+  .hs-row--plain {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'date amount'
+      'kind badge'
+      'copy copy';
+    padding: 14px 16px;
+  }
+
+  .hs-row-copy {
+    margin-top: 2px;
+  }
+
+  .hs-row-badge {
+    max-width: none;
+  }
+}

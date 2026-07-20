@@ -21,6 +21,7 @@ const SHELL_ROUTE_PREFIXES = [
   '/comunidade',
   '/bora-jogar',
   '/notificacoes',
+  '/historico',
 ];
 const AUTH_ROUTES = [
   '/entrar',

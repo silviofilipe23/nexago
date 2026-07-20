@@ -511,6 +511,15 @@ $ag-kind-colors: (
   }
 }
 
+.ag-event-row--clickable {
+  cursor: pointer;
+  transition: border-color var(--nx-d-fast);
+
+  &:hover {
+    border-color: var(--nx-line-strong);
+  }
+}
+
 @each $kind, $color in $ag-kind-colors {
   .ag-event-row[data-kind='#{$kind}'] {
     &::before {

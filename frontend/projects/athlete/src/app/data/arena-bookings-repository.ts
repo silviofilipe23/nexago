@@ -6,6 +6,8 @@ import {
   limit,
   onSnapshot,
   query,
+  updateDoc,
+  serverTimestamp,
   where,
   type DocumentData,
   type DocumentSnapshot,
@@ -85,6 +87,7 @@ export interface ArenaBookingDoc {
   amountReais: number;
   amountToPayNowReais: number;
   amountDueOnsiteReais: number;
+  amountPaidOnlineReais: number;
   paymentChannel: string;
   paymentStatus: string;
   paymentFraction: number | null;
@@ -92,6 +95,15 @@ export interface ArenaBookingDoc {
   paymentExpiresAt: Date | null;
   /** Quantos slots da grade a reserva ocupa (de `pricingLineItems`; mínimo 1). */
   slotCount: number;
+  /** Dono real da reserva — só ele pode cancelar (espelha `BookingService.cancelBooking`). */
+  ownerAthleteId: string | null;
+  /** Total de atletas com presença confirmada (inclui o dono). */
+  confirmedParticipants: number;
+  guestAthleteId: string | null;
+  guestAthleteName: string | null;
+  /** Ocorrência de horário fixo (mensalista) — gerida pela arena, sem cancelamento pelo app. */
+  recurringBookingId: string | null;
+  createdAt: Date | null;
 }
 
 export class ArenaBookingError extends Error {
@@ -263,6 +275,31 @@ export async function cancelPendingBookingPayment(functions: Functions, bookingI
   }
 }
 
+/** Cancela a reserva do atleta dono — espelha `BookingService.cancelBooking` (Flutter):
+ *  write direto (rules permitem update de `arenaBookings` quando `athleteId == request.auth.uid`). */
+export async function cancelBooking(db: Firestore, bookingId: string, athleteId: string): Promise<void> {
+  const id = bookingId.trim();
+  const uid = athleteId.trim();
+  if (!id || !uid) {
+    throw new ArenaBookingError('Dados inválidos para cancelamento.');
+  }
+  const ref = doc(db, ARENA_BOOKINGS, id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    throw new ArenaBookingError('Reserva não encontrada.');
+  }
+  const data = snap.data() as Record<string, unknown>;
+  const ownerId = optionalStr(data['athleteId']);
+  if (ownerId !== uid) {
+    throw new ArenaBookingError('Você não pode cancelar esta reserva.');
+  }
+  await updateDoc(ref, {
+    status: 'canceled',
+    attendanceStatus: 'canceled',
+    canceledAt: serverTimestamp(),
+  });
+}
+
 function toDateOrNull(v: unknown): Date | null {
   const t = v as Timestamp | undefined;
   if (t && typeof t.toDate === 'function') return t.toDate();
@@ -289,6 +326,10 @@ function normTime(v: unknown): string {
   return typeof v === 'string' ? v.trim().slice(0, 5) : '';
 }
 
+function optionalStr(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
 function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): ArenaBookingDoc | null {
   const data = snap.data();
   if (!data) return null;
@@ -304,12 +345,19 @@ function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): ArenaBooking
     amountReais: Number(data['amountReais']) || 0,
     amountToPayNowReais: Number(data['amountToPayNowReais']) || 0,
     amountDueOnsiteReais: Number(data['amountDueOnsiteReais']) || 0,
+    amountPaidOnlineReais: Number(data['amountPaidOnlineReais']) || 0,
     paymentChannel: typeof data['paymentChannel'] === 'string' ? data['paymentChannel'] : 'onsite',
     paymentStatus: typeof data['paymentStatus'] === 'string' ? data['paymentStatus'] : 'none',
     paymentFraction: typeof data['paymentFraction'] === 'number' ? data['paymentFraction'] : null,
     status: typeof data['status'] === 'string' ? data['status'] : '',
     paymentExpiresAt: toDateOrNull(data['paymentExpiresAt']),
     slotCount: Array.isArray(data['pricingLineItems']) ? Math.max(1, data['pricingLineItems'].length) : 1,
+    ownerAthleteId: optionalStr(data['athleteId']) ?? optionalStr(data['bookingAthleteId']),
+    confirmedParticipants: Math.max(1, Number(data['confirmedParticipants']) || 1),
+    guestAthleteId: optionalStr(data['guestAthleteId']),
+    guestAthleteName: optionalStr(data['guestAthleteName']),
+    recurringBookingId: optionalStr(data['recurringBookingId']),
+    createdAt: toDateOrNull(data['createdAt']),
   };
 }
 

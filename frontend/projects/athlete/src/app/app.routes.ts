@@ -73,6 +73,14 @@ export const routes: Routes = [
       import('./agenda/athlete-agenda.component').then((m) => m.AthleteAgendaComponent),
   },
   {
+    path: 'agenda/reserva/:bookingId',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./agenda/booking-detail/athlete-booking-detail.component').then(
+        (m) => m.AthleteBookingDetailComponent,
+      ),
+  },
+  {
     path: 'reservar',
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
@@ -109,6 +117,12 @@ export const routes: Routes = [
     canActivate: [authGuard, onboardingGuard],
     loadComponent: () =>
       import('./ranking/athlete-ranking.component').then((m) => m.AthleteRankingComponent),
+  },
+  {
+    path: 'historico',
+    canActivate: [authGuard, onboardingGuard],
+    loadComponent: () =>
+      import('./history/athlete-history.component').then((m) => m.AthleteHistoryComponent),
   },
   {
     path: 'equipes',

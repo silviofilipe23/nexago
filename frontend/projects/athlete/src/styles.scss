@@ -75,6 +75,36 @@
     background-color: rgba(255, 106, 26, 0.35);
     color: #fff;
   }
+
+  /* Scrollbar de marca — troca o scrollbar default do SO por um fino, com trilho
+     transparente (se funde com o fundo escuro) e polegar que acende laranja no
+     hover/arraste. Firefox via scrollbar-color, Chromium/Safari via ::-webkit-*. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--nx-line-strong) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--nx-line-strong);
+    border-radius: var(--nx-r-pill);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    transition: background-color var(--nx-d-fast) var(--nx-ease-out);
+  }
+  ::-webkit-scrollbar-thumb:hover,
+  ::-webkit-scrollbar-thumb:active {
+    background-color: var(--nx-orange-500);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 @layer utilities {

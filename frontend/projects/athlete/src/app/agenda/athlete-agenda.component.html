@@ -78,7 +78,12 @@
             } @else {
               <div class="ag-event-list">
                 @for (ev of group.events; track ev.id) {
-                  <article class="ag-event-row" [attr.data-kind]="ev.kind">
+                  <article
+                    class="ag-event-row"
+                    [class.ag-event-row--clickable]="ev.link"
+                    [attr.data-kind]="ev.kind"
+                    (click)="onEventCta(ev)"
+                  >
                     <div class="ag-event-time">
                       <span class="ag-event-time-value">{{ startTimeLabel(ev) }}</span>
                       <span class="ag-event-time-dur">{{ ev.durationMin }} min</span>
@@ -98,7 +103,7 @@
                       type="button"
                       class="ag-event-cta"
                       [class.ag-event-cta--ghost]="!ev.ctaPrimary"
-                      (click)="onEventCta(ev)"
+                      (click)="onEventCta(ev); $event.stopPropagation()"
                     >
                       {{ ev.ctaLabel }}
                     </button>

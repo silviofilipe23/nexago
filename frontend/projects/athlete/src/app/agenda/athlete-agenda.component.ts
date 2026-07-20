@@ -251,6 +251,7 @@ export function bookingToEvent(booking: MyBooking, now: Date = new Date()): Agen
   if (end.getTime() <= start.getTime()) end = new Date(end.getTime() + 24 * 60 * 60_000);
   const active = bookingIsActive(booking);
   const needsPayment = bookingNeedsPayment(booking);
+  const isPast = end.getTime() <= now.getTime();
 
   return {
     id: booking.id,
@@ -260,12 +261,12 @@ export function bookingToEvent(booking: MyBooking, now: Date = new Date()): Agen
     title: `${booking.arenaName} · ${booking.courtName}`,
     subtitle: active ? 'Reserva de quadra' : 'Reserva cancelada',
     location: booking.arenaName,
-    statusLabel: !active ? 'Cancelada' : needsPayment ? 'Pagamento pendente' : booking.attendanceConfirmed ? 'Confirmado' : 'Aguardando confirmação',
-    statusTone: !active ? 'neutral' : needsPayment ? 'warning' : booking.attendanceConfirmed ? 'confirmed' : 'warning',
-    ctaLabel: 'Ver arena',
-    ctaPrimary: needsPayment,
-    link: booking.arenaId ? ['/reservar', booking.arenaId] : null,
-    isPast: end.getTime() <= now.getTime(),
+    statusLabel: !active ? 'Cancelada' : isPast ? 'Finalizada' : needsPayment ? 'Pagamento pendente' : booking.attendanceConfirmed ? 'Confirmado' : 'Aguardando confirmação',
+    statusTone: !active ? 'neutral' : isPast ? 'neutral' : needsPayment ? 'warning' : booking.attendanceConfirmed ? 'confirmed' : 'warning',
+    ctaLabel: 'Ver detalhes',
+    ctaPrimary: needsPayment && !isPast,
+    link: ['/agenda/reserva', booking.id],
+    isPast,
   };
 }
 
@@ -480,9 +481,10 @@ export class AthleteAgendaComponent {
       const registrationEvents = registrations
         .map((r) => registrationToEvent(r, tournaments.get(r.tournamentId)))
         .filter((e): e is AgendaEvent => e != null);
-      // A lista/dia-a-dia mostra só os próximos eventos (espelha o default `timeTab: upcoming`
-      // do Flutter); o histórico completo continua disponível pra `computeMonthStats` abaixo.
-      this.events.set([...bookingEvents, ...registrationEvents].filter((e) => !e.isPast));
+      // Mantém eventos passados na lista (ao contrário do default `timeTab: upcoming` do
+      // Flutter): o dia selecionado — inclusive hoje — precisa mostrar os jogos que já
+      // aconteceram, não só os que ainda vêm. `isPast` continua disponível pra estilização.
+      this.events.set([...bookingEvents, ...registrationEvents]);
 
       this.pendingRequests.set(
         invites.map((invite) => {

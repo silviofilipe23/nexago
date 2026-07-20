@@ -1,0 +1,177 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  @if (loading()) {
+    <div class="bd-body">
+      <div class="bd-skeleton-block"><div class="bd-skeleton-shimmer"></div></div>
+    </div>
+  } @else if (error(); as err) {
+    <div class="bd-notfound">
+      <p class="bd-empty-title">{{ err }}</p>
+      <a routerLink="/agenda" class="bd-btn-ghost">Voltar à Agenda</a>
+    </div>
+  } @else if (booking(); as b) {
+    <div class="bd-body">
+      <a routerLink="/agenda" class="bd-back-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+        <span>Voltar à Agenda</span>
+      </a>
+
+      @if (notice(); as n) {
+        <div class="bd-notice" role="status">{{ n }}</div>
+      }
+
+      <div class="bd-grid">
+        <div class="bd-col">
+          <div
+            class="bd-hero"
+            [class.bd-hero--cover]="coverUrl() != null"
+            [attr.data-tone]="statusTone()"
+          >
+            @if (coverUrl(); as cover) {
+              <img class="bd-hero-cover" [src]="cover" alt="" aria-hidden="true" />
+              <span class="bd-hero-scrim" aria-hidden="true"></span>
+            }
+            <div class="bd-hero-content">
+              <div class="bd-hero-top">
+                <span class="bd-countdown-chip">
+                  <span class="bd-countdown-dot" aria-hidden="true"></span>
+                  {{ countdownLabel() }}
+                </span>
+                <span class="bd-status-badge" [attr.data-tone]="statusTone()">{{ statusBadgeLabel() }}</span>
+              </div>
+
+              <h1 class="bd-arena-name">{{ b.arenaName }}</h1>
+              <p class="bd-court-line">
+                {{ b.courtName }}@if (sportLabel(); as sport) { · {{ sport }} }
+              </p>
+
+              <div class="bd-hero-meta">
+                <div class="bd-meta-item">
+                  <span class="bd-meta-label">Data</span>
+                  <span class="bd-meta-value">{{ dateEyebrow() }}</span>
+                </div>
+                <div class="bd-meta-item">
+                  <span class="bd-meta-label">Horário</span>
+                  <span class="bd-meta-value">{{ timeRangeLabel() }}</span>
+                </div>
+                <div class="bd-meta-item">
+                  <span class="bd-meta-label">Duração</span>
+                  <span class="bd-meta-value">{{ durationLabel() }}</span>
+                </div>
+                <div class="bd-meta-item">
+                  <span class="bd-meta-label">Código</span>
+                  <span class="bd-meta-value bd-meta-value--code">{{ displayCode() }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bd-card">
+            <div class="bd-card-head">
+              <span class="bd-card-kicker">{{ team().length }} vagas · {{ openSlots() }} aberta{{ openSlots() === 1 ? '' : 's' }}</span>
+              <h2 class="bd-card-title">Equipe</h2>
+            </div>
+            <div class="bd-team-list">
+              @for (m of team(); track m.id) {
+                @if (m.isEmptySlot) {
+                  <div class="bd-team-row bd-team-row--empty">
+                    <span class="bd-team-avatar bd-team-avatar--empty" aria-hidden="true">{{ m.initials }}</span>
+                    <div class="bd-team-info">
+                      <p class="bd-team-name">{{ m.displayName }}</p>
+                      <p class="bd-team-subtitle">{{ m.subtitle }}</p>
+                    </div>
+                    @if (canInvite()) {
+                      <button type="button" class="bd-btn-primary bd-btn-sm" (click)="inviteGuest()">Convidar</button>
+                    }
+                  </div>
+                } @else {
+                  <div class="bd-team-row">
+                    <span class="bd-team-avatar">{{ m.initials }}</span>
+                    <div class="bd-team-info">
+                      <p class="bd-team-name">{{ m.isOrganizer ? 'Você' : m.displayName }}</p>
+                      <p class="bd-team-subtitle">{{ m.subtitle }}</p>
+                    </div>
+                    @if (m.showPaidBadge) {
+                      <span class="bd-pill bd-pill--paid">Pago</span>
+                    }
+                  </div>
+                }
+              }
+            </div>
+          </div>
+
+          @if (showSplitCard()) {
+            <div class="bd-card">
+              <span class="bd-card-kicker">Via PIX</span>
+              <h2 class="bd-card-title">Rachar pagamento</h2>
+              <div class="bd-split-row">
+                <div class="bd-split-block">
+                  <span class="bd-split-label">Total da quadra</span>
+                  <span class="bd-split-total">{{ formatBRL(b.amountReais) }}</span>
+                </div>
+                <div class="bd-split-block bd-split-block--end">
+                  <span class="bd-split-label">Sua parte (÷4)</span>
+                  <span class="bd-split-value">{{ splitPerPersonLabel() }}</span>
+                </div>
+              </div>
+              <button type="button" class="bd-btn-ghost bd-btn-full" (click)="chargeSplit()">Cobrar via PIX</button>
+            </div>
+          }
+        </div>
+
+        <div class="bd-col bd-col--side">
+          <div class="bd-card">
+            <span class="bd-card-kicker">Localização</span>
+            <div class="bd-map-placeholder">
+              <app-location-map [lat]="arena()?.lat ?? null" [lng]="arena()?.lng ?? null" [label]="b.arenaName" [googleMapsApiKey]="googleMapsApiKey" />
+            </div>
+            <p class="bd-address">{{ addressLabel() }}</p>
+            <a [href]="mapsUrl()" target="_blank" rel="noreferrer" class="bd-btn-primary bd-btn-full">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.4-6.5-10.5a6.5 6.5 0 0 1 13 0C18.5 15.6 12 21 12 21z" /><circle cx="12" cy="10.5" r="2.3" /></svg>
+              <span>Ver rotas</span>
+            </a>
+          </div>
+
+          <div class="bd-card">
+            <span class="bd-card-kicker">Gerenciar</span>
+            @if (canAddToAgenda()) {
+              <div class="bd-manage-row">
+                <div class="bd-manage-icon" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+                </div>
+                <span class="bd-manage-label">Adicionar à agenda</span>
+                <button type="button" class="bd-btn-ghost bd-btn-sm" (click)="addToAgenda()">Adicionar</button>
+              </div>
+            }
+
+            @if (isRecurring()) {
+              <div class="bd-recurring-note">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2.1 21 6l-4 3.9" /><path d="M3 12a9 9 0 0 1 15-6.7L21 6" /><path d="M7 21.9 3 18l4-3.9" /><path d="M21 12a9 9 0 0 1-15 6.7L3 18" /></svg>
+                <p>Esta reserva faz parte do seu horário fixo semanal. Para alterações ou cancelamento, fale direto com {{ b.arenaName }}.</p>
+              </div>
+            } @else if (canCancel()) {
+              @if (confirmingCancel()) {
+                <div class="bd-cancel-confirm">
+                  <p>Cancelar essa reserva? Dependendo da antecedência, a arena pode reter parte do valor pago.</p>
+                  <div class="bd-cancel-confirm-actions">
+                    <button type="button" class="bd-btn-ghost bd-btn-sm" [disabled]="canceling()" (click)="cancelCancelConfirmation()">Voltar</button>
+                    <button type="button" class="bd-btn-danger bd-btn-sm" [disabled]="canceling()" (click)="confirmCancel()">
+                      {{ canceling() ? 'Cancelando…' : 'Confirmar cancelamento' }}
+                    </button>
+                  </div>
+                </div>
+              } @else {
+                <div class="bd-manage-row">
+                  <div class="bd-manage-icon bd-manage-icon--danger" aria-hidden="true">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" /><path d="M12 9v4M12 17h.01" /></svg>
+                  </div>
+                  <span class="bd-manage-label">Cancelar reserva</span>
+                  <button type="button" class="bd-link-danger" (click)="startCancelConfirmation()">Cancelar</button>
+                </div>
+              }
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+</app-at-panel-shell>

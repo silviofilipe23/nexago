@@ -1,0 +1,87 @@
+<app-at-panel-shell [userName]="accountLabel()">
+  <header class="hs-page-header">
+    <div class="hs-page-header-titles">
+      <h1>Histórico</h1>
+      <div class="hs-page-header-sub">Todos os seus jogos, reservas e pagamentos</div>
+    </div>
+    <div class="hs-page-header-spacer"></div>
+    <button type="button" class="hs-export-btn" (click)="exportCsv()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4" /><path d="M4 17v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>
+      <span>Exportar</span>
+    </button>
+  </header>
+
+  <div class="hs-body">
+    @if (loading()) {
+      <div class="hs-empty-card">
+        <app-nx-page-loading title="Carregando histórico…" subtitle="Reservas, jogos e pagamentos" />
+      </div>
+    } @else {
+      <div class="hs-stat-grid">
+        <div class="hs-stat-card">
+          <span class="hs-stat-label">Total de jogos</span>
+          <span class="hs-stat-value">{{ totalGames() }}</span>
+        </div>
+        <div class="hs-stat-card">
+          <span class="hs-stat-label">Vitórias</span>
+          <span class="hs-stat-row">
+            <span class="hs-stat-value hs-stat-value--win">{{ wins() }}</span>
+            <span class="hs-stat-sub">· {{ winRatePercent() }}%</span>
+          </span>
+        </div>
+        <div class="hs-stat-card">
+          <span class="hs-stat-label">Total gasto</span>
+          <span class="hs-stat-value">{{ totalSpentLabel() }}</span>
+        </div>
+      </div>
+
+      <div class="hs-tabs" role="tablist" aria-label="Filtro do histórico">
+        <button type="button" role="tab" class="hs-tab" [class.hs-tab--active]="tab() === 'tudo'" (click)="setTab('tudo')">Tudo</button>
+        <button type="button" role="tab" class="hs-tab" [class.hs-tab--active]="tab() === 'jogos'" (click)="setTab('jogos')">Torneios e Ligas</button>
+        <button type="button" role="tab" class="hs-tab" [class.hs-tab--active]="tab() === 'reservas'" (click)="setTab('reservas')">Reservas</button>
+        <button type="button" role="tab" class="hs-tab" [class.hs-tab--active]="tab() === 'pagamentos'" (click)="setTab('pagamentos')">Pagamentos</button>
+      </div>
+
+      @if (monthGroups().length === 0) {
+        <div class="hs-empty-card">
+          <p class="hs-empty-title">Nada por aqui ainda</p>
+          <p class="hs-empty-sub">Suas reservas, jogos e pagamentos aparecem aqui assim que acontecerem.</p>
+        </div>
+      } @else {
+        @for (group of monthGroups(); track group.key) {
+          <section class="hs-month-card">
+            <div class="hs-month-head">
+              <h2 class="hs-month-title">{{ group.title }}</h2>
+              <span class="hs-month-summary">{{ group.summaryLabel }}</span>
+            </div>
+            <div class="hs-row-list">
+              @for (row of group.rows; track row.id) {
+                <a
+                  class="hs-row"
+                  [class.hs-row--plain]="!row.kindLabel"
+                  [attr.data-kind]="row.kind"
+                  [routerLink]="row.link"
+                >
+                  <span class="hs-row-date">{{ row.date.getDate().toString().padStart(2, '0') }}/{{ (row.date.getMonth() + 1).toString().padStart(2, '0') }}</span>
+                  @if (row.kindLabel) {
+                    <span class="hs-row-kind">{{ row.kindLabel }}</span>
+                  }
+                  <div class="hs-row-copy">
+                    <p class="hs-row-title">{{ row.title }}</p>
+                    <p class="hs-row-subtitle">{{ row.subtitle }}</p>
+                  </div>
+                  <span class="hs-row-badge" [attr.data-tone]="row.badgeTone">{{ row.badgeLabel }}</span>
+                  @if (row.amountLabel; as amount) {
+                    <span class="hs-row-amount">{{ amount }}</span>
+                  } @else {
+                    <span class="hs-row-amount hs-row-amount--empty">—</span>
+                  }
+                </a>
+              }
+            </div>
+          </section>
+        }
+      }
+    }
+  </div>
+</app-at-panel-shell>

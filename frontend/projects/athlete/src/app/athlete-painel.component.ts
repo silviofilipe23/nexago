@@ -1,18 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
-import {
-  collection,
-  doc,
-  getFirestore,
-  limit,
-  onSnapshot,
-  query,
-  where,
-  type DocumentData,
-  type Firestore,
-  type QueryDocumentSnapshot,
-} from 'firebase/firestore';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 import { environment } from '../environments/environment';
 import { AuthService } from './auth/auth.service';
 import { AtBellComponent } from './painel/at-bell.component';
@@ -20,6 +9,14 @@ import { AtPanelShellComponent } from './painel/at-panel-shell.component';
 import { NxSkeletonComponent } from './shared/loading/nx-skeleton.component';
 import { watchCommunityFeed, type CommunityFeedItem } from './data/community-feed-repository';
 import { DAILY_MISSION_CATALOG, watchDailyMissions } from './data/daily-missions-repository';
+import {
+  bookingIsActive,
+  bookingIsUpcoming,
+  bookingStartsAt,
+  watchMyBookings,
+  type MyBooking,
+} from './data/my-bookings-repository';
+import { fetchAthleteRankingPosition } from './data/rankings-repository';
 import { fetchMatchesForTeam, fetchTeamsForAthlete, matchIsCompleted, type ArenaMatch } from './data/teams-repository';
 import { fetchMyRegistrations } from './data/tournament-registrations-repository';
 import { fetchTournamentSummariesByIds } from './data/tournaments-repository';
@@ -31,10 +28,12 @@ type KpiTone = 'green' | 'orange';
 
 interface DashboardReservation {
   id: string;
-  sortKey: string;
+  startsAtMs: number;
   arenaName: string;
   courtName: string;
-  dateLabel: string;
+  /** "Hoje" / "Amanhã" / "15 abr" — o card mostra isso no topo do bloco de horário. */
+  dayLabel: string;
+  startLabel: string;
   timeLabel: string;
   statusLabel: string;
   statusTone: DashboardTone;
@@ -46,8 +45,6 @@ interface DashboardRanking {
   positionLabel: string;
   pointsLabel: string;
   categoryLabel: string;
-  trendLabel: string;
-  highlightLabel: string;
 }
 
 interface DashboardKpi {
@@ -85,29 +82,6 @@ interface MyTournamentItem {
   statusTone: 'yellow' | 'green';
 }
 
-const PREVIEW_RESERVATIONS: readonly DashboardReservation[] = [
-  {
-    id: 'preview-booking-1',
-    sortKey: '2026-04-15T19:00',
-    arenaName: 'Arena Central',
-    courtName: 'Quadra 2',
-    dateLabel: '15 abr',
-    timeLabel: '19:00 - 20:30',
-    statusLabel: 'Confirmada',
-    statusTone: 'success',
-    amountLabel: 'R$ 68',
-    caption: 'Sua dupla ja confirmou presenca.',
-  },
-];
-
-const PREVIEW_RANKING: DashboardRanking = {
-  positionLabel: '#27',
-  pointsLabel: '1.240 pts',
-  categoryLabel: 'Misto C',
-  trendLabel: 'Subiu 3 posicoes nas ultimas semanas.',
-  highlightLabel: 'Seu volume de jogos esta ajudando a ganhar ritmo.',
-};
-
 const CHART_TABS: readonly ChartTab[] = ['Jogos', 'Vitórias'];
 const CHART_W = 802;
 const CHART_H = 120;
@@ -115,6 +89,7 @@ const CHART_MONTH_COUNT = 12;
 /** Teto de times consultados pro histórico — evita N+1 sem limite em contas antigas. */
 const MAX_TEAMS_FETCH = 12;
 const MY_TOURNAMENTS_LIMIT = 4;
+const CLOCK_TICK_MS = 60_000;
 
 function createFirestore(): Firestore | null {
   const cfg = environment.firebase;
@@ -190,38 +165,6 @@ function greetingByHour(now = new Date()): string {
   return 'Boa noite';
 }
 
-function readString(data: DocumentData | null | undefined, keys: readonly string[]): string | null {
-  if (!data) {
-    return null;
-  }
-  for (const key of keys) {
-    const value = data[key];
-    if (typeof value === 'string' && value.trim().length > 0) {
-      return value.trim();
-    }
-  }
-  return null;
-}
-
-function readNumber(data: DocumentData | null | undefined, keys: readonly string[]): number | null {
-  if (!data) {
-    return null;
-  }
-  for (const key of keys) {
-    const value = data[key];
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      return value;
-    }
-    if (typeof value === 'string' && value.trim() !== '') {
-      const numeric = Number(value);
-      if (Number.isFinite(numeric)) {
-        return numeric;
-      }
-    }
-  }
-  return null;
-}
-
 function toDate(value: unknown): Date | null {
   if (value instanceof Date && Number.isFinite(value.getTime())) {
     return value;
@@ -255,15 +198,24 @@ function formatCompactDate(date: Date): string {
     .replace('.', '');
 }
 
-function formatBookingDate(value: string | null): string {
-  if (!value) {
-    return 'Data a confirmar';
+/** `YYYY-MM-DD` local — comparação de dia sem passar por UTC. */
+function localDayKey(date: Date): string {
+  const y = String(date.getFullYear()).padStart(4, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatDayLabel(date: Date, now = new Date()): string {
+  const today = localDayKey(now);
+  if (localDayKey(date) === today) {
+    return 'Hoje';
   }
-  const parsed = new Date(`${value}T00:00:00`);
-  if (!Number.isFinite(parsed.getTime())) {
-    return value;
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  if (localDayKey(date) === localDayKey(tomorrow)) {
+    return 'Amanhã';
   }
-  return formatCompactDate(parsed);
+  return formatCompactDate(date);
 }
 
 function formatRelativeTime(value: unknown): string {
@@ -305,86 +257,61 @@ function formatCurrency(value: unknown): string | null {
   }).format(amount);
 }
 
-function bookingStatus(status: string | null): Pick<DashboardReservation, 'statusLabel' | 'statusTone'> {
-  const normalized = status?.trim().toUpperCase() ?? '';
-  switch (normalized) {
+function bookingStatus(status: string): Pick<DashboardReservation, 'statusLabel' | 'statusTone'> {
+  switch (status.trim().toUpperCase()) {
     case 'CONFIRMED':
     case 'BOOKED':
+    case 'ACTIVE':
       return { statusLabel: 'Confirmada', statusTone: 'success' };
     case 'PAY_AT_ARENA':
       return { statusLabel: 'Pagar na arena', statusTone: 'warning' };
     case 'CHECKIN_OPEN':
       return { statusLabel: 'Check-in aberto', statusTone: 'accent' };
-    case 'CANCELED':
-    case 'CANCELLED':
-      return { statusLabel: 'Cancelada', statusTone: 'neutral' };
+    case 'PENDING_PAYMENT':
+      return { statusLabel: 'Pagamento pendente', statusTone: 'warning' };
     case 'PENDING':
       return { statusLabel: 'Em processamento', statusTone: 'accent' };
     default:
-      return {
-        statusLabel: normalized ? titleCase(normalized) : 'Em atualizacao',
-        statusTone: 'neutral',
-      };
+      return { statusLabel: 'Reservada', statusTone: 'neutral' };
   }
 }
 
-function bookingSortValue(item: DashboardReservation): string {
-  return item.sortKey;
+function bookingCaption(booking: MyBooking, statusLabel: string): string {
+  if (statusLabel === 'Pagar na arena' || statusLabel === 'Pagamento pendente') {
+    return 'Leve um documento e chegue alguns minutos antes.';
+  }
+  if (booking.attendanceConfirmed) {
+    return 'Presença confirmada. Bom jogo!';
+  }
+  return 'Acompanhe detalhes e combinados por aqui.';
 }
 
-function mapBookingDoc(docSnap: QueryDocumentSnapshot<DocumentData>): DashboardReservation {
-  const data = docSnap.data();
-  const statusInfo = bookingStatus(readString(data, ['status']));
-  const startTime = readString(data, ['startTime']) ?? '--:--';
-  const endTime = readString(data, ['endTime']) ?? '--:--';
-
+function mapBooking(booking: MyBooking, startsAt: Date, now: Date): DashboardReservation {
+  const statusInfo = bookingStatus(booking.status);
   return {
-    id: docSnap.id,
-    sortKey: `${readString(data, ['date']) ?? '9999-12-31'}T${startTime}`,
-    arenaName: readString(data, ['arenaName', 'arena']) ?? 'Arena NexaGO',
-    courtName: readString(data, ['courtName', 'court']) ?? 'Quadra',
-    dateLabel: formatBookingDate(readString(data, ['date'])),
-    timeLabel: `${startTime} - ${endTime}`,
+    id: booking.id,
+    startsAtMs: startsAt.getTime(),
+    arenaName: booking.arenaName,
+    courtName: booking.courtName,
+    dayLabel: formatDayLabel(startsAt, now),
+    startLabel: booking.startTime,
+    timeLabel: `${booking.startTime} - ${booking.endTime}`,
     statusLabel: statusInfo.statusLabel,
     statusTone: statusInfo.statusTone,
-    amountLabel: formatCurrency(readNumber(data, ['amountReais', 'amount', 'price'])),
-    caption:
-      readString(data, ['notes', 'note']) ??
-      (statusInfo.statusLabel === 'Pagar na arena'
-        ? 'Leve um documento e chegue alguns minutos antes.'
-        : 'Acompanhe detalhes e combinados por aqui.'),
+    amountLabel: formatCurrency(booking.amountReais),
+    caption: bookingCaption(booking, statusInfo.statusLabel),
   };
 }
 
-function mapRankingDoc(data: DocumentData | null): DashboardRanking | null {
-  if (!data) {
-    return null;
-  }
-
-  const position = readNumber(data, ['position', 'rank', 'placement']);
-  const points = readNumber(data, ['points', 'score', 'rankingPoints']);
-  const category =
-    readString(data, ['categoryLabel', 'category', 'categoryId', 'division']) ??
-    'Categoria em atualizacao';
-
-  if (position == null && points == null && category === 'Categoria em atualizacao') {
-    return null;
-  }
-
-  return {
-    positionLabel: position != null ? `#${Math.round(position)}` : 'Sem ranking',
-    pointsLabel:
-      points != null
-        ? `${new Intl.NumberFormat('pt-BR').format(Math.round(points))} pts`
-        : 'Sem pontuacao',
-    categoryLabel: category,
-    trendLabel:
-      readString(data, ['trendLabel', 'trend', 'movement']) ??
-      'Sua posicao aparece aqui assim que os resultados entrarem.',
-    highlightLabel:
-      readString(data, ['highlightLabel', 'highlight', 'summary']) ??
-      'Resultados novos alimentam este bloco automaticamente.',
-  };
+/** Só as reservas ativas que ainda não terminaram, da mais próxima pra mais distante. */
+function upcomingReservations(bookings: readonly MyBooking[], now = new Date()): DashboardReservation[] {
+  return bookings
+    .filter((booking) => bookingIsActive(booking) && bookingIsUpcoming(booking, now))
+    .flatMap((booking) => {
+      const startsAt = bookingStartsAt(booking);
+      return startsAt ? [mapBooking(booking, startsAt, now)] : [];
+    })
+    .sort((a, b) => a.startsAtMs - b.startsAtMs);
 }
 
 function mapsSearchUrl(query: string): string {
@@ -450,8 +377,11 @@ export class AthletePainelComponent {
   private readonly gamification = inject(AthleteGamificationService);
   private readonly firestore = createFirestore();
 
-  private readonly liveReservationsState = signal<DashboardReservation[]>([]);
-  private readonly liveRankingState = signal<DashboardRanking | null>(null);
+  private readonly bookingsState = signal<readonly MyBooking[]>([]);
+  private readonly rankingState = signal<DashboardRanking | null>(null);
+  /** Relógio de 1 min: mantém "Hoje/Amanhã" e o corte de reserva passada corretos
+   *  numa aba deixada aberta. */
+  private readonly now = signal(new Date());
   /** Partidas de torneio CONCLUÍDAS dos times do atleta (fonte real de jogos/vitórias). */
   private readonly completedMatchesState = signal<ArenaMatch[]>([]);
   private readonly myTeamIdsState = signal<ReadonlySet<string>>(new Set());
@@ -461,9 +391,13 @@ export class AthletePainelComponent {
 
   protected readonly loadingRanking = signal(false);
   protected readonly syncError = signal<string | null>(null);
-  /** Primeira carga do painel logado — desliga na primeira emissão do snapshot de reservas
-   *  (dispara rápido mesmo vazio). Sem sessão (preview), nem chega a ligar. */
-  protected readonly bootLoading = signal(true);
+  /** Primeira carga do painel — desliga na primeira emissão do snapshot de reservas
+   *  (dispara rápido mesmo vazio). Enquanto o Firebase não resolveu a sessão, segue ligada
+   *  pra não piscar um painel vazio antes do login ser conhecido. */
+  private readonly bootLoadingState = signal(true);
+  protected readonly bootLoading = computed(
+    () => this.bootLoadingState() || !this.auth.authReady(),
+  );
 
   protected readonly chartTabs = CHART_TABS;
   protected readonly chartW = CHART_W;
@@ -471,9 +405,8 @@ export class AthletePainelComponent {
 
   protected readonly activeChartTab = signal<ChartTab>('Jogos');
 
-  protected readonly hasLiveSession = computed(() => this.auth.user() != null);
-  protected readonly greeting = computed(() => greetingByHour());
-  protected readonly todayLabel = computed(() => formatTodayLabel());
+  protected readonly greeting = computed(() => greetingByHour(this.now()));
+  protected readonly todayLabel = computed(() => formatTodayLabel(this.now()));
   protected readonly accountLabel = computed(() => {
     const liveUser = this.auth.user();
     if (liveUser?.displayName?.trim()) {
@@ -490,18 +423,10 @@ export class AthletePainelComponent {
   });
   protected readonly firstName = computed(() => firstWord(this.accountLabel()));
   protected readonly headerInitials = computed(() => initialsOf(this.accountLabel()));
-  protected readonly accountSubline = computed(() => {
-    if (this.hasLiveSession()) {
-      return 'Conta conectada com dados reais de reservas, ranking e notificacoes.';
-    }
-    return 'Modo preview ativo. O layout ja esta pronto para receber os dados reais assim que houver login Firebase.';
-  });
   protected readonly reservations = computed(() =>
-    this.hasLiveSession() ? this.liveReservationsState() : [...PREVIEW_RESERVATIONS],
+    upcomingReservations(this.bookingsState(), this.now()),
   );
-  protected readonly ranking = computed(() =>
-    this.hasLiveSession() ? this.liveRankingState() : PREVIEW_RANKING,
-  );
+  protected readonly ranking = computed(() => this.rankingState());
   protected readonly nextReservation = computed(() => this.reservations()[0] ?? null);
   protected readonly nextReservationMapsUrl = computed(() => {
     const reservation = this.nextReservation();
@@ -513,7 +438,7 @@ export class AthletePainelComponent {
   protected readonly kpis = computed<DashboardKpi[]>(() => {
     const completed = this.completedMatchesState();
     const myTeams = this.myTeamIdsState();
-    const currentKey = monthKeyOf(new Date());
+    const currentKey = monthKeyOf(this.now());
 
     const inMonth = (key: number) =>
       completed.filter((m) => {
@@ -598,7 +523,7 @@ export class AthletePainelComponent {
 
   /** Série mensal real (últimos 12 meses) a partir das partidas concluídas. */
   private readonly chartMonthsKeys = computed(() => {
-    const current = monthKeyOf(new Date());
+    const current = monthKeyOf(this.now());
     return Array.from({ length: CHART_MONTH_COUNT }, (_, i) => current - (CHART_MONTH_COUNT - 1) + i);
   });
 
@@ -639,64 +564,49 @@ export class AthletePainelComponent {
   protected readonly chartLastPoint = computed(() => lastChartPoint(this.chartData(), CHART_W, CHART_H));
 
   constructor() {
+    const clock = setInterval(() => this.now.set(new Date()), CLOCK_TICK_MS);
+    inject(DestroyRef).onDestroy(() => clearInterval(clock));
+
     effect((onCleanup) => {
       const user = this.auth.user();
       this.syncError.set(null);
 
       if (!user) {
-        this.liveReservationsState.set([]);
-        this.liveRankingState.set(null);
+        this.bookingsState.set([]);
+        this.rankingState.set(null);
         this.completedMatchesState.set([]);
         this.myTeamIdsState.set(new Set());
         this.communityState.set([]);
         this.missionsDoneState.set(new Set());
         this.myTournamentsState.set([]);
         this.loadingRanking.set(false);
-        this.bootLoading.set(false);
+        this.bootLoadingState.set(false);
         return;
       }
 
       if (!this.firestore) {
         this.syncError.set('Firebase nao configurado para sincronizar os dados reais do painel.');
-        this.bootLoading.set(false);
+        this.bootLoadingState.set(false);
         return;
       }
 
       this.loadingRanking.set(true);
-      this.bootLoading.set(true);
+      this.bootLoadingState.set(true);
 
-      const bookingsQuery = query(
-        collection(this.firestore, 'arenaBookings'),
-        where('athleteId', '==', user.uid),
-        limit(8),
-      );
-
-      const stopBookings = onSnapshot(
-        bookingsQuery,
-        (snapshot) => {
-          const next = snapshot.docs
-            .map(mapBookingDoc)
-            .sort((a, b) => bookingSortValue(a).localeCompare(bookingSortValue(b), 'pt-BR'));
-          this.liveReservationsState.set(next);
-          this.bootLoading.set(false);
+      const stopBookings = watchMyBookings(
+        this.firestore,
+        user.uid,
+        (bookings) => {
+          this.bookingsState.set(bookings);
+          this.bootLoadingState.set(false);
         },
         () => {
           this.syncError.set('Nao foi possivel atualizar as reservas agora.');
-          this.bootLoading.set(false);
+          this.bootLoadingState.set(false);
         },
       );
 
-      const stopRankingDoc = onSnapshot(
-        doc(this.firestore, 'artifacts', environment.firebase.projectId!, 'public', 'data', 'athleteRankings', user.uid),
-        (snapshot) => {
-          this.liveRankingState.set(mapRankingDoc(snapshot.exists() ? snapshot.data() : null));
-          this.loadingRanking.set(false);
-        },
-        () => {
-          this.syncError.set('Nao foi possivel atualizar seu ranking agora.');
-          this.loadingRanking.set(false);
-        },
-      );
+      void this.loadRanking(user.uid);
 
       const stopCommunity = watchCommunityFeed(
         this.firestore,
@@ -717,11 +627,38 @@ export class AthletePainelComponent {
 
       onCleanup(() => {
         stopBookings();
-        stopRankingDoc();
         stopCommunity();
         stopMissions();
       });
     });
+  }
+
+  /** Ranking geral: a posição não existe no doc do atleta, é derivada da coleção ordenada. */
+  private async loadRanking(uid: string): Promise<void> {
+    const db = this.firestore;
+    const projectId = environment.firebase.projectId;
+    if (!db || !projectId) {
+      this.loadingRanking.set(false);
+      return;
+    }
+    try {
+      const row = await fetchAthleteRankingPosition(db, projectId, uid);
+      if (this.auth.user()?.uid !== uid) return;
+      this.rankingState.set(
+        row == null
+          ? null
+          : {
+              positionLabel: `#${row.position}`,
+              pointsLabel: `${new Intl.NumberFormat('pt-BR').format(Math.round(row.totalPoints))} pts`,
+              categoryLabel: `${row.tournamentsCount} ${row.tournamentsCount === 1 ? 'torneio' : 'torneios'}`,
+            },
+      );
+    } catch {
+      if (this.auth.user()?.uid !== uid) return;
+      this.syncError.set('Nao foi possivel atualizar seu ranking agora.');
+    } finally {
+      if (this.auth.user()?.uid === uid) this.loadingRanking.set(false);
+    }
   }
 
   private async loadMatchHistory(uid: string): Promise<void> {

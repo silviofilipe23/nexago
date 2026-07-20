@@ -86,6 +86,34 @@ export async function fetchTeamRankingFor(db: Firestore, projectId: string, team
   return { id: snap.id, ...aggregateFromDoc(snap.id, snap.data() as Record<string, unknown>) };
 }
 
+export interface AthleteRankingPosition {
+  /** 1-based, derivada da ordenação por `totalPoints`. */
+  position: number;
+  totalPoints: number;
+  tournamentsCount: number;
+  totalAthletes: number;
+}
+
+/** Posição do atleta no ranking geral. O doc `athleteRankings/{uid}` NÃO guarda posição —
+ *  ela só existe como ordem relativa, então é derivada da coleção ordenada (mesma leitura
+ *  que a tela "Ranking" faz). Retorna null quando o atleta ainda não pontuou. */
+export async function fetchAthleteRankingPosition(
+  db: Firestore,
+  projectId: string,
+  athleteId: string,
+): Promise<AthleteRankingPosition | null> {
+  const rows = await fetchAthleteRankingGeneral(db, projectId);
+  const index = rows.findIndex((row) => row.id === athleteId);
+  const row = index >= 0 ? rows[index] : undefined;
+  if (!row) return null;
+  return {
+    position: index + 1,
+    totalPoints: row.totalPoints,
+    tournamentsCount: row.tournamentsCount,
+    totalAthletes: rows.length,
+  };
+}
+
 export async function fetchAthleteRankingFor(db: Firestore, projectId: string, athleteId: string): Promise<AthleteRankingAggregate | null> {
   const snap = await getDoc(doc(db, ...artifactsBase(projectId), 'athleteRankings', athleteId));
   if (!snap.exists()) return null;

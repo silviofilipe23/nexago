@@ -2,9 +2,10 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { NgTemplateOutlet } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
-import { doc, getDoc, getFirestore, type DocumentData, type Firestore } from 'firebase/firestore';
+import { doc, getDoc, getDocs, getFirestore, collection, query, where, limit, type DocumentData, type DocumentSnapshot, type Firestore } from 'firebase/firestore';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
+import { AuthShellComponent } from '../auth/ui/auth-shell.component';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
@@ -346,7 +347,7 @@ function initialsOf(name: string): string {
 @Component({
   selector: 'app-athlete-public-profile',
   standalone: true,
-  imports: [RouterLink, NgTemplateOutlet, AtPanelShellComponent, NxPageLoadingComponent],
+  imports: [RouterLink, NgTemplateOutlet, AtPanelShellComponent, NxPageLoadingComponent, AuthShellComponent],
   templateUrl: './athlete-public-profile.component.html',
   styleUrl: './athlete-public-profile.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -369,7 +370,10 @@ export class AthletePublicProfileComponent {
   protected readonly handle = computed(() => this.route.snapshot.paramMap.get('handle') ?? '');
   protected readonly profileUrl = computed(() => {
     const origin = typeof location !== 'undefined' ? location.origin : 'https://nexago.app';
-    return `${origin}/atletas/${this.handle()}`;
+    // Sempre compartilha o uid (chave real de `public_profiles`), mesmo se a rota chegou
+    // por um slug legado (`atleta-nome-xxxxxxxx`).
+    const uid = this.profile()?.uid ?? this.handle();
+    return `${origin}/atletas/${uid}`;
   });
   protected readonly sportsHeadline = computed(() => {
     const profile = this.profile();
@@ -460,18 +464,19 @@ export class AthletePublicProfileComponent {
 
     try {
       // `public_profiles/{uid}` é o mirror sem PII mantido por Cloud Function a cada escrita em
-      // `users/{uid}` (`onUserWrittenSyncPublicProfile`) — chave é o próprio uid, não um slug/handle
-      // indexado. A rota usa o uid como "handle" (mesmo padrão de `/equipes/:teamId`, que também
-      // navega pelo id do doc em vez de um slug bonito).
-      const docSnap = await getDoc(doc(this.firestore, 'public_profiles', profileIdentifier));
+      // `users/{uid}` (`onUserWrittenSyncPublicProfile`) — chave é o próprio uid.
+      // Links antigos usavam um slug (`buildPublicProfileId`); se o id da rota não for o uid,
+      // resolvemos via `athlete_profiles.publicProfileId` e carregamos o mirror pelo uid.
+      const docSnap = await this.resolvePublicProfileDoc(profileIdentifier);
       if (!environment.production) {
         console.info('[athlete-public-profile] public_profiles lookup', {
-          uid: profileIdentifier,
-          exists: docSnap.exists(),
+          routeHandle: profileIdentifier,
+          uid: docSnap?.id ?? null,
+          exists: docSnap?.exists() ?? false,
         });
       }
 
-      if (!docSnap.exists()) {
+      if (!docSnap?.exists()) {
         this.error.set('Perfil publico nao encontrado.');
         this.loading.set(false);
         return;
@@ -511,7 +516,7 @@ export class AthletePublicProfileComponent {
       this.profile.set({
         uid: docSnap.id,
         fullName: nickname || readString(data, ['fullName', 'name']) || 'Atleta NexaGO',
-        handle: nickname || profileIdentifier,
+        handle: nickname || docSnap.id,
         headline: readString(data, ['headline', 'publicHeadline']) || 'Atleta ativo no hub NexaGO',
         bio:
           readString(data, ['bio', 'about']) ||
@@ -555,6 +560,31 @@ export class AthletePublicProfileComponent {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /** Resolve `public_profiles/{uid}` pelo uid direto ou, em links legados, pelo slug em
+   *  `athlete_profiles.publicProfileId`. */
+  private async resolvePublicProfileDoc(routeId: string): Promise<DocumentSnapshot<DocumentData> | null> {
+    if (!this.firestore) return null;
+
+    const direct = await getDoc(doc(this.firestore, 'public_profiles', routeId));
+    if (direct.exists()) return direct;
+
+    // Slug legado: `marina-santos-abcd1234` (não é uid do Auth).
+    if (!routeId.includes('-')) return null;
+
+    const slugSnap = await getDocs(
+      query(
+        collection(this.firestore, 'athlete_profiles'),
+        where('publicProfileId', '==', routeId),
+        limit(1),
+      ),
+    );
+    const athleteId = slugSnap.docs[0]?.id;
+    if (!athleteId) return null;
+
+    const byUid = await getDoc(doc(this.firestore, 'public_profiles', athleteId));
+    return byUid.exists() ? byUid : null;
   }
 
   protected async copyProfileLink(): Promise<void> {

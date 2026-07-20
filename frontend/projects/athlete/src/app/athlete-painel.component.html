@@ -15,10 +15,6 @@
     @if (syncError(); as err) {
       <div class="nx-alert" role="alert">{{ err }}</div>
     }
-    @if (!hasLiveSession()) {
-      <div class="nx-notice" role="status">{{ accountSubline() }}</div>
-    }
-
     @if (bootLoading()) {
       <p class="at-visually-hidden" role="status">Carregando seu painel…</p>
       <div class="at-kpi-row" aria-hidden="true">
@@ -88,8 +84,8 @@
           @if (nextReservation(); as reservation) {
             <div class="at-next-reservation">
               <div class="at-next-time-box">
-                <div class="at-next-time-kicker">Hoje</div>
-                <div class="at-next-time-value">{{ reservation.timeLabel.split(' - ')[0] }}</div>
+                <div class="at-next-time-kicker">{{ reservation.dayLabel }}</div>
+                <div class="at-next-time-value">{{ reservation.startLabel }}</div>
               </div>
               <div class="at-next-info">
                 <div class="at-next-kicker">Próxima reserva · {{ reservation.timeLabel }}</div>

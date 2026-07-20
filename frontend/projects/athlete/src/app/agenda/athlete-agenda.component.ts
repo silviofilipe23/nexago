@@ -62,6 +62,17 @@ export interface AgendaWeekDay {
   weekdayShort: string;
   dayNum: number;
   isToday: boolean;
+  isSelected: boolean;
+  isPast: boolean;
+  dotCount: 0 | 1 | 2 | 3;
+}
+
+export interface AgendaMonthDay {
+  key: string;
+  dayNum: number;
+  isToday: boolean;
+  isSelected: boolean;
+  isOutsideMonth: boolean;
   dotCount: 0 | 1 | 2 | 3;
 }
 
@@ -106,6 +117,28 @@ function addDays(base: Date, delta: number): Date {
   x.setHours(0, 0, 0, 0);
   return x;
 }
+
+function parseIsoDate(key: string): Date {
+  const [y, m, d] = key.split('-').map((p) => Number(p));
+  return new Date(y!, m! - 1, d!);
+}
+
+function startOfMonth(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+function daysInMonth(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+}
+
+const MONTH_TITLE_FMT = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' });
+
+function monthTitle(d: Date): string {
+  const raw = MONTH_TITLE_FMT.format(startOfMonth(d));
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
+}
+
+const WEEKDAY_HEADERS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'] as const;
 
 function shortWeekday(d: Date): string {
   return new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(d).replace('.', '');
@@ -289,6 +322,8 @@ export class AthleteAgendaComponent {
 
   protected readonly now = signal(Date.now());
   protected readonly selectedDayKey = signal(isoDate(new Date()));
+  protected readonly visibleMonth = signal(startOfMonth(new Date()));
+  protected readonly weekdayHeaders = WEEKDAY_HEADERS;
 
   protected readonly loading = signal(true);
   protected readonly events = signal<AgendaEvent[]>([]);
@@ -311,37 +346,95 @@ export class AthleteAgendaComponent {
 
   protected readonly dayGroups = computed(() => groupEventsByDay(this.events(), dateOnly(new Date())));
 
+  /** Lista principal: só o dia selecionado (espelha o modo dia do Flutter). */
+  protected readonly selectedDayGroup = computed<AgendaDayGroup>(() => {
+    const key = this.selectedDayKey();
+    const today = dateOnly(new Date());
+    const found = this.dayGroups().find((g) => g.key === key);
+    if (found) return found;
+    return {
+      key,
+      label: dayGroupLabel(parseIsoDate(key), today),
+      events: [],
+    };
+  });
+
   protected readonly dayStrip = computed<AgendaWeekDay[]>(() => {
     const today = dateOnly(new Date());
+    const anchor = parseIsoDate(this.selectedDayKey());
     const groups = this.dayGroups();
     const countByKey = new Map(groups.map((g) => [g.key, g.events.length]));
     const days: AgendaWeekDay[] = [];
     for (let i = -2; i <= 4; i++) {
-      const d = addDays(today, i);
+      const d = addDays(anchor, i);
       const key = isoDate(d);
       days.push({
         key,
         weekdayShort: shortWeekday(d).toUpperCase(),
         dayNum: d.getDate(),
         isToday: key === isoDate(today),
+        isSelected: key === this.selectedDayKey(),
+        isPast: d.getTime() < today.getTime(),
         dotCount: Math.min(3, countByKey.get(key) ?? 0) as 0 | 1 | 2 | 3,
       });
     }
     return days;
   });
 
-  protected readonly todayEvents = computed(() => {
-    const todayKey = isoDate(dateOnly(new Date()));
-    return this.dayGroups().find((g) => g.key === todayKey)?.events ?? [];
+  protected readonly monthDays = computed<AgendaMonthDay[]>(() => {
+    const month = this.visibleMonth();
+    const today = dateOnly(new Date());
+    const selectedKey = this.selectedDayKey();
+    const groups = this.dayGroups();
+    const countByKey = new Map(groups.map((g) => [g.key, g.events.length]));
+    const first = startOfMonth(month);
+    // Segunda = 0 … Domingo = 6 (grade começa na segunda).
+    const startPad = (first.getDay() + 6) % 7;
+    const total = daysInMonth(month);
+    const cells: AgendaMonthDay[] = [];
+
+    for (let i = 0; i < startPad; i++) {
+      cells.push({
+        key: `pad-${i}`,
+        dayNum: 0,
+        isToday: false,
+        isSelected: false,
+        isOutsideMonth: true,
+        dotCount: 0,
+      });
+    }
+
+    for (let day = 1; day <= total; day++) {
+      const d = new Date(month.getFullYear(), month.getMonth(), day);
+      const key = isoDate(d);
+      cells.push({
+        key,
+        dayNum: day,
+        isToday: key === isoDate(today),
+        isSelected: key === selectedKey,
+        isOutsideMonth: false,
+        dotCount: Math.min(3, countByKey.get(key) ?? 0) as 0 | 1 | 2 | 3,
+      });
+    }
+    return cells;
   });
 
+  protected readonly monthLabel = computed(() => monthTitle(this.visibleMonth()));
+
   protected readonly headerSubtitle = computed(() => {
-    const events = this.todayEvents();
-    if (events.length === 0) return 'Nenhum jogo hoje';
-    const nowMs = this.now();
-    const next = events.find((e) => e.startsAt.getTime() > nowMs);
-    const countdown = next ? ` · ${formatCountdown(next.startsAt.getTime() - nowMs)}` : '';
-    return `${events.length} jogo${events.length === 1 ? '' : 's'} hoje${countdown}`;
+    const selectedKey = this.selectedDayKey();
+    const todayKey = isoDate(dateOnly(new Date()));
+    const group = this.selectedDayGroup();
+    const events = group.events;
+    if (selectedKey === todayKey) {
+      if (events.length === 0) return 'Nenhum jogo hoje';
+      const nowMs = this.now();
+      const next = events.find((e) => e.startsAt.getTime() > nowMs);
+      const countdown = next ? ` · ${formatCountdown(next.startsAt.getTime() - nowMs)}` : '';
+      return `${events.length} jogo${events.length === 1 ? '' : 's'} hoje${countdown}`;
+    }
+    if (events.length === 0) return group.label;
+    return `${group.label} · ${eventCountLabel(events.length)}`;
   });
 
   protected readonly pendingActionCount = computed(
@@ -443,11 +536,19 @@ export class AthleteAgendaComponent {
   }
 
   protected selectDay(key: string): void {
+    if (key.startsWith('pad-')) return;
     this.selectedDayKey.set(key);
-    const target = document.getElementById(`ag-day-${key}`);
-    if (!target) return;
-    const reducedMotion = typeof globalThis.matchMedia === 'function' && globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+    this.visibleMonth.set(startOfMonth(parseIsoDate(key)));
+  }
+
+  protected shiftMonth(delta: number): void {
+    const current = this.visibleMonth();
+    this.visibleMonth.set(new Date(current.getFullYear(), current.getMonth() + delta, 1));
+  }
+
+  protected goToToday(): void {
+    const today = dateOnly(new Date());
+    this.selectDay(isoDate(today));
   }
 
   protected scrollToPending(): void {

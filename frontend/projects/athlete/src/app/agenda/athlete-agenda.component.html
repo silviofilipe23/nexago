@@ -31,7 +31,9 @@
           type="button"
           role="tab"
           class="ag-day-chip"
-          [class.ag-day-chip--today]="d.isToday"
+          [class.ag-day-chip--today]="d.isToday && !d.isSelected"
+          [class.ag-day-chip--selected]="d.isSelected"
+          [class.ag-day-chip--past]="d.isPast && !d.isSelected"
           [attr.aria-selected]="isSelectedDay(d.key)"
           (click)="selectDay(d.key)"
         >
@@ -52,19 +54,28 @@
           <div class="ag-empty-card">
             <app-nx-page-loading title="Carregando agenda…" subtitle="Reservas, torneios e convites" />
           </div>
-        } @else if (dayGroups().length === 0) {
+        } @else if (events().length === 0) {
           <div class="ag-empty-card">
             <p class="ag-empty-title">Nenhum evento agendado</p>
             <p class="ag-empty-sub">Reserve uma quadra ou entre em um torneio para preencher sua semana.</p>
             <a routerLink="/reservar" class="ag-btn-primary">Reservar quadra</a>
           </div>
-        } @else {
-          @for (group of dayGroups(); track group.key) {
-            <section class="ag-day-group" [id]="'ag-day-' + group.key">
-              <div class="ag-day-group-head">
-                <span class="ag-day-group-label">{{ group.label }}</span>
-                <span class="ag-day-group-count">{{ eventCountLabel(group.events.length) }}</span>
+        } @else if (selectedDayGroup(); as group) {
+          <section class="ag-day-group" [id]="'ag-day-' + group.key">
+            <div class="ag-day-group-head">
+              <span class="ag-day-group-label">{{ group.label }}</span>
+              <span class="ag-day-group-count">{{ eventCountLabel(group.events.length) }}</span>
+            </div>
+            @if (group.events.length === 0) {
+              <div class="ag-empty-card ag-empty-card--day">
+                <p class="ag-empty-title">Nenhum jogo neste dia</p>
+                <p class="ag-empty-sub">Escolha outro dia no calendário ou reserve uma quadra.</p>
+                <div class="ag-empty-actions">
+                  <button type="button" class="ag-btn-ghost" (click)="goToToday()">Ir para hoje</button>
+                  <a routerLink="/reservar" class="ag-btn-primary">Reservar quadra</a>
+                </div>
               </div>
+            } @else {
               <div class="ag-event-list">
                 @for (ev of group.events; track ev.id) {
                   <article class="ag-event-row" [attr.data-kind]="ev.kind">
@@ -94,12 +105,58 @@
                   </article>
                 }
               </div>
-            </section>
-          }
+            }
+          </section>
         }
       </div>
 
       <div class="ag-col ag-col--side">
+        <div class="ag-card ag-card--calendar" aria-label="Calendário do mês">
+          <div class="ag-card-head">
+            <span class="ag-card-title">Calendário</span>
+            <button type="button" class="ag-cal-today-btn" (click)="goToToday()">Hoje</button>
+          </div>
+          <div class="ag-cal-nav">
+            <button type="button" class="ag-cal-nav-btn" (click)="shiftMonth(-1)" aria-label="Mês anterior">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6" /></svg>
+            </button>
+            <span class="ag-cal-month">{{ monthLabel() }}</span>
+            <button type="button" class="ag-cal-nav-btn" (click)="shiftMonth(1)" aria-label="Próximo mês">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6" /></svg>
+            </button>
+          </div>
+          <div class="ag-cal-weekdays" aria-hidden="true">
+            @for (w of weekdayHeaders; track w) {
+              <span class="ag-cal-weekday">{{ w }}</span>
+            }
+          </div>
+          <div class="ag-cal-grid" role="grid" aria-label="Dias do mês">
+            @for (day of monthDays(); track day.key) {
+              @if (day.isOutsideMonth) {
+                <span class="ag-cal-cell ag-cal-cell--empty" aria-hidden="true"></span>
+              } @else {
+                <button
+                  type="button"
+                  class="ag-cal-cell"
+                  role="gridcell"
+                  [class.ag-cal-cell--today]="day.isToday && !day.isSelected"
+                  [class.ag-cal-cell--selected]="day.isSelected"
+                  [attr.aria-selected]="day.isSelected"
+                  [attr.aria-label]="'Dia ' + day.dayNum"
+                  (click)="selectDay(day.key)"
+                >
+                  <span class="ag-cal-cell-num">{{ day.dayNum }}</span>
+                  <span class="ag-cal-cell-dots" aria-hidden="true">
+                    @for (slot of dotSlots; track slot) {
+                      <span class="ag-cal-cell-dot" [class.ag-cal-cell-dot--on]="slot <= day.dotCount"></span>
+                    }
+                  </span>
+                </button>
+              }
+            }
+          </div>
+        </div>
+
         <div class="ag-card" id="ag-pending-card">
           <div class="ag-card-head">
             <span class="ag-card-title">Precisa de você</span>

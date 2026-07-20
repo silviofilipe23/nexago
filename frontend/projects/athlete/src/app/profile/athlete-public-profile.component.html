@@ -5,14 +5,26 @@
     </div>
   </div>
 } @else if (error(); as errorMessage) {
-  <div class="pp-state-page">
-    <div class="pp-state-card">
-      <p class="pp-state-eyebrow">Perfil indisponível</p>
-      <h1 class="pp-state-title">Não encontramos esse atleta agora</h1>
-      <p class="pp-state-sub">{{ errorMessage }}</p>
-      <a routerLink="/" class="pp-btn-ghost">Início</a>
+  <app-auth-shell>
+    <div class="pp-error-content">
+      <div class="pp-error-icon">
+        <div class="pp-error-avatar">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 20c0-3.3-2.7-6-6-6h-.5" /><circle cx="9" cy="8" r="4" /><path d="m17 14 4 4M21 14l-4 4" /></svg>
+        </div>
+      </div>
+
+      <p class="pp-error-eyebrow">LINK INVÁLIDO</p>
+      <h2 class="pp-error-title">Não encontramos esse atleta.</h2>
+      <p class="pp-error-desc">O link pode estar errado, ter expirado ou o perfil foi tornado privado pelo atleta.</p>
+
+      <div class="pp-error-actions">
+        <a routerLink="/atletas" class="pp-error-btn-primary">Buscar atletas</a>
+        <a routerLink="/" class="pp-error-link-secondary">Voltar ao início</a>
+      </div>
+
+      <p class="pp-error-code">Código do erro: PERFIL_404</p>
     </div>
-  </div>
+  </app-auth-shell>
 } @else if (profile(); as athlete) {
   <ng-template #profileBody>
     <header class="pp-page-header">

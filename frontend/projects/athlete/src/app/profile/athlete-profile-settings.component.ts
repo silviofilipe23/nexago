@@ -185,9 +185,10 @@ export class AthleteProfileSettingsComponent {
 
   protected readonly publicProfileUrl = computed(() => {
     const origin = typeof location !== 'undefined' ? location.origin : 'https://nexago.app';
-    const uid = this.auth.user()?.uid ?? null;
-    const identifier = this.profileState().publicProfileId || buildPublicProfileId(this.displayName(), uid);
-    return `${origin}/atletas/${identifier}`;
+    // Rota `/atletas/:handle` resolve `public_profiles/{uid}` — o id do doc é o uid do Auth,
+    // não o slug de exibição (`buildPublicProfileId`). Link com slug nunca encontra o perfil.
+    const uid = this.auth.user()?.uid?.trim();
+    return uid ? `${origin}/atletas/${uid}` : `${origin}/atletas`;
   });
 
   constructor() {

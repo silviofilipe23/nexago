@@ -1,4 +1,4 @@
-import { buildPublicProfileId, initialsOf, joinCityState, nameFromEmail, slugify, splitCityState, titleCase } from './profile-format';
+import { athleteLevelLabel, buildPublicProfileId, initialsOf, joinCityState, nameFromEmail, slugify, splitCityState, titleCase } from './profile-format';
 
 describe('profile-format', () => {
   describe('titleCase', () => {
@@ -67,6 +67,30 @@ describe('profile-format', () => {
 
     it('trims whitespace and normalizes state casing', () => {
       expect(splitCityState('Rio de Janeiro,rj')).toEqual({ city: 'Rio de Janeiro', state: 'RJ' });
+    });
+  });
+
+  describe('athleteLevelLabel', () => {
+    it('converts Firestore level codes to display labels', () => {
+      expect(athleteLevelLabel('iniciante')).toBe('Iniciante');
+      expect(athleteLevelLabel('basico')).toBe('Iniciante');
+      expect(athleteLevelLabel('intermediario')).toBe('Intermediário');
+      expect(athleteLevelLabel('intermediario_1')).toBe('Intermediário 1');
+      expect(athleteLevelLabel('open')).toBe('Open');
+    });
+
+    it('ignores case and surrounding whitespace', () => {
+      expect(athleteLevelLabel(' Iniciante_2 ')).toBe('Iniciante 2');
+    });
+
+    it('returns unknown codes unchanged (paridade com o app)', () => {
+      expect(athleteLevelLabel('Intermediário')).toBe('Intermediário');
+    });
+
+    it('returns an empty string for null, undefined or blank codes', () => {
+      expect(athleteLevelLabel(null)).toBe('');
+      expect(athleteLevelLabel(undefined)).toBe('');
+      expect(athleteLevelLabel('  ')).toBe('');
     });
   });
 

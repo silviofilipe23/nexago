@@ -10,6 +10,7 @@ import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
 import { NxPageLoadingComponent } from '../shared/loading/nx-page-loading.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
 import { AthleteGamificationService } from './athlete-gamification.service';
+import { athleteLevelLabel } from './profile-format';
 import type { ProfileDemoExtras } from './public-profile-demo.models';
 
 /** Escopo do ranking publico: hub inteiro, liga ou arena especifica. */
@@ -512,6 +513,13 @@ export class AthletePublicProfileComponent {
       const nickname = readString(data, ['nickname']).replace(/^@/, '');
       const levelsBySport = sportOnboarding?.['levelsBySport'] as DocumentData | undefined;
       const levelForPrimarySport = primarySport ? readString(levelsBySport, [primarySport]) : '';
+      // Mesma precedência do app (athlete_profile.dart): levelsBySport[primário] > level/nivel
+      // legado > sportProfile.level — todos convertidos de código Firestore pra rótulo.
+      const sportProfile = data['sportProfile'] as DocumentData | undefined;
+      const levelLabel =
+        athleteLevelLabel(levelForPrimarySport) ||
+        athleteLevelLabel(readString(data, ['level', 'nivel'])) ||
+        athleteLevelLabel(readString(sportProfile, ['level']));
 
       this.profile.set({
         uid: docSnap.id,
@@ -530,7 +538,7 @@ export class AthletePublicProfileComponent {
           readString(data, ['profilePhotoUrl', 'photoURL', 'avatarUrl', 'avatar']) || null,
         sports: mergedSports,
         primarySport: primarySport || null,
-        level: levelForPrimarySport || readString(data, ['level', 'nivel']) || 'Em evolucao',
+        level: levelLabel || 'Em evolucao',
         category: readString(data, ['categoryLabel', 'category', 'categoria']) || null,
         favoritePosition: readString(data, ['favoritePosition', 'position']) || null,
         dominantHand: readString(data, ['dominantHand']) || null,

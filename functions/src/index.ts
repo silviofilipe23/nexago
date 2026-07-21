@@ -294,3 +294,6 @@ export {
 export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
+
+// --- Relatórios de ocupação de quadra (gestor de arena) ---
+export {getArenaOccupancyReport} from "./arena-occupancy-report";

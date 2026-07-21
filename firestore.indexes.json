@@ -595,6 +595,20 @@
       ]
     },
     {
+      "collectionGroup": "arenaBookings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "arenaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "arenaRecurringBookings",
       "queryScope": "COLLECTION",
       "fields": [

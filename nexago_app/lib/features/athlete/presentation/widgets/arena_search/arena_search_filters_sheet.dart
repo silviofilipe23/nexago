@@ -535,6 +535,9 @@ class _AmenityChips extends StatelessWidget {
     ('Vestiário', 'lockerRoom'),
     ('Bar', 'bar'),
     ('Aluguel raquetes', 'racketRental'),
+    ('Quadra acessível', 'hasAccessibleCourt'),
+    ('Banheiro acessível', 'hasAccessibleBathroom'),
+    ('Vaga PCD', 'hasPcdParking'),
   ];
 
   @override
@@ -549,7 +552,10 @@ class _AmenityChips extends StatelessWidget {
           'lockerRoom' => amenities.lockerRoom,
           'coveredCourt' => amenities.coveredCourt,
           'bar' => amenities.bar,
-          _ => amenities.racketRental,
+          'racketRental' => amenities.racketRental,
+          'hasAccessibleCourt' => amenities.hasAccessibleCourt,
+          'hasAccessibleBathroom' => amenities.hasAccessibleBathroom,
+          _ => amenities.hasPcdParking,
         };
         return _ArenaFilterChip(
           label: label,
@@ -568,9 +574,25 @@ class _AmenityChips extends StatelessWidget {
                 );
               case 'bar':
                 onChanged(amenities.copyWith(bar: !amenities.bar));
-              default:
+              case 'racketRental':
                 onChanged(
                   amenities.copyWith(racketRental: !amenities.racketRental),
+                );
+              case 'hasAccessibleCourt':
+                onChanged(
+                  amenities.copyWith(
+                    hasAccessibleCourt: !amenities.hasAccessibleCourt,
+                  ),
+                );
+              case 'hasAccessibleBathroom':
+                onChanged(
+                  amenities.copyWith(
+                    hasAccessibleBathroom: !amenities.hasAccessibleBathroom,
+                  ),
+                );
+              default:
+                onChanged(
+                  amenities.copyWith(hasPcdParking: !amenities.hasPcdParking),
                 );
             }
           },

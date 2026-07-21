@@ -6,6 +6,9 @@ class ArenaAmenities {
     this.coveredCourt = false,
     this.bar = false,
     this.racketRental = false,
+    this.hasAccessibleCourt = false,
+    this.hasAccessibleBathroom = false,
+    this.hasPcdParking = false,
   });
 
   final bool parking;
@@ -13,11 +16,21 @@ class ArenaAmenities {
   final bool coveredCourt;
   final bool bar;
   final bool racketRental;
+  final bool hasAccessibleCourt;
+  final bool hasAccessibleBathroom;
+  final bool hasPcdParking;
 
   static const ArenaAmenities empty = ArenaAmenities();
 
   bool get hasAny =>
-      parking || lockerRoom || coveredCourt || bar || racketRental;
+      parking ||
+      lockerRoom ||
+      coveredCourt ||
+      bar ||
+      racketRental ||
+      hasAccessibleCourt ||
+      hasAccessibleBathroom ||
+      hasPcdParking;
 
   /// Requisitos de filtro: cada `true` exige que a arena tenha a comodidade.
   bool matchesRequirements(ArenaAmenities required) {
@@ -26,6 +39,11 @@ class ArenaAmenities {
     if (required.coveredCourt && !coveredCourt) return false;
     if (required.bar && !bar) return false;
     if (required.racketRental && !racketRental) return false;
+    if (required.hasAccessibleCourt && !hasAccessibleCourt) return false;
+    if (required.hasAccessibleBathroom && !hasAccessibleBathroom) {
+      return false;
+    }
+    if (required.hasPcdParking && !hasPcdParking) return false;
     return true;
   }
 
@@ -55,6 +73,18 @@ class ArenaAmenities {
         'aluguel_raquetes',
         'racketRental',
       ]),
+      hasAccessibleCourt: read('hasAccessibleCourt', [
+        'quadra_acessivel',
+        'accessible_court',
+      ]),
+      hasAccessibleBathroom: read('hasAccessibleBathroom', [
+        'banheiro_acessivel',
+        'accessible_bathroom',
+      ]),
+      hasPcdParking: read('hasPcdParking', [
+        'vaga_pcd',
+        'pcd_parking',
+      ]),
     );
   }
 
@@ -64,6 +94,9 @@ class ArenaAmenities {
         'coveredCourt': coveredCourt,
         'bar': bar,
         'racketRental': racketRental,
+        'hasAccessibleCourt': hasAccessibleCourt,
+        'hasAccessibleBathroom': hasAccessibleBathroom,
+        'hasPcdParking': hasPcdParking,
       };
 
   ArenaAmenities copyWith({
@@ -72,6 +105,9 @@ class ArenaAmenities {
     bool? coveredCourt,
     bool? bar,
     bool? racketRental,
+    bool? hasAccessibleCourt,
+    bool? hasAccessibleBathroom,
+    bool? hasPcdParking,
   }) {
     return ArenaAmenities(
       parking: parking ?? this.parking,
@@ -79,6 +115,10 @@ class ArenaAmenities {
       coveredCourt: coveredCourt ?? this.coveredCourt,
       bar: bar ?? this.bar,
       racketRental: racketRental ?? this.racketRental,
+      hasAccessibleCourt: hasAccessibleCourt ?? this.hasAccessibleCourt,
+      hasAccessibleBathroom:
+          hasAccessibleBathroom ?? this.hasAccessibleBathroom,
+      hasPcdParking: hasPcdParking ?? this.hasPcdParking,
     );
   }
 
@@ -89,7 +129,10 @@ class ArenaAmenities {
         other.lockerRoom == lockerRoom &&
         other.coveredCourt == coveredCourt &&
         other.bar == bar &&
-        other.racketRental == racketRental;
+        other.racketRental == racketRental &&
+        other.hasAccessibleCourt == hasAccessibleCourt &&
+        other.hasAccessibleBathroom == hasAccessibleBathroom &&
+        other.hasPcdParking == hasPcdParking;
   }
 
   @override
@@ -99,5 +142,8 @@ class ArenaAmenities {
         coveredCourt,
         bar,
         racketRental,
+        hasAccessibleCourt,
+        hasAccessibleBathroom,
+        hasPcdParking,
       );
 }

@@ -759,6 +759,36 @@ class _ArenaEditProfileFormState extends ConsumerState<_ArenaEditProfileForm> {
                               ),
                             ),
                           ),
+                          _formDivider(context),
+                          _AmenitySwitch(
+                            label: 'Quadra acessível',
+                            value: _amenities.hasAccessibleCourt,
+                            onChanged: (v) => setState(
+                              () => _amenities = _amenities.copyWith(
+                                hasAccessibleCourt: v,
+                              ),
+                            ),
+                          ),
+                          _formDivider(context),
+                          _AmenitySwitch(
+                            label: 'Banheiro acessível',
+                            value: _amenities.hasAccessibleBathroom,
+                            onChanged: (v) => setState(
+                              () => _amenities = _amenities.copyWith(
+                                hasAccessibleBathroom: v,
+                              ),
+                            ),
+                          ),
+                          _formDivider(context),
+                          _AmenitySwitch(
+                            label: 'Vaga PCD',
+                            value: _amenities.hasPcdParking,
+                            onChanged: (v) => setState(
+                              () => _amenities = _amenities.copyWith(
+                                hasPcdParking: v,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),

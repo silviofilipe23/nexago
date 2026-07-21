@@ -801,7 +801,11 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /arenas/{arenaId}/products/{productId} {
-      allow read: if canManageArenaProducts(arenaId);
+      // Leitura aberta a qualquer usuário autenticado: é o cardápio/catálogo
+      // que o atleta vê no "Peça na quadra" (não é dado sensível, mesmo nível
+      // de exposição de arenas/{arenaId}/courts e /promotions, só que exige
+      // login). Escrita (criar/editar/repor/excluir) continua só do gestor.
+      allow read: if request.auth != null;
       allow create: if canManageArenaProducts(arenaId) &&
         (isSuperAdmin() || arenaEntitled(arenaId, ['pro', 'parceiro'])) &&
         isValidArenaProductData(request.resource.data) &&
@@ -848,10 +852,23 @@ service cloud.firestore {
         );
       allow delete: if false;
     }
+    // Dono da comanda pelo lado do atleta (Peça na quadra / pedido pelo
+    // app): hoje só existe elo comanda→atleta quando a comanda foi aberta
+    // vinculada a uma reserva (bookingId) — comandas "sem vínculo" (walk-in,
+    // cliente que não é usuário do app) não têm dono identificável aqui.
+    // Escrita em items/payments continua vedada ao client mesmo para o
+    // dono: só a Cloud Function addAppOrderItem grava (Admin SDK).
+    function isArenaComandaOwnerAthlete(comandaData) {
+      let bookingId = comandaData.get('bookingId', null);
+      return bookingId != null &&
+        exists(/databases/$(database)/documents/arenaBookings/$(bookingId)) &&
+        get(/databases/$(database)/documents/arenaBookings/$(bookingId)).data.athleteId == request.auth.uid;
+    }
     match /arenaComandas/{comandaId} {
       allow read: if request.auth != null && (
         isSuperAdmin() ||
-        (resource != null && isArenaManagerByArenaId(resource.data.arenaId))
+        (resource != null && isArenaManagerByArenaId(resource.data.arenaId)) ||
+        (resource != null && isArenaComandaOwnerAthlete(resource.data))
       );
       allow create: if request.auth != null &&
         isValidArenaComandaCreate(request.resource.data) &&
@@ -869,6 +886,9 @@ service cloud.firestore {
           isSuperAdmin() ||
           canManageArenaProducts(
             get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId
+          ) ||
+          isArenaComandaOwnerAthlete(
+            get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data
           )
         );
         // Adicionar item exige titularidade Pro: uma arena que caiu pro
@@ -892,6 +912,9 @@ service cloud.firestore {
           isSuperAdmin() ||
           canManageArenaProducts(
             get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId
+          ) ||
+          isArenaComandaOwnerAthlete(
+            get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data
           )
         );
         allow create: if request.auth != null &&

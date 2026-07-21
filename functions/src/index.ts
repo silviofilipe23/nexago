@@ -295,6 +295,9 @@ export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
 
+// Peça na quadra — atleta lança consumo direto no app numa comanda de
+// arena já aberta pelo balcão (ver arena-comanda-app-orders.ts).
+export {addAppOrderItem} from "./arena-comanda-app-orders";
 // Head-to-head (confronto direto) — item #3 de
 // docs/superpowers/specs/2026-07-20-cinco-features-concorrencia-design.md
 export {getHeadToHeadRecord} from "./head-to-head";

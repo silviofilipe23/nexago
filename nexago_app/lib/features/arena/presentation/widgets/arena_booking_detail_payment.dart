@@ -27,6 +27,7 @@ class ArenaBookingDetailPayment extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final payment = arenaBookingPaymentInfo(bookingData);
+    final coupon = arenaBookingCouponInfo(bookingData);
     final hours = ArenaBookingsGrouping.bookingDurationHours(
       startTime,
       endTime,
@@ -108,6 +109,16 @@ class ArenaBookingDetailPayment extends StatelessWidget {
                   color: AppColors.win,
                   fontWeight: FontWeight.w700,
                 ),
+              ),
+            ],
+            if (coupon != null) ...[
+              SizedBox(height: 10),
+              _BreakdownRow(
+                icon: Icons.local_offer_rounded,
+                iconColor: AppColors.brand,
+                label: 'Cupom ${coupon.code}',
+                value: '-${formatBRL(coupon.discountReais)}',
+                valueColor: AppColors.brand,
               ),
             ],
             SizedBox(height: 10),

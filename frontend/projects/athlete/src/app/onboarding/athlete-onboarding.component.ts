@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { getApps, initializeApp } from 'firebase/app';
-import { doc, getDoc, getFirestore, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
+import { doc, getFirestore, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { AuthShellComponent } from '../auth/ui/auth-shell.component';
 import { isAllowedAvatarFile, prepareAvatarJpeg, uploadAthleteAvatar } from '../data/athlete-avatar-upload';
+import { athleteFunctions } from '../data/functions';
 import { athleteStorage } from '../data/storage';
 
 type ObStep = 1 | 2 | 3 | 4 | 5;
@@ -258,18 +260,17 @@ export class AthleteOnboardingComponent {
     this.submitError.set(null);
 
     try {
-      // As rules exigem `roles` no create (`roles.hasOnly(['athlete']) && size() > 0`) e
-      // imutável no update — união com o que já existir, preservando ordem (mesmo padrão do
-      // app mobile em athlete_profile_repository.dart:74-82), nunca só `['athlete']` fixo.
+      // `roles` é imutável no update das rules (só a Cloud Function, via Admin SDK,
+      // pode alterá-lo — mesmo padrão de `completeArenaSignup`). Uma conta que já
+      // veio de outro portal (arena/organizer) teria o próprio save do onboarding
+      // negado por permissão se tentássemos gravar `roles` direto daqui; por isso
+      // o papel é concedido primeiro via `grantAthleteRole`, e o setDoc abaixo nem
+      // toca no campo.
+      const grantAthleteRole = httpsCallable(athleteFunctions(), 'grantAthleteRole');
+      await grantAthleteRole();
+      await this.auth.user()?.getIdToken(true);
+
       const userDocRef = doc(this.firestore, 'users', uid);
-      const userSnap = await getDoc(userDocRef);
-      const existingRoles = userSnap.exists() ? userSnap.data()?.['roles'] : null;
-      const roles = Array.from(
-        new Set([
-          ...(Array.isArray(existingRoles) ? existingRoles.filter((r): r is string => typeof r === 'string') : []),
-          'athlete',
-        ]),
-      );
 
       await Promise.all([
         setDoc(
@@ -287,7 +288,6 @@ export class AthleteOnboardingComponent {
               levelsBySport: { [sportCode]: levelCode },
               completedAt: serverTimestamp(),
             },
-            roles,
             hasAthleteRole: true,
             onboardingCompleted: true,
             updatedAt: serverTimestamp(),

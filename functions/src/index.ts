@@ -284,6 +284,7 @@ export {
 export {completeCoachSignup} from "./coach-signup";
 export {completeArenaSignup} from "./arena-signup";
 export {completeOrganizerSignup} from "./organizer-signup";
+export {grantAthleteRole} from "./athlete-signup";
 
 export {searchAthleteForCoachInvite} from "./coach-athlete-search";
 export {

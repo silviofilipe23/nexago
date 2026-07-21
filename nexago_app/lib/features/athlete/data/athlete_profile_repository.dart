@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
@@ -15,9 +16,11 @@ import '../domain/profile_access.dart';
 import '../domain/profile_completion_models.dart';
 
 class AthleteProfileRepository {
-  AthleteProfileRepository(this._firestore);
+  AthleteProfileRepository(this._firestore, {FirebaseFunctions? functions})
+      : _functions = functions ?? FirebaseFunctions.instance;
 
   final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
 
   CollectionReference<Map<String, dynamic>> get _users =>
       _firestore.collection('users');
@@ -74,13 +77,29 @@ class AthleteProfileRepository {
     // Garante papel de atleta em todo save (não só na criação), senão
     // contas que já existiam antes desse campo ficam de fora de queries
     // por `roles`/`hasAthleteRole` para sempre.
-    final existingRoles = exists ? (snap.data()?['roles']) : null;
-    data['roles'] = <String>{
-      if (existingRoles is List) ...existingRoles.whereType<String>(),
-      'athlete',
-    }.toList();
+    //
+    // IMPORTANTE: as rules do Firestore só permitem `update` em
+    // `users/{uid}` quando `roles` (se presente no payload) é IDÊNTICO ao
+    // valor já salvo — só uma Cloud Function via Admin SDK pode alterar
+    // `roles` (anti-privilege-escalation). Por isso `roles` NUNCA é
+    // incluído no payload enviado ao Firestore aqui: quando falta o papel
+    // de atleta, delegamos para a callable `grantAthleteRole` (idempotente,
+    // faz a união preservando os papéis existentes e espelha via Admin
+    // SDK). `existingRoles`/`effectiveRoles` abaixo são só em memória, para
+    // derivar `hasAthleteRole`/`hasOrganizerRole`/`keywords` localmente.
+    final existingRolesRaw = exists ? (snap.data()?['roles']) : null;
+    final existingRoles = existingRolesRaw is List
+        ? existingRolesRaw.whereType<String>().toSet()
+        : <String>{};
+    if (!existingRoles.contains('athlete')) {
+      await _functions.httpsCallable('grantAthleteRole').call<void>();
+    }
+    final effectiveRoles = <String>{...existingRoles, 'athlete'};
 
-    final searchFields = buildUserSearchFields(data);
+    final searchFields = buildUserSearchFields(<String, dynamic>{
+      ...data,
+      'roles': effectiveRoles.toList(),
+    });
     data['keywords'] = searchFields.keywords;
     data['hasAthleteRole'] = searchFields.hasAthleteRole;
     data['hasOrganizerRole'] = searchFields.hasOrganizerRole;

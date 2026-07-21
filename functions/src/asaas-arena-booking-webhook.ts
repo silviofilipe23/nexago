@@ -15,9 +15,14 @@ import {isArenaEntitledPro} from "./arena-entitlement";
 import {BOOKING_FEE_PERCENT, computePlatformFeeReais} from "./platform-fees";
 import {releaseArenaBookingHold} from "./mercadopago-arena-booking-webhook";
 import type {AsaasPaymentDetails} from "./asaas-booking-payment";
+import {
+  finalizeArenaBookingIfAllSharesResolved,
+  parseArenaBookingShareExternalReference,
+} from "./arena-booking-split";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
+const PAYMENT_SHARES = "paymentShares";
 
 /** Não confirma reserva — aguarda RECEIVED ou evento negativo. */
 const ASAAS_NON_TERMINAL_STATUSES = new Set([
@@ -183,4 +188,153 @@ export async function processArenaBookingAsaasNotification(
   }
 
   logger.warn(`Asaas arena booking ${bookingId}: status Asaas não tratado: ${status}`);
+}
+
+/**
+ * Split de pagamento: resolve o pagamento de UMA fatia
+ * (`arenaBookings/{bookingId}/paymentShares/{shareId}`), distinta do
+ * pagamento único da reserva tratado acima — `externalReference` usa o
+ * prefixo `arenaBookingShare:` (vs. `arenaBooking:`), então nunca colidem.
+ */
+export async function processArenaBookingShareAsaasNotification(
+  db: Firestore,
+  paymentId: string,
+  payment: AsaasPaymentDetails,
+  processedRef: DocumentReference,
+): Promise<void> {
+  const parsed = parseArenaBookingShareExternalReference(
+    (payment.externalReference || "").trim(),
+  );
+  if (!parsed) return;
+  const {bookingId, shareId} = parsed;
+
+  const processedSnap = await processedRef.get();
+  if (processedSnap.exists) {
+    logger.info(`Asaas arena booking share: payment ${paymentId} já processado`);
+    return;
+  }
+
+  const status = (payment.status || "").toUpperCase();
+  if (ASAAS_NON_TERMINAL_STATUSES.has(status)) {
+    logger.info(
+      `Asaas arena booking share ${bookingId}/${shareId}: pagamento ${paymentId} ainda ${status}`,
+    );
+    return;
+  }
+
+  const bookingRef = db.collection(ARENA_BOOKINGS).doc(bookingId);
+  const shareRef = bookingRef.collection(PAYMENT_SHARES).doc(shareId);
+  const shareSnap = await shareRef.get();
+  if (!shareSnap.exists) {
+    logger.warn(`Asaas arena booking share: fatia ${shareId} não encontrada (reserva ${bookingId})`);
+    await processedRef.set({
+      kind: "arenaBookingShare",
+      bookingId,
+      shareId,
+      outcome: "orphan",
+      paymentStatus: status,
+      processedAt: FieldValue.serverTimestamp(),
+    });
+    return;
+  }
+
+  const share = shareSnap.data()!;
+  if ((share.status as string | undefined) !== "pending") {
+    // Já paga ou já expirada (covered_by_organizer) — não reprocessa.
+    await processedRef.set({
+      kind: "arenaBookingShare",
+      bookingId,
+      shareId,
+      outcome: "already_resolved",
+      paymentStatus: status,
+      processedAt: FieldValue.serverTimestamp(),
+    });
+    return;
+  }
+
+  if (ASAAS_PAID_STATUSES.has(status)) {
+    const paidOnline = roundMoney(Number(payment.value) || 0);
+    if (paidOnline <= 0) {
+      logger.warn(`Asaas arena booking share ${bookingId}/${shareId}: valor inválido`);
+      return;
+    }
+
+    const bookingSnap = await bookingRef.get();
+    const booking = bookingSnap.data() ?? {};
+    const arenaId = booking.arenaId as string | undefined;
+
+    let platformFee = 0;
+    if (arenaId) {
+      const arenaSnap = await db.collection("arenas").doc(arenaId).get();
+      const entitled = arenaSnap.exists &&
+        isArenaEntitledPro(arenaSnap.data() ?? {}, Date.now());
+      platformFee = entitled ?
+        0 :
+        computePlatformFeeReais(paidOnline, BOOKING_FEE_PERCENT);
+    }
+
+    const batch = db.batch();
+    batch.set(shareRef, {
+      status: "paid",
+      asaasPaidAmount: paidOnline,
+      paidAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    batch.set(bookingRef, {
+      amountPaidOnlineReais: FieldValue.increment(paidOnline),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, {merge: true});
+    batch.set(processedRef, {
+      kind: "arenaBookingShare",
+      bookingId,
+      shareId,
+      outcome: "approved",
+      processedAt: FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+
+    if (arenaId) {
+      try {
+        await creditArenaWalletFromBooking(db, arenaId, bookingId, paidOnline, platformFee);
+      } catch (walletErr) {
+        logger.error(
+          `Asaas arena booking share ${bookingId}/${shareId}: wallet credit failed`,
+          walletErr,
+        );
+      }
+    }
+
+    try {
+      await finalizeArenaBookingIfAllSharesResolved(db, bookingId);
+    } catch (finalizeErr) {
+      logger.error(
+        `Asaas arena booking share ${bookingId}/${shareId}: finalize failed`,
+        finalizeErr,
+      );
+    }
+
+    logger.info(
+      `Asaas arena booking share ${bookingId}/${shareId}: paga, paymentId=${paymentId}, amount=${paidOnline}`,
+    );
+    return;
+  }
+
+  if (ASAAS_NEGATIVE_TERMINAL_STATUSES.has(status)) {
+    // Não expira aqui: o job `expireArenaBookingPaymentShares` cuida da
+    // transferência pro dono no prazo certo (2h antes do jogo). Só registra
+    // o evento pra não reprocessar o mesmo paymentId.
+    await processedRef.set({
+      kind: "arenaBookingShare",
+      bookingId,
+      shareId,
+      outcome: "rejected",
+      asaasPaymentStatus: status,
+      processedAt: FieldValue.serverTimestamp(),
+    });
+    logger.info(`Asaas arena booking share ${bookingId}/${shareId}: pagamento ${status}`);
+    return;
+  }
+
+  logger.warn(
+    `Asaas arena booking share ${bookingId}/${shareId}: status Asaas não tratado: ${status}`,
+  );
 }

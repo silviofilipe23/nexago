@@ -294,3 +294,9 @@ export {
 export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
+
+// Split de pagamento em reserva de quadra (PIX, multi-pagador).
+export {
+  splitArenaBookingPayment,
+  expireArenaBookingPaymentShares,
+} from "./arena-booking-split";

@@ -295,6 +295,11 @@ export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
 
+// Split de pagamento em reserva de quadra (PIX, multi-pagador).
+export {
+  splitArenaBookingPayment,
+  expireArenaBookingPaymentShares,
+} from "./arena-booking-split";
 // Programa de indicação (referral): código = UID do atleta, recompensa em XP
 // via gamificação (não existe carteira de atleta hoje).
 export {

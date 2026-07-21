@@ -1037,6 +1037,19 @@ service cloud.firestore {
         )
       );
       allow delete: if false;
+
+      // Split de pagamento: fatia PIX de um convidado. Só o próprio pagador
+      // ou o dono da reserva leem; escrita é sempre via Cloud Function
+      // (Admin SDK) — cria a cobrança Asaas antes de gravar o doc.
+      match /paymentShares/{shareId} {
+        allow read: if request.auth != null && (
+          resource.data.payerAthleteId == request.auth.uid ||
+          get(/databases/$(database)/documents/arenaBookings/$(bookingId)).data.athleteId
+            == request.auth.uid ||
+          isSuperAdmin()
+        );
+        allow write: if false;
+      }
     }
 
     // Lista de espera de horário de quadra lotado (domínio distinto da lista

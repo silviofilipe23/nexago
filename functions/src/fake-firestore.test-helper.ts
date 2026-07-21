@@ -42,6 +42,11 @@ export class FakeFirestore {
   store = new Map<string, DocData>();
   private autoIdSeq = 0;
 
+  private nextAutoId(): string {
+    this.autoIdSeq += 1;
+    return `auto_${this.autoIdSeq}`;
+  }
+
   seedDoc(path: string, data: DocData): void {
     this.store.set(path, data);
   }
@@ -52,9 +57,16 @@ export class FakeFirestore {
 
   private makeRef(path: string) {
     const self = this;
+    // Espelha `DocumentReference.parent.parent`: pula o nome da coleção-pai e
+    // aponta pro documento avô (ex.: "a/b/c/d" -> parent.parent = doc "a/b").
+    const segments = path.split("/");
+    const grandparentPath = segments.length >= 4 ? segments.slice(0, -2).join("/") : null;
     return {
       path,
-      id: path.split("/").pop() ?? "",
+      id: segments[segments.length - 1] ?? "",
+      parent: {
+        parent: grandparentPath ? self.makeRef(grandparentPath) : null,
+      },
       get: async () => self.snapshotOf(path),
       set: async (data: DocData, opts?: {merge?: boolean}) => {
         self.write(path, data, opts);
@@ -63,6 +75,10 @@ export class FakeFirestore {
         if (!self.store.has(path)) throw new Error(`update em doc ausente: ${path}`);
         self.write(path, data, {merge: true});
       },
+      delete: async () => {
+        self.store.delete(path);
+      },
+      collection: (subPath: string) => self.collection(`${path}/${subPath}`),
     };
   }
 
@@ -129,12 +145,9 @@ export class FakeFirestore {
       },
     });
     return {
-      // `id` omitido = auto-ID (espelha DocumentReference.collection().doc()
-      // real, usado por transações que criam itens/movimentos novos).
-      doc: (id?: string) =>
-        self.makeRef(`${path}/${id ?? `auto_${self.autoIdSeq++}`}`),
+      doc: (id?: string) => self.makeRef(`${path}/${id ?? self.nextAutoId()}`),
       add: async (data: DocData) => {
-        const id = `auto_${self.store.size}`;
+        const id = self.nextAutoId();
         self.write(`${path}/${id}`, data);
         return self.makeRef(`${path}/${id}`);
       },

@@ -397,6 +397,24 @@
   margin: 0;
 }
 
+.bd-payment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.bd-payment-label {
+  color: var(--nx-text-dim);
+}
+
+.bd-payment-value {
+  color: var(--nx-text);
+  font-weight: 600;
+  text-align: right;
+}
+
 // ── Team ─────────────────────────────────────────────────────
 .bd-team-list {
   display: flex;

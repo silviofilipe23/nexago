@@ -132,6 +132,24 @@
           </div>
 
           <div class="bd-card">
+            <span class="bd-card-kicker">Pagamento</span>
+            <div class="bd-payment-row">
+              <span class="bd-payment-label">Valor total</span>
+              <span class="bd-payment-value">{{ formatBRL(b.amountReais) }}</span>
+            </div>
+            <div class="bd-payment-row">
+              <span class="bd-payment-label">Forma</span>
+              <span class="bd-payment-value">{{ paymentMethodLabel() }}</span>
+            </div>
+            @if (b.couponCode; as code) {
+              <div class="bd-payment-row">
+                <span class="bd-payment-label">Cupom</span>
+                <span class="bd-payment-value">{{ code }} (-{{ formatBRL(b.couponDiscountReais) }})</span>
+              </div>
+            }
+          </div>
+
+          <div class="bd-card">
             <span class="bd-card-kicker">Gerenciar</span>
             @if (canAddToAgenda()) {
               <div class="bd-manage-row">

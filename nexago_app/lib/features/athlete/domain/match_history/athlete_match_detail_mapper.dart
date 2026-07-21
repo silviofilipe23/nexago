@@ -475,6 +475,7 @@ MatchTeamSide _teamSide({
           avatarColor: rankingAvatarColor(playerId).toARGB32(),
           avatarUrl: profile?.profilePhotoUrl,
           name: name.isEmpty ? null : name,
+          athleteId: playerId,
         ),
       );
     }

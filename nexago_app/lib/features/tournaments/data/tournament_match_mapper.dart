@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../domain/tournament_match.dart';
+import '../domain/tournament_match_live_score.dart';
 import '../domain/tournament_match_point_action.dart';
 import '../domain/tournament_match_set.dart';
 import '../domain/tournament_match_status.dart';
@@ -63,7 +64,13 @@ abstract final class TournamentMatchMapper {
       bestOf: _bestOf(data['bestOf']),
       winnerAdvanceMatchNumber: _advanceMatchNumber(data['winnerAdvance']),
       winnerAdvanceSlot: _advanceSlot(data['winnerAdvance']),
+      liveScore: _liveScore(data['liveScore']),
     );
+  }
+
+  static MatchLiveScore? _liveScore(dynamic raw) {
+    if (raw is! Map) return null;
+    return MatchLiveScore.fromMap(Map<String, dynamic>.from(raw));
   }
 
   static int? _advanceMatchNumber(dynamic raw) {

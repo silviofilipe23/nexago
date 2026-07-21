@@ -15,6 +15,7 @@ class SlotsSlotTile extends StatelessWidget {
     this.isMostPopular = false,
     this.isLastSlot = false,
     this.priceLabel,
+    this.onJoinWaitlist,
   });
 
   final ArenaSlot slot;
@@ -25,11 +26,17 @@ class SlotsSlotTile extends StatelessWidget {
   final VoidCallback? onTap;
   final String? priceLabel;
 
+  /// Quando o slot está lotado (não bloqueado) e ainda é um horário futuro,
+  /// permite entrar na lista de espera em vez de deixar o tile só desabilitado.
+  final VoidCallback? onJoinWaitlist;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final unavailable = !slot.isAvailable || isPast;
     final occupied = slot.isBooked || slot.isBlocked;
+    final canJoinWaitlist =
+        slot.isBooked && !slot.isBlocked && !isPast && onJoinWaitlist != null;
     final subtitle = occupiedSlotSubtitle(slot);
     final detailLine = [
       if (priceLabel != null) priceLabel,
@@ -58,7 +65,7 @@ class SlotsSlotTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: unavailable ? null : onTap,
+        onTap: unavailable ? (canJoinWaitlist ? onJoinWaitlist : null) : onTap,
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -168,6 +175,30 @@ class SlotsSlotTile extends StatelessWidget {
                   color: AppColors.brand,
                   size: 24,
                 )
+              else if (canJoinWaitlist)
+                SizedBox(
+                  width: 96,
+                  child: TextButton(
+                    onPressed: onJoinWaitlist,
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      alignment: Alignment.centerRight,
+                    ),
+                    child: Text(
+                      'ENTRAR NA\nLISTA DE ESPERA',
+                      textAlign: TextAlign.right,
+                      maxLines: 2,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.brand,
+                        letterSpacing: 0.2,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                )
               else if (occupied)
                 Text(
                   'OCUPADO',
@@ -183,7 +214,7 @@ class SlotsSlotTile extends StatelessWidget {
       ),
     );
 
-    if (unavailable && occupied) {
+    if (unavailable && occupied && !canJoinWaitlist) {
       card = Opacity(opacity: 0.55, child: card);
     } else if (isPast) {
       card = Opacity(opacity: 0.45, child: card);

@@ -55,6 +55,7 @@ import '../../features/organizer/presentation/category_ops/organizer_category_se
 import '../../features/organizer/presentation/category_ops/organizer_category_generate_bracket_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_format_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_communicate_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_tournament_announce_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_bracket_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_center_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_call_queue_page.dart';
@@ -165,6 +166,7 @@ import '../../features/tournaments/presentation/tournament_categories_page.dart'
 import '../../features/tournaments/presentation/tournament_bracket_page.dart';
 import '../../features/tournaments/presentation/tournament_groups_page.dart';
 import '../../features/tournaments/presentation/tournament_prizes_page.dart';
+import '../../features/tournaments/presentation/tournament_predictions_page.dart';
 import '../../features/tournaments/presentation/tournament_partner_invite_page.dart';
 import '../../features/tournaments/domain/tournament_registration_logic.dart';
 import '../../features/tournaments/domain/tournament_registration_pix_args.dart';
@@ -692,6 +694,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 },
               ),
               GoRoute(
+                path: 'announce',
+                name: AppRouteNames.organizerTournamentAnnounce,
+                builder: (context, state) {
+                  final tournamentId =
+                      state.pathParameters['tournamentId']?.trim() ?? '';
+                  return OrganizerTournamentAnnouncePage(
+                    tournamentId: tournamentId,
+                  );
+                },
+              ),
+              GoRoute(
                 path: 'categories/:categoryId',
                 name: AppRouteNames.organizerCategoryShell,
                 builder: (context, state) {
@@ -1107,6 +1120,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) {
               final id = state.pathParameters['tournamentId']?.trim() ?? '';
               return TournamentPrizesPage(tournamentId: id);
+            },
+          ),
+          GoRoute(
+            path: 'palpites',
+            name: AppRouteNames.tournamentPredictions,
+            builder: (context, state) {
+              final id = state.pathParameters['tournamentId']?.trim() ?? '';
+              return TournamentPredictionsPage(tournamentId: id);
             },
           ),
         ],

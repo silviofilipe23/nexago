@@ -74,3 +74,19 @@ final athleteRatingProvider =
     StreamProvider.autoDispose.family<AthleteRating?, String>((ref, sportCode) {
   return ref.watch(athleteRatingRepositoryProvider).watchOwnRating(sportCode);
 });
+
+/// Chave de busca de rating de um atleta arbitrário (não necessariamente o
+/// usuário logado) — usada por features que comparam dois competidores, ex.
+/// probabilidade de vitória pré-partida.
+typedef AthleteRatingQuery = ({String athleteId, String sportCode});
+
+/// Rating de um atleta específico (qualquer um, não só o logado) para um
+/// esporte. `null` enquanto a engine ainda não processou nenhuma partida
+/// dele. Leitura pública — mesma regra de [athleteRatingProvider].
+final athleteRatingForAthleteProvider = StreamProvider.autoDispose
+    .family<AthleteRating?, AthleteRatingQuery>((ref, query) {
+  return ref.watch(athleteRatingRepositoryProvider).watchRating(
+        athleteId: query.athleteId,
+        sportCode: query.sportCode,
+      );
+});

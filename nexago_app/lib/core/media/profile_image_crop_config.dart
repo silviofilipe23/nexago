@@ -2,6 +2,7 @@
 enum ProfileImageCropTarget {
   avatar,
   cover,
+  highlight,
 }
 
 extension ProfileImageCropTargetX on ProfileImageCropTarget {
@@ -9,6 +10,7 @@ extension ProfileImageCropTargetX on ProfileImageCropTarget {
   double get aspectRatio => switch (this) {
         ProfileImageCropTarget.avatar => 1,
         ProfileImageCropTarget.cover => coverAspectRatio,
+        ProfileImageCropTarget.highlight => 1,
       };
 
   static const double coverAspectRatio = 2.63;
@@ -20,11 +22,13 @@ extension ProfileImageCropTargetX on ProfileImageCropTarget {
   String get title => switch (this) {
         ProfileImageCropTarget.avatar => 'Ajustar foto de perfil',
         ProfileImageCropTarget.cover => 'Ajustar capa',
+        ProfileImageCropTarget.highlight => 'Ajustar foto de destaque',
       };
 
   /// Largura máxima após recorte (redimensionamento opcional).
   int get maxOutputWidth => switch (this) {
         ProfileImageCropTarget.avatar => 1024,
         ProfileImageCropTarget.cover => 2200,
+        ProfileImageCropTarget.highlight => 1600,
       };
 }

@@ -16,6 +16,7 @@ import '../../domain/gamification_providers.dart';
 import '../../domain/sand_rank/sand_rank_providers.dart';
 import 'widgets/public_profile_action_row.dart';
 import 'widgets/public_profile_header.dart';
+import 'widgets/public_profile_highlights_section.dart';
 import 'widgets/public_profile_sports_section.dart';
 import 'widgets/public_profile_stats_row.dart';
 import 'widgets/public_profile_tabs.dart';
@@ -205,6 +206,11 @@ class _AthletePublicProfilePageState
                 ),
                 SliverToBoxAdapter(
                   child: PublicProfileSportsSection(sports: sports),
+                ),
+                SliverToBoxAdapter(
+                  child: PublicProfileHighlightsSection(
+                    photoUrls: profile.highlightPhotoUrls,
+                  ),
                 ),
                 SliverToBoxAdapter(
                   child: PublicProfileTabBar(

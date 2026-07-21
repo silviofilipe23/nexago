@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/tournament_match_card_view_model.dart';
 import '../../domain/tournament_match_display.dart';
+import '../../domain/tournament_match_live_score.dart';
 import 'tournament_match_live_badge.dart';
 
 class TournamentMatchCard extends StatelessWidget {
@@ -85,6 +86,10 @@ class TournamentMatchCard extends StatelessWidget {
             ),
             SizedBox(height: 6),
           ],
+          if (isLive && match.liveScore != null) ...[
+            _LiveScoreLine(liveScore: match.liveScore!),
+            SizedBox(height: 6),
+          ],
           _TeamRow(
             team: viewModel.teamA,
             setsWon: counts.$1,
@@ -128,6 +133,28 @@ class TournamentMatchCard extends StatelessWidget {
     );
 
     return card;
+  }
+}
+
+/// Placar parcial do set em andamento — só aparece com o badge "AO VIVO".
+class _LiveScoreLine extends StatelessWidget {
+  const _LiveScoreLine({required this.liveScore});
+
+  final MatchLiveScore liveScore;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'Set em andamento · ${liveScore.currentGamesA}×${liveScore.currentGamesB}',
+      style: AppTypography.mono(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        color: AppColors.live,
+        letterSpacing: 0.3,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
   }
 }
 

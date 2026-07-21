@@ -10,9 +10,6 @@ export function titleCase(input: string): string {
 /** Espelha `AthleteFirestoreCodes.levelFirestoreToLabel` (app Flutter): códigos de nível
  *  gravados em `sportProfile.level` / `sportOnboarding.levelsBySport` → rótulo de exibição. */
 const LEVEL_CODE_TO_LABEL: Record<string, string> = {
-  iniciante: 'Iniciante',
-  basico: 'Iniciante',
-  intermediario: 'Intermediário',
   open: 'Open',
   iniciante_1: 'Iniciante 1',
   iniciante_2: 'Iniciante 2',

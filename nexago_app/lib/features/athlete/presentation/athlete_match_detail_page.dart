@@ -3,9 +3,11 @@ import 'package:nexago_app/core/layout/nexa_app_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/auth_providers.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_snackbar.dart';
+import '../data/match_history/head_to_head_repository.dart';
 import '../domain/match_history/athlete_match_detail_models.dart';
 import '../domain/match_history/athlete_match_detail_providers.dart';
 import 'widgets/match_detail/match_detail_countdown_card.dart';
@@ -13,6 +15,7 @@ import 'widgets/match_detail/match_detail_footer.dart';
 import 'widgets/match_detail/match_detail_form_section.dart';
 import 'widgets/match_detail/match_detail_head_to_head_section.dart';
 import 'widgets/match_detail/match_detail_hero_card.dart';
+import 'widgets/match_detail/match_detail_individual_head_to_head_section.dart';
 import 'widgets/match_detail/match_detail_live_score_panel.dart';
 import 'widgets/match_detail/match_detail_momentum_section.dart';
 import 'widgets/match_detail/match_detail_play_by_play_section.dart';
@@ -54,6 +57,7 @@ class AthleteMatchDetailPage extends ConsumerWidget {
           return _DetailBody(
             detail: detail,
             hideTournamentAction: hideTournamentAction,
+            individualHeadToHead: _watchIndividualHeadToHead(ref, detail),
           );
         },
       ),
@@ -147,11 +151,39 @@ class AthleteMatchDetailPage extends ConsumerWidget {
   }
 }
 
+/// H2H individual (por atleta, não por dupla) do adversário desta partida.
+/// Resolvido de forma desacoplada do resto da tela (provider próprio) — se a
+/// callable falhar ou demorar, só essa seção deixa de aparecer, sem afetar o
+/// restante do detalhe da partida já carregado.
+HeadToHeadRecord? _watchIndividualHeadToHead(
+  WidgetRef ref,
+  AthleteMatchDetail detail,
+) {
+  if (!detail.isParticipantView) return null;
+
+  final myAthleteId = (ref.watch(authProvider).valueOrNull?.uid ?? '').trim();
+  final opponentAthleteId = detail.opponentTeam.players.isEmpty
+      ? ''
+      : (detail.opponentTeam.players.first.athleteId ?? '').trim();
+  if (myAthleteId.isEmpty || opponentAthleteId.isEmpty) return null;
+
+  final query = HeadToHeadQuery(
+    athleteIdA: myAthleteId,
+    athleteIdB: opponentAthleteId,
+  );
+  return ref.watch(headToHeadRecordProvider(query)).valueOrNull;
+}
+
 class _DetailBody extends StatelessWidget {
-  const _DetailBody({required this.detail, required this.hideTournamentAction});
+  const _DetailBody({
+    required this.detail,
+    required this.hideTournamentAction,
+    this.individualHeadToHead,
+  });
 
   final AthleteMatchDetail detail;
   final bool hideTournamentAction;
+  final HeadToHeadRecord? individualHeadToHead;
 
   @override
   Widget build(BuildContext context) {
@@ -252,6 +284,8 @@ class _DetailBody extends StatelessWidget {
       ]);
     }
 
+    sections.addAll(_individualHeadToHeadSection());
+
     sections.addAll([
       MatchDetailWhereWhenSection(
         detail: detail,
@@ -324,6 +358,8 @@ class _DetailBody extends StatelessWidget {
       ]);
     }
 
+    sections.addAll(_individualHeadToHeadSection());
+
     sections.add(
       MatchDetailWhereWhenSection(
         detail: detail,
@@ -359,6 +395,24 @@ class _DetailBody extends StatelessWidget {
     final share = detail.shareInfo;
     if (share == null) return const [];
     return [SizedBox(height: 20), MatchDetailShareSection(share: share)];
+  }
+
+  /// H2H individual (por atleta) vs o adversário — complementa
+  /// `MatchDetailHeadToHeadSection` (que é por dupla exata) capturando
+  /// confrontos entre as mesmas duas pessoas mesmo com parceiros diferentes.
+  List<Widget> _individualHeadToHeadSection() {
+    final record = individualHeadToHead;
+    if (record == null || !record.hasHistory) return const [];
+    final opponentName = detail.opponentTeam.players.isNotEmpty
+        ? (detail.opponentTeam.players.first.name ?? '')
+        : '';
+    return [
+      MatchDetailIndividualHeadToHeadSection(
+        record: record,
+        opponentName: opponentName,
+      ),
+      SizedBox(height: 20),
+    ];
   }
 
   void _openPlayByPlay(BuildContext context) {

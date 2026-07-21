@@ -295,6 +295,13 @@ export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
 
+// Cupom de marketing da arena (código digitável, validade, limite de uso —
+// complementar às promoções automáticas já existentes).
+export {
+  createArenaCoupon,
+  listArenaCoupons,
+  deactivateArenaCoupon,
+} from "./arena-coupons";
 // --- Relatórios de ocupação de quadra (gestor de arena) ---
 export {getArenaOccupancyReport} from "./arena-occupancy-report";
 export {postTournamentAnnouncement} from "./tournament-announcements";

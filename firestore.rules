@@ -731,6 +731,26 @@ service cloud.firestore {
         isSuperAdmin()
       );
     }
+    match /arenas/{arenaId}/coupons/{couponId} {
+      // Cupom de marketing (código + validade + limite de uso) — complementar
+      // às `promotions` acima. Escrita só via Cloud Functions
+      // (`arena-coupons.ts`, mesmo padrão de `arenaWallets`): precisa
+      // validar vigência/limites/XOR de desconto e gravar resgates de forma
+      // atômica, o que uma regra de segurança não garante sozinha.
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid
+      );
+      allow write: if false;
+      match /redemptions/{athleteId} {
+        allow read: if request.auth != null && (
+          isSuperAdmin() ||
+          get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+          request.auth.uid == athleteId
+        );
+        allow write: if false;
+      }
+    }
     match /arenaWallets/{arenaId} {
       allow read: if request.auth != null && (
         isSuperAdmin() ||

@@ -1,12 +1,13 @@
-import 'dart:typed_data';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/observability/analytics_service.dart';
 import '../../domain/athlete_profile_providers.dart';
+import '../../domain/athlete_referral_providers.dart';
 import 'athlete_onboarding_draft.dart';
 
 final athleteOnboardingDraftProvider =
@@ -54,6 +55,8 @@ class AthleteOnboardingDraftNotifier extends Notifier<AthleteOnboardingDraft> {
   void setBirthDate(String v) => state = state.copyWith(birthDate: v);
   void setGender(String? v) => state = state.copyWith(gender: v);
 
+  void setReferralCode(String v) => state = state.copyWith(referralCode: v);
+
   void setAvatar({required Uint8List bytes, required String contentType}) {
     state = state.copyWith(
       avatarBytes: bytes,
@@ -82,6 +85,8 @@ class AthleteOnboardingDraftNotifier extends Notifier<AthleteOnboardingDraft> {
     ref.read(analyticsServiceProvider).logOnboardingComplete();
     ref.invalidate(athleteProfileProvider);
 
+    await _registerReferralIfProvided();
+
     final bytes = state.avatarBytes;
     final contentType = state.avatarContentType;
     if (bytes == null || contentType == null) {
@@ -99,6 +104,31 @@ class AthleteOnboardingDraftNotifier extends Notifier<AthleteOnboardingDraft> {
       return null;
     } on FirebaseException {
       return 'Cadastro concluído. A foto não foi enviada — você pode adicionar depois no perfil.';
+    }
+  }
+
+  /// Registra a indicação (se um código foi informado no onboarding). Não
+  /// bloqueia a conclusão do cadastro: falha aqui não deve impedir o atleta
+  /// de entrar no app — o vínculo de indicação é um efeito colateral do
+  /// cadastro, não um requisito dele. Idempotente no servidor
+  /// (`registerReferral`): repetir com o mesmo ou outro código depois de já
+  /// setado é ignorado.
+  Future<void> _registerReferralIfProvided() async {
+    final code = state.referralCode.trim();
+    if (code.isEmpty) return;
+
+    try {
+      await ref
+          .read(athleteReferralServiceProvider)
+          .registerReferral(referralCode: code);
+    } on FirebaseFunctionsException catch (e) {
+      if (kDebugMode) {
+        debugPrint('registerReferral: falha (${e.code}) $e');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('registerReferral: falha inesperada $e');
+      }
     }
   }
 }

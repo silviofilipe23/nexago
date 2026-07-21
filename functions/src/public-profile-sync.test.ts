@@ -63,4 +63,16 @@ describe("buildPublicProfileData", () => {
     assert.deepEqual(out, {nickname: "Fu"});
     assert.equal("gender" in out, false);
   });
+
+  it("copies the highlight photo gallery URLs", () => {
+    const out = buildPublicProfileData({
+      fullName: "Fulano",
+      highlightPhotoUrls: ["https://x/1.jpg", "https://x/2.jpg"],
+    });
+
+    assert.deepEqual(out, {
+      fullName: "Fulano",
+      highlightPhotoUrls: ["https://x/1.jpg", "https://x/2.jpg"],
+    });
+  });
 });

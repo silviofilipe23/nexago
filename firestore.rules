@@ -731,6 +731,26 @@ service cloud.firestore {
         isSuperAdmin()
       );
     }
+    match /arenas/{arenaId}/coupons/{couponId} {
+      // Cupom de marketing (código + validade + limite de uso) — complementar
+      // às `promotions` acima. Escrita só via Cloud Functions
+      // (`arena-coupons.ts`, mesmo padrão de `arenaWallets`): precisa
+      // validar vigência/limites/XOR de desconto e gravar resgates de forma
+      // atômica, o que uma regra de segurança não garante sozinha.
+      allow read: if request.auth != null && (
+        isSuperAdmin() ||
+        get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid
+      );
+      allow write: if false;
+      match /redemptions/{athleteId} {
+        allow read: if request.auth != null && (
+          isSuperAdmin() ||
+          get(/databases/$(database)/documents/arenas/$(arenaId)).data.managerUserId == request.auth.uid ||
+          request.auth.uid == athleteId
+        );
+        allow write: if false;
+      }
+    }
     match /arenaWallets/{arenaId} {
       allow read: if request.auth != null && (
         isSuperAdmin() ||
@@ -801,7 +821,11 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /arenas/{arenaId}/products/{productId} {
-      allow read: if canManageArenaProducts(arenaId);
+      // Leitura aberta a qualquer usuário autenticado: é o cardápio/catálogo
+      // que o atleta vê no "Peça na quadra" (não é dado sensível, mesmo nível
+      // de exposição de arenas/{arenaId}/courts e /promotions, só que exige
+      // login). Escrita (criar/editar/repor/excluir) continua só do gestor.
+      allow read: if request.auth != null;
       allow create: if canManageArenaProducts(arenaId) &&
         (isSuperAdmin() || arenaEntitled(arenaId, ['pro', 'parceiro'])) &&
         isValidArenaProductData(request.resource.data) &&
@@ -848,10 +872,23 @@ service cloud.firestore {
         );
       allow delete: if false;
     }
+    // Dono da comanda pelo lado do atleta (Peça na quadra / pedido pelo
+    // app): hoje só existe elo comanda→atleta quando a comanda foi aberta
+    // vinculada a uma reserva (bookingId) — comandas "sem vínculo" (walk-in,
+    // cliente que não é usuário do app) não têm dono identificável aqui.
+    // Escrita em items/payments continua vedada ao client mesmo para o
+    // dono: só a Cloud Function addAppOrderItem grava (Admin SDK).
+    function isArenaComandaOwnerAthlete(comandaData) {
+      let bookingId = comandaData.get('bookingId', null);
+      return bookingId != null &&
+        exists(/databases/$(database)/documents/arenaBookings/$(bookingId)) &&
+        get(/databases/$(database)/documents/arenaBookings/$(bookingId)).data.athleteId == request.auth.uid;
+    }
     match /arenaComandas/{comandaId} {
       allow read: if request.auth != null && (
         isSuperAdmin() ||
-        (resource != null && isArenaManagerByArenaId(resource.data.arenaId))
+        (resource != null && isArenaManagerByArenaId(resource.data.arenaId)) ||
+        (resource != null && isArenaComandaOwnerAthlete(resource.data))
       );
       allow create: if request.auth != null &&
         isValidArenaComandaCreate(request.resource.data) &&
@@ -869,6 +906,9 @@ service cloud.firestore {
           isSuperAdmin() ||
           canManageArenaProducts(
             get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId
+          ) ||
+          isArenaComandaOwnerAthlete(
+            get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data
           )
         );
         // Adicionar item exige titularidade Pro: uma arena que caiu pro
@@ -892,6 +932,9 @@ service cloud.firestore {
           isSuperAdmin() ||
           canManageArenaProducts(
             get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data.arenaId
+          ) ||
+          isArenaComandaOwnerAthlete(
+            get(/databases/$(database)/documents/arenaComandas/$(comandaId)).data
           )
         );
         allow create: if request.auth != null &&
@@ -1009,6 +1052,20 @@ service cloud.firestore {
       }
     }
 
+    // Lista de espera de horário de quadra lotado (domínio distinto da lista
+    // de espera de INSCRIÇÃO em torneio). Só o próprio atleta e o gestor da
+    // arena podem ler; toda escrita é feita pelas Cloud Functions
+    // (joinArenaBookingWaitlist / notifyArenaWaitlistOnSlotFreed /
+    // expireArenaBookingWaitlistEntries) — client nunca escreve direto.
+    match /arenaBookingWaitlist/{waitlistId} {
+      allow read: if request.auth != null && (
+        resource.data.athleteId == request.auth.uid ||
+        isArenaManagerByArenaId(resource.data.arenaId) ||
+        isSuperAdmin()
+      );
+      allow write: if false;
+    }
+
     // Convites de reserva ("Convite para jogar" via link compartilhado).
     // Antes não havia regra: a leitura vazava pelo catch-all e a escrita
     // client-side (criar/aceitar) era NEGADA — o fluxo estava quebrado.
@@ -1116,7 +1173,11 @@ service cloud.firestore {
           (!('superAdmin' in request.resource.data) || request.resource.data.superAdmin == false) &&
           // Reputação (Bora Jogar) é derivada por Cloud Function — usuário
           // novo não pode nascer com reputação pré-fabricada.
-          !('reputation' in request.resource.data)
+          !('reputation' in request.resource.data) &&
+          // Vínculo do programa de indicação (referral) só é gravado pela
+          // Cloud Function `registerReferral` (idempotente, valida
+          // auto-indicação) — o client não pode se auto-declarar indicado.
+          !('referredBy' in request.resource.data)
         ) ||
         isAdmin() ||
         isPartnerPreRegistrationCreate(userId)
@@ -1167,6 +1228,16 @@ service cloud.firestore {
             (
               'sandRankCosmetics' in resource.data &&
               request.resource.data.sandRankCosmetics == resource.data.sandRankCosmetics
+            )
+          ) &&
+          // Vínculo de indicação é derivado por Cloud Function
+          // (`registerReferral`) — o dono não pode criá-lo nem alterá-lo
+          // diretamente (idempotência/anti-auto-indicação só valem no callable).
+          (
+            !('referredBy' in request.resource.data) ||
+            (
+              'referredBy' in resource.data &&
+              request.resource.data.referredBy == resource.data.referredBy
             )
           ) &&
           athleteLevelsNotDowngraded()
@@ -1903,6 +1974,18 @@ service cloud.firestore {
       );
       allow list: if false;
       allow create, update, delete: if false;
+    }
+
+    // Palpites da torcida no chaveamento (feature de engajamento/gamificação,
+    // sem dinheiro real) — tournamentPredictions/{tournamentId}/entries/{userId}.
+    // Leitura pública: é torcida, a graça é um leaderboard público de quem
+    // acerta mais palpites. Escrita exclusiva via Cloud Function
+    // (`submitBracketPrediction` valida uid/torneio/status da partida antes
+    // de gravar; a pontuação é creditada pelo trigger de conclusão de
+    // partida) — nunca client-write direto.
+    match /tournamentPredictions/{tournamentId}/entries/{userId} {
+      allow read: if true;
+      allow write: if false;
     }
 
     // NEGAÇÃO padrão para caminhos não mapeados.

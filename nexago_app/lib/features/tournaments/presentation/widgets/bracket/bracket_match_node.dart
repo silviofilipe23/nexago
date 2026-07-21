@@ -8,6 +8,7 @@ import '../../../domain/double_elimination_bracket_layout.dart';
 import '../../../domain/tournament_match.dart';
 import '../../../domain/tournament_match_card_view_model.dart';
 import '../../../domain/tournament_match_display.dart';
+import '../../../domain/tournament_match_live_score.dart';
 import '../tournament_match_live_badge.dart';
 
 class BracketMatchNode extends StatelessWidget {
@@ -124,6 +125,9 @@ class BracketMatchNode extends StatelessWidget {
                   ],
                 ],
               ),
+            ] else if (isLive && match.liveScore != null) ...[
+              SizedBox(height: 4),
+              _LiveScoreLine(liveScore: match.liveScore!),
             ],
             SizedBox(height: 6),
             _ScheduleFooter(match: match),
@@ -238,6 +242,30 @@ class _StatusPill extends StatelessWidget {
           letterSpacing: 0.4,
         ),
       ),
+    );
+  }
+}
+
+/// Placar parcial do set em andamento — só aparece com o badge "AO VIVO",
+/// no mesmo espaço reservado aos parciais do vencedor (mutuamente exclusivos:
+/// uma partida ao vivo ainda não tem vencedor).
+class _LiveScoreLine extends StatelessWidget {
+  const _LiveScoreLine({required this.liveScore});
+
+  final MatchLiveScore liveScore;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'Set em andamento · ${liveScore.currentGamesA}×${liveScore.currentGamesB}',
+      style: AppTypography.mono(
+        fontSize: 9,
+        fontWeight: FontWeight.w700,
+        color: AppColors.live,
+        letterSpacing: 0.2,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

@@ -8,10 +8,15 @@ import * as logger from "firebase-functions/logger";
 import {artifactsTeamsPath, getFirebaseProjectId} from "./firebase-paths";
 
 /**
- * Feed da Comunidade — itens gerados pelo sistema (sem UGC):
+ * Feed da Comunidade — itens gerados pelo sistema (sem UGC), publicados por
+ * este arquivo a partir do trigger `onTournamentWrittenCommunityFeed`:
  * - `tournament_open`: inscrições abertas.
  * - `tournament_champions`: torneio concluído, campeões por categoria.
  * Docs em `communityFeed/{id}` com ID determinístico (idempotente).
+ *
+ * Um terceiro `type`, `organizer_announcement`, é publicado por uma callable
+ * (não por este trigger) em `./tournament-announcements.ts` — aviso público
+ * escrito manualmente pelo organizador do torneio.
  */
 
 

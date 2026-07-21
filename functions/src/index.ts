@@ -300,3 +300,37 @@ export {
   splitArenaBookingPayment,
   expireArenaBookingPaymentShares,
 } from "./arena-booking-split";
+// Programa de indicação (referral): código = UID do atleta, recompensa em XP
+// via gamificação (não existe carteira de atleta hoje).
+export {
+  registerReferral,
+  onGamificationSummaryWrittenAwardReferralBonus,
+} from "./athlete-referral";
+// Cupom de marketing da arena (código digitável, validade, limite de uso —
+// complementar às promoções automáticas já existentes).
+export {
+  createArenaCoupon,
+  listArenaCoupons,
+  deactivateArenaCoupon,
+} from "./arena-coupons";
+// --- Relatórios de ocupação de quadra (gestor de arena) ---
+export {getArenaOccupancyReport} from "./arena-occupancy-report";
+export {postTournamentAnnouncement} from "./tournament-announcements";
+// Peça na quadra — atleta lança consumo direto no app numa comanda de
+// arena já aberta pelo balcão (ver arena-comanda-app-orders.ts).
+export {addAppOrderItem} from "./arena-comanda-app-orders";
+// Head-to-head (confronto direto) — item #3 de
+// docs/superpowers/specs/2026-07-20-cinco-features-concorrencia-design.md
+export {getHeadToHeadRecord} from "./head-to-head";
+// Placar ao vivo (games/sets do set em andamento) de partidas In Progress.
+export {updateLiveMatchScore} from "./organizer-match-ops";
+export {
+  joinArenaBookingWaitlist,
+  notifyArenaWaitlistOnSlotFreed,
+  expireArenaBookingWaitlistEntries,
+} from "./arena-booking-waitlist";
+// ─── Palpites da torcida no chaveamento (feature #5, engajamento/gamificação) ───
+export {
+  submitBracketPrediction,
+  onTournamentMatchCompletedScoreBracketPredictions,
+} from "./tournament-predictions";

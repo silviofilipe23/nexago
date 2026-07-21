@@ -63,6 +63,16 @@ final arenaComandaStreamProvider = StreamProvider.autoDispose
   return ref.watch(arenaComandasRepositoryProvider).watchComanda(id);
 });
 
+/// Comanda em andamento do atleta (Peça na quadra), resolvida pela reserva.
+final arenaComandaByBookingIdStreamProvider = StreamProvider.autoDispose
+    .family<ArenaComanda?, String>((ref, bookingId) {
+  final id = bookingId.trim();
+  if (id.isEmpty) return Stream.value(null);
+  return ref
+      .watch(arenaComandasRepositoryProvider)
+      .watchComandaByBookingId(id);
+});
+
 final arenaComandaItemsStreamProvider = StreamProvider.autoDispose
     .family<List<ArenaComandaItem>, String>((ref, comandaId) {
   final id = comandaId.trim();

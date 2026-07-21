@@ -86,6 +86,9 @@ abstract final class AppRoutes {
   static const String organizerTournamentStaff =
       '/organizer/tournaments/:tournamentId/staff';
 
+  static const String organizerTournamentAnnounce =
+      '/organizer/tournaments/:tournamentId/announce';
+
   /// Shell da categoria (E1).
   static const String organizerCategoryShell =
       '/organizer/tournaments/:tournamentId/categories/:categoryId';
@@ -178,6 +181,9 @@ abstract final class AppRoutes {
 
   static const String athleteSettings = '/athlete/settings';
 
+  /// Convide um amigo (programa de indicação).
+  static const String athleteReferral = '/athlete/referral';
+
   /// Esportes e níveis do atleta.
   static const String athleteSportsLevels = '/athlete/profile/sports-levels';
 
@@ -266,6 +272,9 @@ abstract final class AppRoutes {
   static const String arenaProfile = '/arena/profile';
   static const String arenaFollowers = '/arena/profile/followers';
   static const String arenaManagerReviews = '/arena/reviews';
+
+  /// Relatórios de ocupação de quadra (gestor). Literal antes de [arenaDetail].
+  static const String arenaOccupancyReport = '/arena/relatorios';
 
   /// Edição de perfil (gestor). Literal antes de [arenaDetail].
   static const String arenaProfileEdit = '/arena/profile/edit';
@@ -373,6 +382,10 @@ abstract final class AppRoutes {
   /// Premiação do torneio: `/torneios/:tournamentId/premiacao`
   static const String tournamentPrizes = '/torneios/:tournamentId/premiacao';
 
+  /// Palpites da torcida no chaveamento: `/torneios/:tournamentId/palpites`
+  static const String tournamentPredictions =
+      '/torneios/:tournamentId/palpites';
+
   /// Chave interativa (dupla eliminatória): `/torneios/:tournamentId/chave/:categoryId`
   static const String tournamentDoubleEliminationBracket =
       '/torneios/:tournamentId/chave/:categoryId';
@@ -476,6 +489,8 @@ abstract final class AppRouteNames {
   static const String organizerTournamentOperations =
       'organizerTournamentOperations';
   static const String organizerTournamentStaff = 'organizerTournamentStaff';
+  static const String organizerTournamentAnnounce =
+      'organizerTournamentAnnounce';
   static const String organizerCategoryShell = 'organizerCategoryShell';
   static const String organizerCategorySeeding = 'organizerCategorySeeding';
   static const String organizerCategoryGenerateBracket =
@@ -508,6 +523,7 @@ abstract final class AppRouteNames {
   static const String athleteProfileGoals = 'athleteProfileGoals';
   static const String athleteAchievements = 'athleteAchievements';
   static const String athleteSettings = 'athleteSettings';
+  static const String athleteReferral = 'athleteReferral';
   static const String athleteSportsLevels = 'athleteSportsLevels';
   static const String athleteNotificationSettings =
       'athleteNotificationSettings';
@@ -547,6 +563,7 @@ abstract final class AppRouteNames {
   static const String arenaProfile = 'arenaProfile';
   static const String arenaFollowers = 'arenaFollowers';
   static const String arenaManagerReviews = 'arenaManagerReviews';
+  static const String arenaOccupancyReport = 'arenaOccupancyReport';
   static const String arenaProfileEdit = 'arenaProfileEdit';
   static const String arenaProfileUpdateSuccess = 'arenaProfileUpdateSuccess';
 
@@ -590,6 +607,7 @@ abstract final class AppRouteNames {
   static const String tournamentBracket = 'tournamentBracket';
   static const String tournamentGroups = 'tournamentGroups';
   static const String tournamentPrizes = 'tournamentPrizes';
+  static const String tournamentPredictions = 'tournamentPredictions';
   static const String tournamentDoubleEliminationBracket =
       'tournamentDoubleEliminationBracket';
   static const String tournamentRegistration = 'tournamentRegistration';

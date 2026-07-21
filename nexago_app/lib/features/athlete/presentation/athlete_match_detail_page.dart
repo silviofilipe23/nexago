@@ -22,6 +22,7 @@ import 'widgets/match_detail/match_detail_play_by_play_section.dart';
 import 'widgets/match_detail/match_detail_set_timeline_section.dart';
 import 'widgets/match_detail/match_detail_share_section.dart';
 import 'widgets/match_detail/match_detail_where_when_section.dart';
+import 'widgets/match_detail/match_detail_win_probability_section.dart';
 import 'widgets/match_detail/match_detail_xp_card.dart';
 
 /// Detalhes de uma partida do histórico (protótipo B).
@@ -342,6 +343,7 @@ class _DetailBody extends StatelessWidget {
     final sections = <Widget>[
       MatchDetailCountdownCard(detail: detail),
       SizedBox(height: 16),
+      MatchDetailWinProbabilitySection(detail: detail),
     ];
 
     if (detail.isParticipantView && detail.formRows.isNotEmpty) {

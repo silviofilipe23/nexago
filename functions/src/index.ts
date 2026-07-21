@@ -294,3 +294,10 @@ export {
 export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
+
+// Programa de indicação (referral): código = UID do atleta, recompensa em XP
+// via gamificação (não existe carteira de atleta hoje).
+export {
+  registerReferral,
+  onGamificationSummaryWrittenAwardReferralBonus,
+} from "./athlete-referral";

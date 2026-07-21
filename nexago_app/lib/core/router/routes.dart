@@ -178,6 +178,9 @@ abstract final class AppRoutes {
 
   static const String athleteSettings = '/athlete/settings';
 
+  /// Convide um amigo (programa de indicação).
+  static const String athleteReferral = '/athlete/referral';
+
   /// Esportes e níveis do atleta.
   static const String athleteSportsLevels = '/athlete/profile/sports-levels';
 
@@ -508,6 +511,7 @@ abstract final class AppRouteNames {
   static const String athleteProfileGoals = 'athleteProfileGoals';
   static const String athleteAchievements = 'athleteAchievements';
   static const String athleteSettings = 'athleteSettings';
+  static const String athleteReferral = 'athleteReferral';
   static const String athleteSportsLevels = 'athleteSportsLevels';
   static const String athleteNotificationSettings =
       'athleteNotificationSettings';

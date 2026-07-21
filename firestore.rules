@@ -1103,7 +1103,11 @@ service cloud.firestore {
           (!('superAdmin' in request.resource.data) || request.resource.data.superAdmin == false) &&
           // Reputação (Bora Jogar) é derivada por Cloud Function — usuário
           // novo não pode nascer com reputação pré-fabricada.
-          !('reputation' in request.resource.data)
+          !('reputation' in request.resource.data) &&
+          // Vínculo do programa de indicação (referral) só é gravado pela
+          // Cloud Function `registerReferral` (idempotente, valida
+          // auto-indicação) — o client não pode se auto-declarar indicado.
+          !('referredBy' in request.resource.data)
         ) ||
         isAdmin() ||
         isPartnerPreRegistrationCreate(userId)
@@ -1154,6 +1158,16 @@ service cloud.firestore {
             (
               'sandRankCosmetics' in resource.data &&
               request.resource.data.sandRankCosmetics == resource.data.sandRankCosmetics
+            )
+          ) &&
+          // Vínculo de indicação é derivado por Cloud Function
+          // (`registerReferral`) — o dono não pode criá-lo nem alterá-lo
+          // diretamente (idempotência/anti-auto-indicação só valem no callable).
+          (
+            !('referredBy' in request.resource.data) ||
+            (
+              'referredBy' in resource.data &&
+              request.resource.data.referredBy == resource.data.referredBy
             )
           ) &&
           athleteLevelsNotDowngraded()

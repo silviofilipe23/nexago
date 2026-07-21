@@ -155,6 +155,15 @@ export class ArenaPaymentComponent {
    *  a soma dos slots serve de estimativa — o servidor recalcula ao criar de qualquer forma. */
   protected readonly quotedTotal = signal<number | null>(null);
 
+  /** Cupom de desconto (código digitado) — opcional, não acumula com promoção automática
+   *  (vale o maior desconto). Erro de cupom nunca trava a reserva: o atleta corrige o
+   *  código ou segue sem cupom. */
+  protected readonly couponCodeInput = signal('');
+  protected readonly couponApplying = signal(false);
+  protected readonly couponError = signal<string | null>(null);
+  protected readonly appliedCouponCode = signal<string | null>(null);
+  protected readonly couponDiscountReais = signal(0);
+
   protected readonly pixPayment = signal<ArenaBookingPixPayment | null>(null);
   protected readonly pixBookingId = signal<string | null>(null);
   protected readonly pixCountdown = signal<string>('');
@@ -282,6 +291,44 @@ export class ArenaPaymentComponent {
     }
   }
 
+  /** Revalida o código digitado contra a cotação — não bloqueia a reserva se der errado
+   *  (código inválido/expirado/esgotado): mostra o erro perto do campo e a cotação volta
+   *  a valer sem cupom, deixando o atleta corrigir ou seguir em frente. */
+  protected async applyCoupon(): Promise<void> {
+    const code = this.couponCodeInput().trim();
+    if (!code || this.couponApplying()) return;
+
+    this.couponApplying.set(true);
+    this.couponError.set(null);
+    try {
+      const quote = await quoteArenaBooking(athleteFunctions(), this.bookingArgs(), code);
+      this.quotedTotal.set(quote.amountReais);
+      if (quote.couponApplied) {
+        this.appliedCouponCode.set(code.toUpperCase());
+        this.couponDiscountReais.set(quote.couponDiscountReais);
+      } else {
+        this.appliedCouponCode.set(null);
+        this.couponDiscountReais.set(0);
+        this.couponError.set('Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.');
+      }
+    } catch (err) {
+      this.appliedCouponCode.set(null);
+      this.couponDiscountReais.set(0);
+      this.couponError.set(err instanceof ArenaBookingError ? err.message : 'Não foi possível validar o cupom agora.');
+      void this.loadQuote();
+    } finally {
+      this.couponApplying.set(false);
+    }
+  }
+
+  protected removeCoupon(): void {
+    this.couponCodeInput.set('');
+    this.appliedCouponCode.set(null);
+    this.couponDiscountReais.set(0);
+    this.couponError.set(null);
+    void this.loadQuote();
+  }
+
   private bookingArgs(): ArenaBookingArgs {
     const chain = this.chain();
     return {
@@ -337,6 +384,7 @@ export class ArenaPaymentComponent {
             clientAmountReais: this.totalPrice(),
             paymentMode: 'pix',
             paymentFraction: this.pixFraction(),
+            couponCode: this.appliedCouponCode() ?? undefined,
           })
         ).bookingId;
 
@@ -371,6 +419,7 @@ export class ArenaPaymentComponent {
       const result = await createArenaBooking(athleteFunctions(), this.bookingArgs(), {
         clientAmountReais: this.totalPrice(),
         paymentMode: 'onsite',
+        couponCode: this.appliedCouponCode() ?? undefined,
       });
       void this.router.navigate(['/reservar', this.arenaId(), 'agendar', 'pagamento', 'confirmada'], {
         queryParams: { bookingId: result.bookingId },

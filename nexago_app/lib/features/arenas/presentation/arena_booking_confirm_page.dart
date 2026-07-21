@@ -26,6 +26,7 @@ import '../domain/booking_providers.dart';
 import 'booking_success_page.dart';
 import 'widgets/booking_confirm/booking_confirm_app_bar.dart';
 import 'widgets/booking_confirm/booking_confirm_cancellation_card.dart';
+import 'widgets/booking_confirm/booking_confirm_coupon_field.dart';
 import 'widgets/booking_confirm/booking_confirm_hero_card.dart';
 import 'widgets/booking_confirm/booking_confirm_observations_field.dart';
 import 'widgets/booking_confirm/booking_confirm_price_summary.dart';
@@ -59,7 +60,11 @@ class _ArenaBookingConfirmPageState
   bool _quoting = false;
   String? _lastQuoteKey;
   late final TextEditingController _observationsController;
-
+  late final TextEditingController _couponController;
+  bool _couponApplying = false;
+  String? _couponError;
+  String? _appliedCouponCode;
+  double _couponDiscountReais = 0;
 
   static final _dateFmt = DateFormat('d MMM yyyy', 'pt_BR');
 
@@ -67,11 +72,13 @@ class _ArenaBookingConfirmPageState
   void initState() {
     super.initState();
     _observationsController = TextEditingController();
+    _couponController = TextEditingController();
   }
 
   @override
   void dispose() {
     _observationsController.dispose();
+    _couponController.dispose();
     super.dispose();
   }
 
@@ -101,6 +108,58 @@ class _ArenaBookingConfirmPageState
     }
   }
 
+  /// Revalida o código digitado contra a cotação — nunca bloqueia a reserva
+  /// se der errado (código inválido/expirado/esgotado ou pior que a
+  /// promoção já aplicada): mostra o erro perto do campo e a cotação volta
+  /// a valer sem cupom. Espelha `applyCoupon()` do web (`arena-payment.component.ts`).
+  Future<void> _applyCoupon(ArenaBookingConfirmArgs args) async {
+    final code = _couponController.text.trim();
+    if (code.isEmpty || _couponApplying) return;
+
+    setState(() {
+      _couponApplying = true;
+      _couponError = null;
+    });
+    try {
+      final quote = await ref
+          .read(bookingServiceProvider)
+          .quoteBooking(args: args, couponCode: code);
+      if (!mounted) return;
+      setState(() {
+        _quote = quote;
+        if (quote.couponApplied) {
+          _appliedCouponCode = code.toUpperCase();
+          _couponDiscountReais = quote.couponDiscountReais;
+        } else {
+          _appliedCouponCode = null;
+          _couponDiscountReais = 0;
+          _couponError =
+              'Este cupom não é mais vantajoso do que a promoção já aplicada nesta quadra.';
+        }
+      });
+    } on BookingException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _appliedCouponCode = null;
+        _couponDiscountReais = 0;
+        _couponError = e.message;
+      });
+      _loadQuote(args);
+    } finally {
+      if (mounted) setState(() => _couponApplying = false);
+    }
+  }
+
+  void _removeCoupon(ArenaBookingConfirmArgs args) {
+    _couponController.clear();
+    setState(() {
+      _appliedCouponCode = null;
+      _couponDiscountReais = 0;
+      _couponError = null;
+    });
+    _loadQuote(args);
+  }
+
   Future<void> _confirmWithPix(ArenaBookingConfirmArgs args) async {
     final user = ref.read(authServiceProvider).currentUser;
     if (user == null) {
@@ -122,6 +181,7 @@ class _ArenaBookingConfirmPageState
             athleteId: user.uid,
             paymentMode: 'pix',
             paymentFraction: 1.0,
+            couponCode: _appliedCouponCode,
           );
       if (!mounted) return;
 
@@ -194,7 +254,11 @@ class _ArenaBookingConfirmPageState
     try {
       final created = await ref
           .read(bookingServiceProvider)
-          .createBookingAtomically(args: args, athleteId: user.uid);
+          .createBookingAtomically(
+            args: args,
+            athleteId: user.uid,
+            couponCode: _appliedCouponCode,
+          );
       if (!mounted) return;
       await tryAwardReserveTodayMission(ref, dateKey: args.dateKey);
       if (!mounted) return;
@@ -369,6 +433,19 @@ class _ArenaBookingConfirmPageState
                                   courtAmountLabel: _quoting
                                       ? 'Calculando…'
                                       : formatBRL(displayTotal),
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 14),
+                                child: BookingConfirmCouponField(
+                                  controller: _couponController,
+                                  applying: _couponApplying,
+                                  appliedCode: _appliedCouponCode,
+                                  discountReais: _couponDiscountReais,
+                                  errorText: _couponError,
+                                  enabled: !_submitting,
+                                  onApply: () => _applyCoupon(args),
+                                  onRemove: () => _removeCoupon(args),
                                 ),
                               ),
                               Padding(

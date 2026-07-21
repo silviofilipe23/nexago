@@ -502,6 +502,36 @@ class ArenaComandasRepository {
 
     return (comanda: updated, payment: createdPayment);
   }
+
+  Future<ArenaComanda> closeEmptyComanda({required String comandaId}) async {
+    final managerUid = _auth.currentUser?.uid;
+    if (managerUid == null || managerUid.isEmpty) {
+      throw StateError('Usuário não autenticado.');
+    }
+
+    final comandaRef = _comandas.doc(comandaId.trim());
+    late ArenaComanda updated;
+
+    await _firestore.runTransaction((txn) async {
+      final comandaSnap = await txn.get(comandaRef);
+      if (!comandaSnap.exists) {
+        throw StateError('Comanda não encontrada.');
+      }
+      final comanda = ArenaComanda.fromFirestore(comandaSnap);
+      if (!canCloseEmptyComanda(comanda)) {
+        throw StateError('Comanda não pode ser fechada sem consumo.');
+      }
+
+      txn.update(comandaRef, {
+        'status': ArenaComandaStatus.closed.firestoreValue,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      updated = comanda.copyWith(status: ArenaComandaStatus.closed);
+    });
+
+    return updated;
+  }
 }
 
 extension on ArenaComanda {

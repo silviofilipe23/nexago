@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/coupons_repository.dart';
 import '../data/courts_repository.dart';
 import '../data/promotions_repository.dart';
 import '../data/slots_repository.dart';
+import 'arena_coupon.dart';
 import 'arena_court.dart';
 import 'arena_promotion.dart';
 import 'arena_slot.dart';
@@ -34,6 +36,21 @@ final arenaAllPromotionsProvider =
     StreamProvider.autoDispose.family<List<ArenaPromotion>, String>(
   (ref, arenaId) {
     return ref.watch(promotionsRepositoryProvider).watchAllPromotions(arenaId);
+  },
+);
+
+final couponsRepositoryProvider = Provider<CouponsRepository>((ref) {
+  return CouponsRepository();
+});
+
+/// Cupons da arena (gestor), inclusive desativados — filtro fica na UI.
+/// `FutureProvider` (não `StreamProvider`): listagem é via callable
+/// (`listArenaCoupons`), não Firestore stream — invalide após
+/// criar/desativar pra atualizar.
+final arenaCouponsProvider =
+    FutureProvider.autoDispose.family<List<ArenaCoupon>, String>(
+  (ref, arenaId) {
+    return ref.watch(couponsRepositoryProvider).listCoupons(arenaId);
   },
 );
 

@@ -18,6 +18,11 @@ import {
   roundMoney,
 } from "./mercadopago-arena-helpers";
 import {ARENA_BOOKING_PAYMENT_EXPIRY_MINUTES} from "./arena-booking-constants";
+import {
+  resolveCouponForBooking,
+  reserveCouponRedemptionInTransaction,
+  type CouponPricingOutcome,
+} from "./arena-coupons";
 
 const ARENA_BOOKINGS = "arenaBookings";
 const ARENA_SLOTS = "arenaSlots";
@@ -40,6 +45,8 @@ interface BookingInput {
   paymentMode?: PaymentMode;
   /** 0.5 ou 1 — obrigatório quando paymentMode === pix */
   paymentFraction?: number;
+  /** Código de cupom de marketing digitado pelo atleta (opcional). */
+  couponCode?: string;
 }
 
 function parseDateKey(dateRaw: string): string {
@@ -120,7 +127,10 @@ async function ensureNotBlocked(arenaId: string, athleteId: string): Promise<voi
   );
 }
 
-async function quoteInternal(input: BookingInput) {
+async function quoteInternal(
+  input: BookingInput,
+  athleteId: string,
+): Promise<BookingTotalResult & CouponPricingOutcome> {
   const arenaId = input.arenaId?.trim();
   const courtId = input.courtId?.trim();
   const dateKey = parseDateKey(input.date ?? "");
@@ -132,7 +142,7 @@ async function quoteInternal(input: BookingInput) {
   }
 
   const ctx = await loadPricingContext(arenaId, courtId);
-  return calculateBookingTotal({
+  const promoTotal = calculateBookingTotal({
     arenaId,
     courtId,
     dateKey,
@@ -143,6 +153,15 @@ async function quoteInternal(input: BookingInput) {
     promotions: ctx.promotions,
     selectedSlotStartTimes: input.selectedSlotStartTimes,
   });
+
+  const {result, coupon} = await resolveCouponForBooking({
+    db: getFirestore(),
+    arenaId,
+    athleteId,
+    couponCode: input.couponCode,
+    promoTotal,
+  });
+  return {...result, ...coupon};
 }
 
 function assertPositiveBookingTotal(total: BookingTotalResult): void {
@@ -159,12 +178,15 @@ export const quoteArenaBooking = onCall(async (request) => {
     throw new HttpsError("unauthenticated", "Faça login para continuar.");
   }
   const input = (request.data ?? {}) as BookingInput;
-  const total = await quoteInternal(input);
+  const total = await quoteInternal(input, request.auth.uid);
   assertPositiveBookingTotal(total);
   return {
     amountReais: total.amountReais,
     lineItems: total.lineItems,
     appliedPromotionIds: total.appliedPromotionIds,
+    couponApplied: total.couponApplied,
+    couponId: total.couponId,
+    couponDiscountReais: total.couponDiscountReais,
   };
 });
 
@@ -235,7 +257,9 @@ export const createArenaBooking = onCall(async (request) => {
     paymentFraction = rawFraction;
   }
 
-  const total = calculateBookingTotal({
+  const db = getFirestore();
+
+  const promoTotal = calculateBookingTotal({
     arenaId,
     courtId,
     dateKey,
@@ -245,6 +269,13 @@ export const createArenaBooking = onCall(async (request) => {
     arenaFallback: ctx.arenaFallback,
     promotions: ctx.promotions,
     selectedSlotStartTimes: input.selectedSlotStartTimes,
+  });
+  const {result: total, coupon: couponOutcome} = await resolveCouponForBooking({
+    db,
+    arenaId,
+    athleteId,
+    couponCode: input.couponCode,
+    promoTotal,
   });
 
   assertPositiveBookingTotal(total);
@@ -287,7 +318,6 @@ export const createArenaBooking = onCall(async (request) => {
     throw new HttpsError("failed-precondition", "Não foi possível calcular os horários.");
   }
 
-  const db = getFirestore();
   const bookingRef = db.collection(ARENA_BOOKINGS).doc();
   const slotRef = db.collection(ARENA_SLOTS).doc();
   const bookingId = bookingRef.id;
@@ -335,6 +365,20 @@ export const createArenaBooking = onCall(async (request) => {
         }
       }
 
+      // Revalida vigência/limites do cupom com dados frescos (mesma fase de
+      // leitura da transação) e devolve a escrita do resgate pra rodar
+      // depois — Firestore exige todas as leituras antes de qualquer escrita.
+      let commitCouponRedemption: (() => void) | null = null;
+      if (couponOutcome.couponApplied && couponOutcome.couponId) {
+        commitCouponRedemption = await reserveCouponRedemptionInTransaction({
+          transaction,
+          db,
+          arenaId,
+          couponId: couponOutcome.couponId,
+          athleteId,
+        });
+      }
+
       transaction.set(bookingRef, {
         athleteId,
         arenaId,
@@ -362,6 +406,9 @@ export const createArenaBooking = onCall(async (request) => {
             : null,
         source: "platform",
         appliedPromotionIds: total.appliedPromotionIds,
+        couponId: couponOutcome.couponId,
+        couponCode: couponOutcome.couponCode,
+        couponDiscountReais: couponOutcome.couponDiscountReais,
         pricingLineItems: total.lineItems.map((l) => ({
           startTime: l.startTime,
           endTime: l.endTime,
@@ -371,6 +418,8 @@ export const createArenaBooking = onCall(async (request) => {
         })),
         createdAt: FieldValue.serverTimestamp(),
       });
+
+      commitCouponRedemption?.();
 
       transaction.set(slotRef, {
         arenaId,
@@ -417,5 +466,8 @@ export const createArenaBooking = onCall(async (request) => {
     paymentExpiresAt:
       paymentMode === "pix" ? paymentExpiresAt.toISOString() : null,
     appliedPromotionIds: total.appliedPromotionIds,
+    couponApplied: couponOutcome.couponApplied,
+    couponId: couponOutcome.couponId,
+    couponDiscountReais: couponOutcome.couponDiscountReais,
   };
 });

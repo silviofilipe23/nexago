@@ -26,12 +26,33 @@ import {
   type ArenaBookingArgs,
   type ArenaBookingPixPayment,
 } from '../data/arena-bookings-repository';
+import {
+  ArenaBookingSplitError,
+  SPLIT_MAX_SHARES,
+  splitArenaBookingPayment,
+  splitEvenlyReais,
+  splitSharesSumMatches,
+  watchArenaBookingPaymentShares,
+  type ArenaBookingPaymentShare,
+  type ArenaBookingPaymentShareStatus,
+  type SplitShareInput,
+} from '../data/arena-booking-split-repository';
+import { searchAthleteDirectory, type AthletePublicProfile } from '../data/public-profiles-repository';
 
 /** Métodos reais do backend: PIX (Asaas, 100% ou 50% agora) e pagamento no local.
  *  **Não existe pagamento por cartão em lugar nenhum do fluxo real** — a aba "cartão"
- *  e o "dividir com amigos" do mock foram removidos, igual à decisão já tomada no
- *  pagamento de inscrição de torneio. */
+ *  do mock foi removida, igual à decisão já tomada no pagamento de inscrição de torneio.
+ *  "Dividir com amigos" (split de PIX) é real, ver `arena-booking-split-repository.ts`. */
 export type PaymentMethod = 'pix' | 'onsite';
+
+/** Participante da divisão de pagamento — sempre inclui "Você" por padrão (removível). */
+interface SplitParticipantVM {
+  athleteId: string;
+  name: string;
+  avatarUrl: string | null;
+  isSelf: boolean;
+  amountReais: number;
+}
 
 const WEEKDAY_ABBR = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'] as const;
 const MONTH_ABBR = [
@@ -101,6 +122,14 @@ function onlyDigits(v: string): string {
   return v.replace(/\D/g, '');
 }
 
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'AT';
+  const first = parts[0]?.[0] ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
+  return (first + last).toUpperCase() || 'AT';
+}
+
 @Component({
   selector: 'app-arena-payment',
   standalone: true,
@@ -160,6 +189,44 @@ export class ArenaPaymentComponent {
   protected readonly pixCountdown = signal<string>('');
   protected readonly pixExpired = signal(false);
 
+  // ── Dividir com amigos (split de PIX) ─────────────────────────
+  protected readonly splitMode = signal(false);
+  protected readonly splitParticipants = signal<SplitParticipantVM[]>([]);
+  protected readonly splitFriendQuery = signal('');
+  protected readonly splitFriendResults = signal<AthletePublicProfile[]>([]);
+  protected readonly splitSearching = signal(false);
+  protected readonly splitSubmitting = signal(false);
+  protected readonly splitBookingId = signal<string | null>(null);
+  protected readonly splitShares = signal<ArenaBookingPaymentShare[]>([]);
+  private splitParticipantNames = new Map<string, string>();
+  private splitFriendDebounce: ReturnType<typeof setTimeout> | undefined;
+  private unwatchSplitShares: (() => void) | undefined;
+  private unwatchSplitBooking: (() => void) | undefined;
+
+  protected readonly splitSum = computed(() =>
+    Math.round(this.splitParticipants().reduce((acc, p) => acc + p.amountReais, 0) * 100) / 100,
+  );
+
+  protected readonly splitSumMatches = computed(() =>
+    splitSharesSumMatches(
+      this.splitParticipants().map((p) => ({ athleteId: p.athleteId, amountReais: p.amountReais })),
+      this.pixAmountNow(),
+    ),
+  );
+
+  protected readonly splitCanSubmit = computed(() => {
+    const participants = this.splitParticipants();
+    return (
+      participants.length > 0 &&
+      participants.some((p) => !p.isSelf) &&
+      participants.every((p) => p.amountReais > 0) &&
+      this.splitSumMatches()
+    );
+  });
+
+  protected readonly splitMaxShares = SPLIT_MAX_SHARES;
+  protected readonly initialsOf = initialsOf;
+
   protected readonly courtSportLabel = computed(() => {
     const c = this.court();
     return c ? courtSportLabel(c.data) : '';
@@ -208,7 +275,9 @@ export class ArenaPaymentComponent {
     void this.load();
     this.destroyRef.onDestroy(() => {
       clearTimeout(this.noticeTimeout);
+      clearTimeout(this.splitFriendDebounce);
       this.stopPixWatchers();
+      this.stopSplitWatchers();
       // Reserva PIX pendente fica no ar de propósito: ao voltar pra esta tela o
       // mesmo horário é retomado (findResumablePixBooking), igual ao app.
     });
@@ -416,6 +485,170 @@ export class ArenaPaymentComponent {
     } catch {
       this.showNotice('Não foi possível copiar — selecione o código manualmente.');
     }
+  }
+
+  // ── Dividir com amigos (split de PIX) ───────────────────────────
+
+  protected toggleSplitMode(on: boolean): void {
+    if (this.splitMode() === on) return;
+    this.splitMode.set(on);
+    if (on && this.splitParticipants().length === 0) {
+      const liveUser = this.auth.user();
+      const uid = liveUser?.uid;
+      if (!uid) return;
+      this.splitParticipants.set([
+        {
+          athleteId: uid,
+          name: this.accountLabel(),
+          avatarUrl: liveUser?.photoURL ?? null,
+          isSelf: true,
+          amountReais: this.pixAmountNow(),
+        },
+      ]);
+    }
+  }
+
+  /** Divide o total igualmente entre os participantes atuais — atalho editável depois. */
+  protected divideEqually(): void {
+    const participants = this.splitParticipants();
+    if (participants.length === 0) return;
+    const amounts = splitEvenlyReais(this.pixAmountNow(), participants.length);
+    this.splitParticipants.set(participants.map((p, i) => ({ ...p, amountReais: amounts[i] ?? 0 })));
+  }
+
+  protected onFriendQueryInput(value: string): void {
+    this.splitFriendQuery.set(value);
+    clearTimeout(this.splitFriendDebounce);
+    const term = value.trim();
+    if (!term) {
+      this.splitFriendResults.set([]);
+      this.splitSearching.set(false);
+      return;
+    }
+    this.splitSearching.set(true);
+    this.splitFriendDebounce = setTimeout(() => void this.runFriendSearch(term), 300);
+  }
+
+  private async runFriendSearch(term: string): Promise<void> {
+    if (!this.firestore) return;
+    try {
+      const results = await searchAthleteDirectory(this.firestore, term);
+      const excluded = new Set(this.splitParticipants().map((p) => p.athleteId));
+      const uid = this.auth.user()?.uid;
+      if (uid) excluded.add(uid);
+      this.splitFriendResults.set(results.filter((r) => !excluded.has(r.id)));
+    } catch {
+      this.splitFriendResults.set([]);
+    } finally {
+      this.splitSearching.set(false);
+    }
+  }
+
+  protected addParticipant(profile: AthletePublicProfile): void {
+    if (this.splitParticipants().some((p) => p.athleteId === profile.id)) return;
+    if (this.splitParticipants().length >= SPLIT_MAX_SHARES) {
+      this.showNotice(`Máximo de ${SPLIT_MAX_SHARES} pessoas por divisão.`);
+      return;
+    }
+    this.splitParticipants.update((list) => [
+      ...list,
+      { athleteId: profile.id, name: profile.displayName, avatarUrl: profile.avatarUrl, isSelf: false, amountReais: 0 },
+    ]);
+    this.splitFriendQuery.set('');
+    this.splitFriendResults.set([]);
+    this.divideEqually();
+  }
+
+  protected removeParticipant(athleteId: string): void {
+    this.splitParticipants.update((list) => list.filter((p) => p.athleteId !== athleteId));
+    this.divideEqually();
+  }
+
+  protected onParticipantAmountInput(athleteId: string, raw: string): void {
+    const value = Number(raw.replace(',', '.'));
+    this.splitParticipants.update((list) =>
+      list.map((p) => (p.athleteId === athleteId ? { ...p, amountReais: Number.isFinite(value) ? Math.max(0, value) : 0 } : p)),
+    );
+  }
+
+  protected async submitSplit(): Promise<void> {
+    if (this.splitSubmitting() || !this.splitCanSubmit()) return;
+    const uid = this.auth.user()?.uid;
+    if (!uid) {
+      this.showNotice('Faça login para dividir o pagamento.');
+      return;
+    }
+    if (!this.firestore) return;
+
+    this.splitSubmitting.set(true);
+    try {
+      const args = this.bookingArgs();
+      const resumable = await findResumablePixBooking(this.firestore, uid, args);
+      const bookingId =
+        resumable?.id ??
+        (
+          await createArenaBooking(athleteFunctions(), args, {
+            clientAmountReais: this.totalPrice(),
+            paymentMode: 'pix',
+            paymentFraction: this.pixFraction(),
+          })
+        ).bookingId;
+
+      const participants = this.splitParticipants();
+      const shares: SplitShareInput[] = participants.map((p) => ({ athleteId: p.athleteId, amountReais: p.amountReais }));
+      this.splitParticipantNames = new Map(participants.map((p) => [p.athleteId, p.isSelf ? 'Você' : p.name]));
+
+      await splitArenaBookingPayment(athleteFunctions(), { bookingId, shares });
+
+      this.splitBookingId.set(bookingId);
+      this.startSplitWatch(bookingId);
+    } catch (err) {
+      this.showNotice(err instanceof ArenaBookingSplitError ? err.message : 'Não foi possível dividir o pagamento agora.');
+    } finally {
+      this.splitSubmitting.set(false);
+    }
+  }
+
+  protected splitShareName(payerAthleteId: string): string {
+    return this.splitParticipantNames.get(payerAthleteId) ?? `Atleta …${payerAthleteId.slice(-6)}`;
+  }
+
+  protected splitStatusLabel(status: ArenaBookingPaymentShareStatus): string {
+    switch (status) {
+      case 'paid':
+        return 'Pago';
+      case 'expired':
+        return 'Expirado';
+      case 'covered_by_organizer':
+        return 'Virou sua conta';
+      case 'pending':
+      default:
+        return 'Aguardando pagamento';
+    }
+  }
+
+  private startSplitWatch(bookingId: string): void {
+    this.stopSplitWatchers();
+    if (!this.firestore) return;
+    this.unwatchSplitShares = watchArenaBookingPaymentShares(this.firestore, bookingId, (shares) =>
+      this.splitShares.set(shares),
+    );
+    this.unwatchSplitBooking = watchArenaBooking(this.firestore, bookingId, (booking) => {
+      if (!booking) return;
+      if (booking.paymentStatus === 'paid' || booking.paymentStatus === 'partial') {
+        this.stopSplitWatchers();
+        void this.router.navigate(['/reservar', this.arenaId(), 'agendar', 'pagamento', 'confirmada'], {
+          queryParams: { bookingId },
+        });
+      }
+    });
+  }
+
+  private stopSplitWatchers(): void {
+    this.unwatchSplitShares?.();
+    this.unwatchSplitShares = undefined;
+    this.unwatchSplitBooking?.();
+    this.unwatchSplitBooking = undefined;
   }
 
   private startBookingWatch(bookingId: string): void {

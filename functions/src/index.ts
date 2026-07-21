@@ -295,6 +295,9 @@ export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
 
+// Head-to-head (confronto direto) — item #3 de
+// docs/superpowers/specs/2026-07-20-cinco-features-concorrencia-design.md
+export {getHeadToHeadRecord} from "./head-to-head";
 // Placar ao vivo (games/sets do set em andamento) de partidas In Progress.
 export {updateLiveMatchScore} from "./organizer-match-ops";
 export {

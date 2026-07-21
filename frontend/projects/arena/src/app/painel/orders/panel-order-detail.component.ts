@@ -221,9 +221,6 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
             } @else if (canCloseEmpty()) {
               <ar-panel-card title="Fechar comanda">
                 <p class="state-text">Nenhum item foi lançado nesta comanda.</p>
-                @if (closeEmptyError(); as cerr) {
-                  <div class="error-banner">{{ cerr }}</div>
-                }
                 <button type="button" class="ar-mini-btn close-empty-btn" [disabled]="closingEmpty()" (click)="showCloseConfirm.set(true)">
                   Fechar comanda
                 </button>
@@ -239,6 +236,9 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
               <p class="confirm-body">
                 Nenhum item foi lançado em "{{ c.customerName }}". Ela será marcada como fechada e sai da lista de comandas abertas.
               </p>
+              @if (closeEmptyError(); as cerr) {
+                <p class="confirm-error">{{ cerr }}</p>
+              }
               <div class="confirm-actions">
                 <button type="button" class="ar-ghost-btn" [disabled]="closingEmpty()" (click)="showCloseConfirm.set(false)">Cancelar</button>
                 <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="closingEmpty()" (click)="confirmCloseEmpty(c)">
@@ -683,6 +683,12 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       line-height: 1.55;
       color: var(--nx-text-mute);
       margin: 0 0 22px;
+    }
+
+    .confirm-error {
+      font-size: 12.5px;
+      color: var(--nx-live);
+      margin: -10px 0 18px;
     }
 
     .confirm-actions {

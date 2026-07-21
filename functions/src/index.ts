@@ -294,3 +294,6 @@ export {
 export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
+
+// Placar ao vivo (games/sets do set em andamento) de partidas In Progress.
+export {updateLiveMatchScore} from "./organizer-match-ops";

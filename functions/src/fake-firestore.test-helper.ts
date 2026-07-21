@@ -38,6 +38,24 @@ function orderValue(raw: unknown): number | string {
   return String(raw ?? "");
 }
 
+export interface FakeDocSnapshot {
+  exists: boolean;
+  id: string;
+  data: () => DocData | undefined;
+  ref: FakeDocRef;
+}
+
+export interface FakeDocRef {
+  path: string;
+  id: string;
+  parent: {parent: FakeDocRef | null};
+  get: () => Promise<FakeDocSnapshot>;
+  set: (data: DocData, opts?: {merge?: boolean}) => Promise<void>;
+  update: (data: DocData) => Promise<void>;
+  delete: () => Promise<void>;
+  collection: (subPath: string) => ReturnType<FakeFirestore["collection"]>;
+}
+
 export class FakeFirestore {
   store = new Map<string, DocData>();
   private autoIdSeq = 0;
@@ -55,7 +73,7 @@ export class FakeFirestore {
     return this.makeRef(path);
   }
 
-  private makeRef(path: string) {
+  private makeRef(path: string): FakeDocRef {
     const self = this;
     // Espelha `DocumentReference.parent.parent`: pula o nome da coleção-pai e
     // aponta pro documento avô (ex.: "a/b/c/d" -> parent.parent = doc "a/b").

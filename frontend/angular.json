@@ -190,6 +190,7 @@
         "build": {
           "builder": "@angular/build:application",
           "options": {
+            "outputPath": "../dist/athlete",
             "browser": "projects/athlete/src/main.ts",
             "tsConfig": "projects/athlete/tsconfig.app.json",
             "inlineStyleLanguage": "scss",

@@ -1906,6 +1906,18 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Palpites da torcida no chaveamento (feature de engajamento/gamificação,
+    // sem dinheiro real) — tournamentPredictions/{tournamentId}/entries/{userId}.
+    // Leitura pública: é torcida, a graça é um leaderboard público de quem
+    // acerta mais palpites. Escrita exclusiva via Cloud Function
+    // (`submitBracketPrediction` valida uid/torneio/status da partida antes
+    // de gravar; a pontuação é creditada pelo trigger de conclusão de
+    // partida) — nunca client-write direto.
+    match /tournamentPredictions/{tournamentId}/entries/{userId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // NEGAÇÃO padrão para caminhos não mapeados.
     // ATENÇÃO à semântica do Firestore: quando vários `match` cobrem o mesmo
     // caminho, os `allow` fazem OR — um catch-all com `allow read` CONCEDE

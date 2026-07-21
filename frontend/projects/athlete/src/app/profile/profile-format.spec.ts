@@ -76,6 +76,7 @@ describe('profile-format', () => {
       expect(athleteLevelLabel('basico')).toBe('Iniciante');
       expect(athleteLevelLabel('intermediario')).toBe('Intermediário');
       expect(athleteLevelLabel('intermediario_1')).toBe('Intermediário 1');
+      expect(athleteLevelLabel('intermediario_2')).toBe('Intermediário 2');
       expect(athleteLevelLabel('open')).toBe('Open');
     });
 

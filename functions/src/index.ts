@@ -300,3 +300,8 @@ export {
   notifyArenaWaitlistOnSlotFreed,
   expireArenaBookingWaitlistEntries,
 } from "./arena-booking-waitlist";
+// ─── Palpites da torcida no chaveamento (feature #5, engajamento/gamificação) ───
+export {
+  submitBracketPrediction,
+  onTournamentMatchCompletedScoreBracketPredictions,
+} from "./tournament-predictions";

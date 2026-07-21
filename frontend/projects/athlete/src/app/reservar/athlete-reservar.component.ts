@@ -45,6 +45,9 @@ const AMENITY_OPTIONS: readonly { key: keyof ArenaAmenities; label: string }[] =
   { key: 'lockerRoom', label: 'Vestiário' },
   { key: 'bar', label: 'Bar' },
   { key: 'racketRental', label: 'Aluguel raquetes' },
+  { key: 'hasAccessibleCourt', label: 'Quadra acessível' },
+  { key: 'hasAccessibleBathroom', label: 'Banheiro acessível' },
+  { key: 'hasPcdParking', label: 'Vaga PCD' },
 ];
 
 function createFirestore(): Firestore | null {

@@ -34,6 +34,9 @@ const AMENITY_LABELS: readonly { key: keyof ArenaAmenities; label: string }[] = 
   { key: 'lockerRoom', label: 'Vestiário' },
   { key: 'bar', label: 'Bar' },
   { key: 'racketRental', label: 'Aluguel de raquetes' },
+  { key: 'hasAccessibleCourt', label: 'Quadra acessível' },
+  { key: 'hasAccessibleBathroom', label: 'Banheiro acessível' },
+  { key: 'hasPcdParking', label: 'Vaga PCD' },
 ];
 
 function createFirestore(): Firestore | null {

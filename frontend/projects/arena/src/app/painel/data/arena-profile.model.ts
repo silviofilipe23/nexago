@@ -26,6 +26,9 @@ export const ARENA_AMENITY_LABEL: Record<keyof ArenaAmenities, string> = {
   coveredCourt: 'Quadra coberta',
   bar: 'Bar / lanchonete',
   racketRental: 'Aluguel de raquetes',
+  hasAccessibleCourt: 'Quadra acessível',
+  hasAccessibleBathroom: 'Banheiro acessível',
+  hasPcdParking: 'Vaga PCD',
 };
 
 export const ARENA_AMENITY_KEYS: readonly (keyof ArenaAmenities)[] = [
@@ -34,6 +37,9 @@ export const ARENA_AMENITY_KEYS: readonly (keyof ArenaAmenities)[] = [
   'coveredCourt',
   'bar',
   'racketRental',
+  'hasAccessibleCourt',
+  'hasAccessibleBathroom',
+  'hasPcdParking',
 ];
 
 export interface ArenaProfile {

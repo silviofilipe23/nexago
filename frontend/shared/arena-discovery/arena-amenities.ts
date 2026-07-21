@@ -5,6 +5,9 @@ export interface ArenaAmenities {
   coveredCourt: boolean;
   bar: boolean;
   racketRental: boolean;
+  hasAccessibleCourt: boolean;
+  hasAccessibleBathroom: boolean;
+  hasPcdParking: boolean;
 }
 
 export const ARENA_AMENITIES_EMPTY: ArenaAmenities = {
@@ -13,10 +16,22 @@ export const ARENA_AMENITIES_EMPTY: ArenaAmenities = {
   coveredCourt: false,
   bar: false,
   racketRental: false,
+  hasAccessibleCourt: false,
+  hasAccessibleBathroom: false,
+  hasPcdParking: false,
 };
 
 export function amenitiesHasAny(a: ArenaAmenities): boolean {
-  return a.parking || a.lockerRoom || a.coveredCourt || a.bar || a.racketRental;
+  return (
+    a.parking ||
+    a.lockerRoom ||
+    a.coveredCourt ||
+    a.bar ||
+    a.racketRental ||
+    a.hasAccessibleCourt ||
+    a.hasAccessibleBathroom ||
+    a.hasPcdParking
+  );
 }
 
 /** Cada `true` em `required` exige que `actual` também tenha a comodidade. */
@@ -29,6 +44,9 @@ export function amenitiesMatchesRequirements(
   if (required.coveredCourt && !actual.coveredCourt) return false;
   if (required.bar && !actual.bar) return false;
   if (required.racketRental && !actual.racketRental) return false;
+  if (required.hasAccessibleCourt && !actual.hasAccessibleCourt) return false;
+  if (required.hasAccessibleBathroom && !actual.hasAccessibleBathroom) return false;
+  if (required.hasPcdParking && !actual.hasPcdParking) return false;
   return true;
 }
 
@@ -51,5 +69,8 @@ export function amenitiesFromFirestore(raw: unknown): ArenaAmenities {
     coveredCourt: readBool(map, 'coveredCourt', ['covered_court', 'coberta', 'indoor', 'covered']),
     bar: readBool(map, 'bar', ['hasBar']),
     racketRental: readBool(map, 'racketRental', ['racket_rental', 'aluguel_raquetes']),
+    hasAccessibleCourt: readBool(map, 'hasAccessibleCourt', ['quadra_acessivel', 'accessible_court']),
+    hasAccessibleBathroom: readBool(map, 'hasAccessibleBathroom', ['banheiro_acessivel', 'accessible_bathroom']),
+    hasPcdParking: readBool(map, 'hasPcdParking', ['vaga_pcd', 'pcd_parking']),
   };
 }

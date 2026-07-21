@@ -28,6 +28,8 @@ import '../domain/slots_suggestions_providers.dart';
 import '../domain/arenas_providers.dart';
 import '../domain/slots_providers.dart';
 import '../domain/slots_query.dart';
+import '../data/waitlist_repository.dart';
+import '../domain/waitlist_providers.dart';
 import 'widgets/slots/slots_all_suggestions_sheet.dart';
 import 'widgets/slots/slots_bottom_bar.dart';
 import 'widgets/slots/slots_fully_booked_body.dart';
@@ -579,6 +581,74 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
     }
   }
 
+  /// Slot individual lotado -> confirma e entra na fila FIFO desse horário
+  /// exato. Distinto do "Avisar quando liberar" (alerta amplo do dia/quadra).
+  Future<void> _joinWaitlist({
+    required String courtId,
+    required String courtName,
+    required ArenaSlot slot,
+  }) async {
+    final user = ref.read(authServiceProvider).currentUser;
+    if (user == null) {
+      showAppSnackBar(context, 'Entre na conta para entrar na lista de espera.');
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.themeColors.surfaceSheet,
+        title: Text('Entrar na lista de espera?'),
+        content: Text(
+          'Se alguém cancelar ${slot.startTime}–${slot.endTime} em $courtName, '
+          'avisamos você por notificação e você terá 15 minutos para reservar '
+          'antes de passar a vez para o próximo da fila.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Agora não'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Entrar na fila'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      await ref.read(waitlistRepositoryProvider).join(
+            arenaId: widget.arena.id,
+            courtId: courtId,
+            dateKey: SlotVacancyAlert.dateKeyFrom(_selectedDay),
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            arenaName: widget.arena.name,
+            courtName: courtName,
+          );
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          'Você entrou na lista de espera! Avisamos se abrir vaga.',
+        );
+      }
+    } on WaitlistException catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, e.message, isError: !e.isSlotNotFull);
+      }
+    } catch (_) {
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          'Não foi possível entrar na lista de espera. Tente novamente.',
+          isError: true,
+        );
+      }
+    }
+  }
+
   void _ensureNextSlotVisible(int nextIdx) {
     void scrollIfReady() {
       final ctx = _nextSlotKey.currentContext;
@@ -1010,6 +1080,11 @@ class _SlotsScheduleViewState extends ConsumerState<_SlotsScheduleView> {
                               selectedSlotKey: _selectedSlotKey,
                               slotsLoading: slotsLoading,
                               periodEmptyOnly: showPeriodEmptyOnly,
+                              onJoinWaitlist: (slot) => _joinWaitlist(
+                                courtId: courtId,
+                                courtName: court.name,
+                                slot: slot,
+                              ),
                             ),
                     ),
                     if (!showFullyBookedBody) ...[

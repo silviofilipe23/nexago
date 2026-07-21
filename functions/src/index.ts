@@ -295,6 +295,11 @@ export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
 
+export {
+  joinArenaBookingWaitlist,
+  notifyArenaWaitlistOnSlotFreed,
+  expireArenaBookingWaitlistEntries,
+} from "./arena-booking-waitlist";
 // ─── Palpites da torcida no chaveamento (feature #5, engajamento/gamificação) ───
 export {
   submitBracketPrediction,

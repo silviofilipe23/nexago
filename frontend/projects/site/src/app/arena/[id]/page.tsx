@@ -145,7 +145,7 @@ export default async function ArenaPage({ params }: { params: Promise<{ id: stri
             Baixe o nexaGO para encontrar torneios e etapas nesta e em outras arenas da areia.
           </p>
           <div className="mt-6 flex justify-center">
-            <ButtonLink href="/#download">Baixar o app</ButtonLink>
+            <ButtonLink href="https://linktr.ee/nexago">Baixar o app</ButtonLink>
           </div>
         </div>
       </Reveal>

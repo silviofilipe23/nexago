@@ -97,7 +97,7 @@ export function Hero() {
           variants={item}
           className="mt-9 flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row"
         >
-          <ButtonLink href="#download" className="w-full sm:w-auto">
+          <ButtonLink href="https://linktr.ee/nexago" className="w-full sm:w-auto">
             Baixar o app
           </ButtonLink>
           <ButtonLink href="#liga" variant="secondary" className="w-full sm:w-auto">

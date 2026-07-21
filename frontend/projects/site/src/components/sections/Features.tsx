@@ -19,7 +19,7 @@ const FEATURES: Feature[] = [
     title: 'Jogue, ranqueie, evolua.',
     description: 'Inscrição em poucos toques e seu progresso na areia em tempo real.',
     points: ['Inscrição nas etapas', 'Chaves e resultados ao vivo', 'Ranking e histórico por categoria'],
-    href: '#download',
+    href: 'https://linktr.ee/nexago',
     cta: 'Baixar o app',
   },
   {

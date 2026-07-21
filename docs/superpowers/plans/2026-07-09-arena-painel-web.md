@@ -265,11 +265,13 @@ Abra `frontend/projects/arena/src/styles.scss` e adicione ao final do arquivo (d
   font-family: var(--nx-font-display);
   font-weight: 600;
   font-size: 12px;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.005em; 
+  
 }
 
 .ar-shortcut span {
   color: var(--nx-text);
+  text-decoration: none; 1111
 }
 ```
 

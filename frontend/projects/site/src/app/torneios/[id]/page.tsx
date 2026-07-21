@@ -129,7 +129,7 @@ export default async function TorneioDetailPage({ params }: Params) {
                 <p className="text-sm text-text-mute">Inscreva-se pelo app e acompanhe ao vivo.</p>
               </div>
             </div>
-            <ButtonLink href="/#download" className="w-full sm:w-auto">
+            <ButtonLink href="https://linktr.ee/nexago" className="w-full sm:w-auto">
               Baixar o app
             </ButtonLink>
           </section>

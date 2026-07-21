@@ -74,7 +74,7 @@ export default function SobrePage() {
       </div>
 
       <Reveal delay={0.1} className="mt-16 text-center">
-        <ButtonLink href="/#download">Baixar o app</ButtonLink>
+        <ButtonLink href="https://linktr.ee/nexago">Baixar o app</ButtonLink>
       </Reveal>
     </main>
   );

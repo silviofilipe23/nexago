@@ -297,3 +297,13 @@ export {getCoachTournamentOverview} from "./coach-tournament-overview";
 
 // Placar ao vivo (games/sets do set em andamento) de partidas In Progress.
 export {updateLiveMatchScore} from "./organizer-match-ops";
+export {
+  joinArenaBookingWaitlist,
+  notifyArenaWaitlistOnSlotFreed,
+  expireArenaBookingWaitlistEntries,
+} from "./arena-booking-waitlist";
+// ─── Palpites da torcida no chaveamento (feature #5, engajamento/gamificação) ───
+export {
+  submitBracketPrediction,
+  onTournamentMatchCompletedScoreBracketPredictions,
+} from "./tournament-predictions";

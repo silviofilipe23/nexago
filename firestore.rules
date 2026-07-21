@@ -996,6 +996,20 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Lista de espera de horário de quadra lotado (domínio distinto da lista
+    // de espera de INSCRIÇÃO em torneio). Só o próprio atleta e o gestor da
+    // arena podem ler; toda escrita é feita pelas Cloud Functions
+    // (joinArenaBookingWaitlist / notifyArenaWaitlistOnSlotFreed /
+    // expireArenaBookingWaitlistEntries) — client nunca escreve direto.
+    match /arenaBookingWaitlist/{waitlistId} {
+      allow read: if request.auth != null && (
+        resource.data.athleteId == request.auth.uid ||
+        isArenaManagerByArenaId(resource.data.arenaId) ||
+        isSuperAdmin()
+      );
+      allow write: if false;
+    }
+
     // Convites de reserva ("Convite para jogar" via link compartilhado).
     // Antes não havia regra: a leitura vazava pelo catch-all e a escrita
     // client-side (criar/aceitar) era NEGADA — o fluxo estava quebrado.
@@ -1890,6 +1904,18 @@ service cloud.firestore {
       );
       allow list: if false;
       allow create, update, delete: if false;
+    }
+
+    // Palpites da torcida no chaveamento (feature de engajamento/gamificação,
+    // sem dinheiro real) — tournamentPredictions/{tournamentId}/entries/{userId}.
+    // Leitura pública: é torcida, a graça é um leaderboard público de quem
+    // acerta mais palpites. Escrita exclusiva via Cloud Function
+    // (`submitBracketPrediction` valida uid/torneio/status da partida antes
+    // de gravar; a pontuação é creditada pelo trigger de conclusão de
+    // partida) — nunca client-write direto.
+    match /tournamentPredictions/{tournamentId}/entries/{userId} {
+      allow read: if true;
+      allow write: if false;
     }
 
     // NEGAÇÃO padrão para caminhos não mapeados.

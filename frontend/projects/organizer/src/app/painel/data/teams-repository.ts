@@ -11,7 +11,7 @@ function optionalStr(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
-interface RawTeam {
+export interface OrganizerTeamPlayers {
   teamName: string | null;
   player1Id: string;
   player2Id: string;
@@ -38,13 +38,21 @@ async function fetchProfileNames(db: Firestore, uids: readonly string[]): Promis
   return names;
 }
 
-export async function fetchTeamNames(db: Firestore, projectId: string, teamIds: readonly string[]): Promise<Map<string, string>> {
-  const teams = await chunkedByIds<RawTeam>(db, ['artifacts', projectId, 'public', 'data', 'teams'], teamIds, (data) => ({
+export async function fetchTeamsByIds(
+  db: Firestore,
+  projectId: string,
+  teamIds: readonly string[],
+): Promise<Map<string, OrganizerTeamPlayers>> {
+  return chunkedByIds<OrganizerTeamPlayers>(db, ['artifacts', projectId, 'public', 'data', 'teams'], teamIds, (data) => ({
     teamName: optionalStr(data['teamName']),
     player1Id: optionalStr(data['player1Id']) ?? '',
     player2Id: optionalStr(data['player2Id']) ?? '',
     isLookingForPartner: data['isLookingForPartner'] === true,
   }));
+}
+
+export async function fetchTeamNames(db: Firestore, projectId: string, teamIds: readonly string[]): Promise<Map<string, string>> {
+  const teams = await fetchTeamsByIds(db, projectId, teamIds);
 
   const playerIds = [...teams.values()].flatMap((t) => [t.player1Id, t.player2Id]);
   const profileNames = await fetchProfileNames(db, playerIds);

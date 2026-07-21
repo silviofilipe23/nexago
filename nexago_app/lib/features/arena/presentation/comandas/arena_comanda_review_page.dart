@@ -151,28 +151,32 @@ class _ArenaComandaReviewPageState
               ],
             ),
           ),
-          // const SizedBox(height: 16),
-          // SwitchListTile(
-          //   contentPadding: EdgeInsets.zero,
-          //   title: Text(
-          //     'Pedidos pelo app',
-          //     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          //           fontWeight: FontWeight.w700,
-          //           color: context.themeColors.onSurface,
-          //         ),
-          //   ),
-          //   subtitle: Text(
-          //     'Atletas lançam consumo direto no celular',
-          //     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-          //           color: context.themeColors.onSurfaceMuted,
-          //         ),
-          //   ),
-          //   value: draft.allowAppOrders,
-          //   activeTrackColor: AppColors.brand,
-          //   onChanged: ref
-          //       .read(arenaComandaDraftProvider.notifier)
-          //       .setAllowAppOrders,
-          // ),
+          const SizedBox(height: 16),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'Pedidos pelo app',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: context.themeColors.onSurface,
+                  ),
+            ),
+            subtitle: Text(
+              booking != null
+                  ? 'Atletas lançam consumo direto no celular'
+                  : 'Só disponível para comanda vinculada a uma reserva',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
+            ),
+            value: draft.allowAppOrders && booking != null,
+            activeTrackColor: AppColors.brand,
+            onChanged: booking == null
+                ? null
+                : ref
+                    .read(arenaComandaDraftProvider.notifier)
+                    .setAllowAppOrders,
+          ),
         ],
       ),
       footer: Column(

@@ -112,6 +112,8 @@ export interface ArenaBookingDoc {
   /** Ocorrência de horário fixo (mensalista) — gerida pela arena, sem cancelamento pelo app. */
   recurringBookingId: string | null;
   createdAt: Date | null;
+  couponCode: string | null;
+  couponDiscountReais: number;
 }
 
 export class ArenaBookingError extends Error {
@@ -358,7 +360,7 @@ function optionalStr(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
-function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): ArenaBookingDoc | null {
+export function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): ArenaBookingDoc | null {
   const data = snap.data();
   if (!data) return null;
   return {
@@ -386,6 +388,8 @@ function bookingFromSnapshot(snap: DocumentSnapshot<DocumentData>): ArenaBooking
     guestAthleteName: optionalStr(data['guestAthleteName']),
     recurringBookingId: optionalStr(data['recurringBookingId']),
     createdAt: toDateOrNull(data['createdAt']),
+    couponCode: optionalStr(data['couponCode']),
+    couponDiscountReais: Number(data['couponDiscountReais']) || 0,
   };
 }
 

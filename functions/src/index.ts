@@ -294,3 +294,5 @@ export {
 export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
+
+export {postTournamentAnnouncement} from "./tournament-announcements";

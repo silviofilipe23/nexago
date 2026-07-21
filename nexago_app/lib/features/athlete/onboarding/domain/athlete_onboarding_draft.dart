@@ -31,6 +31,7 @@ class AthleteOnboardingDraft {
     this.gender,
     this.avatarBytes,
     this.avatarContentType,
+    this.referralCode = '',
   });
 
   final String? primarySportId;
@@ -44,6 +45,10 @@ class AthleteOnboardingDraft {
   final String? gender;
   final Uint8List? avatarBytes;
   final String? avatarContentType;
+
+  /// Código de quem indicou (programa de indicação), opcional — informado
+  /// no último passo do onboarding. Registrado uma vez, após o cadastro.
+  final String referralCode;
 
   String? get primarySportLabel =>
       AthleteOnboardingOptions.sportLabelById(primarySportId);
@@ -102,6 +107,7 @@ class AthleteOnboardingDraft {
     Uint8List? avatarBytes,
     String? avatarContentType,
     bool clearAvatar = false,
+    String? referralCode,
   }) {
     return AthleteOnboardingDraft(
       primarySportId: primarySportId ?? this.primarySportId,
@@ -116,6 +122,7 @@ class AthleteOnboardingDraft {
       avatarBytes: clearAvatar ? null : (avatarBytes ?? this.avatarBytes),
       avatarContentType:
           clearAvatar ? null : (avatarContentType ?? this.avatarContentType),
+      referralCode: referralCode ?? this.referralCode,
     );
   }
 

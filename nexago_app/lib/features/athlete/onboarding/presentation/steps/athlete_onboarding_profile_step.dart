@@ -35,6 +35,7 @@ class _AthleteOnboardingProfileStepState
   final _nicknameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _birthCtrl = TextEditingController();
+  final _referralCodeCtrl = TextEditingController();
   bool _submitting = false;
   String? _nameError;
   String? _phoneError;
@@ -49,6 +50,7 @@ class _AthleteOnboardingProfileStepState
     _nicknameCtrl.text = draft.nickname;
     _phoneCtrl.text = draft.phoneDigits;
     _birthCtrl.text = draft.birthDate;
+    _referralCodeCtrl.text = draft.referralCode;
   }
 
   @override
@@ -57,6 +59,7 @@ class _AthleteOnboardingProfileStepState
     _nicknameCtrl.dispose();
     _phoneCtrl.dispose();
     _birthCtrl.dispose();
+    _referralCodeCtrl.dispose();
     super.dispose();
   }
 
@@ -78,6 +81,7 @@ class _AthleteOnboardingProfileStepState
     notifier.setNickname(_nicknameCtrl.text);
     notifier.setPhoneDigits(_phoneCtrl.text);
     notifier.setBirthDate(_birthCtrl.text);
+    notifier.setReferralCode(_referralCodeCtrl.text);
   }
 
   Future<void> _submit() async {
@@ -268,6 +272,19 @@ class _AthleteOnboardingProfileStepState
               style: theme.textTheme.bodySmall?.copyWith(color: AppColors.live),
             ),
           ],
+          SizedBox(height: 16),
+          const AuthFieldLabel(label: 'CÓDIGO DE INDICAÇÃO (OPCIONAL)'),
+          AuthTextField(
+            controller: _referralCodeCtrl,
+            hintText: 'Código de quem te indicou',
+            textInputAction: TextInputAction.done,
+            prefixIcon: Icon(
+              Icons.card_giftcard_rounded,
+              size: 20,
+              color: context.themeColors.onSurfaceMuted,
+            ),
+            onChanged: notifier.setReferralCode,
+          ),
         ],
       ),
       primaryLabel: 'Concluir cadastro',

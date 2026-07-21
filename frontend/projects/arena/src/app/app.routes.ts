@@ -158,6 +158,20 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'painel/cupons',
+    title: 'Cupons — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard],
+    loadComponent: () =>
+      import('./painel/coupons/panel-coupons.component').then((m) => m.PanelCouponsComponent),
+  },
+  {
+    path: 'painel/cupons/novo',
+    title: 'Novo cupom — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard],
+    loadComponent: () =>
+      import('./painel/coupons/panel-coupon-form.component').then((m) => m.PanelCouponFormComponent),
+  },
+  {
     path: 'painel/torneios',
     title: 'Torneios — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard],

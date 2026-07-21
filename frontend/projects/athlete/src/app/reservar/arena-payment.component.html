@@ -176,6 +176,47 @@
               <span class="pm-summary-label">Valor da reserva</span>
               <span class="pm-summary-value">{{ formatBRL(totalPrice()) }}</span>
             </div>
+            @if (appliedCouponCode(); as code) {
+              <div class="pm-summary-row">
+                <span class="pm-summary-label">Cupom {{ code }}</span>
+                <span class="pm-summary-value pm-summary-value--discount">- {{ formatBRL(couponDiscountReais()) }}</span>
+              </div>
+            }
+
+            <div class="pm-coupon-block">
+              @if (appliedCouponCode(); as code) {
+                <div class="pm-coupon-applied">
+                  <span>Cupom <strong>{{ code }}</strong> aplicado</span>
+                  <button type="button" class="pm-coupon-remove" (click)="removeCoupon()">Remover</button>
+                </div>
+              } @else {
+                <label class="pm-coupon-label" for="pm-coupon">Tem um cupom?</label>
+                <div class="pm-coupon-row">
+                  <input
+                    id="pm-coupon"
+                    class="pm-coupon-input"
+                    type="text"
+                    autocomplete="off"
+                    placeholder="CÓDIGO"
+                    [value]="couponCodeInput()"
+                    (input)="couponCodeInput.set($any($event.target).value)"
+                    (keydown.enter)="applyCoupon()"
+                  />
+                  <button
+                    type="button"
+                    class="pm-btn-ghost pm-coupon-apply"
+                    [disabled]="couponApplying() || !couponCodeInput().trim()"
+                    (click)="applyCoupon()"
+                  >
+                    {{ couponApplying() ? '...' : 'Aplicar' }}
+                  </button>
+                </div>
+                @if (couponError(); as err) {
+                  <p class="pm-coupon-error">{{ err }}</p>
+                }
+              }
+            </div>
+
             @if (selectedMethod() === 'pix' && pixFraction() === 0.5) {
               <div class="pm-summary-row">
                 <span class="pm-summary-label">Restante na arena</span>

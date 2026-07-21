@@ -262,6 +262,106 @@
   text-align: right;
 }
 
+.pm-summary-value--discount {
+  color: var(--nx-win);
+}
+
+// ── Cupom de desconto ────────────────────────────────────────
+.pm-coupon-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.pm-coupon-label {
+  font-family: var(--nx-font-ui);
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
+}
+
+.pm-coupon-row {
+  display: flex;
+  gap: 8px;
+}
+
+.pm-coupon-input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--nx-r-2);
+  background: var(--nx-surface-1);
+  border: 1px solid var(--nx-line);
+  color: var(--nx-text);
+  font-family: var(--nx-font-mono);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+
+  &:focus-visible {
+    outline: 2px solid var(--nx-orange-500);
+    outline-offset: 1px;
+  }
+
+  &::placeholder {
+    text-transform: none;
+  }
+}
+
+.pm-coupon-apply {
+  flex: none;
+  height: 40px;
+  padding: 0 16px;
+  font-size: 12.5px;
+}
+
+.pm-coupon-error {
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--nx-live);
+  margin: 0;
+}
+
+.pm-coupon-applied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--nx-r-2);
+  background: rgba(43, 209, 126, 0.1);
+  border: 1px solid rgba(43, 209, 126, 0.28);
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
+
+  strong {
+    color: var(--nx-text);
+    font-family: var(--nx-font-mono);
+    letter-spacing: 0.04em;
+  }
+}
+
+.pm-coupon-remove {
+  flex: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--nx-text-dim);
+  font-family: var(--nx-font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--nx-text);
+  }
+}
+
 .pm-summary-total-row {
   display: flex;
   align-items: baseline;

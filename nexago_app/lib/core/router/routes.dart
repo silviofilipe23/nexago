@@ -270,6 +270,9 @@ abstract final class AppRoutes {
   static const String arenaFollowers = '/arena/profile/followers';
   static const String arenaManagerReviews = '/arena/reviews';
 
+  /// Relatórios de ocupação de quadra (gestor). Literal antes de [arenaDetail].
+  static const String arenaOccupancyReport = '/arena/relatorios';
+
   /// Edição de perfil (gestor). Literal antes de [arenaDetail].
   static const String arenaProfileEdit = '/arena/profile/edit';
 
@@ -556,6 +559,7 @@ abstract final class AppRouteNames {
   static const String arenaProfile = 'arenaProfile';
   static const String arenaFollowers = 'arenaFollowers';
   static const String arenaManagerReviews = 'arenaManagerReviews';
+  static const String arenaOccupancyReport = 'arenaOccupancyReport';
   static const String arenaProfileEdit = 'arenaProfileEdit';
   static const String arenaProfileUpdateSuccess = 'arenaProfileUpdateSuccess';
 

@@ -116,9 +116,10 @@ class BookingService {
     });
   }
 
-  /// Cota autoritativa (promoções + preço por quadra) via Cloud Function.
+  /// Cota autoritativa (promoções + preço por quadra + cupom) via Cloud Function.
   Future<ArenaBookingQuote> quoteBooking({
     required ArenaBookingConfirmArgs args,
+    String? couponCode,
   }) async {
     if (!args.isValid) {
       throw BookingException(
@@ -126,7 +127,7 @@ class BookingService {
     }
     try {
       final result = await _functions.httpsCallable('quoteArenaBooking').call(
-        _bookingCallablePayload(args),
+        _bookingCallablePayload(args, couponCode: couponCode),
       );
       return _parseQuoteResponse(result.data);
     } on FirebaseFunctionsException catch (e) {
@@ -173,7 +174,13 @@ class BookingService {
         );
       }
     }
-    return ArenaBookingQuote(amountReais: amount, lineItems: lines);
+    return ArenaBookingQuote(
+      amountReais: amount,
+      lineItems: lines,
+      couponApplied: map['couponApplied'] == true,
+      couponId: map['couponId'] as String?,
+      couponDiscountReais: (map['couponDiscountReais'] as num?)?.toDouble() ?? 0,
+    );
   }
 
   /// Reserva via callable `createArenaBooking` (preço validado no servidor).
@@ -182,6 +189,7 @@ class BookingService {
     required String athleteId,
     String paymentMode = 'onsite',
     double paymentFraction = 1.0,
+    String? couponCode,
   }) async {
     if (athleteId.isEmpty) {
       throw BookingException('Faça login para confirmar a reserva.');
@@ -198,7 +206,7 @@ class BookingService {
     }
 
     try {
-      final payload = _bookingCallablePayload(args);
+      final payload = _bookingCallablePayload(args, couponCode: couponCode);
       payload['clientAmountReais'] = args.amountReais;
       payload['paymentMode'] = paymentMode;
       if (paymentMode == 'pix') {
@@ -232,6 +240,10 @@ class BookingService {
         paymentFraction:
             (data['paymentFraction'] as num?)?.toDouble() ?? paymentFraction,
         paymentExpiresAt: data['paymentExpiresAt'] as String?,
+        couponApplied: data['couponApplied'] == true,
+        couponId: data['couponId'] as String?,
+        couponDiscountReais:
+            (data['couponDiscountReais'] as num?)?.toDouble() ?? 0,
       );
     } on FirebaseFunctionsException catch (e) {
       throw BookingException(_mapFunctionsMessage(e), code: _functionsCode(e));
@@ -305,8 +317,9 @@ class BookingService {
   }
 
   static Map<String, dynamic> _bookingCallablePayload(
-    ArenaBookingConfirmArgs args,
-  ) {
+    ArenaBookingConfirmArgs args, {
+    String? couponCode,
+  }) {
     return <String, dynamic>{
       'arenaId': args.arenaId,
       'arenaName': args.arenaName,
@@ -317,6 +330,8 @@ class BookingService {
       'endTime': args.endTime,
       if (args.selectedSlotStartTimes.isNotEmpty)
         'selectedSlotStartTimes': args.selectedSlotStartTimes,
+      if (couponCode != null && couponCode.trim().isNotEmpty)
+        'couponCode': couponCode.trim(),
     };
   }
 
@@ -715,6 +730,9 @@ class CreateBookingResult {
     this.paymentMode = 'onsite',
     this.paymentFraction = 1,
     this.paymentExpiresAt,
+    this.couponApplied = false,
+    this.couponId,
+    this.couponDiscountReais = 0,
   });
 
   final String bookingId;
@@ -724,6 +742,9 @@ class CreateBookingResult {
   final String paymentMode;
   final double paymentFraction;
   final String? paymentExpiresAt;
+  final bool couponApplied;
+  final String? couponId;
+  final double couponDiscountReais;
 
   bool get isPix => paymentMode == 'pix';
 }

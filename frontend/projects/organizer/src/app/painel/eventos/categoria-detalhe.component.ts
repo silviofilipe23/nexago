@@ -63,7 +63,17 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
             @for (i of inscriptions(); track i.id; let idx = $index; let last = $last) {
               <div class="og-row" [class.last]="last">
                 <span class="og-categoria-seed">{{ pad(idx + 1) }}</span>
-                <og-avatar [initials]="initialsOf(i.teamName, ' / ')" [size]="34" />
+                <span class="og-categoria-avatars" [style.width.px]="athletesOf(i).length > 1 ? 52 : 34">
+                  @for (p of athletesOf(i); track $index; let ai = $index) {
+                    <og-avatar
+                      [initials]="initialsOf(p.name)"
+                      [photoUrl]="p.photoUrl"
+                      [size]="34"
+                      [style.margin-left.px]="ai ? -16 : 0"
+                      [style.z-index]="2 - ai"
+                    />
+                  }
+                </span>
                 <span style="flex:1;min-width:0">
                   <div class="og-categoria-name" [title]="i.teamName">{{ truncate(i.teamName, 32) }}</div>
                   <div class="og-categoria-meta">{{ i.createdAt ? 'Inscrito em ' + shortDate(i.createdAt) : 'Sem data de inscrição' }}</div>
@@ -92,6 +102,15 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
       font-weight: 700;
       font-size: 12px;
       color: var(--nx-text-dim);
+    }
+    .og-categoria-avatars {
+      display: flex;
+      align-items: center;
+      flex: none;
+      height: 34px;
+    }
+    .og-categoria-avatars .og-avatar {
+      box-shadow: 0 0 0 2px var(--nx-surface-0);
     }
     .og-categoria-name {
       font-family: var(--nx-font-display);
@@ -185,6 +204,14 @@ export class CategoriaDetalheComponent {
 
   protected pad(n: number): string {
     return String(n).padStart(2, '0');
+  }
+
+  /** Até 2 atletas pra stack de avatares (solo = 1; sem participantes = fallback no nome da dupla). */
+  protected athletesOf(i: TournamentInscription): { name: string; photoUrl: string | null }[] {
+    if (i.participants.length > 0) {
+      return i.participants.slice(0, 2).map((p) => ({ name: p.name, photoUrl: p.photoUrl }));
+    }
+    return [{ name: i.teamName, photoUrl: null }];
   }
 
   protected payTone(i: TournamentInscription): Tone {

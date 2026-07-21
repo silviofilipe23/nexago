@@ -171,6 +171,58 @@
 
           <section class="at-card">
             <div class="at-card-head">
+              <div>
+                <p class="at-card-kicker">Ganhe +{{ xpReferralBonus }} XP</p>
+                <span class="at-card-title">Convide um amigo</span>
+              </div>
+            </div>
+            <p class="at-profile-referral-text">
+              Compartilhe seu link de indicação. Quando seu amigo se cadastrar e jogar a primeira partida, você ganha
+              +{{ xpReferralBonus }} XP.
+            </p>
+            <div class="at-profile-share-row">
+              <input type="text" class="at-profile-share-input" [value]="referralLink()" readonly />
+              <button type="button" class="at-mini-btn" (click)="copyReferralLink()">Copiar</button>
+              <button type="button" class="at-mini-btn at-mini-btn--primary" (click)="shareReferral()">Compartilhar</button>
+            </div>
+            @if (referralCopyFeedback(); as feedback) {
+              <p class="at-profile-copy-feedback">{{ feedback }}</p>
+            }
+
+            @if (referredBy() == null) {
+              <div class="at-profile-referral-apply">
+                <label class="at-field">
+                  <span>Recebeu um código de indicação?</span>
+                  <input
+                    type="text"
+                    [value]="referralApplyCode()"
+                    (input)="onReferralApplyCodeInput($any($event.target).value)"
+                    placeholder="Cole o código do seu amigo"
+                  />
+                </label>
+                <button
+                  type="button"
+                  class="at-mini-btn at-profile-referral-apply-btn"
+                  [disabled]="referralApplying()"
+                  (click)="applyReferralCode()"
+                >
+                  @if (referralApplying()) {
+                    <app-nx-spinner [size]="12" />
+                  }
+                  {{ referralApplying() ? 'Aplicando...' : 'Aplicar código' }}
+                </button>
+              </div>
+              @if (referralApplyError(); as err) {
+                <p class="at-profile-feedback at-profile-feedback--error">{{ err }}</p>
+              }
+              @if (referralApplySuccess(); as success) {
+                <p class="at-profile-feedback at-profile-feedback--success">{{ success }}</p>
+              }
+            }
+          </section>
+
+          <section class="at-card">
+            <div class="at-card-head">
               <span class="at-card-title">Segurança</span>
             </div>
             <div class="at-profile-security-row">

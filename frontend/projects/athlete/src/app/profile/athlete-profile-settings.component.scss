@@ -471,6 +471,37 @@
   color: var(--nx-text-dim);
 }
 
+// ── Convide um amigo ─────────────────────────────────────────
+.at-profile-referral-text {
+  font-family: var(--nx-font-ui);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--nx-text-mute);
+  margin: 0 0 14px;
+}
+
+.at-profile-referral-apply {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--nx-line);
+
+  .at-field {
+    flex: 1;
+    min-width: 0;
+  }
+
+  @media (max-width: 640px) {
+    flex-wrap: wrap;
+  }
+}
+
+.at-profile-referral-apply-btn {
+  flex: none;
+}
+
 // ── Segurança ────────────────────────────────────────────────
 .at-profile-security-row {
   display: flex;

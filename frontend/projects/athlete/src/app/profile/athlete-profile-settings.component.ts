@@ -21,6 +21,12 @@ import { SandRankCardComponent } from './sand-rank-card.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
 import { AthleteGamificationService } from './athlete-gamification.service';
 import { buildPublicProfileId, initialsOf, joinCityState, nameFromEmail, slugify, splitCityState } from './profile-format';
+import { athleteFunctions } from '../data/functions';
+import {
+  registerReferral,
+  XP_REFERRAL_BONUS,
+  type ReferralRegistrationRejection,
+} from '../data/athlete-referral-repository';
 
 const PRIMARY_SPORT_OPTIONS = [
   'Volei de praia',
@@ -121,6 +127,17 @@ export class AthleteProfileSettingsComponent {
   protected readonly passwordResetSent = signal(false);
   protected readonly resetError = signal<string | null>(null);
 
+  // Programa de indicação (referral) — `referredBy` vem de `users/{uid}`, carregado junto
+  // com o resto do perfil em loadRemoteProfile. `null` = ainda sem indicador vinculado,
+  // então o campo "aplicar código" continua visível.
+  protected readonly xpReferralBonus = XP_REFERRAL_BONUS;
+  protected readonly referredBy = signal<string | null>(null);
+  protected readonly referralCopyFeedback = signal<string | null>(null);
+  protected readonly referralApplyCode = signal('');
+  protected readonly referralApplying = signal(false);
+  protected readonly referralApplyError = signal<string | null>(null);
+  protected readonly referralApplySuccess = signal<string | null>(null);
+
   // undefined (not null) so the very first run isn't mistaken for "already loaded" when there's no
   // user yet (uid is null in that case too) — this bit the dev-auth-bypass path, which never has a
   // real uid, and left the page stuck on "Carregando perfil..." forever.
@@ -191,6 +208,20 @@ export class AthleteProfileSettingsComponent {
     return uid ? `${origin}/atletas/${uid}` : `${origin}/atletas`;
   });
 
+  // Código de indicação = o próprio UID (mesma decisão do app mobile — sem handle curto
+  // reaproveitável no projeto). `registerReferral` valida o código no backend.
+  protected readonly referralCode = computed(() => this.auth.user()?.uid?.trim() ?? '');
+  protected readonly referralLink = computed(() => {
+    const origin = typeof location !== 'undefined' ? location.origin : 'https://nexago.app';
+    const code = this.referralCode();
+    return code ? `${origin}/cadastro?ref=${code}` : `${origin}/cadastro`;
+  });
+  protected readonly referralShareText = computed(
+    () =>
+      `Vem jogar comigo no nexaGO! Use meu código de indicação ${this.referralCode()} ao se cadastrar — ` +
+      `quando você jogar sua primeira partida, eu ganho +${XP_REFERRAL_BONUS} XP. Cadastre-se: ${this.referralLink()}`,
+  );
+
   constructor() {
     effect(() => {
       const uid = this.auth.user()?.uid ?? null;
@@ -207,6 +238,7 @@ export class AthleteProfileSettingsComponent {
       const devEmail = this.auth.devEmail();
       this.profileState.set({ ...EMPTY_PROFILE, fullName: devEmail ? nameFromEmail(devEmail) : '' });
       this.existingUserRoles.set([]);
+      this.referredBy.set(null);
       this.loading.set(false);
     });
 
@@ -368,6 +400,87 @@ export class AthleteProfileSettingsComponent {
     await this.copyProfileLink();
   }
 
+  protected async copyReferralLink(): Promise<void> {
+    this.referralCopyFeedback.set(null);
+    try {
+      await navigator.clipboard.writeText(this.referralLink());
+      this.referralCopyFeedback.set('Link copiado.');
+    } catch {
+      this.referralCopyFeedback.set('Copie manualmente o link de indicação.');
+    }
+  }
+
+  protected async shareReferral(): Promise<void> {
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
+      try {
+        await (
+          navigator as Navigator & { share: (data: { title: string; text: string; url: string }) => Promise<void> }
+        ).share({
+          title: 'Convide um amigo pro nexaGO',
+          text: this.referralShareText(),
+          url: this.referralLink(),
+        });
+        return;
+      } catch {
+        // usuario cancelou o compartilhamento nativo — cai pro copiar.
+      }
+    }
+    await this.copyReferralLink();
+  }
+
+  protected onReferralApplyCodeInput(value: string): void {
+    this.referralApplyCode.set(value);
+  }
+
+  protected async applyReferralCode(): Promise<void> {
+    this.referralApplyError.set(null);
+    this.referralApplySuccess.set(null);
+
+    const code = this.referralApplyCode().trim();
+    if (!code) {
+      this.referralApplyError.set('Informe um código de indicação.');
+      return;
+    }
+
+    if (!this.auth.user()?.uid) {
+      this.referralApplyError.set('Faça login para aplicar um código de indicação.');
+      return;
+    }
+
+    this.referralApplying.set(true);
+    try {
+      const result = await registerReferral(athleteFunctions(), code);
+      if (result.applied) {
+        this.referredBy.set(code);
+        this.referralApplyCode.set('');
+        this.referralApplySuccess.set(
+          `Código aplicado! Quando você jogar sua primeira partida, seu amigo ganha +${XP_REFERRAL_BONUS} XP.`,
+        );
+      } else {
+        this.referralApplyError.set(this.referralRejectionMessage(result.rejection));
+      }
+    } catch {
+      this.referralApplyError.set('Não foi possível aplicar o código agora. Tente novamente.');
+    } finally {
+      this.referralApplying.set(false);
+    }
+  }
+
+  private referralRejectionMessage(rejection: ReferralRegistrationRejection | null): string {
+    switch (rejection) {
+      case 'MISSING_CODE':
+        return 'Informe um código de indicação.';
+      case 'SELF_REFERRAL':
+        return 'Esse é o seu próprio código — use o código de um amigo.';
+      case 'REFERRER_NOT_FOUND':
+        return 'Não encontramos esse código de indicação.';
+      case 'ALREADY_SET':
+        return 'Você já tem um código de indicação aplicado.';
+      default:
+        return 'Não foi possível aplicar o código agora.';
+    }
+  }
+
   protected async sendPasswordReset(): Promise<void> {
     const email = this.auth.user()?.email;
     if (!email) {
@@ -435,6 +548,7 @@ export class AthleteProfileSettingsComponent {
         // no app) — um doc novo ou sem esse campo deve poder ser encontrado pelo perfil público.
         publicProfileEnabled: profileData?.['publicProfileEnabled'] !== false,
       });
+      this.referredBy.set(readString(userData, ['referredBy']));
     } catch {
       this.saveError.set('Não foi possível carregar seu perfil agora.');
     } finally {

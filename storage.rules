@@ -13,8 +13,19 @@ service firebase.storage {
     match /profiles/{userId}/{fileName} {
       // Usuários podem ler suas próprias fotos e fotos de outros usuários (para exibição em perfis)
       allow read: if request.auth != null;
-      
+
       // Escrita: dono da foto ou admin
+      allow write: if request.auth != null && (
+        request.auth.uid == userId ||
+        hasRoleClaim('admin')
+      );
+    }
+
+    // Galeria de fotos de destaque: profiles/{userId}/highlights/{fileName}
+    // (path com um segmento a mais do que o bloco acima, precisa de match próprio)
+    match /profiles/{userId}/highlights/{fileName} {
+      allow read: if request.auth != null;
+
       allow write: if request.auth != null && (
         request.auth.uid == userId ||
         hasRoleClaim('admin')

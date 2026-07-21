@@ -55,6 +55,7 @@ import '../../features/organizer/presentation/category_ops/organizer_category_se
 import '../../features/organizer/presentation/category_ops/organizer_category_generate_bracket_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_format_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_communicate_page.dart';
+import '../../features/organizer/presentation/category_ops/organizer_tournament_announce_page.dart';
 import '../../features/organizer/presentation/category_ops/organizer_category_bracket_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_center_page.dart';
 import '../../features/organizer/presentation/match_ops/organizer_match_call_queue_page.dart';
@@ -687,6 +688,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                   final tournamentId =
                       state.pathParameters['tournamentId']?.trim() ?? '';
                   return OrganizerTournamentStaffPage(
+                    tournamentId: tournamentId,
+                  );
+                },
+              ),
+              GoRoute(
+                path: 'announce',
+                name: AppRouteNames.organizerTournamentAnnounce,
+                builder: (context, state) {
+                  final tournamentId =
+                      state.pathParameters['tournamentId']?.trim() ?? '';
+                  return OrganizerTournamentAnnouncePage(
                     tournamentId: tournamentId,
                   );
                 },

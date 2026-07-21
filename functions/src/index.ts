@@ -294,3 +294,9 @@ export {
 export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
+
+// ─── Palpites da torcida no chaveamento (feature #5, engajamento/gamificação) ───
+export {
+  submitBracketPrediction,
+  onTournamentMatchCompletedScoreBracketPredictions,
+} from "./tournament-predictions";

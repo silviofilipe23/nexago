@@ -155,4 +155,42 @@ void main() {
     expect(match.winnerAdvanceMatchNumber, isNull);
     expect(match.winnerAdvanceSlot, isNull);
   });
+
+  test('fromMap parses liveScore quando presente e status In Progress', () {
+    final updatedAt = DateTime.utc(2026, 7, 20, 15, 42);
+    final match = TournamentMatchMapper.fromMap('live-3', {
+      'tournamentId': 'tour-1',
+      'categoryId': 'Open',
+      'teamAId': 'team-a',
+      'teamBId': 'team-b',
+      'status': 'In Progress',
+      'liveScore': {
+        'setsA': 1,
+        'setsB': 0,
+        'currentGamesA': 4,
+        'currentGamesB': 3,
+        'updatedAt': Timestamp.fromDate(updatedAt),
+      },
+    });
+
+    expect(match.isInProgress, isTrue);
+    expect(match.liveScore, isNotNull);
+    expect(match.liveScore!.setsA, 1);
+    expect(match.liveScore!.setsB, 0);
+    expect(match.liveScore!.currentGamesA, 4);
+    expect(match.liveScore!.currentGamesB, 3);
+    expect(match.liveScore!.updatedAt?.toUtc(), updatedAt);
+  });
+
+  test('fromMap sem campo liveScore deixa o placar ao vivo nulo', () {
+    final match = TournamentMatchMapper.fromMap('sched-1', {
+      'tournamentId': 'tour-1',
+      'categoryId': 'Open',
+      'teamAId': 'team-a',
+      'teamBId': 'team-b',
+      'status': 'Scheduled',
+    });
+
+    expect(match.liveScore, isNull);
+  });
 }

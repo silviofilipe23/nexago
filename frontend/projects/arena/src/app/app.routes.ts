@@ -200,6 +200,15 @@ export const routes: Routes = [
       import('./painel/courts/panel-court-form.component').then((m) => m.PanelCourtFormComponent),
   },
   {
+    path: 'painel/relatorios/ocupacao',
+    title: 'Ocupação — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard],
+    loadComponent: () =>
+      import('./painel/reports/panel-occupancy-report.component').then(
+        (m) => m.PanelOccupancyReportComponent,
+      ),
+  },
+  {
     path: 'painel/avaliacoes',
     title: 'Avaliações — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard],

@@ -171,6 +171,18 @@ class _OrganizerTournamentActionsSheet extends ConsumerWidget {
                 );
               },
             ),
+            _ActionTile(
+              icon: Icons.campaign_outlined,
+              label: 'Publicar aviso',
+              subtitle: 'Comunicado público no feed da Comunidade',
+              onTap: () {
+                Navigator.pop(context);
+                pushOrganizerTournamentAnnounce(
+                  GoRouter.of(context),
+                  tournamentId: tournamentId,
+                );
+              },
+            ),
             if (hasUniformKit)
               _ActionTile(
                 icon: Icons.checkroom_outlined,

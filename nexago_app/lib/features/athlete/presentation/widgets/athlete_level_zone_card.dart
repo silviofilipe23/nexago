@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../domain/athlete_rating.dart';
+import '../../domain/rating_reliability.dart';
 
 /// Indicador de zona da escada de níveis (engine de rating): mostra se o
 /// atleta está estável, em zona de acesso (promoção) ou em zona de
@@ -21,6 +22,7 @@ class AthleteLevelZoneCard extends ConsumerWidget {
     if (rating == null) return const SizedBox.shrink();
 
     final (icon, color, text) = _zoneVisual(context, rating);
+    final reliability = ratingReliabilityFor(rating.rd);
     final theme = Theme.of(context);
 
     return Padding(
@@ -33,17 +35,34 @@ class AthleteLevelZoneCard extends ConsumerWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 18, color: color),
-              const SizedBox(width: 10),
-              Expanded(
+              Row(
+                children: [
+                  Icon(icon, size: 18, color: color),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      text,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: context.themeColors.onSurface,
+                        height: 1.3,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.only(left: 28),
                 child: Text(
-                  text,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: context.themeColors.onSurface,
-                    height: 1.3,
-                    fontSize: 12,
+                  'Confiabilidade do rating: ${reliability.label}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 11,
                   ),
                 ),
               ),

@@ -11,6 +11,7 @@ import '../../../core/formatting/app_currency_format.dart';
 
 import '../../../core/auth/auth_providers.dart';
 import '../../arena/domain/arena_booking_labels.dart';
+import '../../arena_orders/presentation/arena_app_orders_catalog_page.dart';
 import '../../arenas/domain/arena_booking_success_actions.dart';
 import '../../arenas/domain/arenas_providers.dart';
 import '../../arenas/domain/booking_providers.dart';
@@ -207,6 +208,7 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
             onDirections: () => _openMaps(address),
             onShare: _shareBooking,
             onCancel: canCancel ? _cancelBooking : null,
+            onOrderAtCourt: widget.arenaId == null ? null : _openOrderAtCourt,
             shareLoading: _sharing,
             canCancel: canCancel,
             actionsEnabled: actionsEnabled,
@@ -277,6 +279,20 @@ class _BookingDetailsPageState extends ConsumerState<BookingDetailsPage> {
     } finally {
       if (mounted) setState(() => _checkingIn = false);
     }
+  }
+
+  void _openOrderAtCourt() {
+    final arenaId = widget.arenaId;
+    if (arenaId == null || arenaId.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ArenaAppOrdersCatalogPage(
+          arenaId: arenaId,
+          bookingId: widget.bookingId,
+          arenaName: widget.arenaName,
+        ),
+      ),
+    );
   }
 
   Future<void> _openMaps(String address) async {

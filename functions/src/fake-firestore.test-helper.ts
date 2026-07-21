@@ -40,6 +40,7 @@ function orderValue(raw: unknown): number | string {
 
 export class FakeFirestore {
   store = new Map<string, DocData>();
+  private autoIdSeq = 0;
 
   seedDoc(path: string, data: DocData): void {
     this.store.set(path, data);
@@ -128,7 +129,10 @@ export class FakeFirestore {
       },
     });
     return {
-      doc: (id: string) => self.makeRef(`${path}/${id}`),
+      // `id` omitido = auto-ID (espelha DocumentReference.collection().doc()
+      // real, usado por transações que criam itens/movimentos novos).
+      doc: (id?: string) =>
+        self.makeRef(`${path}/${id ?? `auto_${self.autoIdSeq++}`}`),
       add: async (data: DocData) => {
         const id = `auto_${self.store.size}`;
         self.write(`${path}/${id}`, data);

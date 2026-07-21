@@ -97,7 +97,7 @@ function userIdFromAlertPath(path: string): string | null {
   return null;
 }
 
-function formatDateLabel(dateKey: string): string {
+export function formatDateLabel(dateKey: string): string {
   const parsed = new Date(`${dateKey}T12:00:00`);
   if (Number.isNaN(parsed.getTime())) return dateKey;
   return parsed.toLocaleDateString("pt-BR", {
@@ -107,13 +107,13 @@ function formatDateLabel(dateKey: string): string {
   });
 }
 
-function buildSlotsDeepLink(match: BookingSlotMatch): string {
+export function buildSlotsDeepLink(match: BookingSlotMatch): string {
   const params = new URLSearchParams({date: match.dateKey, courtId: match.courtId});
   if (match.startTime) params.set("startTime", match.startTime);
   return `/arena/${match.arenaId}/slots?${params.toString()}`;
 }
 
-async function resolveCourtName(arenaId: string, courtId: string): Promise<string> {
+export async function resolveCourtName(arenaId: string, courtId: string): Promise<string> {
   const db = getFirestore();
   const courtDoc = await db
     .collection("arenas")

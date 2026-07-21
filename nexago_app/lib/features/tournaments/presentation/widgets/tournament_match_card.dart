@@ -1,14 +1,18 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexago_app/core/theme/app_typography.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import '../../domain/match_win_probability_providers.dart';
 import '../../domain/tournament_match_card_view_model.dart';
 import '../../domain/tournament_match_display.dart';
+import '../../domain/tournament_match_status.dart';
+import '../../domain/tournament_match_live_score.dart';
 import 'tournament_match_live_badge.dart';
 
-class TournamentMatchCard extends StatelessWidget {
+class TournamentMatchCard extends ConsumerWidget {
   const TournamentMatchCard({
     super.key,
     required this.viewModel,
@@ -21,7 +25,7 @@ class TournamentMatchCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final match = viewModel.match;
     final isLive = match.isInProgress;
     final isFinalized = match.isCompleted;
@@ -31,6 +35,29 @@ class TournamentMatchCard extends StatelessWidget {
     final teamBWon = isMatchTeamWinner(match, isTeamA: false);
     final timeLabel = matchTimeLabelForCard(match);
     final metaLabel = matchMetaLabelForCard(match);
+
+    // Probabilidade de vitória pré-partida: só busca quando faz sentido
+    // (partida agendada, ainda sem placar) — nunca para partidas ao vivo ou
+    // finalizadas, que já mostram o placar real.
+    final showWinProbability =
+        !hasScore && TournamentMatchStatus.isScheduled(match.status);
+    final winProbability = showWinProbability
+        ? ref
+            .watch(
+              matchWinProbabilityProvider((
+                tournamentId: match.tournamentId,
+                teamAId: match.teamAId,
+                teamBId: match.teamBId,
+              )),
+            )
+            .valueOrNull
+        : null;
+    final teamAProbabilityLabel = winProbability != null
+        ? '${(winProbability * 100).round().clamp(1, 99)}%'
+        : null;
+    final teamBProbabilityLabel = winProbability != null
+        ? '${(100 - (winProbability * 100).round().clamp(1, 99))}%'
+        : null;
     final borderColor = isLive
         ? AppColors.brand.withValues(alpha: 0.55)
         : isAthleteMatch
@@ -85,12 +112,17 @@ class TournamentMatchCard extends StatelessWidget {
             ),
             SizedBox(height: 6),
           ],
+          if (isLive && match.liveScore != null) ...[
+            _LiveScoreLine(liveScore: match.liveScore!),
+            SizedBox(height: 6),
+          ],
           _TeamRow(
             team: viewModel.teamA,
             setsWon: counts.$1,
             hasScore: hasScore,
             isWinner: teamAWon,
             partialsLabel: setPartialsLabelForTeam(match: match, isTeamA: true),
+            probabilityLabel: teamAProbabilityLabel,
           ),
           Divider(
             height: 17,
@@ -106,6 +138,7 @@ class TournamentMatchCard extends StatelessWidget {
               match: match,
               isTeamA: false,
             ),
+            probabilityLabel: teamBProbabilityLabel,
           ),
         ],
       ),
@@ -131,6 +164,28 @@ class TournamentMatchCard extends StatelessWidget {
   }
 }
 
+/// Placar parcial do set em andamento — só aparece com o badge "AO VIVO".
+class _LiveScoreLine extends StatelessWidget {
+  const _LiveScoreLine({required this.liveScore});
+
+  final MatchLiveScore liveScore;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'Set em andamento · ${liveScore.currentGamesA}×${liveScore.currentGamesB}',
+      style: AppTypography.mono(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        color: AppColors.live,
+        letterSpacing: 0.3,
+      ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
 class _TeamRow extends StatelessWidget {
   const _TeamRow({
     required this.team,
@@ -138,6 +193,7 @@ class _TeamRow extends StatelessWidget {
     required this.hasScore,
     required this.isWinner,
     required this.partialsLabel,
+    this.probabilityLabel,
   });
 
   final TournamentMatchCardTeamViewModel team;
@@ -145,6 +201,11 @@ class _TeamRow extends StatelessWidget {
   final bool hasScore;
   final bool isWinner;
   final String partialsLabel;
+
+  /// Probabilidade de vitória pré-partida ("62%"), badge discreto exibido
+  /// no lugar do placar enquanto a partida não tem placar real. `null`
+  /// quando não há dado suficiente (regra dura: nunca mostrar sem dado).
+  final String? probabilityLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -195,14 +256,25 @@ class _TeamRow extends StatelessWidget {
           ),
         ),
         SizedBox(width: 8),
-        Text(
-          scoreLabel,
-          style: AppTypography.soraRegular(
-            fontSize: 15,
-            fontWeight: fontWeight,
-            color: textColor,
+        if (!hasScore && probabilityLabel != null)
+          Text(
+            probabilityLabel!,
+            style: AppTypography.mono(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: context.themeColors.onSurfaceMuted,
+              letterSpacing: 0.2,
+            ),
+          )
+        else
+          Text(
+            scoreLabel,
+            style: AppTypography.soraRegular(
+              fontSize: 15,
+              fontWeight: fontWeight,
+              color: textColor,
+            ),
           ),
-        ),
       ],
     );
   }

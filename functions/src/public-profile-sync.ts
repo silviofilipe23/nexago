@@ -22,6 +22,7 @@ const PUBLIC_PROFILE_FIELDS = [
   "avatarUrl",
   "photoURL",
   "coverPhotoUrl",
+  "highlightPhotoUrls",
   "bio",
   "city",
   "state",

@@ -114,6 +114,44 @@ void main() {
       expect(roles.length, 2);
     });
   });
+
+  group('AthleteProfileRepository.saveProfile — galeria de destaque', () {
+    test('grava highlightPhotoUrls no doc', () async {
+      final firestore = _FakeFirestore(existingUsers: {});
+      final repo = AthleteProfileRepository(firestore);
+
+      await repo.saveProfile(
+        profile.copyWith(
+          highlightPhotoUrls: ['https://x/1.jpg', 'https://x/2.jpg'],
+        ),
+      );
+
+      final written = firestore.lastWrite('u1');
+      expect(written!['highlightPhotoUrls'], [
+        'https://x/1.jpg',
+        'https://x/2.jpg',
+      ]);
+    });
+
+    test('remoção reflete no próximo save (array sobrescrito)', () async {
+      final firestore = _FakeFirestore(
+        existingUsers: {
+          'u1': {
+            'fullName': 'Ana Souza',
+            'highlightPhotoUrls': ['https://x/1.jpg', 'https://x/2.jpg'],
+          },
+        },
+      );
+      final repo = AthleteProfileRepository(firestore);
+
+      await repo.saveProfile(
+        profile.copyWith(highlightPhotoUrls: ['https://x/1.jpg']),
+      );
+
+      final written = firestore.lastWrite('u1');
+      expect(written!['highlightPhotoUrls'], ['https://x/1.jpg']);
+    });
+  });
 }
 
 /// Fake mínimo de [FirebaseFirestore] cobrindo somente `collection('users')`

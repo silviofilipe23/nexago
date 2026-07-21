@@ -26,6 +26,7 @@ class SlotsListSection extends StatelessWidget {
     this.selectedSlotKey,
     this.slotsLoading = false,
     this.periodEmptyOnly = false,
+    this.onJoinWaitlist,
   });
 
   final List<ArenaSlot> slots;
@@ -36,6 +37,9 @@ class SlotsListSection extends StatelessWidget {
   final bool Function(int index) isSelectionAnchor;
   final void Function(int index) onSlotTap;
   final String? Function(ArenaSlot slot) priceLabelFor;
+
+  /// Slot lotado (não bloqueado, não passado) -> abre o fluxo de lista de espera.
+  final void Function(ArenaSlot slot)? onJoinWaitlist;
   final int? mostPopularIndex;
   final int? lastAvailableIndex;
   final int? nextAvailableIndex;
@@ -143,6 +147,8 @@ class SlotsListSection extends StatelessWidget {
       isLastSlot: lastAvailableIndex == index && !selected,
       priceLabel: priceLabelFor(slot),
       onTap: () => onSlotTap(index),
+      onJoinWaitlist:
+          onJoinWaitlist == null ? null : () => onJoinWaitlist!(slot),
     );
     if (isNext && nextSlotKey != null) {
       tile = KeyedSubtree(key: nextSlotKey, child: tile);

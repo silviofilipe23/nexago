@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 enum CommunityFeedType {
   tournamentOpen('tournament_open'),
   tournamentChampions('tournament_champions'),
+  organizerAnnouncement('organizer_announcement'),
   unknown('');
 
   const CommunityFeedType(this.value);
@@ -44,6 +45,7 @@ class CommunityFeedItem {
     this.createdAt,
     this.categoriesCount = 0,
     this.champions = const [],
+    this.message = '',
   });
 
   final String id;
@@ -56,6 +58,8 @@ class CommunityFeedItem {
   final DateTime? createdAt;
   final int categoriesCount;
   final List<CommunityFeedChampion> champions;
+  /// Texto do aviso — só preenchido para `CommunityFeedType.organizerAnnouncement`.
+  final String message;
 
   factory CommunityFeedItem.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -72,6 +76,7 @@ class CommunityFeedItem {
       createdAt: _toDate(data['createdAt']),
       categoriesCount: (data['categoriesCount'] as num?)?.toInt() ?? 0,
       champions: _parseChampions(data['champions']),
+      message: (data['message'] as String?)?.trim() ?? '',
     );
   }
 

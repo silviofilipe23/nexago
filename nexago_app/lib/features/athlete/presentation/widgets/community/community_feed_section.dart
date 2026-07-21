@@ -54,14 +54,21 @@ class _CommunityFeedCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isChampions = item.type == CommunityFeedType.tournamentChampions;
-    final badge = isChampions ? 'CAMPEÕES' : 'INSCRIÇÕES ABERTAS';
+    final isAnnouncement =
+        item.type == CommunityFeedType.organizerAnnouncement;
+    final badge = isChampions
+        ? 'CAMPEÕES'
+        : isAnnouncement
+            ? 'AVISO DO ORGANIZADOR'
+            : 'INSCRIÇÕES ABERTAS';
     final icon = isChampions
         ? Icons.emoji_events_rounded
         : Icons.campaign_rounded;
+    final accentColor = isAnnouncement ? Colors.amber : AppColors.brand;
     final subtitleParts = [
       if (item.city.isNotEmpty) item.city,
       if (item.startAt != null) _formatDate(item.startAt!),
-      if (!isChampions && item.categoriesCount > 0)
+      if (!isChampions && !isAnnouncement && item.categoriesCount > 0)
         '${item.categoriesCount} categorias',
     ];
 
@@ -89,10 +96,10 @@ class _CommunityFeedCard extends StatelessWidget {
                     width: 34,
                     height: 34,
                     decoration: BoxDecoration(
-                      color: AppColors.brand.withValues(alpha: 0.12),
+                      color: accentColor.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(icon, size: 18, color: AppColors.brand),
+                    child: Icon(icon, size: 18, color: accentColor),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -104,7 +111,7 @@ class _CommunityFeedCard extends StatelessWidget {
                           style: AppTypography.mono(
                             fontSize: 9,
                             fontWeight: FontWeight.w700,
-                            color: AppColors.brand,
+                            color: accentColor,
                             letterSpacing: 0.8,
                           ),
                         ),
@@ -139,6 +146,29 @@ class _CommunityFeedCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     color: context.themeColors.onSurfaceMuted,
+                  ),
+                ),
+              ],
+              if (isAnnouncement && item.message.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: accentColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Text(
+                    item.message,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.4,
+                      fontWeight: FontWeight.w600,
+                      color: context.themeColors.onSurface,
+                    ),
                   ),
                 ),
               ],

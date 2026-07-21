@@ -294,3 +294,9 @@ export {
 export {sendCallUp, respondToCallUp} from "./coach-call-up";
 
 export {getCoachTournamentOverview} from "./coach-tournament-overview";
+
+export {
+  joinArenaBookingWaitlist,
+  notifyArenaWaitlistOnSlotFreed,
+  expireArenaBookingWaitlistEntries,
+} from "./arena-booking-waitlist";

@@ -12,11 +12,16 @@ class TournamentDetailSubpageScaffold extends StatelessWidget {
     required this.title,
     required this.slivers,
     this.onBack,
+    this.actions = const [],
   });
 
   final String title;
   final List<Widget> slivers;
   final VoidCallback? onBack;
+
+  /// Botões/ícones extras no fim da barra de título (ex.: atalho pra
+  /// "Palpites" na chave). Vazio por padrão — não afeta subpáginas existentes.
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +38,7 @@ class TournamentDetailSubpageScaffold extends StatelessWidget {
               child: _SubpageToolbar(
                 title: title,
                 onBack: onBack ?? () => _defaultBack(context),
+                actions: actions,
               ),
             ),
             ...slivers,
@@ -55,10 +61,12 @@ class _SubpageToolbar extends StatelessWidget {
   const _SubpageToolbar({
     required this.title,
     required this.onBack,
+    this.actions = const [],
   });
 
   final String title;
   final VoidCallback onBack;
+  final List<Widget> actions;
 
   @override
   Widget build(BuildContext context) {
@@ -89,6 +97,10 @@ class _SubpageToolbar extends StatelessWidget {
             ),
           ),
         ),
+        for (final action in actions) ...[
+          const SizedBox(width: 8),
+          action,
+        ],
       ],
     );
   }

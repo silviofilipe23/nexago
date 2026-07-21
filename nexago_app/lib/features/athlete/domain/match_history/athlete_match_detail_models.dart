@@ -8,12 +8,16 @@ class MatchTeamPlayer {
     required this.avatarColor,
     this.avatarUrl,
     this.name,
+    this.athleteId,
   });
 
   final String initials;
   final int avatarColor;
   final String? avatarUrl;
   final String? name;
+
+  /// uid do atleta (usado p/ head-to-head individual). Nulo se não resolvido.
+  final String? athleteId;
 }
 
 class MatchTeamSide {

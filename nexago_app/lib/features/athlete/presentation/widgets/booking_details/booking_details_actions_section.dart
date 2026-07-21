@@ -10,6 +10,7 @@ class BookingDetailsActionsSection extends StatelessWidget {
     required this.onDirections,
     required this.onShare,
     required this.onCancel,
+    this.onOrderAtCourt,
     this.shareLoading = false,
     this.canCancel = true,
     this.actionsEnabled = true,
@@ -18,6 +19,8 @@ class BookingDetailsActionsSection extends StatelessWidget {
   final VoidCallback onDirections;
   final VoidCallback onShare;
   final VoidCallback? onCancel;
+  /// Peça na quadra — `null` quando a reserva não tem `arenaId` conhecido.
+  final VoidCallback? onOrderAtCourt;
   final bool shareLoading;
   final bool canCancel;
   final bool actionsEnabled;
@@ -37,6 +40,14 @@ class BookingDetailsActionsSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
+        if (onOrderAtCourt != null) ...[
+          _ActionButton(
+            label: 'Peça na quadra',
+            icon: Icons.local_bar_outlined,
+            onTap: actionsEnabled ? onOrderAtCourt : null,
+          ),
+          const SizedBox(height: 8),
+        ],
         _ActionButton(
           label: 'Como chegar',
           icon: Icons.near_me_outlined,

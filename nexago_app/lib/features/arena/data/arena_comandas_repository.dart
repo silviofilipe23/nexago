@@ -66,6 +66,24 @@ class ArenaComandasRepository {
     });
   }
 
+  /// Comanda vinculada a uma reserva (lado atleta — "Peça na quadra"): hoje
+  /// é o único elo confiável entre uma comanda e o atleta dono dela (ver
+  /// `ArenaComanda.bookingId`, setado pelo gestor ao vincular a reserva na
+  /// abertura). `null` quando a reserva não tem nenhuma comanda aberta ainda.
+  Stream<ArenaComanda?> watchComandaByBookingId(String bookingId) {
+    final id = bookingId.trim();
+    if (id.isEmpty) return Stream.value(null);
+
+    return _comandas
+        .where('bookingId', isEqualTo: id)
+        .limit(1)
+        .snapshots()
+        .map((snap) {
+          if (snap.docs.isEmpty) return null;
+          return ArenaComanda.fromFirestore(snap.docs.first);
+        });
+  }
+
   Stream<List<ArenaComandaItem>> watchComandaItems(String comandaId) {
     final id = comandaId.trim();
     if (id.isEmpty) return Stream.value(const []);

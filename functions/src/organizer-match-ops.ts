@@ -12,7 +12,12 @@ import {
   dayKeyFromEventDate,
   eventDateFromDayKeyAndTime,
 } from "./event-timezone";
-import {MatchStatus, isMatchCompleted, isMatchInProgress} from "./match-status";
+import {
+  MatchStatus,
+  isMatchCanceled,
+  isMatchCompleted,
+  isMatchInProgress,
+} from "./match-status";
 import {syncTournamentLiveMatchesNow} from "./tournament-live-matches";
 import {tryAwardLeagueStagePointsForMatch} from "./league-ranking";
 import {applyBracketAdvances, canFillBracketSlot} from "./category-bracket-advance";
@@ -702,12 +707,100 @@ export const submitMatchResult = onCall(async (request) => {
   if (completed) {
     update.winnerId = winnerId;
     update.matchEndedAt = FieldValue.serverTimestamp();
+    // Resultado final gravado: não faz sentido sobrar um placar "ao vivo"
+    // desatualizado numa partida já encerrada.
+    update.liveScore = FieldValue.delete();
   }
 
   await ref.update(update);
   await syncTournamentLiveMatchesNow(db, projectId, data.tournamentId as string);
 
   return {ok: true, completed, winnerId};
+});
+
+/**
+ * Normaliza um contador de placar ao vivo (games/sets): inteiro entre 0 e 99,
+ * ou `null` se inválido — mesma faixa tolerada por `parseAndValidateSets`.
+ */
+function normalizeLiveScoreCount(raw: unknown): number | null {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0 || n > 99) return null;
+  return n;
+}
+
+/**
+ * Núcleo de `updateLiveMatchScore`, testável sem o wrapper `onCall`. Reaproveita
+ * o MESMO guard de autorização de `submitMatchResult` (`assertCanScoreTournament`
+ * — staff manager/scorer ou dono do torneio) em vez de duplicar a lógica de
+ * permissão. Grava o placar parcial (`liveScore`) do set em andamento e garante
+ * `status = 'In Progress'` na primeira chamada; nunca sobrescreve uma partida
+ * já `Completed`/`Canceled`.
+ */
+export async function updateLiveMatchScoreCore(
+  db: Firestore,
+  uid: string,
+  input: Record<string, unknown>,
+): Promise<{ok: true}> {
+  const matchId = (input.matchId as string | undefined)?.trim();
+  if (!matchId) throw new HttpsError("invalid-argument", "matchId obrigatório");
+
+  const setsA = normalizeLiveScoreCount(input.setsA);
+  const setsB = normalizeLiveScoreCount(input.setsB);
+  const currentGamesA = normalizeLiveScoreCount(input.currentGamesA);
+  const currentGamesB = normalizeLiveScoreCount(input.currentGamesB);
+  if (setsA === null || setsB === null || currentGamesA === null || currentGamesB === null) {
+    throw new HttpsError("invalid-argument", "Placar ao vivo inválido");
+  }
+
+  const projectId = getFirebaseProjectId();
+  const {ref, data} = await getMatchOrThrow(db, projectId, matchId);
+  await assertCanScoreTournament(db, uid, data.tournamentId as string);
+
+  if (isMatchCompleted(data.status) || isMatchCanceled(data.status)) {
+    throw new HttpsError(
+      "failed-precondition",
+      "Partida já encerrada não pode receber placar ao vivo",
+    );
+  }
+
+  const update: Record<string, unknown> = {
+    liveScore: {
+      setsA,
+      setsB,
+      currentGamesA,
+      currentGamesB,
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  const wasInProgress = isMatchInProgress(data.status);
+  if (!wasInProgress) {
+    update.status = MatchStatus.inProgress;
+    if (!data.matchStartedAt) {
+      update.matchStartedAt = FieldValue.serverTimestamp();
+    }
+  }
+
+  await ref.update(update);
+
+  if (!wasInProgress) {
+    await syncTournamentLiveMatchesNow(db, projectId, data.tournamentId as string);
+  }
+
+  return {ok: true};
+}
+
+/**
+ * Callable para o mesário/staff atualizar o placar ao vivo (games/sets do set
+ * em andamento) de uma partida `In Progress`. Ver `updateLiveMatchScoreCore`.
+ */
+export const updateLiveMatchScore = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+
+  const db = getFirestore();
+  return updateLiveMatchScoreCore(db, uid, request.data ?? {});
 });
 
 export const validateMatchResult = onCall(async (request) => {

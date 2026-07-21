@@ -56,6 +56,16 @@
       ]
     },
     {
+      "target": "athlete",
+      "public": "dist/athlete/browser",
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
+    },
+    {
       "target": "vegeton",
       "public": "dist/vegeton"
     },

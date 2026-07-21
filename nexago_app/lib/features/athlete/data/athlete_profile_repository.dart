@@ -194,6 +194,41 @@ class AthleteProfileRepository {
     );
     return ref.getDownloadURL();
   }
+
+  /// Upload de uma foto de destaque em
+  /// `profiles/{uid}/highlights/{photoId}.jpg` e retorna a URL de download.
+  /// [photoId] deve ser único por foto (não reaproveitar entre fotos
+  /// diferentes da mesma galeria).
+  Future<String> uploadHighlightPhoto({
+    required String uid,
+    required String photoId,
+    required Uint8List bytes,
+    required String contentType,
+  }) async {
+    final ref = FirebaseStorage.instance
+        .ref()
+        .child('profiles')
+        .child(uid)
+        .child('highlights')
+        .child('$photoId.jpg');
+    await ref.putData(
+      bytes,
+      SettableMetadata(contentType: contentType),
+    );
+    return ref.getDownloadURL();
+  }
+
+  /// Remove o arquivo de Storage de uma foto de destaque. Melhor esforço:
+  /// a URL já sai de `highlightPhotoUrls` via [saveProfile] independentemente
+  /// do resultado deste delete (evita bloquear a UI por um arquivo órfão).
+  Future<void> removeHighlightPhoto(String url) async {
+    try {
+      await FirebaseStorage.instance.refFromURL(url).delete();
+    } catch (_) {
+      // Melhor esforço: URL pode já ter sido removida ou não pertencer
+      // mais a este bucket.
+    }
+  }
 }
 
 String? _normalizedGenderForFirestore(String? raw) {

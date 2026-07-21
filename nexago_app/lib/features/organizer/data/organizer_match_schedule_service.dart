@@ -137,6 +137,27 @@ class OrganizerMatchScheduleService {
     return Map<String, dynamic>.from(result.data as Map? ?? {});
   }
 
+  /// Atualiza o placar "ao vivo" (games/sets do set em andamento) de uma
+  /// partida `In Progress`; a primeira chamada também marca a partida como
+  /// `In Progress`. Retorna `{ok}`.
+  Future<Map<String, dynamic>> updateLiveMatchScore({
+    required String matchId,
+    required int setsA,
+    required int setsB,
+    required int currentGamesA,
+    required int currentGamesB,
+  }) async {
+    final callable = _functions.httpsCallable('updateLiveMatchScore');
+    final result = await callable.call({
+      'matchId': matchId.trim(),
+      'setsA': setsA,
+      'setsB': setsB,
+      'currentGamesA': currentGamesA,
+      'currentGamesB': currentGamesB,
+    });
+    return Map<String, dynamic>.from(result.data as Map? ?? {});
+  }
+
   Future<void> validateMatchResult({required String matchId}) async {
     final callable = _functions.httpsCallable('validateMatchResult');
     await callable.call({'matchId': matchId.trim()});

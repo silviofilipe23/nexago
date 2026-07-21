@@ -26,6 +26,7 @@ import 'widgets/my_bookings_empty_hero.dart';
 import 'widgets/my_bookings_nearby_section.dart';
 import 'widgets/my_bookings_streak_banner.dart';
 import 'widgets/my_bookings_tabs.dart';
+import 'widgets/my_bookings_waitlist_section.dart';
 
 /// Lista de reservas do atleta — layout escuro (protótipos 05/06).
 class MyBookingsPage extends ConsumerStatefulWidget {
@@ -120,6 +121,7 @@ class _EmptyBookingsBody extends ConsumerWidget {
             proximityPhrase: proximityPhrase,
           ),
         ),
+        const MyBookingsWaitlistSection(),
         SizedBox(height: 28),
         staggeredFadeSlide(
           index: 1,
@@ -156,6 +158,7 @@ class _BookingsListBody extends ConsumerWidget {
         : split.history;
 
     final children = <Widget>[
+      const MyBookingsWaitlistSection(),
       MyBookingsTabs(
         selected: tab,
         upcomingCount: split.upcoming.length,

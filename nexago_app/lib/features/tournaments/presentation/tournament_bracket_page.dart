@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:nexago_app/core/router/routes.dart';
 import 'package:nexago_app/core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../domain/tournament_discovery_providers.dart';
 import 'widgets/tournament_detail/tournament_detail_bracket_tab.dart';
 import 'widgets/tournament_detail/tournament_detail_subpage_scaffold.dart';
@@ -79,6 +81,9 @@ class _TournamentBracketPageState extends ConsumerState<TournamentBracketPage> {
 
         return TournamentDetailSubpageScaffold(
           title: 'Chave e Jogos',
+          actions: [
+            _PredictionsButton(tournamentId: widget.tournamentId),
+          ],
           slivers: TournamentDetailBracketTab(
             tournament: tournament,
             categoryId: categoryId,
@@ -88,6 +93,34 @@ class _TournamentBracketPageState extends ConsumerState<TournamentBracketPage> {
           ).buildSlivers(context, ref),
         );
       },
+    );
+  }
+}
+
+/// Atalho no app bar da chave pra tela "Palpites" (feature #5 — torcida
+/// palpita quem vence cada partida agendada e o campeão).
+class _PredictionsButton extends StatelessWidget {
+  const _PredictionsButton({required this.tournamentId});
+
+  final String tournamentId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: context.themeColors.surfaceRaised,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => context.pushNamed(
+          AppRouteNames.tournamentPredictions,
+          pathParameters: {'tournamentId': tournamentId},
+        ),
+        borderRadius: BorderRadius.circular(12),
+        child: const SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(Icons.emoji_events_outlined, size: 22),
+        ),
+      ),
     );
   }
 }

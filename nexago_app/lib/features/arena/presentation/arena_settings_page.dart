@@ -187,6 +187,17 @@ class _SettingsBody extends ConsumerWidget {
                                   ? _ProductsAlertBadge(
                                       count: productSummary.alertCount)
                                   : null,
+                              showDivider: true,
+                            ),
+                            ArenaSettingsTile(
+                              icon: Icons.insights_rounded,
+                              title: 'Relatórios',
+                              subtitle:
+                                  'Ocupação, jogadores únicos e no-show',
+                              variant: ArenaSettingsIconVariant.neutral,
+                              onTap: () => context.pushNamed(
+                                AppRouteNames.arenaOccupancyReport,
+                              ),
                               showDivider: false,
                             ),
                           ],

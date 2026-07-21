@@ -20,9 +20,15 @@ type Tab = 'todos' | PayStatus;
 const PAY_TONE: Record<PayStatus, PillTone> = { pago: 'green', pendente: 'yellow', espera: 'dim' };
 const PAY_LABEL: Record<PayStatus, string> = { pago: 'Pago', pendente: 'Pendente', espera: 'Espera' };
 
+interface InscricaoAthlete {
+  name: string;
+  photoUrl: string | null;
+}
+
 interface InscricaoRow {
   id: string;
   name: string;
+  athletes: InscricaoAthlete[];
   categoriaId: string | null;
   categoria: string;
   pay: PayStatus;
@@ -102,7 +108,17 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
           } @else {
             @for (r of filtered(); track r.id) {
               <div class="og-row" style="flex-wrap:wrap">
-                <og-avatar [initials]="initialsOf(r.name, ' ')" [size]="34" />
+                <span class="og-inscricoes-avatars" [style.width.px]="r.athletes.length > 1 ? 52 : 34">
+                  @for (a of r.athletes; track $index; let i = $index) {
+                    <og-avatar
+                      [initials]="initialsOf(a.name)"
+                      [photoUrl]="a.photoUrl"
+                      [size]="34"
+                      [style.margin-left.px]="i ? -16 : 0"
+                      [style.z-index]="r.athletes.length - i"
+                    />
+                  }
+                </span>
                 <span style="flex:1.4;min-width:0">
                   <div class="og-inscricoes-name" [title]="r.name">{{ truncate(r.name, 32) }}</div>
                 </span>
@@ -152,6 +168,15 @@ const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'sh
     </div>
   `,
   styles: `
+    .og-inscricoes-avatars {
+      display: flex;
+      align-items: center;
+      flex: none;
+      height: 34px;
+    }
+    .og-inscricoes-avatars .og-avatar {
+      box-shadow: 0 0 0 2px var(--nx-surface-0);
+    }
     .og-inscricoes-name {
       font-family: var(--nx-font-display);
       font-weight: 600;
@@ -265,15 +290,22 @@ export class InscricoesComponent {
       const [tournament, inscriptions] = await Promise.all([getTournament(tid), listInscriptions(tid)]);
       this.tournament.set(tournament);
       const categoryNames = new Map((tournament?.categories ?? []).map((c) => [c.id, c.name]));
-      const rows: InscricaoRow[] = inscriptions.map((insc) => ({
-        id: insc.id,
-        name: insc.teamName,
-        categoriaId: insc.categoryId,
-        categoria: (insc.categoryId && categoryNames.get(insc.categoryId)) || '—',
-        pay: insc.paid ? 'pago' : insc.paymentStatus === 'waitlist' ? 'espera' : 'pendente',
-        date: insc.createdAt ? SHORT_DATE.format(insc.createdAt) : '—',
-        createdAt: insc.createdAt,
-      }));
+      const rows: InscricaoRow[] = inscriptions.map((insc) => {
+        const athletes: InscricaoAthlete[] =
+          insc.participants.length > 0
+            ? insc.participants.map((p) => ({ name: p.name, photoUrl: p.photoUrl }))
+            : [{ name: insc.teamName, photoUrl: null }];
+        return {
+          id: insc.id,
+          name: insc.teamName,
+          athletes: athletes.slice(0, 2),
+          categoriaId: insc.categoryId,
+          categoria: (insc.categoryId && categoryNames.get(insc.categoryId)) || '—',
+          pay: insc.paid ? 'pago' : insc.paymentStatus === 'waitlist' ? 'espera' : 'pendente',
+          date: insc.createdAt ? SHORT_DATE.format(insc.createdAt) : '—',
+          createdAt: insc.createdAt,
+        };
+      });
       rows.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
       this.rows.set(rows);
     } finally {

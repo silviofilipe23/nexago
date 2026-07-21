@@ -12,6 +12,7 @@ import '../../domain/tournament_ops/tournament_ops_providers.dart';
 import '../../../tournaments/data/tournament_live_matches_sync.dart';
 import '../../../tournaments/domain/tournament_match.dart';
 import '../../../tournaments/domain/tournament_match_display.dart';
+import '../../../tournaments/domain/tournament_match_live_score.dart';
 import '../../../tournaments/domain/tournament_match_set.dart';
 import 'organizer_match_error.dart';
 import 'widgets/organizer_match_live_table_widgets.dart';
@@ -40,6 +41,7 @@ class _OrganizerMatchQuickScorePageState
   ];
   bool _saving = false;
   bool _initialized = false;
+  bool _liveScoreSaving = false;
 
   int _bestOf = MatchScoringLogic.defaultBestOf;
 
@@ -185,6 +187,43 @@ class _OrganizerMatchQuickScorePageState
     }
   }
 
+  /// Placar "ao vivo" (transmissão) — incremental e independente do placar
+  /// final acima: cada toque chama `updateLiveMatchScore` de imediato, a
+  /// partir do último valor confirmado pelo servidor (via stream), não de
+  /// estado local acumulado. `_liveScoreSaving` evita disparos concorrentes
+  /// fora de ordem quando o mesário toca rápido demais.
+  Future<void> _bumpLiveScore(
+    TournamentMatch match, {
+    int? setsA,
+    int? setsB,
+    int? gamesA,
+    int? gamesB,
+  }) async {
+    if (_liveScoreSaving) return;
+    final current = match.liveScore ?? MatchLiveScore.zero;
+    final nextSetsA = (setsA ?? current.setsA).clamp(0, 99);
+    final nextSetsB = (setsB ?? current.setsB).clamp(0, 99);
+    final nextGamesA = (gamesA ?? current.currentGamesA).clamp(0, 99);
+    final nextGamesB = (gamesB ?? current.currentGamesB).clamp(0, 99);
+
+    setState(() => _liveScoreSaving = true);
+    try {
+      await ref.read(organizerMatchScheduleServiceProvider).updateLiveMatchScore(
+            matchId: widget.matchId,
+            setsA: nextSetsA,
+            setsB: nextSetsB,
+            currentGamesA: nextGamesA,
+            currentGamesB: nextGamesB,
+          );
+    } catch (e) {
+      if (mounted) {
+        showAppSnackBar(context, friendlyMatchScoreError(e), isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _liveScoreSaving = false);
+    }
+  }
+
   /// W.O. / abandono passa pela Cloud Function dedicada, que grava o resultado
   /// no formato correto (resultA/resultB "W.O.", check-in, queue) e já avança
   /// chave + ranking de forma consistente.
@@ -301,6 +340,21 @@ class _OrganizerMatchQuickScorePageState
                       setsWonA: setsWonA,
                       setsWonB: setsWonB,
                     ),
+                    if (!match.isCompleted && !match.isCanceled) ...[
+                      const SizedBox(height: 24),
+                      _SectionHeader(
+                        title: 'PLACAR AO VIVO',
+                        trailing: 'transmissão em tempo real',
+                      ),
+                      const SizedBox(height: 12),
+                      _LiveScoreSection(
+                        liveScore: match.liveScore ?? MatchLiveScore.zero,
+                        onBumpSets: ({a, b}) =>
+                            _bumpLiveScore(match, setsA: a, setsB: b),
+                        onBumpGames: ({a, b}) =>
+                            _bumpLiveScore(match, gamesA: a, gamesB: b),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     _SectionHeader(
                       title: 'GAMES POR SET',
@@ -737,6 +791,106 @@ class _SetInputRow extends StatelessWidget {
             isWinning: bWins,
             onDecrement: set.b > 0 ? () => onChangeB(set.b - 1) : null,
             onIncrement: () => onChangeB(set.b + 1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Placar ao vivo (transmissão) ─────────────────────────────────────────────
+
+class _LiveScoreSection extends StatelessWidget {
+  const _LiveScoreSection({
+    required this.liveScore,
+    required this.onBumpSets,
+    required this.onBumpGames,
+  });
+
+  final MatchLiveScore liveScore;
+  final void Function({int? a, int? b}) onBumpSets;
+  final void Function({int? a, int? b}) onBumpGames;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _LiveScoreRow(
+          label: 'SETS FECHADOS',
+          valueA: liveScore.setsA,
+          valueB: liveScore.setsB,
+          onChangeA: (v) => onBumpSets(a: v),
+          onChangeB: (v) => onBumpSets(b: v),
+        ),
+        Divider(
+          height: 1,
+          color: context.themeColors.onSurfaceMuted.withValues(alpha: 0.1),
+        ),
+        _LiveScoreRow(
+          label: 'GAMES · SET ATUAL',
+          valueA: liveScore.currentGamesA,
+          valueB: liveScore.currentGamesB,
+          onChangeA: (v) => onBumpGames(a: v),
+          onChangeB: (v) => onBumpGames(b: v),
+        ),
+      ],
+    );
+  }
+}
+
+class _LiveScoreRow extends StatelessWidget {
+  const _LiveScoreRow({
+    required this.label,
+    required this.valueA,
+    required this.valueB,
+    required this.onChangeA,
+    required this.onChangeB,
+  });
+
+  final String label;
+  final int valueA;
+  final int valueB;
+  final ValueChanged<int> onChangeA;
+  final ValueChanged<int> onChangeB;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: AppTypography.mono(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: context.themeColors.onSurfaceMuted,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const Spacer(),
+          _ScoreControl(
+            value: valueA,
+            isWinning: false,
+            onDecrement: valueA > 0 ? () => onChangeA(valueA - 1) : null,
+            onIncrement: () => onChangeA(valueA + 1),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              '×',
+              style: AppTypography.mono(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: context.themeColors.onSurfaceMuted,
+              ),
+            ),
+          ),
+          _ScoreControl(
+            value: valueB,
+            isWinning: false,
+            onDecrement: valueB > 0 ? () => onChangeB(valueB - 1) : null,
+            onIncrement: () => onChangeB(valueB + 1),
           ),
         ],
       ),

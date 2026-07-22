@@ -81,7 +81,7 @@
             }
           </section>
 
-          @if (uniformRequired() && uniform() && selectedCategory(); as cat) {
+          @if (!receivedInvite() && uniformRequired() && uniform() && selectedCategory(); as cat) {
             <section class="rg-card" id="rg-uniform-card">
               <div class="rg-step-title">
                 <span class="rg-step-num">2</span>
@@ -114,7 +114,28 @@
               <h2>Sua inscrição</h2>
             </div>
 
-            @if (!registration()) {
+            @if (receivedInvite(); as invite) {
+              <p class="rg-empty-inline">Convite de <strong>{{ invite.inviterName }}</strong> pra jogar nesta categoria.</p>
+
+              @if (uniformRequired() && uniform() && selectedCategory(); as cat) {
+                <app-uniform-form [category]="cat" [value]="uniform()!" [disabled]="acceptingInvite()" (valueChange)="onUniformChange($event)" />
+              }
+
+              <div class="rg-btn-row">
+                <button type="button" class="rg-btn-primary" [disabled]="acceptingInvite() || decliningInvite()" (click)="acceptReceivedInvite()">
+                  @if (acceptingInvite()) {
+                    <app-nx-spinner [size]="14" tone="dark" />
+                  }
+                  {{ acceptingInvite() ? 'Aceitando…' : 'Aceitar convite' }}
+                </button>
+                <button type="button" class="rg-btn-ghost" [disabled]="acceptingInvite() || decliningInvite()" (click)="declineReceivedInvite()">
+                  @if (decliningInvite()) {
+                    <app-nx-spinner [size]="14" />
+                  }
+                  {{ decliningInvite() ? 'Recusando…' : 'Recusar' }}
+                </button>
+              </div>
+            } @else if (!registration()) {
               <p class="rg-empty-inline">Você ainda não se inscreveu nesta categoria — a vaga é reservada assim que você confirma, e você convida seu parceiro depois.</p>
               <button type="button" class="rg-btn-primary" [disabled]="registering() || !selectedCategory() || selectedStatus()?.blocked" (click)="registerSoloForCategory()">
                 @if (registering()) {
@@ -124,6 +145,26 @@
               </button>
             } @else if (registration()!.partnerPending) {
               <p class="rg-empty-inline">Vaga reservada! Agora busque e convide seu parceiro de dupla.</p>
+
+              @if (sentPendingInvites().length > 0) {
+                <div class="rg-option-list">
+                  @for (invite of sentPendingInvites(); track invite.id) {
+                    <div class="rg-option-row">
+                      <span class="rg-option-copy">
+                        <span class="rg-option-title">{{ invite.inviteeName }}</span>
+                        <span class="rg-option-desc">Convite enviado — aguardando resposta.</span>
+                      </span>
+                      <button type="button" class="rg-btn-ghost" [disabled]="cancelingInviteId() === invite.id" (click)="cancelInvite(invite)">
+                        @if (cancelingInviteId() === invite.id) {
+                          <app-nx-spinner [size]="14" />
+                        }
+                        {{ cancelingInviteId() === invite.id ? 'Cancelando…' : 'Cancelar' }}
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+
               <input
                 type="search"
                 class="rg-search-input"
@@ -190,7 +231,7 @@
                 @if (!registration()) {
                   Não inscrito
                 } @else if (registration()!.partnerPending) {
-                  Falta parceiro
+                  {{ sentPendingInvites().length > 1 ? 'Convites enviados' : sentPendingInvites().length === 1 ? 'Convite enviado' : 'Falta parceiro' }}
                 } @else if (!registration()!.isPaid) {
                   Aguardando pagamento
                 } @else {

@@ -46,7 +46,7 @@ function levelLabelForRank(rank: number): string {
   return 'Open';
 }
 
-function normalizeAthleteGender(raw: string | null): 'M' | 'F' | null {
+export function normalizeAthleteGender(raw: string | null): 'M' | 'F' | null {
   const v = raw?.trim().toLowerCase() ?? '';
   if (!v) return null;
   if (v === 'm' || v.startsWith('masc')) return 'M';

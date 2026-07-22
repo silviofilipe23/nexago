@@ -91,6 +91,56 @@ export async function fetchMyPendingPartnerInvites(db: Firestore, uid: string): 
     .filter((invite) => invite.expiresAt == null || invite.expiresAt.getTime() > now);
 }
 
+export interface SentPartnerInvite {
+  id: string;
+  inviteeUid: string;
+  inviteeName: string;
+  expiresAt: Date | null;
+}
+
+/** Convites pendentes que EU enviei nesta categoria — pra mostrar "aguardando resposta"
+ *  em vez de voltar pra busca vazia depois de convidar (ou ao recarregar a página). O
+ *  atleta pode convidar mais de uma pessoa: o primeiro aceite marca os outros como stale
+ *  (`markStaleInvitesAfterAccept` no backend), então listamos todos os pendentes. */
+export async function fetchMySentPendingInvites(
+  db: Firestore,
+  uid: string,
+  tournamentId: string,
+  categoryId: string,
+): Promise<SentPartnerInvite[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, 'tournamentRegistrationInvites'),
+      where('inviterUid', '==', uid),
+      where('tournamentId', '==', tournamentId),
+      where('categoryId', '==', categoryId),
+      where('status', '==', 'pending'),
+    ),
+  );
+  const now = Date.now();
+  return snap.docs
+    .map((d) => {
+      const data = d.data() as Record<string, unknown>;
+      return {
+        id: d.id,
+        inviteeUid: typeof data['inviteeUid'] === 'string' ? data['inviteeUid'] : '',
+        inviteeName: optionalStr(data['inviteeName']) ?? 'Atleta',
+        expiresAt: toDate(data['expiresAt']),
+      };
+    })
+    .filter((invite) => invite.expiresAt == null || invite.expiresAt.getTime() > now);
+}
+
+/** Cancela um convite que EU enviei (o backend também aceita o convidado recusar via
+ *  `declinePartnerInvite` — aqui é o lado do convidador desistindo). */
+export async function cancelSentPartnerInvite(functions: Functions, inviteId: string): Promise<void> {
+  try {
+    await httpsCallable(functions, 'cancelTournamentPartnerInvite')({ inviteId });
+  } catch (err) {
+    throw mapCallableError(err);
+  }
+}
+
 export async function fetchMyRegistrationForCategory(db: Firestore, projectId: string, uid: string, tournamentId: string, categoryId: string): Promise<AthleteTournamentRegistration | null> {
   const all = await fetchMyRegistrations(db, projectId, uid);
   return all.find((r) => r.tournamentId === tournamentId && r.categoryId === categoryId) ?? null;

@@ -113,6 +113,12 @@
   margin: 0 0 12px;
 }
 
+.rg-btn-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .rg-search-input {
   width: 100%;
   height: 42px;

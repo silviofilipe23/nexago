@@ -82,6 +82,7 @@ export interface AgendaPendingRequest {
   title: string;
   subtitle: string;
   scheduleLine: string;
+  tournamentId: string;
   /** Categoria do convite (com flags de uniforme) — null quando o torneio não carregou. */
   category: TournamentCategoryOffer | null;
 }
@@ -503,6 +504,7 @@ export class AthleteAgendaComponent {
             scheduleLine: tournament?.startAt
               ? new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(tournament.startAt)
               : 'Data a confirmar',
+            tournamentId: invite.tournamentId,
             category,
           };
         }),
@@ -587,7 +589,7 @@ export class AthleteAgendaComponent {
       this.inviteUniform.set(defaultUniformSelectionForCategory(category));
       return;
     }
-    void this.submitAccept(request.id, undefined);
+    void this.submitAccept(request, undefined);
   }
 
   protected async confirmAccept(request: AgendaPendingRequest): Promise<void> {
@@ -599,7 +601,7 @@ export class AthleteAgendaComponent {
       this.showNotice(error);
       return;
     }
-    await this.submitAccept(request.id, toUniformInput(selection));
+    await this.submitAccept(request, toUniformInput(selection));
   }
 
   protected cancelAcceptExpansion(): void {
@@ -612,7 +614,8 @@ export class AthleteAgendaComponent {
     this.inviteUniform.set(next);
   }
 
-  private async submitAccept(id: string, inviteeUniform: UniformInput | undefined): Promise<void> {
+  private async submitAccept(request: AgendaPendingRequest, inviteeUniform: UniformInput | undefined): Promise<void> {
+    const id = request.id;
     this.acceptingId.set(id);
     try {
       await acceptPartnerInvite(athleteFunctions(), id, inviteeUniform);
@@ -620,8 +623,13 @@ export class AthleteAgendaComponent {
       this.expandedInviteId.set(null);
       this.inviteUniform.set(null);
       this.showNotice('Convite aceito! Vocês já formam dupla nessa categoria.');
-      const uid = this.auth.user()?.uid ?? null;
-      void this.loadAgenda(uid);
+      // Depois de aceitar, o próximo passo real é completar a inscrição (uniforme/pagamento)
+      // — leva direto pra lá em vez de deixar o atleta na Agenda.
+      const categoryId = request.category?.id;
+      void this.router.navigate(
+        ['/torneios', request.tournamentId, 'inscricao'],
+        categoryId ? { queryParams: { categoria: categoryId } } : {},
+      );
     } catch (err) {
       this.showNotice(err instanceof Error ? err.message : 'Não foi possível aceitar o convite.');
     } finally {

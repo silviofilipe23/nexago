@@ -32,6 +32,8 @@ export interface AthletePublicProfile {
   sportChip: ArenaSportChip;
   /** Código do nível pro esporte principal (ex.: `intermediario_1`), já com fallback pro nível legado. */
   levelCode: string | null;
+  /** `users/{uid}.gender` cru ("Masculino"/"Feminino"/...) — normalizar com `normalizeAthleteGender`. */
+  gender: string | null;
   hasAthleteRole: boolean;
   lookingForPartner: boolean;
   lastActiveAt: Date | null;
@@ -132,6 +134,7 @@ export function athletePublicProfileFromDoc(id: string, data: Record<string, unk
     primarySportId,
     sportChip: defaultSportChipFromProfile({ primarySport: primarySportId, sport: optionalTrimmed(data['sport']) }),
     levelCode: levelForPrimarySport ?? optionalTrimmed(data['level']) ?? optionalTrimmed(data['nivel']),
+    gender: optionalTrimmed(data['gender']),
     hasAthleteRole: data['hasAthleteRole'] === true || roles.includes('athlete') || data['role'] === 'athlete',
     lookingForPartner: data['lookingForPartner'] === true,
     lastActiveAt: toDate(data['lastActiveAt']),

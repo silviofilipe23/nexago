@@ -9,16 +9,23 @@ import { athleteFunctions } from '../../data/functions';
 import { fetchMyAthleteProfile, type MyAthleteProfile } from '../../data/my-athlete-profile-repository';
 import { searchAthleteDirectory, type AthletePublicProfile } from '../../data/public-profiles-repository';
 import {
+  acceptPartnerInvite,
+  cancelSentPartnerInvite,
+  declinePartnerInvite,
+  fetchMyPendingPartnerInvites,
   fetchMyRegistrations,
+  fetchMySentPendingInvites,
   registerSolo,
   sendPartnerInvite,
   setRegistrationUniform,
   TournamentRegistrationError,
   type AthleteTournamentRegistration,
+  type SentPartnerInvite,
+  type TournamentPartnerInvite,
   type UniformInput,
 } from '../../data/tournament-registrations-repository';
 import { fetchCategoryEnrolledCounts, fetchTournament, type TournamentCategoryOffer, type TournamentSummary } from '../../data/tournaments-repository';
-import { evaluateCategoryEligibility } from '../tournament-eligibility';
+import { evaluateCategoryEligibility, normalizeAthleteGender } from '../tournament-eligibility';
 import {
   categoryRequiresUniform,
   defaultJerseyNameForAthlete,
@@ -168,6 +175,14 @@ export class TournamentRegistrationShellComponent {
   protected readonly partnerResults = signal<AthletePublicProfile[]>([]);
   protected readonly searchingPartner = signal(false);
   protected readonly invitingId = signal<string | null>(null);
+  protected readonly sentPendingInvites = signal<SentPartnerInvite[]>([]);
+  protected readonly cancelingInviteId = signal<string | null>(null);
+
+  /** Convite QUE EU RECEBI pra essa categoria — aceitar/recusar direto aqui, sem depender
+   *  de o atleta achar a Agenda (é onde a aceitação sempre viveu até então). */
+  protected readonly receivedInvite = signal<TournamentPartnerInvite | null>(null);
+  protected readonly acceptingInvite = signal(false);
+  protected readonly decliningInvite = signal(false);
 
   protected readonly notice = signal<string | null>(null);
   protected readonly genderLabel = genderLabelOf;
@@ -191,9 +206,37 @@ export class TournamentRegistrationShellComponent {
       void this.loadMyRegistrations(id, uid);
     });
 
+    // Convite que ALGUÉM me enviou pra essa categoria — mostrado direto na tela, em vez de
+    // só na Agenda.
+    effect(() => {
+      const uid = this.auth.user()?.uid;
+      const tournamentId = this.tournamentId();
+      const category = this.selectedCategory();
+      if (!uid || !tournamentId || !category) {
+        this.receivedInvite.set(null);
+        return;
+      }
+      void this.loadReceivedInvite(uid, tournamentId, category.id);
+    });
+
     effect(() => {
       const uid = this.auth.user()?.uid;
       if (uid) void this.loadProfile(uid);
+    });
+
+    // Convites que eu enviei e ainda tão pendentes — mostra "aguardando resposta" em vez de
+    // deixar a busca vazia (recarregar a página não deve esconder que já convidei alguém).
+    // Pode ter mais de um: o atleta pode convidar várias pessoas, o primeiro aceite cancela
+    // os demais (markStaleInvitesAfterAccept no backend).
+    effect(() => {
+      const reg = this.registration();
+      const uid = this.auth.user()?.uid;
+      const tournamentId = this.tournamentId();
+      if (!reg?.partnerPending || !uid || !tournamentId) {
+        this.sentPendingInvites.set([]);
+        return;
+      }
+      void this.loadSentPendingInvites(uid, tournamentId, reg.categoryId);
     });
 
     // Defaults do uniforme ao trocar de categoria; quando o perfil chega depois do default,
@@ -258,6 +301,27 @@ export class TournamentRegistrationShellComponent {
       this.myRegistrations.set(all.filter((r) => r.tournamentId === tournamentId));
     } catch {
       this.myRegistrations.set([]);
+    }
+  }
+
+  private async loadReceivedInvite(uid: string, tournamentId: string, categoryId: string): Promise<void> {
+    const db = this.firestore;
+    if (!db) return;
+    try {
+      const invites = await fetchMyPendingPartnerInvites(db, uid);
+      this.receivedInvite.set(invites.find((i) => i.tournamentId === tournamentId && i.categoryId === categoryId) ?? null);
+    } catch {
+      this.receivedInvite.set(null);
+    }
+  }
+
+  private async loadSentPendingInvites(uid: string, tournamentId: string, categoryId: string): Promise<void> {
+    const db = this.firestore;
+    if (!db) return;
+    try {
+      this.sentPendingInvites.set(await fetchMySentPendingInvites(db, uid, tournamentId, categoryId));
+    } catch {
+      this.sentPendingInvites.set([]);
     }
   }
 
@@ -387,8 +451,18 @@ export class TournamentRegistrationShellComponent {
     this.searchingPartner.set(true);
     try {
       const uid = this.auth.user()?.uid;
+      const alreadyInvited = new Set(this.sentPendingInvites().map((i) => i.inviteeUid));
+      // Categoria Masculino/Feminino só aceita parceiro do mesmo gênero (Misto não filtra).
+      const categoryGender = this.selectedCategory()?.genderType ?? null;
       const results = await searchAthleteDirectory(db, term);
-      this.partnerResults.set(results.filter((p) => p.id !== uid));
+      this.partnerResults.set(
+        results.filter(
+          (p) =>
+            p.id !== uid &&
+            !alreadyInvited.has(p.id) &&
+            (categoryGender == null || categoryGender === 'Mix' || normalizeAthleteGender(p.gender) === categoryGender),
+        ),
+      );
     } finally {
       this.searchingPartner.set(false);
     }
@@ -423,20 +497,83 @@ export class TournamentRegistrationShellComponent {
         inviterName: this.accountLabel(),
         ...(inviterUniform ? { inviterUniform } : {}),
       });
-      this.showNotice(`Convite enviado para ${candidate.displayName}.`);
+      this.showNotice(`Convite enviado para ${candidate.displayName} — aguardando resposta.`);
       this.partnerResults.set([]);
       this.partnerQuery.set('');
+      await this.loadSentPendingInvites(this.auth.user()!.uid, tournamentId, category.id);
     } catch (err) {
       // 409 / already-exists = convite ainda válido — trata como ok (já foi enviado).
       if (err instanceof TournamentRegistrationError && err.isPendingInviteConflict) {
-        this.showNotice(`Convite já enviado para ${candidate.displayName}.`);
+        this.showNotice(`Convite já enviado para ${candidate.displayName} — aguardando resposta.`);
         this.partnerResults.set([]);
         this.partnerQuery.set('');
+        await this.loadSentPendingInvites(this.auth.user()!.uid, tournamentId, category.id);
       } else {
         this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível enviar o convite.');
       }
     } finally {
       this.invitingId.set(null);
+    }
+  }
+
+  protected async cancelInvite(invite: SentPartnerInvite): Promise<void> {
+    if (this.cancelingInviteId()) return;
+    this.cancelingInviteId.set(invite.id);
+    try {
+      await cancelSentPartnerInvite(athleteFunctions(), invite.id);
+      this.sentPendingInvites.update((list) => list.filter((i) => i.id !== invite.id));
+      this.showNotice(`Convite para ${invite.inviteeName} cancelado.`);
+    } catch (err) {
+      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível cancelar o convite.');
+    } finally {
+      this.cancelingInviteId.set(null);
+    }
+  }
+
+  protected async acceptReceivedInvite(): Promise<void> {
+    const invite = this.receivedInvite();
+    const category = this.selectedCategory();
+    if (!invite || this.acceptingInvite()) return;
+
+    let inviteeUniform: UniformInput | undefined;
+    if (category && categoryRequiresUniform(category)) {
+      const selection = this.uniform();
+      const error = selection ? validateUniformSelection(category, selection) : 'Complete a escolha do uniforme antes de aceitar.';
+      if (error) {
+        this.showNotice(error);
+        this.scrollToUniformCard();
+        return;
+      }
+      inviteeUniform = toUniformInput(selection!);
+    }
+
+    this.acceptingInvite.set(true);
+    try {
+      await acceptPartnerInvite(athleteFunctions(), invite.id, inviteeUniform);
+      this.showNotice(`Convite de ${invite.inviterName} aceito! Dupla formada.`);
+      this.receivedInvite.set(null);
+      const uid = this.auth.user()?.uid;
+      const tournamentId = this.tournamentId();
+      if (uid && tournamentId) await this.loadMyRegistrations(tournamentId, uid);
+    } catch (err) {
+      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível aceitar o convite.');
+    } finally {
+      this.acceptingInvite.set(false);
+    }
+  }
+
+  protected async declineReceivedInvite(): Promise<void> {
+    const invite = this.receivedInvite();
+    if (!invite || this.decliningInvite()) return;
+    this.decliningInvite.set(true);
+    try {
+      await declinePartnerInvite(athleteFunctions(), invite.id);
+      this.showNotice(`Convite de ${invite.inviterName} recusado.`);
+      this.receivedInvite.set(null);
+    } catch (err) {
+      this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível recusar o convite.');
+    } finally {
+      this.decliningInvite.set(false);
     }
   }
 

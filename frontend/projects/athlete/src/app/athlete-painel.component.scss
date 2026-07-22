@@ -708,6 +708,39 @@
   margin-top: 2px;
 }
 
+.at-invite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.at-invite-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.at-invite-info {
+  flex: 1;
+  min-width: 200px;
+  font-family: var(--nx-font-ui);
+  font-size: 13px;
+  color: var(--nx-text);
+
+  strong {
+    font-family: var(--nx-font-display);
+    font-weight: 700;
+  }
+}
+
+.at-invite-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
 // ── Atalhos ──────────────────────────────────────────────────
 .at-shortcuts {
   display: grid;

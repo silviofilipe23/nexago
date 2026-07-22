@@ -80,6 +80,31 @@
 
     <div class="at-main-grid">
       <div class="at-col">
+        @if (pendingInvites().length > 0) {
+          <div class="at-card at-card--accent">
+            <div class="at-card-head">
+              <div class="at-card-title">Convites de dupla</div>
+            </div>
+            <div class="at-invite-list">
+              @for (invite of pendingInvites(); track invite.id) {
+                <div class="at-invite-row">
+                  <div class="at-invite-info">
+                    <strong>{{ invite.inviterName }}</strong> te chamou pra jogar em <strong>{{ invite.tournamentName }}</strong>.
+                  </div>
+                  <div class="at-invite-actions">
+                    <button type="button" class="at-mini-btn at-mini-btn--primary" [disabled]="respondingInviteId() === invite.id" (click)="acceptInviteQuick(invite)">
+                      {{ respondingInviteId() === invite.id ? 'Aceitando…' : 'Aceitar' }}
+                    </button>
+                    <button type="button" class="at-mini-btn" [disabled]="respondingInviteId() === invite.id" (click)="declineInviteQuick(invite)">
+                      Recusar
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          </div>
+        }
+
         <div class="at-card at-card--accent">
           @if (nextReservation(); as reservation) {
             <div class="at-next-reservation">

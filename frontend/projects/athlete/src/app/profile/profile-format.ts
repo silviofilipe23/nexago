@@ -117,8 +117,11 @@ function asStringArray(value: unknown): string[] {
  *  `athlete_profiles/{uid}.primarySport`, que é texto livre e não bate com `levelsBySport`).
  *  Ordem do retorno: modalidade principal primeiro, depois as secundárias na ordem de
  *  `secondarySportIds`. Nível ausente na principal cai pro nível global legado
- *  (`level`/`nivel`/`sportProfile.level`, mesma precedência do perfil público); modalidades
- *  secundárias sem entrada em `levelsBySport` ficam com `levelLabel: ''` (sem fallback). */
+ *  (`level`/`nivel`/`sportProfile.level`), mesma precedência de `athlete-public-profile.component.ts`
+ *  — diferente da cadeia de 2 campos (sem `sportProfile.level`) usada em
+ *  `public-profiles-repository.ts` (ranking/diretório), divergência pré-existente entre os
+ *  dois, fora do escopo desta mudança; modalidades secundárias sem entrada em
+ *  `levelsBySport` ficam com `levelLabel: ''` (sem fallback). */
 export function buildSportLevels(userData: Record<string, unknown> | null | undefined): SportLevelEntry[] {
   const sportOnboarding = asRecord(userData?.['sportOnboarding']);
   const primarySportId = asString(sportOnboarding?.['primarySportId']);

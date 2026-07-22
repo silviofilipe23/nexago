@@ -207,7 +207,70 @@ class _AgendaTimelineCard extends ConsumerWidget {
       AthleteAgendaItemKind.tournament => _TournamentCard(item: item),
       AthleteAgendaItemKind.challenge => _ChallengeCard(item: item),
       AthleteAgendaItemKind.friendlyMatch => _FriendlyMatchCard(item: item),
+      AthleteAgendaItemKind.clubSession => _ClubSessionCard(item: item),
     };
+  }
+}
+
+class _ClubSessionCard extends StatelessWidget {
+  const _ClubSessionCard({required this.item});
+
+  final AthleteAgendaItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final accent = item.accentColor;
+    final sessionId = item.clubSession?.sessionId;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: sessionId == null
+            ? null
+            : () => context.push('/clubinho/$sessionId'),
+        borderRadius: BorderRadius.circular(agendaTimelineCardRadius),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: agendaTimelineCardDecoration(
+            kind: AthleteAgendaItemKind.clubSession,
+            accent: accent,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _KindBadge(label: 'CLUBINHO', color: accent),
+                  const Spacer(),
+                  Text(
+                    item.statusLabel,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: accent,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                item.title,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                item.subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: context.themeColors.onSurfaceMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

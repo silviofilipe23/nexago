@@ -44,6 +44,9 @@ enum ArenaCapability {
   /// Promoções de horário na agenda.
   promocoes,
 
+  /// Clubinho: jogo aberto com lista pública e PIX por sessão.
+  clubinho,
+
   /// Dashboard completo: insights e seguidores.
   metricasCompletas,
 
@@ -69,6 +72,7 @@ Set<ArenaCapability> capabilitiesFor(
         ArenaCapability.pdvComandas,
         ArenaCapability.estoque,
         ArenaCapability.promocoes,
+        ArenaCapability.clubinho,
         ArenaCapability.metricasCompletas,
         ArenaCapability.receberTorneios,
         ArenaCapability.multiUnidade,
@@ -77,6 +81,7 @@ Set<ArenaCapability> capabilitiesFor(
         ArenaCapability.pdvComandas,
         ArenaCapability.estoque,
         ArenaCapability.promocoes,
+        ArenaCapability.clubinho,
         ArenaCapability.metricasCompletas,
         ArenaCapability.receberTorneios,
       },

@@ -19,6 +19,7 @@ import { environment } from '../../environments/environment';
 import { AuthService } from '../auth/auth.service';
 import { LocationMapComponent } from '../shared/location-map/location-map.component';
 import { AtPanelShellComponent } from '../painel/at-panel-shell.component';
+import { clubSpotsLeft, fetchUpcomingClubSessions, type ClubSession } from '../data/arena-clubs-repository';
 
 export interface ArenaCourtView {
   id: string;
@@ -26,6 +27,16 @@ export interface ArenaCourtView {
   sportLabel: string;
   pricePerHourReais: number;
   nextSlotLabel: string | null;
+}
+
+export interface ClubSessionView {
+  id: string;
+  clubName: string;
+  dateLabel: string;
+  timeLabel: string;
+  priceLabel: string;
+  spotsLeft: number;
+  full: boolean;
 }
 
 const AMENITY_LABELS: readonly { key: keyof ArenaAmenities; label: string }[] = [
@@ -135,6 +146,7 @@ export class ArenaDetailComponent {
   protected readonly courts = signal<ArenaCourtDoc[]>([]);
   protected readonly nextSlotByCourtId = signal<Record<string, string | null>>({});
   protected readonly favoriteIds = signal<ReadonlySet<string>>(new Set());
+  protected readonly clubSessions = signal<ClubSession[]>([]);
   protected readonly pendingFavorite = signal(false);
   protected readonly shareFeedback = signal<string | null>(null);
   protected readonly heroImageLoaded = signal(false);
@@ -171,6 +183,23 @@ export class ArenaDetailComponent {
       .sort();
     return labels[0] ?? null;
   });
+
+  /** Sessões abertas de clubinho (jogo aberto): nome na lista + PIX antecipado. */
+  protected readonly clubSessionViews = computed<ClubSessionView[]>(() =>
+    this.clubSessions().map((s) => {
+      const [, m, d] = s.date.split('-');
+      const left = clubSpotsLeft(s);
+      return {
+        id: s.id,
+        clubName: s.clubName,
+        dateLabel: d && m ? `${d}/${m}` : s.date,
+        timeLabel: `${s.startTime}–${s.endTime}`,
+        priceLabel: s.priceReais.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+        spotsLeft: left,
+        full: left === 0,
+      };
+    }),
+  );
 
   protected readonly amenityLabels = computed(() => {
     const amenities = this.arena()?.amenities;
@@ -226,6 +255,12 @@ export class ArenaDetailComponent {
         return;
       }
       this.arena.set(arena);
+
+      // Clubinho não bloqueia o resto da página (e some em silêncio se falhar).
+      const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+      void fetchUpcomingClubSessions(this.firestore, id, todayKey)
+        .then((sessions) => this.clubSessions.set(sessions))
+        .catch(() => this.clubSessions.set([]));
 
       const courts = await fetchCourts(this.firestore, id);
       this.courts.set(courts);

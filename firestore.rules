@@ -1101,6 +1101,31 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Clubinho — jogo aberto da arena (lista pública + PIX por sessão).
+    // Escrita 100% via Cloud Functions: criação exige gate de plano
+    // (Pro/Parceiro), bloqueio de agenda com locks e contadores de vaga em
+    // transação; pagamento/estorno passam pelo Asaas.
+    match /arenaClubs/{clubId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if false;
+    }
+    match /arenaClubSessions/{sessionId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if false;
+
+      // A lista visível de nomes É o produto (como no grupo de WhatsApp).
+      match /clubParticipants/{athleteId} {
+        allow read: if request.auth != null;
+        allow create, update, delete: if false;
+      }
+    }
+    // Collection group "meus clubinhos": o atleta lê só as próprias inscrições.
+    match /{path=**}/clubParticipants/{athleteId} {
+      allow read: if request.auth != null &&
+        resource.data.athleteId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
     // Bloqueio de atleta por arena (gestor -> arena_blocks/{arenaId}_{athleteId})
     match /arena_blocks/{blockId} {
       allow read: if request.auth != null && (

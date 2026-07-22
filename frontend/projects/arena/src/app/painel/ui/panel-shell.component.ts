@@ -20,6 +20,7 @@ const NAV_ITEMS: PanelNavItem[] = [
   { id: 'agenda', label: 'Agenda', icon: 'calendar', route: '/painel/agenda', badge: null },
   { id: 'reservas', label: 'Reservas', icon: 'clock', route: '/painel/reservas', badge: null },
   { id: 'horarios-fixos', label: 'Horários fixos', icon: 'repeat', route: '/painel/horarios-fixos', badge: null },
+  { id: 'clubinho', label: 'Clubinho', icon: 'users', route: '/painel/clubinho', badge: null },
   { id: 'financeiro', label: 'Financeiro', icon: 'cash', route: '/painel/financeiro', badge: null },
   { id: 'comandas', label: 'Comandas', icon: 'bookmark', route: '/painel/comandas', badge: null },
   { id: 'estoque', label: 'Estoque', icon: 'box', route: '/painel/estoque', badge: null },

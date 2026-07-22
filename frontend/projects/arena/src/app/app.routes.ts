@@ -78,6 +78,45 @@ export const routes: Routes = [
       import('./painel/recurring/panel-recurring.component').then((m) => m.PanelRecurringComponent),
   },
   {
+    path: 'painel/clubinho',
+    title: 'Clubinho — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard],
+    loadComponent: () =>
+      import('./painel/clubinho/panel-clubs.component').then((m) => m.PanelClubsComponent),
+  },
+  {
+    path: 'painel/clubinho/novo',
+    title: 'Novo clubinho — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard],
+    loadComponent: () =>
+      import('./painel/clubinho/panel-club-form.component').then((m) => m.PanelClubFormComponent),
+  },
+  {
+    path: 'painel/clubinho/:clubId/editar',
+    title: 'Editar clubinho — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard],
+    loadComponent: () =>
+      import('./painel/clubinho/panel-club-form.component').then((m) => m.PanelClubFormComponent),
+  },
+  {
+    path: 'painel/clubinho/:clubId/sessao/:sessionId',
+    title: 'Sessão do clubinho — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard],
+    loadComponent: () =>
+      import('./painel/clubinho/panel-club-session.component').then(
+        (m) => m.PanelClubSessionComponent,
+      ),
+  },
+  {
+    path: 'painel/clubinho/:clubId',
+    title: 'Clubinho — NexaGO Arena',
+    canActivate: [authGuard, arenaSelectionGuard],
+    loadComponent: () =>
+      import('./painel/clubinho/panel-club-detail.component').then(
+        (m) => m.PanelClubDetailComponent,
+      ),
+  },
+  {
     path: 'painel/financeiro',
     title: 'Financeiro — NexaGO Arena',
     canActivate: [authGuard, arenaSelectionGuard],

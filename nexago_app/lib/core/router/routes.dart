@@ -258,6 +258,15 @@ abstract final class AppRoutes {
   /// Pós-cancelamento com undo: `/arena/bookings/canceled`
   static const String arenaBookingCanceled = '/arena/bookings/canceled';
 
+  // --- Clubinho (gestor) — literais antes de [arenaDetail] no router ---
+  static const String arenaClubs = '/arena/clubs';
+  static const String arenaClubNew = '/arena/clubs/new';
+
+  /// Sessão do clubinho (gestor): `/arena/clubs/session/:sessionId`
+  static const String arenaClubSession = '/arena/clubs/session/:sessionId';
+  static const String arenaClubDetail = '/arena/clubs/:clubId';
+  static const String arenaClubEdit = '/arena/clubs/:clubId/edit';
+
   static const String arenaSettings = '/arena/settings';
 
   /// Disponibilidade / horários na agenda (gestor). Antes de [arenaDetail].
@@ -300,6 +309,10 @@ abstract final class AppRoutes {
 
   /// Sucesso após confirmação.
   static const String arenaBookingSuccess = '/arena/:arenaId/book/success';
+
+  /// Clubinho (atleta): sessão com lista pública e PIX por vaga.
+  static const String clubSession = '/clubinho/:sessionId';
+  static const String clubSessionPix = '/clubinho/:sessionId/pix';
 
   /// Pagamentos / saldo (gestor). Filha de [arenaSettings] — evita conflito com `/arena/:arenaId`.
   static const String arenaPayments = '/arena/settings/payments';
@@ -556,6 +569,13 @@ abstract final class AppRouteNames {
   static const String arenaRecurringNew = 'arenaRecurringNew';
   static const String arenaRecurringCreated = 'arenaRecurringCreated';
   static const String arenaRecurringDetail = 'arenaRecurringDetail';
+  static const String arenaClubs = 'arenaClubs';
+  static const String arenaClubNew = 'arenaClubNew';
+  static const String arenaClubDetail = 'arenaClubDetail';
+  static const String arenaClubEdit = 'arenaClubEdit';
+  static const String arenaClubSession = 'arenaClubSession';
+  static const String clubSession = 'clubSession';
+  static const String clubSessionPix = 'clubSessionPix';
   static const String arenaSettings = 'arenaSettings';
   static const String arenaAvailabilitySettings = 'arenaAvailabilitySettings';
   static const String arenaAvailabilitySlotsSuccess =

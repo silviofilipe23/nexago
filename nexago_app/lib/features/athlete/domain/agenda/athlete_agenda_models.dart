@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 
-enum AthleteAgendaItemKind { rental, tournament, challenge, friendlyMatch }
+enum AthleteAgendaItemKind {
+  rental,
+  tournament,
+  challenge,
+  friendlyMatch,
+  clubSession,
+}
 
 enum AthleteAgendaFilter { all, rentals, tournaments, challenges }
 
@@ -88,6 +94,21 @@ class AthleteAgendaFriendlyMatchPayload {
   final String otherName;
 }
 
+/// Sessão de Clubinho onde estou confirmado ou com PIX pendente.
+class AthleteAgendaClubSessionPayload {
+  const AthleteAgendaClubSessionPayload({
+    required this.sessionId,
+    required this.arenaName,
+    required this.clubName,
+    this.pendingPayment = false,
+  });
+
+  final String sessionId;
+  final String arenaName;
+  final String clubName;
+  final bool pendingPayment;
+}
+
 class AthleteAgendaItem {
   const AthleteAgendaItem({
     required this.id,
@@ -102,6 +123,7 @@ class AthleteAgendaItem {
     this.tournament,
     this.challenge,
     this.friendlyMatch,
+    this.clubSession,
     this.isMock = false,
   });
 
@@ -117,6 +139,7 @@ class AthleteAgendaItem {
   final AthleteAgendaTournamentPayload? tournament;
   final AthleteAgendaChallengePayload? challenge;
   final AthleteAgendaFriendlyMatchPayload? friendlyMatch;
+  final AthleteAgendaClubSessionPayload? clubSession;
   final bool isMock;
 
   bool get isCanceled =>

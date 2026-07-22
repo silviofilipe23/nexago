@@ -158,6 +158,38 @@ export async function createAsaasPixCharge(params: {
   return {paymentId, qrCode, qrCodeBase64};
 }
 
+/**
+ * Estorna um pagamento recebido (PIX volta integral ao pagador). Estorno já
+ * feito é tratado como sucesso — o fluxo de cancelamento fica idempotente.
+ */
+export async function refundAsaasPayment(
+  paymentId: string,
+  valueReais?: number,
+): Promise<void> {
+  const id = paymentId.trim();
+  if (!id) throw new Error("ASAAS_REFUND_MISSING_PAYMENT_ID");
+  try {
+    await fetchAsaas(`/v3/payments/${encodeURIComponent(id)}/refund`, {
+      method: "POST",
+      body: valueReais != null ? {value: valueReais} : {},
+    });
+  } catch (e) {
+    if (e instanceof AsaasApiError && isAlreadyRefundedAsaasError(e)) {
+      logger.info(`refundAsaasPayment: ${id} já estornado (idempotente)`);
+      return;
+    }
+    throw e;
+  }
+}
+
+function isAlreadyRefundedAsaasError(e: AsaasApiError): boolean {
+  const text = `${e.message} ${e.body}`.toLowerCase();
+  return text.includes("já estornado") ||
+    text.includes("ja estornado") ||
+    text.includes("already refunded") ||
+    text.includes("totalmente estornado");
+}
+
 /** Cancela cobrança aberta no Asaas (ignora erros se já paga/removida). */
 export async function deleteAsaasPaymentIfOpen(paymentId: string): Promise<void> {
   const id = paymentId.trim();

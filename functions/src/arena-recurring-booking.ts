@@ -63,11 +63,11 @@ export function calendarHoursSpanning(startMin: number, endMin: number): number[
   return hours;
 }
 
-function fmtHourStart(h: number): string {
+export function fmtHourStart(h: number): string {
   return `${Math.min(23, Math.max(0, h)).toString().padStart(2, "0")}:00`;
 }
 
-function fmtHourEnd(h: number): string {
+export function fmtHourEnd(h: number): string {
   if (h >= 23) return "24:00";
   return `${(h + 1).toString().padStart(2, "0")}:00`;
 }
@@ -141,7 +141,7 @@ export const WEEKDAY_LABELS_PT: Record<number, string> = {
 // Materialização (compartilhada entre callable e scheduler)
 // ---------------------------------------------------------------------------
 
-function lockRefsForOccurrence(
+export function lockRefsForOccurrence(
   db: Firestore,
   series: Pick<RecurringSeriesData, "arenaId" | "courtId" | "startTime" | "endTime">,
   dateKey: string,
@@ -162,7 +162,7 @@ function lockRefsForOccurrence(
 
 /** Slots `blocked` da quadra no dia — cobre docs com `date` string e Timestamp
  * (bloqueios criados pelo app gravam Timestamp; functions gravam string). */
-async function hasBlockedSlotOverlap(
+export async function hasBlockedSlotOverlap(
   db: Firestore,
   series: Pick<RecurringSeriesData, "arenaId" | "courtId" | "startTime" | "endTime">,
   dateKey: string,

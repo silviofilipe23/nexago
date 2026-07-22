@@ -10,6 +10,8 @@ import '../../features/arenas/presentation/booking_blocked_page.dart';
 import '../../features/arenas/presentation/arena_detail_page.dart';
 import '../../features/arenas/presentation/arena_detail_route_extra.dart';
 import '../../features/arenas/presentation/booking_success_page.dart';
+import '../../features/arenas/presentation/club_session_detail_page.dart';
+import '../../features/arenas/presentation/club_session_pix_page.dart';
 import '../../features/arenas/presentation/slots_page.dart';
 import '../../features/arenas/domain/arena_booking_confirm_args.dart';
 import '../../features/arenas/domain/arena_list_item.dart';
@@ -95,6 +97,10 @@ import '../../features/arena/presentation/plan/arena_subscription_pending_page.d
 import '../../features/arena/presentation/arena_slot_detail_page.dart';
 import '../../features/arena/domain/arena_recurring_created_args.dart';
 import '../../features/arena/domain/arena_recurring_form_args.dart';
+import '../../features/arena/presentation/arena_club_details_page.dart';
+import '../../features/arena/presentation/arena_club_form_page.dart';
+import '../../features/arena/presentation/arena_club_session_page.dart';
+import '../../features/arena/presentation/arena_clubs_page.dart';
 import '../../features/arena/presentation/arena_recurring_details_page.dart';
 import '../../features/arena/presentation/arena_recurring_created_success_page.dart';
 import '../../features/arena/presentation/arena_recurring_form_page.dart';
@@ -1679,6 +1685,65 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.arenaAvailabilitySlotsSuccess,
         name: AppRouteNames.arenaAvailabilitySlotsSuccess,
         builder: (context, state) => const ArenaAvailabilitySlotsSuccessPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.arenaClubs,
+        name: AppRouteNames.arenaClubs,
+        builder: (context, state) => const ArenaClubsPage(),
+        routes: [
+          GoRoute(
+            path: 'new',
+            name: AppRouteNames.arenaClubNew,
+            builder: (context, state) => const ArenaClubFormPage(),
+          ),
+          GoRoute(
+            path: 'session/:sessionId',
+            name: AppRouteNames.arenaClubSession,
+            builder: (context, state) {
+              final sessionId =
+                  state.pathParameters['sessionId']?.trim() ?? '';
+              return ArenaClubSessionPage(sessionId: sessionId);
+            },
+          ),
+          GoRoute(
+            path: ':clubId',
+            name: AppRouteNames.arenaClubDetail,
+            builder: (context, state) {
+              final clubId = state.pathParameters['clubId']?.trim() ?? '';
+              return ArenaClubDetailsPage(clubId: clubId);
+            },
+            routes: [
+              GoRoute(
+                path: 'edit',
+                name: AppRouteNames.arenaClubEdit,
+                builder: (context, state) {
+                  final clubId =
+                      state.pathParameters['clubId']?.trim() ?? '';
+                  return ArenaClubFormPage(clubId: clubId);
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(
+        path: AppRoutes.clubSession,
+        name: AppRouteNames.clubSession,
+        builder: (context, state) {
+          final sessionId = state.pathParameters['sessionId']?.trim() ?? '';
+          return ClubSessionDetailPage(sessionId: sessionId);
+        },
+        routes: [
+          GoRoute(
+            path: 'pix',
+            name: AppRouteNames.clubSessionPix,
+            builder: (context, state) {
+              final sessionId =
+                  state.pathParameters['sessionId']?.trim() ?? '';
+              return ClubSessionPixPage(sessionId: sessionId);
+            },
+          ),
+        ],
       ),
       GoRoute(
         path: AppRoutes.arenaDetail,

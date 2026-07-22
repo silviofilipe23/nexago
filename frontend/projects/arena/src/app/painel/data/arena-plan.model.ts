@@ -11,6 +11,7 @@ export type ArenaCapability =
   | 'pdvComandas'
   | 'estoque'
   | 'promocoes'
+  | 'clubinho'
   | 'metricasCompletas'
   | 'receberTorneios'
   | 'multiUnidade';
@@ -58,22 +59,27 @@ export function arenaPlanEntitledAt(planStatus: ArenaPlanStatus, now: Date): boo
 
 /** Sem titularidade, cai para o comportamento do Essencial (sem capabilities Pro). */
 export function arenaCapabilitiesFor(tier: ArenaPlanTier | null, entitled: boolean): ReadonlySet<ArenaCapability> {
-  console.log('arenaCapabilitiesFor', tier, entitled);
   const effectiveTier = entitled ? tier : 'essencial';
-  console.log('effectiveTier', effectiveTier);
   switch (effectiveTier) {
     case 'parceiro':
       return new Set<ArenaCapability>([
         'pdvComandas',
         'estoque',
         'promocoes',
+        'clubinho',
         'metricasCompletas',
         'receberTorneios',
         'multiUnidade',
       ]);
     case 'pro':
-      console.log('arenaCapabilitiesFor pro');
-      return new Set<ArenaCapability>(['pdvComandas', 'estoque', 'promocoes', 'metricasCompletas', 'receberTorneios']);
+      return new Set<ArenaCapability>([
+        'pdvComandas',
+        'estoque',
+        'promocoes',
+        'clubinho',
+        'metricasCompletas',
+        'receberTorneios',
+      ]);
     default:
       return new Set<ArenaCapability>();
   }
@@ -134,6 +140,7 @@ export const ARENA_PLAN_CATALOG: Readonly<Record<ArenaPlanTier, ArenaPlanCatalog
       'PDV e comandas',
       'Controle de estoque e produtos',
       'Destaque na busca e promoções de horário',
+      'Clubinho: jogo aberto com lista e PIX antecipado',
       'Dashboard completo, insights e seguidores',
       'Receber etapas e torneios',
     ],

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../arenas/domain/arena_club_providers.dart';
 import '../../../arenas/domain/my_bookings_providers.dart';
 import '../../../../core/auth/auth_providers.dart';
 import '../../../friendly_match/domain/friendly_match_providers.dart';
@@ -50,11 +51,19 @@ final athleteAgendaItemsProvider =
           .map((m) => mapFriendlyMatchToAgendaItem(m, currentUid: uid))
           .toList();
 
+  final clubItems =
+      (ref.watch(myClubParticipationsProvider).valueOrNull ?? const [])
+          .where((p) => p.isActive)
+          .map(mapClubParticipationToAgendaItem)
+          .whereType<AthleteAgendaItem>()
+          .toList();
+
   final allItems = mergeAgendaItems(
     bookings: rentalItems,
     tournaments: tournamentItems,
     challenges: const [],
     friendlyMatches: friendlyItems,
+    clubSessions: clubItems,
   );
 
   return AthleteAgendaPageState(

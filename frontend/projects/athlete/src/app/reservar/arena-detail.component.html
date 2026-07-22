@@ -105,6 +105,31 @@
             </section>
           }
 
+          @if (clubSessionViews().length > 0) {
+            <section class="ad-card">
+              <span class="ad-card-kicker">Jogo aberto</span>
+              <h2 class="ad-card-title">Clubinho</h2>
+              <p class="ad-body-text">Coloque seu nome na lista, pague o PIX e chegue jogando.</p>
+              <div class="ad-club-list">
+                @for (s of clubSessionViews(); track s.id) {
+                  <div class="ad-club-row">
+                    <div class="ad-club-info">
+                      <p class="ad-club-name">{{ s.clubName }}</p>
+                      <p class="ad-club-when">{{ s.dateLabel }} · {{ s.timeLabel }}</p>
+                    </div>
+                    <div class="ad-club-meta">
+                      <span class="ad-club-spots" [class.full]="s.full">
+                        {{ s.full ? 'Lista cheia' : s.spotsLeft + ' vaga' + (s.spotsLeft === 1 ? '' : 's') }}
+                      </span>
+                      <span class="ad-club-price">{{ s.priceLabel }}</span>
+                    </div>
+                    <a class="ad-btn-primary" [routerLink]="['/reservar', a.id, 'clubinho', s.id]">Ver lista</a>
+                  </div>
+                }
+              </div>
+            </section>
+          }
+
           <section class="ad-card">
             <span class="ad-card-kicker">{{ courtViews().length }} quadras</span>
             <h2 class="ad-card-title">Quadras disponíveis</h2>

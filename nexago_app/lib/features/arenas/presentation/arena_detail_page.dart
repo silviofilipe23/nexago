@@ -23,6 +23,7 @@ import '../domain/nearby_arenas_logic.dart';
 import 'arena_booking_navigation.dart';
 import 'widgets/arena_detail/arena_detail_amenity_chips.dart';
 import 'widgets/arena_detail/arena_detail_bottom_cta.dart';
+import 'widgets/arena_detail/arena_detail_club_section.dart';
 import 'widgets/arena_detail/arena_detail_court_card.dart';
 import 'widgets/arena_detail/arena_detail_hero.dart';
 import 'widgets/arena_detail/arena_detail_metrics_bar.dart';
@@ -340,6 +341,7 @@ class _ArenaDetailBodyState extends ConsumerState<_ArenaDetailBody> {
                             ),
                           ],
                         ],
+                      ArenaDetailClubSection(arenaId: arena.id),
                       SizedBox(height: 28),
                       if (widget.reviewsLoading && reviews.isEmpty)
                         Center(

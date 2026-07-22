@@ -79,6 +79,20 @@ import {
 } from "./arena-recurring-booking";
 import {materializeArenaRecurringBookings} from "./arena-recurring-materializer";
 
+// Clubinho — jogo aberto com lista pública e PIX por sessão.
+export {
+  upsertArenaClub,
+  setArenaClubStatus,
+  createArenaClubSession,
+  cancelArenaClubSession,
+} from "./arena-club";
+export {materializeArenaClubSessions} from "./arena-club-materializer";
+export {
+  joinArenaClubSession,
+  leaveArenaClubSession,
+  expireArenaClubPendingPayments,
+} from "./arena-club-join";
+
 export {
   onArenaCourtCreatedCountUp,
   onArenaCourtDeletedCountDown,

@@ -1,0 +1,512 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+
+import '../../../core/formatting/app_currency_format.dart';
+import '../../../core/theme/app_colors.dart';
+import 'package:nexago_app/core/theme/app_theme_colors.dart';
+import 'package:nexago_app/core/theme/app_typography.dart';
+import '../../../core/ui/app_snackbar.dart';
+import '../../arenas/domain/arena_club_session.dart';
+import '../data/arena_club_service.dart';
+import '../domain/arena_club_admin_providers.dart';
+import 'widgets/arena_async_state.dart';
+
+/// Sessão do clubinho (gestor): participantes ao vivo com status e
+/// cancelamento da sessão com estorno em massa automático.
+class ArenaClubSessionPage extends ConsumerStatefulWidget {
+  const ArenaClubSessionPage({super.key, required this.sessionId});
+
+  final String sessionId;
+
+  @override
+  ConsumerState<ArenaClubSessionPage> createState() =>
+      _ArenaClubSessionPageState();
+}
+
+class _ArenaClubSessionPageState extends ConsumerState<ArenaClubSessionPage> {
+  bool _cancelling = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final sessionAsync =
+        ref.watch(arenaClubSessionDocProvider(widget.sessionId));
+
+    return Scaffold(
+      backgroundColor: context.themeColors.canvas,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SessionHeader(
+              eyebrow: sessionAsync.valueOrNull?.clubName.toUpperCase() ??
+                  'GESTOR · CLUBINHO',
+              title: 'Sessão',
+              onBack: () => context.pop(),
+            ),
+            Expanded(
+              child: sessionAsync.when(
+                data: (session) {
+                  if (session == null) {
+                    return const ArenaEmptyState(
+                      title: 'Sessão não encontrada',
+                      message: 'Esta sessão não existe mais.',
+                      icon: Icons.event_busy_outlined,
+                    );
+                  }
+                  return _buildBody(context, session);
+                },
+                loading: () =>
+                    const ArenaLoadingState(label: 'Carregando sessão...'),
+                error: (e, _) => ArenaErrorState(message: '$e'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, ArenaClubSession session) {
+    final theme = Theme.of(context);
+    final participantsAsync =
+        ref.watch(arenaClubSessionParticipantsProvider(widget.sessionId));
+    final participants =
+        participantsAsync.valueOrNull ?? const <ClubParticipant>[];
+    final confirmed = participants.where((p) => p.isConfirmed).length;
+    final pending = participants.where((p) => p.isPendingPayment).length;
+
+    final date = session.dateOnly;
+    final dateLabel = date != null
+        ? DateFormat('EEEE, dd/MM', 'pt_BR').format(date)
+        : session.dateShortLabel;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: context.themeColors.surfaceCard,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color:
+                  context.themeColors.onSurfaceMuted.withValues(alpha: 0.12),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_capitalize(dateLabel)} · '
+                        '${session.timeRangeLabel}',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: context.themeColors.onSurface,
+                        ),
+                      ),
+                    ),
+                    if (session.isCanceled)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.live.withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          'CANCELADA',
+                          style: TextStyle(
+                            color: AppColors.live,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 10,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${session.courtNames.isNotEmpty ? session.courtNames.join(', ') : 'Sem quadras'} · '
+                  '${formatBRL(session.priceReais)} por atleta',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    _CounterPill(
+                      label: 'Confirmados',
+                      value: '$confirmed/${session.capacity}',
+                      color: AppColors.win,
+                    ),
+                    const SizedBox(width: 8),
+                    _CounterPill(
+                      label: 'Aguardando PIX',
+                      value: '$pending',
+                      color: AppColors.pending,
+                    ),
+                    const SizedBox(width: 8),
+                    _CounterPill(
+                      label: 'Vagas',
+                      value: '${session.spotsLeft}',
+                      color: AppColors.brand,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          'PARTICIPANTES (${participants.length})',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: context.themeColors.onSurfaceMuted,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 12),
+        participantsAsync.when(
+          data: (all) {
+            if (all.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Ninguém entrou na lista ainda.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: context.themeColors.onSurfaceMuted,
+                  ),
+                ),
+              );
+            }
+            return Column(
+              children: [
+                for (final p in all)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _ParticipantRow(participant: p),
+                  ),
+              ],
+            );
+          },
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+          error: (e, _) => ArenaErrorState(message: '$e'),
+        ),
+        if (!session.isCanceled) ...[
+          const SizedBox(height: 24),
+          OutlinedButton.icon(
+            onPressed:
+                _cancelling ? null : () => _confirmCancel(session, confirmed),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.live,
+              side: BorderSide(color: AppColors.live.withValues(alpha: 0.5)),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            icon: _cancelling
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.event_busy_rounded),
+            label: const Text(
+              'Cancelar sessão',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Ao cancelar, todos os pagamentos confirmados são estornados '
+            'automaticamente e os PIX pendentes são cancelados.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: context.themeColors.onSurfaceMuted,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _confirmCancel(
+    ArenaClubSession session,
+    int confirmedCount,
+  ) async {
+    final confirmedCancel = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ctx.themeColors.surfaceSheet,
+        title: const Text('Cancelar esta sessão?'),
+        content: Text(
+          '${session.dateShortLabel} · ${session.timeRangeLabel}.\n\n'
+          '${confirmedCount > 0 ? 'Os $confirmedCount pagamento(s) confirmado(s) serão estornados automaticamente no PIX e os' : 'Os'} '
+          'PIX pendentes serão cancelados. Os atletas são avisados.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.live),
+            child: const Text('Cancelar sessão'),
+          ),
+        ],
+      ),
+    );
+    if (confirmedCancel != true || !mounted) return;
+
+    setState(() => _cancelling = true);
+    try {
+      final result = await ref.read(arenaClubServiceProvider).cancelSession(
+            sessionId: widget.sessionId,
+          );
+      if (!mounted) return;
+      final parts = <String>[
+        if (result.refunded > 0) '${result.refunded} estorno(s) solicitados',
+        if (result.canceledPending > 0)
+          '${result.canceledPending} PIX pendente(s) cancelados',
+        if (result.refundFailed > 0)
+          '${result.refundFailed} estorno(s) falharam — verifique a carteira',
+      ];
+      showAppSnackBar(
+        context,
+        parts.isEmpty
+            ? 'Sessão cancelada.'
+            : 'Sessão cancelada. ${parts.join(' · ')}.',
+        isError: result.refundFailed > 0,
+      );
+    } on ArenaClubAdminException catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, e.message, isError: true);
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
+    }
+  }
+
+  static String _capitalize(String s) =>
+      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+}
+
+class _SessionHeader extends StatelessWidget {
+  const _SessionHeader({
+    required this.eyebrow,
+    required this.title,
+    required this.onBack,
+  });
+
+  final String eyebrow;
+  final String title;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+      child: Row(
+        children: [
+          Material(
+            color: context.themeColors.surfaceRaised,
+            borderRadius: BorderRadius.circular(12),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onBack,
+              child: SizedBox(
+                width: 44,
+                height: 44,
+                child: Icon(
+                  Icons.arrow_back_rounded,
+                  color: context.themeColors.onSurface,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              children: [
+                Text(
+                  eyebrow,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.mono(
+                    color: AppColors.brand,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: context.themeColors.onSurface,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 44),
+        ],
+      ),
+    );
+  }
+}
+
+class _CounterPill extends StatelessWidget {
+  const _CounterPill({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Column(
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: context.themeColors.onSurfaceMuted,
+                      fontSize: 10,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ParticipantRow extends StatelessWidget {
+  const _ParticipantRow({required this.participant});
+
+  final ClubParticipant participant;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final statusColor = switch (participant.status) {
+      'confirmed' => AppColors.win,
+      'pending_payment' => AppColors.pending,
+      'canceled_refunded' ||
+      'canceled_by_arena_refunded' =>
+        AppColors.live,
+      _ => context.themeColors.onSurfaceMuted,
+    };
+    final photo = participant.athletePhotoUrl;
+    final initial = participant.athleteName.trim().isNotEmpty
+        ? participant.athleteName.trim()[0].toUpperCase()
+        : '?';
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: context.themeColors.surfaceRaised,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: AppColors.brand.withValues(alpha: 0.18),
+              foregroundImage: photo != null ? NetworkImage(photo) : null,
+              child: Text(
+                initial,
+                style: const TextStyle(
+                  color: AppColors.brand,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    participant.athleteName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: context.themeColors.onSurface,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    formatBRL(participant.amountReais),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: context.themeColors.onSurfaceMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                participant.statusLabel,
+                style: TextStyle(
+                  color: statusColor,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 10,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

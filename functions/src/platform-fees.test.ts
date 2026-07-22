@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   BOOKING_FEE_PERCENT,
   TOURNAMENT_FEE_PERCENT,
+  CLUB_FEE_PERCENT,
   FEE_FLOOR_REAIS,
   computePlatformFeeReais,
 } from "./platform-fees";
@@ -34,5 +35,17 @@ describe("platform-fees.computePlatformFeeReais", () => {
     assert.equal(computePlatformFeeReais(0, BOOKING_FEE_PERCENT), 0);
     assert.equal(computePlatformFeeReais(-10, BOOKING_FEE_PERCENT), 0);
     assert.equal(computePlatformFeeReais(100, 0), 0);
+  });
+
+  it("clubinho: 5% sem piso em tickets baixos", () => {
+    // 5% de 15 = 0.75 (piso zerado — sem ele seria 1.50)
+    assert.equal(computePlatformFeeReais(15, CLUB_FEE_PERCENT, {floorReais: 0}), 0.75);
+    // 5% de 10 = 0.50
+    assert.equal(computePlatformFeeReais(10, CLUB_FEE_PERCENT, {floorReais: 0}), 0.5);
+  });
+
+  it("floorReais omitido mantém o piso padrão (retrocompatível)", () => {
+    assert.equal(computePlatformFeeReais(15, CLUB_FEE_PERCENT), FEE_FLOOR_REAIS);
+    assert.equal(computePlatformFeeReais(15, CLUB_FEE_PERCENT, {}), FEE_FLOOR_REAIS);
   });
 });

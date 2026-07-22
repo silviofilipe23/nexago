@@ -7,6 +7,7 @@ import 'package:nexago_app/core/theme/app_theme_colors.dart';
 import '../../../core/router/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/fade_slide_in.dart';
+import '../domain/arena_club_admin_providers.dart';
 import '../domain/arena_recurring_providers.dart';
 import '../domain/arena_bookings_grouping.dart';
 import '../domain/arena_providers.dart';
@@ -88,6 +89,8 @@ class _BookingsScrollBody extends ConsumerWidget {
                 const ArenaBookingsModeChips(),
                 const SizedBox(height: 10),
                 const _RecurringEntryRow(),
+                const SizedBox(height: 8),
+                const _ClubsEntryRow(),
                 const SizedBox(height: 12),
               ],
             ),
@@ -141,6 +144,61 @@ class _RecurringEntryRow extends ConsumerWidget {
               if (count != null && count > 0)
                 Text(
                   '$count ativo${count > 1 ? 's' : ''}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.brand,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.brand,
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Atalho para a gestão do Clubinho (jogo aberto com lista pública).
+class _ClubsEntryRow extends ConsumerWidget {
+  const _ClubsEntryRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final clubs = ref.watch(managedArenaClubsProvider).valueOrNull;
+    final activeCount = clubs?.where((c) => c.isActive).length;
+
+    return Material(
+      color: AppColors.brand.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.pushNamed(AppRouteNames.arenaClubs),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.groups_rounded,
+                color: AppColors.brand,
+                size: 18,
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Clubinho (jogo aberto)',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.themeColors.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              if (activeCount != null && activeCount > 0)
+                Text(
+                  '$activeCount ativo${activeCount > 1 ? 's' : ''}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.brand,
                         fontWeight: FontWeight.w800,

@@ -159,7 +159,11 @@ export class FakeFirestore {
           }
         }
         if (spec.limitCount != null) entries = entries.slice(0, spec.limitCount);
-        return {docs: entries.map(([docPath]) => self.snapshotOf(docPath))};
+        return {
+          docs: entries.map(([docPath]) => self.snapshotOf(docPath)),
+          empty: entries.length === 0,
+          size: entries.length,
+        };
       },
     });
     return {

@@ -8,15 +8,10 @@ import { AuthService } from '../auth/auth.service';
 import { AuthShellComponent } from '../auth/ui/auth-shell.component';
 import { isAllowedAvatarFile, prepareAvatarJpeg, uploadAthleteAvatar } from '../data/athlete-avatar-upload';
 import { athleteFunctions } from '../data/functions';
+import { SPORT_CATALOG } from '../data/sport-catalog';
 import { athleteStorage } from '../data/storage';
 
 type ObStep = 1 | 2 | 3 | 4 | 5;
-
-export interface SportOption {
-  code: string;
-  label: string;
-  icon: 'ball' | 'racket' | 'running' | 'plus';
-}
 
 export interface LevelOption {
   code: string;
@@ -28,18 +23,6 @@ export interface GoalOption {
   code: string;
   label: string;
 }
-
-/** Mesmos códigos usados pelo app Flutter (athlete_firestore_codes.dart), ordem idêntica. */
-const SPORTS: SportOption[] = [
-  { code: 'VOLEI_PRAIA', label: 'Vôlei de praia', icon: 'ball' },
-  { code: 'VOLEI_QUADRA', label: 'Vôlei de quadra', icon: 'ball' },
-  { code: 'FUTEBOL', label: 'Futebol', icon: 'ball' },
-  { code: 'BASQUETE', label: 'Basquete', icon: 'ball' },
-  { code: 'TENIS', label: 'Tênis', icon: 'racket' },
-  { code: 'BEACH_TENNIS', label: 'Beach tennis', icon: 'racket' },
-  { code: 'CORRIDA', label: 'Corrida', icon: 'running' },
-  { code: 'OUTROS', label: 'Outros', icon: 'plus' },
-];
 
 /** Escada única de 5 níveis (iniciante_1 < iniciante_2 < intermediario_1 < intermediario_2 < open),
  *  mesmos código e labels lidos por firestore.rules / category-level-eligibility.ts /
@@ -108,14 +91,14 @@ export class AthleteOnboardingComponent {
   private readonly firestore = createFirestore();
   private noticeTimeout: ReturnType<typeof setTimeout> | undefined;
 
-  protected readonly sports = SPORTS;
+  protected readonly sports = SPORT_CATALOG;
   protected readonly levels = LEVELS;
   protected readonly goals = GOALS;
   protected readonly genders = GENDERS;
 
   protected readonly step = signal<ObStep>(1);
 
-  protected readonly selectedSportCode = signal<string>(SPORTS[0]!.code);
+  protected readonly selectedSportCode = signal<string>(SPORT_CATALOG[0]!.code);
   protected readonly selectedLevelCode = signal<string>(DEFAULT_LEVEL);
   protected readonly selectedGoalCodes = signal<ReadonlySet<string>>(
     new Set(['JOGAR_DIVERSAO', 'COMPETIR']),

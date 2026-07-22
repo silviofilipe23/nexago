@@ -378,7 +378,11 @@ export class TournamentPaymentComponent {
     this.processing.set(true);
     try {
       const result = await reserveDirectOrganizerRegistration(athleteFunctions(), reg.id);
-      this.showNotice(result.bothAthletesReserved ? 'Reserva confirmada dos dois lados!' : 'Sua reserva foi registrada — combine o pagamento com o organizador.');
+      this.showNotice(
+        result.bothAthletesReserved
+          ? 'Reserva confirmada dos dois lados! Confirme com o organizador do torneio que o pagamento foi recebido.'
+          : 'Sua reserva foi registrada — confirme com o organizador do torneio que o pagamento foi recebido.',
+      );
     } catch (err) {
       this.showNotice(err instanceof TournamentRegistrationError ? err.message : 'Não foi possível reservar.');
     } finally {

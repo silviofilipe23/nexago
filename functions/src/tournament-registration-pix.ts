@@ -750,11 +750,38 @@ export const reserveDirectOrganizerRegistration = onCall({
 
   await registrationRef.update({
     sharePaidUids: FieldValue.arrayUnion(callerUid),
-    isPaid: false,
+    isPaid: bothAthletesReserved,
     paymentChannel: "directOrganizer",
     ...(shouldWaitlist ? {waitlist: true} : {}),
     updatedAt: FieldValue.serverTimestamp(),
   });
+
+  if (bothAthletesReserved && teamId) {
+    try {
+      await setTeamGenderWhenRegistrationPaid(db, projectId, teamId);
+    } catch (genderError) {
+      logger.warn(
+        `Falha ao definir gender da equipe ${teamId} (registration ${registrationId})`,
+        genderError,
+      );
+    }
+    try {
+      await notifyRegistrationFullyConfirmed({
+        db,
+        projectId,
+        registrationId,
+        tournamentId,
+        categoryId,
+        teamId,
+        confirmedByUid: callerUid,
+      });
+    } catch (notifyError) {
+      logger.warn(
+        `Falha ao notificar reserva direta ${registrationId}`,
+        notifyError,
+      );
+    }
+  }
 
   return {
     registrationId,

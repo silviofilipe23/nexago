@@ -35,7 +35,13 @@
   "hosting": [
     {
       "target": "arena",
-      "public": "dist/arena/browser"
+      "public": "dist/arena/browser",
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ]
     },
     {
       "target": "backoffice",

@@ -1528,6 +1528,13 @@ service cloud.firestore {
           request.resource.data.status == 'active';
         allow delete: if request.auth != null && isTournamentOwner(tournamentId);
       }
+
+      match /categoryCommunications/{commId} {
+        // Histórico de sendCategoryCommunication — só quem gerencia o
+        // torneio lê; escrita só via Admin SDK (Cloud Function).
+        allow read: if canManageTournament(tournamentId);
+        allow write: if false;
+      }
     }
 
     // Regras para a coleção de equipes (equipes base - apenas dupla de atletas)

@@ -627,6 +627,25 @@ export async function sendCategoryCommunicationCore(
     whatsappLinks.push({teamId, links});
   }
 
+  try {
+    await db.collection(`tournaments/${tournamentId}/categoryCommunications`).add({
+      categoryId,
+      message,
+      audience,
+      sendPush,
+      pushCount: pushSent,
+      pushNoChannel,
+      pushFailed,
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: uid,
+    });
+  } catch (historyError) {
+    logger.warn(
+      `Histórico de comunicação falhou para tournament=${tournamentId}`,
+      historyError,
+    );
+  }
+
   return {pushCount: pushSent, pushNoChannel, pushFailed, whatsappLinks};
 }
 

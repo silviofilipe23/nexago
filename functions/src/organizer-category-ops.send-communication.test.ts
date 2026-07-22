@@ -107,4 +107,72 @@ describe("sendCategoryCommunicationCore", () => {
     assert.equal(result.pushNoChannel, 0);
     assert.equal(result.pushFailed, 0);
   });
+
+  it("persiste o envio em tournaments/{id}/categoryCommunications com as contagens reais", async () => {
+    const fake = new FakeFirestore();
+    seedScenario(fake);
+    mockDeliverNotificationToUser({
+      "atleta-com-push": {sent: 2, failed: 0},
+      "atleta-sem-token": {sent: 0, failed: 0},
+    });
+
+    await sendCategoryCommunicationCore(
+      db(fake),
+      "owner-1",
+      {
+        tournamentId: TOURNAMENT_ID,
+        categoryId: CATEGORY_ID,
+        message: "Jogos remarcados",
+        audience: "all",
+        sendPush: true,
+      },
+      PROJECT_ID,
+    );
+
+    const persisted = [...fake.store.entries()].filter(([path]) =>
+      path.startsWith(`tournaments/${TOURNAMENT_ID}/categoryCommunications/`),
+    );
+    assert.equal(persisted.length, 1, "esperava 1 doc de histórico persistido");
+    const [, data] = persisted[0]!;
+    assert.equal(data.categoryId, CATEGORY_ID);
+    assert.equal(data.message, "Jogos remarcados");
+    assert.equal(data.audience, "all");
+    assert.equal(data.sendPush, true);
+    assert.equal(data.pushCount, 1);
+    assert.equal(data.pushNoChannel, 1);
+    assert.equal(data.pushFailed, 0);
+    assert.equal(data.createdBy, "owner-1");
+    assert.ok("createdAt" in data, "esperava createdAt (server timestamp sentinel)");
+  });
+
+  it("falha ao gravar histórico não impede o retorno normal (best-effort)", async () => {
+    const fake = new FakeFirestore();
+    seedScenario(fake);
+    mockDeliverNotificationToUser({
+      "atleta-com-push": {sent: 2, failed: 0},
+      "atleta-sem-token": {sent: 0, failed: 0},
+    });
+    const originalCollection = fake.collection.bind(fake);
+    (fake as unknown as {collection: typeof fake.collection}).collection = (path: string) => {
+      if (path === `tournaments/${TOURNAMENT_ID}/categoryCommunications`) {
+        return {
+          ...originalCollection(path),
+          add: async () => {
+            throw new Error("Firestore indisponível");
+          },
+        };
+      }
+      return originalCollection(path);
+    };
+
+    const result = await sendCategoryCommunicationCore(
+      db(fake),
+      "owner-1",
+      {tournamentId: TOURNAMENT_ID, categoryId: CATEGORY_ID, message: "Jogos remarcados"},
+      PROJECT_ID,
+    );
+
+    assert.equal(result.pushCount, 1);
+    assert.equal(result.pushNoChannel, 1);
+  });
 });

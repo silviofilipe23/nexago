@@ -1,3 +1,5 @@
+import { sportLabelForCode } from '../data/sport-catalog';
+
 export function titleCase(input: string): string {
   return input
     .toLowerCase()
@@ -8,11 +10,17 @@ export function titleCase(input: string): string {
 }
 
 /** Espelha `AthleteFirestoreCodes.levelFirestoreToLabel` (app Flutter): códigos de nível
- *  gravados em `sportProfile.level` / `sportOnboarding.levelsBySport` → rótulo de exibição. */
+ *  gravados em `sportProfile.level` / `sportOnboarding.levelsBySport` → rótulo de exibição.
+ *  Inclui os códigos legados sem sufixo (`iniciante`, `basico`, `intermediario`, `livre`) —
+ *  ainda aparecem no fallback de nível global de contas antigas. */
 const LEVEL_CODE_TO_LABEL: Record<string, string> = {
   open: 'Open',
+  livre: 'Open',
+  iniciante: 'Iniciante',
+  basico: 'Iniciante',
   iniciante_1: 'Iniciante 1',
   iniciante_2: 'Iniciante 2',
+  intermediario: 'Intermediário',
   intermediario_1: 'Intermediário 1',
   intermediario_2: 'Intermediário 2',
 };
@@ -83,4 +91,56 @@ export function joinCityState(city: string, state: string): string {
     return '';
   }
   return trimmedState ? `${trimmedCity}, ${trimmedState}` : trimmedCity;
+}
+
+export interface SportLevelEntry {
+  code: string;
+  sportLabel: string;
+  levelLabel: string;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : [];
+}
+
+/** Resolve o nível de habilidade por modalidade a partir de `users/{uid}` (não de
+ *  `athlete_profiles/{uid}.primarySport`, que é texto livre e não bate com `levelsBySport`).
+ *  Ordem do retorno: modalidade principal primeiro, depois as secundárias na ordem de
+ *  `secondarySportIds`. Nível ausente na principal cai pro nível global legado
+ *  (`level`/`nivel`/`sportProfile.level`, mesma precedência do perfil público); modalidades
+ *  secundárias sem entrada em `levelsBySport` ficam com `levelLabel: ''` (sem fallback). */
+export function buildSportLevels(userData: Record<string, unknown> | null | undefined): SportLevelEntry[] {
+  const sportOnboarding = asRecord(userData?.['sportOnboarding']);
+  const primarySportId = asString(sportOnboarding?.['primarySportId']);
+  const secondarySportIds = asStringArray(sportOnboarding?.['secondarySportIds']);
+  const levelsBySport = asRecord(sportOnboarding?.['levelsBySport']) ?? {};
+
+  const codes = Array.from(
+    new Set([primarySportId, ...secondarySportIds].filter((code): code is string => !!code)),
+  );
+
+  const legacyLevel =
+    asString(userData?.['level']) ??
+    asString(userData?.['nivel']) ??
+    asString(asRecord(userData?.['sportProfile'])?.['level']);
+
+  return codes.map((code) => {
+    const rawLevel = asString(levelsBySport[code]);
+    const resolvedLevel = rawLevel ?? (code === primarySportId ? legacyLevel : null);
+    return {
+      code,
+      sportLabel: sportLabelForCode(code),
+      levelLabel: athleteLevelLabel(resolvedLevel),
+    };
+  });
 }

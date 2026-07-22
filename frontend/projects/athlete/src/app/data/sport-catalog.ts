@@ -16,6 +16,9 @@ export const SPORT_CATALOG: readonly SportCatalogEntry[] = [
   { code: 'OUTROS', label: 'Outros', icon: 'plus' },
 ];
 
+// Duplica o formato de `titleCase` (profile-format.ts) de propósito: este arquivo não pode
+// importar de `profile/profile-format.ts` porque esse arquivo importa `sportLabelForCode`
+// daqui — importar de volta criaria um ciclo. Não "consolidar" sem antes quebrar esse ciclo.
 function titleCaseCode(code: string): string {
   return code
     .toLowerCase()

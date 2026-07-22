@@ -67,9 +67,9 @@ class ArenaFinancialPeriodStats {
   final double withdrawnReais;
 }
 
-bool _isWithinPeriod(DateTime? at, ArenaFinancialPeriod period) {
+bool _isWithinPeriod(DateTime? at, ArenaFinancialPeriod period, {DateTime? now}) {
   if (at == null) return false;
-  final cutoff = DateTime.now().subtract(Duration(days: period.days));
+  final cutoff = (now ?? DateTime.now()).subtract(Duration(days: period.days));
   return !at.isBefore(cutoff);
 }
 
@@ -159,18 +159,19 @@ ArenaFinancialPeriodStats computeFinancialPeriodStats({
   required List<ArenaLedgerEntry> ledger,
   required List<ArenaWithdrawalItem> withdrawals,
   required ArenaFinancialPeriod period,
+  DateTime? now,
 }) {
   var received = 0.0;
   var withdrawn = 0.0;
 
   for (final entry in ledger) {
-    if (_isWithinPeriod(entry.createdAt, period)) {
+    if (_isWithinPeriod(entry.createdAt, period, now: now)) {
       received += entry.netReais;
     }
   }
 
   for (final w in withdrawals) {
-    if (!_isWithinPeriod(w.createdAt, period)) continue;
+    if (!_isWithinPeriod(w.createdAt, period, now: now)) continue;
     if (withdrawalIsFailed(w)) continue;
     withdrawn += w.amountReais;
   }

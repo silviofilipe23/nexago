@@ -151,7 +151,11 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
               </div>
             </div>
           } @empty {
-            <p class="og-comm-empty">Nenhum aviso enviado ainda.</p>
+            @if (historyLoadFailed()) {
+              <p class="og-comm-empty">Não foi possível carregar o histórico. Recarregue a página pra tentar de novo.</p>
+            } @else {
+              <p class="og-comm-empty">Nenhum aviso enviado ainda.</p>
+            }
           }
           @if (historyHasMore()) {
             <div style="margin-top:12px;display:flex;justify-content:center">
@@ -294,6 +298,7 @@ export class ComunicacaoComponent {
   private readonly historyCursor = signal<QueryDocumentSnapshot | null>(null);
   protected readonly historyHasMore = signal(false);
   protected readonly historyLoading = signal(false);
+  protected readonly historyLoadFailed = signal(false);
   private static readonly HISTORY_PAGE_SIZE = 20;
 
   protected readonly categories = computed(() => this.tournament()?.categories ?? []);
@@ -339,7 +344,13 @@ export class ComunicacaoComponent {
     } finally {
       this.loading.set(false);
     }
-    await this.loadHistoryFirstPage(tid);
+    try {
+      await this.loadHistoryFirstPage(tid);
+      this.historyLoadFailed.set(false);
+    } catch (e) {
+      console.error('Falha ao carregar histórico de avisos', e);
+      this.historyLoadFailed.set(true);
+    }
   }
 
   private async loadHistoryFirstPage(tid: string): Promise<void> {
@@ -359,6 +370,10 @@ export class ComunicacaoComponent {
       this.sentLog.update((log) => [...log, ...page.items]);
       this.historyCursor.set(page.lastCursor);
       this.historyHasMore.set(page.items.length === ComunicacaoComponent.HISTORY_PAGE_SIZE);
+      this.historyLoadFailed.set(false);
+    } catch (e) {
+      console.error('Falha ao carregar mais avisos do histórico', e);
+      this.historyLoadFailed.set(true);
     } finally {
       this.historyLoading.set(false);
     }

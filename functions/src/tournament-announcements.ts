@@ -151,7 +151,20 @@ export const postTournamentAnnouncement = onCall(async (request) => {
       }),
     ),
   );
-  const pushCount = deliveries.filter((d) => d.status === "fulfilled").length;
+  let pushSent = 0;
+  let pushNoChannel = 0;
+  let pushFailed = 0;
+  for (const delivery of deliveries) {
+    if (delivery.status !== "fulfilled") {
+      pushFailed++;
+    } else if (delivery.value.sent > 0) {
+      pushSent++;
+    } else if (delivery.value.failed > 0) {
+      pushFailed++;
+    } else {
+      pushNoChannel++;
+    }
+  }
 
-  return {feedId: result.feedId, pushCount};
+  return {feedId: result.feedId, pushCount: pushSent, pushNoChannel, pushFailed};
 });

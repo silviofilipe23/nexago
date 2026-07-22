@@ -541,22 +541,35 @@ export const resendRegistrationPayment = onCall(async (request) => {
   return {ok: true, notifiedCount: pendingUids.length};
 });
 
-export const sendCategoryCommunication = onCall(async (request) => {
-  const uid = request.auth?.uid;
-  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+export interface SendCategoryCommunicationInput {
+  tournamentId: string;
+  categoryId: string;
+  message: string;
+  audience?: string;
+  sendPush?: boolean;
+}
 
-  const tournamentId = (request.data?.tournamentId as string)?.trim();
-  const categoryId = (request.data?.categoryId as string)?.trim();
-  const message = (request.data?.message as string)?.trim();
-  const audience = (request.data?.audience as string)?.trim() || "all";
-  const sendPush = request.data?.sendPush !== false;
+export async function sendCategoryCommunicationCore(
+  db: Firestore,
+  uid: string,
+  input: SendCategoryCommunicationInput,
+  projectId: string = getFirebaseProjectId(),
+): Promise<{
+  pushCount: number;
+  pushNoChannel: number;
+  pushFailed: number;
+  whatsappLinks: Array<{teamId: string; links: string[]}>;
+}> {
+  const tournamentId = input.tournamentId?.trim();
+  const categoryId = input.categoryId?.trim();
+  const message = input.message?.trim();
+  const audience = input.audience?.trim() || "all";
+  const sendPush = input.sendPush !== false;
 
   if (!tournamentId || !categoryId || !message) {
     throw new HttpsError("invalid-argument", "Dados incompletos");
   }
 
-  const db = getFirestore();
-  const projectId = getFirebaseProjectId();
   await assertCanManageTournament(db, uid, tournamentId);
 
   const inscriptionsSnap = await db
@@ -566,7 +579,9 @@ export const sendCategoryCommunication = onCall(async (request) => {
     .get();
 
   const whatsappLinks: Array<{teamId: string; links: string[]}> = [];
-  let pushCount = 0;
+  let pushSent = 0;
+  let pushNoChannel = 0;
+  let pushFailed = 0;
 
   for (const doc of inscriptionsSnap.docs) {
     const inscription = doc.data();
@@ -596,7 +611,7 @@ export const sendCategoryCommunication = onCall(async (request) => {
         );
       }
       if (sendPush) {
-        await deliverNotificationToUser({
+        const result = await deliverNotificationToUser({
           userId: playerId,
           title: "Mensagem do organizador",
           body: message.slice(0, 180),
@@ -604,13 +619,28 @@ export const sendCategoryCommunication = onCall(async (request) => {
           data: {tournamentId, categoryId},
           requireInteraction: false,
         });
-        pushCount++;
+        if (result.sent > 0) pushSent++;
+        else if (result.failed > 0) pushFailed++;
+        else pushNoChannel++;
       }
     }
     whatsappLinks.push({teamId, links});
   }
 
-  return {pushCount, whatsappLinks};
+  return {pushCount: pushSent, pushNoChannel, pushFailed, whatsappLinks};
+}
+
+export const sendCategoryCommunication = onCall(async (request) => {
+  const uid = request.auth?.uid;
+  if (!uid) throw new HttpsError("unauthenticated", "Login necessário");
+
+  return sendCategoryCommunicationCore(getFirestore(), uid, {
+    tournamentId: request.data?.tournamentId as string,
+    categoryId: request.data?.categoryId as string,
+    message: request.data?.message as string,
+    audience: request.data?.audience as string,
+    sendPush: request.data?.sendPush,
+  });
 });
 
 export const closeTournamentRegistrations = onCall(async (request) => {

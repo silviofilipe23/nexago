@@ -19,6 +19,8 @@ const AUDIENCE_LABEL: Record<Audience, string> = {
 
 interface SentResult {
   pushCount: number;
+  pushNoChannel: number;
+  pushFailed: number;
   whatsappLinks: Array<{ teamId: string; links: string[] }>;
 }
 
@@ -28,6 +30,8 @@ interface SentLogEntry {
   audience: Audience;
   message: string;
   pushCount: number;
+  pushNoChannel: number;
+  pushFailed: number;
 }
 
 const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -140,7 +144,10 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
               </div>
               <div class="og-comm-aviso-body">{{ s.message }}</div>
               <div class="og-comm-aviso-footer">
-                <span class="og-comm-aviso-alcance">{{ audienceLabel[s.audience] }} · {{ s.pushCount }} push enviados</span>
+                <span class="og-comm-aviso-alcance">{{ audienceLabel[s.audience] }} · {{ s.pushCount }} push entregues</span>
+                @if (s.pushNoChannel + s.pushFailed > 0) {
+                  <span class="og-comm-aviso-alcance og-comm-aviso-alert">{{ s.pushNoChannel + s.pushFailed }} sem notificação</span>
+                }
               </div>
             </div>
           } @empty {
@@ -255,6 +262,9 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
       font-size: 10.5px;
       color: var(--nx-text-dim);
     }
+    .og-comm-aviso-alert {
+      color: var(--nx-orange-500);
+    }
   `,
 })
 export class ComunicacaoComponent {
@@ -331,17 +341,24 @@ export class ComunicacaoComponent {
     this.sending.set(true);
     this.feedback.set(null);
     try {
-      const result = (await sendCategoryCommunication({
+      const result = await sendCategoryCommunication({
         tournamentId: tid,
         categoryId: cid,
         message: this.message(),
         audience: this.audience(),
         sendPush: this.sendPush(),
-      })) as unknown as SentResult;
+      });
       const pushCount = result.pushCount ?? 0;
+      const pushNoChannel = result.pushNoChannel ?? 0;
+      const pushFailed = result.pushFailed ?? 0;
       const links = result.whatsappLinks ?? [];
-      this.lastResult.set({ pushCount, whatsappLinks: links });
-      this.feedback.set({ ok: true, message: `Aviso enviado — ${pushCount} push${links.length ? ` · ${links.length} duplas com WhatsApp` : ''}.` });
+      this.lastResult.set({ pushCount, pushNoChannel, pushFailed, whatsappLinks: links });
+      const missed = pushNoChannel + pushFailed;
+      const missedNote = missed > 0 ? ` · ${missed} sem notificação (avise por WhatsApp)` : '';
+      this.feedback.set({
+        ok: true,
+        message: `Aviso enviado — ${pushCount} push entregue${pushCount === 1 ? '' : 's'}${missedNote}${links.length ? ` · ${links.length} duplas com WhatsApp` : ''}.`,
+      });
       this.sentLog.update((log) => [
         {
           at: new Date(),
@@ -349,6 +366,8 @@ export class ComunicacaoComponent {
           audience: this.audience(),
           message: this.message().trim(),
           pushCount,
+          pushNoChannel,
+          pushFailed,
         },
         ...log,
       ]);

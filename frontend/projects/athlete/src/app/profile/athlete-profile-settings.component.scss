@@ -252,6 +252,26 @@
   margin-bottom: 18px;
 }
 
+.at-profile-sport-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.at-profile-sport-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 22px;
+  font-family: var(--nx-font-ui);
+  font-size: 12.5px;
+  color: var(--nx-text-mute);
+}
+
 .at-profile-level {
   padding-top: 14px;
   border-top: 1px solid var(--nx-line);

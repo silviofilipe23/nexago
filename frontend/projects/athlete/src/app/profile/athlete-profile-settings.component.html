@@ -44,9 +44,20 @@
               <p class="at-profile-handle">&#64;{{ handle() }} · {{ cityStateLabel() }}</p>
 
               <div class="at-profile-pills">
-                <span class="at-pill at-pill--orange">{{ sportPillLabel() }}</span>
-                <span class="at-pill">{{ levelLabel() }}</span>
+                <span class="at-pill at-pill--orange">{{ primarySportLevel()?.sportLabel ?? 'Vôlei de praia' }}</span>
+                <span class="at-pill">{{ primarySportLevel()?.levelLabel || 'Nível não informado' }}</span>
               </div>
+
+              @if (otherSportLevels().length > 0) {
+                <ul class="at-profile-sport-list">
+                  @for (entry of otherSportLevels(); track entry.code) {
+                    <li class="at-profile-sport-row">
+                      <span>{{ entry.sportLabel }}</span>
+                      <span class="at-pill">{{ entry.levelLabel || 'Nível não informado' }}</span>
+                    </li>
+                  }
+                </ul>
+              }
 
               <div class="at-profile-level">
                 <div class="at-profile-level-head">

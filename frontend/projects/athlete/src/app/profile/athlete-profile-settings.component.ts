@@ -20,7 +20,7 @@ import { NxSpinnerComponent } from '../shared/loading/nx-spinner.component';
 import { SandRankCardComponent } from './sand-rank-card.component';
 import { ACHIEVEMENT_CATALOG, buildAchievementViewModels } from './achievement-catalog';
 import { AthleteGamificationService } from './athlete-gamification.service';
-import { buildPublicProfileId, initialsOf, joinCityState, nameFromEmail, slugify, splitCityState } from './profile-format';
+import { buildPublicProfileId, buildSportLevels, initialsOf, joinCityState, nameFromEmail, slugify, splitCityState, type SportLevelEntry } from './profile-format';
 import { athleteFunctions } from '../data/functions';
 import {
   registerReferral,
@@ -143,6 +143,7 @@ export class AthleteProfileSettingsComponent {
   // real uid, and left the page stuck on "Carregando perfil..." forever.
   private readonly loadedUid = signal<string | null | undefined>(undefined);
   private readonly profileState = signal<AthleteProfileData>(EMPTY_PROFILE);
+  private readonly sportLevels = signal<SportLevelEntry[]>([]);
   private readonly rankingLabel = signal<string | null>(null);
   // `roles` já existentes em users/{uid}, lido em loadRemoteProfile — reutilizado em save()
   // pra satisfazer as rules (create exige roles=['athlete']; update exige roles imutável).
@@ -162,7 +163,8 @@ export class AthleteProfileSettingsComponent {
   protected readonly cityStateLabel = computed(
     () => joinCityState(this.profileState().city, this.profileState().state) || 'Cidade não informada',
   );
-  protected readonly sportPillLabel = computed(() => this.profileState().primarySport || 'Volei de praia');
+  protected readonly primarySportLevel = computed<SportLevelEntry | null>(() => this.sportLevels()[0] ?? null);
+  protected readonly otherSportLevels = computed(() => this.sportLevels().slice(1));
   protected readonly profileBio = computed(
     () => this.profileState().bio || 'Conte um pouco sobre seu jogo editando o perfil.',
   );
@@ -239,6 +241,7 @@ export class AthleteProfileSettingsComponent {
       this.profileState.set({ ...EMPTY_PROFILE, fullName: devEmail ? nameFromEmail(devEmail) : '' });
       this.existingUserRoles.set([]);
       this.referredBy.set(null);
+      this.sportLevels.set([]);
       this.loading.set(false);
     });
 
@@ -524,6 +527,8 @@ export class AthleteProfileSettingsComponent {
       ]);
       const userData = userSnap.exists() ? userSnap.data() : null;
       const profileData = profileSnap.exists() ? profileSnap.data() : null;
+
+      this.sportLevels.set(buildSportLevels(userData));
 
       const rawRoles = userData?.['roles'];
       this.existingUserRoles.set(

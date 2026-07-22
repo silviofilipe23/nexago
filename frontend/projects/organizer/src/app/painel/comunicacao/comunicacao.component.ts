@@ -1,5 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, effect, input, signal } from '@angular/core';
 import { sendCategoryCommunication } from '../data/organizer-ops.service';
+import {
+  listCategoryCommunicationsPage,
+  type CategoryCommunicationEntry,
+} from '../data/category-communications-repository';
+import type { QueryDocumentSnapshot } from 'firebase/firestore';
 import type { OrganizerTournament } from '../data/tournament.model';
 import { getTournament } from '../data/tournaments-repository';
 import { OgCardComponent } from '../ui/card.component';
@@ -24,25 +29,16 @@ interface SentResult {
   whatsappLinks: Array<{ teamId: string; links: string[] }>;
 }
 
-interface SentLogEntry {
-  at: Date;
-  categoryName: string;
-  audience: Audience;
-  message: string;
-  pushCount: number;
-  pushNoChannel: number;
-  pushFailed: number;
-}
-
 const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 /** Comunicação real com os atletas — espelha `organizer_category_communicate_page.dart`
  *  (Flutter): broadcast por categoria via `sendCategoryCommunication` (push pros dois atletas
  *  de cada dupla + links de WhatsApp prontos, que o servidor monta a partir dos telefones).
  *  Na cascata o torneio vem da rota (`/painel/eventos/:id/comunicacao`); no nível categoria
- *  (`…/categorias/:catId/comunicacao`) a categoria também vem travada da rota. O backend não
- *  persiste histórico de avisos (o retorno é só pushCount/links), então o histórico aqui é da
- *  sessão. */
+ *  (`…/categorias/:catId/comunicacao`) a categoria também vem travada da rota. O histórico de
+ *  avisos é persistido pela function em `tournaments/{id}/categoryCommunications` e lido
+ *  paginado (`listCategoryCommunicationsPage`); o envio mais recente entra otimista na lista
+ *  antes do próximo reload confirmar. */
 @Component({
   selector: 'og-comunicacao',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -135,23 +131,34 @@ const TIME = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digi
           </og-card>
         }
 
-        <og-card kicker="Sessão" title="Avisos enviados">
-          @for (s of sentLog(); track s.at.getTime()) {
+        <og-card kicker="Histórico" title="Avisos enviados">
+          @for (s of sentLog(); track s.id) {
             <div class="og-comm-aviso">
               <div class="og-comm-aviso-top">
-                <div class="og-comm-aviso-title">{{ s.categoryName }}</div>
-                <span class="og-comm-aviso-date">{{ timeOf(s.at) }}</span>
+                <div class="og-comm-aviso-title">{{ categoryNameOf(s.categoryId) }}</div>
+                <span class="og-comm-aviso-date">{{ timeOf(s.createdAt) }}</span>
               </div>
               <div class="og-comm-aviso-body">{{ s.message }}</div>
               <div class="og-comm-aviso-footer">
-                <span class="og-comm-aviso-alcance">{{ audienceLabel[s.audience] }} · {{ s.pushCount }} push entregues</span>
-                @if (s.pushNoChannel + s.pushFailed > 0) {
-                  <span class="og-comm-aviso-alcance og-comm-aviso-alert">{{ s.pushNoChannel + s.pushFailed }} sem notificação</span>
+                @if (s.sendPush) {
+                  <span class="og-comm-aviso-alcance">{{ audienceLabel[s.audience] }} · {{ s.pushCount }} push entregues</span>
+                  @if (s.pushNoChannel + s.pushFailed > 0) {
+                    <span class="og-comm-aviso-alcance og-comm-aviso-alert">{{ s.pushNoChannel + s.pushFailed }} sem notificação</span>
+                  }
+                } @else {
+                  <span class="og-comm-aviso-alcance">{{ audienceLabel[s.audience] }} · Só WhatsApp</span>
                 }
               </div>
             </div>
           } @empty {
-            <p class="og-comm-empty">Nenhum aviso enviado nesta sessão.</p>
+            <p class="og-comm-empty">Nenhum aviso enviado ainda.</p>
+          }
+          @if (historyHasMore()) {
+            <div style="margin-top:12px;display:flex;justify-content:center">
+              <button type="button" class="og-mini-btn" [disabled]="historyLoading()" (click)="loadMoreHistory()">
+                {{ historyLoading() ? 'Carregando…' : 'Carregar mais' }}
+              </button>
+            </div>
           }
         </og-card>
       </div>
@@ -283,7 +290,11 @@ export class ComunicacaoComponent {
   protected readonly sendPush = signal(true);
   protected readonly feedback = signal<{ ok: boolean; message: string } | null>(null);
   protected readonly lastResult = signal<SentResult | null>(null);
-  protected readonly sentLog = signal<SentLogEntry[]>([]);
+  protected readonly sentLog = signal<CategoryCommunicationEntry[]>([]);
+  private readonly historyCursor = signal<QueryDocumentSnapshot | null>(null);
+  protected readonly historyHasMore = signal(false);
+  protected readonly historyLoading = signal(false);
+  private static readonly HISTORY_PAGE_SIZE = 20;
 
   protected readonly categories = computed(() => this.tournament()?.categories ?? []);
 
@@ -328,6 +339,29 @@ export class ComunicacaoComponent {
     } finally {
       this.loading.set(false);
     }
+    await this.loadHistoryFirstPage(tid);
+  }
+
+  private async loadHistoryFirstPage(tid: string): Promise<void> {
+    const page = await listCategoryCommunicationsPage(tid, ComunicacaoComponent.HISTORY_PAGE_SIZE);
+    this.sentLog.set(page.items);
+    this.historyCursor.set(page.lastCursor);
+    this.historyHasMore.set(page.items.length === ComunicacaoComponent.HISTORY_PAGE_SIZE);
+  }
+
+  protected async loadMoreHistory(): Promise<void> {
+    const tid = this.id();
+    const cursor = this.historyCursor();
+    if (!tid || !cursor || this.historyLoading()) return;
+    this.historyLoading.set(true);
+    try {
+      const page = await listCategoryCommunicationsPage(tid, ComunicacaoComponent.HISTORY_PAGE_SIZE, cursor);
+      this.sentLog.update((log) => [...log, ...page.items]);
+      this.historyCursor.set(page.lastCursor);
+      this.historyHasMore.set(page.items.length === ComunicacaoComponent.HISTORY_PAGE_SIZE);
+    } finally {
+      this.historyLoading.set(false);
+    }
   }
 
   protected onCategory(event: Event): void {
@@ -341,12 +375,15 @@ export class ComunicacaoComponent {
     this.sending.set(true);
     this.feedback.set(null);
     try {
+      const sentAudience = this.audience();
+      const sentPush = this.sendPush();
+      const sentMessage = this.message().trim();
       const result = await sendCategoryCommunication({
         tournamentId: tid,
         categoryId: cid,
         message: this.message(),
-        audience: this.audience(),
-        sendPush: this.sendPush(),
+        audience: sentAudience,
+        sendPush: sentPush,
       });
       const pushCount = result.pushCount ?? 0;
       const pushNoChannel = result.pushNoChannel ?? 0;
@@ -361,13 +398,16 @@ export class ComunicacaoComponent {
       });
       this.sentLog.update((log) => [
         {
-          at: new Date(),
-          categoryName: this.categories().find((c) => c.id === cid)?.name ?? cid,
-          audience: this.audience(),
-          message: this.message().trim(),
+          id: `optimistic-${Date.now()}`,
+          categoryId: cid,
+          message: sentMessage,
+          audience: sentAudience,
+          sendPush: sentPush,
           pushCount,
           pushNoChannel,
           pushFailed,
+          createdAt: new Date(),
+          createdBy: '',
         },
         ...log,
       ]);
@@ -381,5 +421,9 @@ export class ComunicacaoComponent {
 
   protected timeOf(d: Date): string {
     return TIME.format(d);
+  }
+
+  protected categoryNameOf(categoryId: string): string {
+    return this.categories().find((c) => c.id === categoryId)?.name ?? categoryId;
   }
 }

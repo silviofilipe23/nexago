@@ -401,29 +401,11 @@
   color: var(--nx-text-dim);
 }
 
-.at-profile-sport-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.at-profile-sport-tab {
-  height: 30px;
-  padding: 0 12px;
-  border-radius: var(--nx-r-pill);
-  background: var(--nx-surface-1);
-  border: 1px solid var(--nx-line-strong);
-  color: var(--nx-text-mute);
+.at-profile-readonly-note {
+  margin: 0;
   font-family: var(--nx-font-ui);
-  font-size: 12.5px;
-  cursor: pointer;
-}
-
-.at-profile-sport-tab--active {
-  background: var(--nx-orange-tint);
-  border-color: rgba(255, 106, 26, 0.4);
-  color: var(--nx-orange-500);
-  font-weight: 600;
+  font-size: 13px;
+  color: var(--nx-text-mute);
 }
 
 // ── Conquistas ───────────────────────────────────────────────

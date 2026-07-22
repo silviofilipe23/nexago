@@ -103,19 +103,12 @@
                 </label>
 
                 <div class="at-field">
-                  <span>Esporte principal</span>
-                  <div class="at-profile-sport-tabs">
-                    @for (sport of sportOptions; track sport) {
-                      <button
-                        type="button"
-                        class="at-profile-sport-tab"
-                        [class.at-profile-sport-tab--active]="form.controls.primarySport.value === sport"
-                        (click)="selectSport(sport)"
-                      >
-                        {{ sport }}
-                      </button>
-                    }
-                  </div>
+                  <span>Esporte e nível</span>
+                  <p class="at-profile-readonly-note">
+                    {{ primarySportLevel()?.sportLabel ?? 'Vôlei de praia' }} ·
+                    {{ primarySportLevel()?.levelLabel || 'nível não informado' }}
+                    — definidos no cadastro
+                  </p>
                 </div>
 
                 <label class="at-field">

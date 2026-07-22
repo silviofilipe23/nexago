@@ -28,23 +28,11 @@ import {
   type ReferralRegistrationRejection,
 } from '../data/athlete-referral-repository';
 
-const PRIMARY_SPORT_OPTIONS = [
-  'Volei de praia',
-  'Volei de quadra',
-  'Beach tennis',
-  'Futevolei',
-  'Tenis',
-  'Pickleball',
-  'Padel',
-  'Corrida',
-] as const;
-
 interface AthleteProfileData {
   fullName: string;
   city: string;
   state: string;
   whatsappNumber: string;
-  primarySport: string;
   bio: string;
   publicProfileId: string | null;
   publicProfileEnabled: boolean;
@@ -55,7 +43,6 @@ const EMPTY_PROFILE: AthleteProfileData = {
   city: '',
   state: '',
   whatsappNumber: '',
-  primarySport: 'Volei de praia',
   bio: '',
   publicProfileId: null,
   publicProfileEnabled: true,
@@ -114,8 +101,6 @@ export class AthleteProfileSettingsComponent {
   protected readonly gamification = inject(AthleteGamificationService);
   private readonly firestore = createFirestore();
 
-  protected readonly sportOptions = PRIMARY_SPORT_OPTIONS;
-
   protected readonly isEditing = signal(false);
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
@@ -153,7 +138,6 @@ export class AthleteProfileSettingsComponent {
     fullName: ['', [Validators.required, Validators.minLength(3)]],
     cityState: ['', Validators.required],
     whatsappNumber: [''],
-    primarySport: ['Volei de praia', Validators.required],
     bio: [''],
   });
 
@@ -273,7 +257,6 @@ export class AthleteProfileSettingsComponent {
       fullName: current.fullName,
       cityState: joinCityState(current.city, current.state),
       whatsappNumber: current.whatsappNumber,
-      primarySport: current.primarySport || 'Volei de praia',
       bio: current.bio,
     });
     this.saveError.set(null);
@@ -284,11 +267,6 @@ export class AthleteProfileSettingsComponent {
   protected cancelEdit(): void {
     this.isEditing.set(false);
     this.saveError.set(null);
-  }
-
-  protected selectSport(sport: string): void {
-    this.form.controls.primarySport.setValue(sport);
-    this.form.controls.primarySport.markAsDirty();
   }
 
   protected toggleAllAchievements(): void {
@@ -348,7 +326,6 @@ export class AthleteProfileSettingsComponent {
             city,
             state,
             whatsappNumber,
-            primarySport: raw.primarySport,
             bio,
             publicProfileId,
             publicProfileEnabled,
@@ -363,7 +340,6 @@ export class AthleteProfileSettingsComponent {
         city,
         state,
         whatsappNumber,
-        primarySport: raw.primarySport,
         bio,
         publicProfileId,
         publicProfileEnabled,
@@ -546,7 +522,6 @@ export class AthleteProfileSettingsComponent {
         city: readString(profileData, ['city']) ?? readString(userData, ['city']) ?? '',
         state: readString(profileData, ['state']) ?? readString(userData, ['state']) ?? '',
         whatsappNumber: readString(profileData, ['whatsappNumber']) ?? '',
-        primarySport: readString(profileData, ['primarySport']) ?? 'Volei de praia',
         bio: readString(profileData, ['bio']) ?? '',
         publicProfileId: readString(profileData, ['publicProfileId', 'athleteId', 'profileIdentifier']),
         // Só false quando o doc já existe e diz explicitamente false (ex.: privacidade desativada

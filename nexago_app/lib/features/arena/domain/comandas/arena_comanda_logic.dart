@@ -397,3 +397,10 @@ String? comandaItemReverseBlockReason(
 bool canReverseComandaItem(ArenaComanda comanda, ArenaComandaItem item) {
   return comandaItemReverseBlockReason(comanda, item) == null;
 }
+
+/// Comandas sem nenhum lançamento (`totalCents == 0`) nunca fecham pelo fluxo
+/// normal de pagamento — `registerPayment` exige `amountCents > 0` — então
+/// precisam de um fechamento direto.
+bool canCloseEmptyComanda(ArenaComanda comanda) {
+  return comanda.status.isActive && comanda.totalCents == 0;
+}

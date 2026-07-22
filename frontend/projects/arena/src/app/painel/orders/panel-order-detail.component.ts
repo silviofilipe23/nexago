@@ -4,6 +4,7 @@ import { AuthService } from '../../auth/auth.service';
 import { ArenaContextService } from '../data/arena-context.service';
 import { arenaFirestore } from '../data/firestore';
 import { IconComponent } from '../ui/icon.component';
+import { ModalComponent } from '../ui/modal.component';
 import { PageHeaderComponent } from '../ui/page-header.component';
 import { PanelCardComponent } from '../ui/panel-card.component';
 import { PanelShellComponent } from '../ui/panel-shell.component';
@@ -12,6 +13,7 @@ import { fetchProducts } from '../stock/products-repository';
 import {
   ARENA_COMANDA_PAYMENT_METHOD_LABEL,
   ARENA_COMANDA_STATUS_LABEL,
+  comandaCloseEmptyBlockReason,
   comandaItemReverseBlockReason,
   comandaRemainingCents,
   comandaStatusIsActive,
@@ -22,7 +24,15 @@ import {
   type ArenaComandaPayment,
   type ArenaComandaPaymentMethod,
 } from './comanda.model';
-import { addItemsBatch, fetchComanda, fetchComandaItems, fetchComandaPayments, registerPayment, reverseComandaItem } from './comandas-repository';
+import {
+  addItemsBatch,
+  closeEmptyComanda,
+  fetchComanda,
+  fetchComandaItems,
+  fetchComandaPayments,
+  registerPayment,
+  reverseComandaItem,
+} from './comandas-repository';
 
 const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 'cash', 'wallet', 'other'];
 
@@ -33,7 +43,7 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
 @Component({
   selector: 'ar-panel-order-detail',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, IconComponent],
+  imports: [PanelShellComponent, PageHeaderComponent, PanelCardComponent, IconComponent, ModalComponent],
   template: `
     <ar-panel-shell>
       <ar-page-header [title]="headerTitle()" [subtitle]="headerSubtitle()" />
@@ -208,10 +218,35 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
                   {{ paying() ? 'Registrando…' : 'Registrar pagamento' }}
                 </button>
               </ar-panel-card>
+            } @else if (canCloseEmpty()) {
+              <ar-panel-card title="Fechar comanda">
+                <p class="state-text">Nenhum item foi lançado nesta comanda.</p>
+                <button type="button" class="ar-mini-btn close-empty-btn" [disabled]="closingEmpty()" (click)="showCloseConfirm.set(true)">
+                  Fechar comanda
+                </button>
+              </ar-panel-card>
             } @else if (c.status === 'closed') {
-              <p class="state-text">Comanda fechada — totalmente paga.</p>
+              <p class="state-text">{{ c.totalCents === 0 ? 'Comanda fechada sem consumo.' : 'Comanda fechada — totalmente paga.' }}</p>
             }
           </div>
+
+          @if (showCloseConfirm()) {
+            <ar-modal (close)="showCloseConfirm.set(false)">
+              <h2 class="confirm-title">Fechar comanda sem consumo?</h2>
+              <p class="confirm-body">
+                Nenhum item foi lançado em "{{ c.customerName }}". Ela será marcada como fechada e sai da lista de comandas abertas.
+              </p>
+              @if (closeEmptyError(); as cerr) {
+                <p class="confirm-error">{{ cerr }}</p>
+              }
+              <div class="confirm-actions">
+                <button type="button" class="ar-ghost-btn" [disabled]="closingEmpty()" (click)="showCloseConfirm.set(false)">Cancelar</button>
+                <button type="button" class="ar-mini-btn ar-mini-btn-primary" [disabled]="closingEmpty()" (click)="confirmCloseEmpty(c)">
+                  {{ closingEmpty() ? 'Fechando…' : 'Fechar comanda' }}
+                </button>
+              </div>
+            </ar-modal>
+          }
         } @else {
           <p class="state-text">Comanda não encontrada.</p>
         }
@@ -629,6 +664,41 @@ const PAYMENT_METHODS: ArenaComandaPaymentMethod[] = ['pix', 'credit', 'debit', 
       cursor: not-allowed;
     }
 
+    .close-empty-btn {
+      width: 100%;
+      margin-top: 14px;
+      height: 44px;
+    }
+
+    .confirm-title {
+      font-family: var(--nx-font-display);
+      font-weight: 800;
+      font-size: 19px;
+      color: var(--nx-text);
+      margin: 0 0 10px;
+    }
+
+    .confirm-body {
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: var(--nx-text-mute);
+      margin: 0 0 22px;
+    }
+
+    .confirm-error {
+      font-size: 12.5px;
+      color: var(--nx-live);
+      margin: -10px 0 18px;
+    }
+
+    .confirm-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
     @media (max-width: 1180px) {
       .body {
         grid-template-columns: 1fr;
@@ -673,6 +743,10 @@ export class PanelOrderDetailComponent {
   protected readonly paying = signal(false);
   protected readonly payError = signal<string | null>(null);
 
+  protected readonly showCloseConfirm = signal(false);
+  protected readonly closingEmpty = signal(false);
+  protected readonly closeEmptyError = signal<string | null>(null);
+
   protected readonly headerTitle = computed(() => {
     const c = this.comanda();
     return c ? `Comanda ${formatComandaNumber(c.displayNumber)}` : 'Comanda';
@@ -696,6 +770,10 @@ export class PanelOrderDetailComponent {
   protected readonly canPay = computed(() => {
     const c = this.comanda();
     return !!c && comandaStatusIsActive(c.status) && this.remainingCents() > 0;
+  });
+  protected readonly canCloseEmpty = computed(() => {
+    const c = this.comanda();
+    return !!c && !comandaCloseEmptyBlockReason(c);
   });
 
   protected readonly addSuggestions = computed(() => {
@@ -819,6 +897,23 @@ export class PanelOrderDetailComponent {
       this.payError.set(err instanceof Error ? err.message : 'Não foi possível registrar o pagamento.');
     } finally {
       this.paying.set(false);
+    }
+  }
+
+  protected async confirmCloseEmpty(comanda: ArenaComanda): Promise<void> {
+    const arenaId = this.arenaContext.arenaId();
+    if (!arenaId) return;
+
+    this.closingEmpty.set(true);
+    this.closeEmptyError.set(null);
+    try {
+      await closeEmptyComanda(arenaFirestore(), comanda.id);
+      this.showCloseConfirm.set(false);
+      await this.loadAll(arenaId, comanda.id);
+    } catch (err) {
+      this.closeEmptyError.set(err instanceof Error ? err.message : 'Não foi possível fechar a comanda.');
+    } finally {
+      this.closingEmpty.set(false);
     }
   }
 }

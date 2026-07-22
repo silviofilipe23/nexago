@@ -9,6 +9,8 @@ import 'package:nexago_app/core/ui/app_snackbar.dart';
 
 import '../../domain/arena_plan.dart';
 import '../../domain/arena_plan_providers.dart';
+import '../../domain/comandas/arena_comanda.dart';
+import '../../domain/comandas/arena_comanda_closed_args.dart';
 import '../../domain/comandas/arena_comanda_logic.dart';
 import '../../domain/comandas/arena_comanda_providers.dart';
 import '../plan/widgets/arena_plan_gate.dart';
@@ -44,6 +46,7 @@ class ArenaComandaDetailPage extends ConsumerWidget {
 
             final items = itemsAsync.valueOrNull ?? const [];
             final canClose = comanda.totalCents > 0;
+            final canCloseEmpty = canCloseEmptyComanda(comanda);
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -169,7 +172,14 @@ class ArenaComandaDetailPage extends ConsumerWidget {
                                     pathParameters: {'comandaId': comandaId},
                                   );
                                 }
-                              : null,
+                              : canCloseEmpty
+                                  ? () => _closeEmptyComanda(
+                                        context,
+                                        ref,
+                                        comandaId: comandaId,
+                                        comanda: comanda,
+                                      )
+                                  : null,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.brand,
                             foregroundColor: AppColors.black,
@@ -180,9 +190,11 @@ class ArenaComandaDetailPage extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(14),
                             ),
                           ),
-                          child: const Text(
-                            'Fechar conta →',
-                            style: TextStyle(fontWeight: FontWeight.w800),
+                          child: Text(
+                            canCloseEmpty && !canClose
+                                ? 'Fechar comanda'
+                                : 'Fechar conta →',
+                            style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
                         ),
                       ),
@@ -198,6 +210,53 @@ class ArenaComandaDetailPage extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _closeEmptyComanda(
+  BuildContext context,
+  WidgetRef ref, {
+  required String comandaId,
+  required ArenaComanda comanda,
+}) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Fechar comanda sem consumo?'),
+        content: Text(
+          'Nenhum item foi lançado em "${comanda.customerName}". '
+          'Ela será marcada como fechada e sai da lista de comandas abertas.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Fechar comanda'),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (confirmed != true || !context.mounted) return;
+
+  try {
+    final updated = await ref
+        .read(arenaComandasRepositoryProvider)
+        .closeEmptyComanda(comandaId: comandaId);
+
+    if (!context.mounted) return;
+    context.pushReplacementNamed(
+      AppRouteNames.arenaComandaClosed,
+      pathParameters: {'comandaId': comandaId},
+      extra: ArenaComandaClosedArgs(comanda: updated, payments: const []),
+    );
+  } catch (e) {
+    if (context.mounted) showAppSnackBar(context, '$e');
   }
 }
 

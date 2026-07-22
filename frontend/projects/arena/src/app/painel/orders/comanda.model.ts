@@ -137,3 +137,19 @@ export function comandaItemReverseBlockReason(
   }
   return null;
 }
+
+/** Motivo pelo qual a comanda vazia não pode ser fechada; `null` = permitido.
+ *  Comandas sem nenhum lançamento (`totalCents === 0`) nunca passam pelo fluxo
+ *  normal de pagamento — `registerPayment` exige `amountCents > 0` — então
+ *  precisam de um fechamento direto. */
+export function comandaCloseEmptyBlockReason(
+  comanda: Pick<ArenaComanda, 'status' | 'totalCents'>,
+): string | null {
+  if (!comandaStatusIsActive(comanda.status)) {
+    return 'Comanda já não está aberta.';
+  }
+  if (comanda.totalCents !== 0) {
+    return 'Comanda tem consumo lançado — registre o pagamento para fechar.';
+  }
+  return null;
+}

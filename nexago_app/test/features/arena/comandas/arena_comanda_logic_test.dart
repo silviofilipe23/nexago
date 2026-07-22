@@ -386,4 +386,23 @@ void main() {
       );
     });
   });
+
+  group('canCloseEmptyComanda', () {
+    test('allows closing an open comanda with no consumption', () {
+      expect(canCloseEmptyComanda(comanda(rentalCents: 0)), isTrue);
+    });
+
+    test('blocks closing when the comanda has consumption', () {
+      expect(canCloseEmptyComanda(comanda(rentalCents: 6000)), isFalse);
+    });
+
+    test('blocks closing a comanda that is already closed', () {
+      expect(
+        canCloseEmptyComanda(
+          comanda(status: ArenaComandaStatus.closed, rentalCents: 0),
+        ),
+        isFalse,
+      );
+    });
+  });
 }

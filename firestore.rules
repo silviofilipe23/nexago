@@ -1230,7 +1230,10 @@ service cloud.firestore {
           !('role' in request.resource.data) &&
           (
             !('roles' in request.resource.data) ||
-            request.resource.data.roles == resource.data.roles
+            (
+              'roles' in resource.data &&
+              request.resource.data.roles == resource.data.roles
+            )
           ) &&
           (
             !('superAdmin' in request.resource.data) ||

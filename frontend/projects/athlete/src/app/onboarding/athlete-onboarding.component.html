@@ -178,15 +178,17 @@
             </span>
           </label>
 
-          <label class="nx-field">
+          <div class="nx-field">
             <span class="nx-field-label">WhatsApp *</span>
-            <span class="nx-field-box" [class.nx-field-box--error]="phoneError()">
-              <input type="tel" [value]="phone()" (input)="phone.set($any($event.target).value)" placeholder="(00) 00000-0000" />
-            </span>
+            @if (phoneVerified()) {
+              <div class="nx-alert nx-alert--success" role="status">✓ Telefone verificado</div>
+            } @else {
+              <app-phone-verification (verified)="onPhoneVerified($event)" />
+            }
             @if (phoneError(); as e) {
               <span class="nx-field-msg nx-field-msg--error">{{ e }}</span>
             }
-          </label>
+          </div>
 
           <label class="nx-field">
             <span class="nx-field-label">Data de nascimento *</span>

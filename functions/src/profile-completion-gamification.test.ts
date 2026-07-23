@@ -23,6 +23,7 @@ test("detecta passos concluídos a partir do documento do usuário", () => {
     city: "Florianópolis",
     state: "SC",
     phoneNumber: "(48) 99999-8888",
+    phoneVerified: true,
     goals: ["compete"],
   });
 
@@ -32,6 +33,20 @@ test("detecta passos concluídos a partir do documento do usuário", () => {
   assert.equal(ctx.stepDone.whatsapp, true);
   assert.equal(ctx.stepDone.goals, true);
   assert.equal(ctx.allStepsComplete, true);
+});
+
+test("telefone com formato válido mas não verificado não conta o passo whatsapp", () => {
+  const ctx = computeProfileRewardContext({
+    avatarUrl: "https://cdn.example/avatar.jpg",
+    sport: "Vôlei de praia",
+    city: "Florianópolis",
+    state: "SC",
+    phoneNumber: "(48) 99999-8888",
+    goals: ["compete"],
+  });
+
+  assert.equal(ctx.stepDone.whatsapp, false);
+  assert.equal(ctx.allStepsComplete, false);
 });
 
 test("cidade legada com separador · conta como UF presente", () => {

@@ -27,12 +27,14 @@ import {
   XP_REFERRAL_BONUS,
   type ReferralRegistrationRejection,
 } from '../data/athlete-referral-repository';
+import { PhoneVerificationComponent } from '../shared/phone-verification/phone-verification.component';
 
 interface AthleteProfileData {
   fullName: string;
   city: string;
   state: string;
-  whatsappNumber: string;
+  phoneNumber: string;
+  phoneVerified: boolean;
   bio: string;
   publicProfileId: string | null;
   publicProfileEnabled: boolean;
@@ -42,7 +44,8 @@ const EMPTY_PROFILE: AthleteProfileData = {
   fullName: '',
   city: '',
   state: '',
-  whatsappNumber: '',
+  phoneNumber: '',
+  phoneVerified: false,
   bio: '',
   publicProfileId: null,
   publicProfileEnabled: true,
@@ -91,7 +94,14 @@ function readNumber(data: DocumentData | null | undefined, keys: readonly string
 @Component({
   selector: 'app-athlete-profile-settings',
   standalone: true,
-  imports: [ReactiveFormsModule, AtPanelShellComponent, SandRankCardComponent, NxPageLoadingComponent, NxSpinnerComponent],
+  imports: [
+    ReactiveFormsModule,
+    AtPanelShellComponent,
+    SandRankCardComponent,
+    NxPageLoadingComponent,
+    NxSpinnerComponent,
+    PhoneVerificationComponent,
+  ],
   templateUrl: './athlete-profile-settings.component.html',
   styleUrl: './athlete-profile-settings.component.scss',
 })
@@ -111,6 +121,7 @@ export class AthleteProfileSettingsComponent {
   protected readonly sendingReset = signal(false);
   protected readonly passwordResetSent = signal(false);
   protected readonly resetError = signal<string | null>(null);
+  protected readonly changingPhone = signal(false);
 
   // Programa de indicação (referral) — `referredBy` vem de `users/{uid}`, carregado junto
   // com o resto do perfil em loadRemoteProfile. `null` = ainda sem indicador vinculado,
@@ -137,7 +148,6 @@ export class AthleteProfileSettingsComponent {
   protected readonly form = this.fb.nonNullable.group({
     fullName: ['', [Validators.required, Validators.minLength(3)]],
     cityState: ['', Validators.required],
-    whatsappNumber: [''],
     bio: [''],
   });
 
@@ -152,6 +162,8 @@ export class AthleteProfileSettingsComponent {
   protected readonly profileBio = computed(
     () => this.profileState().bio || 'Conte um pouco sobre seu jogo editando o perfil.',
   );
+  protected readonly phoneNumber = computed(() => this.profileState().phoneNumber);
+  protected readonly phoneVerified = computed(() => this.profileState().phoneVerified);
   protected readonly accountEmail = computed(() => this.auth.user()?.email ?? this.auth.devEmail() ?? '');
 
   protected readonly levelLabel = computed(() => `Nível ${this.gamification.summary()?.level ?? 0}`);
@@ -256,7 +268,6 @@ export class AthleteProfileSettingsComponent {
     this.form.reset({
       fullName: current.fullName,
       cityState: joinCityState(current.city, current.state),
-      whatsappNumber: current.whatsappNumber,
       bio: current.bio,
     });
     this.saveError.set(null);
@@ -294,7 +305,6 @@ export class AthleteProfileSettingsComponent {
     try {
       const raw = this.form.getRawValue();
       const { city, state } = splitCityState(raw.cityState);
-      const whatsappNumber = raw.whatsappNumber.trim();
       const bio = raw.bio.trim();
       const publicProfileId = this.profileState().publicProfileId || buildPublicProfileId(raw.fullName, uid);
       // Preserva um "false" explícito (ex.: privacidade desativada no app); só liga por padrão
@@ -325,7 +335,6 @@ export class AthleteProfileSettingsComponent {
             displayName: raw.fullName,
             city,
             state,
-            whatsappNumber,
             bio,
             publicProfileId,
             publicProfileEnabled,
@@ -335,15 +344,15 @@ export class AthleteProfileSettingsComponent {
         ),
       ]);
 
-      this.profileState.set({
+      this.profileState.update((current) => ({
+        ...current,
         fullName: raw.fullName,
         city,
         state,
-        whatsappNumber,
         bio,
         publicProfileId,
         publicProfileEnabled,
-      });
+      }));
       this.saveSuccess.set('Perfil atualizado.');
       this.isEditing.set(false);
     } catch {
@@ -460,6 +469,21 @@ export class AthleteProfileSettingsComponent {
     }
   }
 
+  protected startChangePhone(): void {
+    this.changingPhone.set(true);
+  }
+
+  protected cancelChangePhone(): void {
+    this.changingPhone.set(false);
+  }
+
+  /** `confirmPhoneVerification` já gravou phoneNumber/phoneVerified em
+   *  users/{uid} via Admin SDK — aqui só refletimos o estado na UI. */
+  protected onPhoneVerified(event: { phoneNumber: string }): void {
+    this.profileState.update((current) => ({ ...current, phoneNumber: event.phoneNumber, phoneVerified: true }));
+    this.changingPhone.set(false);
+  }
+
   protected async sendPasswordReset(): Promise<void> {
     const email = this.auth.user()?.email;
     if (!email) {
@@ -521,7 +545,8 @@ export class AthleteProfileSettingsComponent {
         fullName,
         city: readString(profileData, ['city']) ?? readString(userData, ['city']) ?? '',
         state: readString(profileData, ['state']) ?? readString(userData, ['state']) ?? '',
-        whatsappNumber: readString(profileData, ['whatsappNumber']) ?? '',
+        phoneNumber: readString(userData, ['phoneNumber']) ?? '',
+        phoneVerified: userData?.['phoneVerified'] === true,
         bio: readString(profileData, ['bio']) ?? '',
         publicProfileId: readString(profileData, ['publicProfileId', 'athleteId', 'profileIdentifier']),
         // Só false quando o doc já existe e diz explicitamente false (ex.: privacidade desativada

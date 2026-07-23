@@ -204,4 +204,10 @@ export class AuthService {
     const cfg = environment.firebase;
     return cfg != null && (cfg.apiKey ?? '').length > 0;
   }
+
+  /** Instância do Firebase Auth já inicializada — usada por serviços que
+   *  precisam de recursos não expostos aqui (ex.: Phone Auth). */
+  getAuthInstance() {
+    return this.ensureAuth();
+  }
 }

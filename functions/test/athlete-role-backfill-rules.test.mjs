@@ -1,9 +1,13 @@
-// Backfill de `role`/`roles` em contas antigas (pré 2026-07-06) que nunca
-// tiveram esses campos gravados. Reproduz o bug relatado: `saveProfile`
-// passou a enviar `role`/`roles` em todo save (não só na criação, ver
-// nexago_app/.../athlete_profile_repository.dart) e a regra de update
-// comparava direto com `resource.data.role`, que não existe nesses docs —
-// evaluation error → permission-denied em qualquer edição de perfil.
+// `role`/`roles` em users/{uid} são congelados para o dono a partir da
+// migração role -> roles[] (ver docs/superpowers/plans/2026-07-15-role-to-
+// roles-migration.md, Task 8): o client NUNCA escreve `role`, e `roles` só
+// pode aparecer no payload de update se for IDÊNTICO ao já salvo. Contas
+// legadas sem `roles[]` são promovidas exclusivamente pela Cloud Function
+// `grantAthleteRole` (Admin SDK, fora destas regras) — ver
+// nexago_app/.../athlete_profile_repository.dart e
+// functions/src/athlete-signup.ts. Este arquivo antes cobria um caminho de
+// auto-backfill client-side que foi removido de propósito nessa migração;
+// os casos abaixo cobrem o contrato atual.
 // Rodar com o emulador: firebase emulators:exec --only firestore \
 //   "node functions/test/athlete-role-backfill-rules.test.mjs"
 import fs from 'node:fs';
@@ -53,58 +57,56 @@ async function expect(label, assertion) {
   }
 }
 
-// Doc legado: nunca teve `role`/`roles` gravado (cenário do bug real).
+// Doc legado: nunca teve `role`/`roles` gravado (pré-migração, ainda não
+// passou pela Cloud Function `grantAthleteRole` nem pelo script de backfill).
 const legacyDoc = {
   fullName: 'Atleta Legado',
   email: EMAIL,
   city: 'Goiânia',
 };
 
-// O backfill do app (saveProfile) grava role='athlete' + roles=['athlete']
-// junto de um campo qualquer (ex.: bio) em toda edição de perfil.
 await seed(legacyDoc);
 await expect(
-  'editar perfil com backfill de role/roles em doc legado (sem role salvo)',
-  assertSucceeds(
+  'doc sem roles salvo: dono não pode setar roles direto (só grantAthleteRole via CF)',
+  assertFails(
     updateDoc(doc(ownerDb(), 'users', UID), {
       bio: 'novo bio',
-      role: 'athlete',
       roles: ['athlete'],
     }),
   ),
 );
 
-// Doc já tem role/roles: comportamento de congelamento existente continua.
-await seed({ ...legacyDoc, role: 'athlete', roles: ['athlete'] });
+await seed(legacyDoc);
 await expect(
-  'editar perfil sem tocar role/roles quando já existentes',
+  'doc sem role salvo: dono não pode incluir role no payload',
+  assertFails(
+    updateDoc(doc(ownerDb(), 'users', UID), { bio: 'novo bio', role: 'athlete' }),
+  ),
+);
+
+// Doc já no formato pós-migração (só `roles`, sem `role`): editar outro campo
+// sem tocar roles continua funcionando — roles permanece idêntico após o merge.
+await seed({ ...legacyDoc, roles: ['athlete'] });
+await expect(
+  'editar perfil sem tocar roles quando já existente (roles inalterado)',
   assertSucceeds(
     updateDoc(doc(ownerDb(), 'users', UID), { bio: 'novo bio' }),
   ),
 );
 
-await seed({ ...legacyDoc, role: 'athlete', roles: ['athlete'] });
+await seed({ ...legacyDoc, roles: ['athlete'] });
 await expect(
-  'role já salvo não pode ser alterado pelo dono',
+  'roles já salvo não pode ser alterado pelo dono',
   assertFails(
-    updateDoc(doc(ownerDb(), 'users', UID), { role: 'admin' }),
+    updateDoc(doc(ownerDb(), 'users', UID), { roles: ['admin'] }),
   ),
 );
 
-// Backfill não pode ser usado para auto-promoção quando role nunca existiu.
-await seed(legacyDoc);
+await seed({ ...legacyDoc, roles: ['athlete'] });
 await expect(
-  'doc sem role salvo: backfill só pode gravar athlete (não admin)',
+  'dono não pode incluir role mesmo quando roles já existe',
   assertFails(
-    updateDoc(doc(ownerDb(), 'users', UID), { role: 'admin' }),
-  ),
-);
-
-await seed(legacyDoc);
-await expect(
-  'doc sem roles salvo: backfill não pode incluir admin/arena/organizer',
-  assertFails(
-    updateDoc(doc(ownerDb(), 'users', UID), { roles: ['athlete', 'admin'] }),
+    updateDoc(doc(ownerDb(), 'users', UID), { role: 'athlete' }),
   ),
 );
 

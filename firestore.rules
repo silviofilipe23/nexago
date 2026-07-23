@@ -1202,7 +1202,13 @@ service cloud.firestore {
           // Vínculo do programa de indicação (referral) só é gravado pela
           // Cloud Function `registerReferral` (idempotente, valida
           // auto-indicação) — o client não pode se auto-declarar indicado.
-          !('referredBy' in request.resource.data)
+          !('referredBy' in request.resource.data) &&
+          // Telefone verificado (SMS via Firebase Phone Auth) só é gravado
+          // pela Cloud Function `confirmPhoneVerification` — usuário novo
+          // não pode nascer já com telefone verificado.
+          !('phoneNumber' in request.resource.data) &&
+          !('phoneVerified' in request.resource.data) &&
+          !('phoneVerifiedAt' in request.resource.data)
         ) ||
         isAdmin() ||
         isPartnerPreRegistrationCreate(userId)
@@ -1224,7 +1230,10 @@ service cloud.firestore {
           !('role' in request.resource.data) &&
           (
             !('roles' in request.resource.data) ||
-            request.resource.data.roles == resource.data.roles
+            (
+              'roles' in resource.data &&
+              request.resource.data.roles == resource.data.roles
+            )
           ) &&
           (
             !('superAdmin' in request.resource.data) ||
@@ -1263,6 +1272,31 @@ service cloud.firestore {
             (
               'referredBy' in resource.data &&
               request.resource.data.referredBy == resource.data.referredBy
+            )
+          ) &&
+          // Telefone verificado é derivado por Cloud Function
+          // (`confirmPhoneVerification`, a partir do UserRecord do Firebase
+          // Auth) — o dono não pode criá-lo nem alterá-lo diretamente
+          // (anti-fraude: impede auto-declarar telefone verificado sem SMS).
+          (
+            !('phoneNumber' in request.resource.data) ||
+            (
+              'phoneNumber' in resource.data &&
+              request.resource.data.phoneNumber == resource.data.phoneNumber
+            )
+          ) &&
+          (
+            !('phoneVerified' in request.resource.data) ||
+            (
+              'phoneVerified' in resource.data &&
+              request.resource.data.phoneVerified == resource.data.phoneVerified
+            )
+          ) &&
+          (
+            !('phoneVerifiedAt' in request.resource.data) ||
+            (
+              'phoneVerifiedAt' in resource.data &&
+              request.resource.data.phoneVerifiedAt == resource.data.phoneVerifiedAt
             )
           ) &&
           athleteLevelsNotDowngraded()

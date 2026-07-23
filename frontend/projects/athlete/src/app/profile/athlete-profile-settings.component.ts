@@ -31,6 +31,7 @@ import { PhoneVerificationComponent } from '../shared/phone-verification/phone-v
 
 interface AthleteProfileData {
   fullName: string;
+  nickname: string;
   city: string;
   state: string;
   phoneNumber: string;
@@ -42,6 +43,7 @@ interface AthleteProfileData {
 
 const EMPTY_PROFILE: AthleteProfileData = {
   fullName: '',
+  nickname: '',
   city: '',
   state: '',
   phoneNumber: '',
@@ -147,6 +149,7 @@ export class AthleteProfileSettingsComponent {
 
   protected readonly form = this.fb.nonNullable.group({
     fullName: ['', [Validators.required, Validators.minLength(3)]],
+    nickname: [''],
     cityState: ['', Validators.required],
     bio: [''],
   });
@@ -267,6 +270,7 @@ export class AthleteProfileSettingsComponent {
     const current = this.profileState();
     this.form.reset({
       fullName: current.fullName,
+      nickname: current.nickname,
       cityState: joinCityState(current.city, current.state),
       bio: current.bio,
     });
@@ -305,6 +309,7 @@ export class AthleteProfileSettingsComponent {
     try {
       const raw = this.form.getRawValue();
       const { city, state } = splitCityState(raw.cityState);
+      const nickname = raw.nickname.trim() || null;
       const bio = raw.bio.trim();
       const publicProfileId = this.profileState().publicProfileId || buildPublicProfileId(raw.fullName, uid);
       // Preserva um "false" explícito (ex.: privacidade desativada no app); só liga por padrão
@@ -325,7 +330,7 @@ export class AthleteProfileSettingsComponent {
       await Promise.all([
         setDoc(
           doc(this.firestore, 'users', uid),
-          { fullName: raw.fullName, city, state, roles, hasAthleteRole: true, updatedAt: serverTimestamp() },
+          { fullName: raw.fullName, nickname, city, state, roles, hasAthleteRole: true, updatedAt: serverTimestamp() },
           { merge: true },
         ),
         setDoc(
@@ -347,6 +352,7 @@ export class AthleteProfileSettingsComponent {
       this.profileState.update((current) => ({
         ...current,
         fullName: raw.fullName,
+        nickname: nickname ?? '',
         city,
         state,
         bio,
@@ -543,6 +549,7 @@ export class AthleteProfileSettingsComponent {
 
       this.profileState.set({
         fullName,
+        nickname: readString(userData, ['nickname']) ?? '',
         city: readString(profileData, ['city']) ?? readString(userData, ['city']) ?? '',
         state: readString(profileData, ['state']) ?? readString(userData, ['state']) ?? '',
         phoneNumber: readString(userData, ['phoneNumber']) ?? '',

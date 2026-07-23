@@ -285,10 +285,13 @@ export class AthleteProfileSettingsComponent {
     this.isEditing.set(true);
 
     await this.brLocations.ready;
-    const cities = this.brLocations.citiesFor(current.state);
+    const liveState = this.form.controls.state.value;
+    const cities = this.brLocations.citiesFor(liveState);
     this.cityOptions.set(cities);
-    const matched = cities.find((c) => c.toLowerCase() === current.city.trim().toLowerCase());
-    this.form.patchValue({ city: matched ?? '' });
+    if (liveState === current.state) {
+      const matched = cities.find((c) => c.toLowerCase() === current.city.trim().toLowerCase());
+      this.form.patchValue({ city: matched ?? '' });
+    }
   }
 
   protected onStateSelected(uf: string): void {
